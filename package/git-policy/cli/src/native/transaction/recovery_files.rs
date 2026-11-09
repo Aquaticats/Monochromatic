@@ -8,8 +8,7 @@
 //! and the name of Git's PID file beside a lock.
 //! Why:
 //!  Each fails closed with the path and the operation named (`RecoveryError`),
-//! as the incumbent's
-//!  `commit-transaction-recovery-files.ts` does.
+//! so a caller never has to parse a message to learn which step failed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -331,7 +331,9 @@ pub fn resolve_index_state(
     ));
 }
 
-/// Every `commit-only.unit.test.ts` case.
+/// Every `commit-only.unit.test.ts` case,
+///  a corpus at `package/git-policy/cli/src/rule/commit-only.unit.test.ts` that was deleted on
+///  2026-10-13 in `642b6d72cb` with the TypeScript wrapper.
 #[cfg(test)]
 #[path = "rule_commit_only_tests.rs"]
 mod tests;

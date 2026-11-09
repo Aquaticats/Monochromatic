@@ -62,8 +62,8 @@ fn claimed_item(name: &str, stamp: &ClaimTime) -> (PathBuf, PathBuf, Claimed) {
     let work_dir: PathBuf = root.join("work");
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: root.display().to_string(),
-        git_dir: root.display().to_string(),
+        repository: root.to_path_buf(),
+        git_dir: root.to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: OID.to_owned(),
         parent: String::new(),
@@ -177,6 +177,10 @@ fn a_claim_claimed_again_by_another_instance_is_not_this_holders_though_its_id_i
 /// and is gone when the renewal is dropped:
 /// the drop waits for the task to end,
 /// so the task's own ending is the witness that nothing can rename afterwards.
+///  The names are read after that ending and never across it:
+/// a task that made one more pass before it read the stop was renewing correctly,
+/// and
+///  a name taken before the drop would have compared the claim against a pass that was still allowed to happen.
 #[test]
 fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
     let (root, work_dir, claimed) = claimed_item("renewal-thread", &clock());
@@ -188,15 +192,18 @@ fn a_running_renewal_renews_the_held_claims_until_it_is_dropped() {
     while claimed_names(work_dir.as_path()) == vec![claimed.name.clone()] && std::time::Instant::now() < bound {
         std::thread::sleep(Duration::from_millis(5));
     }
-    let renewed: Vec<String> = claimed_names(work_dir.as_path());
-    assert_ne!(renewed, vec![claimed.name.clone()], "the thread renewed the held claim");
+    assert_ne!(claimed_names(work_dir.as_path()), vec![claimed.name.clone()], "the thread renewed the held claim");
     // The drop says whether it waited for the task or only for its ceiling, and the task says it returned, so no clock is
     //  asked whether anything can rename after this line.
     let ended_before: usize = TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst);
     let dropped = crate::service_timing::capture::entries_of(|| drop(renewal));
     assert!(dropped.is_empty(), "the renewal's task ended with the drop, so nothing can rename after it: {dropped:?}");
     assert_eq!(TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst), ended_before.saturating_add(1), "the task returned before the drop did");
-    assert_eq!(claimed_names(work_dir.as_path()), renewed, "a dropped renewal renames nothing");
+    // What the returned task left: one claim, under a renewal's name. A pass it made before it read the stop is its own work
+    //  and not a rename after it, so no name is compared with one taken before the drop.
+    let after: Vec<String> = claimed_names(work_dir.as_path());
+    assert_eq!(after.len(), 1, "the drop left one claim: {after:?}");
+    assert_ne!(after, vec![claimed.name.clone()], "the claim the task left is a renewal's: {after:?}");
     remove(root.as_path());
 }
 
@@ -250,8 +257,8 @@ fn settlements_racing_renewals_lose_no_claim() {
     let work_dir: PathBuf = root.join("work");
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: root.display().to_string(),
-        git_dir: root.display().to_string(),
+        repository: root.to_path_buf(),
+        git_dir: root.to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: OID.to_owned(),
         parent: String::new(),

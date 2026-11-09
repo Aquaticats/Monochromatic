@@ -735,7 +735,7 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
         new: "b".repeat(40),
         ids: vec![String::from("id")],
         commits: vec!["c".repeat(40)],
-        paths: vec![String::from("a.txt")],
+        paths: vec![b"a.txt".to_vec()],
         derived: false,
         cleanup: None,
         index: git_dir.join("index"),

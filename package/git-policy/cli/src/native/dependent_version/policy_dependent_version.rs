@@ -5,7 +5,10 @@
 //!  its findings,
 //!  and the corrections a direct fix applies.
 //! Why:
-//!  The installed wrapper's policy (`dependent-version-bump-policy.ts`) reports one
+//!  The check keeps what the ported policy reported
+//!  (`package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts`,
+//!  deleted on 2026-10-13 in `642b6d72cb`):
+//!  one
 //!      finding per publishable dependent of a raised manifest,
 //!  each with a full-content
 //!      patch,

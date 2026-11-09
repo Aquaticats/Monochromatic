@@ -24,15 +24,11 @@
 //!  removal.
 //! A Git directory that is still there proves a refusal only once the command that took the snapshot has ended
 //!  (the process keeps its identity when it becomes Git,
-//! so the snapshot names it) and the worktree's checkout is intact.
-//! A Git directory that is still registered once its checkout is gone is a removal that will never finish,
-//! whether the
-//!  destroy or the person's own deletion took the checkout:
-//! a worktree without a directory can run no command,
-//! so the records reach the person only if a settle promotes them,
-//! and the registration is left to the person.
-//! While the command that took the snapshot lives,
-//! the removal may be under way,
+//! so the snapshot names it) and the worktree's checkout is intact;
+//!  while that command lives,
+//! or a checkout is missing from a Git directory that is still registered,
+//! the removal may be
+//!  under way or cut short,
 //! and the snapshot is kept.
 //! A snapshot that cannot be fully promoted,
 //! or fully taken,
@@ -47,13 +43,15 @@
 //! ```
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::debug;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::process_identity::current_birth_identity;
+use crate::path_bytes_in_records as path_bytes;
+use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::push_failure_notice::notice_directory;
 use crate::service_instance::instance_of;
-use crate::worktree_removal_snapshot_promotion::{NOTICES, WORK, files_of, name_of, promote_snapshot};
 use crate::work_item::{CLAIMED, PENDING, RECOVERING, WORK_DIRECTORY, WorkKind, find_claim, id_of_entry};
+use crate::worktree_removal_snapshot_promotion::{NOTICES, WORK, files_of, name_of, promote_snapshot};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -81,25 +79,11 @@ const ATTEMPTS: &str = "attempts";
 ///  the first.
 const LOOK_ROUNDS: usize = 2;
 
-/// What a Git directory,
-/// the process that took a snapshot,
-/// and the checkout say about a removal.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Removal {
-    /// The Git directory is gone,
-    /// or it is still registered and its checkout is gone:
-    /// the worktree is removed,
-    /// or never will be finished.
-    Done,
-    /// Every command that took the snapshot has ended and the checkout is intact:
-    /// Git refused,
-    /// or it was a dry run.
-    Refused,
-    /// A command that took the snapshot may still be removing,
-    /// or the evidence cannot be read:
-    /// not decided yet.
-    Undecided,
-}
+/// What a snapshot's Git directory,
+/// its taker and its checkout say about a removal.
+#[path = "worktree_removal_rescue_removal_state.rs"]
+mod removal_state;
+use removal_state::{Removal, named_git_dir, removal_of};
 
 /// Writes a file into a snapshot unless a file of that name is already there,
 /// which an earlier snapshot of the same worktree
@@ -207,98 +191,6 @@ fn register_attempt(snapshot: &Path) -> std::io::Result<()> {
     return write_private_file_unsynced(own.as_path(), identity.as_bytes());
 }
 
-/// What:
-///  Whether a command that took the snapshot may still be running,
-/// which a process that cannot be told apart from it counts as.
-/// Why:
-///   A process number alone can be reused,
-/// so the birth identity recorded with it decides.
-/// A record that cannot be read,
-/// or a
-///  process that cannot be inspected,
-/// is an owner that may be alive:
-/// discarding the snapshot on a guess would lose the records.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await attemptsMayBeRunning(snapshot)
-/// ```
-fn attempt_may_be_running(snapshot: &Path) -> bool {
-    // The loop stops at the first attempt that may be running, as `any` did.
-    for path in files_of(snapshot.join(ATTEMPTS).as_path()) {
-        if attempt_file_may_be_running(path.as_path()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// Whether the command that wrote one attempt file may still be running;
-/// a file that cannot be understood counts as running.
-fn attempt_file_may_be_running(path: &Path) -> bool {
-    let Ok(pid) = name_of(path).parse::<i64>() else { return false };
-    let Ok(recorded) = std::fs::read_to_string(path) else { return true };
-    if recorded.is_empty() {
-        // Being written.
-        return true;
-    }
-    return match process_birth_identity(pid) {
-        Ok(Some(now)) => now == recorded,
-        Ok(None) => false,
-        Err(error) => {
-            warn(TAG, format!("the process {pid} of a worktree removal cannot be inspected: {error}").as_str());
-            true
-        }
-    };
-}
-
-/// Whether the checkout a registered worktree's Git directory names is still there;
-/// nothing when the Git directory does not say.
-fn checkout_present(git_dir: &Path) -> Option<bool> {
-    let text: String = std::fs::read_to_string(git_dir.join("gitdir")).ok()?;
-    let marker: &Path = Path::new(text.trim_end());
-    if marker.as_os_str().is_empty() {
-        return None;
-    }
-    return Some(git_dir.join(marker).exists());
-}
-
-/// What:
-///  What a snapshot's Git directory,
-/// its taker and its checkout show of the removal it was taken for.
-/// Why:
-///   Git deletes the checkout first and the Git directory last,
-/// and refuses before it deletes anything.
-/// So a missing Git
-///  directory is a removal;
-/// an intact checkout whose taker has ended is a refusal;
-/// a checkout that is gone
-///  while its taker has ended cannot come back,
-/// so the removal is over however it ended and the records must reach the person;
-/// while the taker lives the removal may be under way,
-/// and a checkout whose state cannot be read decides nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await removalOf(gitDir, snapshot) // 'done' | 'refused' | 'undecided'
-/// ```
-fn removal_of(git_dir: &Path, snapshot: &Path) -> Removal {
-    match std::fs::symlink_metadata(git_dir) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Removal::Done,
-        Err(_) => return Removal::Undecided,
-        Ok(_) => {}
-    }
-    if attempt_may_be_running(snapshot) {
-        return Removal::Undecided;
-    }
-    return match checkout_present(git_dir) {
-        Some(true) => Removal::Refused,
-        Some(false) => Removal::Done,
-        None => Removal::Undecided,
-    };
-}
-
-/// What:
 ///  Copies the unshown notices and the unfinished push records of each linked worktree into a snapshot of that worktree,
 /// and
 ///  says what could not be copied.
@@ -389,7 +281,9 @@ pub(crate) fn snapshot_one(common_dir: &Path, git_dir: &Path) -> Vec<String> {
                 }
             }
             // Last, so that a snapshot that names its worktree is a whole one.
-            if let Err(error) = save_once(snapshot.join(GIT_DIR_FILE).as_path(), git_dir.to_string_lossy().as_bytes()) {
+            // The snapshot names its worktree by the bytes of its Git directory, so a path that is not text is still found.
+            let named: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
+            if let Err(error) = save_once(snapshot.join(GIT_DIR_FILE).as_path(), named.as_bytes()) {
                 failures.push(format!("the snapshot could not be completed ({error})"));
             }
         }
@@ -437,7 +331,8 @@ pub fn settle_removals(common_dir: &Path) -> Vec<String> {
             //  concurrent writer may be at it, so it is left to the next settle.
             continue;
         };
-        match removal_of(Path::new(named.as_str()), snapshot.as_path()) {
+        let Some(git_dir) = named_git_dir(named.as_str()) else { continue };
+        match removal_of(git_dir.as_path(), snapshot.as_path()) {
             Removal::Undecided => {}
             Removal::Refused => {
                 let _discarded = std::fs::remove_dir_all(snapshot.as_path());

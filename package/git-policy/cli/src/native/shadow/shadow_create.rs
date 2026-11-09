@@ -10,8 +10,7 @@
 //!  so `git worktree list` never shows it and preparation creates no ref in the real repository.
 //!  Its object store receives the objects native `git commit` writes,
 //!  and its alternates name the real object directory,
-//!  so a real `git prune` cannot delete a pending commit
-//!  (`src/shadow-repository/shadow-repository.ts`).
+//!  so a real `git prune` cannot delete a pending commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

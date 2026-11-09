@@ -12,6 +12,11 @@
 //!  progress lines go to standard error as they happen for the first unfinished worktree,
 //! and every worktree's lines come in
 //!  input order (`parallel_runner.rs`).
+//! Each conversion is one job of the process's blocking pool,
+// awaited by a task of the runtime
+//!  (`parallel_runner_on_the_runtime_awaiting.rs`),
+//! so the process's one bound covers it and the lines it says while it works go to the
+//!  consumer as they are said.
 //! Exit status 0 means every worktree is converted,
 //! already a subvolume,
 //! previewed,
@@ -31,11 +36,14 @@
 //! ```
 
 use crate::action::Action;
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::subvolume_command::main_checkout_root;
 use crate::diagnostic_log::debug;
+use crate::lazy_runtime::run_on_runtime;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::line_sink::LineSink;
-use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
+use crate::parallel_runner::{Event, OrderedEvents};
+use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
+use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_index_files::{LinkedWorktreeScan, scan_linked_worktrees};
 use crate::subvolume_platform::{LinuxPlatform, Platform};
@@ -43,8 +51,11 @@ use crate::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOT
 use crate::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
 use std::collections::HashMap;
 use std::ffi::OsString;
+use std::future::Future;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
 
 /// The tag of the diagnostic lines of this command.
 const TAG: &str = "convertWorktrees";
@@ -170,15 +181,22 @@ pub fn conversion_workers(lanes: usize, cap: Option<usize>, host: &HostResources
 /// ```
 pub struct ConvertRun<'run> {
     /// The filesystem operations;
-    /// shared by every worktree converted at once.
-    pub platform: &'run (dyn Platform + Sync),
+    /// shared by every worktree converted at once,
+    /// and owned because a conversion is a job of the blocking pool,
+    /// which must be `'static`.
+    ///  A `LinuxPlatform` given here must have been settled
+    /// (`with_its_conversion_environment_settled`),
+    /// because a conversion runs inside the runtime,
+    /// where the bridge that starts the Git child the facts are learned from refuses.
+    pub platform: Arc<dyn Platform + Send + Sync>,
     /// The parsed options.
     pub arguments: &'run ConvertArguments,
     /// The directory relative paths and `--all` are resolved from.
     pub cwd: &'run Path,
     /// The simulated kill;
-    /// shared by every worktree converted at once.
-    pub interrupt: &'run Interrupt,
+    /// shared by every worktree converted at once,
+    /// and owned for the reason the platform is.
+    pub interrupt: Arc<Interrupt>,
     /// The CPUs and memory the budget is derived from.
     pub host: &'run HostResources,
 }
@@ -193,8 +211,48 @@ pub struct ConvertRun<'run> {
 /// ```ts
 /// const code = await execute(platform, arguments, cwd, interrupt, say);
 /// ```
-pub fn execute(platform: &(dyn Platform + Sync), arguments: &ConvertArguments, cwd: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> i32 {
+pub fn execute(platform: Arc<dyn Platform + Send + Sync>, arguments: &ConvertArguments, cwd: &Path, interrupt: Arc<Interrupt>, say: &mut dyn FnMut(&str)) -> i32 {
     return execute_run(&ConvertRun { platform, arguments, cwd, interrupt, host: &HostResources::read() }, say);
+}
+
+/// What:
+///  What a run found to convert and how its targets are grouped into lanes.
+/// Why:
+///  The two are found together,
+/// in one job of the blocking pool
+/// (`execute_run_awaiting`),
+///  because both read the filesystem and one of them starts Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FoundTargets = { found: Targets | string; lanes: number[][] };
+/// ```
+struct FoundTargets {
+    /// The targets,
+    /// or the reason a run was refused before anything changed.
+    found: Result<Targets, String>,
+    /// The lanes of the targets,
+    /// empty when the run was refused.
+    lanes: Vec<Vec<usize>>,
+}
+
+/// What:
+///  Finds what a run covers,
+/// and groups its targets into lanes.
+/// Why:
+///  See `FoundTargets`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function findTheTargetsAndLanes(arguments: ConvertArguments, cwd: string): FoundTargets;
+/// ```
+fn find_the_targets_and_lanes(arguments: &ConvertArguments, cwd: &Path) -> FoundTargets {
+    let found: Targets = match targets(arguments, cwd) {
+        Ok(covered) => covered,
+        Err(reason) => return FoundTargets { found: Err(reason), lanes: Vec::new() },
+    };
+    let lanes: Vec<Vec<usize>> = lanes_of(found.covered.as_slice());
+    return FoundTargets { found: Ok(found), lanes };
 }
 
 /// What:
@@ -246,20 +304,37 @@ fn lanes_of(list: &[PathBuf]) -> Vec<Vec<usize>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class ConvertEachWorktree implements OrderedWork<string, Result<Verdict>> { run(index, path, say) { return convertWorktree(platform, path, options, interrupt, say); } }
+/// class ConvertEachWorktree implements OrderedAwaitingWork<string, Result<Verdict>> { async run(index, path, say) { return await runBlockingJobWithinTheBudget(() => convertWorktree(platform, path, options, interrupt, say)); } }
 /// ```
-struct ConvertEachWorktree<'a> {
+struct ConvertEachWorktree {
     /// The filesystem the conversions run on.
-    platform: &'a (dyn Platform + Sync),
+    platform: Arc<dyn Platform + Send + Sync>,
     /// What the invocation asked of each conversion.
     options: ConvertOptions,
     /// Where an injected interruption stops a conversion.
-    interrupt: &'a Interrupt,
+    interrupt: Arc<Interrupt>,
 }
 
-impl OrderedWork<PathBuf, Result<Verdict, MigrateError>> for ConvertEachWorktree<'_> {
-    fn run(&self, _index: usize, path: &PathBuf, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
-        return convert_worktree(self.platform, path.as_path(), self.options, self.interrupt, say);
+impl OrderedAwaitingWork<PathBuf, Result<Verdict, MigrateError>> for ConvertEachWorktree {
+    fn run<'a>(&'a self, _index: usize, path: &'a PathBuf, say: LinesToTheConsumer<Result<Verdict, MigrateError>>) -> Pin<Box<dyn Future<Output = Result<Verdict, MigrateError>> + Send + 'a>> {
+        return Box::pin(async move {
+            let platform: Arc<dyn Platform + Send + Sync> = Arc::clone(&self.platform);
+            let interrupt: Arc<Interrupt> = Arc::clone(&self.interrupt);
+            let options: ConvertOptions = self.options;
+            let worktree: PathBuf = path.clone();
+            // The sink is a value the item owns, so the job of the pool says the conversion's lines as it works.
+            let mut lines: LinesToTheConsumer<Result<Verdict, MigrateError>> = say;
+            let converted = run_blocking_job_within_the_budget(move || {
+                return convert_worktree(platform.as_ref(), worktree.as_path(), options, interrupt.as_ref(), &mut lines);
+            })
+            .await;
+            return match converted {
+                Ok(verdict) => verdict,
+                // Whether the worktree was touched is not known here: the step may have ended before it began,
+                //  or after it changed something, and the reason says which kind of end this was.
+                Err(refused) => Err(MigrateError::Runtime(refused.to_string())),
+            };
+        });
     }
 }
 
@@ -333,17 +408,67 @@ impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
             Event::End(_index, Err(error)) => {
                 self.failed += 1;
                 (self.say)(format!("  failed: {error}").as_str());
-                (self.say)("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
+                // A conversion whose step never started has no journal to finish, so only a step that ran may say it has one.
+                if !matches!(error, MigrateError::Runtime(_)) {
+                    (self.say)("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
+                }
             }
         }
     }
 }
 
 /// `execute` with the host's resources chosen by the caller.
+/// The callers of this face are synchronous (the command of the wrapper);
+/// so it enters the process's runtime once and waits there,
+/// and from inside the runtime it refuses,
+/// where `execute_run_awaiting` is the face such a caller uses.
 pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
-    let ConvertRun { platform, arguments, cwd, interrupt, host } = *run;
-    let found: Targets = match targets(arguments, cwd) {
+    return match run_on_runtime(execute_run_awaiting(run, say)) {
+        Ok(code) => code,
+        Err(refusal) => {
+            say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: could not start the work: {refusal}").as_str());
+            return FAILED_EXIT_CODE;
+        }
+    };
+}
+
+/// What:
+///  `execute_run` on the runtime:
+/// every worktree is a task of the awaited ordered runner,
+/// and each conversion is one job of the blocking pool inside its task.
+/// Why:
+///   A caller that is itself asynchronous cannot enter the runtime,
+/// so it awaits this face;
+/// the lines,
+/// the order and the exit status are the synchronous face's.
+/// One limit,
+/// said rather than hidden:
+/// finding the targets and their lanes (a scan of the linked worktrees)
+/// runs on the task that awaits this face,
+/// not on the blocking pool,
+/// because a job of the pool must own what it reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const code = await executeRunAwaiting({ platform, arguments, cwd, interrupt, host }, say);
+/// ```
+pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
+    let ConvertRun { platform, arguments, cwd, interrupt, host } = run;
+    // Finding the targets and grouping their lanes is storage and Git work (`canonicalize`, a scan of the linked
+    //  worktrees), so it is one job of the blocking pool: a path whose lookup stalls would otherwise hold the thread that
+    //  polls this runtime before the future's first await, where no timeout could expire.
+    let (arguments_owned, cwd_owned): (ConvertArguments, PathBuf) = ((*arguments).clone(), cwd.to_path_buf());
+    let located: FoundTargets = match run_blocking_job_within_the_budget(move || { return find_the_targets_and_lanes(&arguments_owned, cwd_owned.as_path()); }).await {
         Ok(found) => found,
+        Err(refused) => {
+            say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {refused}").as_str());
+            say("Nothing was changed.");
+            return REFUSED_EXIT_CODE;
+        }
+    };
+    let FoundTargets { found: targets_or_refusal, lanes } = located;
+    let found: Targets = match targets_or_refusal {
+        Ok(covered) => covered,
         Err(reason) => {
             say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {reason}").as_str());
             say("Nothing was changed.");
@@ -356,20 +481,19 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
         say(format!("  left out of --all: {reason}").as_str());
     }
     let left_out: usize = found.left_out.len();
-    let list: Vec<PathBuf> = found.covered;
+    let list: Arc<[PathBuf]> = Arc::from(found.covered);
     let options: ConvertOptions = ConvertOptions { dry_run: arguments.dry_run, abandon: arguments.abandon, command_line_attributes: arguments.command_line_attributes };
     // Said once, before the first worktree is touched, when the run can delete an old tree.
     if !arguments.dry_run && !arguments.abandon && !list.is_empty() {
         say(RISK_NOTICE);
     }
-    let lanes: Vec<Vec<usize>> = lanes_of(list.as_slice());
     let workers: usize = conversion_workers(lanes.len(), arguments.jobs, host);
     debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
     // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
-    //  filesystem. Lines and results come back to this thread, which says them in input order.
+    //  filesystem. Lines and results come back to the calling task, which says them in input order.
     let mut report: ConversionReport<'_> = ConversionReport {
         say,
-        list: list.as_slice(),
+        list: list.as_ref(),
         dry_run: arguments.dry_run,
         refused: 0,
         already_subvolume: 0,
@@ -378,15 +502,24 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
         would_convert: 0,
         failed: 0,
     };
-    run_ordered(OrderedRun {
-        items: list.as_slice(),
-        lanes: lanes.as_slice(),
+    let ran = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
+        items: Arc::clone(&list),
+        lanes: Arc::from(lanes),
         workers,
-        work: &ConvertEachWorktree { platform, options, interrupt },
+        work: Arc::new(ConvertEachWorktree { platform: Arc::clone(platform), options, interrupt: Arc::clone(interrupt) }),
         on_event: &mut report,
-    });
+    })
+    .await;
     let (refused, already_subvolume, undone, converted, would_convert, failed): (usize, usize, usize, usize, usize, usize) =
         (report.refused, report.already_subvolume, report.undone, report.converted, report.would_convert, report.failed);
+    let stopped: Option<String> = match ran {
+        Ok(()) => None,
+        // The worktrees the run did not reach were not touched, and what ended the run is said before the summary.
+        Err(ended) => Some(ended.to_string()),
+    };
+    if let Some(reason) = stopped.as_deref() {
+        (report.say)(format!("  the run stopped before every worktree was done: {reason}").as_str());
+    }
     // A worktree that is a subvolume already costs nothing and was skipped, as the line beside its name says, so it counts in
     //  the summary's skips; a refusal is counted apart because a refusal of a named worktree alone decides the status.
     let skipped: usize = refused + already_subvolume;
@@ -401,7 +534,7 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
         format!("{converted} converted or completed")
     };
     (report.say)(format!("{} worktree(s) looked at, {counted}, {skipped} skipped{undone_text}{failures}{left_text}.", list.len()).as_str());
-    if failed > 0 {
+    if failed > 0 || stopped.is_some() {
         return FAILED_EXIT_CODE;
     }
     return if refused > 0 && !arguments.all && !arguments.dry_run { REFUSED_EXIT_CODE } else { 0 };
@@ -445,7 +578,10 @@ pub fn convert_action(arguments: &ConvertArguments, cwd: &Path, environment: &[(
     if arguments.help {
         return Action::Exit { code: 0, stdout: String::from(CONVERT_HELP), stderr: String::new() };
     }
-    let code: i32 = execute(&LinuxPlatform::forwarding_to(environment, real_git), arguments, cwd, &Interrupt::never(), &mut say_on_standard_error);
+    // The conversion runs as a job of the blocking pool, which is inside the process's runtime, where no child may be
+    //  started through the bridge; so the facts about the Git this command forwards to are settled here, on this thread.
+    let platform: LinuxPlatform = LinuxPlatform::forwarding_to(environment, real_git).with_its_conversion_environment_settled();
+    let code: i32 = execute(Arc::new(platform), arguments, cwd, Arc::new(Interrupt::never()), &mut say_on_standard_error);
     return Action::Exit { code, stdout: String::new(), stderr: String::new() };
 }
 

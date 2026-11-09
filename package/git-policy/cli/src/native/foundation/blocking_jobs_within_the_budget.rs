@@ -30,6 +30,8 @@
 //! ```
 
 use crate::blocking_job::{BlockingJobError, run_blocking_job};
+use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
+use crate::the_place_of_one_blocking_job::{APlaceGivenBackWhenItEnds, ThePlaceOfOneJob};
 use crate::parallel_budget::HostResources;
 use crate::runtime_limits::RuntimeLimits;
 use crate::runtime_plan::budgeted_workers;
@@ -161,13 +163,125 @@ where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
 {
-    let _place: tokio::sync::OwnedSemaphorePermit = match Arc::clone(&budget().places).acquire_owned().await {
+    // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
+    #[cfg(test)]
+    let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
+    let place: tokio::sync::OwnedSemaphorePermit = match Arc::clone(&budget().places).acquire_owned().await {
         Ok(taken) => taken,
         // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
         Err(_closed) => return Err(BlockingJobError::Cancelled),
     };
-    return run_blocking_job(job).await;
+    // The place is this job's, so it is no longer one of the jobs waiting for one.
+    #[cfg(test)]
+    drop(_asking);
+    // The place and the claim travel together: a job the pool queued can run after this frame stops waiting, and then
+    //  it must still hold a place, while a job this frame gives up on must do nothing at all.
+    let claimed: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
+    let held: Arc<ThePlaceOfOneJob> = ThePlaceOfOneJob::holding(place);
+    // A caller that stops waiting drops this, and the job the pool still holds queued must then do nothing.
+    let mut call: TheCallOnAJob = TheCallOnAJob { claimed: Arc::clone(&claimed), held: Arc::clone(&held), settled: false };
+    let (jobs_claim, jobs_place) = (Arc::clone(&claimed), Arc::clone(&held));
+    let outcome = run_blocking_job(move || {
+        // The claim comes first, before anything of the job's own work.
+        if !jobs_claim.the_job_takes_it() {
+            return None;
+        }
+        let _place: APlaceGivenBackWhenItEnds = APlaceGivenBackWhenItEnds::covering(jobs_place);
+        return Some(job());
+    })
+    .await;
+    return match outcome {
+        Ok(Some(value)) => {
+            // The job ran and gave its place back as its work ended.
+            call.settled = true;
+            Ok(value)
+        }
+        // The job found the claim taken, which only this frame's reporter does, and only after this call returned.
+        Ok(None) => panic!("a blocking job found its own work given up on while the caller still waited for it"),
+        Err(failed) => {
+            // The place goes back here only when the job will never run: a job that took the claim holds it until its
+            //  work ends, so the process's bound keeps covering every running job.
+            let answered: BlockingJobError = a_refused_thread_start(failed, &claimed, &held);
+            call.settled = true;
+            Err(answered)
+        }
+    };
 }
+
+/// What:
+///  The error a refused start is,
+///  from what the claim on the job's work decided.
+/// Why:
+///  This is the only place that knows which of two things happened,
+/// because it takes the claim:
+///  a reporter's claim proves the queued closure will do nothing,
+/// and a claim the job took first proves the job started on another thread
+/// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+/// `spawn_task`,
+///  which queues the job before it asks for a thread).
+/// A message that says the step had not started is false in the second case,
+///  and for a conversion the worktree may already have been changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answered = aRefusedThreadStart(failed, claim, place); // NeverRuns | StartedAnyway
+/// ```
+fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWork, held: &ThePlaceOfOneJob) -> BlockingJobError {
+    if claimed.the_reporter_takes_it() {
+        held.give_it_back();
+        return match failed {
+            BlockingJobError::NoThreadToStart => BlockingJobError::NoThreadToStart,
+            other => other,
+        };
+    }
+    // The job took the claim, so it runs or has run, and this answer says only what is known.
+    return match failed {
+        BlockingJobError::NoThreadToStart => BlockingJobError::StartedAfterItsThreadWasRefused,
+        other => other,
+    };
+}
+
+/// What:
+///  The claim and the place of one job,
+///  until the call that made them settles them.
+/// Why:
+///  A caller that stops waiting drops this value,
+/// and the pool may still hold the job's closure queued
+/// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+/// `spawn_task`),
+///  so the claim is taken here to make that closure do nothing;
+/// the place goes back only then,
+///  because a job that took the claim first holds it until its work ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // on drop, before the call settled: if (claim.theReporterTakesIt()) place.giveItBack();
+/// ```
+struct TheCallOnAJob {
+    /// The claim on the job's work.
+    claimed: Arc<TheClaimOnAJobsWork>,
+    /// The place the job holds.
+    held: Arc<ThePlaceOfOneJob>,
+    /// Whether this call has already decided who gives the place back.
+    settled: bool,
+}
+
+impl Drop for TheCallOnAJob {
+    fn drop(&mut self) {
+        if self.settled {
+            return;
+        }
+        // The caller stopped waiting: a job the pool has not started must do nothing, and its place goes back here
+        //  unless that job took the claim, in which case it gives the place back when its work ends.
+        if self.claimed.the_reporter_takes_it() {
+            self.held.give_it_back();
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "jobs_waiting_for_a_place.rs"]
+pub(crate) mod jobs_waiting_for_a_place;
 
 /// Blocking-budget controls stay out of the release executable.
 #[cfg(test)]

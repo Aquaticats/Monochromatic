@@ -285,11 +285,13 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     if options.refresh_indexes && !run.journal.is_done("indexes") {
         let started: Instant = Instant::now();
         let mut lines: Vec<String> = Vec::new();
-        // The refresh reports each index into the list the lines are collected in.
-        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut lines);
+        // The refresh reports each index into the list the lines are collected in; they are said even when the refresh
+        //  stops, because each of them is a fact about an index that was looked at.
+        let refreshed: Result<usize, MigrateError> = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str().into()), std::slice::from_ref(&old_path), &mut lines);
         for text in &lines {
             run.line(text.as_str());
         }
+        let count: usize = refreshed?;
         run.line(format!("index stat rewrite: {count} index file(s), {:.2} s", started.elapsed().as_secs_f64()).as_str());
         run.journal.mark("indexes", "done")?;
     }

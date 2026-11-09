@@ -21,6 +21,8 @@
 //! const text = intentText(intent); const intent2 = parseIntent(text); // undefined when damaged
 //! ```
 
+use crate::path_bytes_in_records::HEX_SUFFIX;
+use crate::path_bytes_in_records as path_bytes;
 use crate::repo_read_layout::dot_git_target;
 use crate::service_protocol::Cleanup;
 use std::path::{Path, PathBuf};
@@ -59,7 +61,7 @@ pub struct Intent {
     /// in the same order as the identities.
     pub commits: Vec<String>,
     /// Paths whose index entries the batch updates.
-    pub paths: Vec<String>,
+    pub paths: Vec<Vec<u8>>,
     /// Whether the index entries to update are the paths that differ between `old` and `new`,
     /// read from the repository
     ///  when they are needed (a commit Git built has no list of changes to carry,
@@ -78,30 +80,76 @@ pub struct Intent {
     pub git_dir: PathBuf,
 }
 
+/// What:
+///  The lines a path takes in an intent:
+/// the plain text under `key` when one line can hold it,
+/// and its bytes in hexadecimal under `key` followed by `HEX_SUFFIX` always.
+/// Why:
+///   A reader prefers the bytes,
+/// so a path that is not text survives;
+/// the plain line stays for the records of an earlier release and for a person reading the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathLines = (key, path) => [textInOneLine(path) && `${key}=${textInOneLine(path)}`, `${key}Hex=${pathBytesHex(path)}`].filter(Boolean)
+/// ```
+fn path_lines(key: &str, path: &Path) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(text) = path_bytes::text_in_one_line(path) {
+        lines.push(format!("{key}={text}"));
+    }
+    lines.push(format!("{key}{HEX_SUFFIX}={}", path_bytes::hex_of_path(path)));
+    return lines;
+}
+
+/// What:
+///  The lines of an intent's cleanup:
+/// the Git directory,
+/// the scratch directory and the reftable flag,
+/// as tab-separated items,
+/// in both forms a path takes.
+/// Why:
+///   The cleanup is one field of the intent,
+/// so its two paths are one line,
+/// and a reader prefers the line that holds their bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cleanupLines = (cleanup) => cleanup ? [`cleanup=${gitDir}\t${scratch}\t${flag}`, `cleanupHex=${hex(gitDir)}\t${hex(scratch)}\t${flag}`] : []
+/// ```
+fn cleanup_lines(cleanup: Option<&Cleanup>) -> Vec<String> {
+    let Some(found) = cleanup else {
+        return Vec::new();
+    };
+    let mut lines: Vec<String> = Vec::new();
+    if let (Some(git_dir), Some(scratch)) = (path_bytes::text_in_one_line(found.git_dir.as_path()), path_bytes::text_in_one_line(found.scratch.as_path())) {
+        lines.push(format!("cleanup={git_dir}\t{scratch}\t{}", u8::from(found.reftable)));
+    }
+    lines.push(format!("cleanup{HEX_SUFFIX}={}\t{}\t{}", path_bytes::hex_of_path(found.git_dir.as_path()), path_bytes::hex_of_path(found.scratch.as_path()), u8::from(found.reftable)));
+    return lines;
+}
+
 /// The text of an intent:
 /// `key=value` lines,
 /// tabs between list items.
 pub fn intent_text(intent: &Intent) -> String {
-    let cleanup: String = match intent.cleanup.as_ref() {
-        Some(found) => format!("{}\t{}\t{}", found.git_dir.display(), found.scratch.display(), u8::from(found.reftable)),
-        None => String::new(),
-    };
-    return format!(
-        "seq={}\nrepository={}\ncommon={}\nref={}\nold={}\nnew={}\nids={}\ncommits={}\npaths={}\nderived={}\ncleanup={}\nindex={}\ngitdir={}\n",
-        intent.seq,
-        intent.repository.display(),
-        intent.common_dir.display(),
-        intent.reference,
-        intent.old,
-        intent.new,
-        intent.ids.join("\t"),
-        intent.commits.join("\t"),
-        intent.paths.join("\t"),
-        u8::from(intent.derived),
-        cleanup,
-        intent.index.display(),
-        intent.git_dir.display(),
-    );
+    let mut lines: Vec<String> = vec![format!("seq={}", intent.seq)];
+    lines.extend(path_lines("repository", intent.repository.as_path()));
+    lines.extend(path_lines("common", intent.common_dir.as_path()));
+    lines.extend([
+        format!("ref={}", intent.reference),
+        format!("old={}", intent.old),
+        format!("new={}", intent.new),
+        format!("ids={}", intent.ids.join("\t")),
+        format!("commits={}", intent.commits.join("\t")),
+        format!("paths={}", intent.paths.iter().map(Vec::as_slice).map(String::from_utf8_lossy).map(std::borrow::Cow::into_owned).collect::<Vec<String>>().join("\t")),
+        format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(Vec::as_slice).map(path_bytes::hex_of_bytes).collect::<Vec<String>>().join("\t")),
+        format!("derived={}", u8::from(intent.derived)),
+    ]);
+    lines.extend(cleanup_lines(intent.cleanup.as_ref()));
+    lines.extend(path_lines("index", intent.index.as_path()));
+    lines.extend(path_lines("gitdir", intent.git_dir.as_path()));
+    return format!("{}\n", lines.join("\n"));
 }
 
 /// What:
@@ -150,6 +198,26 @@ pub(crate) fn intent_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
 }
 
 /// What:
+///  The path an intent holds under `key`:
+/// the bytes of the line that follows it with `HEX_SUFFIX` when the intent has one,
+/// the plain text otherwise,
+/// and nothing when it holds neither.
+/// Why:
+///   A path that is not text survives only in the bytes,
+/// and an intent an earlier release wrote holds only the plain line.
+/// An error is damage:
+/// a line of bytes that is there and does not decode is no path,
+/// and a reader that took it for an absent line would name the place the older form names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const intentPath = (text, key) => pathOfTwoFields(value(text, key + 'Hex'), value(text, key));
+/// ```
+pub(crate) fn intent_path(text: &str, key: &str) -> Result<Option<PathBuf>, String> {
+    return path_bytes::path_of_the_two_fields(intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()), intent_value(text, key));
+}
+
+/// What:
 ///  The tab-separated items of an intent field,
 /// empty items left out.
 /// Why:
@@ -172,21 +240,68 @@ pub(crate) fn intent_list(text: &str, key: &str) -> Option<Vec<String>> {
 }
 
 /// What:
+///  The paths of an intent's list:
+/// the items of the line of bytes when the intent has one,
+/// the items of the plain line otherwise.
+/// Why:
+///   A path that is not text survives only in its bytes,
+/// and an intent an earlier release wrote holds only the plain line.
+/// An item that does not decode is damage and rejects the intent,
+/// because the entries it names would be updated under another name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const intentPathList = (text, key) => { const hex = value(text, key + 'Hex'); return (hex ?? value(text, key))?.split('\t').filter(Boolean).map((item) => hex === undefined ? item : pathOfHex(item)); };
+/// ```
+pub(crate) fn intent_path_list(text: &str, key: &str) -> Result<Option<Vec<Vec<u8>>>, String> {
+    let items: Vec<&str> = match intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()) {
+        Some(bytes) => {
+            let mut paths: Vec<Vec<u8>> = Vec::new();
+            for item in bytes.split('\t') {
+                if item.is_empty() {
+                    continue;
+                }
+                let Some(path) = path_bytes::path_of_hex(item) else {
+                    return Err(String::from("an item of a list of bytes is not the bytes of a path"));
+                };
+                paths.push(crate::path_bytes::path_bytes_of(path.as_path()).to_vec());
+            }
+            return Ok(Some(paths));
+        }
+        None => match intent_value(text, key) {
+            Some(plain) => plain.split('\t').collect(),
+            None => return Ok(None),
+        },
+    };
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    for item in items {
+        if !item.is_empty() {
+            paths.push(item.as_bytes().to_vec());
+        }
+    }
+    return Ok(Some(paths));
+}
+
+/// What:
 ///  The cleanup of an intent from its field:
 /// the Git directory,
 /// the scratch directory and the reftable flag,
 /// tab-separated.
 /// Why:
-///  `parse_intent` hands it to `Option::and_then`;
+///  `parse_intent` reads it with `?`,
+/// so a cleanup whose bytes do not decode is no intent;
 /// a field with fewer than three parts is no cleanup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const [gitDir, scratch, reftable] = entry.split('\t'); return reftable === undefined ? undefined : { gitDir, scratch, reftable: reftable === '1' };
 /// ```
-pub(crate) fn parse_cleanup(entry: &str) -> Option<Cleanup> {
+pub(crate) fn parse_cleanup(entry: &str, hexadecimal: bool) -> Option<Cleanup> {
     let mut parts = entry.split('\t');
     let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
+    if hexadecimal {
+        return Some(Cleanup { git_dir: path_bytes::path_of_hex(git_dir)?, scratch: path_bytes::path_of_hex(scratch)?, reftable: reftable == "1" });
+    }
     return Some(Cleanup { git_dir: PathBuf::from(git_dir), scratch: PathBuf::from(scratch), reftable: reftable == "1" });
 }
 
@@ -201,32 +316,43 @@ pub(crate) fn parse_cleanup(entry: &str) -> Option<Cleanup> {
 /// parseIntent(text) // undefined when damaged
 /// ```
 pub fn parse_intent(text: &str) -> Option<Intent> {
-    // An intent written before the index was recorded names it as the repository's own.
-    let index: PathBuf = match intent_value(text, "index") {
-        Some(named) => PathBuf::from(named),
-        None => PathBuf::from(intent_value(text, "repository").unwrap_or("")).join(".git").join("index"),
+    let repository: PathBuf = intent_path(text, "repository").ok().flatten()?;
+    // An intent written before the index was recorded names it as the repository's own; one whose line of bytes is damaged
+    //  is no intent, because the ordinary index is not where that batch was prepared.
+    let index: PathBuf = match intent_path(text, "index") {
+        Ok(Some(named)) => named,
+        Ok(None) => repository.join(".git").join("index"),
+        Err(_damaged) => return None,
     };
-    let repository: PathBuf = PathBuf::from(intent_value(text, "repository")?);
     // An intent written before the Git directory was recorded names its worktree by the repository it was made for, never
     //  by the directory its index sits in, which `GIT_INDEX_FILE` can put anywhere.
-    let worktree_git_dir: PathBuf = match intent_value(text, "gitdir") {
-        Some(named) => PathBuf::from(named),
-        None => git_dir_of_worktree(repository.as_path()),
+    let worktree_git_dir: PathBuf = match intent_path(text, "gitdir") {
+        Ok(Some(named)) => named,
+        Ok(None) => git_dir_of_worktree(repository.as_path()),
+        Err(_damaged) => return None,
+    };
+    // The line that holds the paths' bytes is the one a reader takes; the plain line is an earlier release's.
+    let cleanup: Option<Cleanup> = match intent_value(text, format!("cleanup{HEX_SUFFIX}").as_str()) {
+        Some(hexadecimal) => Some(parse_cleanup(hexadecimal, true)?),
+        None => match intent_value(text, "cleanup") {
+            Some(plain) => parse_cleanup(plain, false),
+            None => None,
+        },
     };
     return Some(Intent {
         seq: intent_value(text, "seq")?.parse().ok()?,
         repository,
-        common_dir: PathBuf::from(intent_value(text, "common")?),
+        common_dir: intent_path(text, "common").ok().flatten()?,
         reference: intent_value(text, "ref")?.to_string(),
         old: intent_value(text, "old")?.to_string(),
         new: intent_value(text, "new")?.to_string(),
         ids: intent_list(text, "ids")?,
         commits: intent_list(text, "commits")?,
-        paths: intent_list(text, "paths")?,
+        paths: intent_path_list(text, "paths").ok()??,
         // Intents written before these fields existed name neither.
         derived: intent_value(text, "derived") == Some("1"),
         index,
         git_dir: worktree_git_dir,
-        cleanup: intent_value(text, "cleanup").and_then(parse_cleanup),
+        cleanup,
     });
 }
