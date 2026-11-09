@@ -42,11 +42,79 @@ fn present_entries_are_copied_and_absent_ones_skipped() {
         "squash\n"
     );
     assert!(std::fs::symlink_metadata(shadow.join("MERGE_HEAD")).is_err());
-    assert_eq!(
-        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME))
-            .expect("record"),
-        "{}\n"
+    // A files-backend repository keeps no conclusion name in its ref store, so the record names nothing and is not written.
+    assert!(
+        std::fs::symlink_metadata(transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME)).is_err(),
+        "a record that names nothing is not written"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A files-backend copy of a worktree with no conclusion state names nothing in the store,
+///  so no record is written and no file of the copy is synced.
+/// Why:
+///   The record's only job is to name the values the ref store holds.
+/// This backend holds none,
+/// so the bytes would say nothing,
+/// and a commit that writes and flushes them waits for the disk for no answer.
+#[test]
+fn a_files_copy_names_nothing_in_the_store_so_it_writes_no_record_and_syncs_no_file() {
+    let root: PathBuf = fixture("conclusion-copy-names-nothing");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    let _earlier = crate::private_storage::take_file_syncs();
+    copy_conclusion_state(
+        &git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        shadow.as_path(),
+        transaction.as_path(),
+        RefFormat::Files,
+    )
+    .expect("copy");
+    let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert!(synced.is_empty(), "nothing in the copy is flushed: {synced:?}");
+    assert!(
+        std::fs::symlink_metadata(transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME)).is_err(),
+        "the record names nothing, so it is not written"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A reftable copy keeps the record and its flush even when no conclusion is in progress.
+/// Why:
+///   This backend keeps three pseudorefs in its ref store,
+/// so the record is the only place their copied values are written down;
+/// losing a torn one would leave the landing cleaning up the wrong pseudoref.
+#[test]
+fn a_reftable_copy_keeps_the_record_and_its_flush() {
+    let root: PathBuf = fixture("conclusion-copy-reftable-names-nothing");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("repo");
+    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "reftable");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    let _earlier = crate::private_storage::take_file_syncs();
+    copy_conclusion_state(
+        &git_context(),
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        shadow.as_path(),
+        transaction.as_path(),
+        RefFormat::Reftable,
+    )
+    .expect("copy");
+    let record: PathBuf = transaction.join(CONCLUSION_COPY_DIRECTORY).join(STORE_RECORD_FILENAME);
+    assert_eq!(std::fs::read_to_string(record.as_path()).expect("record"), "{}\n");
+    let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert!(synced.iter().any(|path| path == &record), "the reftable record is flushed: {synced:?}");
     remove(root.as_path());
 }
 
