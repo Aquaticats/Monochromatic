@@ -117,13 +117,16 @@ pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume>
 /// decided once,
 /// before real Git runs.
 /// Why:
-///   A `git worktree add` that finds its destination unregistered cannot tell, after its own Git
+///   A `git worktree add` that finds its destination unregistered cannot tell,
+/// after its own Git
 ///  returned,
-/// whether the registration there is the one its Git made: a second add at the same path
+/// whether the registration there is the one its Git made:
+/// a second add at the same path
 ///  leaves its registration exactly where this one's would be,
 /// and Git accepts an empty directory any
 ///  command prepared.
-/// One exclusive creation of the directory decides it before any Git runs: the
+/// One exclusive creation of the directory decides it before any Git runs:
+/// the
 ///  command that made the directory owns the destination,
 /// every other command finds it there and
 ///  copies nothing,

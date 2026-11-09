@@ -47,7 +47,8 @@ use std::path::{Path, PathBuf};
 /// Why:
 ///   The destination received none of the staged ignored files,
 /// so the record that names it must outlive this
-///  command: it holds every other command back from taking this worktree as a source,
+///  command:
+/// it holds every other command back from taking this worktree as a source,
 /// and the next command's
 ///  recovery reports the unfilled worktree to the person once this owner is gone.
 /// Settling the claim here would
@@ -317,7 +318,8 @@ fn unconfirmed_destination_notice(destination: &Path) -> String {
 }
 
 /// What:
-///  Whose destination a creating command is looking at, when it is about to copy.
+///  Whose destination a creating command is looking at,
+/// when it is about to copy.
 /// Why:
 ///   The copy writes into the registration a worktree's own ignored state,
 /// and only the command that made the destination may do it:

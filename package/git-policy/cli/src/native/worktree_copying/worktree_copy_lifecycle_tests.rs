@@ -614,8 +614,11 @@ fn a_failure_before_the_copy_keeps_the_record_of_the_worktree_that_was_never_fil
 }
 
 
-/// One destination, one copy: the command that reserved the directory fills it,
-/// whatever its own Git then returns, and the other command writes nothing and says so.
+/// One destination,
+/// one copy:
+/// the command that reserved the directory fills it,
+/// whatever its own Git then returns,
+/// and the other command writes nothing and says so.
 #[cfg(unix)]
 #[test]
 fn one_of_two_adds_at_one_destination_fills_it_and_the_other_writes_nothing() {
@@ -682,8 +685,10 @@ fn one_of_two_adds_at_one_destination_fills_it_and_the_other_writes_nothing() {
 }
 
 
-/// Two adds that both find the destination unregistered leave one copy and no unfilled, unrecorded worktree:
-/// the command that reserved the destination fills it, and the other one says it wrote nothing.
+/// Two adds that both find the destination unregistered leave one copy and no unfilled,
+/// unrecorded worktree:
+/// the command that reserved the destination fills it,
+/// and the other one says it wrote nothing.
 #[cfg(unix)]
 #[test]
 fn two_adds_at_one_absent_destination_fill_it_once() {

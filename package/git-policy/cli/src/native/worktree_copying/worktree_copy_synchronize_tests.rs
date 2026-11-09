@@ -192,7 +192,8 @@ fn a_copy_into_a_replaced_registration_stops_before_the_first_entry() {
 }
 
 /// A copy that fails after its stage exists and before any journal names it removes the staged bytes and keeps its
-/// claim, so the destination is known to be unfilled instead of looking ready.
+/// claim,
+/// so the destination is known to be unfilled instead of looking ready.
 #[cfg(unix)]
 #[test]
 fn abandoning_a_staged_copy_keeps_the_record_of_its_destination() {
