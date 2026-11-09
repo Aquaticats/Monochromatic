@@ -9105,11 +9105,20 @@ and leave one audit line each
   The owner's choice is "Allow,
   add audit line".
   One line per branch that exists,
-  with `facts` holding `branch`,
-  `commit` (the full object name,
-  so `git branch <branch> <commit>` restores it) and `merged`
+  with `facts` holding `branch` (the name as typed),
+  `reference` (the full reference the deletion took:
+  `refs/heads/<name>`,
+  or `refs/remotes/<name>` when `-r` or `--remotes` was given),
+  `commit` (the full object name that reference pointed at,
+  so `git update-ref <reference> <commit>` restores it) and `merged`
   (whether that commit is an ancestor of the command's `HEAD`,
   which is what Git's own `-d` means).
+  The namespace is read from the command,
+  because the same name can exist as a local branch and as a remote-tracking reference at two different commits,
+  and a record that read the local branch would name the wrong commit to restore.
+  A short cluster is read letter by letter,
+  except after `-u`,
+  whose value takes the rest of the token (`-ur` sets the upstream of `r` and selects nothing).
   A name with no local branch writes no line:
   it deletes nothing and Git's own error is the answer.
   `--delete-merged` is not read,

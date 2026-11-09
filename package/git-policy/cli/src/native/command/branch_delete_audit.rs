@@ -53,9 +53,33 @@ fn prefix_for(context: &GitContext, root: Option<&Path>) -> Vec<OsString> {
     ];
 }
 
+/// The reference namespace a local branch lives in.
+pub const HEADS: &str = "refs/heads/";
+
+/// The reference namespace a remote-tracking branch lives in.
+pub const REMOTES: &str = "refs/remotes/";
+
 /// What:
-///  The commit one local branch points at,
-/// or nothing when there is no such branch.
+///  The full reference a deletion name points at in the namespace it deletes from.
+/// Why:
+///   `git branch -D gone` deletes `refs/heads/gone` and `git branch -r -D origin/gone` deletes
+///  `refs/remotes/origin/gone`:
+///  the same name can exist in both,
+/// and the record has to name the one Git took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reference = (remotes ? 'refs/remotes/' : 'refs/heads/') + name;
+/// ```
+pub fn reference_of(name: &OsStr, remotes: bool) -> OsString {
+    let mut reference: OsString = OsString::from(if remotes { REMOTES } else { HEADS });
+    reference.push(name);
+    return reference;
+}
+
+/// What:
+///  The commit one branch points at,
+/// or nothing when the repository has no such reference.
 /// Why:
 ///   A deletion of a name that does not exist deletes nothing,
 ///  and Git answers that itself;
@@ -64,11 +88,10 @@ fn prefix_for(context: &GitContext, root: Option<&Path>) -> Vec<OsString> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', `refs/heads/${name}`]);
+/// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', reference]);
 /// ```
-pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<String> {
-    let mut reference: OsString = OsString::from("refs/heads/");
-    reference.push(name);
+pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<String> {
+    let reference: OsString = reference_of(name, remotes);
     let mut arguments: Vec<OsString> = prefix_for(context, root);
     for token in ["rev-parse", "--verify", "--quiet"] {
         arguments.push(OsString::from(token));
@@ -132,10 +155,11 @@ pub fn merged_into_head(context: &GitContext, root: Option<&Path>, commit: &str)
 /// ```ts
 /// function deletionFacts({ context, name }): [string, AuditFact[]] | undefined;
 /// ```
-pub fn deletion_facts(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<Vec<AuditFact>> {
-    let commit: String = branch_commit(context, root, name)?;
+pub fn deletion_facts(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<Vec<AuditFact>> {
+    let commit: String = branch_commit(context, root, name, remotes)?;
     let mut facts: Vec<AuditFact> = vec![
         AuditFact::Text("branch", name.to_string_lossy().into_owned()),
+        AuditFact::Text("reference", reference_of(name, remotes).to_string_lossy().into_owned()),
         AuditFact::Text("commit", commit.clone()),
     ];
     if let Some(merged) = merged_into_head(context, root, commit.as_str()) {
@@ -148,15 +172,19 @@ pub fn deletion_facts(context: &GitContext, root: Option<&Path>, name: &OsStr) -
 ///  Restore advice a person can run,
 ///  as one text fact,
 ///  so a reader of the line does not have to look up the command.
+///  `&[u8]`/`&str` borrow the full reference and the commit.
 /// Why:
-///   The whole point of the line is that the branch comes back.
+///   The whole point of the line is that the branch comes back,
+///  and `git update-ref` restores a
+///       local branch and a remote-tracking reference alike,
+///  where `git branch` restores only the first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `git branch ${name} ${commit}`
+/// `git update-ref ${reference} ${commit}`
 /// ```
-pub fn restore_command(name: &OsStr, commit: &str) -> String {
-    return format!("git branch {} {commit}", name.to_string_lossy());
+pub fn restore_command(reference: &OsStr, commit: &str) -> String {
+    return format!("git update-ref {} {commit}", reference.to_string_lossy());
 }
 
 /// The facts and their real-Git controls stay out of the release executable.

@@ -1042,3 +1042,63 @@ fn a_recorded_form_says_its_line_was_written_before_git_ran() {
     assert!(!allowed_line.contains("writtenBeforeGitRuns"), "{allowed_line}");
     remove(&fixture);
 }
+
+/// A deletion of a remote-tracking branch records that reference and its own commit,
+/// not the local branch of
+///  the same name.
+#[test]
+fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
+    let fixture: Fixture = fixture("audit-branch-delete-remotes");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A local branch named like the remote-tracking one, and a remote-tracking ref on another commit.
+    git(&fixture, repo.as_path(), &["branch", "origin/gone"]);
+    let local: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "origin/gone"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    std::fs::write(repo.join("tracked.txt"), b"the remote commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=remote", "--", "tracked.txt"]);
+    let remote: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    assert_ne!(local, remote, "the control needs two different commits");
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/gone", remote.as_str()]);
+    for spelling in [vec!["branch", "--remotes", "-D", "origin/gone"], vec!["branch", "-rD", "origin/gone"]] {
+        // The remote-tracking ref is there again before each spelling, and the local branch never moves.
+        git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/gone", remote.as_str()]);
+        let deletion: Observed = run_wrapped(&fixture, repo.as_path(), spelling.as_slice());
+        assert_eq!(deletion.code, Some(0), "{spelling:?}: {}", stderr_of(&deletion));
+        let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+        for field in [
+            "\"branch\":\"origin/gone\"",
+            "\"reference\":\"refs/remotes/origin/gone\"",
+            format!("\"commit\":\"{remote}\"").as_str(),
+        ] {
+            assert!(line.contains(field), "{spelling:?}: {field} missing from {line}");
+        }
+        assert!(!line.contains(local.as_str()), "{spelling:?}: the local commit is in {line}");
+        // Git deleted the remote-tracking ref and left the local branch where it was.
+        let listed: String = String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/remotes"]).stdout.as_slice(),
+        )
+        .trim()
+        .to_owned();
+        assert_eq!(listed, "", "{spelling:?} left a remote-tracking ref");
+        assert_eq!(
+            String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "refs/heads/origin/gone"]).stdout.as_slice())
+                .trim()
+                .to_owned(),
+            local,
+            "{spelling:?} moved the local branch"
+        );
+    }
+    // A remote-tracking name the local branch does not have still records the reference it deleted.
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/other", remote.as_str()]);
+    let other: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-r", "-D", "origin/other"]);
+    assert_eq!(other.code, Some(0), "{}", stderr_of(&other));
+    let other_line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    assert!(other_line.contains("\"reference\":\"refs/remotes/origin/other\""), "{other_line}");
+    assert!(other_line.contains(remote.as_str()), "{other_line}");
+    remove(&fixture);
+}

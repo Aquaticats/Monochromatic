@@ -1630,8 +1630,10 @@ also when `--no-enforce-worktree` is given:
 - `git branch -d`,
   `git branch -D` and `git branch --delete` from the main worktree;
   one line per branch names the branch,
+  the reference it took (`refs/heads/<name>`,
+  or `refs/remotes/<name>` with `-r`/`--remotes`),
   its commit and whether it was already merged,
-  so `git branch <branch> <commit>` brings it back.
+  so `git update-ref <reference> <commit>` brings it back.
 
 Every rejection names the form,
  what it would destroy,

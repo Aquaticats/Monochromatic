@@ -11,7 +11,7 @@
 //! // branchDeletions(['-D', 'gone', 'other']) === ['gone', 'other']
 //! ```
 
-use super::branch_deletions;
+use super::{branch_deletion, branch_deletions};
 use crate::command_test_support::{git, git_status, os_arguments, remove, repository};
 use crate::test_support::fixture;
 use std::ffi::OsString;
@@ -116,4 +116,34 @@ fn real_git_deletes_what_the_reader_names() {
 fn branch_list(repo: &std::path::Path, name: &str) -> String {
     let output: std::process::Output = git(repo, &["branch", "--list", name]);
     return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+}
+
+/// A deletion names the reference namespace it deletes from,
+/// in every spelling of `--remotes`,
+/// and the value of an upstream option is never read as one.
+#[test]
+fn a_deletion_names_the_namespace_it_deletes_from() {
+    for spelled in [
+        vec!["--remotes", "-D", "origin/gone"],
+        vec!["-r", "-D", "origin/gone"],
+        vec!["-rD", "origin/gone"],
+        vec!["-Dr", "origin/gone"],
+        vec!["-d", "--remotes", "origin/gone"],
+    ] {
+        let deletion = branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
+        assert!(deletion.remotes, "{spelled:?}");
+        assert_eq!(deletion.names, vec![OsString::from("origin/gone")], "{spelled:?}");
+    }
+    for spelled in [
+        vec!["-D", "gone"],
+        vec!["-d", "gone"],
+        // `-u r` sets the upstream of no branch: `r` is that option's value, not `--remotes`.
+        vec!["-ur", "-D", "gone"],
+        vec!["-u", "r", "-D", "gone"],
+    ] {
+        let deletion = branch_deletion(os_arguments(spelled.as_slice()).as_slice()).expect("a deletion");
+        assert!(!deletion.remotes, "{spelled:?}");
+    }
+    assert_eq!(branch_deletion(os_arguments(&["--list"]).as_slice()), None);
+    assert_eq!(branch_deletion(os_arguments(&["-r"]).as_slice()), None);
 }

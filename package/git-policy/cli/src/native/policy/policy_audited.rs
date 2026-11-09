@@ -23,7 +23,7 @@
 //! ```
 
 use crate::branch_delete_audit::deletion_facts;
-use crate::command_branch_delete::branch_deletions;
+use crate::command_branch_delete::branch_deletion;
 use crate::command_worktree::{WorktreeRemoval, worktree_removal};
 use crate::discard_audit::{AuditOutcome, record_audit_with_facts};
 use crate::discard_audit_facts::AuditFact;
@@ -77,9 +77,12 @@ pub fn record_audited(
         }
         AuditedCommand::BranchDelete => {
             let root: Option<PathBuf> = worktree_root(&location.identity).map(Path::to_path_buf);
-            for name in deletions_of(arguments) {
-                // A name with no local branch deletes nothing, and Git's own error is the answer: no line.
-                let Some(read) = deletion_facts(&context, root.as_deref(), name.as_os_str()) else {
+            let Some(deletion) = branch_deletion(region_of(arguments)) else {
+                return;
+            };
+            for name in &deletion.names {
+                // A name with no reference in that namespace deletes nothing, and Git's own error is the answer: no line.
+                let Some(read) = deletion_facts(&context, root.as_deref(), name.as_os_str(), deletion.remotes) else {
                     continue;
                 };
                 record_audit_with_facts(&location.identity, audited, AuditOutcome::Logged, arguments, None, read.as_slice());
@@ -102,20 +105,6 @@ pub fn record_audited(
 /// ```
 fn removal_of(arguments: &[OsString]) -> Option<WorktreeRemoval> {
     return worktree_removal(region_of(arguments));
-}
-
-/// What:
-///  The branch names a deletion names.
-/// Why:
-///   The decision already read the same region,
-/// so a region that deletes nothing yields no name and no line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// branchDeletions(regionOf(args)) ?? []
-/// ```
-fn deletions_of(arguments: &[OsString]) -> Vec<OsString> {
-    return branch_deletions(region_of(arguments)).unwrap_or_default();
 }
 
 /// What:

@@ -65,24 +65,25 @@ fn real_git_answers_the_commit_and_whether_head_contains_it() {
     let reading: GitContext = context(repo.as_path());
 
     // The unmerged branch: named with its commit, and `HEAD` does not contain it.
-    assert_eq!(branch_commit(&reading, Some(repo.as_path()), OsStr::new("unmerged")).as_deref(), Some(commit.as_str()));
+    assert_eq!(branch_commit(&reading, Some(repo.as_path()), OsStr::new("unmerged"), false).as_deref(), Some(commit.as_str()));
     assert_eq!(merged_into_head(&reading, Some(repo.as_path()), commit.as_str()), Some(false));
     let unmerged: Vec<AuditFact> =
-        deletion_facts(&reading, Some(repo.as_path()), OsStr::new("unmerged")).expect("the branch exists");
+        deletion_facts(&reading, Some(repo.as_path()), OsStr::new("unmerged"), false).expect("the branch exists");
     assert_eq!(value(&unmerged, "branch"), "unmerged");
+    assert_eq!(value(&unmerged, "reference"), "refs/heads/unmerged");
     assert_eq!(value(&unmerged, "commit"), commit);
     assert_eq!(value(&unmerged, "merged"), "false");
 
     // The merged branch: the same fields say the commits are already in `HEAD`.
     let merged: Vec<AuditFact> =
-        deletion_facts(&reading, Some(repo.as_path()), OsStr::new("merged")).expect("the branch exists");
+        deletion_facts(&reading, Some(repo.as_path()), OsStr::new("merged"), false).expect("the branch exists");
     assert_eq!(value(&merged, "merged"), "true");
     assert_ne!(value(&merged, "commit"), commit);
 
     // A name with no local branch answers nothing, so the record writes no line for it.
-    assert_eq!(branch_commit(&reading, Some(repo.as_path()), OsStr::new("no-such-branch")), None);
-    assert_eq!(deletion_facts(&reading, Some(repo.as_path()), OsStr::new("no-such-branch")), None);
+    assert_eq!(branch_commit(&reading, Some(repo.as_path()), OsStr::new("no-such-branch"), false), None);
+    assert_eq!(deletion_facts(&reading, Some(repo.as_path()), OsStr::new("no-such-branch"), false), None);
     // Without a known worktree the invocation's own options select the repository.
-    assert_eq!(branch_commit(&reading, None, OsStr::new("unmerged")).as_deref(), Some(commit.as_str()));
+    assert_eq!(branch_commit(&reading, None, OsStr::new("unmerged"), false).as_deref(), Some(commit.as_str()));
     remove(root.as_path());
 }
