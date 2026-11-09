@@ -209,6 +209,9 @@ pub mod service_hold_retry;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// Which end of a commit's scratch tree a submitted request leaves it to.
+pub mod service_commit_tree_ownership;
+
 /// What the branch shows once the commit service went silent after a commit was prepared.
 pub mod service_branch_shows;
 

@@ -64,6 +64,8 @@ use crate::service_branch_shows::{branch_moved, display_text};
 /// and the work after it.
 use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service, the_landed_commit};
 use crate::service_messages::{ClientFailure, render};
+/// Which end of the commit's scratch tree a submitted request leaves it to.
+use crate::service_commit_tree_ownership::the_service_never_took;
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use crate::service_replay::{Captured, Retry, conflict_result, retry_of};
@@ -84,45 +86,6 @@ pub struct ServiceCommit {
     /// How to leave the after-commit work for the service;
     /// absent when nothing landed.
     pub handoff: Option<ServiceHandoff>,
-}
-
-/// What:
-///  Whether a submission result is a definite answer that the service never took the request,
-///  so the commit's scratch tree goes back to this process and is removed as it ends.
-/// Why:
-///   A request the service took is one whose tree the service removes once its landing is over,
-///  so this process leaves it alone.
-///  An unanswered result is not proof that nothing took the request:
-///  a withdrawal the service did not confirm,
-///  a silence and a broken connection can all leave a branch write running,
-///  and removing the tree here would take the private index and the conclusion copies
-///  from under that landing.
-///  Such a tree waits for the service,
-///  and when no service ever collected it,
-///  for the age sweep of the repository scratch directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const neverTook = (result) => result.kind === 'still-with-service' || result.kind === 'refused' || result.kind === 'did-not-start' || ...;
-/// ```
-fn the_service_never_took(result: &Result<Submitted, ClientFailure>) -> bool {
-    let Err(failure) = result else { return false };
-    return matches!(
-        failure,
-        // The service answered that it withdrew the request, so it will never land and its tree is no landing's to read.
-        ClientFailure::StillWithService { .. }
-            // The service refused the request before it queued it.
-            | ClientFailure::Refused
-            // No service was reached at all, so nothing was written and nothing can be running.
-            | ClientFailure::DidNotStart
-            | ClientFailure::NoActivation(_)
-            | ClientFailure::OtherAccount
-            | ClientFailure::NoCommonVersion
-            | ClientFailure::OtherRelease
-            | ClientFailure::ProgramMissing(_)
-            | ClientFailure::CouldNotStart(_)
-            | ClientFailure::UnitInTheWay(_)
-    );
 }
 
 /// What:

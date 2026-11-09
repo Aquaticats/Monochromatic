@@ -554,7 +554,8 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
     return removed;
 }
 
-/// The names a removal of a leftover was handed, for the controls that prove it never names the tree an attempt makes.
+/// The names a removal of a leftover was handed,
+/// for the controls that prove it never names the tree an attempt makes.
 #[cfg(test)]
 #[path = "scratch_location_removal_targets_test_support.rs"]
 pub(crate) mod test_targets;
