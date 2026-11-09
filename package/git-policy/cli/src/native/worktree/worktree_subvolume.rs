@@ -36,6 +36,7 @@ use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_di
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_kind::{FilesystemKind, filesystem_kind};
 use crate::worktree_add_plan::AddPlan;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -146,12 +147,32 @@ pub enum Reservation {
     /// The destination was not there and this command made it.
     Mine(CreatedSubvolume),
     /// The destination was there already,
-    /// so it is another command's to fill.
-    Anothers,
+    /// so another command made it;
+    /// the identity is what stood there when the reservation was
+    ///  made,
+    /// and a different object at the path later is a replacement.
+    Anothers(Option<ObjectId>),
     /// Nothing was reserved:
     /// the command copies nothing,
     /// or the path could not be made.
     NotAttempted,
+}
+
+/// What:
+///  The identity of the object at `path` now,
+/// or nothing when it cannot be looked at.
+/// Why:
+///   A destination that stood there before this command's Git is another command's,
+/// and the object that stood
+///  there is what a later replacement is told apart from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function identityOfEntry(path: string): ObjectId | undefined;
+/// ```
+fn identity_of_entry(path: &Path) -> Option<ObjectId> {
+    let parent: File = std::fs::File::open(path.parent()?).ok()?;
+    return identity_at(&parent, path.file_name()?).ok();
 }
 
 /// What:
@@ -177,7 +198,7 @@ pub fn reserve_destination(destination: &Path) -> Reservation {
     // `match` on the exclusive creation: the command that makes the directory owns the destination.
     match std::fs::DirBuilder::new().create(destination) {
         Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Reservation::Anothers,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Reservation::Anothers(identity_of_entry(destination)),
         Err(error) => {
             debug(TAG, format!("no reservation of {} ({error}); Git makes the directory and this command copies nothing", destination.display()).as_str());
             return Reservation::NotAttempted;

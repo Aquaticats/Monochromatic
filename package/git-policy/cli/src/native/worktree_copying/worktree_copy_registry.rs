@@ -325,6 +325,7 @@ pub fn find_created_worktree(
     destination: &Path,
     registered_before: bool,
     mine: &str,
+    expected: Option<crate::fs_beneath::ObjectId>,
 ) -> Result<CreatedWorktrees, WorktreeCopyError> {
     if registered_before {
         return Ok(nothing_created(None));
@@ -334,6 +335,13 @@ pub fn find_created_worktree(
     let Ok(bound) = bind_registration(observation.common_dir.as_path(), destination) else {
         return Ok(nothing_created(None));
     };
+    // The claim is taken only for the registration this command made: a destination that is another object now is a
+    // replacement, and claiming its registration would keep the command that made it from copying its own ignored state.
+    if let Some(identity) = expected
+        && bound.binding.destination_id != identity
+    {
+        return Ok(nothing_created(None));
+    }
     let owner: RegistrationOwner = claim_registration(&bound.admin, mine).map_err(raw_failure_of)?;
     let Bound { binding, .. } = bound;
     if let RegistrationOwner::Another(other) = owner {

@@ -70,7 +70,7 @@ pub(crate) enum DestinationOwnership {
 /// ```ts
 /// function ownershipOf(reserved: Reservation, destination: string): DestinationOwnership;
 /// ```
-pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool) -> DestinationOwnership {
+pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destination: &Path) -> DestinationOwnership {
     // Only a Git that returned success registered the worktree this command asked for: a refusal means another command's
     // registration stands at the path, and a failure after registering means the checkout may be half done, so neither is
     // one this command fills.
@@ -87,11 +87,19 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool) -> Desti
             }
             _ => DestinationOwnership::MadeAgain,
         },
-        // A destination this command did not reserve is its own only because its own Git filled it, which the success
-        // above establishes; a leftover empty directory from a killed command is filled the same way.
-        Reservation::Anothers | Reservation::NotAttempted => DestinationOwnership::Mine,
+        // A destination this command did not make is its own only because its own Git filled it, which the success above
+        // establishes: the object that stood at the path before the reservation must still be the one the binding names.
+        // A different object is another command's replacement, which this command's ignored state is not written into.
+        Reservation::Anothers(identity) => match identity {
+            Some(seen) if crate::worktree_add_binding::path_identity(destination) != Some(*seen) => {
+                DestinationOwnership::MadeAgain
+            }
+            _ => DestinationOwnership::Mine,
+        },
+        Reservation::NotAttempted => DestinationOwnership::Mine,
     };
 }
+
 
 /// What:
 ///  The line for a destination this command will not copy into.

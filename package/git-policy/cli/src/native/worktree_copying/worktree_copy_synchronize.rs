@@ -391,7 +391,7 @@ pub(crate) fn synchronize_after(
     if !copies {
         return Ok(Vec::new());
     }
-    let ownership: DestinationOwnership = ownership_of(reserved, git_succeeded);
+    let ownership: DestinationOwnership = ownership_of(reserved, git_succeeded, destination);
     if ownership != DestinationOwnership::Mine {
         // A Git that never made the destination leaves nothing to explain: its own error is the whole report, and the
         // empty directory this command reserved is removed again below.
@@ -407,6 +407,12 @@ pub(crate) fn synchronize_after(
     // This command's own name for the registration: its stage claim's random name, which no other command shares, and the
     // process, so the person's line can name which process made a worktree this command did not.
     let mine: String = command_token(recorded.as_ref(), destination)?;
+    // The object the destination was when this command decided it was his: the registration it takes must be that one.
+    let expected: Option<crate::fs_beneath::ObjectId> = match reserved {
+        Reservation::Mine(made) => made.identity,
+        Reservation::Anothers(identity) => *identity,
+        Reservation::NotAttempted => None,
+    };
     let mut found: CreatedWorktrees =
         find_created_worktree(
             &invocation.context,
@@ -414,6 +420,7 @@ pub(crate) fn synchronize_after(
             destination,
             registered_before,
             mine.as_str(),
+            expected,
         )?;
     // The registration is bound once Git has returned; a reservation it does not describe is another command's
     // registration at this command's path, made after the ownership answer was read.

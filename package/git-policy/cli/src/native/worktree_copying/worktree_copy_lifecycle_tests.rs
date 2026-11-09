@@ -812,6 +812,46 @@ fn a_skipped_unfinished_source_keeps_the_record_of_the_worktree_it_did_not_fill(
     remove(root.as_path());
 }
 
+/// A destination that stood there before this command's Git and was moved away and made again is not this command's:
+/// its own Git succeeds,
+/// and what stands at its path is another command's registration.
+#[cfg(unix)]
+#[test]
+fn a_destination_that_stood_before_the_add_and_was_made_again_is_left_alone() {
+    let root: PathBuf = fixture("lifecycle-stood-before-made-again");
+    let (main, common) = source(root.as_path());
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let destination: PathBuf = canonical_root.join("taken");
+    let moved: PathBuf = canonical_root.join("moved-away");
+    // The destination stands there as an empty directory before this command runs, as another command's reservation does.
+    std::fs::create_dir(destination.as_path()).expect("an empty destination");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        &mut |_: &GitStep<'_>| {
+            let status: GitStatus = run_real(main.as_path(), add_arguments("mine", destination.as_path()).as_slice());
+            // Another command moves this worktree away and registers a different one at the same path.
+            git(main.as_path(), &["worktree", "move", destination.to_str().expect("utf8"), moved.to_str().expect("utf8")]);
+            git(
+                main.as_path(),
+                &["worktree", "add", "--quiet", "--no-checkout", "-b", "replacement", destination.to_str().expect("utf8")],
+            );
+            return Ok(status);
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert_eq!(exit_code(&settlement), 0, "Git's own success is kept: {said}");
+    assert_eq!(
+        std::fs::read(destination.join("cache/data")).ok(),
+        None,
+        "the replacement registration received nothing: {said}"
+    );
+    assert!(said.contains("received no ignored-state copy"), "the person is told why: {said}");
+    remove(root.as_path());
+}
+
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();
