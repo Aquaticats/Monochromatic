@@ -7,11 +7,12 @@
  policy (`PKG`, `TCV`) requires covered: one entry too few loses context, one
  too many feeds the model a frame outside the retention window.
 
- Retention is asserted on {@link retainedCaptureBuffer}, the pure function
- that takes the clock reading, because a set stored through the module
- singleton cannot be made to expire without waiting the full ten minutes. The
- singleton cases cover the append, eviction and copy behaviour that does not
- depend on time passing.
+ The cutoff is asserted twice on purpose. {@link retainedCaptureBuffer} takes
+ the clock reading, so every boundary around it (exactly at the cutoff, one
+ millisecond past it, mixed buffers) is a pure comparison. The singleton cases
+ then drive {@link store} and {@link getRecent} themselves, one of them with a
+ faked `Date` so a stored set can expire while it sits in the buffer; that is
+ the only way to show the read, and not the write, is what drops it.
 
  @module
  */
