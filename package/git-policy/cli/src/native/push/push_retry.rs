@@ -347,9 +347,8 @@ pub enum RetryChange {
     },
 }
 
-/// The number of changes a control lets `apply` apply before it stops,
-/// as a killed service leaves the round half applied;
-/// nothing outside a control.
+// The number of changes a control lets `apply` apply before it stops, as a killed service leaves the round half applied;
+// nothing outside a control.
 #[cfg(test)]
 thread_local! {
     /// The bound of the control running on this thread.

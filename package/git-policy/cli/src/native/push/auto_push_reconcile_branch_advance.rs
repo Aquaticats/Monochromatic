@@ -86,9 +86,8 @@ fn still_on_the_branch(git: &PushGit, branch_ref: &str, local: &str) -> Result<b
     return Ok(String::from_utf8_lossy(&head.stdout).trim() == local);
 }
 
-/// The step a control plays in the instant between the look at the checkout and the write of its files,
-/// as another command's `git switch` finishing there;
-/// nothing outside a control.
+// The step a control plays in the instant between the look at the checkout and the write of its files, as another
+// command's `git switch` finishing there; nothing outside a control.
 #[cfg(test)]
 thread_local! {
     /// The step of the control running on this thread.
