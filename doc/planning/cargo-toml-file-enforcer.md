@@ -2,7 +2,9 @@
 
 Status:
  approved,
- implementation in progress.
+ implemented in `file-enforcer.config.jsonc`
+ (the rules first landed in `file-enforcer.config.ts`,
+ deleted with the Rust rewrite on 2026-10-31).
  Sibling of `doc/planning/mise-toml-file-enforcer.md` (same duplication and
  drift problem,
  different file family).
@@ -75,7 +77,7 @@ Comment-preserving property edits.
 
 - `package.edition`:
    canonical `2024` for every crate.
-   The Android crate migrates from `2021` to `2024`;
+   The Android crate moved from `2021` to `2024` in the same change;
    there is no per-crate edition override.
 - `package.license`:
    `LGPL-3.0-or-later`,
