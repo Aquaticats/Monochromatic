@@ -3015,17 +3015,23 @@ Each line names what the command waits for,
   not on the repeat schedule above.
   When the service named the place of the commit's batch it reads `Waiting for N earlier commits.`,
   or `This commit is next.` for the first place;
-  when it named none it reads "The commit service has not started on this commit yet;
-  it is still reading it.".
+  when it named none it reads "The commit service has not said where this commit stands yet;
+  it has waited 12 seconds.",
+  because the client cannot tell a request still in the queue from a landing waiting behind another
+  program's `index.lock`,
+  and may claim nothing about whether the landing began.
   A commit that lands within those 10 seconds prints nothing,
   and `CLI_GIT_STANDING_NOTICE_SECONDS` (a positive number of seconds) sets the wait for a control.
   The service names the place of a batch's first request only once that request has waited as long,
   so a client of an earlier release,
   which prints every place it is told,
   sees one only for a commit that waited.
-  What it cannot say:
-  a service that is itself stalled reads no request and lands no batch,
-  so it names no place and the words are then the ones about not having started.
+  A place belongs to the connection that named it:
+  a request sent again after its service went away starts with no place,
+  so a stale one is never printed as this wait's.
+  Every line is written by a thread of its own and dropped when the terminal stops taking lines,
+  so a reader that stopped draining costs the commit no more than `WARNING_WRITE_CEILING` (250 ms) at its end
+  and never its answer.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,
    or one with a template or clean-up mode) is built again on the new tip,

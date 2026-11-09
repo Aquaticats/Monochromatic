@@ -8594,8 +8594,13 @@ What a waiting commit now says (branch `feat/git-policy-cli-commit-queue-positio
   the client prints one line:
   `Waiting for N earlier commits.`,
   `This commit is next.` when the service named the first place,
-  or `The commit service has not started on this commit yet; it is still reading it.`
+  or `The commit service has not said where this commit stands yet; it has waited N seconds.`
   when the service named no place at all.
+  The words claim nothing about the landing,
+  because the client cannot tell a request still in the queue from a landing waiting behind another
+  program's `index.lock`;
+  the first wording said the service had not started and was still reading the request,
+  and the review of this branch showed both halves false.
 - The service now tells the first request of a batch its place once that request has waited as long,
   which is the place `positions` never held.
   A batch that begins at once still says nothing,
@@ -8606,21 +8611,52 @@ What a waiting commit now says (branch `feat/git-policy-cli-commit-queue-positio
 - The telling waits for nothing,
   takes no lock and writes no file:
   it is one clock read of the loop the client already runs at each beat or silence,
-  and one line on the terminal it already writes.
-  A service that names no place and a client that was never told are both ordinary cases,
+  and one line handed to a thread that writes the terminal.
+  A reader that stopped draining neither holds that line nor the answer
+  (`foundation/notice_stream_that_does_not_hold_its_writer.rs`,
+  which drops a line the writer still holds and waits `WARNING_WRITE_CEILING` at the end),
+  and the first draft of this notice did hold the commit:
+  its synchronous write left the only thread that reads `Landed` inside `write`.
+- A place belongs to the connection that named it.
+  A request sent again after its service went away starts with no place,
+  so the batch of a service that is gone is never printed as this wait's.
+- A service that names no place and a client that was never told are both ordinary cases,
   so the two releases work together either way round.
 
 What it cannot say:
 
 - A service that is itself stalled reads no request line and lands no batch,
   so it can name no place;
-  the client's words are then the ones about not having started,
+  the client's words are then the ones about the service not having said where the commit stands,
+  with the seconds waited,
   which is the only true thing anyone knows.
   In the incident this is what both runs would have seen.
+- A landing that has begun behind another program's `index.lock` cannot be told from a request still
+  in the queue,
+  because the service names no place before a batch begins and has no message of its own for
+  "the landing started".
+  The words therefore claim neither,
+  and the landing's own waiting line (which names the lock's holder) is what tells a person what the
+  commit waits for.
 - The timing record holds the places the service named,
   printed or not,
   and no count of the telling itself;
   `answered` lines of the service count the places a batch sent.
+
+Found while fixing the three review findings, and not fixed here:
+several notes of the commit path still write to standard error on the commit's own thread,
+so a terminal that stopped draining can still hold a commit.
+The executable-level control of the notice found one of them:
+with standard error a pipe nobody drains,
+the wrapper stayed in `commit/commit_command.rs`'s `write_stderr`
+(the post-landing policy report) above `Stderr::write_all`,
+which waits on the record lock the notice's writer thread held inside `write`.
+`service_prepare.rs` and `service_commit_requests_and_landing_report.rs` write the same way.
+`WARNING_WRITE_CEILING` and `foundation/notice_stream_that_does_not_hold_its_writer.rs` are the two
+shapes that bound such a line;
+which notes take one is open work,
+and it belongs with whoever owns the commit's own reporting,
+since every one of them is a line a person may live without.
 
 ### The scratch commit's ceiling, reviewed: what the review found and what is still open (2026-11-09T06:20:00-05:00)
 
