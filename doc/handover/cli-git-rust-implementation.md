@@ -150,16 +150,23 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `ad3731e420` (the audit `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`).
   The module-doc issues the docs agent reported fixed or no longer applicable are closed with evidence comments,
   and the commit messages of `78c5b5e245` and `42a8a1d544` carry corrective comments.
-  That agent reports issues 4519,
-  4526,
-  4587 and 2650 do not hold as filed.
-  They stay open until checked.
-  Issues 4245,
-  4408,
-  3258,
+  `d39dffb7b8` corrects the citations in `doc/planning/`,
+  and issues 4245,
   4853,
   4863,
-  4871 and 4872 wait for the `doc/` round.
+  4871 and 4872 are closed with evidence.
+  Issues 4408 and 3258 hold,
+  and their files are under `doc/decision/`,
+  so they wait for the open question on moved-path notes in `doc/handover/questions-for-the-owner.md`.
+  The docs agent's report that 4519,
+  4526,
+  4587 and 2650 do not hold looked only at the filed paths.
+  `wrapper-doc-folder-citations` found each defect still present at its moved path
+  (`shadow/replay_subsumption.rs:255-270`,
+  `shadow/shadow_create.rs:61-65`,
+  `policy/event_hints.rs:12-17`,
+  `binary/binary_lfs_pre_push_tests.rs:11`),
+  so they stay open for a small comment fix.
 - The shadow audit reproduced three defects:
   a conflict on `é.txt` makes replay silently revert the distinct file `Ã©.txt`,
   signing set through an exact `gitdir` conditional include is lost in native shadow preparation,
@@ -202,8 +209,28 @@ The old tree kept for the rollback stays until the owner deletes it.
   and it passed in the same filter on main.
   No cause is measured yet (rule `SUF`).
   `wrapper-tests-that-fail-only-in-a-suite` run 2 with `wrapper-tests-suite-round-2-prompt.md` has every name.
-  All 20 agent slots were in use,
-  so it follows `mpm-shadow-open-issues` run 7 when a slot frees.
+  Its run 2 has started,
+  and it has the five findings of `wrapper-tests-suite-round-1-sol.txt` as well.
+- Landed:
+  `58ccfd1df5` (a held push says so where it is held) and `45f5c93e86` (the object check asks the packs first,
+  and a long ref listing is left to Git).
+  The review `landing-route-round-10-sol.txt` names three ways the held notice and the held record disagree.
+  The notice is no worse than main's,
+  which had none in that case.
+  `reader-ref-listing-cost-round-1-sol.txt` names a version-4 index whose offset table starts a block on a
+  compressed path.
+  Real Git never writes one,
+  main answered it the same way,
+  and a small guard is still owed.
+- Fix briefs written and waiting for a free agent slot,
+  in this order:
+  `landing-route-findings-fixed` run 11 with `landing-route-round-11-prompt.md` (one source for the held notice,
+  and path bytes in every field of the owed index record);
+  `locks-and-transactions-findings-fixed` run 3 with `locks-and-transactions-round-3-prompt.md`;
+  `subvolume-conversion-findings-fixed` run 3 with `subvolume-conversion-round-2-prompt.md`.
+  The lock and conversion branches do not land before those runs:
+  their reviews (`locks-and-transactions-round-2-sol.txt`,
+  `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
