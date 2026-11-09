@@ -47,7 +47,10 @@ and each audited pattern is already the string form those issues propose:
 - `/^[a-f0-9]{64}$/u` (#721,
   #723,
   #724) is `isContentAddressedId` (`campaign-files.ts:42`),
-  a length compare at line 43 and a character walk at line 46;
+  a length compare at line 43 and a character walk at line 46,
+  called on the three audited variables:
+  `baseImage` (`campaign-runner.ts:87`),
+  `campaignImage` (`campaign-container.ts:182`) and `container.id` (`campaign-container.ts:251`);
 - `/^sha256:/u` (#722) is `String#replace` with the plain text `'sha256:'`
   (`campaign-container.ts:176`),
   so no pattern is involved.
