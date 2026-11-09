@@ -66,6 +66,21 @@ pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
+/// What a report of a stopped push says when the remote already holds every reference the push was asked to
+/// deliver.
+///  Citation:
+/// none needed: the phrase names the evidence the stop found, and nothing is bounded by it.
+/// Why:
+///   A push to a local path runs the remote's `receive-pack` in the push's own tree,
+/// and its `post-receive` hook runs
+///  after the references are written,
+/// so a hook that shows no sign of work stops a push that has already landed.
+/// The report says
+///  what the remote holds instead of calling the push a failure,
+/// and the notice the service writes for the person
+///  recognises this sentence to word itself the same way.
+pub const DELIVERED_BEFORE_THE_STOP: &str = "git push delivered every reference it was asked for";
+
 /// What a person is told when a push is ended for showing no progress:
 /// the owner's answer of 2026-11-03,
 /// "Bound it,
