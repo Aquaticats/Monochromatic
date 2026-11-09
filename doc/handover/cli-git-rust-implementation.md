@@ -4530,6 +4530,8 @@ the crate split,
 the move order and every change the moves need.
 Nothing moves until the owner has read it,
 and the questions it raises for him are in `doc/handover/questions-for-the-owner.md`.
+Issue 6261 is still open,
+its last update 2026-11-04T21:35:36Z.
 
 Removing the `native` layer is deferred (issue 6261 option A,
 the coordinator's pick under the delegation,
@@ -7138,7 +7140,7 @@ Push stop rule "Stop only on no progress (Recommended)" (`SPEC.md`,
 
 Verbatim,
 spoken on 2026-11-04 and 2026-11-05.
-They stood in `### Release in flight`,
+They stood in `### Release in flight` and `### Agents and gates running`,
 which described 2026-11-03 and 2026-11-04 and left this page on 2026-11-08.
 Each entry names the doc that carries the decision today.
 
