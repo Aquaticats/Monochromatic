@@ -4776,20 +4776,24 @@ the options weighed and the controls.)
   (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
   finding 1,
   measured there at sixteen levels and no end).
-  The bound stays 8 starts,
+  The bound is 32 starts,
   and the count means what it meant before the environment of the process above is read:
   one start of real Git per level.
-  A legitimate nesting needs a program the real Git itself runs that runs `git` again,
-  and the wrapper's own Git starts carry every hook off,
-  so those shapes are an editor or a `run`-style subcommand,
-  one level under the person's command.
-  A chain of nine `!` aliases does not reach the wrapper at all,
-  so no count of it can refuse it:
-  Git puts its own exec directory first on the `PATH` it runs an alias with,
-  and `git <alias>` inside one is real Git
+  It was 8,
+  which refused a finite chain:
+  nine `!` aliases that each run the next through `git` reach the wrapper once per alias on an install
+  whose Git exec directory offers the wrapper,
+  and the command itself is a tenth start,
+  so the refusal ended them at start 9
+  (the shape the round-1 review reported).
+  On an install where `git` inside an alias is the system Git the chain never reaches the wrapper at all
   (measured:
-  the marker's count is 1 at every level of nine such aliases,
-  and the wrapped `git a` answers with real Git's own output).
+  the marker's count is 1 at every one of nine levels,
+  and the wrapped `git a` answers with real Git's own output),
+  so this count is the only stop only on the install whose `git-core` leads back.
+  It now allows a chain three times the measured one,
+  and a chain that leads back without a real Git of the person's between its levels ends at the 33rd start,
+  measured at 1.3 s from the first wrapper to the refusal.
   Test:
   `a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for`.
   The stop is the same exit status 2 and the same message:

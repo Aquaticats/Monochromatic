@@ -80,17 +80,22 @@ pub const STARTED_AS_GIT_VARIABLE: &str = "CLI_GIT_STARTED_AS_GIT";
 ///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 /// finding 1).
 /// Counting the starts ends any such chain,
-///  however many processes stand between two of them,
-/// and a legitimate nesting is nowhere near this deep:
-/// each level costs a
-///  real Git run of its own,
-/// the wrapper's Git starts carry every hook off,
-/// and a `!` alias runs real Git rather than the wrapper
-///  (Git puts its own exec directory first on the `PATH` it runs one with).
-/// A stop one level too early is repaired by the
-///  person who reads the message;
+///  however many processes stand between two of them.
+/// A finite chain is legitimate and must run:
+/// nine `!` aliases that each run the next through `git`,
+/// where Git's own exec directory offers the wrapper,
+/// reach the wrapper once per alias and need a tenth start for the command itself
+///  (`a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for`,
+/// measured there).
+/// So the bound sits above a chain three times as long,
+///  32 starts,
+/// and a chain that leads back without a real Git of the person's between its levels ends at the 33rd
+///  start,
+/// measured at 1.3 s from the first wrapper to the refusal.
+/// A stop one level too early is repaired by
+///  the person who reads the message;
 /// a chain that never ends is not.
-pub const MOST_STARTS_IN_ONE_CHAIN: u32 = 8;
+pub const MOST_STARTS_IN_ONE_CHAIN: u32 = 32;
 
 /// What:
 ///  How many processes above this one the chain marker is looked for in,

@@ -59,7 +59,7 @@ const STAND_IN_STOP_CODE: i32 = 97;
 /// so a chain that ignores the bound fails as a level
 ///  and an exit code,
 /// never as a host or a scope that runs out of processes.
-const CHAIN_CAP: usize = 10;
+const CHAIN_CAP: usize = 40;
 
 /// The variable a control's stand-in passes its place in one chain down in,
 /// so a level counts once however many starts it makes.
@@ -512,6 +512,21 @@ fn a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for() {
     assert_eq!(observed.code, Some(0), "the chain of aliases must run: {text}");
     assert_eq!(observed.stdout, expected.stdout, "the answer is the one real Git gives: {text}");
     assert!(!text.contains("started as Git"), "a finite chain of aliases is no recursion: {text}");
+    // The same chain where Git's own exec directory offers the wrapper, which is the install whose `git-core/git` leads
+    //  back to it: every alias then runs the wrapper rather than the system Git.
+    let mut path: OsString = fixture.root.join("bin").into_os_string();
+    path.push(":/usr/bin:/bin");
+    let through: Observed = observe(
+        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str())
+            .env("GIT_EXEC_PATH", fixture.root.join("bin"))
+            .current_dir(repo.as_path())
+            .args(["a"]),
+        b"",
+    );
+    let said: String = words(&through);
+    assert_eq!(through.code, Some(0), "a finite chain of aliases is no recursion, whatever Git's exec path offers: {said}");
+    assert_eq!(through.stdout, expected.stdout, "the answer is the one real Git gives: {said}");
+    assert!(!said.contains("started as Git"), "{said}");
     remove(&fixture);
 }
 
