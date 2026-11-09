@@ -27,7 +27,7 @@ use crate::subvolume_error::MigrateError;
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal};
 use crate::subvolume_run::Run;
 use crate::worktree_convert_phases::identity_of_path;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The identity of the object at `path` in the journal's form,
 /// or nothing when the name leads nowhere.
@@ -247,4 +247,73 @@ pub(crate) fn pinned_root_moved(run: &Run<'_>, pinned: &PinnedRoot) -> Option<Re
         cause: format!("{} was the directory {held} while the old tree's newer files were carried into it, and it is {now} now", root.display()),
         remedy: String::from("Nothing was deleted. Check what is at that path, move the directory the migration installed back, and run the command again."),
     });
+}
+
+/// What:
+///  The cause of the refusal for the entries the carry did not put into the checkout,
+/// naming each kind and the paths the list
+///  holds.
+/// Why:
+///   Two kinds exist and they are kept for different reasons:
+/// an entry absent from the checkout that predates the catch-up
+///  may be a file deleted there on purpose,
+/// and one whose path holds another kind of entry is there because the checkout's
+///  entry may be newer.
+/// Both leave the old tree's copy as the only one at that path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cause = uncarriedCause(run);
+/// ```
+pub(crate) fn uncarried_cause(run: &Run<'_>) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if !run.left_out.is_empty() {
+        parts.push(format!(
+            "{} entr(ies) absent from {} and older than the catch-up ({})",
+            run.left_out.len(),
+            run.layout.root.display(),
+            shown_left_out(run.left_out.iter())
+        ));
+    }
+    if !run.conflicts.is_empty() {
+        parts.push(format!(
+            "{} entr(ies) whose path in {} holds another kind of entry, kept as the newer one ({})",
+            run.conflicts.len(),
+            run.layout.root.display(),
+            shown_left_out(run.conflicts.iter())
+        ));
+    }
+    return format!("{} did not reach {}: {} (the whole list is in {})", run.layout.old_path.display(), run.layout.root.display(), parts.join("; "), run.layout.left_out_path.display());
+}
+
+/// The remedy of that refusal:
+/// copy what is wanted,
+/// then accept the loss with the flag,
+/// or delete the old tree by hand.
+pub(crate) fn uncarried_remedy() -> String {
+    return String::from(
+        "Copy anything you want to keep out of the old tree first. If what it keeps is there on purpose, pass --discard-left-out together with --remove-old to delete the old tree with it; you can also delete the old tree yourself.",
+    );
+}
+
+/// How many left-out entries a refusal spells out before it names the file that lists them all.
+const SHOWN_LEFT_OUT: usize = 10;
+
+/// The first few left-out entries,
+/// joined for a refusal,
+/// and how many more there are.
+pub(crate) fn shown_left_out<'a>(paths: impl Iterator<Item = &'a PathBuf>) -> String {
+    let mut shown: Vec<String> = Vec::new();
+    let mut more: usize = 0;
+    for path in paths {
+        if shown.len() < SHOWN_LEFT_OUT {
+            shown.push(path.display().to_string());
+        } else {
+            more += 1;
+        }
+    }
+    if more > 0 {
+        shown.push(format!("and {more} more"));
+    }
+    return shown.join(", ");
 }

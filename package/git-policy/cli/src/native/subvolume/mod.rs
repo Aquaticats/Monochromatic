@@ -164,6 +164,10 @@ pub mod subvolume_migrate;
 #[cfg(target_os = "linux")]
 pub mod subvolume_rollback;
 
+/// Removing a subvolume and every subvolume nested in it,
+/// deepest first.
+pub mod subvolume_rollback_subvolume_removal;
+
 /// Which directory a name holds,
 /// by identity,
 /// for the carry and the rollback's exchange.

@@ -185,7 +185,9 @@ const COMPUTED_NAME_LENGTH: u16 = 0x0fff;
 /// its signature and its length.
 const EXTENSION_HEADER_LENGTH: usize = 8;
 
-/// Where an entry's mode starts: after its timestamps, device and inode.
+/// Where an entry's mode starts:
+/// after its timestamps,
+/// device and inode.
 const MODE_IN_ENTRY: usize = 24;
 
 /// The bytes an entry's flags take after its object name.
