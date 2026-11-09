@@ -1246,6 +1246,11 @@ Files that only the new subvolume holds and this user may not read cannot be car
 so `--rollback` refuses
  while there are any,
 unless `--discard-unreadable` is given with it.
+Both `--remove-old` and `--rollback` refuse when the directory at the checkout path is not the one the migration
+ installed
+ (its device and inode are recorded with the migration's last step),
+ because a checkout moved or replaced by hand since then
+ is one the migration never recorded.
 `--remove-old` first carries into the checkout what was written to the original after the catch-up (files newer than
  their copy,
 and files the checkout lacks that are no older than the catch-up;

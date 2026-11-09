@@ -551,6 +551,34 @@ fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A checkout replaced by hand since the migration is not the directory the migration installed,
+///  so neither `--remove-old` nor
+///  `--rollback` acts on it:
+/// one would write the old tree's newer files into a directory the migration never recorded and
+///  then delete the old tree,
+/// the other would swap the trees of another directory.
+#[test]
+fn a_root_that_is_not_the_installed_checkout_is_refused_by_both_deleting_modes() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-wrong-root", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let kept: PathBuf = parent.join("checkout.kept");
+    std::fs::rename(root.as_path(), kept.as_path()).expect("move the installed checkout aside");
+    std::fs::create_dir_all(root.join("ignored")).expect("another directory at the checkout's path");
+    std::fs::write(root.join("ignored/precious.txt"), b"written by somebody else\n").expect("file of the replacement");
+    // Newer than its copy, so the carry would write it over the replacement's file.
+    std::fs::write(layout.old_path.join("ignored/precious.txt"), b"from the old tree\n").expect("late write");
+    for arguments in [remove_old_discarding_left_out(), rollback_arguments()] {
+        let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
+        assert_eq!(code, REFUSED, "{:?}: {lines:#?}", arguments.mode);
+        assert!(lines.join("\n").contains("installed by the migration"), "the refusal says which directory it expected: {lines:#?}");
+    }
+    assert_eq!(std::fs::read(root.join("ignored/precious.txt")).expect("the replacement's file"), b"written by somebody else\n", "nothing was written into the directory that took the checkout's place");
+    assert!(layout.old_path.exists() && layout.journal_path.exists() && kept.join("README.md").exists());
+    remove(parent.as_path());
+}
+
 /// A failure while deleting is reported with the path and the instruction to run again;
 /// the journal stays.
 #[test]

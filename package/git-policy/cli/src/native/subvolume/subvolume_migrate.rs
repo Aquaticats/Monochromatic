@@ -38,7 +38,7 @@ use crate::subvolume_index_files::{IndexLock, linked_worktrees_inside};
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{acquire, lock_paths, release_all, token_of};
 use crate::subvolume_platform::Platform;
-use crate::subvolume_preflight::{Layout, Refusal, layout_of, migrate_refusals};
+use crate::subvolume_preflight::{INSTALLED_ROOT, Layout, Refusal, installed_identity, layout_of, migrate_refusals};
 use crate::subvolume_run::{INDEX_LOCK, Run};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -301,6 +301,11 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     }
     if !root.join(".git").join("HEAD").exists() {
         return Err(MigrateError::Journal(format!("{} has no .git/HEAD after the exchange; run with --rollback to restore the original tree", root.display())));
+    }
+    // Which directory the migration installed, so a later --remove-old or --rollback can tell this checkout from one that
+    // replaced it by hand. Recorded with the step, so the file never holds one without the other.
+    if let Some(identity) = installed_identity(root.as_path()) {
+        run.journal.set_value(INSTALLED_ROOT, identity.as_str());
     }
     return run.journal.mark("verify", "done");
 }

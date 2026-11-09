@@ -126,9 +126,34 @@ fn a_journal_path_that_cannot_be_removed_is_reported() {
     let (parent, path) = journal_path("journal-undeletable");
     std::fs::create_dir(path.as_path()).expect("directory");
     std::fs::write(path.join("inside"), b"x").expect("file");
-    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), times: BTreeMap::new(), persisted: true };
+    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), times: BTreeMap::new(), values: BTreeMap::new(), persisted: true };
     let error: MigrateError = journal.delete().expect_err("a directory is not a file");
     assert!(error.to_string().contains("cannot delete the journal"), "{error}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A value recorded beside a step reaches the file with that step and is read back after a reload,
+///  and a journal of an
+///  earlier release,
+/// which has no values,
+/// loads as one with none.
+#[test]
+fn a_value_recorded_beside_a_step_is_read_back() {
+    let (parent, path) = journal_path("journal-values");
+    let mut journal: Journal = Journal::load(path.as_path()).expect("load");
+    journal.set_value("installed-root", "0:256");
+    journal.mark("verify", "done").expect("mark");
+    let reloaded: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(reloaded.value("installed-root"), Some("0:256"));
+    assert_eq!(reloaded.value("other"), None);
+    let text: String = std::fs::read_to_string(path.as_path()).expect("file");
+    assert!(text.contains("installed-root"), "the value is in the file: {text}");
+    // A file without the values object is a journal of an earlier release, not a broken one.
+    let earlier: String = String::from("{\"schema\": 1, \"started\": \"x\", \"steps\": {}}");
+    std::fs::write(path.as_path(), earlier).expect("an earlier release's journal");
+    let loaded: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(loaded.value("installed-root"), None);
     remove(parent.as_path());
 }
 
