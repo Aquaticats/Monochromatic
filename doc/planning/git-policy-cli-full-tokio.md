@@ -6841,6 +6841,101 @@ The wording of a refusal:
   Their shape is the recorded one:
   a witness with a time window that a loaded host reaches.
 
+### Step T12, the repair folder's threads become waits of the runtime, 2026-11-09T10:55:00-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-repair-threads-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-repair-threads-on-the-runtime`,
+  from main at `4da5949330`.
+  Not merged into main.
+  Commits `875d4a208a` (the fan-out as tasks and pool jobs) and `3803520ca0` (the three tools as three waits).
+- Converted, in `package/git-policy/cli/src/native/repair/`:
+  `package_repair.rs` (three tools,
+  once on scoped threads),
+  `package_repair_tree_clone.rs` (one scoped thread per slice),
+  `package_repair_cargo_concurrent.rs` (one scoped thread per worker).
+  Each is now a wait of a task:
+  the three tools run under `tokio::join!`,
+  and both fan-outs take items from a queue of tasks.
+  Every storage step is `run_blocking_job_within_the_budget`:
+  the clone's walk,
+  its slices and its modes,
+  and the search path and real path of the Cargo repair.
+- The synchronous faces stay (`repair_worktree`, `repair_pnpm`,
+  `repair_toolchain`,
+  `repair_cargo`,
+  `clone_tree`,
+  `read_workspace`),
+  because `worktree_copying/` calls `repair_worktree` and is reserved by this step's brief,
+  and their bodies are the awaited ones entered once
+  (`run_on_runtime`).
+  The awaiting faces beside them are `repair_worktree_awaiting`,
+  `repair_pnpm_awaiting`,
+  `repair_toolchain_awaiting`,
+  `repair_cargo_awaiting`,
+  `clone_tree_awaiting`,
+  `read_workspace_awaiting` and
+  `manifest_directories_awaiting`;
+  the tool bridge gained `run_tool_awaiting` (`run_tool_reaping` awaited directly)
+  and `run_refused` keeps the words a tool that could not be run is reported with.
+- The ordered runners are not used by this folder,
+  and that is measured:
+  `OrderedRunOfAwaitingOwned::on_event` is `&'run mut dyn OrderedEvents<R>`,
+  which is not `Send`,
+  so `run_ordered_awaiting_on_the_runtime` cannot be awaited inside a task
+  (`E0277: ... cannot be sent between threads safely`),
+  and every lane or item of this repair is a task,
+  the worktree repair's own task included.
+  A later step that wants nested runs either makes that consumer `Send` or keeps a run at the top
+  of a chain.
+- Two rules the repair keeps:
+  `run_a_job_or_in_turn` runs a refused job's work on the awaiting task,
+  because `BlockingJobError::NoThreadToStart` promises the job will not run and changed nothing
+  (`foundation/blocking_jobs_within_the_budget.rs`);
+  `call_catching_panics_awaiting` turns a panic of one item's awaited work into that item's error,
+  because a task that panics ends the run
+  (`foundation/call_catching_panics_awaiting.rs`).
+  Each was shown to fail before it was restored:
+  the first by `left: Err(NoThreadToStart)` in `a_job_refused_a_thread_runs_in_turn` and by
+  "source could not be cloned" in
+  `a_parallel_clone_where_no_thread_can_start_is_made_in_turn`;
+  the second by "item 1: left: None, right: Some(10)" in
+  `a_panicking_item_is_a_failure_naming_it_and_the_others_keep_their_results`.
+- Measured with a temporary probe (deleted before the last commit),
+  the two builds alternating,
+  three rounds,
+  under a load average of about 50 on eight CPUs;
+  each figure is five runs of one process:
+
+  the three tools (two fixtures sleeping 40 ms):
+  before 42.6 to 44.0 ms,
+  after 42.7 to 46.0 ms,
+  so no separation.
+  The six Cargo workspaces (three tool runs of 40 ms each):
+  before 133.3 to 138.5 ms,
+  after 132.4 to 135.2 ms,
+  a difference under the spread.
+  The clone of 1,200 small files in 40 directories:
+  before 20.9 to 57.5 ms,
+  after 32.7 to 44.2 ms:
+  the after arm's spread is narrower and its median about 3 ms higher,
+  which is the cost of one pool job per slice,
+  and the before arm's spread is the host's disk.
+- Controls:
+  `repair::` 350 tests passed with `foundation::call_catching`,
+  `foundation::blocking_jobs_within_the_budget` and `worktree_copying::`;
+  the new ones are `the_tools_run_beside_each_other`,
+  `a_refused_system_is_reported_in_plain_words_and_changes_nothing`,
+  `a_job_refused_a_thread_runs_in_turn`,
+  `a_panicking_item_is_a_failure_naming_it_and_the_others_keep_their_results` and
+  `no_more_items_are_inside_their_work_at_once_than_the_run_asks_for`.
+  `native:clippy` clean; the package `lint` and the container gate were not both seen green here
+  (see the agent's report).
+- Not converted:
+  `worktree_copying/` (its `finish_trash_and_repair` keeps one scoped thread for the trash beside the repair)
+  and `commit/`,
+  both reserved by the brief for branches that have not landed.
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;
