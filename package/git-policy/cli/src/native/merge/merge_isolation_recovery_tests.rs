@@ -359,16 +359,36 @@ fn only_dead_or_unreadable_records_need_recovery() {
 }
 
 /// A branch that already names the merge needs only the record removed.
+/// The same record that names a side ref needs only that too:
+/// a record a power loss brought back after the removal was not flushed is
+///  this state,
+/// and the next command must settle it as quietly as the command that ended the merge.
 #[test]
 fn a_landed_merge_only_loses_its_record() {
-    let world: World = world("merge-recovery-landed");
-    git(world.repo.as_path(), &["merge", "--ff-only", "--quiet", world.new_oid.as_str()]);
-    let record: PathBuf = record_of(&world, dead_owner("44444444-0000-4000-8000-000000000004"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
+    let landed: World = world("merge-recovery-landed");
+    git(landed.repo.as_path(), &["merge", "--ff-only", "--quiet", landed.new_oid.as_str()]);
+    let record: PathBuf = record_of(&landed, dead_owner("44444444-0000-4000-8000-000000000004"), Some("refs/heads/main"));
+    let outcomes = recover_interrupted_merges(&place(&landed), landed.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded);
     assert!(!record.exists());
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "");
-    remove(world.parent.as_path());
+    assert_eq!(git_text(landed.repo.as_path(), &["status", "--porcelain=v1"]), "");
+    remove(landed.parent.as_path());
+
+    let saved: World = world("merge-recovery-landed-sided");
+    git(saved.repo.as_path(), &["merge", "--ff-only", "--quiet", saved.new_oid.as_str()]);
+    let side_ref: &str = "refs/cli-git/kept/2";
+    let side_record: PathBuf = deferred_record_of(&saved, "44444444-0000-4000-8000-000000000044", side_ref);
+    let outcomes = recover_interrupted_merges(&place(&saved), saved.git_dir.as_path(), &mut Vec::new()).expect("recovery");
+    assert_eq!(the_action_for(&outcomes, side_record.as_path()), Some(MergeRecoveryAction::AlreadyLanded));
+    assert!(!side_record.exists(), "the record is gone");
+    assert_eq!(
+        git_text(saved.repo.as_path(), &["for-each-ref", "--format=%(refname)", side_ref]),
+        "",
+        "the side ref of a landed merge is removed with its record"
+    );
+    assert_eq!(git_text(saved.repo.as_path(), &["rev-parse", "main"]), saved.new_oid, "the branch still names the merge");
+    assert_eq!(git_text(saved.repo.as_path(), &["status", "--porcelain=v1"]), "");
+    remove(saved.parent.as_path());
 }
 
 /// A branch that moved to something else before the merge touched the checkout:
@@ -900,6 +920,57 @@ fn recovery_clears_the_index_lock_of_a_git_that_was_killed_and_finishes_the_merg
     assert_eq!(the_action_for(&outcomes, record.as_path()), Some(MergeRecoveryAction::Completed));
     assert!(!lock.exists(), "the lock of a Git nothing runs was removed");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch moved onto the merge");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A merge saved on its side ref,
+///  with nothing of it in the checkout and a live program holding `index.lock`,
+///  is left for the next command at once,
+///  which says where the merge is and what it waits for.
+/// Why:
+///  The merge itself saves its result and exits 0 (`MERGE_LOCK_CEILING`,
+///  one minute);
+/// after that every command,
+/// `git rev-parse HEAD` included,
+/// waited the whole ceiling again for as long as
+///  the lock stood,
+/// where real Git answers each of them in a few milliseconds
+///  (finding 3 of the merge-and-pull audit of 2026-11-09).
+/// Nothing of the merge is in the checkout,
+///  so the next command has nothing to wait for:
+/// the merge is on its record and its side ref,
+/// and a later
+///  command finishes it once the lock is free.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = now(); const outcomes = await recoverInterruptedMerges(place, dir, said);
+/// expect(now() - began).toBeLessThan(seconds(2)); expect(outcomes[0].action).toBe('index-held');
+/// ```
+#[test]
+fn a_saved_merge_behind_a_live_lock_is_left_for_the_next_command_at_once() {
+    let world: World = world("merge-recovery-saved-live-lock");
+    let side_ref: &str = "refs/cli-git/kept/1";
+    let record: PathBuf = deferred_record_of(&world, "16161616-0000-4000-8000-000000000016", side_ref);
+    let lock: PathBuf = world.git_dir.join("index.lock");
+    std::fs::write(lock.as_path(), b"").expect("another program holds the index");
+    // The holder is this process, which runs: nothing may remove the lock, and waiting gains nothing.
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), format!("pid {}\n", std::process::id()))
+        .expect("the PID file of a process that runs");
+    let before = snapshot(&world);
+    let mut said: Vec<u8> = Vec::new();
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let took: std::time::Duration = began.elapsed();
+    assert_eq!(the_action_for(&outcomes, record.as_path()), Some(MergeRecoveryAction::IndexHeld));
+    assert!(took < std::time::Duration::from_secs(2), "the command does not wait for a lock that stands over a merge nothing of which is installed: {took:?}");
+    assert!(record.exists(), "the record stays for the command that finishes the merge");
+    assert_eq!(snapshot(&world), before, "nothing was written");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains(side_ref), "the line says where the merge is saved: {text}");
+    assert!(text.contains(lock.to_string_lossy().as_ref()), "the line names what it waits for: {text}");
+    assert!(text.contains("goes on"), "the line says this command goes on: {text}");
     remove(world.parent.as_path());
 }
 

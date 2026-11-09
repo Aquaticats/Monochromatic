@@ -3530,6 +3530,13 @@ A directory `cli-git-transactions` in the worktree's Git directory belongs to an
 A merge in progress keeps a one-line record in `monochromatic-git-policy-cli-merges` in the worktree's Git directory,
  from before Git starts updating the checkout until the branch has moved.
 Do not remove it by hand unless a command says so.
+The record is written and its directory flushed before Git starts,
+and its removal is not flushed:
+a record a power loss brings back names a merge the branch already holds,
+which the next command drops as already landed,
+or one whose branch moved,
+which it settles as it would settle any such record.
+The flush it used to make was a third of a merge's fsyncs and it sat on the path the person waits for.
 
 The ignored-state copy into a new linked worktree stages its files in a `.cli-git-worktree-copy-*` directory
 beside the new worktree,
