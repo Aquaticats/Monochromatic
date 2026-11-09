@@ -71,6 +71,14 @@ pub mod bounded_push;
 /// The stop of a running push and the sweep of the lock files it and what it started leave.
 pub mod stop_of_a_push_and_sweep_of_its_locks;
 
+/// Whether a stopped push had already delivered every reference it was asked for,
+/// asked of the local repository and of the remote.
+pub mod delivered_before_the_stop;
+
+/// Controls for the report of a push that was stopped while a local remote ran its `post-receive` hook.
+#[cfg(test)]
+mod stopped_push_delivery_tests;
+
 /// Where a control holds a run's limit until the ordering it needs has happened,
 /// so a stop is never decided by elapsed time alone.
 pub mod push_limit_held_for_an_ordering;
