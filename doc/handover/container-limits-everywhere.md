@@ -290,11 +290,17 @@ never by gaining flags.
 ### Partial limits, no weight
 
 - `package/terminal/app/mise.toml:68` and the twelve copies in `task.ts` (`--memory=4g --cpus=4`):
-  the twelve `task.ts` copies now pass `containerLimitArguments(containerBound)`, and so does the `mise.toml` body
-  since this pass: before that, `mise run //package/terminal/app:build:container` started the
+  the twelve `task.ts` copies now pass `containerLimitArguments(containerBound)`,
+  and so does the `mise.toml` body
+  since this pass:
+  before that,
+  `mise run //package/terminal/app:build:container` started the
   compiler container with the two literal flags and no `--pids-limit` (the observed `pids.max` was Podman's 2048)
-  and no weight, while the inventory said it had them.
-  The 4g is measured (2.97 GiB, 74 percent of it, on a build that reused a warm target directory) and 1024 processes
+  and no weight,
+  while the inventory said it had them.
+  The 4g is measured (2.97 GiB,
+  74 percent of it,
+  on a build that reused a warm target directory) and 1024 processes
   is still adopted,
   though the same run reached 235 threads of it.
 - `package/test-harness/core/mise.toml:64` (2g,
@@ -394,7 +400,8 @@ those runs are the separate work.
 - The Playwright browser run of the root `mise.toml` `runPlaywright` task,
   for the memory,
   CPU and process peaks a browser set reaches.
-  Still needed: the run is blocked on this host until the Playwright image and the shared pnpm store reach the
+  Still needed:
+  the run is blocked on this host until the Playwright image and the shared pnpm store reach the
   container;
   `### Measured runs on this host` records what was tried.
 - The `containerCargo` cargo build of `package/music-player/desktop-app`
@@ -414,7 +421,8 @@ those runs are the separate work.
   which bounds every cell from the one `CELL_LIMITS` constant and is the one site already known to have grown to
   42 GB RSS unbounded,
   with 2048 processes that is the Podman default.
-  Still needed: no cell on this host can resolve its dependencies inside the container,
+  Still needed:
+  no cell on this host can resolve its dependencies inside the container,
   so the bound has no runnable workload here;
   `### Measured runs on this host` records the failure.
 - The `upstream-fork/conf` and `deepmerge-ts.fuzz` container runs,
@@ -784,10 +792,13 @@ which the published crates do not use.
   `### Measured runs on this host`.
   Measured:
   the `containerCargo` release build of `package/music-player/desktop-app`
-  (5.3 GiB of 12 GiB, 61 of 1024 processes),
+  (5.3 GiB of 12 GiB,
+  61 of 1024 processes),
   the music-player image build of the same run (3.35 GiB of 12 GiB),
-  the music-player icon one-shot containers (111 MiB of 2 GiB, 1 of 128 processes),
-  and the `package/terminal/app` compile container (2.97 GiB of 4 GiB, 235 threads,
+  the music-player icon one-shot containers (111 MiB of 2 GiB,
+  1 of 128 processes),
+  and the `package/terminal/app` compile container (2.97 GiB of 4 GiB,
+  235 threads,
   two of whose 4 GiB and weight were missing from the file `mise run` reads until this pass).
   Two sites could not be measured at all,
   because this host's `node_modules` holds links into `${HOME}/.local/share/pnpm/store`,
