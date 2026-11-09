@@ -319,10 +319,12 @@ pub fn push_report(directory: &Path, stderr: &str) -> String {
     settle_service_work(directory);
     let git_dir: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); });
     if let Some(found) = git_dir {
-        // The notices are worded the way the next command in the worktree shows them, and are taken as that command takes them.
-        for notice in git_policy_cli::push_failure_notice::take_push_failures(found.as_path()) {
-            report.push_str(notice.as_str());
-            report.push('\n');
+        // The notices are worded the way the next command in the worktree shows them, and are shown and removed as that
+        //  command does.
+        for notice in git_policy_cli::push_failure_notice::push_failures(found.as_path()) {
+            let mut shown: Vec<u8> = Vec::new();
+            let _written = notice.show(&mut shown);
+            report.push_str(String::from_utf8_lossy(shown.as_slice()).as_ref());
         }
     }
     return report;

@@ -118,8 +118,9 @@ pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsSt
         asking.env(name, value);
     }
     asking.env("LC_ALL", "C").stdin(std::process::Stdio::null());
-    // This start of the real Git says so too, like every other (`started_as_git.rs`).
-    crate::started_as_git::mark_real_git_start(&mut asking, crate::started_as_git::StartMode::Child);
+    // This start of the real Git says so too, like every other (`started_as_git.rs`), and it is a start of the wrapper's own
+    //  reading: nothing of the person's runs under it.
+    crate::started_as_git::mark_real_git_start(&mut asking, crate::started_as_git::StartMode::Query);
     let asked = crate::captured_child_run_to_its_end::output_of_blocking(&mut asking);
     let output = match asked {
         Ok(found) => found,

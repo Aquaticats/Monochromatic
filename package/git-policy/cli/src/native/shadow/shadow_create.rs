@@ -10,8 +10,7 @@
 //!  so `git worktree list` never shows it and preparation creates no ref in the real repository.
 //!  Its object store receives the objects native `git commit` writes,
 //!  and its alternates name the real object directory,
-//!  so a real `git prune` cannot delete a pending commit
-//!  (`src/shadow-repository/shadow-repository.ts`).
+//!  so a real `git prune` cannot delete a pending commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -62,8 +61,12 @@ fn overwrite_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// What:
 ///  Gives a file the private file mode on Unix.
 /// Why:
-///   The shadow config names the real hooks directory and worktree;
+///   The shadow config names the worktree root,
+/// includes the real common config and switches
+///  every hook off;
 /// it stays private to the account.
+///  It names no hooks directory:
+/// every shadow command passes its own `core.hooksPath`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

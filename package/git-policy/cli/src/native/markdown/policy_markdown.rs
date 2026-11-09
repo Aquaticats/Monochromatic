@@ -8,8 +8,7 @@
 //!  and each finding
 //!       the fixes leave is reported as it is.
 //! Why:
-//!  The installed wrapper's `markdownLintPolicy` (`package/git-policy/markdown-lint/src`)
-//!      decides the behaviour:
+//!  The policy's rules are the wrapper's established ones:
 //!  deleted files,
 //!  symbolic links and submodules are skipped,
 //!      and so are excluded paths before any linter starts and contents that are not UTF-8;
@@ -23,11 +22,11 @@
 //!  exact case),
 //!  so no file is sent that the linter
 //!      refuses.
-//!  The autofix finding keeps the installed wrapper's words,
-//!  which name its
-//!      former linter,
-//!  so both wrappers report the same file the same way while both are
-//!      in use.
+//!  The autofix finding keeps the wrapper's established words,
+//!  which name the linter
+//!      `monochromatic-lint`,
+//!  so the message a reader or a test matches does not move with the
+//!      wrapper's own name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

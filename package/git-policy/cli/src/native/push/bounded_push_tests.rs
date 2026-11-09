@@ -226,7 +226,11 @@ fn a_push_that_ignores_the_stop_request_is_killed_after_the_grace() {
     )
     .expect("runs");
     let elapsed: Duration = started.elapsed();
+    // The claim is the lower bound: the stop request is asked, and the kill comes only once the grace it was given has passed.
     assert!(elapsed >= deadline + grace, "{elapsed:?}");
+    // The ceiling is a liveness guard and not a claim about a host: nothing the child does after it stops answering the request
+    //  is a sign of progress this control could read. Measured on this host at a load average of 47: the attempt took 0.66 s for
+    //  a deadline and grace of 0.6 s, so the 20 s ceiling carries 30 times the figure it was measured at.
     assert!(elapsed < Duration::from_secs(20), "{elapsed:?}");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
     assert!(attempt.output.starts_with("up\n"), "{}", attempt.output);
@@ -370,4 +374,32 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
     crate::lazy_runtime::run_on_runtime(sweeper).expect("the runtime runs the wait").expect("the sweeping task ends");
     assert!(!lock.exists(), "the lock is swept once the tree has ended");
     crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A push that prints past the cap and ends between two looks keeps its own status,
+/// and the attempt says that its
+///  output was cut.
+/// Why:
+///   The output is the log a person reads,
+/// not Git's answer,
+/// so the attempt is not turned into a stopped push;
+/// but the
+///  text kept is the head of what was printed,
+/// and passing that for all of it is the silence the query caller had.
+#[cfg(unix)]
+#[test]
+fn a_push_that_floods_and_ends_keeps_its_status_and_says_its_output_was_cut() {
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg("exec head -c 4194305 /dev/zero");
+    let attempt: PushAttempt = run_bounded_push_once(
+        command,
+        Patience::Progress { stall: Duration::from_secs(60) },
+        Duration::from_secs(1),
+        crate::test_support::scratch_environment().as_slice(),
+    )
+    .expect("a push attempt");
+    assert_eq!(attempt.exit_code, 0, "the push's own status is kept: {}", attempt.output);
+    assert!(attempt.output.contains("only the first"), "the attempt says its output was cut: {}", attempt.output);
+    assert!(attempt.output.len() < usize::try_from(MAX_PUSH_OUTPUT).unwrap_or(usize::MAX) + 2048, "the kept output stays bounded");
 }

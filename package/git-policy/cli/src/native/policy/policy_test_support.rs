@@ -47,6 +47,12 @@ pub(crate) struct ScriptedFacts {
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
+    /// The answer to `ignored_files_the_tree_tracks`.
+    pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
+    /// The answer to `clean_would_delete`.
+    pub(crate) clean_deletes: Result<bool, String>,
+    /// The answer to `repository_holds_a_stash`.
+    pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
     pub(crate) remote_guess: Result<bool, String>,
     /// Every fact asked for,
@@ -58,6 +64,11 @@ pub(crate) struct ScriptedFacts {
     /// The repository real Git prepares candidates in;
     ///  none makes preparation fail.
     pub(crate) candidates_repository: Option<PathBuf>,
+    /// The invocation's own Git directory,
+    ///  where a fix keeps its journals;
+    ///  none is the answer of a provider that knows
+    ///       neither the location nor the file system.
+    pub(crate) git_dir: Option<PathBuf>,
 }
 
 impl RepositoryFacts for ScriptedFacts {
@@ -81,6 +92,24 @@ impl RepositoryFacts for ScriptedFacts {
         return self.dirty.clone();
     }
 
+    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
+        self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
+        return self.clean_deletes.clone();
+    }
+
+    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+        self.asked.push(format!(
+            "ignored-and-tracked:{}",
+            revision.unwrap_or(OsStr::new("HEAD")).to_string_lossy()
+        ));
+        return self.ignored_and_tracked.clone();
+    }
+
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
+        self.asked.push(String::from("stash"));
+        return self.stash.clone();
+    }
+
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
         self.asked.push(String::from("sequencer"));
         return self.sequencer.clone();
@@ -95,6 +124,12 @@ impl RepositoryFacts for ScriptedFacts {
     /// Log the question,
     ///  then prepare with real Git in the scripted repository,
     ///  or fail.
+    /// Answer with the scripted Git directory,
+    ///  so a fix's journals land where a sweep looks for them.
+    fn known_git_dir(&mut self) -> Option<PathBuf> {
+        return self.git_dir.clone();
+    }
+
     fn candidates(
         &mut self,
         request: &CandidateRequest,
@@ -179,9 +214,13 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         index: Ok(IndexVsHead::Matches),
         sequencer: Ok(SequencerState::NotInProgress),
         dirty: Ok(false),
+        stash: Ok(false),
         remote_guess: Ok(false),
+        ignored_and_tracked: Ok(Vec::<String>::new()),
+        clean_deletes: Ok(false),
         asked: Vec::<String>::new(),
         candidates_repository: None,
+        git_dir: None,
     };
 }
 

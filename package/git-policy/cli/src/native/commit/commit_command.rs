@@ -22,7 +22,7 @@
 use crate::commit_timing::CommitTiming;
 use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
-use crate::service_handoff::{ServiceHandoff, hand_over};
+use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
 use crate::service_messages::render;
 use crate::commit_transaction::{CommitInvocation, TransactionStop};
 use crate::config_schema::CliGitConfig;
@@ -220,6 +220,11 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         Ok(found) => found,
         Err(stop) => return report_stop(stop),
     };
+    // A test kills the wrapper here: the commit is on the branch and answered, and everything the command still owes (the
+    //  push, the upkeep and the notice of them) is written after this point (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
+    //  finding 3). The marker is inert unless `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it, so a command that is not a test reaches
+    //  nothing.
+    crate::service_fault::reach("after-answer");
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
         timing.outcome = "ended";
@@ -256,12 +261,20 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         controls: command.controls.clone(),
     };
     let mut stderr: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
+    // The push record is left before the gate runs, so a wrapper killed while the gate runs loses no push; the gate takes it back
+    //  when it blocks, which keeps a blocked commit local, and the hand-off below wakes the record the gate allowed.
+
     let gating: Instant = Instant::now();
     let gate = run_post_commit_gate(&request);
     timing.gate += gating.elapsed();
     write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
     if gate.blocked {
+        forget_the_push(handoff, landed);
         return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
+    }
+    // The gate approved the backup: the push the service held for this commit becomes runnable, and the hand-off below wakes it.
+    if let Err(failure) = promote_the_push(handoff, landed) {
+        write_stderr(format!("{}\n", render(&failure)).as_str());
     }
     let handing_over: Instant = Instant::now();
     let handed = hand_over(handoff, landed, &mut stderr);

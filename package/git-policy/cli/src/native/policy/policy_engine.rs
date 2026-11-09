@@ -117,6 +117,28 @@ pub enum PolicyOutcome {
     /// The policy needs something this executable does not implement yet;
     ///  the text names it.
     Unavailable(&'static str),
+    /// The check decided nothing because the wrapper ended one of its Git reads at the bound every read has.
+    Stopped {
+        /// What was ended and what stayed as it was,
+        ///  for the person who ran the command;
+        ///  never a candidate's pathname.
+        message: String,
+        /// The candidate the read was about,
+        ///  when one file is responsible.
+        path: Option<EventPath>,
+    },
+    /// The check did not run for one candidate because it does not read objects that large;
+    ///  the pass goes
+    ///       on and the report names the check it skipped.
+    Skipped {
+        /// What was not checked,
+        ///  for the person who ran the command;
+        ///  never a candidate's pathname.
+        message: String,
+        /// The candidate the skip is about,
+        ///  when one file is responsible.
+        path: Option<EventPath>,
+    },
     /// The policy could not finish.
     Failed {
         /// The cause,
@@ -350,6 +372,45 @@ pub fn run_policy_stage(
                     }),
                 };
             }
+            // A skipped check is reported as an engine failure and the pass goes on: reading one object whole
+            // could cost the host its memory (a 256 MiB candidate cost 534 MiB), and a commit must not fail for a
+            // file the wrapper chose not to read. `pass_exit_code` counts an engine failure as non-blocking, and the
+            // stage still ends `Completed`.
+            // What: A read the wrapper ended is a failure whose hint is its own: fetching history answers a missing
+            //       object, and nothing about a Git that stopped answering.
+            // Why:  The person must be told to run the command again, not to fetch.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // { kind: 'stopped', message } => { events.push(engineFailure('content-unavailable', CHOSEN_HINT, message)); return { end: 'failed' }; }
+            // ```
+            PolicyOutcome::Stopped { message, path } => {
+                events.push(PolicyEvent::EngineFailure {
+                    code: EngineFailureCode::ContentUnavailable,
+                    hint: crate::policy_events::EngineFailureHint::Chosen(Some(
+                        crate::policy_events::STOPPED_READ_HINT,
+                    )),
+                    message,
+                    trigger: Some(request.trigger),
+                    policy: Some(*policy),
+                    path,
+                });
+                return StageResult {
+                    events,
+                    end: StageEnd::Failed,
+                };
+            }
+            PolicyOutcome::Skipped { message, path } => {
+                events.push(PolicyEvent::EngineFailure {
+                    code: EngineFailureCode::PolicyIncomplete,
+                    hint: crate::policy_events::EngineFailureHint::OfCode,
+                    message,
+                    trigger: Some(request.trigger),
+                    policy: Some(*policy),
+                    path,
+                });
+                continue;
+            }
             PolicyOutcome::Failed {
                 code,
                 message,
@@ -396,8 +457,8 @@ pub fn run_policy_stage(
                 policy: *policy,
             });
         }
-        // A proposal ends the stage whatever the severity, as `patchProposed` does in the
-        // installed wrapper's `policy-stage.ts`: later policies read the corrected content.
+        // A proposal ends the stage whatever the severity: later policies read the corrected
+        // content.
         if proposed {
             return StageResult {
                 events,

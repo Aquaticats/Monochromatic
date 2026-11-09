@@ -1,6 +1,8 @@
 //! Controls for the manual-push published set and range against real repositories.
-//! The TypeScript corpus is `src/policy-engine/manual-push-scope.unit.test.ts`;
-//! the cases that apply to commit
+//! The corpus is `package/git-policy/cli/src/policy-engine/manual-push-scope.unit.test.ts`,
+//! deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//! so `git show 642b6d72cb^` holds it.
+//! The cases that apply to commit
 //! pushes are reproduced here (tag,
 //! tree and blob targets are not ported and fail closed).
 

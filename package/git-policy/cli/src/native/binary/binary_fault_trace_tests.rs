@@ -82,12 +82,15 @@ const WRAPPER_KILL_CALLS: [&str; 10] = ["write", "pwrite64", "fsync", "rename", 
 ///  the file it writes,
 /// the calls it watches and the fault it injects,
 /// if any.
+/// One `--quiet` suppresses only the attach and personality messages;
+/// the `+++ exited with N +++` lines stay,
+/// and `busiest_count` reads a line only when it begins with a process ID and a traced call.
 fn tracer(trace: &Path, syscall: &str, fault: Option<&Injection>, follow: bool) -> Vec<OsString> {
     let mut words: Vec<OsString> = vec![strace_program().expect("strace is installed").into_os_string()];
     if follow {
         words.push(OsString::from("--follow-forks"));
     }
-    words.extend([OsString::from("--quiet"), OsString::from("--quiet")]);
+    words.push(OsString::from("--quiet"));
     words.push(OsString::from(format!("--output={}", trace.display())));
     words.push(OsString::from(format!("--trace={syscall}")));
     if let Some(injection) = fault {

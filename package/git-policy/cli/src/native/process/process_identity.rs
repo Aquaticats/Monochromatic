@@ -7,11 +7,12 @@
 //!  Every lock and transaction records its owner's PID and birth identity;
 //!  an owner is
 //!      alive only while its PID names a process with the recorded identity.
-//!  Both wrappers
-//!      judge each other's locks,
-//!  so the strings must agree byte for byte
-//!      (`src/policy-engine/commit-transaction-process-identity.ts`;
-//!  the decision in
+//!  A record an earlier release wrote must still be judged by this one,
+//!  so the
+//!      spelling stays the one the TypeScript wrapper had in
+//!      `package/git-policy/cli/src/policy-engine/commit-transaction-process-identity.ts`,
+//!  deleted on 2026-10-13 in `642b6d72cb`
+//!  (the decision in
 //!      `doc/handover/cli-git-rust-implementation.md`,
 //!  "Adopted without a question";
 //!  that section moved on 2026-11-03 to

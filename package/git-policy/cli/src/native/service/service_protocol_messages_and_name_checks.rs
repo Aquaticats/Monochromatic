@@ -15,6 +15,7 @@
 //! ```
 
 use serde_json::Value;
+use crate::path_bytes as path_bytes;
 use crate::service_review_key::ReviewKey;
 use crate::common_directory_of_a_git_directory::common_directory_of;
 use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
@@ -23,7 +24,14 @@ use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks;
 /// a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 7;
+/// It is 8 because a commit request's changed paths carry their bytes beside the readable spelling,
+/// and a service of version 7 ignores that field and would commit the spelling instead:
+/// the release text cannot keep such a service from being served,
+/// because a rebuild of the same crate version names the same release,
+/// so the version a service announces in its welcome is what is compared,
+/// and a service of another version is asked to retire before any request is sent
+/// (`service_client_reach_service.rs`).
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// The release of this build:
 /// the crate version,
@@ -116,12 +124,14 @@ pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Change = { path: string; mode: number; blob?: string }; // no blob means delete
+/// type Change = { path: Uint8Array; mode: number; blob?: string }; // no blob means delete
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Change {
-    /// Repository-relative path with `/` separators.
-    pub path: String,
+    /// Repository-relative path with `/` separators,
+    /// as the bytes Git listed:
+    /// a file name that is not text is still a file name.
+    pub path: PathBuf,
     /// File mode,
     /// one of `ALLOWED_MODES`.
     pub mode: u32,
@@ -452,10 +462,10 @@ pub fn is_object_name(text: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isPlainPart = (part: string) => part !== '' && !['.', '..', '.git'].includes(part);
+/// const isPlainPart = (part: Uint8Array) => part.length > 0 && !['.', '..', '.git'].includes(text(part));
 /// ```
-fn is_plain_part(part: &str) -> bool {
-    return !part.is_empty() && part != "." && part != ".." && part != ".git";
+fn is_plain_part(part: &[u8]) -> bool {
+    return !part.is_empty() && part != b"." && part != b".." && part != b".git";
 }
 
 /// Whether a byte may appear in a request identity or a scratch directory identity.
@@ -476,16 +486,26 @@ fn is_plain_component(part: std::path::Component<'_>) -> bool {
     return !matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir);
 }
 
+/// Whether a byte separates the parts of a repository-relative path.
+fn is_a_separator(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
 /// Whether `path` is a plain repository-relative path:
 /// no leading slash,
 /// no empty,
 /// `.` or `..` part,
 /// no NUL or newline.
-pub fn is_plain_path(path: &str) -> bool {
-    return !path.is_empty()
-        && !path.starts_with('/')
-        && !path.contains(['\0', '\n'])
-        && path.split('/').all(is_plain_part);
+/// Why:
+///  The bytes are checked rather than their text,
+/// so a name that is not text is a name like any other and no name is judged by a spelling of it.
+pub fn is_plain_path(path: &Path) -> bool {
+    let bytes: &[u8] = path_bytes::path_bytes_of(path);
+    return !bytes.is_empty()
+        && !bytes.starts_with(b"/")
+        && !bytes.contains(&b'\0')
+        && !bytes.contains(&b'\n')
+        && bytes.split(is_a_separator).all(is_plain_part);
 }
 
 /// The name prefix of a commit's scratch directory,

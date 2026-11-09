@@ -47,6 +47,10 @@ pub mod event_hints;
 /// The shipped policies as checks over rule cores and repository facts.
 pub mod policy_checks;
 
+/// The linked-worktree check,
+/// in its own file so the registry of shipped policies stays readable.
+pub mod policy_linked_worktree;
+
 /// What a lifecycle offers content policies,
 ///  and its candidates once prepared.
 pub mod policy_content;
@@ -65,6 +69,12 @@ pub mod policy_root_context;
 ///  every dependency in a tracked `package.json` is a catalog or workspace reference.
 pub mod policy_catalog_specifiers;
 
+/// The branch-worktree-only check.
+pub mod policy_branch_worktree;
+
+/// The two commands the wrapper records and never refuses.
+pub mod policy_audited;
+
 /// The optional forbidden-strings policy over the linked scanner,
 ///  with redacted findings.
 pub mod policy_forbidden_strings;
@@ -72,6 +82,24 @@ pub mod policy_forbidden_strings;
 /// Installing a direct fix's corrections into the worktree,
 ///  all or none.
 pub mod direct_fix_install;
+
+/// The swap and the replacement write an install uses.
+pub mod direct_fix_install_writes;
+
+/// The journal an install is recorded in,
+/// and the sweep that finishes what a kill interrupted.
+pub mod direct_fix_install_journal;
+
+/// The sweep of the journals an interrupted fix left,
+/// and its sentences.
+pub mod direct_fix_install_journal_sweep;
+
+/// The sentences an install reports.
+pub mod direct_fix_install_messages;
+
+/// What a name holds,
+/// and whether it is exactly what an install put there.
+pub mod direct_fix_install_judging;
 
 /// The direct fix:
 ///  converge corrections in memory,

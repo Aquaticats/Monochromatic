@@ -326,3 +326,32 @@ fn refs_git_refuses_stay_declined() {
     answered(root.as_path(), repo.as_path(), &["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"]);
     remove(root.as_path());
 }
+
+/// A listing above the measured ref limit is left to Git,
+/// loose and packed,
+/// and one at the limit is answered:
+/// every ref it prints costs a pack-index lookup,
+/// and past the limit the answer takes longer than the Git
+/// start it saves (`REF_LISTING_LIMIT`).
+#[test]
+fn a_listing_past_the_ref_limit_is_left_to_git() {
+    let root = fixture("repo-read-refs-limit");
+    let repo = crate::test_support::repository(root.as_path(), "repo");
+    let tip = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8").trim_end().to_string();
+    let heads = repo.join(".git/refs/heads");
+    std::fs::create_dir_all(heads.as_path()).expect("refs");
+    let listing: [&str; 2] = ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"];
+    // `main` and this many is exactly the limit, which is still answered.
+    for number in 1..super::REF_LISTING_LIMIT {
+        std::fs::write(heads.join(format!("filler{number}")), format!("{tip}\n")).expect("loose ref");
+    }
+    answered(root.as_path(), repo.as_path(), &listing);
+    std::fs::write(heads.join("one-more"), format!("{tip}\n")).expect("loose ref");
+    declined(root.as_path(), repo.as_path(), &listing);
+    // Packed, the count is what makes the answer decline before the object database is opened.
+    git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
+    declined(root.as_path(), repo.as_path(), &listing);
+    git(repo.as_path(), &["update-ref", "-d", "refs/heads/one-more"]);
+    answered(root.as_path(), repo.as_path(), &listing);
+    remove(root.as_path());
+}

@@ -32,6 +32,7 @@
 //! await save(dir, plan); const plans = await load(dir); await remove(dir, gitDir, branchRef);
 //! ```
 
+use crate::path_bytes_in_records as path_bytes;
 use crate::push_failure_notice::fnv_hex;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::work_item::WorkItem;
@@ -61,7 +62,21 @@ pub struct StoredPlan {
 }
 
 /// The part of every file name that belongs to one branch of one Git directory.
+/// Why:
+///   The key is built from the bytes of the directory,
+/// so two directories whose paths differ only in a byte that is not text get a key each;
+/// their text is the same,
+/// and a shared key would let the plan of the second remove the plan of the first.
 fn branch_key(git_dir: &Path, branch_ref: &str) -> String {
+    return fnv_hex(format!("{}\n{branch_ref}", path_bytes::hex_of_path(git_dir)).as_str());
+}
+
+/// The key a release before the bytes were used wrote,
+/// so that its plan files are still found and removed.
+/// Why:
+///   A plan file an earlier release wrote carries this key,
+/// and `remove` after an upgrade would otherwise leave it to be read again at every start.
+fn earlier_branch_key(git_dir: &Path, branch_ref: &str) -> String {
     return fnv_hex(format!("{}\n{branch_ref}", git_dir.display()).as_str());
 }
 
@@ -77,7 +92,8 @@ fn encode(plan: &StoredPlan) -> String {
     let mut fields: Map<String, Value> = Map::new();
     fields.insert(String::from("v"), Value::from(PLAN_VERSION));
     fields.insert(String::from("attempt"), Value::from(plan.attempt));
-    fields.insert(String::from("gitDir"), Value::from(plan.git_dir.display().to_string()));
+    // The directory goes in as plain text and as its bytes, so a plan is read back as the directory it was saved for.
+    path_bytes::write_field(&mut fields, "gitDir", plan.git_dir.as_path());
     fields.insert(String::from("item"), Value::from(plan.item.encode()));
     return format!("{}\n", Value::Object(fields));
 }
@@ -98,14 +114,11 @@ fn decode(text: &str) -> Result<StoredPlan, String> {
     let Ok(attempt) = u32::try_from(number) else {
         return Err(String::from("the plan has no try number"));
     };
-    let Some(git_dir) = value.get("gitDir").and_then(Value::as_str) else {
-        return Err(String::from("the plan names no Git directory"));
-    };
     let Some(item_text) = value.get("item").and_then(Value::as_str) else {
         return Err(String::from("the plan holds no push item"));
     };
     let item: WorkItem = WorkItem::decode(item_text)?;
-    return Ok(StoredPlan { git_dir: PathBuf::from(git_dir), item, attempt });
+    return Ok(StoredPlan { git_dir: path_bytes::read_field(&value, "gitDir")?, item, attempt });
 }
 
 /// What:
@@ -130,27 +143,97 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(format!("writing the plan failed: {error}")),
     }
-    remove_files_of(directory, branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()).as_str(), Some(name.as_str()));
+    remove_files_of(
+        directory,
+        plan.git_dir.as_path(),
+        plan.item.branch_ref.as_str(),
+        &[branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str())],
+        std::slice::from_ref(&name),
+    );
     return Ok(());
+}
+
+/// The file name the plan of a branch is kept under,
+/// for a caller that must know which files a round is about to write.
+pub fn name_of(plan: &StoredPlan) -> String {
+    return plan_name(plan);
 }
 
 /// Removes the files of the plan of a branch;
 /// one that cannot be removed stays and is read again by the next start.
 pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, branch_key(git_dir, branch_ref).as_str(), None);
+    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[]);
 }
 
-/// Removes the plan files of one branch key,
-/// except the one named `keep`.
-fn remove_files_of(directory: &Path, key: &str, keep: Option<&str>) {
+/// What:
+///  Removes the files of the plan of a branch except the ones named in `keep`.
+/// Why:
+///   A forget a worker asked for is applied by the service loop after the round,
+/// so a plan another worker kept meanwhile is newer than the forget and is the statement that still counts;
+/// its file name is known before it is written,
+/// and is not removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeFilesOf(gitDir, branchRef, keys, keep)
+/// ```
+pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &[String]) {
+    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], keep);
+}
+
+/// Removes the plan files of one branch of `git_dir`,
+/// whose keys are `keys`,
+/// except the ones named in `keep`,
+/// and removes a file only when its record was read and names this directory and this branch.
+/// Why:
+///   "never discard user data."
+/// The key an earlier release wrote was built from the text of the path,
+/// and two directories whose names differ only in a byte that is not text have one text,
+/// so that key alone can name both;
+/// only the record inside the file says which plan it holds.
+/// A file that cannot be read,
+/// or that holds no plan,
+/// says nothing about the push it schedules,
+/// which may be neither done nor cancelled,
+/// so it stays and `load` judges it and says so,
+/// since deleting it needs permission on its directory alone.
+///  The names in `keep` are the plans a round is about to write,
+/// which a forget of the same round must not take.
+fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: &[String]) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
-    let prefix: String = format!("{key}{NAME_SEPARATOR}");
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with(prefix.as_str()) && keep != Some(name.as_str()) {
-            let _removed = std::fs::remove_file(entry.path());
+        if keep.contains(&name) || !names_the_branch(keys, name.as_str()) {
+            continue;
+        }
+        let path: PathBuf = entry.path();
+        if !records_this_branch(path.as_path(), git_dir, branch_ref) {
+            continue;
+        }
+        let _removed = std::fs::remove_file(path);
+    }
+}
+
+/// Whether the plan in `path` was read and names `git_dir` and `branch_ref`,
+/// which is the only case a cleanup may remove it.
+/// Why:
+///   A read or decode that fails is no proof about the plan:
+/// an unreadable file and a file that holds no plan both stay,
+/// and `load` says what it found and removes what is no plan.
+fn records_this_branch(path: &Path, git_dir: &Path, branch_ref: &str) -> bool {
+    let Ok(text) = std::fs::read_to_string(path) else { return false };
+    let Ok(found) = decode(text.as_str()) else { return false };
+    return found.git_dir == git_dir && found.item.branch_ref == branch_ref;
+}
+
+/// Whether a plan file's name begins with the key of one of the branch's plans.
+fn names_the_branch(keys: &[String], name: &str) -> bool {
+    for key in keys {
+        if name.starts_with(format!("{key}{NAME_SEPARATOR}").as_str()) {
+            return true;
         }
     }
+    return false;
 }
 
 /// Order two stored plans with the one written later first;

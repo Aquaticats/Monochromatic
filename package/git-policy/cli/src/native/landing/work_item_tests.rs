@@ -51,8 +51,8 @@ const MAX_TRIES: u32 = 3;
 fn item(kind: WorkKind, oid: &str) -> WorkItem {
     return WorkItem {
         kind,
-        repository: String::from("/repo with space"),
-        git_dir: String::from("/repo with space/.git"),
+        repository: PathBuf::from("/repo with space"),
+        git_dir: PathBuf::from("/repo with space/.git"),
         branch_ref: String::from("refs/heads/main"),
         oid: String::from(oid),
         parent: String::new(),
@@ -81,6 +81,45 @@ fn a_record_round_trips() {
         assert_eq!(original.id(), format!("{}-abc", kind.name()));
         assert_eq!(WorkKind::from_name(kind.name()), Some(kind));
     }
+}
+
+/// What:
+///  A record keeps the directories of a repository whose path is not UTF-8,
+/// byte for byte.
+/// Why:
+///   The record is text,
+/// and the service compares the Git directory it reads back with the directory it drains,
+/// so a path that text cannot spell would refuse every item of such a repository.
+#[test]
+fn a_record_keeps_the_bytes_of_a_path_that_is_not_text() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("work-item-non-utf8");
+    let worktree: PathBuf = root.join(OsStr::from_bytes(b"w\xffrktree"));
+    let git_dir: PathBuf = root.join(OsStr::from_bytes(b"c\xffmmon"));
+    std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
+    let original: WorkItem = WorkItem { repository: worktree.clone(), git_dir: git_dir.clone(), ..item(WorkKind::Push, "abc") };
+    let read: WorkItem = WorkItem::decode(original.encode().as_str()).expect("the record decodes");
+    assert_eq!(read.git_dir, git_dir, "the Git directory is the one the wrapper named");
+    assert_eq!(read.repository, worktree, "the worktree is the one the wrapper named");
+    assert_eq!(read, original);
+    remove(root.as_path());
+}
+
+/// What:
+///  A record written by a release that spelled a directory as plain text is still read,
+/// and that text is the directory.
+/// Why:
+///   A service that starts across a pending item of an upgrade must run it,
+/// not fail it,
+/// so the form the earlier release wrote has to decode.
+#[test]
+fn a_record_of_plain_text_directories_is_still_read() {
+    // The one line the release before the Hexadecimal field wrote for the same item.
+    let earlier: &str = "{\"v\":1,\"tries\":0,\"kind\":\"push\",\"id\":\"push-abc\",\"repository\":\"/srv/repo\",\"gitDir\":\"/srv/repo/.git\",\"ref\":\"refs/heads/main\",\"oid\":\"abc\",\"parent\":\"\",\"created\":\"2026-11-01T00:00:00.000Z\"}\n";
+    let read: WorkItem = WorkItem::decode(earlier).expect("an earlier release's record decodes");
+    assert_eq!(read.git_dir, PathBuf::from("/srv/repo/.git"));
+    assert_eq!(read.repository, PathBuf::from("/srv/repo"));
 }
 
 /// Records that are not exactly the format are refused with a reason.
@@ -919,5 +958,79 @@ fn a_failing_standard_error_does_not_stop_the_queue() {
     let claimed: Option<Claimed> = claim_next(work.as_path(), &clock()).expect("claim");
     assert_eq!(claimed.map(|held| return held.id), Some(item(WorkKind::Push, "good").id()));
     assert_eq!(names(work.as_path(), FAILED), vec![bad]);
+    remove(directory.as_path());
+}
+
+/// The notice of a push the service gave up on is made before the record moves to `failed`:
+/// nothing scans `failed`,
+/// so a kill between the two would abandon the branch in silence and no later command would ever learn of it.
+#[test]
+fn the_notice_of_a_given_up_push_is_made_before_the_record_is_failed() {
+    let directory: PathBuf = fixture("work-given-up-notice-first");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(WorkKind::Push, "jjj") };
+    enqueue(work.as_path(), &last_try).expect("enqueue");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    let failed_path: PathBuf = state_directory(work.as_path(), FAILED).join(last_try.id());
+    let told: std::cell::RefCell<Vec<bool>> = std::cell::RefCell::new(Vec::new());
+    struct Watching<'a> {
+        failed_path: &'a Path,
+        id: &'a str,
+        told: &'a std::cell::RefCell<Vec<bool>>,
+    }
+    impl crate::work_item_recovery::GivenUpNotice for Watching<'_> {
+        fn tell(&self, given_up: &WorkItem) -> bool {
+            assert_eq!(given_up.id(), self.id);
+            self.told.borrow_mut().push(self.failed_path.exists());
+            return true;
+        }
+    }
+    let wanted: String = last_try.id();
+    let watching: Watching<'_> = Watching { failed_path: failed_path.as_path(), id: wanted.as_str(), told: &told };
+    let recovered: Recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES, &watching);
+    assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()], "the pass gave up on the push");
+    assert_eq!(*told.borrow(), vec![false], "the person's notice was made while the record was still this instance's, before it moved to `failed`");
+    assert!(failed_path.exists(), "and the record then moved to `failed`");
+    remove(directory.as_path());
+}
+
+/// What:
+///  A push whose notice cannot be written is not settled:
+/// it stays recoverable,
+/// and a later pass that can write the notice
+///  gives up on it then.
+/// Why:
+///   Nothing scans `failed`,
+/// so a record there is the person's last word about the branch;
+/// settling it while the
+///  notice could not be written abandons the push in silence.
+#[test]
+fn a_given_up_push_whose_notice_cannot_be_written_stays_recoverable() {
+    let directory: PathBuf = fixture("work-given-up-unwritten");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(WorkKind::Push, "kkk") };
+    enqueue(work.as_path(), &last_try).expect("enqueue");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    struct Refusing;
+    impl crate::work_item_recovery::GivenUpNotice for Refusing {
+        fn tell(&self, _given_up: &WorkItem) -> bool {
+            return false;
+        }
+    }
+    let refused: Recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES, &Refusing);
+    assert_eq!(refused.moved, 0, "nothing is settled while the person is not told");
+    assert!(refused.given_up.is_empty(), "and nothing is reported as given up");
+    assert!(names(work.as_path(), FAILED).is_empty(), "the push is not abandoned in silence");
+    assert_eq!(names(work.as_path(), RECOVERING).len(), 1, "it stays this instance's, to be settled once the notice is written");
+    struct Telling;
+    impl crate::work_item_recovery::GivenUpNotice for Telling {
+        fn tell(&self, _given_up: &WorkItem) -> bool {
+            return true;
+        }
+    }
+    let settled: Recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &clock().advanced(LEASE * 4), LEASE, MAX_TRIES, &Telling);
+    assert_eq!(settled.moved, 1, "a pass that can tell the person settles it");
+    assert_eq!(names(work.as_path(), FAILED), vec![last_try.id()]);
+    assert!(names(work.as_path(), RECOVERING).is_empty());
     remove(directory.as_path());
 }

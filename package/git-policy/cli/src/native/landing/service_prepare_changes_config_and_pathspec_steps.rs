@@ -51,27 +51,31 @@ pub fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, ba
         context,
         &indexed_request(cwd, &arguments, Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
     )?;
-    let text: String = match String::from_utf8(output.stdout) {
-        Ok(text) => text,
-        Err(_) => return Ok(None),
-    };
-    let mut fields = text.split('\0').filter(is_not_empty_field);
+    // The listing is read as the bytes Git wrote: the header is text, and the name after it is a name and not text.
+    let mut fields = output.stdout.split(ends_a_field).filter(is_not_empty_field);
     let mut changes: Vec<Change> = Vec::new();
-    while let Some(header) = fields.next() {
-        let Some(path) = fields.next() else { return Ok(None) };
+    while let Some(raw_header) = fields.next() {
+        let Some(named) = fields.next() else { return Ok(None) };
+        let Ok(header) = std::str::from_utf8(raw_header) else { return Ok(None) };
         let parts: Vec<&str> = header.trim_start_matches(':').split(' ').collect();
         let [_, new_mode, _, new_name, status] = parts.as_slice() else { return Ok(None) };
         let deletion: bool = status.starts_with('D');
         let mode: u32 = if deletion { ALLOWED_MODES[0] } else { u32::from_str_radix(new_mode, 8).unwrap_or(0) };
-        if !is_plain_path(path) || !ALLOWED_MODES.contains(&mode) || (!deletion && !is_object_name(new_name)) {
+        let path: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(named));
+        if !is_plain_path(path.as_path()) || !ALLOWED_MODES.contains(&mode) || (!deletion && !is_object_name(new_name)) {
             return Ok(None);
         }
-        changes.push(Change { path: path.to_string(), mode, blob: if deletion { None } else { Some((*new_name).to_string()) } });
+        changes.push(Change { path, mode, blob: if deletion { None } else { Some((*new_name).to_string()) } });
         if changes.len() > MAX_CHANGES {
             return Ok(None);
         }
     }
     return Ok(Some(changes));
+}
+
+/// Whether a byte ends a field of Git's `-z` output.
+fn ends_a_field(byte: &u8) -> bool {
+    return *byte == b'\0';
 }
 
 /// What:
@@ -84,7 +88,7 @@ pub fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, ba
 /// ```ts
 /// const isNotEmptyField = (field: string) => field !== '';
 /// ```
-pub(crate) fn is_not_empty_field(field: &&str) -> bool {
+pub(crate) fn is_not_empty_field(field: &&[u8]) -> bool {
     return !field.is_empty();
 }
 
