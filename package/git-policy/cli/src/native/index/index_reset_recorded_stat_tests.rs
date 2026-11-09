@@ -126,6 +126,16 @@ fn a_landing_with_an_indexed_root_attributes_file_records_a_nested_path() {
     let scene: Scene = scene("index-reset-recorded-stat-nested-attributes", &Plan { files: &FILES, edits: edits.as_slice(), ..Plan::default() });
     std::fs::write(scene.repo.join(".gitattributes"), b"d/x -text\n").expect("attributes");
     crate::test_support::git(scene.repo.as_path(), &["add", ".gitattributes"]);
+    // The proof trusts an attributes file only when its change time is a whole timestamp granularity older than the
+    // clock, and this fixture writes it a moment before the landing: the control states the instant.
+    let changed: std::fs::Metadata = std::fs::symlink_metadata(scene.repo.join(".gitattributes")).expect("metadata");
+    let settled: crate::worktree_copy_stage_leaf_copying::ClockPin = {
+        use std::os::unix::fs::MetadataExt as _;
+        crate::worktree_copy_stage_leaf_copying::clock_reads(
+            crate::worktree_copy_stage_leaf_copying::stamp_nanos((changed.ctime(), changed.ctime_nsec())) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+        )
+    };
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = settled;
     std::fs::write(scene.repo.join("d/x"), b"x two\n").expect("d/x");
     age(scene.repo.join("d/x").as_path());
     assert!(landing_reset(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["d/x"]))), "the reset is the plain case");

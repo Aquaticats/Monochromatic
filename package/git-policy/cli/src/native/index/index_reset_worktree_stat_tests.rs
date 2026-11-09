@@ -10,6 +10,7 @@
 use super::{ProofSeams, WorktreeStatRequest, read_some, recorded_stat, recorded_stat_seamed};
 use crate::index_stat::{IndexStamp, StatData};
 use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
+use crate::worktree_copy_stage_leaf_copying::{ClockPin, RECENT_CHANGE_NANOS, clock_reads, stamp_nanos};
 use std::os::unix::ffi::OsStrExt as _;
 use crate::repo_read_layout::ObjectFormat;
 use crate::test_support::{age, fixture, git, remove};
@@ -87,6 +88,24 @@ fn recorded_with_indexed(indexed: &[Vec<u8>], root: &Path, path: &[u8], blob: &[
 fn recorded_at(stamp: IndexStamp, root: &Path, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
     let hashed: StdCell<u64> = StdCell::new(0);
     return recorded_stat(&request_at_stamp(stamp, root, path, blob, mode, &hashed));
+}
+
+/// What:
+///  The clock a control pins so that the attributes file at `path` counts as settled.
+/// Why:
+///   The proof trusts an attributes file only when its change time is a whole timestamp granularity older than the
+///  clock,
+/// and a fixture writes its attributes a moment before the control runs:
+/// the control states the instant instead of
+///  waiting for the clock to move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = clockReads(changedNanos(`${root}/.gitattributes`) + RECENT_CHANGE_NANOS);
+/// ```
+fn settled_clock(path: &Path) -> ClockPin {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).expect("the attributes file");
+    return clock_reads(stamp_nanos((metadata.ctime(), metadata.ctime_nsec())) + RECENT_CHANGE_NANOS);
 }
 
 /// A repository fixture with no commit,
@@ -275,6 +294,7 @@ fn a_path_a_converting_attribute_names_records_nothing() {
     for attribute in ["filter=weird", "working-tree-encoding=UTF-16LE", "ident"] {
         let root: PathBuf = fixture_root(format!("index-worktree-stat-{}", attribute.split('=').next().expect("a name")).as_str());
         attributes_naming(root.as_path(), attribute);
+        let _settled: ClockPin = settled_clock(root.join(".gitattributes").as_path());
         for name in ["f.txt", "g.txt"] {
             let file: PathBuf = root.join(name);
             std::fs::write(&file, b"a\n").expect("write");
@@ -480,6 +500,7 @@ fn attributes_of(root: &Path, bytes: usize) {
 fn an_attribute_read_that_does_not_fit_the_room_refuses_the_record() {
     let root: PathBuf = fixture_root("index-worktree-stat-attribute-room");
     attributes_of(root.as_path(), 4096);
+    let _settled: ClockPin = settled_clock(root.join(".gitattributes").as_path());
     let file: PathBuf = root.join("a");
     std::fs::write(&file, b"a\n").expect("write");
     age(file.as_path());
@@ -500,6 +521,7 @@ fn an_attribute_read_that_does_not_fit_the_room_refuses_the_record() {
 fn the_attribute_files_a_landing_reads_are_charged() {
     let root: PathBuf = fixture_root("index-worktree-stat-attribute-charged");
     attributes_of(root.as_path(), 4096);
+    let _settled: ClockPin = settled_clock(root.join(".gitattributes").as_path());
     let file: PathBuf = root.join("a");
     std::fs::write(&file, b"a\n").expect("write");
     age(file.as_path());
@@ -525,6 +547,7 @@ fn a_nested_path_with_an_indexed_root_attributes_file_records_rather_than_panick
     let file: PathBuf = root.join("d/a");
     std::fs::write(&file, b"a\n").expect("write");
     age(file.as_path());
+    let _settled: ClockPin = settled_clock(root.join(".gitattributes").as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
     assert_eq!(
         recorded_with_indexed(&[Vec::new()], root.as_path(), b"d/a", blob.as_slice(), 0o100_644).unwrap_or_default(),
@@ -541,6 +564,7 @@ fn a_nested_path_with_an_indexed_ancestor_attributes_file_records_rather_than_pa
     let root: PathBuf = fixture_root("index-worktree-stat-ancestor-attributes");
     std::fs::create_dir_all(root.join("d/e")).expect("directory");
     std::fs::write(root.join("d/.gitattributes"), b"a -text\n").expect("attributes");
+    let _settled: ClockPin = settled_clock(root.join("d/.gitattributes").as_path());
     let file: PathBuf = root.join("d/e/a");
     std::fs::write(&file, b"a\n").expect("write");
     age(file.as_path());

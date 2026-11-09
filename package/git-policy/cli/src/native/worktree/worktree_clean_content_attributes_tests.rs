@@ -30,6 +30,11 @@ fn fixture_root(name: &str, attributes: &[u8]) -> std::path::PathBuf {
 #[test]
 fn an_attributes_file_that_grows_under_the_read_takes_no_byte_past_the_room() {
     let root: std::path::PathBuf = fixture_root("attributes-grown", b"# eight\n");
+    // The attributes file is written a moment before this control, and the proof trusts only a settled one, so the
+    // control states the instant instead of waiting.
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = crate::worktree_copy_stage_leaf_copying::clock_reads(
+        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata")) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+    );
     let handed: &Cell<u64> = Box::leak(Box::new(Cell::new(0)));
     let room: u64 = 8;
     let grown: std::path::PathBuf = root.join(".gitattributes");
@@ -62,6 +67,11 @@ fn an_attributes_file_that_grows_under_the_read_takes_no_byte_past_the_room() {
 #[test]
 fn an_attributes_file_rewritten_under_the_read_is_refused() {
     let root: std::path::PathBuf = fixture_root("attributes-rewritten", b"a -text\n");
+    // The attributes file is written a moment before this control, and the proof trusts only a settled one, so the
+    // control states the instant instead of waiting.
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = crate::worktree_copy_stage_leaf_copying::clock_reads(
+        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata")) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+    );
     let handed: &Cell<u64> = Box::leak(Box::new(Cell::new(0)));
     let step: &Cell<usize> = Box::leak(Box::new(Cell::new(0)));
     let rewritten: std::path::PathBuf = root.join(".gitattributes");
@@ -101,6 +111,11 @@ fn an_attributes_file_rewritten_under_the_read_is_refused() {
 #[test]
 fn an_interrupted_attribute_read_is_tried_again() {
     let root: std::path::PathBuf = fixture_root("attributes-interrupted", b"a -text\n");
+    // The attributes file is written a moment before this control, and the proof trusts only a settled one, so the
+    // control states the instant instead of waiting.
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = crate::worktree_copy_stage_leaf_copying::clock_reads(
+        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata")) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+    );
     let attempts: &Cell<usize> = Box::leak(Box::new(Cell::new(0)));
     let read = move |file: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
         attempts.set(attempts.get() + 1);
@@ -152,6 +167,13 @@ fn return_target(metadata: &std::fs::Metadata) -> u64 {
     return metadata.ino();
 }
 
+/// The inode the descriptor `file` holds,
+/// or the largest one when it cannot be looked at.
+fn read_inode_of(file: &std::fs::File) -> u64 {
+    use std::os::unix::fs::MetadataExt as _;
+    return file.metadata().map(|metadata| { return metadata.ino(); }).unwrap_or(u64::MAX);
+}
+
 /// The change time of a path's metadata in nanoseconds since the epoch.
 fn changed_nanos(metadata: &std::fs::Metadata) -> i128 {
     use std::os::unix::fs::MetadataExt as _;
@@ -189,13 +211,9 @@ fn a_configured_attributes_link_swapped_under_the_read_is_refused() {
     let swapping: std::path::PathBuf = configured.clone();
     let other: std::path::PathBuf = root.join("two");
     // The configured target, so the control swaps the link only while that file is being read.
-    let target: u64 = {
-        use std::os::unix::fs::MetadataExt as _;
-        return_target(&std::fs::symlink_metadata(root.join("one")).expect("metadata"))
-    };
+    let target: u64 = return_target(&std::fs::symlink_metadata(root.join("one")).expect("metadata"));
     let read = move |file: &std::fs::File, buffer: &mut [u8]| -> std::io::Result<usize> {
-        use std::os::unix::fs::MetadataExt as _;
-        if file.metadata().map(|metadata| metadata.ino()).unwrap_or(u64::MAX) == target {
+        if read_inode_of(file) == target {
             // The link is replaced while the file it named is being read.
             std::fs::remove_file(&swapping).expect("remove the link");
             std::os::unix::fs::symlink(&other, &swapping).expect("replace the link");

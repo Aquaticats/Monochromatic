@@ -91,6 +91,23 @@ impl<'a> ContentJudge<'a> {
         if !metadata.file_type().is_file() {
             return Err(format!("{label} is not a plain file (a named pipe, a device or a directory), so the attributes it sets cannot be ruled out"));
         }
+        // What:
+        //  A caller that bounds its reads is recording stat data for a file it proves unchanged,
+        //  so the attributes must be proven current.
+        // Why:
+        //   Two writes inside one timestamp tick carry the same change time,
+        // so a file changed within the granularity of the clock may have
+        //  been rewritten under this read without the state showing it;
+        // `stamp_is_settled` names that hazard for the whole crate
+        // (`worktree_copy_stage_leaf_copying.rs`).
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (bounded && !stampIsSettled([metadata.ctime, metadata.ctimeNsec])) return undefined;
+        // ```
+        if self.budget.is_some() && !crate::worktree_copy_stage_leaf_copying::stamp_is_settled((metadata.ctime(), metadata.ctime_nsec())) {
+            return Err(format!("{label} changed too recently for its attributes to be proven current, so the conversion it sets cannot be ruled out"));
+        }
         let room: u64 = self.attribute_room();
         if metadata.len() > room {
             return Err(format!("{label} is larger than the {room} bytes this caller may still read, so the attributes it sets cannot be ruled out"));
