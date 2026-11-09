@@ -15,6 +15,19 @@
 //!  because a
 //!      pathname can hold the text a scan exists to keep out of output.
 //!
+//! What a kill leaves:
+//!  one prepared file per corrected file, beside it,
+//!  named with `INSTALL_SIBLING_PREFIX`;
+//!  before the swap it holds the correction,
+//!  after it the file the swap displaced,
+//!  and nothing here removes it later.
+//!  A fix therefore puts `PREPARED_FILE_EXCLUDE_PATTERN` in the repository's
+//!  `info/exclude` before it prepares anything,
+//!  so Git never lists those files as untracked,
+//!  never stages them with `git add --all`,
+//!  and no later fix reads them as candidate content;
+//!  a person who finds one removes it with `rm`, and nothing of it is published.
+//!
 //! What window remains:
 //!  A swap (`exchange`) puts the corrected file in place and leaves the file it
 //!  displaced readable at the prepared path, so the bytes that were really there
@@ -48,6 +61,82 @@ use std::rc::Rc;
 
 /// The name prefix of the files a fix writes beside each corrected file.
 pub const INSTALL_SIBLING_PREFIX: &str = ".cli-git-direct-fix-";
+
+/// The ignore pattern that keeps a fix's prepared files out of Git,
+///  at every depth of the
+///       worktree.
+///  Measured with Git 2.56.0 in a disposable repository on 2026-11-09:
+///  `git add --all` staged
+///       a prepared file in a subdirectory under `/.cli-git-direct-fix-*` (a leading slash anchors the
+///       pattern to the top level);
+///  without the slash it staged none of three files at the top, one level
+///       down and two levels down,
+///  and `git status --ignored` named them ignored.
+pub const PREPARED_FILE_EXCLUDE_PATTERN: &str = ".cli-git-direct-fix-";
+
+/// What:
+///  Make Git ignore the files a fix prepares,
+///  in this repository,
+///  for every later command.
+/// Why:
+///  A killed fix leaves its prepared file beside the corrected file,
+///  and a fix's scope is the
+///       whole worktree:
+///  without this rule the next `fix` reads the leftover as candidate content
+///  and
+///       a later `git add --all` publishes a copy under a name the person never chose.
+///  The rule lives
+///       in the repository's own `info/exclude`,
+///  which is never committed and never shown as a change,
+///  and
+///       writing it changes nothing the person wrote:
+///  an existing line is kept and the rule is added once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await appendIfMissing(`${commonDir}/info/exclude`, '.cli-git-direct-fix-*' + '\n');
+/// ```
+pub fn keep_prepared_files_out_of_git(common_dir: &Path) -> std::io::Result<()> {
+    /// `Write` adds `write_all`;
+    ///  `OpenOptions` opens a file to append to.
+    use std::io::Write;
+    let directory: PathBuf = common_dir.join("info");
+    std::fs::create_dir_all(directory.as_path())?;
+    let exclude: PathBuf = directory.join("exclude");
+    let current: Vec<u8> = match std::fs::read(exclude.as_path()) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error),
+    };
+    // A line that already holds the rule means an earlier fix wrote it; the pattern's `*` is its whole form.
+    let rule: String = format!("{PREPARED_FILE_EXCLUDE_PATTERN}*");
+    // A line of its own holds the rule; the loop compares each line the file already has.
+    let mut start: usize = 0;
+    for position in 0..=current.len() {
+        if position < current.len() && current[position] != b'\n' {
+            continue;
+        }
+        if &current[start..position] == rule.as_bytes() {
+            return Ok(());
+        }
+        start = position + 1;
+    }
+    let mut opened: std::fs::File = std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(exclude.as_path())?;
+    // The leading line break only separates this block from a last line the person wrote without one.
+    let mut block: String = String::new();
+    if !current.is_empty() && !current.ends_with(b"\n") {
+        block.push('\n');
+    }
+    block.push_str(
+        "# monochromatic-git-policy-cli: the files a fix prepares beside a file, kept until it installs them\n",
+    );
+    block.push_str(rule.as_str());
+    block.push('\n');
+    return opened.write_all(block.as_bytes());
+}
 
 /// The start of every installation failure message.
 const INSTALL_FAILED: &str = "monochromatic-git-policy-cli fix could not install its corrections";

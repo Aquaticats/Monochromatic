@@ -20,11 +20,12 @@
 
 /// Import the module under test.
 use super::{
-    INSTALL_SIBLING_PREFIX, InstallChange, Replacement, install_corrections, install_prepared,
-    prepare_replacements, read_index, rollback,
+    INSTALL_SIBLING_PREFIX, InstallChange, PREPARED_FILE_EXCLUDE_PATTERN, Replacement,
+    install_corrections, install_prepared, keep_prepared_files_out_of_git, prepare_replacements,
+    read_index, rollback,
 };
 use crate::candidate_object::CandidateMode;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, git, remove, repository};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -521,4 +522,54 @@ fn a_restore_that_cannot_swap_back_keeps_the_original_bytes_beside_the_file() {
         b"a"
     );
     remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  The rule that keeps a fix's prepared files out of Git is written once,
+///  keeps what the
+///       person wrote,
+///  and makes `git add --all` stage nothing of theirs at any depth.
+/// Why:
+///  A killed fix leaves its prepared file beside a corrected file,
+///  and a fix's scope is the whole
+///       worktree:
+///  without the rule the next fix reads the leftover as content and a later
+///       `git add --all` publishes it under a name the person never chose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await keepPreparedFilesOutOfGit('.git'); await write('sub/.cli-git-direct-fix-1-0.new'); await git('add', '--all'); expect(staged).toEqual(['keep.txt'])
+/// ```
+#[test]
+fn the_prepared_files_of_a_fix_are_never_staged() {
+    let root: PathBuf = fixture("install-exclude");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let exclude: PathBuf = repo.join(".git/info/exclude");
+    std::fs::write(&exclude, b"# the person's own rule\n*.tmp").expect("exclude");
+    keep_prepared_files_out_of_git(repo.join(".git").as_path()).expect("the rule is written");
+    let written: String = std::fs::read_to_string(&exclude).expect("exclude");
+    assert!(written.contains("# the person's own rule"), "{written}");
+    // A last line without a line break still ends before the block this writes.
+    assert!(
+        written.contains("*.tmp\n# monochromatic-git-policy-cli:"),
+        "{written}"
+    );
+    assert!(written.contains(&format!("\n{PREPARED_FILE_EXCLUDE_PATTERN}*\n")), "{written}");
+    // A second fix writes nothing: the rule is already there.
+    let before: Vec<u8> = std::fs::read(&exclude).expect("exclude");
+    keep_prepared_files_out_of_git(repo.join(".git").as_path()).expect("the rule is written");
+    assert_eq!(std::fs::read(&exclude).expect("exclude"), before);
+    // A leftover at the top, one level down and two levels down is invisible to `git add --all`.
+    std::fs::write(repo.join("keep.txt"), b"keep\n").expect("keep");
+    std::fs::write(repo.join(".cli-git-direct-fix-1-2-0.new"), b"one\n").expect("top");
+    std::fs::create_dir_all(repo.join("sub/deeper")).expect("directories");
+    std::fs::write(repo.join("sub/.cli-git-direct-fix-1-2-1.new"), b"two\n").expect("sub");
+    std::fs::write(repo.join("sub/deeper/.cli-git-direct-fix-1-2-2.new"), b"three\n").expect("deeper");
+    git(repo.as_path(), &["add", "--all"]);
+    let staged: std::process::Output = git(repo.as_path(), &["ls-files"]);
+    assert_eq!(
+        String::from_utf8_lossy(staged.stdout.as_slice()).into_owned(),
+        String::from("keep.txt\n")
+    );
+    remove(root.as_path());
 }

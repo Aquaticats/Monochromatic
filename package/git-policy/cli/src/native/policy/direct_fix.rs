@@ -30,7 +30,9 @@
 use crate::diagnostics::EngineFailureCode;
 /// Import the change list a converged fix installs,
 ///  and the installer.
-use crate::direct_fix_install::{InstallChange, install_corrections};
+use crate::direct_fix_install::{
+    InstallChange, install_corrections, keep_prepared_files_out_of_git,
+};
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the shipped checks,
@@ -277,7 +279,7 @@ pub fn fix_failure(
 pub fn settled_fix<F: RepositoryFacts>(
     pass: PassResult,
     changed_passes: usize,
-    checks: &ShippedChecks<F>,
+    checks: &mut ShippedChecks<F>,
     root: Option<&Path>,
 ) -> PassResult {
     if pass_exit_code(pass.events.as_slice(), pass.end) != 0 {
@@ -294,6 +296,16 @@ pub fn settled_fix<F: RepositoryFacts>(
             NO_WORKTREE_MESSAGE,
         );
     };
+    // The prepared files a kill would leave must be invisible to Git before the first one exists.
+    if let Some(common_dir) = checks.facts.known_common_dir()
+        && let Err(error) = keep_prepared_files_out_of_git(common_dir.as_path())
+    {
+        checks.notices.push(format!(
+            "monochromatic-git-policy-cli could not write the ignore rule for the files it prepares into {} ({error}), so a file a killed fix leaves beside a corrected file could be staged by a later Git command. Remove any file whose name starts with {} before committing.",
+            common_dir.join("info/exclude").display(),
+            crate::direct_fix_install::INSTALL_SIBLING_PREFIX
+        ));
+    }
     if let Err(message) = install_corrections(top_level, real_index, changes.as_slice()) {
         return fix_failure(
             pass.arguments.as_slice(),
@@ -338,7 +350,7 @@ pub fn settled_fix<F: RepositoryFacts>(
 pub fn finish_fix<F: RepositoryFacts>(
     convergence: Convergence,
     pass: PassResult,
-    checks: &ShippedChecks<F>,
+    checks: &mut ShippedChecks<F>,
     root: Option<&Path>,
 ) -> PassResult {
     match convergence {

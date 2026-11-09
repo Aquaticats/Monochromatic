@@ -304,7 +304,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         }],
         StageEnd::Completed,
     );
-    let checks: ShippedChecks<ScriptedFacts> = shipped_checks(
+    let mut checks: ShippedChecks<ScriptedFacts> = shipped_checks(
         scripted_facts(),
         os_arguments(&["kept"]),
         LifecycleContent::None,
@@ -313,7 +313,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
     let mut arguments_kept: PassResult = warned.clone();
     arguments_kept.arguments = os_arguments(&["kept"]);
     assert_eq!(
-        finish_fix(Convergence::FixCycle, arguments_kept.clone(), &checks, None),
+        finish_fix(Convergence::FixCycle, arguments_kept.clone(), &mut checks, None),
         PassResult {
             arguments: os_arguments(&["kept"]),
             events: vec![PolicyEvent::EngineFailure {
@@ -328,11 +328,11 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         }
     );
     assert_eq!(
-        finish_fix(Convergence::FixPassLimit, warned.clone(), &checks, None),
+        finish_fix(Convergence::FixPassLimit, warned.clone(), &mut checks, None),
         fix_failure(&[], EngineFailureCode::FixPassLimit, FIX_PASS_LIMIT_MESSAGE)
     );
     assert_eq!(
-        finish_fix(Convergence::Blocked, warned.clone(), &checks, None),
+        finish_fix(Convergence::Blocked, warned.clone(), &mut checks, None),
         warned
     );
     // Nothing corrected: the pass as it is, with no summary and no worktree needed.
@@ -340,13 +340,13 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         finish_fix(
             Convergence::Settled { changed_passes: 0 },
             warned.clone(),
-            &checks,
+            &mut checks,
             None
         ),
         warned
     );
     let failing: PassResult = pass_with(Vec::new(), StageEnd::Failed);
-    assert_eq!(settled_fix(failing.clone(), 1, &checks, None), failing);
+    assert_eq!(settled_fix(failing.clone(), 1, &mut checks, None), failing);
     // An error finding in the last pass: reported as it is, exit status 1, nothing
     // installed although a file was corrected.
     let mut corrected: ShippedChecks<ScriptedFacts> = shipped_checks(
@@ -378,14 +378,14 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         finish_fix(
             Convergence::Settled { changed_passes: 1 },
             stopped.clone(),
-            &corrected,
+            &mut corrected,
             None
         ),
         stopped
     );
     // The same correction under a clean last pass needs a worktree to install into.
     assert_eq!(
-        settled_fix(warned.clone(), 1, &corrected, None),
+        settled_fix(warned.clone(), 1, &mut corrected, None),
         fix_failure(
             &[],
             EngineFailureCode::TransactionFailed,
