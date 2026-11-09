@@ -1873,6 +1873,9 @@ and their identities are recorded after.
 Installation cost therefore grows linearly with the entry count.
 A trailing log fragment without a line terminator is an unfinished append;
 recovery ignores it and truncates it before appending.
+A complete line whose bytes are not UTF-8 is corruption:
+reading it with replacement characters would claim a path the writer never named,
+so the log is refused by name and kept.
 A completion phase makes stage removal and journal removal recoverable in either crash order.
 Staging takes minutes and gigabytes,
 and the journal is written only after it,
@@ -1887,10 +1890,31 @@ and nothing serializes the commands that read them.
 A journal is `<id>.<owner>.json`,
 where `<owner>` is the owner's process id,
 birth identity and PID namespace as hexadecimal
-text;
-a stage claim holds the container path on its first line and `owner=<owner>` on its second;
-every temporary file is
-`<item>.<owner>.<unique>.tmp`.
+text.
+A stage claim holds the container path on its first line,
+`containerHex=<the path's bytes in lowercase hexadecimal>` on the next,
+and `owner=<owner>` last;
+the first line is written only when text spells the whole path and it fits one line,
+so a claim whose path is not text refuses in a reader that knows only that line.
+The first line is what the release installed before `containerHex` reads.
+Every temporary file is `<item>.<owner>.<unique>.tmp`,
+with the suffix appended to the item's own path bytes and never to a spelling of them.
+
+Every root a copy record holds is written as its bytes.
+The journal carries `destinationRootHex`,
+`sourceRootHex`,
+`stageContainerHex` and `stageRootHex`,
+each the root's bytes in lowercase hexadecimal,
+under the `Hex` suffix of `foundation/path_bytes_in_records.rs`;
+a reader takes the bytes field when it is there and the text field when it is not.
+A path that text spells with no replacement character is written both ways,
+so the release installed before the bytes fields still reads the journal.
+A path that is not text has no text field,
+so that release refuses the journal,
+changes nothing and keeps it,
+instead of acting on the replacement spelling.
+A bytes field that is present and does not decode is damage,
+never absence.
 An owner is alive when a process with its id and its birth identity exists;
 one in a PID namespace the reader cannot see is
 alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`,
@@ -1919,6 +1943,7 @@ Every later linked-worktree or bare-repository invocation checks for pending jou
 and recovers those of dead owners.
 It never waits.
 Recovery validates that journal paths remain canonical,
+reading their bytes rather than a spelling of them,
 the stage is a private owned directory beside the destination,
 and every intended entry exists in the private manifest.
 Every pending transaction then reaches an end:
