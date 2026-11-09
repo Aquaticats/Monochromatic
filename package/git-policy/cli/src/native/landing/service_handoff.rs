@@ -115,7 +115,7 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
         });
     }
     enqueue_all(work_dir.as_path(), items.as_slice()).map_err(ClientFailure::WorkNotHandedOver)?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices).map_err(|failure| { return not_handed_over(&failure); });
+    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices).map_err(not_handed_over);
 }
 
 /// What:
@@ -239,7 +239,7 @@ pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path
 /// ```
 pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
     write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), handoff.reference.as_str(), tip, handoff.parent.as_str())?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), None, notices).map_err(|failure| { return not_handed_over(&failure); });
+    return wake(&handoff.config, handoff.git_dir.as_path(), None, notices).map_err(not_handed_over);
 }
 
 /// What:
@@ -263,8 +263,8 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
 /// ```ts
 /// const handed = (failure) => ({ kind: 'work-not-handed-over', reason: reasonOf(failure) });
 /// ```
-fn not_handed_over(failure: &ClientFailure) -> ClientFailure {
-    let reason: &str = match failure {
+fn not_handed_over(failure: ClientFailure) -> ClientFailure {
+    let reason: &str = match &failure {
         ClientFailure::NoActivation(_) => "this account cannot start the commit service on demand",
         ClientFailure::ServiceSilent => "the commit service stopped answering",
         ClientFailure::DidNotStart => "the commit service did not start",

@@ -151,7 +151,8 @@ fn greet_and_read(stream: &UnixStream) {
 
 /// How many connections a stand-in service of these controls serves before its thread ends,
 /// and how long it may take to serve them:
-/// a bound of its own, so no thread waits on a control that ended.
+/// a bound of its own,
+/// so no thread waits on a control that ended.
 const SERVED: usize = 8;
 const STAND_IN_PATIENCE: Duration = Duration::from_secs(30);
 
@@ -229,7 +230,7 @@ fn a_request_that_was_sent_is_not_reported_as_a_commit_that_was_not_made_when_a_
 /// which is true when nothing was sent.
 /// Why:
 ///   The control of the two controls above:
-/// the words "did not start, so this commit was not made" are right only while no request reached a service,
+/// the words "did not start" are right only while no request reached a service,
 /// so the change that keeps them from a sent request must not take them from an unsent one.
 #[test]
 fn a_request_that_was_never_sent_keeps_the_answer_that_nothing_answered() {

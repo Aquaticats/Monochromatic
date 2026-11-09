@@ -259,7 +259,8 @@ fn own_worktree_gone_now(settings: &ServeSettings, until_idle: Duration) -> bool
 /// lands each group,
 /// and answers.
 /// Nothing is landed before
-///  the recovery is over: only this thread lands,
+///  the recovery is over:
+/// only this thread lands,
 /// and it lands nothing until it reads the queue.
 ///
 /// In TS you'd write (pseudocode):

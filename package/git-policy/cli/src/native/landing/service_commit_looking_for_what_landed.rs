@@ -186,8 +186,12 @@ fn an_open_batch_making(journal: &Path, id: &str) -> Option<(Intent, String)> {
 /// const at = record.ids.indexOf(id); return at < 0 ? undefined : record.commits[at]
 /// ```
 fn the_commit_of(record: &Intent, id: &str) -> Option<String> {
-    let at: usize = record.ids.iter().position(|named| { return named == id; })?;
-    return record.commits.get(at).cloned();
+    for (at, named) in record.ids.iter().enumerate() {
+        if named == id {
+            return record.commits.get(at).cloned();
+        }
+    }
+    return None;
 }
 
 /// The look is controlled in the test module.

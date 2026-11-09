@@ -67,7 +67,8 @@ fn a_finished_batch_names_the_commit_the_request_became() {
 /// Why:
 ///   The service was killed after the branch moved and before its record was finished,
 /// which is the route of the audit of service restarts
-/// (`f3 ... after-ref`): the commit is on the branch,
+/// (`f3 ... after-ref`):
+/// the commit is on the branch,
 /// and only the open record says which commit it is.
 #[test]
 fn an_open_batch_names_the_commit_the_branch_holds() {

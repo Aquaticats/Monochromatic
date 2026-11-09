@@ -580,7 +580,8 @@ pub fn prune_done(dir: &Path, retained: usize) -> usize {
 /// Why:
 ///   A client whose answer was lost looks for the commit its own request made,
 /// and that batch is one of the
-///  newest: the request was sent seconds ago.
+///  newest:
+/// the request was sent seconds ago.
 /// Reading only those keeps a look that repeats until its bound cheap,
 ///  where reading the journal's
 /// `DONE_RETAINED` records would re-read every one of them at each look.
@@ -595,15 +596,28 @@ pub fn newest_finished_batches_read_only(dir: &Path, newest: usize) -> Vec<(Path
     };
     let mut finished: Vec<(u64, PathBuf)> = entries.flatten().filter_map(finished_batch_of_entry).collect();
     finished.sort_by_key(newest_first_key);
-    return finished
-        .into_iter()
-        .take(newest)
-        .map(|(_seq, path)| {
-            // A record that cannot be read or parsed is listed with no intent, as the other listings do.
-            let parsed: Option<Intent> = fs::read_to_string(&path).ok().and_then(|text| { return parse_intent(text.as_str()); });
-            return (path, parsed);
-        })
-        .collect();
+    let mut found: Vec<(PathBuf, Option<Intent>)> = Vec::new();
+    for (_seq, path) in finished.into_iter().take(newest) {
+        let parsed: Option<Intent> = finished_record_of(path.as_path());
+        found.push((path, parsed));
+    }
+    return found;
+}
+
+/// What:
+///  The record a finished batch's file holds,
+/// nothing when the file cannot be read or does not parse.
+/// Why:
+///   A record that cannot be read or parsed is listed with no intent,
+/// as the other listings do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// finishedRecordOf(path) // the record, or undefined
+/// ```
+fn finished_record_of(path: &Path) -> Option<Intent> {
+    let text: String = fs::read_to_string(path).ok()?;
+    return parse_intent(text.as_str());
 }
 
 /// The request identities of every finished batch,
