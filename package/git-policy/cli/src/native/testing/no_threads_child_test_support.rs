@@ -32,6 +32,51 @@ fn apply_limit() -> std::io::Result<()> {
     return Ok(());
 }
 
+/// What:
+///  Give this process room for threads again, up to the hard limit it inherited.
+/// Why:
+///  A control can then show what happens to the work the pool queued while every thread was refused:
+///  the pool's first new thread runs it,
+///  which is the case a job reported as "never started" must survive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// setrlimit(RLIMIT_NPROC, { cur: hard, max: hard });
+/// ```
+pub(crate) fn let_threads_start_again() -> std::io::Result<()> {
+    return set_process_limit(None);
+}
+
+/// What:
+///  Refuse every thread this process starts, as the child of `ran_in_child` is refused.
+/// Why:
+///  A control that first needs processes of its own (a Git fixture) can then put the refusal back
+/// for the part it measures.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// setrlimit(RLIMIT_NPROC, { cur: 1, max: hard });
+/// ```
+pub(crate) fn refuse_threads_again() -> std::io::Result<()> {
+    return set_process_limit(Some(1));
+}
+
+/// The soft process limit, or the hard one when `allowed` is nothing.
+fn set_process_limit(allowed: Option<u64>) -> std::io::Result<()> {
+    let mut found = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    // SAFETY: `getrlimit` and `setrlimit` are async-signal-safe and read and write only this local value.
+    unsafe {
+        if libc::getrlimit(libc::RLIMIT_NPROC, &mut found) != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let wanted = libc::rlimit { rlim_cur: allowed.unwrap_or(found.rlim_max), rlim_max: found.rlim_max };
+        if libc::setrlimit(libc::RLIMIT_NPROC, &wanted) != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+    }
+    return Ok(());
+}
+
 /// The command that starts this test binary on one test,
 /// under the limit.
 fn child_command(path: &str) -> std::process::Command {
