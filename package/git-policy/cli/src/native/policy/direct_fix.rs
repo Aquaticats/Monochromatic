@@ -6,8 +6,7 @@
 //!  then install the
 //!       corrected files into the worktree when that last pass is clean.
 //! Why:
-//!  The installed wrapper's `direct-fix.ts` and `direct-fix-convergence.ts` decide the
-//!      behaviour:
+//!  The behaviour is the wrapper's established one:
 //!  only the last pass is reported,
 //!  a fix summary follows it only when a
 //!      file changed,
