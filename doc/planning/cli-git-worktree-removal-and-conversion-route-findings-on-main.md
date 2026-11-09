@@ -68,6 +68,29 @@ the copy of ignored state into a new worktree
 the landing and push routes,
 and the token conversion of call sites on other branches.
 
+## What the handover already records
+
+`doc/handover/cli-git-rust-implementation.md`,
+"Open review findings",
+records nothing about this route.
+Its open items are the copy route's nine findings and eight off-`main` fixes,
+the audit-rotation generations,
+the accepted downgrade limit,
+the push route's twelve findings,
+and the four Critical findings of the commits-never-fail review.
+Its worktree material that could be mistaken for a review of this route is:
+the lock-free settlement's supersession
+(`doc/decision/cli-git-concurrent-commits.md:299-307`),
+the remaining conversions and their two summary counters
+(handover,
+"Conversion of the remaining worktrees and its small fixes"),
+the registration comparison fixed in `1486f5c112`,
+and the temporary journal files swept in `d4c213edf0`.
+The seven findings below are not among those,
+and each of the four fixed items above was re-read and is present in the code
+this page cites,
+so none of them is reported again.
+
 ## The owner's decisions this page judges by
 
 Verbatim,
