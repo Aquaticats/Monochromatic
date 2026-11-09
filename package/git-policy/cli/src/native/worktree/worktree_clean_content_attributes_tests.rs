@@ -238,6 +238,11 @@ fn a_configured_attributes_link_swapped_under_the_read_is_refused() {
 #[test]
 fn repeatedly_interrupted_attribute_reads_end_in_a_refusal() {
     let root: std::path::PathBuf = fixture_root("attributes-interrupted-forever", b"a -text\n");
+    // The attributes file is written a moment before this control, and the proof trusts only a settled one, so the
+    // control states the instant instead of waiting.
+    let _settled: crate::worktree_copy_stage_leaf_copying::ClockPin = crate::worktree_copy_stage_leaf_copying::clock_reads(
+        changed_nanos(&std::fs::symlink_metadata(root.join(".gitattributes")).expect("metadata")) + crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS,
+    );
     let attempts: &Cell<usize> = Box::leak(Box::new(Cell::new(0)));
     let read = move |_file: &std::fs::File, _buffer: &mut [u8]| -> std::io::Result<usize> {
         attempts.set(attempts.get() + 1);
@@ -256,6 +261,11 @@ fn repeatedly_interrupted_attribute_reads_end_in_a_refusal() {
     judge.read_attributes_with(&read);
     let outcome: Result<(), String> = judge.conversion_is_the_identity(b"a", &[]);
     assert!(outcome.is_err(), "a read that never gets through refuses the attributes, and answered {outcome:?}");
-    assert!(attempts.get() <= 3, "a bounded number of tries, and the read was tried {} times", attempts.get());
+    assert!(
+        attempts.get() <= 1 + super::INTERRUPTED_TRIES,
+        "at most {} tries, and the read was tried {} times",
+        1 + super::INTERRUPTED_TRIES,
+        attempts.get()
+    );
     remove(root.as_path());
 }
