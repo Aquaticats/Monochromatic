@@ -154,7 +154,7 @@ pub fn index_holds_the_merge(
     changes: &[Change],
 ) -> Result<bool, RecoveryError> {
     let standings: Vec<Standing> = index_standings(place, root, old_oid, changes)?;
-    return Ok(standings.iter().any(|standing| { return *standing == Standing::New; }));
+    return Ok(standings.iter().any(is_the_merges_entry));
 }
 
 /// What:
@@ -201,11 +201,11 @@ pub fn index_standings(
             }
         }
         // A path the index does not report differs from the old commit not at all.
-        let Some(entry) = entry else {
+        let Some(staged_entry) = entry else {
             found.push(Standing::Old);
             continue;
         };
-        if entry.new_mode == change.new_mode && entry.new_oid == change.new_oid {
+        if staged_entry.new_mode == change.new_mode && staged_entry.new_oid == change.new_oid {
             found.push(Standing::New);
         } else {
             found.push(Standing::Foreign);
@@ -303,13 +303,28 @@ pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> 
             continue;
         }
         let location: PathBuf = worktree_path(root, change.path.as_slice());
-        let stands_as_a_directory: bool = std::fs::symlink_metadata(location.as_path()).map(|found| { return found.is_dir(); }).unwrap_or(false);
+        let stands_as_a_directory: bool = std::fs::symlink_metadata(location.as_path()).map(is_a_directory).unwrap_or(false);
         if !stands_as_a_directory || !the_branchs_files_stand_below(change, changes) {
             continue;
         }
         judgements[index] = Judged { standing: Standing::Directory, identity: None };
     }
     return Ok(judgements);
+}
+
+/// Whether an index entry is the merge's own.
+fn is_the_merges_entry(standing: &Standing) -> bool {
+    return *standing == Standing::New;
+}
+
+/// Whether one file system entry is a directory.
+fn is_a_directory(found: std::fs::Metadata) -> bool {
+    return found.is_dir();
+}
+
+/// Whether one change deletes a file of the branch below `prefix`.
+fn takes_a_file_below(other: &Change, prefix: &[u8]) -> bool {
+    return other.path.starts_with(prefix) && other.existed() && !other.exists_after();
 }
 
 /// What:
@@ -328,9 +343,12 @@ pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> 
 fn the_branchs_files_stand_below(change: &Change, changes: &[Change]) -> bool {
     let mut prefix: Vec<u8> = change.path.clone();
     prefix.push(b'/');
-    return changes.iter().any(|other| {
-        return other.path.starts_with(prefix.as_slice()) && other.existed() && !other.exists_after();
-    });
+    for other in changes {
+        if takes_a_file_below(other, prefix.as_slice()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

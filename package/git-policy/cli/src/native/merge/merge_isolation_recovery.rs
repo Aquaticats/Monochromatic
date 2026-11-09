@@ -127,26 +127,6 @@ pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
 }
 
 /// What:
-///  Write the notice of every outcome that changed the checkout.
-/// Why:
-///   Both the startup step of every command and an isolated merge's own recovery settle dead merges,
-/// and the person is
-///  told the same way by both.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const outcome of outcomes) { const line = recoveryNotice(outcome); if (line) out.write(line); }
-/// ```
-pub fn report_recovery(outcomes: &[MergeRecoveryOutcome], out: &mut dyn Write) {
-    for outcome in outcomes {
-        if let Some(line) = recovery_notice(outcome) {
-            // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = out.write_all(line.as_bytes());
-        }
-    }
-}
-
-/// What:
 ///  Whether the worktree's Git directory holds an intent record that recovery must look at:
 /// one whose owner is
 ///  dead,
@@ -289,6 +269,21 @@ fn owner_liveness(intent: &MergeIntent, record: &Path) -> Result<OwnerLiveness, 
 }
 
 /// What:
+///  Whether an index entry is the merge's own,
+/// which is the only evidence that Git began to install it.
+/// Why:
+///   Named rather than written as a closure inside `any`,
+/// and it says what the check means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsTheMergesEntry = (standing: Standing) => standing === 'new';
+/// ```
+fn holds_the_merges_entry(standing: &Standing) -> bool {
+    return *standing == Standing::New;
+}
+
+/// What:
 ///  Whether the worktree holds the merge's content at this path,
 /// which is the only evidence that Git began.
 /// Why:
@@ -385,7 +380,7 @@ pub fn settle_failed_merge(
     put_back_stranded_takes(root, changes.as_slice(), out);
     let judgements: Vec<Judged> = judge_changes(place, root, changes.as_slice())?;
     let index_standing: Vec<Standing> = index_standings(place, root, intent.old_oid.as_str(), changes.as_slice())?;
-    let index_started: bool = index_standing.iter().any(|standing| { return *standing == Standing::New; });
+    let index_started: bool = index_standing.iter().any(holds_the_merges_entry);
     // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
     let worktree_started: bool = judgements.iter().any(holds_the_merge);
     // A merge that was saved on a side ref is finished even though nothing of it is in the checkout yet: the record with a side

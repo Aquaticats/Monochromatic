@@ -1161,7 +1161,8 @@ fn a_staged_edit_of_a_merge_path_stops_the_finish_and_is_kept() {
 /// Why:
 ///  `worktree_state` reads a directory as neither the old nor the new content,
 /// so the saved merge refused at every
-///  later command, and restoring the path from the branch recreated the same directory
+///  later command,
+/// and restoring the path from the branch recreated the same directory
 /// (a cross-vendor review's finding on the
 ///  second round).
 ///
@@ -1289,7 +1290,9 @@ fn a_begun_merge_whose_finish_is_refused_still_stops_the_command() {
 ///  service's lock removal acts on (a cross-vendor review's finding on the second round).
 /// The limit is the same as that removal's:
 /// a process in another
-///  user namespace, or one that cannot be read, is not seen.
+///  user namespace,
+/// or one that cannot be read,
+/// is not seen.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
