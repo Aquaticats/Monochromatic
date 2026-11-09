@@ -140,6 +140,9 @@ pub mod child_watch_step_bounds_and_errors;
 /// The loop of a child watch's task and the writing of its notices.
 pub mod child_watch_task_loop_and_notice;
 
+/// The watched one-shot run for a caller that is itself a task of the runtime.
+pub mod child_watch_output_watched_on_the_runtime;
+
 /// The paths of a dirty worktree and of a fast-forward,
 /// and their overlap.
 pub mod auto_push_dirty_paths;
