@@ -308,6 +308,12 @@ never by gaining flags.
   on a build that reused a warm target directory) and 1024 processes
   is still adopted,
   though the same run reached 235 threads of it.
+  The ledger test missed the file because it accepted a file that names a helper anywhere;
+  since 2026-11-09T02:00:00-05:00 it reads every start the file writes,
+  fails on the old form of this file
+  (`git show bbadfac560^1:package/terminal/app/mise.toml`,
+  line 73),
+  and passes on today's.
 - `package/test-harness/core/mise.toml:64` (2g,
   2 CPUs,
   unmeasured here):
@@ -821,18 +827,17 @@ which the published crates do not use.
   the browserslist oracle container,
   every image build except the music-player one,
   and the rootful `vm-builder` runs.
-- The `package/terminal/app` compiler container shipped two different bounds.
-  `task.ts` passes `containerLimitArguments(containerBound)` in all twelve copies,
-  while `mise.toml` spelled `--memory=4g --cpus=4` by hand,
-  so `mise run //package/terminal/app:build:container` (the path `mise` takes) started the container with no process
-  option and no disk weight:
-  the measured run of 2026-11-08T19:53:09-05:00 recorded `pids.max` at Podman's default 2048,
-  not the 1024 the inventory claimed.
-  Fixed on this branch:
-  the `mise.toml` body now passes the same helper.
-  The ledger test in `package/container-limit/core` did not catch it,
-  because it accepts a file that merely names a helper somewhere,
-  and this file imported one without calling it.
+- Two image builds have no bound,
+  and the ledger's per-start check finds them:
+  `package/monorepo-task/core-exec/src/playwright-image-logic.ts:440` builds `playwright.Dockerfile` locally with no
+  memory or CPU bound,
+  and `package/test-harness/core-matrix/src/container-image-rebuild-on-changed-inputs.ts:250` is the build every
+  `containerImageBuild` caller reaches,
+  which applies only the bounds a caller passes.
+  Each needs a size the owner sets (rule `LQM`),
+  and the inventory's `### Image builds` section records the candidate figures and says they are unmeasured there.
+  Until then the ledger lists both paths in `UNBOUNDED_SITE_DECISIONS`,
+  and its paired test fails when either gains a bound.
 - Two sizes are left as they are with a measurement that suggests they could shrink,
   and the choice belongs to the owner:
   the icon tool bound (2 GiB against a measured 111 MiB)
