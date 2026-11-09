@@ -94,3 +94,6 @@ ra_ap_hir = "=0.0.336"
 ra_ap_ide_db = "=0.0.336"
 ra_ap_test_fixture = "=0.0.336"
 ra_ap_vfs = "=0.0.336"
+
+[profile.dev]
+panic = "unwind"
