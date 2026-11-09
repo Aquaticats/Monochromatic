@@ -87,6 +87,15 @@ Each record is cited so the context is one read away.
 - May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
 - Should there be an operator override that forces the native Git route when the commit service misbehaves?
 - Rotate `MISE_GITHUB_TOKEN`?
+  A second exposure on 2026-11-08:
+  the agent `tokio-step-t12` read `/proc/<pid>/environ` of a cargo process to find its build directory,
+  and that printed the same variable into its session,
+  named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/tokio-step-t12-1/summary.json`.
+  That run started at 2026-11-08T15:03:15-05:00,
+  before the driver began removing credential-named variables (`9ae27d221e`,
+  2026-11-08T18:09:11-05:00).
+  A process that another session started still carries them,
+  so the rule against reading another process's environment stays in force.
   A Pi agent ran `env | rg` on 2026-11-08 and its output held the token's value.
   The value is in that agent's session file,
   named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/wrapper-small-robustness-items-1/summary.json`,

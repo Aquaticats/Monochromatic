@@ -143,7 +143,7 @@ and each was corrected by measuring before acting.
 The keys hash positional arrays,
 and `repair-slice-key.ts` records
 that the slice index was removed from the key at version 26.
-The earlier note in the `#94` section is corrected above.
+The `#94` note that said it reaches cache keys is the one this measurement corrects.
 
 ### The name was already taken, by a different concept
 

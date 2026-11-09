@@ -3092,11 +3092,13 @@ In practice it's 16."
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
-
-- The wizard skill emits TypeScript root scripts (owner:
-  "Wizard writes TypeScript").
-- Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
-  still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
+The two items this section listed are gone:
+the wizard-skill TypeScript conversion became void once the owner asked for the skill itself to go
+("Remove and Blocklist the wizard skill.",
+recorded under "Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00" in
+[`questions-for-the-owner.md`](questions-for-the-owner.md)),
+and the `zbus` and `turso_sync_engine` compile question closed,
+as `### Known flakes and failures not yet fixed` records for the pinned `nightly-2026-11-08`.
 Only these wait on the repository move's last stages:
 the merge named first in the list of ordered work,
 the checksum and the IDE check themselves,
@@ -3111,6 +3113,14 @@ Converting the remaining worktrees waits on a defect instead:
 and the conversion compares them with the real path as text and refuses them.
 `--all` looked at 15 and did not say so.
 Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
+
+`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` tell the reader to run `mpm update -g <tool id>`,
+and the README says it works from any directory.
+Run at 2026-11-08 from the home folder and from the repository,
+that command reached the real `mpm`,
+which answered `Error: No such option '-g'.` under `Usage: mpm upgrade [OPTIONS]`.
+`mise exec -- mpm-shadow update -g <tool id>` is the route that reached the shadow.
+What decides between them is not measured yet.
 
 Ordered behind other work rather than waiting for a slot:
 
@@ -4566,6 +4576,16 @@ Two small fixes this section listed are done:
   the other half of this line was already done when it was written:
   `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
   and the same test file plants a symlink at the name.
+
+Converting the remaining worktrees no longer waits on a defect either:
+the conversion compared a registration's text with the real path and refused a worktree spelled
+through the repository link,
+which 301 of the 353 registrations did at 2026-11-08T16:24
+(`--all` looked at 15 of them without saying so).
+Merge `1486f5c112` (2026-11-08T17:37:33-05:00,
+branch `fix/git-policy-cli-registration-compared-as-the-same-file`)
+compares registrations by the file each one names
+(`package/git-policy/cli/src/native/subvolume/subvolume_registered_worktrees.rs`).
 
 ### Worktree add follow-ups
 
