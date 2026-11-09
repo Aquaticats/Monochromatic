@@ -20,6 +20,10 @@
 //!  handle:
 //! a name swapped for a link or a pipe between a check and the open cannot redirect the read,
 //!  and the read is bounded by the caller's limit.
+//! A file a person names in a configuration is read through a link
+//!  (`read_plain_file_through_links`):
+//! the pipe is what must not be waited on there,
+//!  and a link of the person's own is the path the configuration means.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -47,11 +51,59 @@ use std::path::Path;
 pub const SMALL_FILE_LIMIT: u64 = 1 << 20;
 
 /// What:
+///  The words that refuse everything but a plain file,
+///  shared by both opens so the two read alike.
+/// Why:
+///   A person meets this text when a rules file is not one,
+/// and it names what the path
+///  holds instead.
+const NOT_A_PLAIN_FILE: &str = "it is not a plain file (a named pipe, a device or a directory)";
+
+/// What:
+///  Whether the open follows a link the name holds,
+///  or refuses it.
+/// Why:
+///   A named argument reads at the call site,
+/// where a bare flag would not.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Links {
+    /// The name is the file: a link is refused, so a name swapped for one cannot redirect the read.
+    NotFollowed,
+    /// The name may hold a link to the file, which is read: a link of a person's own is the path a
+    /// configuration means.
+    Followed,
+}
+
+/// What:
+///  The file `path` names,
+///  opened without blocking, with `links` deciding whether a link is followed,
+///  and refused when the open handle is not a plain file.
+/// Why:
+///   One body decides what a plain file is,
+/// so the two opens differ in their flags alone and neither can be
+///  read as a pipe or a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openedPlain(path, links) { const flags = O_NONBLOCK | O_CLOEXEC | (links === 'followed' ? 0 : O_NOFOLLOW); const file = openSync(path, 'r', 0o666, flags); return fstatSync(file).isFile() ? file : refuse(); }
+/// ```
+fn opened_plain(path: &Path, links: Links) -> std::io::Result<std::fs::File> {
+    let following: libc::c_int = match links {
+        Links::NotFollowed => libc::O_NOFOLLOW,
+        Links::Followed => 0,
+    };
+    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | following).open(path)?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
+    }
+    return Ok(file);
+}
+
+/// What:
 ///  The plain file at `path` itself:
 /// opened without blocking and without following a link,
-/// and refused when the
-///  open handle is a named pipe,
-/// a device or a directory.
+///  and refused when the open handle is a named pipe,
+///  a device or a directory.
 /// Why:
 ///   A caller that reads the file line by line needs the handle,
 /// and the type is taken from it so a name
@@ -62,11 +114,44 @@ pub const SMALL_FILE_LIMIT: u64 = 1 << 20;
 /// function openPlainFile(path: string): File; // throws
 /// ```
 pub fn open_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC).open(path)?;
-    if !file.metadata()?.file_type().is_file() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "it is not a plain file (a named pipe, a device or a directory)"));
+    return opened_plain(path, Links::NotFollowed);
+}
+
+/// What:
+///  The plain file `path` names,
+///  opened without blocking and following a link,
+///  and refused when the open handle is a named pipe, a device or a directory.
+/// Why:
+///   See `read_plain_file_through_links`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openPlainFileThroughLinks(path: string): File; // throws
+/// ```
+pub fn open_plain_file_through_links(path: &Path) -> std::io::Result<std::fs::File> {
+    return opened_plain(path, Links::Followed);
+}
+
+/// What:
+///  The bytes of the plain file at `path`,
+///  read through the open `links` makes,
+///  and refused when it is larger than `limit`.
+/// Why:
+///   One body decides the limit for both readers,
+/// so the two can differ in the open alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readPlainFileWith(path, limit, links) { const file = openedPlain(path, links); ...; }
+/// ```
+fn read_plain_file_with(path: &Path, limit: u64, links: Links) -> std::io::Result<Vec<u8>> {
+    let file: std::fs::File = opened_plain(path, links)?;
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is larger than this command reads"));
     }
-    return Ok(file);
+    return Ok(bytes);
 }
 
 /// What:
@@ -82,13 +167,31 @@ pub fn open_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
 /// function readPlainFile(path: string, limit: number): Buffer; // throws
 /// ```
 pub fn read_plain_file(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
-    let file: std::fs::File = open_plain_file(path)?;
-    let mut bytes: Vec<u8> = Vec::new();
-    std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
-    if bytes.len() as u64 > limit {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is larger than this command reads"));
-    }
-    return Ok(bytes);
+    return read_plain_file_with(path, limit, Links::NotFollowed);
+}
+
+/// What:
+///  The bytes of the plain file `path` names,
+///  opened without blocking and following a link,
+///  refused when the open handle is
+///  anything but a plain file or larger than `limit`.
+/// Why:
+///   A rules file is named in a configuration by a person,
+///  who may keep it behind a link of their own:
+/// following that
+///  link is the path the configuration means,
+/// while opening a named pipe for reading waits for a writer that may never
+///  come.
+/// The type is taken from the open handle here too,
+/// so a name swapped for a pipe after a look cannot be
+///  read at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readPlainFileThroughLinks(path: string, limit: number): Buffer; // throws
+/// ```
+pub fn read_plain_file_through_links(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
+    return read_plain_file_with(path, limit, Links::Followed);
 }
 
 /// The text of the plain file at `path`,

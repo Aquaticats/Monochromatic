@@ -145,9 +145,15 @@ fn holder_of(lock: &Path) -> Holder {
 
 /// `holder_of` with the pause between the reads of an empty lock given,
 /// so a control can write the mark inside a pause instead of racing a timer against it.
+///
+/// The lock is opened by `open_plain_file`,
+/// which opens without blocking and refuses everything that is not a plain file:
+/// a named pipe this
+///  look would wait on for ever is a foreign program's at once, as a lock of any other shape it cannot read is
+/// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
 fn holder_after_pauses(lock: &Path, pause: &dyn Fn()) -> Holder {
     for look in 0..EMPTY_LOOKS {
-        let mut file = match std::fs::File::open(lock) {
+        let mut file = match crate::plain_file::open_plain_file(lock) {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Holder::Nobody,
             Err(_) => return Holder::Foreign,

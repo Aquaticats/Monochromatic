@@ -449,3 +449,55 @@ fn a_hold_of_another_pid_namespace_is_neither_gone_nor_proven() {
     assert!(String::from_utf8_lossy(old.as_slice()).contains("does not wait for it"), "{}", String::from_utf8_lossy(old.as_slice()));
     remove(root.as_path());
 }
+
+/// What:
+///  A lock that holds a named pipe, or a link to one, is a foreign program's at once.
+/// Why:
+///  Opening a named pipe for reading waits for a writer that may never come, so this look held a
+/// wrapped `git add` for ever and every commit behind it
+/// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
+#[test]
+fn a_lock_that_is_not_a_plain_file_is_foreign_at_once() {
+    let root: PathBuf = fixture("index-wait-pipe");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    crate::subvolume_sync_attrs::make_fifo(lock.as_path(), 0o600).expect("named pipe");
+    let named_pipe: PathBuf = lock.clone();
+    let looked: Option<Holder> = crate::test_support::finished_within(move || { return holder_of(named_pipe.as_path()); });
+    let Some(holder) = looked else { panic!("looking at a named pipe lock did not finish within five seconds") };
+    assert_eq!(holder, Holder::Foreign);
+    std::fs::remove_file(lock.as_path()).expect("the pipe goes");
+    let pipe: PathBuf = root.join("pipe");
+    crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
+    std::os::unix::fs::symlink(pipe.as_path(), lock.as_path()).expect("a link to the pipe");
+    let linked: PathBuf = lock.clone();
+    let looked: Option<Holder> = crate::test_support::finished_within(move || { return holder_of(linked.as_path()); });
+    let Some(holder) = looked else { panic!("looking at a link to a named pipe did not finish within five seconds") };
+    assert_eq!(holder, Holder::Foreign, "a link to a pipe is not the service's lock");
+    remove(root.as_path());
+}
+
+/// What:
+///  A command waits for no hold of a lock that is a named pipe:
+/// the wait ends at once,
+/// saying nothing.
+/// Why:
+///  The look that tells the holders apart is the one that must not wait, so the wait itself is
+/// held to the same bound here.
+#[test]
+fn a_command_waits_for_no_hold_of_a_named_pipe() {
+    let root: PathBuf = fixture("index-wait-pipe-command");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    crate::subvolume_sync_attrs::make_fifo(lock.as_path(), 0o600).expect("named pipe");
+    let bounded: PathBuf = index.clone();
+    let waited: Option<(Waited, Vec<u8>)> = crate::test_support::finished_within(move || {
+        let mut out: Vec<u8> = Vec::new();
+        let waited: Waited = wait_for_service_hold(bounded.as_path(), "add", QUICK, &mut out);
+        return (waited, out);
+    });
+    let Some((waited, out)) = waited else { panic!("waiting over a named pipe lock did not finish within five seconds") };
+    assert_eq!(waited, Waited::NotHeld);
+    assert!(out.is_empty(), "{}", String::from_utf8_lossy(out.as_slice()));
+    remove(root.as_path());
+}
