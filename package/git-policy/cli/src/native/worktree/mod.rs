@@ -85,6 +85,9 @@ pub mod worktree_remove;
 
 pub mod worktree_remove_registry;
 
+/// The three reports a removal can end with.
+pub mod worktree_remove_reports;
+
 /// The record,
 /// beside a worktree,
 /// of the objects one conversion may leave at its converting name.

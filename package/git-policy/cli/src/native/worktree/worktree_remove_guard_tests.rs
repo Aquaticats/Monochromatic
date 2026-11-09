@@ -324,6 +324,34 @@ fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_
 }
 
 /// What:
+///  A worktree with a conversion's leftover copy beside it is not removed:
+///  the copy would be left behind with nothing naming it.
+/// Why:
+///   The removal deletes the registration,
+/// and the journal that names the copy lives in it,
+/// so the person is sent
+///  to finish or discard the copy first,
+/// which the report says with both commands.
+#[test]
+fn a_worktree_with_a_leftover_conversion_stage_is_refused() {
+    let root: PathBuf = fixture("remove-leftover-stage");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let converting: PathBuf = crate::worktree_convert::converting_path(worktree.as_path());
+    std::fs::create_dir_all(converting.join("d")).expect("a copy beside the worktree");
+    std::fs::write(converting.join("d/copy"), b"a copy\n").expect("its file");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    let RemoveOutcome::Refused(report) = outcome else { panic!("the removal is refused while the copy is there, but it was {outcome:?}") };
+    assert!(report.contains(converting.to_str().expect("UTF-8")), "the report names the copy: {report}");
+    assert!(report.contains("convert-worktree-to-subvolume"), "and the command that finishes or discards it: {report}");
+    assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
+    assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
+    assert!(converting.join("d/copy").is_file(), "and so is the copy");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A removal that destroyed the files but could not remove the registration records its destroy,
 ///  so a later command finishes what it could not,
 ///  and a removal that finished records nothing.

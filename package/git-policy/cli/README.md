@@ -641,6 +641,16 @@ Read-only commands,
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
    (`git -C <repository> worktree prune`);
      it does not run Git afterwards.
+  A worktree that still has a conversion's copy beside it (`<path>.cli-git-converting`) is not removed:
+     the command
+   refuses with status 1 and a report that names the copy and both commands that clear it
+   (`convert-worktree-to-subvolume <path>` to finish the conversion,
+     `--abandon <path>` to discard the copy),
+   because the removal deletes the registration and its journal is what names that copy.
+     `--force` and `prune` go to Git
+   and still remove the worktree,
+     leaving the copy behind,
+     which `--abandon` then reaches at its recorded identity.
   The destroy is recorded beside the repository before it is made
      (`monochromatic-git-policy-cli/recorded-destroys/<name>` under the common Git directory),
      so a command killed between the destroy and the removal of the registration leaves a state the next command finishes

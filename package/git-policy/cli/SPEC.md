@@ -1753,6 +1753,21 @@ directory.
 These narrow the window to a few system calls;
 they do not close it.
 
+A worktree that has a conversion's copy beside it (`<path>.cli-git-converting`) is not removed:
+the wrapper refuses with
+exit status 1 and one report that names the copy,
+says nothing was removed,
+and gives both commands
+(`convert-worktree-to-subvolume <path>` to finish the conversion,
+`convert-worktree-to-subvolume --abandon <path>` to
+discard the copy),
+because the removal deletes the registration and the journal in it is what names that copy.
+`git worktree remove --force` and `git worktree prune` are not seen by the wrapper,
+so they still remove the
+worktree and leave the copy behind;
+`--abandon` reaches such a copy at its recorded identity,
+and a copy whose
+conversion left no record is kept and named.
 The destroy is recorded before the kernel call,
 in `<common>/monochromatic-git-policy-cli/recorded-destroys/<id>`,
 holding the identity of the registration and
