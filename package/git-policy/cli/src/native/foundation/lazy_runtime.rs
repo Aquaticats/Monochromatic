@@ -182,6 +182,30 @@ pub fn build_with_deadline<B>(plan: RuntimePlan, deadline: Duration, multi_threa
 where
     B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
 {
+    return build_with_deadline_and(plan, deadline, multi_thread_builder, current_thread);
+}
+
+/// What:
+///  `build_with_deadline` with the stand-in given as `fallback`.
+/// Why:
+///   The window in which a late build can be lost is the caller's own stand-in:
+/// a runtime sent after the deadline but before
+///  the channel is closed is neither received nor kept.
+/// A control can only order a build into that window if the caller can be held inside
+///  the stand-in,
+/// which is what this parameter is for;
+/// the process builds its own runtime through `build_with_deadline`,
+///  whose stand-in is the current-thread runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const built = buildWithDeadlineAnd(plan, deadline, multiThread, fallback);
+/// ```
+fn build_with_deadline_and<B, F>(plan: RuntimePlan, deadline: Duration, multi_thread_builder: B, fallback: F) -> std::io::Result<BuiltRuntime>
+where
+    B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
+    F: FnOnce() -> std::io::Result<Runtime>,
+{
     let RuntimePlan::MultiThread { workers, blocking_threads } = plan else {
         return Ok(BuiltRuntime { runtime: current_thread()?, flavor: BuiltFlavor::CurrentThread });
     };
@@ -210,11 +234,41 @@ where
         Ok(_helper) => match receiver.recv_timeout(deadline) {
             Ok(Ok(runtime)) => return Ok(BuiltRuntime { runtime, flavor: BuiltFlavor::MultiThread { workers } }),
             Ok(Err(_refused)) => BuiltFlavor::CurrentThreadAfterFailure,
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => BuiltFlavor::CurrentThreadAfterDeadline,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // A build that finished between the deadline and here is already in the channel, and one that finishes
+                //  after the channel is closed is kept by its own helper: measure the two, so neither is dropped.
+                let _kept: bool = keep_a_late_build(receiver.try_recv());
+                drop(receiver);
+                BuiltFlavor::CurrentThreadAfterDeadline
+            }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => BuiltFlavor::CurrentThreadAfterFailure,
         },
     };
-    return Ok(BuiltRuntime { runtime: current_thread()?, flavor: flavor_when_replaced });
+    return Ok(BuiltRuntime { runtime: fallback()?, flavor: flavor_when_replaced });
+}
+
+/// What:
+///  Keeps a runtime that finished after its build deadline for the work it was built for,
+///  and gives whether it was one.
+/// Why:
+///   A runtime that arrived while the caller was still in its stand-in is in the channel when the caller times out,
+/// and the
+///  channel is closed a moment later:
+/// reading it at the deadline is what keeps that runtime,
+/// and a receiver already closed
+///  makes the build that arrives after it the helper's to keep.
+/// A build that failed keeps nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = keepALateBuild(receiver.tryRecv()); // true when a runtime was kept
+/// ```
+fn keep_a_late_build(outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::TryRecvError>) -> bool {
+    let Ok(Ok(late)) = outcome else { return false };
+    if let Err(unkept) = LATE_RUNTIME.set(late) {
+        std::mem::forget(unkept);
+    }
+    return true;
 }
 
 /// What:

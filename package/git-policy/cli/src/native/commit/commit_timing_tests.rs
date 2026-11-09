@@ -281,7 +281,7 @@ fn the_holder_kind_follows_what_the_notice_says() {
         "unproven"
     );
     assert_eq!(
-        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made").as_str()),
+        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made", crate::index_lock_evidence::DEAD_OWNER_LOCK_LEFT).as_str()),
         "unproven",
         "the diagnostic that ends a wait is not a holder proven alive"
     );

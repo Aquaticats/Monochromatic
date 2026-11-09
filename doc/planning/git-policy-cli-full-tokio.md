@@ -6841,6 +6841,252 @@ The wording of a refusal:
   Their shape is the recorded one:
   a witness with a time window that a loaded host reaches.
 
+### Step T12, the repair folder's threads become waits of the runtime, 2026-11-09T10:55:00-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-repair-threads-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-repair-threads-on-the-runtime`,
+  from main at `4da5949330`.
+  Not merged into main.
+  Commits `875d4a208a` (the fan-out as tasks and pool jobs) and `3803520ca0` (the three tools as three waits).
+- Converted,
+  in `package/git-policy/cli/src/native/repair/`:
+  `package_repair.rs` (three tools,
+  once on scoped threads),
+  `package_repair_tree_clone.rs` (one scoped thread per slice),
+  `package_repair_cargo_concurrent.rs` (one scoped thread per worker).
+  Each is now a wait of a task:
+  the three tools run under `tokio::join!`,
+  and both fan-outs take items from a queue of tasks.
+  Every storage step is `run_blocking_job_within_the_budget`:
+  the clone's walk,
+  its slices and its modes,
+  and the search path and real path of the Cargo repair.
+- The synchronous faces stay (`repair_worktree`,
+  `repair_pnpm`,
+  `repair_toolchain`,
+  `repair_cargo`,
+  `clone_tree`,
+  `read_workspace`),
+  because `worktree_copying/` calls `repair_worktree` and is reserved by this step's brief,
+  and their bodies are the awaited ones entered once
+  (`run_on_runtime`).
+  The awaiting faces beside them are `repair_worktree_awaiting`,
+  `repair_pnpm_awaiting`,
+  `repair_toolchain_awaiting`,
+  `repair_cargo_awaiting`,
+  `clone_tree_awaiting`,
+  `read_workspace_awaiting` and
+  `manifest_directories_awaiting`;
+  the tool bridge gained `run_tool_awaiting` (`run_tool_reaping` awaited directly)
+  and `run_refused` keeps the words a tool that could not be run is reported with.
+- The ordered runners are not used by this folder,
+  and that is measured:
+  `OrderedRunOfAwaitingOwned::on_event` is `&'run mut dyn OrderedEvents<R>`,
+  which is not `Send`,
+  so `run_ordered_awaiting_on_the_runtime` cannot be awaited inside a task
+  (`E0277: ... cannot be sent between threads safely`),
+  and every lane or item of this repair is a task,
+  the worktree repair's own task included.
+  A later step that wants nested runs either makes that consumer `Send` or keeps a run at the top
+  of a chain.
+- Two rules the repair keeps:
+  `run_a_job_or_in_turn` runs a refused job's work on the awaiting task,
+  because `BlockingJobError::NoThreadToStart` promises the job will not run and changed nothing
+  (`foundation/blocking_jobs_within_the_budget.rs`),
+  and holds a place of the process's bound across that work
+  (the first review round,
+  below);
+  `call_catching_panics_awaiting` turns a panic of one item's awaited work into that item's error,
+  because a task that panics ends the run
+  (`foundation/call_catching_panics_awaiting.rs`).
+  Each was shown to fail before it was restored:
+  the first by `left: Err(NoThreadToStart)` in `a_job_refused_a_thread_runs_in_turn` and by
+  "source could not be cloned" in
+  `a_parallel_clone_where_no_thread_can_start_is_made_in_turn`;
+  the second by `item 1: left: None, right: Some(10)` in
+  `a_panicking_item_is_a_failure_naming_it_and_the_others_keep_their_results`.
+- Measured with a temporary probe (deleted before the last commit),
+  the two builds alternating,
+  three rounds,
+  under a load average of about 50 on eight CPUs;
+  each figure is five runs of one process:
+
+  the three tools (two fixtures sleeping 40 ms):
+  before 42.6 to 44.0 ms,
+  after 42.7 to 46.0 ms,
+  so no separation.
+  The six Cargo workspaces (three tool runs of 40 ms each):
+  before 133.3 to 138.5 ms,
+  after 132.4 to 135.2 ms,
+  a difference under the spread.
+  The clone of 1,200 small files in 40 directories:
+  before 20.9 to 57.5 ms,
+  after 32.7 to 44.2 ms:
+  the after arm's spread is narrower and its median about 3 ms higher,
+  which is the cost of one pool job per slice,
+  and the before arm's spread is the host's disk.
+- Controls:
+  `repair::` 350 tests passed with `foundation::call_catching`,
+  `foundation::blocking_jobs_within_the_budget` and `worktree_copying::`;
+  the new ones are `the_tools_run_beside_each_other`,
+  `a_refused_system_is_reported_in_plain_words_and_changes_nothing`,
+  `a_job_refused_a_thread_runs_in_turn`,
+  `a_panicking_item_is_a_failure_naming_it_and_the_others_keep_their_results` and
+  `no_more_items_are_inside_their_work_at_once_than_the_run_asks_for`.
+  `native:clippy` clean;
+  the package `lint` and the container gate were not both seen green here
+  (see the agent's report).
+- Not converted:
+  `worktree_copying/` (its `finish_trash_and_repair` keeps one scoped thread for the trash beside the repair)
+  and `commit/`,
+  both reserved by the brief for branches that have not landed.
+
+### Step T12, the first review round, 2026-11-09T12:46:31-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-repair-threads-on-the-runtime`,
+  with main at `ab2839b414` merged as `4004f6b562` (45 commits,
+  no conflict).
+  The review read source only
+  (`~/temp/agent/reviews/tokio-repair-round-1-sol.txt`),
+  and every finding was reproduced before it was fixed:
+  each fix has the control that failed without it,
+  and the failing output is quoted in its commit message.
+- `repair/package_repair_toolchain.rs`,
+  the record read at `lock_named_by_record` and the awaiting face.
+  Held:
+  the read ran on the task of `tokio::join!` in `package_repair.rs`,
+  so a `.cache/toolchain-launchers/*.launch` entry that is a named pipe with no writer
+  stopped the pnpm repair's quiet window and ceiling together with the read.
+  This is new to the branch:
+  the toolchain repair had a thread of its own before it.
+  Fixed by `91bb19ccab`:
+  only a regular file is opened,
+  so an entry of any other kind is left alone,
+  and both the decision before the install and the count after it are jobs of the blocking pool
+  (`prepare_install_within_the_budget`,
+  `count_stale_within_the_budget`).
+  A count that could not be read turns a success into a failure that names the reason,
+  so nothing reports a success it did not check.
+  The synchronous face keeps its caller-thread reads:
+  it runs on the caller's own thread before and after its one entry into the runtime and polls no wait there.
+  Controls,
+  written first in `19181978d8`:
+  `a_record_that_is_a_named_pipe_is_left_alone` and
+  `the_launcher_records_are_read_as_a_job_of_the_pool`.
+  The first failed with "nothing ended the wait" after ten seconds,
+  and the second with "the launcher records were read without asking for a place of the process's bound on blocking jobs".
+- `foundation/blocking_jobs_within_the_budget.rs`,
+  the fallback of `run_a_job_or_in_turn`.
+  Held:
+  `a_refused_thread_start` gives the refused job's place back before answering,
+  so the work the fallback then runs in turn held no place,
+  and a second job took that free place and ran beside it.
+  Fixed by `bdb21a6329`:
+  the fallback takes a place again and holds it across the work,
+  which is the one lock-free place the process already has and no new lock.
+  Control,
+  written first in `7d98660e8e`:
+  `a_fallback_that_runs_in_turn_holds_a_place_of_the_bound`
+  reads the bound while the fallback's work is open,
+  and reads it free before that work starts,
+  so the measurement is shown to see both states.
+  It failed with `left: 1, right: 0`.
+- `repair/package_repair_cargo_concurrent.rs`,
+  the build of an item's future.
+  Held:
+  `queue.job.run(item)` is evaluated before `call_catching_panics_awaiting` exists,
+  so a job that panicked there ended the worker task,
+  which dropped the answers it had finished,
+  discarded its panic text at `join_next`,
+  and never took the items after it.
+  Fixed by `8da095c454`:
+  the build travels through `while_panics_are_expected` and becomes that item's error,
+  every answer is handed to the run as its item ends instead of travelling in the task's return value,
+  and a task's own panic is recorded rather than dropped.
+  Control,
+  written first in `1c04a543b1`:
+  `a_panic_while_an_items_future_is_built_stays_that_items`,
+  which failed with `[Err("item 0 gave no result"), Err("item 1 gave no result"), Err("item 2 gave no result")]`.
+- Controls of the round:
+  `repair::`,
+  `worktree_copying::`,
+  `foundation::blocking_jobs_within_the_budget`,
+  `foundation::call_catching` and the two place and claim modules beside them,
+  392 tests passed;
+  `native:clippy` clean (it caught one shadowed binding the fix introduced,
+  which is renamed);
+  `lint:monochromatic-lint` reports nothing in the six files this round touched.
+- Not done here:
+  the container gate (`native:test:container`) was not run,
+  the mutation campaigns stay paused by the owner,
+  and Win and mac were left alone.
+
+### Step T12, the second review round, 2026-11-09T13:21:18-05:00
+
+- Review:
+  `~/temp/agent/reviews/tokio-repair-round-2-sol.txt`,
+  source only.
+  Main was already merged into the branch as `f7e02da83e` when the round started.
+- `repair/package_repair_cargo_workspaces.rs`,
+  Held:
+  `manifest_directories_awaiting` ran `directories_of_the_listing`,
+  and so `path.is_file()` for every tracked `Cargo.toml`,
+  on the task that polls the three repairs under `tokio::join!`;
+  a filesystem that does not answer a lookup would hold the pnpm repair's quiet window and ceiling with it.
+  Fixed by `5f257d9bf1`:
+  the listing travels as a job of the blocking pool through `run_a_job_or_in_turn`,
+  and a listing that cannot be read is an error naming the refusal,
+  which the Cargo repair reports as that workspace's failure.
+  Control,
+  written first in `4f96ad5a4b`:
+  `the_manifest_directories_are_read_as_a_job_of_the_pool`,
+  which failed with "the tracked manifests were read without asking for a place of the process's bound",
+  and passed after,
+  with all 79 tests of `repair::`.
+- `foundation/blocking_jobs_within_the_budget.rs`,
+  the fallback of `run_a_job_or_in_turn`,
+  is now a recorded limit and not a defect:
+  `SPEC.md` (`7a1fe48708`,
+  "Package-manager repair of a new worktree") says that where the system refuses to start a pool thread
+  the job's work runs on the shared task,
+  so the person sees the add wait with no tool line and no ceiling firing until that filesystem answers,
+  and raising `ulimit -u` or the control group's `pids.max` and running the command again is the remedy.
+  No code change,
+  by the owner's word of 2026-11-09.
+- `repair/package_repair_toolchain.rs`,
+  the `metadata` then `read_to_string` of a launcher record,
+  is dismissed by the owner on 2026-11-09:
+  nothing on this host replaces a record with a pipe inside that window,
+  and the round-1 type check stays as it is.
+  The owner's rule for these rounds:
+  "If you ask GPT to find issues,
+  it will find issues.
+  Be sure to dismiss them via your own judgement at some point."
+- Found by the round's search,
+  and **not** changed,
+  because the round's brief named one site and the owner asked for that site and the `SPEC.md` note:
+  three synchronous filesystem calls still run on the task that polls the repairs.
+  `package_repair_pnpm.rs` lines 116 and 121:
+  `prepare_relink` asks `is_file()` and `is_dir()` of the worktree,
+  and walks the search path (`find_program`),
+  before the relink is awaited.
+  `package_repair_cargo.rs` lines 229,
+  242,
+  246 and 247:
+  `repair_workspace_awaiting` asks `is_file()` for the source manifest,
+  and `exists()` for three state directories.
+  `package_repair_cargo.rs` lines 268 and 270:
+  `read_lock` reads the workspace's `Cargo.lock`,
+  and `restore_lock` puts that file back around the awaited clean.
+  Each is a candidate for the same job treatment,
+  and the pnpm one is the largest,
+  since a worktree that answers no lookup holds the other two repairs' limits through it.
+- Not done:
+  the container gate (`native:test:container`) was not run,
+  and no mutation campaign was started (paused by the owner).
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;

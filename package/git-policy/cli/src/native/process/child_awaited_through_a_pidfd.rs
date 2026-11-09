@@ -262,6 +262,23 @@ impl OwnedChild {
 
 impl OwnedChild {
     /// What:
+    ///  Whether the kernel says the child ended,
+    ///  without collecting its status.
+    /// Why:
+    ///   A control of the wait that ends a step at its ceiling must be able to end the step itself
+    ///   in the interval between the ceiling and the signal,
+    ///  and the status has to be there for the reap that follows.
+    ///  A wait the timer drives cannot answer this without reaping,
+    ///  so it never says the child ended.
+    #[cfg(all(test, target_os = "linux"))]
+    pub fn has_ended_without_reaping(&self) -> bool {
+        return match self.watch.as_ref() {
+            Some(watch) => crate::member_signalled_through_its_pidfd::has_ended(watch.get_ref()),
+            None => false,
+        };
+    }
+
+    /// What:
     ///  Gives the standard-library child back when it has not been reaped,
     /// and nothing when it was.
     /// Why:

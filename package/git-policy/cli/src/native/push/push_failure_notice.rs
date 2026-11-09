@@ -47,8 +47,9 @@ use crate::private_storage::{create_private_directory_all, write_private_file_un
 /// with the claim it was taken under and the step that removes that claim.
 pub use crate::push_failure_notice_shown_then_removed::Notice;
 /// The words a notice carries,
-/// and the text of the failed backup push.
-pub use crate::push_failure_notice_words::push_failure_text;
+/// the text of the failed backup push,
+/// and what the push came to.
+pub use crate::push_failure_notice_words::{PushOutcome, push_failure_text};
 pub(crate) use crate::push_failure_notice_words::{worded, worded_lost, worded_skipped};
 /// The name a command holds a record under while it shows it,
 /// and who may take one over.
@@ -107,6 +108,14 @@ const LONGEST_REASON: usize = 4000;
 /// First line of a record that holds its parts as fields;
 /// a file without it is the finished text an earlier release wrote.
 const RECORD_MAGIC: &str = "monochromatic-git-policy-cli push notice 1";
+
+/// First line of a record of a push that did not finish,
+/// so whether the remote took the commit is not known,
+/// and that the service keeps trying.
+const UNFINISHED_MAGIC: &str = "monochromatic-git-policy-cli push unfinished 1";
+
+/// First line of a record of a push that did not finish and that nothing will try again by itself.
+const UNFINISHED_NO_RETRY_MAGIC: &str = "monochromatic-git-policy-cli push unfinished-no-retry 1";
 
 /// First line of a record of a push the service did not make because the branch has no destination it can name;
 /// its fields are
@@ -238,9 +247,9 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recordPushFailure(gitDir, { branchRef, commit, said })
+/// await recordPushFailure(gitDir, { branchRef, commit, outcome, said })
 /// ```
-pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
+pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, outcome: PushOutcome, said: &str) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!("creating the notice directory failed: {error}"));
@@ -248,7 +257,12 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said:
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     // A repeat of the same failure replaces its record.
     let _removed = std::fs::remove_file(path.as_path());
-    let text: String = format!("{RECORD_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
+    let magic: &str = match outcome {
+        PushOutcome::Refused => RECORD_MAGIC,
+        PushOutcome::Unfinished => UNFINISHED_MAGIC,
+        PushOutcome::UnfinishedWithNoRetry => UNFINISHED_NO_RETRY_MAGIC,
+    };
+    let text: String = format!("{magic}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
@@ -285,9 +299,16 @@ pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Re
 
 /// What a record says besides its branch and commit.
 enum RecordKind<'a> {
-    /// A failed push,
+    /// A push Git refused,
     /// with Git's cleaned words.
     Failed(&'a str),
+    /// A push that did not finish,
+    /// so whether the remote took the commit is not known,
+    /// with Git's cleaned words.
+    Unfinished(&'a str),
+    /// A push that did not finish and that nothing will try again by itself,
+    /// with Git's cleaned words.
+    UnfinishedWithNoRetry(&'a str),
     /// A push the service did not make,
     /// with its cleaned words.
     Skipped(&'a str),
@@ -317,7 +338,7 @@ fn earlier_spelling(rest: &str) -> String {
 /// const currentMagic = (line: string) => MAGICS.find((magic) => line === magic || line === magic.replace(CURRENT, EARLIER))
 /// ```
 fn current_magic_of(line: &str) -> Option<&'static str> {
-    for current in [RECORD_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
+    for current in [RECORD_MAGIC, UNFINISHED_MAGIC, UNFINISHED_NO_RETRY_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
         let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(earlier_spelling);
         if line == current || earlier.as_deref() == Some(line) {
             return Some(current);
@@ -340,6 +361,8 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
     return Some((branch, commit, match magic {
         LOST_MAGIC => RecordKind::Lost,
         SKIPPED_MAGIC => RecordKind::Skipped(reason),
+        UNFINISHED_MAGIC => RecordKind::Unfinished(reason),
+        UNFINISHED_NO_RETRY_MAGIC => RecordKind::UnfinishedWithNoRetry(reason),
         _ => RecordKind::Failed(reason),
     }));
 }
@@ -604,7 +627,11 @@ fn word_records_at(path: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn 
         return Vec::new();
     }
     let shown: String = match parsed {
-        Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
+        Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::Refused, reason),
+        Some((branch, commit, RecordKind::Unfinished(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::Unfinished, reason),
+        Some((branch, commit, RecordKind::UnfinishedWithNoRetry(reason))) => {
+            worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::UnfinishedWithNoRetry, reason)
+        }
         Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
         Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
         // The finished text an earlier release wrote.

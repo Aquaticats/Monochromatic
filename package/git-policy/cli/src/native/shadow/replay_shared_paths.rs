@@ -4,7 +4,8 @@
 //! Why:
 //!  Subsumption decides per shared path;
 //! the listing is two `git diff-tree` runs whatever the history length,
-//!       and paths stay Latin-1 decoded so every byte survives and encodes back exactly.
+//!       and a path stays the bytes Git listed,
+//!       so every name reaches the Git that writes the synthetic base unchanged.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,6 +21,13 @@ use std::path::Path;
 
 /// Git's absent-entry mode in raw diff output.
 const ABSENT_MODE: &str = "000000";
+
+/// Whether one byte is the NUL byte that ends each field of a `-z` listing.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
 
 /// What:
 ///  One tree entry:
@@ -54,9 +62,9 @@ pub struct TreeEntry {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawChange {
-    /// Path,
-    /// Latin-1 decoded.
-    pub path: String,
+    /// Path bytes,
+    /// exactly as Git listed them.
+    pub path: Vec<u8>,
     /// Entry before the change,
     /// absent for an addition.
     pub from: Option<TreeEntry>,
@@ -79,9 +87,9 @@ pub struct RawChange {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SharedPath {
-    /// Repository path,
-    /// Latin-1 decoded.
-    pub path: String,
+    /// Repository path bytes,
+    /// exactly as Git listed them.
+    pub path: Vec<u8>,
     /// Preparation base entry,
     /// absent when the path was added after it.
     pub base: Option<TreeEntry>,
@@ -136,30 +144,32 @@ fn entry_of(mode: &str, oid: &str) -> Option<TreeEntry> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// parseRawChanges(text); // RawChange[]
+/// parseRawChanges(bytes); // RawChange[]
 /// ```
-pub fn parse_raw_changes(output: &str) -> Result<Vec<RawChange>, RawFormatError> {
+pub fn parse_raw_changes(output: &[u8]) -> Result<Vec<RawChange>, RawFormatError> {
     // `mut` lets the records be collected as the output is walked.
     let mut changes: Vec<RawChange> = Vec::new();
-    let tokens: Vec<&str> = output.split('\0').collect();
+    let tokens: Vec<&[u8]> = output.split(is_nul_byte).collect();
     let mut cursor: usize = 0;
     while cursor < tokens.len() {
-        let header: &str = tokens[cursor];
+        let header: &[u8] = tokens[cursor];
         cursor += 1;
         if header.is_empty() {
             continue;
         }
-        let fields: Vec<&str> = header.trim_start_matches(':').split(' ').collect();
-        let path: &str = match tokens.get(cursor) {
+        // The header and the entries are ASCII, and only a message keeps their text.
+        let text: String = String::from_utf8_lossy(header).into_owned();
+        let fields: Vec<&str> = text.trim_start_matches(':').split(' ').collect();
+        let path: &[u8] = match tokens.get(cursor) {
             Some(found) => found,
-            None => return Err(RawFormatError(format!("raw record {header} has no path"))),
+            None => return Err(RawFormatError(format!("raw record {text} has no path"))),
         };
         cursor += 1;
-        if fields.len() != 5 || !header.starts_with(':') {
-            return Err(RawFormatError(format!("malformed raw record {header}")));
+        if fields.len() != 5 || !header.starts_with(b":") {
+            return Err(RawFormatError(format!("malformed raw record {text}")));
         }
         changes.push(RawChange {
-            path: String::from(path),
+            path: path.to_vec(),
             from: entry_of(fields[0], fields[2]),
             to: entry_of(fields[1], fields[3]),
         });
@@ -204,8 +214,7 @@ fn raw_changes(
         &[],
     )
     .map_err(SharedPathError::Git)?;
-    let text: String = output.stdout.iter().copied().map(char::from).collect();
-    return parse_raw_changes(text.as_str()).map_err(SharedPathError::Format);
+    return parse_raw_changes(output.stdout.as_slice()).map_err(SharedPathError::Format);
 }
 
 /// What:
@@ -251,16 +260,16 @@ pub fn list_shared_paths(
     // A map answers "did the prepared side change this path" by naming the one change it
     //  compares with, so building the intersection is one pass over each listing
     //  (`AGENTS.md` `RG2`); the first change a path gets is the one the walk took.
-    let mut mine_by_path: std::collections::HashMap<&str, &RawChange> = std::collections::HashMap::new();
+    let mut mine_by_path: std::collections::HashMap<&[u8], &RawChange> = std::collections::HashMap::new();
     for candidate in &mine {
         crate::collected_elements_looked_at::note_looked_at(1);
-        mine_by_path.entry(candidate.path.as_str()).or_insert(candidate);
+        mine_by_path.entry(candidate.path.as_slice()).or_insert(candidate);
     }
     let mut shared: Vec<SharedPath> = Vec::new();
     for change in landed {
         // A landed change counts only when the prepared side changed the same path.
         crate::collected_elements_looked_at::note_looked_at(1);
-        let Some(own_change) = mine_by_path.get(change.path.as_str()) else {
+        let Some(own_change) = mine_by_path.get(change.path.as_slice()) else {
             continue;
         };
         shared.push(SharedPath {

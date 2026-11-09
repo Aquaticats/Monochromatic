@@ -176,6 +176,47 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 }
 
 /// What:
+///  Whether one entry of a hooks directory is a hook now,
+/// or nothing when it is not
+///  a hooks directory this scan can look at.
+/// Why:
+///   The entry was listed a moment before it is looked at,
+/// and the directory changes under the scan:
+/// the person deletes a
+///  hook in another terminal,
+/// a script reinstalls them,
+/// or a `git-lfs` upgrade rewrites the directory.
+///  An entry that is gone by the time it is looked at is not a hook now,
+/// which is the same answer a missing directory gets,
+/// and
+///  every other failure to look is still reported,
+/// because silence would pass a file the command could not examine.
+///  The listing hands over names and not open entries,
+/// so the predicate takes the path it is asked about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stats = await lstat(path).catch((error) => (error.code === 'ENOENT' ? undefined : error));
+/// stats instanceof Error ? throw stats : isSymlink(stats) || (isFile(stats) && isExecutable(stats));
+/// ```
+pub fn is_hook_entry(path: &Path) -> std::io::Result<bool> {
+    let Some(name) = path.file_name() else {
+        return Ok(false);
+    };
+    if is_a_sample(name) {
+        return Ok(false);
+    }
+    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(path) {
+        Ok(looked) => looked,
+        // Gone between the listing and the look: it is not a hook now, and one vanished name must not cost the whole listing.
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    let kind: std::fs::FileType = metadata.file_type();
+    return Ok(kind.is_symlink() || (kind.is_file() && is_executable(&metadata)));
+}
+
+/// What:
 ///  Whether one entry's name ends the way a sample Git installs ends.
 /// Why:
 ///   A sample is never a hook,
@@ -238,6 +279,8 @@ fn list_entries(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
 ///  directory the command could not look at.
 ///  A link counts whatever it points at (a dangling link too),
 /// because Git follows it when it starts the hook.
+///  One entry that is gone by the time it is looked at is not a hook and does not end the listing
+/// (`is_hook_entry`).
 ///  Every call here reads the file system,
 /// and a mount that stops answering holds such a call in the kernel with no end,
 /// so
@@ -276,13 +319,10 @@ pub fn scan_hooks_directory_with(listing: EntryListing, ceiling: Duration, direc
             Err(error) => return Err(error),
         };
         let mut hooks: Vec<PathBuf> = Vec::new();
+        // Each entry is looked at through `is_hook_entry`, so a name that vanished since the listing is skipped and the
+        //  hooks that are still there are listed.
         for path in entries {
-            if path.file_name().is_some_and(is_a_sample) {
-                continue;
-            }
-            let metadata: std::fs::Metadata = std::fs::symlink_metadata(path.as_path())?;
-            let kind: std::fs::FileType = metadata.file_type();
-            if kind.is_symlink() || (kind.is_file() && is_executable(&metadata)) {
+            if is_hook_entry(path.as_path())? {
                 hooks.push(path);
             }
         }
@@ -381,58 +421,6 @@ async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<O
 }
 
 /// What:
-///  One answer without the single line feed Git ends it with.
-/// Why:
-///   Exactly one line feed is the terminator;
-/// a pathname that ends with a line feed of its own keeps it,
-///  which trimming every trailing line feed threw away.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// bytes.endsWith('\n') ? bytes.slice(0, -1) : bytes
-/// ```
-fn without_the_terminator(answer: &[u8]) -> &[u8] {
-    return match answer.strip_suffix(b"\n".as_slice()) {
-        Some(body) => body,
-        None => answer,
-    };
-}
-
-/// What:
-///  A pathname from the bytes Git printed for it.
-/// Why:
-///   A pathname is a byte string here,
-/// so a directory whose name is not UTF-8 is scanned like any other,
-///  as Git runs the hooks in it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// Buffer.from(bytes); // Node pathnames are byte strings
-/// ```
-#[cfg(unix)]
-fn path_answer(bytes: &[u8]) -> PathBuf {
-    use std::os::unix::ffi::OsStrExt;
-    return PathBuf::from(std::ffi::OsStr::from_bytes(bytes));
-}
-
-/// What:
-///  A pathname from the bytes Git printed for it,
-/// for a platform that spells pathnames in text.
-/// Why:
-///   Refusing a pathname Git named would hide a directory it runs hooks in,
-/// and naming it approximately is
-///  better than not looking at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// new TextDecoder().decode(bytes);
-/// ```
-#[cfg(not(unix))]
-fn path_answer(bytes: &[u8]) -> PathBuf {
-    return PathBuf::from(String::from_utf8_lossy(bytes).into_owned());
-}
-
-/// What:
 ///  Ask Git for one pathname and read its own answer.
 /// Why:
 ///   Each pathname is asked for alone:
@@ -471,12 +459,16 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
     // One question per pathname: a pathname may hold the line feed that a shared report is split at.
     let common: PathBuf = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--git-common-dir"]).await?;
     let git_directory: PathBuf = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]).await?;
-    // An answer with nothing left after its terminator counts as no answer, as `.filter(...)` made it.
-    let configured: Option<PathBuf> = match query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"]).await? {
-        Some(answer) => {
-            let value: &[u8] = without_the_terminator(answer.as_slice());
-            if value.is_empty() { None } else { Some(path_answer(value)) }
-        }
+    // Every value of the key with its scope, because the wrapper's own command-scope entry is placed last by Git; the
+    //  listing is NUL-delimited, so a value holding a line feed stays one value.
+    let configured: Option<PathBuf> = match query(
+        context,
+        cwd,
+        &["config", "--type=path", "--null", "--show-scope", "--get-all", "core.hooksPath"],
+    )
+    .await?
+    {
+        Some(listing) => configured_hooks_directory(listing.as_slice()),
         None => None,
     };
     let Some(chosen) = configured else {
@@ -505,6 +497,9 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
     });
 }
 
+/// The bytes Git prints for a pathname,
+/// and the values of `core.hooksPath`.
+use crate::hooks_path_values::{configured_hooks_directory, path_answer, without_the_terminator};
 /// The Git LFS shims a repository holds,
 /// recognized by name and by the exact bytes git-lfs writes.
 pub use crate::lfs_shims::{is_lfs_shim, lfs_shim_text, render_lfs_shims};
