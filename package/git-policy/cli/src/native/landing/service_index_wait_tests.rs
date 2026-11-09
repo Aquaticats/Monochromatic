@@ -466,17 +466,17 @@ fn a_lock_that_is_not_a_plain_file_is_foreign_at_once() {
     let lock: PathBuf = lock_path_of(index.as_path());
     crate::subvolume_sync_attrs::make_fifo(lock.as_path(), 0o600).expect("named pipe");
     let named_pipe: PathBuf = lock.clone();
-    let looked: Option<Holder> = crate::test_support::finished_within(move || { return holder_of(named_pipe.as_path()); });
-    let Some(holder) = looked else { panic!("looking at a named pipe lock did not finish within five seconds") };
-    assert_eq!(holder, Holder::Foreign);
+    let named_pipe_look: Option<Holder> = crate::test_support::finished_within(move || { return holder_of(named_pipe.as_path()); });
+    let Some(named_pipe_holder) = named_pipe_look else { panic!("looking at a named pipe lock did not finish within five seconds") };
+    assert_eq!(named_pipe_holder, Holder::Foreign);
     std::fs::remove_file(lock.as_path()).expect("the pipe goes");
     let pipe: PathBuf = root.join("pipe");
     crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
     std::os::unix::fs::symlink(pipe.as_path(), lock.as_path()).expect("a link to the pipe");
     let linked: PathBuf = lock.clone();
-    let looked: Option<Holder> = crate::test_support::finished_within(move || { return holder_of(linked.as_path()); });
-    let Some(holder) = looked else { panic!("looking at a link to a named pipe did not finish within five seconds") };
-    assert_eq!(holder, Holder::Foreign, "a link to a pipe is not the service's lock");
+    let linked_look: Option<Holder> = crate::test_support::finished_within(move || { return holder_of(linked.as_path()); });
+    let Some(linked_holder) = linked_look else { panic!("looking at a link to a named pipe did not finish within five seconds") };
+    assert_eq!(linked_holder, Holder::Foreign, "a link to a pipe is not the service's lock");
     remove(root.as_path());
 }
 
@@ -500,8 +500,8 @@ fn a_command_waits_for_no_hold_of_a_named_pipe() {
         let waited: Waited = wait_for_service_hold(bounded.as_path(), "add", QUICK, &mut out);
         return (waited, out);
     });
-    let Some((waited, out)) = waited else { panic!("waiting over a named pipe lock did not finish within five seconds") };
-    assert_eq!(waited, Waited::NotHeld);
+    let Some((outcome, out)) = waited else { panic!("waiting over a named pipe lock did not finish within five seconds") };
+    assert_eq!(outcome, Waited::NotHeld);
     assert!(out.is_empty(), "{}", String::from_utf8_lossy(out.as_slice()));
     remove(root.as_path());
 }

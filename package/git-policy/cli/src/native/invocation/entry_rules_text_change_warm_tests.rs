@@ -62,9 +62,9 @@ fn a_rules_file_behind_a_link_is_marked_and_a_link_to_a_named_pipe_is_refused_at
     crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("named pipe");
     let bounded: PathBuf = root.clone();
     let read: Option<Result<u64, NoDigest>> = crate::test_support::finished_within(move || { return digest_of_rules_text(bounded.as_path()); });
-    let Some(read) = read else { panic!("marking a rules text whose file is a named pipe did not finish within five seconds") };
+    let Some(marked) = read else { panic!("marking a rules text whose file is a named pipe did not finish within five seconds") };
     let named: PathBuf = root.clone();
-    match read {
+    match marked {
         Err(NoDigest::Unreadable { path, reason }) => {
             assert_eq!(path, named.join("linked-rules.txt"), "the refusal names the file the configuration means");
             assert!(reason.to_string().contains("not a plain file"), "{reason}");
@@ -96,8 +96,8 @@ fn a_rules_file_that_is_a_named_pipe_is_refused_at_once_and_the_line_names_it() 
     config_naming(root.as_path(), "rules.fifo");
     let bounded: PathBuf = root.clone();
     let read: Option<Result<u64, NoDigest>> = crate::test_support::finished_within(move || { return digest_of_rules_text(bounded.as_path()); });
-    let Some(read) = read else { panic!("marking a rules text whose file is a named pipe did not finish within five seconds") };
-    let Err(NoDigest::Unreadable { path, reason }) = read else { panic!("a named pipe is not a rules file") };
+    let Some(marked) = read else { panic!("marking a rules text whose file is a named pipe did not finish within five seconds") };
+    let Err(NoDigest::Unreadable { path, reason }) = marked else { panic!("a named pipe is not a rules file") };
     assert_eq!(path, pipe, "the refusal names the rules file the configuration names");
     let line: String = unreadable_rules_line(path.as_path(), &reason);
     assert!(line.contains(pipe.display().to_string().as_str()), "{line}");

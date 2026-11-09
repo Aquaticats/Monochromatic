@@ -1972,11 +1972,11 @@ fn a_lock_that_is_a_named_pipe_names_no_marker_at_once() {
     crate::subvolume_sync_attrs::make_fifo(lock_path.as_path(), 0o600).expect("named pipe");
     let named_pipe: PathBuf = lock_path.clone();
     let read: Option<Option<crate::service_index_marker::Marked>> = crate::test_support::finished_within(move || { return marker_of(named_pipe.as_path()); });
-    let Some(read) = read else { panic!("reading a marker out of a named pipe did not finish within five seconds") };
-    assert_eq!(read, None);
+    let Some(marker) = read else { panic!("reading a marker out of a named pipe did not finish within five seconds") };
+    assert_eq!(marker, None);
     let described_path: PathBuf = lock_path.clone();
     let described: Option<String> = crate::test_support::finished_within(move || { return describe_lock(described_path.as_path()); });
-    let Some(described) = described else { panic!("describing a named pipe lock did not finish within five seconds") };
-    assert!(described.starts_with("foreign no-marker"), "{described}");
+    let Some(description) = described else { panic!("describing a named pipe lock did not finish within five seconds") };
+    assert!(description.starts_with("foreign no-marker"), "{description}");
     remove(root.as_path());
 }
