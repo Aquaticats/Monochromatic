@@ -23,7 +23,7 @@
 /// Import the module under test.
 use super::{
     InstallChange, Prepared, content_of, install_corrections, install_prepared, read_index,
-    recover_interrupted_installs,
+    reap_interrupted_installs,
 };
 use crate::candidate_object::CandidateMode;
 use crate::direct_fix_install_journal::{RECORD_FILE, read_record};
@@ -416,12 +416,14 @@ fn a_save_to_a_corrected_path_before_a_rollback_is_kept() {
         refused.contains("the corrected files this command still owned were restored, and what it does not own stays"),
         "{refused}"
     );
-    // The person's save is exactly where they put it.
+    // What: The rollback puts back what it displaced, so the file holds the bytes the fix found; the save the swap
+    //       took out of it is in the journal the message names.
+    // Why:  A rollback decides nothing about a write it did not make, and a swap is what takes the bytes out.
     assert_eq!(
         std::fs::read(fixture_tree.top.join("a.txt")).expect("a"),
-        b"newer edit\n".to_vec()
+        b"a".to_vec(),
+        "the file is back to what the fix found"
     );
-    // And the bytes the fix could not restore are named, inside the Git directory.
     assert_eq!(notices.len(), 1, "{notices:?}");
     assert!(
         notices[0].starts_with("monochromatic-git-policy-cli kept ")
@@ -429,7 +431,13 @@ fn a_save_to_a_corrected_path_before_a_rollback_is_kept() {
             && notices[0].contains("/content"),
         "{notices:?}"
     );
-    assert_eq!(journals(&fixture_tree.root).len(), 1, "one journal stays");
+    let kept: Vec<PathBuf> = journals(&fixture_tree.root);
+    assert_eq!(kept.len(), 1, "one journal stays");
+    assert_eq!(
+        std::fs::read(content_of(kept[0].as_path())).expect("the kept bytes"),
+        b"newer edit\n".to_vec(),
+        "the person's save is kept"
+    );
     remove(fixture_tree.root.as_path());
 }
 
@@ -500,21 +508,23 @@ fn a_write_through_an_open_descriptor_is_kept_and_named() {
 }
 
 /// What:
-///  A fix killed between the swap and the judgement is undone by the next fix,
-///  and the person's
-///       newest bytes are back at the file.
+///  The state a kill between the swap and the judgement leaves is reported by the next fix,
+///  and nothing
+///       of the person's is moved or removed.
 /// Why:
-///  That state is the one the review named as unrecoverable:
-///  the file holds a correction nothing
-///  verified,
-///  and the only copy of the edit it displaced sits under a name nobody looks for.
+///  The file holds a correction nothing verified,
+///  and the only copy of the edit it displaced sits in the
+///       journal;
+///  the person must be told exactly that,
+///  and no exchange may decide for them which of the two
+///       belongs at the path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // const p = prepare(...); exchange(contentOf(p[0]), p[0].destination); markOwnerDead(p[0]); installCorrections(...); expect(readFile(a)).toBe('newer edit\n')
+/// // exchange(contentOf(p.journal), p.destination); markOwnerDead(p); reap(); expect(readFile(a)).toBe('a\n'); expect(contentOf(journal)).toBe('newer edit\n')
 /// ```
 #[test]
-fn a_kill_between_the_swap_and_the_judgement_is_undone_by_the_next_fix() {
+fn a_kill_between_the_swap_and_the_judgement_is_reported_and_kept() {
     let fixture_tree: Tree = tree("install-killed");
     let prepared: Vec<Prepared> =
         super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
@@ -526,21 +536,26 @@ fn a_kill_between_the_swap_and_the_judgement_is_undone_by_the_next_fix() {
         &fixture_tree.top.join("a.txt"),
     )
     .expect("the swap a kill interrupts after");
-    // The kill: the record still names this process, so the test tells the sweeper its writer is gone.
     mark_writer_dead(prepared[0].journal.as_path());
     let mut notices: Vec<String> = Vec::new();
-    recover_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
     assert_eq!(
         std::fs::read(fixture_tree.top.join("a.txt")).expect("a"),
-        b"newer edit\n".to_vec(),
-        "the newest bytes are back"
+        b"a\n".to_vec(),
+        "the file keeps what the interrupted fix put there"
     );
     assert_eq!(notices.len(), 1, "{notices:?}");
     assert!(
-        notices[0].contains("undid an interrupted correction"),
+        notices[0].starts_with("monochromatic-git-policy-cli left ")
+            && notices[0].contains("cli-git-direct-fix-"),
         "{notices:?}"
     );
-    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    assert_eq!(journals(&fixture_tree.root).len(), 1, "the journal stays");
+    assert_eq!(
+        std::fs::read(content_of(journals(&fixture_tree.root)[0].as_path())).expect("kept"),
+        b"newer edit\n".to_vec(),
+        "the person's edit is kept where the message says"
+    );
     remove(fixture_tree.root.as_path());
 }
 
@@ -548,8 +563,7 @@ fn a_kill_between_the_swap_and_the_judgement_is_undone_by_the_next_fix() {
 ///  A journal whose file was never touched is removed,
 ///  and one whose file has been written since is kept and named.
 /// Why:
-///  The first holds only a correction,
-/// which is recomputable;
+///  The first holds only a correction, which is recomputable;
 ///  the second may hold the person's only copy
 ///  of a state,
 ///  and nothing this command can prove allows removing it.
@@ -566,13 +580,13 @@ fn a_journal_is_removed_only_when_nothing_of_the_person_is_in_it() {
             .expect("prepared");
     mark_writer_dead(prepared[0].journal.as_path());
     let mut notices: Vec<String> = Vec::new();
-    recover_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
     assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     assert!(
         notices[0].contains("had not reached its file, so nothing had changed"),
         "{notices:?}"
     );
-    // Now a swap happens, the person saves again, and the owner dies: the journal must stay.
+    // Now a swap happens and the owner dies: the journal holds the person's bytes and must stay.
     let swapped: Vec<Prepared> =
         super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
             .expect("prepared");
@@ -582,18 +596,12 @@ fn a_journal_is_removed_only_when_nothing_of_the_person_is_in_it() {
         &fixture_tree.top.join("a.txt"),
     )
     .expect("swap");
-    // The file is written again after the swap: its bytes are newer than anything the journal holds.
-    std::fs::write(fixture_tree.top.join("a.txt"), b"newest edit\n").expect("another save");
     mark_writer_dead(swapped[0].journal.as_path());
     let mut second_notices: Vec<String> = Vec::new();
-    recover_interrupted_installs(fixture_tree.root.as_path(), &mut second_notices);
-    assert_eq!(
-        std::fs::read(fixture_tree.top.join("a.txt")).expect("a"),
-        b"newest edit\n".to_vec()
-    );
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut second_notices);
     assert_eq!(journals(&fixture_tree.root).len(), 1, "the journal stays");
     assert!(
-        second_notices[0].contains("has been written since the interrupted fix"),
+        second_notices[0].contains("holds bytes from a fix whose process ended"),
         "{second_notices:?}"
     );
     remove(fixture_tree.root.as_path());
@@ -877,5 +885,324 @@ fn a_replacement_never_changes_the_owner() {
         }
     }
     let _ = std::fs::remove_file(path.as_path());
+    remove(root.as_path());
+}
+
+/// What:
+///  A journal whose content is not the correction is never exchanged into its file,
+///  and the person's
+///       saved bytes stay where they are.
+/// Why:
+///  A kill between creating `content` and writing its bytes leaves an empty file,
+///  and a recovery that
+///  exchanges on the strength of the destination's digest would put that empty file over a save.
+///  Repeating the recovery must change nothing either, which is also what keeps two recoveries
+///  from undoing each other's exchange of one journal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // truncate(contentOf(p.journal)); writeFile(p.destination, replacement); markOwnerDead(p); recover(); recover(); expect(readFile(p.destination)).toBe(replacement)
+/// ```
+#[test]
+fn a_recovery_never_exchanges_and_changes_nothing_twice() {
+    let fixture_tree: Tree = tree("install-recovery-safe");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    let content: PathBuf = content_of(prepared[0].journal.as_path());
+    // A kill in the middle of writing the corrected bytes: the journal's content says nothing.
+    std::fs::write(&content, b"").expect("a half-written content");
+    // The person saves exactly the bytes the fix meant to write.
+    std::fs::write(fixture_tree.top.join("a.txt"), b"a\n").expect("a save");
+    mark_writer_dead(prepared[0].journal.as_path());
+    let mut notices: Vec<String> = Vec::new();
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
+    reap_interrupted_installs(fixture_tree.root.as_path(), &mut notices);
+    assert_eq!(
+        std::fs::read(fixture_tree.top.join("a.txt")).expect("a"),
+        b"a\n".to_vec(),
+        "no exchange may put the journal's bytes over the person's save"
+    );
+    assert_eq!(
+        std::fs::read(&content).expect("kept content"),
+        b"".to_vec(),
+        "the journal's bytes are untouched"
+    );
+    assert_eq!(journals(&fixture_tree.root).len(), 1, "the journal stays");
+    assert_eq!(notices.len(), 2, "each fix names it: {notices:?}");
+    for notice in &notices {
+        assert!(notice.contains("cli-git-direct-fix-"), "{notice}");
+    }
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A save that lands after a rollback's ownership check is never deleted:
+///  the rollback judges what it
+///       took out of the exchange, which is the bytes that were really there.
+/// Why:
+///  A read of the destination followed by an exchange has a window,
+///  and a save that lands in it was
+///  moved into the journal and then removed with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // beforeRollback = () => writeFileSync(destination, 'newer edit\n'); install(...); expect(theBytesExistSomewhere).toBe(true)
+/// ```
+#[test]
+fn a_save_that_lands_after_a_rollbacks_check_is_kept() {
+    let fixture_tree: Tree = tree("install-rollback-late-save");
+    let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    let destination: PathBuf = fixture_tree.top.join("a.txt");
+    super::BEFORE_ROLLBACK_SWAP.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |rolled_back: &Path| {
+            if rolled_back.ends_with("a.txt") {
+                // The rollback read this file and found the fix's bytes; an editor saves before its swap.
+                std::fs::write(rolled_back, b"newer edit\n").expect("a save in the window");
+            }
+        }));
+    });
+    // The index changed, so the fix must roll back everything it installed.
+    std::fs::write(&fixture_tree.index, b"changed index").expect("change index");
+    let mut notices: Vec<String> = Vec::new();
+    let failed: String = install_prepared(
+        prepared.as_slice(),
+        &fixture_tree.index,
+        &before,
+        &mut notices,
+    )
+    .expect_err("the index changed");
+    super::BEFORE_ROLLBACK_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    assert!(failed.contains("the index changed"), "{failed}");
+    // The save is never deleted: it is at the file or in a journal the message names.
+    let at_the_file: bool = std::fs::read(&destination).is_ok_and(|bytes| { return bytes == b"newer edit\n"; });
+    let in_a_journal: bool = journals(&fixture_tree.root).iter().any(|journal| {
+        return std::fs::read(content_of(journal.as_path())).is_ok_and(|bytes| { return bytes == b"newer edit\n"; });
+    });
+    assert!(
+        at_the_file || in_a_journal,
+        "the saved bytes are gone: at_the_file={at_the_file} journals={:?}",
+        journals(&fixture_tree.root)
+    );
+    assert!(!notices.is_empty(), "the person is told where they are");
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A rollback never takes a permission change the fix did not make,
+///  and never follows a symbolic link
+///       to decide a file is its own.
+/// Why:
+///  Bytes alone do not say whose bytes they are:
+///  a file narrowed to `0600` after the install was the
+///       person's act,
+///  and a link whose target happens to hold the correction is not the correction.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // afterSwap = () => chmod(destination, 0o600); writeIndex(other); install(); expect(journalKept).toBe(true); expect(modeOfTheKeptFile).toBe(0o600)
+/// ```
+#[test]
+fn a_rollback_never_takes_a_mode_change_and_never_follows_a_link() {
+    let fixture_tree: Tree = tree("install-rollback-mode");
+    let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    super::AFTER_SWAP.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |swapped: &Path| {
+            if swapped.ends_with("a.txt") {
+                // The person narrows the installed file; its bytes do not change.
+                std::fs::set_permissions(swapped, std::fs::Permissions::from_mode(0o600))
+                    .expect("narrow");
+            }
+        }));
+    });
+    // The index is not what the fix read, so it must roll back what it installed.
+    std::fs::write(&fixture_tree.index, b"changed index").expect("change index");
+    let mut notices: Vec<String> = Vec::new();
+    install_prepared(
+        prepared.as_slice(),
+        &fixture_tree.index,
+        &before,
+        &mut notices,
+    )
+    .expect_err("the index changed");
+    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    // The narrowed inode is on disk, in the journal the message names.
+    let kept: Vec<PathBuf> = journals(&fixture_tree.root);
+    assert_eq!(kept.len(), 1, "{notices:?}");
+    let kept_mode: u32 = std::fs::metadata(content_of(kept[0].as_path()))
+        .expect("the kept bytes")
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(kept_mode, 0o600, "the person's mode is kept: {kept_mode:o}");
+    assert!(
+        notices.iter().any(|notice| return notice.contains("cli-git-direct-fix-")),
+        "{notices:?}"
+    );
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A symbolic link a person put at a corrected path is never removed by a rollback.
+/// Why:
+///  Reading through the link finds the correction's bytes in its target,
+///  so an ownership test that
+///       follows links takes the person's link for the fix's own file and unlinks it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // afterSwap = () => { unlink(destination); symlink(elsewhere, destination) }; writeIndex(other); install(); expect(theLinkStillExists)
+/// ```
+#[test]
+fn a_rollback_never_removes_a_symbolic_link_it_did_not_make() {
+    let fixture_tree: Tree = tree("install-rollback-link");
+    let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    let destination: PathBuf = fixture_tree.top.join("a.txt");
+    // A file elsewhere whose bytes are the correction, and a link to it where the corrected file is.
+    let elsewhere: PathBuf = fixture_tree.top.join("elsewhere.txt");
+    std::fs::write(&elsewhere, b"a\n").expect("the target");
+    let target: PathBuf = elsewhere.clone();
+    super::AFTER_SWAP.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |swapped: &Path| {
+            if swapped.ends_with("a.txt") {
+                std::fs::remove_file(swapped).expect("remove the corrected file");
+                std::os::unix::fs::symlink(target.as_path(), swapped).expect("the person's link");
+            }
+        }));
+    });
+    std::fs::write(&fixture_tree.index, b"changed index").expect("change index");
+    let mut notices: Vec<String> = Vec::new();
+    install_prepared(
+        prepared.as_slice(),
+        &fixture_tree.index,
+        &before,
+        &mut notices,
+    )
+    .expect_err("the index changed");
+    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    // The link is not the fix's file: it stays, either at the path or in the journal the message names.
+    let at_the_path: bool = std::fs::symlink_metadata(&destination)
+        .is_ok_and(|found| return found.file_type().is_symlink());
+    let in_a_journal: bool = journals(&fixture_tree.root).iter().any(|journal| {
+        return std::fs::symlink_metadata(content_of(journal.as_path()))
+            .is_ok_and(|found| return found.file_type().is_symlink());
+    });
+    assert!(
+        at_the_path || in_a_journal,
+        "the person's link is gone: journals={:?}",
+        journals(&fixture_tree.root)
+    );
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A journal a fix cannot remove is named,
+///  so a later command never acts on a successful fix behind the
+///       person's back.
+/// Why:
+///  A removal that fails leaves the journal behind;
+///  a fix that says nothing about it reports success
+///  while the worktree's evidence of what it did is out of its hands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // afterSwap = () => chmod(journal, 0o500); install(...); expect(notices.some(n => n.includes('could not be removed'))).toBe(true)
+/// ```
+#[test]
+fn a_journal_a_fix_cannot_remove_is_named() {
+    let fixture_tree: Tree = tree("install-cleanup-fails");
+    let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    let journal: PathBuf = prepared[0].journal.clone();
+    let for_the_hook: PathBuf = journal.clone();
+    super::AFTER_SWAP.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |swapped: &Path| {
+            if swapped.ends_with("a.txt") {
+                // Write permission leaves the journal's directory while every name in it stays readable.
+                std::fs::set_permissions(&for_the_hook, std::fs::Permissions::from_mode(0o500))
+                    .expect("make the journal unremovable");
+            }
+        }));
+    });
+    let mut notices: Vec<String> = Vec::new();
+    let outcome: Result<(), String> = install_prepared(
+        prepared.as_slice(),
+        &fixture_tree.index,
+        &before,
+        &mut notices,
+    );
+    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    std::fs::set_permissions(&journal, std::fs::Permissions::from_mode(0o700)).expect("restore");
+    assert_eq!(outcome, Ok(()), "the correction is installed");
+    assert!(
+        notices.iter().any(|notice| return notice.contains("could not be removed")),
+        "the journal that stays is named: {notices:?}"
+    );
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A replacement keeps the group of the file it stands in for,
+///  even where the file system gives the new file
+///       another one.
+/// Why:
+///  A directory with its set-group-ID bit gives every new file that directory's group,
+///  so the
+///       replacement's group is not the process's:
+///  comparing the two lets a `0640` file change which group
+///  may read it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setgidDir(groupB); writeNew(file, bytes, { gid: groupA }); expect(stat(file).gid).toBe(groupA)
+/// ```
+#[test]
+fn a_replacement_keeps_the_group_the_file_had() {
+    let root: PathBuf = fixture("install-group");
+    let shared: PathBuf = root.join("shared");
+    std::fs::create_dir(&shared).expect("directory");
+    // A group this process belongs to and that is not its effective group, so the directory can hand it out;
+    // `getgroups` fills the caller's supplementary groups.
+    let mut groups: [libc::gid_t; 32] = [0; 32];
+    // SAFETY: `getgroups` writes at most 32 ids into the array the caller owns.
+    let counted: libc::c_int = unsafe { libc::getgroups(32, groups.as_mut_ptr()) };
+    assert!(counted >= 0, "the group list cannot be read");
+    let own: u32 = unsafe { libc::getegid() };
+    let other: Option<u32> = groups[..usize::try_from(counted).expect("a count")].iter().map(|id| return *id).find(|id| return *id != own);
+    let Some(other_gid) = other else {
+        // Positive control: without a second group this control cannot run, and says so.
+        remove(root.as_path());
+        panic!("this process belongs to one group only, so a set-group-ID directory cannot hand out another");
+    };
+    let mut shared_for_chgrp: std::process::Command = std::process::Command::new("chgrp");
+    let changed: std::process::Output = shared_for_chgrp
+        .arg(other_gid.to_string())
+        .arg(&shared)
+        .output()
+        .expect("chgrp runs");
+    assert!(changed.status.success(), "{}", String::from_utf8_lossy(&changed.stderr));
+    std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o2755)).expect("set-group-ID");
+    let path: PathBuf = shared.join("kept.txt");
+    let asked: Kept = Kept {
+        mode: 0o640,
+        uid: unsafe { libc::geteuid() },
+        gid: own,
+    };
+    write_new(path.as_path(), b"x\n", &asked).expect("the replacement is written");
+    /// `MetadataExt` adds the group.
+    use std::os::unix::fs::MetadataExt;
+    let actual: u32 = std::fs::metadata(&path).expect("written").gid();
+    assert_eq!(actual, own, "the replacement keeps the group it was asked for");
     remove(root.as_path());
 }

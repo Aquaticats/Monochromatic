@@ -499,3 +499,66 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
         )
     );
 }
+
+/// What:
+///  A fix with nothing to correct still reports what a killed fix left behind.
+/// Why:
+///  An interrupted fix can leave the file looking canonical, so the next fix proposes no
+///       correction at all;
+///  if the sweep only ran on the install path, the person's only copy of an edit would
+///       sit in a journal no command ever names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // leaveJournal(repo); const result = runDirectFix(cleanRequest, checks, repo); expect(result.events[0].message).toContain('cli-git-direct-fix-')
+/// ```
+#[test]
+fn a_fix_with_nothing_to_correct_still_reports_a_journal() {
+    let root: PathBuf = fixture("direct-fix-clean-journal");
+    let repo: PathBuf = untidy_repository(root.as_path());
+    let request: StageRequest = fix_request(PolicyConfig::defaults());
+    // The first fix installs, so the worktree is tidy.
+    let mut checks: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
+    assert_eq!(
+        run_direct_fix(&request, &mut checks, Some(repo.as_path())).end,
+        StageEnd::Completed
+    );
+    let destination: PathBuf = repo.join("a.txt");
+    assert_eq!(std::fs::read(&destination).expect("a"), b"a\n");
+    // The state a kill leaves after the swap: the file holds the correction, and the journal holds the bytes it
+    // displaced. The record's writer is then made one no platform can name.
+    let git_dir: PathBuf = repo.join(".git");
+    let kept: crate::direct_fix_install_writes::Kept =
+        crate::direct_fix_install_writes::Kept::of(&std::fs::metadata(&destination).expect("a"));
+    let journal: PathBuf = crate::direct_fix_install_journal::open_journal(
+        git_dir.as_path(),
+        destination.as_path(),
+        &kept,
+        b"a\n",
+        None,
+    )
+    .expect("a journal");
+    std::fs::write(
+        crate::direct_fix_install_journal::content_of(journal.as_path()),
+        b"the person's own bytes",
+    )
+    .expect("the displaced bytes");
+    crate::direct_fix_install_journal::mark_writer_gone(journal.as_path());
+    // Nothing needs correcting now, so this fix installs nothing and must still name the journal.
+    let mut again: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
+    let reported: PassResult = run_direct_fix(&request, &mut again, Some(repo.as_path()));
+    assert_eq!(reported.end, StageEnd::Completed);
+    assert_eq!(
+        reported.events,
+        [PolicyEvent::EngineFailure {
+            code: EngineFailureCode::PolicyIncomplete,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
+            message: crate::direct_fix_install_journal::reported_leftover(journal.as_path()),
+            trigger: Some(Trigger::DirectFix),
+            policy: None,
+            path: None,
+        }],
+        "the journal is named even though nothing needed correcting"
+    );
+    remove(root.as_path());
+}

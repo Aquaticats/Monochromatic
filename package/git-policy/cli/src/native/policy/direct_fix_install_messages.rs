@@ -57,20 +57,6 @@ pub(crate) fn unchanged_failure(why: String) -> String {
 }
 
 /// What:
-///  The failure sentence of a file that could not be put back.
-/// Why:
-///   The person must know the bytes are still on disk,
-///  inside the Git directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const restoreFailed = (error: Error) => `restoring a corrected file failed (${error})`;
-/// ```
-pub(crate) fn restore_failed(error: std::io::Error) -> String {
-    return format!("restoring a corrected file failed ({error})");
-}
-
-/// What:
 ///  The sentence a journal that stays is reported with.
 /// Why:
 ///   The person must be able to find the bytes,
@@ -85,6 +71,24 @@ pub(crate) fn kept_notice(site: &Prepared) -> String {
     return format!(
         "monochromatic-git-policy-cli kept {}, which holds the bytes of a file that was written while the fix ran; nothing there was removed, and the file itself holds what the other writer put there.",
         content_of(site.journal.as_path()).display()
+    );
+}
+
+/// What:
+///  The sentence a journal a fix could not remove is named with.
+/// Why:
+///  A removal that fails leaves the journal behind;
+///  a fix that reports success without naming it
+///       leaves a later command to act on the evidence of a fix that already finished.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const couldNotRemove = (site) => `... could not be removed ${contentOf(site.journal)} ...`;
+/// ```
+pub(crate) fn could_not_remove(site: &Prepared) -> String {
+    return format!(
+        "monochromatic-git-policy-cli corrected the file and then could not be removed {}: the corrected file is in place and the journal that stays holds only the bytes it replaced, so remove it with `rm --recursive` when you like.",
+        site.journal.display()
     );
 }
 

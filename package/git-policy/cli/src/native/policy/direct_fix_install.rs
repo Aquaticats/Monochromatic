@@ -52,10 +52,10 @@
 
 /// The journal a correction is installed through,
 ///  and the sweep that finishes what a kill interrupted.
-use crate::direct_fix_install_journal::{content_of, open_journal, recover_interrupted_installs, remove};
+use crate::direct_fix_install_journal::{content_of, open_journal, reap_interrupted_installs, remove};
 /// The sentences the install reports.
 use crate::direct_fix_install_messages::{
-    install_failure, journal_refusal, kept_notice, restore_failed, unchanged_failure,
+    could_not_remove, install_failure, journal_refusal, kept_notice, unchanged_failure,
 };
 /// The two file-system primitives,
 ///  and what the file being replaced had.
@@ -175,6 +175,47 @@ fn after_swap(destination: &Path) {
     #[cfg(test)]
     {
         AFTER_SWAP.with(|hook| {
+            let mut borrowed = hook.borrow_mut();
+            if let Some(step) = borrowed.as_mut() {
+                step(destination);
+            }
+        });
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(test))]
+    {
+        let _ = destination;
+    }
+}
+
+// What: A control's step between a rollback's reading of the destination and its swap, which is the window the
+//       round-three review names.
+// Why:  A save that lands there cannot be provoked without a step in it; nothing outside the tests sets it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// // if (test) beforeRollbackSwap.push((destination) => { ... });
+// ```
+#[cfg(test)]
+thread_local! {
+    // The control's step, if one is running on this thread.
+    pub(crate) static BEFORE_ROLLBACK_SWAP: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Run the control's step between a rollback's reading of the destination and its swap.
+/// Why:
+///   The production path has no step here,
+///  and the two file-system calls stay adjacent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // beforeRollbackSwap.forEach((step) => step(destination));
+/// ```
+fn before_rollback_swap(destination: &Path) {
+    #[cfg(test)]
+    {
+        BEFORE_ROLLBACK_SWAP.with(|hook| {
             let mut borrowed = hook.borrow_mut();
             if let Some(step) = borrowed.as_mut() {
                 step(destination);
@@ -327,15 +368,48 @@ fn state_of(path: &Path, step: &str) -> Result<SiteState, String> {
 /// const unchanged = (site) => { const s = stateOf(contentOf(site)); return s.kind === 'file' && equal(s.bytes, site.original) && s.kept.mode === site.kept.mode && s.kept.uid === site.kept.uid && s.kept.gid === site.kept.gid; };
 /// ```
 fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
-    let content: PathBuf = content_of(site.journal.as_path());
-    let found: SiteState = state_of(content.as_path(), "reading what a corrected file displaced")?;
-    let SiteState::File { bytes, kept } = found else {
+    return holds_exactly(
+        content_of(site.journal.as_path()).as_path(),
+        &site.original,
+        &site.kept,
+        "reading what a corrected file displaced",
+    );
+}
+
+/// What:
+///  Whether the name holds exactly these bytes with these permission bits and this owner,
+///  as a
+///       regular file,
+///  never following a symbolic link.
+///  `&str` names the step that failed,
+///  for the person's
+///       message.
+/// Why:
+///  Bytes alone do not say whose bytes they are:
+///  a file narrowed to `0600` was the person's act,
+///  a
+///       link whose target holds the bytes is not the file,
+///  and a directory or a device at the name is not either.
+///  A
+///       judgement that reads through a link would take the person's link for the fix's own file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsExactly = (path, bytes, kept, step) => { const s = lstatAndRead(path, step); return s.kind === 'file' && equal(s.bytes, bytes) && s.kept.mode === kept.mode && s.kept.uid === kept.uid && s.kept.gid === kept.gid; };
+/// ```
+fn holds_exactly(path: &Path, bytes: &[u8], kept: &Kept, step: &str) -> Result<bool, String> {
+    let found: SiteState = state_of(path, step)?;
+    let SiteState::File {
+        bytes: held,
+        kept: carried,
+    } = found
+    else {
         return Ok(false);
     };
-    if kept.mode != site.kept.mode || kept.uid != site.kept.uid || kept.gid != site.kept.gid {
+    if carried.mode != kept.mode || carried.uid != kept.uid || carried.gid != kept.gid {
         return Ok(false);
     }
-    return Ok(bytes.as_slice() == &*site.original);
+    return Ok(held.as_slice() == bytes);
 }
 
 /// What:
@@ -355,7 +429,11 @@ fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
 /// ```
 fn finish_site(site: &Prepared, notices: &mut Vec<String>) {
     match displaced_is_unchanged(site) {
-        Ok(true) => remove(site.journal.as_path()),
+        Ok(true) => {
+            if !remove(site.journal.as_path()) {
+                notices.push(could_not_remove(site));
+            }
+        }
         Ok(false) => notices.push(kept_notice(site)),
         Err(detail) => {
             notices.push(format!("{detail}; {}", kept_notice(site)));
@@ -365,34 +443,57 @@ fn finish_site(site: &Prepared, notices: &mut Vec<String>) {
 
 /// What:
 ///  Put back what a site displaced,
-///  but only while the site still holds this fix's bytes.
-///  `Ok(false)` is
-///       "someone wrote to the file,
-/// so nothing here is ours to undo any more".
+///  then judge the bytes the swap took out of the file:
+///  the journal is removed
+///       only when they are this fix's replacement,
+///  and otherwise it stays and is named.
 /// Why:
-///   A blind swap back would move a newer save out of the path and leave it in a journal this
-///       command then removes;
-///  comparing first means a newer save stays exactly where the person put it.
+///  Reading the destination before the swap has a window:
+///  a save that lands in it is moved into the
+///       journal by the swap and then removed with it.
+///  What comes out of the swap is the bytes that were really
+///       there,
+///  at a name this command owns,
+///  so the comparison is about the swap and not about a reading
+///       beside it.
+///  A swap that fails leaves the journal for the person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!holds(destination, site.replacement)) return false; exchange(contentOf(site), site.destination); removeJournal(site.journal); return true;
+/// exchange(contentOf(site.journal), site.destination); if (holdsExactly(contentOf(site.journal), site.replacement, site.kept)) removeOrName(site.journal); else notices.push(keptNotice(site));
 /// ```
-fn undo_if_still_ours(site: &Prepared) -> Result<bool, String> {
-    let ours: bool = match std::fs::read(site.destination.as_path()) {
-        Ok(bytes) => bytes.as_slice() == &*site.replacement,
-        Err(_gone) => false,
-    };
-    if !ours {
-        return Ok(false);
+fn roll_back_site(site: &Prepared, notices: &mut Vec<String>) {
+    let content: PathBuf = content_of(site.journal.as_path());
+    // What: A control's step stands here, between the last reading of the destination and the swap, which is the
+    //       window this rollback removes.
+    // Why:  The swap is what takes the bytes out, so nothing this function decides reads the destination first.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // beforeRollbackSwap(site.destination); exchange(content, site.destination);
+    // ```
+    before_rollback_swap(site.destination.as_path());
+    if let Err(error) = exchange(content.as_path(), site.destination.as_path()) {
+        notices.push(format!(
+            "restoring a corrected file failed ({error}); {}",
+            kept_notice(site)
+        ));
+        return;
     }
-    exchange(
-        content_of(site.journal.as_path()).as_path(),
-        site.destination.as_path(),
-    )
-    .map_err(restore_failed)?;
-    remove(site.journal.as_path());
-    return Ok(true);
+    match holds_exactly(
+        content.as_path(),
+        &site.replacement,
+        &site.kept,
+        "reading what a rollback displaced",
+    ) {
+        Ok(true) => {
+            if !remove(site.journal.as_path()) {
+                notices.push(could_not_remove(site));
+            }
+        }
+        Ok(false) => notices.push(kept_notice(site)),
+        Err(detail) => notices.push(format!("{detail}; {}", kept_notice(site))),
+    }
 }
 
 /// What:
@@ -575,11 +676,7 @@ pub fn install_prepared(
     // for (const site of swappedSites.reverse()) if (!await undoIfStillOurs(site)) notices.push(keptNotice(site));
     // ```
     for site in prepared[..swapped].iter().rev() {
-        match undo_if_still_ours(site) {
-            Ok(true) => {}
-            Ok(false) => notices.push(kept_notice(site)),
-            Err(detail) => notices.push(format!("{detail}; {}", kept_notice(site))),
-        }
+        roll_back_site(site, notices);
     }
     // A site that was never swapped holds only the correction, so removing its journal loses nothing of the person's.
     for site in &prepared[swapped..] {
@@ -630,7 +727,7 @@ pub fn install_corrections(
         ));
     };
     let mut notices: Vec<String> = Vec::new();
-    recover_interrupted_installs(git_dir, &mut notices);
+    reap_interrupted_installs(git_dir, &mut notices);
     let index_before: Option<Vec<u8>> = match read_index(real_index) {
         Ok(found) => found,
         Err(error) => {
