@@ -551,6 +551,22 @@
      `worktree/worktree_convert_command.rs`)
      and the `run_all_side_by_side`/`run_beside_caller` sites.
   4. Then T13's removals and lint.
+- Checks,
+  the whole suites once at the end:
+  `native:test:host` 4793 run,
+  4793 passed (one slow),
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  733 passed (two slow),
+  3 skipped;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings.
+  Both suites ran with `CLI_GIT_TEST_ROOT` under a short path,
+  without which `service_mode::the_same_start_with_the_real_git_listens` fails
+  on this host for the `SUN_LEN` reason
+  `doc/handover/cli-git-rust-implementation.md` already records,
+  and both with the run's own control group at `TasksMax=4000`,
+  because a smaller one refused `git-lfs`'s filter process to two LFS
+  controls.
 - Not run,
   for the next agent:
   the container gate of this branch,

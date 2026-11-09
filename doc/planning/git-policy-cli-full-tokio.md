@@ -4549,6 +4549,40 @@ clean.
 clean,
 after `format:monochromatic-lint` inserted the line breaks it asks for in
 three of them.
+The whole lib suite,
+once,
+at the end
+(`native:test:host`,
+with `CLI_GIT_TEST_ROOT` under a short path so a Unix
+socket fits `SUN_LEN`):
+4793 tests run,
+4793 passed (one slow),
+8 skipped.
+The whole binary-level suite,
+once
+(`native:test:binary:host`,
+same short root):
+733 tests run,
+733 passed (two
+slow),
+3 skipped.
+The package lint (`//package/git-policy/cli:lint`,
+`monochromatic-lint
+--max-warnings 0` over the package plus Clippy):
+0 errors,
+0 warnings.
+Two runs before those look like defects and are not:
+- with a small `TasksMax` on the run's own control group,
+  two LFS controls
+  failed with "cannot fork() for git-lfs filter-process:
+  Resource temporarily
+  unavailable",
+  which is the bound the run was given,
+  not the code;
+- without the short fixture root,
+  `service_mode::the_same_start_with_the_real_git_listens` fails as
+  `doc/handover/cli-git-rust-implementation.md` recorded on a clean checkout:
+  its socket path under `CARGO_TARGET_DIR` is longer than `SUN_LEN`.
 Not run:
 the container gate (it builds the gate image and this tree has not been
 through it),
