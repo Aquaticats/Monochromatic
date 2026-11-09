@@ -11,6 +11,15 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09T16:47:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/policy-engine/post-commit-facts.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/policy-engine/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/policy-engine/final-newline-policy.ts` left the tree on 2026-10-13 in
+`642b6d72cb`.
+
 ## Symptom
 
 A PATH-shadowed `git commit` completed the native commit and printed its success line,
