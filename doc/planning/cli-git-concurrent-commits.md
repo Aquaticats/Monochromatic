@@ -293,6 +293,21 @@ Git source at commit `0f8e75abebff` plus experiments with real Git 2.55.0.
   K defaults to 2,
   is tunable,
   and the concurrent-commit benchmark confirms the default.
+  Note 2026-11-09T01:14:06-05:00:
+  the accepted default is 1,
+  changed 2026-09-26 (veto open)
+  (`doc/decision/cli-git-concurrent-commits.md`,
+   "`landing.reserveAfterLostRaces` defaults to 1"),
+  and `SPEC.md` states `1` for the key;
+  the native constant agrees
+  (`DEFAULT_RESERVE_AFTER_LOST_RACES` in
+   `package/git-policy/cli/src/native/config/config_schema.rs`).
+  No benchmark recorded a confirmation:
+  `SPEC.md` still lists the sweep of `landing.reserveAfterLostRaces`
+  among the scenarios to measure.
+  The key no longer reserves a slot either;
+  the service lands in arrival order,
+  and `SPEC.md` says the key sets nothing.
 - Waiting:
    unbounded while the cli-git landing owner is alive;
   bounded for an `index.lock` without a known owner.
