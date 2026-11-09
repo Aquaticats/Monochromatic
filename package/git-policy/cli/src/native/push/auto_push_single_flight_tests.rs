@@ -121,3 +121,85 @@ fn a_stalled_query_is_reported_instead_of_waited_for() {
     );
     remove(&root);
 }
+
+/// What:
+///  The awaited query answers what the synchronous one answers,
+/// for the in-process read and for a real Git child.
+/// Why:
+///   The landing round's push asks through the awaited face,
+/// and a difference between the faces would be a push that
+///  reads a different repository from its own.
+#[test]
+fn the_awaited_query_answers_what_the_synchronous_query_answers() {
+    let root = repository("sf-query-awaiting-same-answer");
+    let git = push_git(&root);
+    for arguments in [
+        vec!["rev-parse", "--abbrev-ref", "--symbolic-full-name", "main@{upstream}"],
+        vec!["rev-parse", "HEAD"],
+    ] {
+        let asked: Vec<OsString> = argv(arguments.as_slice());
+        let synchronous = git_output(&git, &asked);
+        let (awaited, _ticks): (Result<String, SingleFlightError>, u32) =
+            crate::ticker_beside_a_wait::with_a_ticker_beside(git_output_awaiting(&git, &asked));
+        assert_eq!(format!("{awaited:?}"), format!("{synchronous:?}"), "{arguments:?}");
+    }
+    remove(&root);
+}
+
+/// What:
+///  A failed awaited query names its arguments,
+/// as the synchronous one does.
+/// Why:
+///   The words of a failure are what the person reads when a landing's push could not ask its question.
+#[test]
+fn a_failed_awaited_query_names_its_arguments() {
+    let root = repository("sf-query-awaiting-failure");
+    let (failure, _ticks): (Result<String, SingleFlightError>, u32) =
+        crate::ticker_beside_a_wait::with_a_ticker_beside(git_output_awaiting(
+            &push_git(&root),
+            &argv(&["rev-parse", "--verify", "no-such-ref^{commit}"]),
+        ));
+    let failed = failure.expect_err("an unknown ref fails");
+    match &failed {
+        SingleFlightError::Git {
+            arguments, code, ..
+        } => {
+            assert_eq!(arguments, "rev-parse --verify no-such-ref^{commit}");
+            assert_eq!(*code, Some(128));
+        }
+        other => panic!("expected a Git failure, got {other}"),
+    }
+    remove(&root);
+}
+
+/// What:
+///  A query whose Git never answers is stopped at its window on the awaited face too,
+/// and a task beside it keeps running while the window passes.
+/// Why:
+///   A wait that held its thread would stop every other directory of the round for the
+///  window,
+/// and one that never ended would stop them for good.
+#[test]
+fn a_stalled_awaited_query_is_reported_and_lets_other_tasks_run() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = fixture("sf-query-awaiting-stalled");
+    let fake = root.join("fake-git");
+    std::fs::write(&fake, "#!/bin/sh\nexec sleep 8\n").expect("fake git");
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    let mut git = push_git(&root);
+    git.real_git = fake;
+    git.environment.push((
+        OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE),
+        OsString::from("1"),
+    ));
+    let (failure, ticks): (Result<String, SingleFlightError>, u32) =
+        crate::ticker_beside_a_wait::with_a_ticker_beside(git_output_awaiting(&git, &argv(&["rev-parse", "HEAD"])));
+    let stalled = failure.expect_err("stalls");
+    assert!(
+        matches!(&stalled, SingleFlightError::TimedOut { arguments, seconds }
+            if arguments == "rev-parse HEAD" && *seconds == 1),
+        "{stalled}"
+    );
+    assert!(ticks > 0, "the wait for the query held the thread: the task beside it never ran");
+    remove(&root);
+}
