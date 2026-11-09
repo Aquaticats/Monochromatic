@@ -21,6 +21,11 @@
 //! the wrapper words the notice when it
 //!  shows it,
 //! so the commit name is abbreviated the way Git abbreviates it in the repository as it is then.
+//! A record is removed only once its words have been
+//!  written out,
+//! and only while the file still holds the text that was worded,
+//! so a command killed before it prints loses nothing and a
+//!  record the service replaced meanwhile is kept for the person.
 //! Records are
 //!  shown on standard error only,
 //! and not at all to a command whose output a program reads (`--porcelain`,
@@ -41,6 +46,7 @@ pub use crate::push_failure_notice_machine_output::is_machine_read;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::service_messages::RESTART_COMMAND;
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// Directory under the worktree's own Git directory that holds the records for the person.
@@ -575,25 +581,28 @@ pub trait CommitNamer {
 /// oldest name
 ///  first,
 /// words each with the commit named by `abbreviate`,
-/// and removes it once its words exist.
+/// and answers what the person is to be shown.
 /// Why:
 ///   A record is shown once,
 /// to the worktree whose commit it is about;
 /// another worktree's command leaves it where it is,
-/// and the removal comes after the words so a command killed while it names the commit loses nothing.
+/// and nothing is
+///  removed here:
+/// the removal waits until the words are out,
+/// which only the caller knows.
 ///  When nothing failed the notice directory does not exist,
 /// and this is one directory read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takePushFailuresFor(gitDir, worktrees, abbreviate)
+/// const notices = await readPushFailuresFor(gitDir, worktrees, abbreviate)
 /// ```
-pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
-    return take_records_from(notice_directory(git_dir).as_path(), worktrees, abbreviate);
+pub fn push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
+    return read_records_from(notice_directory(git_dir).as_path(), worktrees, abbreviate);
 }
 
 /// What:
-///  Reads and removes the records of removed worktrees,
+///  Reads the records of removed worktrees,
 /// which belong to no worktree and so are shown to the first command
 ///  that asks.
 /// Why:
@@ -603,22 +612,23 @@ pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abb
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takeOrphanedFailures(commonDir, abbreviate)
+/// const notices = await readOrphanedPushFailures(commonDir, abbreviate)
 /// ```
-pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
-    return take_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
+pub fn orphaned_push_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
+    return read_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
 }
 
-/// Reads and removes the records in one directory that are for the asking worktree,
-/// oldest name first.
-fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
+/// Reads the records in one directory that are for the asking worktree,
+/// oldest name first,
+/// without removing any.
+fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
     let mut paths: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
         paths.push(entry.path());
     }
     paths.sort();
-    let mut texts: Vec<String> = Vec::new();
+    let mut notices: Vec<Notice> = Vec::new();
     for path in paths {
         let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
         let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
@@ -627,35 +637,122 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
         {
             continue;
         }
-        // The text is made before the record goes: naming the commit asks Git, and a command killed there, or a standard error
-        //  that cannot be written, must leave the only durable statement that the commit is not backed up where the next
-        //  command finds it. Two commands that start together can therefore both show it, which costs a repeat and loses nothing.
+        // The words are made while the record is still on disk: naming the commit asks Git, and a command killed there must
+        //  leave the only durable statement that the commit is not backed up where the next command finds it. Two commands
+        //  that start together can therefore both show it, which costs a repeat and loses nothing.
         let shown: String = match parsed {
             Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
             Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
             Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
             // The finished text an earlier release wrote.
-            None => text,
+            None => text.clone(),
         };
-        // A record another command took meanwhile is already shown by it, and one that cannot be removed is shown again next time.
-        let _removed = std::fs::remove_file(path.as_path());
-        texts.push(shown);
+        notices.push(Notice { path, seen: text, text: shown });
     }
-    return texts;
+    return notices;
 }
 
 /// What:
-///  Reads and removes every record,
+///  Reads every record,
 /// with each commit named in full.
 /// Why:
 ///   The service's own controls and a repository with no worktree to ask need all of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takePushFailures(gitDir)
+/// const notices = await readPushFailures(gitDir)
 /// ```
-pub fn take_push_failures(git_dir: &Path) -> Vec<String> {
-    return take_push_failures_for(git_dir, None, &FullCommitName);
+pub fn push_failures(git_dir: &Path) -> Vec<Notice> {
+    return push_failures_for(git_dir, None, &FullCommitName);
+}
+
+/// What:
+///  One record read from the disk:
+/// the words the person is to be shown,
+/// and the text they were worded from.
+/// Why:
+///   The record goes only after its words have been written out,
+/// and only while the file still holds the text that
+///  was worded,
+/// so a command killed before it prints loses nothing,
+/// and a record the service replaced meanwhile is not
+///  taken for the one this command read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Notice = { path: string; seen: string; text: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Notice {
+    /// The record's file.
+    path: PathBuf,
+    /// The record's text as it was read,
+    /// which is what may be removed.
+    seen: String,
+    /// The words for the person.
+    text: String,
+}
+
+impl Notice {
+    /// The words the person is shown.
+    pub fn text(&self) -> &str {
+        return self.text.as_str();
+    }
+
+    /// The record's file,
+    /// for a caller that shows the words somewhere else and then removes them.
+    pub fn path(&self) -> &Path {
+        return self.path.as_path();
+    }
+
+    /// What:
+    ///  Shows the words on `out`,
+    /// and removes the record once they are out.
+    /// Why:
+    ///   A record removed before its words reach the person is gone with nothing shown,
+    /// and the next command cannot
+    ///  find it;
+    /// when the write fails the record stays for that command.
+    /// The removal names what was read,
+    /// so a record
+    ///  written meanwhile at the same name is kept for the person.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// out.write(text + '\n'); out.flush(); if (readFile(path) === seen) unlink(path);
+    /// ```
+    pub fn show(&self, out: &mut impl Write) -> std::io::Result<()> {
+        writeln!(out, "{}", self.text)?;
+        out.flush()?;
+        self.remove_what_was_read();
+        return Ok(());
+    }
+
+    /// What:
+    ///  Removes the record once its words are out,
+    /// if the file still holds the text this notice was worded from.
+    /// Why:
+    ///   A command that pauses while it words a notice can outlive the service's replacement of that same record,
+    /// a
+    ///  terminal failure after a retryable one,
+    /// and removing the file then would delete words nobody has read.
+    /// A removal
+    ///  that fails leaves the record to be shown again,
+    /// which costs a repeat and loses nothing.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// if (readFile(path) === seen) unlink(path);
+    /// ```
+    pub fn remove_what_was_read(&self) {
+        let Ok(now) = std::fs::read_to_string(self.path.as_path()) else {
+            return;
+        };
+        if now != self.seen {
+            return;
+        }
+        let _removed = std::fs::remove_file(self.path.as_path());
+    }
 }
 
 /// A commit name as it is,

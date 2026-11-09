@@ -7,7 +7,7 @@ use crate::work_item_state_directories_and_claim_names::take_listings;
 use crate::push_retry::PushRetries;
 use crate::service_work_run_round::run_round;
 use super::*;
-use crate::push_failure_notice::{push_failure_text, take_push_failures};
+use crate::push_failure_notice::{push_failure_text, push_failures};
 use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{RENEWALS_PER_LEASE, renewal_interval};
 use crate::service_claim_renewal_running::{DrivenRenewal, Renewal};
@@ -18,6 +18,22 @@ use std::ffi::OsString;
 use std::time::{Duration, Instant};
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
+
+/// What:
+///  The words of every record,
+/// shown to a buffer and removed as a command shows and removes them.
+/// Why:
+///   A record goes only once its words are out,
+/// so these controls read one through the step the person's terminal receives
+///  it by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// shownNotices(pushFailures(gitDir))
+/// ```
+fn take_push_failures(git_dir: &Path) -> Vec<String> {
+    return crate::test_support::shown_notices(push_failures(git_dir));
+}
 const OTHER_OID: &str = "89abcdef0123456789abcdef0123456789abcdef";
 const BRANCH: &str = "refs/heads/main";
 const THIRD_OID: &str = "456789abcdef0123456789abcdef0123456789ab";

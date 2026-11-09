@@ -318,7 +318,7 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
         first.join().expect("the first service ends");
         assert_ne!(remote_tip(&stage), stage.landed, "nothing was delivered before the restart");
         // The person's next command shows and removes the failure record, as it does in a day of work.
-        let _shown = crate::push_failure_notice::take_push_failures(git_dir.as_path());
+        let _shown = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
         let (nobody, second) = start_service(scope, &handlers, plans.as_path(), &busy);
         assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the restarted service delivered the commit by itself");
         drop(nobody);

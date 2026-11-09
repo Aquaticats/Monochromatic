@@ -236,6 +236,31 @@ pub(crate) fn remove(root: &Path) {
     std::fs::remove_dir_all(root).expect("remove only the fixture");
 }
 
+/// What:
+///  Shows each notice to a buffer and answers the words it wrote,
+/// as a command's standard error would have received them
+///  without the newline the show adds.
+/// Why:
+///   A record goes only once its words are written out,
+/// so a control reads them through the step the person's terminal
+///  receives them by,
+/// and a record whose words could not be written stays as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// notices.map((notice) => { const out = []; notice.show(out); return out.join('').replace(/\n$/, '') })
+/// ```
+pub(crate) fn shown_notices(notices: Vec<crate::push_failure_notice::Notice>) -> Vec<String> {
+    let mut texts: Vec<String> = Vec::new();
+    for notice in notices {
+        let mut written: Vec<u8> = Vec::new();
+        notice.show(&mut written).expect("a buffer takes the words");
+        let text: String = String::from_utf8(written).expect("the words are UTF-8");
+        texts.push(text.strip_suffix('\n').map(str::to_owned).unwrap_or(text));
+    }
+    return texts;
+}
+
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) fn git_output<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
     return Command::new(REAL_GIT)

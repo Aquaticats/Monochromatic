@@ -24,6 +24,32 @@ fn region(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
 }
 
+/// What:
+///  The words of every record,
+/// shown to a buffer and removed as a command shows and removes them.
+/// Why:
+///   A record goes only once its words are out,
+/// so every control that read a record through the old take must
+///  show it through the step the person's terminal receives it by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// shownNotices(pushFailures(directory))
+/// ```
+fn take_push_failures(directory: &Path) -> Vec<String> {
+    return crate::test_support::shown_notices(push_failures(directory));
+}
+
+/// `take_push_failures` for the records of one asking worktree.
+fn take_push_failures_for(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
+    return crate::test_support::shown_notices(push_failures_for(directory, worktrees, abbreviate));
+}
+
+/// `take_push_failures` for the records of removed worktrees.
+fn take_orphaned_failures(directory: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
+    return crate::test_support::shown_notices(orphaned_push_failures(directory, abbreviate));
+}
+
 /// The text names the branch,
 /// the commit,
 /// Git's own reason,
@@ -369,5 +395,65 @@ fn a_notice_survives_being_worded() {
     assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected")]);
     assert!(!record.exists(), "and it is gone once its words exist");
     assert!(take_push_failures(root.as_path()).is_empty(), "a record is shown once");
+    remove(root.as_path());
+}
+
+/// What:
+///  A notice whose words cannot be written out stays for the next command.
+/// Why:
+///   A record removed before its words reach the person is gone with nothing shown,
+/// and the next command cannot
+///  find it;
+/// a standard error that nobody reads is what that looks like.
+#[test]
+fn a_notice_whose_words_cannot_be_written_stays() {
+    let root: PathBuf = fixture("push-failure-unwritten");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
+    let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
+    let notices: Vec<Notice> = push_failures(root.as_path());
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].show(&mut ClosedTerminal).is_err(), "the terminal refused the words");
+    assert!(record.exists(), "the record is kept for the next command");
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, "rejected")], "the next command shows it");
+    assert!(!record.exists(), "and takes it once its words are out");
+    remove(root.as_path());
+}
+
+/// A terminal that takes no words,
+/// as a standard error whose reader is gone.
+struct ClosedTerminal;
+
+impl std::io::Write for ClosedTerminal {
+    fn write(&mut self, _bytes: &[u8]) -> std::io::Result<usize> {
+        return Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe));
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A record the service replaced while a command was wording it is kept,
+/// so the person sees both statements.
+/// Why:
+///   A retryable failure's record is replaced by the terminal failure's of the same branch and commit;
+/// a reader that
+///  removed the pathname would delete the words nobody has read,
+/// and the promise it replaced would be the last thing shown.
+#[test]
+fn a_newer_record_at_the_same_name_survives_the_older_reader() {
+    let root: PathBuf = fixture("push-failure-replaced");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected for now").expect("record");
+    // The service replaces the record while the command words it: the namer stands for that pause.
+    let replacing = |commit: &str| {
+        record_push_failure(root.as_path(), BRANCH, commit, "the remote wants a login").expect("the newer record");
+        return commit.to_string();
+    };
+    let first: Vec<String> = take_push_failures_for(root.as_path(), None, &replacing);
+    assert_eq!(first, vec![push_failure_text(BRANCH, COMMIT, "rejected for now")], "the words are the ones this command read");
+    let second: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(second, vec![push_failure_text(BRANCH, COMMIT, "the remote wants a login")], "the newer statement is still there to show");
     remove(root.as_path());
 }
