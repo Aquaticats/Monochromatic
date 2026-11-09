@@ -1,8 +1,7 @@
 //! What:
 //!  The post-commit policy gate over a landed commit's own changes.
 //! Why:
-//!  The incumbent (`src/policy-engine/post-commit-lifecycle.ts`) checks the committed bytes of
-//!  every path a landed commit changed,
+//!  The gate checks the committed bytes of every path a landed commit changed,
 //! and only a gate that passes lets the commit reach auto-push.
 //! The push itself is
 //!  the service's work item,

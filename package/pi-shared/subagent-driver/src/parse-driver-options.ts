@@ -5,6 +5,10 @@
  */
 
 import { parseArgs, } from 'node:util';
+import {
+  MODEL_ERROR_RETRY_BASE_SECONDS,
+  MODEL_ERROR_RETRY_CAP,
+} from './driver-constants.ts';
 import type { DriverOptions, } from './driver-types.ts';
 import {
   type RequiredOption,
@@ -17,7 +21,7 @@ import {
  The driver's command line, for the error message.
  */
 export const DRIVER_USAGE =
-  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--pi-argument=<word>]...';
+  'drive-pi-subagent --run-folder=<folder> --working-folder=<folder> --prompt-file=<file> --provider=<name> --model=<name> --wall-seconds=<n> --idle-seconds=<n> --turn-cap=<n> [--session=<file>] [--retry-cap=<n>] [--retry-base-seconds=<n>] [--pi-argument=<word>]...';
 
 /**
  A command line the driver cannot use.
@@ -78,6 +82,52 @@ function optionOf({
 }
 
 /**
+ Reads how many attempts may follow a model error: a whole number of them, of which zero is allowed because a coordinator may
+ want a run that never retries.
+
+ @param value - the option's value as the command line parser read it
+
+ @param name - the option's name, without the leading dashes
+
+ @param usage - the command's usage, for the message
+
+ @param errorOf - builds the error this command answers a refused option with
+
+ @returns the number of attempts
+
+ @throws the error this command answers a refused option with, when the value is no whole number of attempts
+
+ @example
+ ```ts
+ const retryCap = retryCapOf({ value: '0', name: 'retry-cap', usage, errorOf, },);
+ ```
+ */
+function retryCapOf({
+  value,
+  name,
+  usage,
+  errorOf,
+}: RequiredOption,): number {
+  /**
+   The option's text.
+   */
+  const text = requiredText({
+    value,
+    name,
+    usage,
+    errorOf,
+  },);
+  /**
+   The option's number of attempts.
+   */
+  const parsed = Number(text,);
+  if ((!Number.isSafeInteger(parsed,)) || (parsed < 0)) {
+    throw errorOf(`--${name} must be a whole number of attempts, zero or more; it was "${text}".\nUsage: ${usage}`,);
+  }
+  return parsed;
+}
+
+/**
  Reads the command line.
 
  @param commandLine - arguments after the program name
@@ -114,6 +164,8 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         'wall-seconds': { type: 'string', },
         'idle-seconds': { type: 'string', },
         'turn-cap': { type: 'string', },
+        'retry-cap': { type: 'string', },
+        'retry-base-seconds': { type: 'string', },
       },
     },);
     return {
@@ -151,6 +203,18 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
         value: values['turn-cap'],
         name: 'turn-cap',
       },),),
+      retryCap: (values['retry-cap'] === undefined)
+        ? MODEL_ERROR_RETRY_CAP
+        : retryCapOf(optionOf({
+          value: values['retry-cap'],
+          name: 'retry-cap',
+        },),),
+      retryBaseSeconds: (values['retry-base-seconds'] === undefined) ? MODEL_ERROR_RETRY_BASE_SECONDS : requiredSeconds(
+        optionOf({
+          value: values['retry-base-seconds'],
+          name: 'retry-base-seconds',
+        },),
+      ),
     };
   }
   catch (error) {

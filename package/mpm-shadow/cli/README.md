@@ -1390,6 +1390,18 @@ It runs only when asked;
   then the worktrees',
   then each `--lock` file).
 - A `--lock` is the only way to protect a tree that git does not list.
+- What it reads is a snapshot:
+  a lock another command replaces between this run's read and its deletions is not read again,
+  so the plan can delete a version the newer lock names.
+  That takes a second command writing the lock inside that window,
+  and the next `install` puts the version back.
+  A version that arrives after the installed versions are listed,
+  which is any concurrent install,
+  is never in the plan at all.
+- A concurrent install's `current` link is read just before the prune would remove it,
+  and a link naming a version that still exists and is not one of this run's deletions is left alone.
+  The instant between that read and the unlink is the remaining window:
+  a `current` another command moves inside it can still be removed.
 
 ### Migration from the shared `$CARGO_HOME/bin`
 

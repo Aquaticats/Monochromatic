@@ -462,6 +462,30 @@ fn a_stale_current_in_the_winning_root_is_repaired_before_another_scope_links_th
     assert!(resolved.ends_with(Path::new("0.4.5").join("bin").join(GIT_BIN)), "the newest copy runs: {}", resolved.display());
 }
 
+/// A version the other root forwards to stays while a newer one is pruned, because no lock names the crate:
+/// `current` must name the newest version that stays, never the newest installed one,
+/// or a successful prune leaves it naming a directory it just removed.
+#[test]
+fn prune_points_current_at_the_newest_version_that_stays_not_the_newest_installed_one() {
+    let duo = Duo::new();
+    fs::write(&duo.rig.scope.lock_file, "{\"schemaVersion\":1,\"tools\":{}}").expect("a lock that names nothing");
+    for version in ["0.4.4", "0.4.5"] {
+        finish_install(&version_directory(&duo.repository_root(), GIT_CRATE, version), GIT_CRATE, version, &[GIT_BIN]);
+    }
+    // The repository root runs 0.4.4, and the global root forwards to that link, so 0.4.4 is kept and 0.4.5 is not.
+    symlink("0.4.4", current_link(&duo.repository_root(), GIT_CRATE)).expect("current at the older version");
+    fs::create_dir_all(duo.global_root().join("cargo").join(GIT_CRATE)).expect("make the global crate directory");
+    symlink(current_link(&duo.repository_root(), GIT_CRATE), current_link(&duo.global_root(), GIT_CRATE)).expect("forward");
+    duo.list_own_worktree();
+    prune_toolchain(&duo.rig.scope, &duo.rig.runner, &[], false).expect("pruned");
+
+    let link = current_link(&duo.repository_root(), GIT_CRATE);
+    assert!(!version_directory(&duo.repository_root(), GIT_CRATE, "0.4.5").exists(), "the unnamed newer version is pruned");
+    assert!(version_directory(&duo.repository_root(), GIT_CRATE, "0.4.4").is_dir(), "the forwarded version stays");
+    assert_eq!(fs::read_link(&link).expect("a link"), PathBuf::from("0.4.4"), "current names the newest version that stays");
+    assert!(fs::metadata(&link).is_ok(), "and the link resolves");
+}
+
 #[test]
 fn prune_never_removes_a_version_the_other_root_forwards_to() {
     let forwarded = Duo::new();

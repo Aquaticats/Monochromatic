@@ -7,8 +7,7 @@
 //!  Landing later compares the real entries with these copies,
 //! so an entry changed by another command
 //!  after invocation is kept (`conclusion_cleanup.rs` holds the landing side).
-//!  Pseudorefs of a reftable repository live in the ref store and are copied with `update-ref`
-//!  (`src/shadow-repository/shadow-conclusion-state.ts`).
+//!  Pseudorefs of a reftable repository live in the ref store and are copied with `update-ref`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

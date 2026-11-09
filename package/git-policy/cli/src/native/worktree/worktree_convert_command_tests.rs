@@ -25,9 +25,9 @@ fn two_worktrees(name: &str) -> (PathBuf, PathBuf) {
 }
 
 /// Run the command and return its status and lines.
-fn run(platform: &(dyn Platform + Sync), arguments: &ConvertArguments, cwd: &Path) -> (i32, Vec<String>) {
+fn run(platform: &Arc<dyn Platform + Send + Sync>, arguments: &ConvertArguments, cwd: &Path) -> (i32, Vec<String>) {
     let mut lines: Vec<String> = Vec::new();
-    let code: i32 = execute(platform, arguments, cwd, &Interrupt::never(), &mut |text: &str| { lines.push(String::from(text)); });
+    let code: i32 = execute(Arc::clone(platform), arguments, cwd, Arc::new(Interrupt::never()), &mut |text: &str| { lines.push(String::from(text)); });
     return (code, lines);
 }
 
@@ -39,7 +39,7 @@ fn run(platform: &(dyn Platform + Sync), arguments: &ConvertArguments, cwd: &Pat
 #[test]
 fn all_worktrees_are_listed_then_converted() {
     let (parent, root) = two_worktrees("convert-command-all");
-    let platform: PlainPlatform = PlainPlatform::new();
+    let platform: Arc<dyn Platform + Send + Sync> = Arc::new(PlainPlatform::new());
     let dry: ConvertArguments = ConvertArguments { dry_run: true, all: true, ..ConvertArguments::default() };
     std::fs::write(root.join(".git/worktrees/second/locked"), b"").expect("lock the second");
     let (code, lines) = run(&platform, &dry, root.as_path());
@@ -70,7 +70,7 @@ fn all_worktrees_are_listed_then_converted() {
 #[test]
 fn a_worktree_that_is_a_subvolume_already_is_counted_as_skipped() {
     let (parent, root) = two_worktrees("convert-command-already");
-    let platform: PlainPlatform = PlainPlatform::new();
+    let platform: Arc<dyn Platform + Send + Sync> = Arc::new(PlainPlatform::new());
     let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
     let (code, lines) = run(&platform, &real, root.as_path());
     assert_eq!(code, 0, "{lines:#?}");
@@ -101,10 +101,10 @@ fn a_worktree_that_is_a_subvolume_already_is_counted_as_skipped() {
 #[test]
 fn the_undone_conversions_are_counted_in_the_summary() {
     let (parent, root) = two_worktrees("convert-command-undone");
-    let platform: PlainPlatform = PlainPlatform::new();
+    let platform: Arc<dyn Platform + Send + Sync> = Arc::new(PlainPlatform::new());
     for name in ["wt", "second"] {
         let named: ConvertArguments = ConvertArguments { paths: vec![std::ffi::OsString::from(name)], ..ConvertArguments::default() };
-        let code: i32 = execute(&platform, &named, root.as_path(), &Interrupt::at("verified", 0), &mut |_text: &str| {});
+        let code: i32 = execute(Arc::clone(&platform), &named, root.as_path(), Arc::new(Interrupt::at("verified", 0)), &mut |_text: &str| {});
         assert_eq!(code, FAILED_EXIT_CODE, "{name} was killed after its copy was verified, so its journal stays");
     }
     let abandon: ConvertArguments = ConvertArguments { abandon: true, all: true, ..ConvertArguments::default() };
@@ -123,7 +123,7 @@ fn the_undone_conversions_are_counted_in_the_summary() {
 #[test]
 fn a_refused_named_worktree_is_status_one_and_a_failure_is_status_two() {
     let (parent, root) = two_worktrees("convert-command-named");
-    let platform: PlainPlatform = PlainPlatform::new();
+    let platform: Arc<dyn Platform + Send + Sync> = Arc::new(PlainPlatform::new());
     std::fs::write(root.join(".git/worktrees/wt/index.lock"), b"another git").expect("lock");
     let named: ConvertArguments = ConvertArguments { paths: vec![std::ffi::OsString::from("wt")], ..ConvertArguments::default() };
     let (code, lines) = run(&platform, &named, root.as_path());
@@ -133,7 +133,7 @@ fn a_refused_named_worktree_is_status_one_and_a_failure_is_status_two() {
     let (missing_code, missing_lines) = run(&platform, &missing, root.as_path());
     assert_eq!(missing_code, REFUSED_EXIT_CODE, "{missing_lines:#?}");
     std::fs::remove_file(root.join(".git/worktrees/wt/index.lock")).expect("unlock");
-    let killed: i32 = execute(&platform, &named, root.as_path(), &Interrupt::at("created", 0), &mut |_text: &str| {});
+    let killed: i32 = execute(Arc::clone(&platform), &named, root.as_path(), Arc::new(Interrupt::at("created", 0)), &mut |_text: &str| {});
     assert_eq!(killed, FAILED_EXIT_CODE);
     let (finished_code, finished_lines) = run(&platform, &named, root.as_path());
     assert_eq!(finished_code, 0, "{finished_lines:#?}");
@@ -154,7 +154,7 @@ fn help_is_printed() {
 #[test]
 fn the_risk_is_said_once_before_anything_is_converted() {
     let (parent, root) = two_worktrees("convert-command-risk");
-    let platform: PlainPlatform = PlainPlatform::new();
+    let platform: Arc<dyn Platform + Send + Sync> = Arc::new(PlainPlatform::new());
     let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
     let (code, lines) = run(&platform, &real, root.as_path());
     assert_eq!(code, 0, "{lines:#?}");
@@ -171,7 +171,7 @@ fn the_risk_is_said_once_before_anything_is_converted() {
 #[test]
 fn a_command_line_attribute_source_stops_the_content_shortcut() {
     let (parent, root) = two_worktrees("convert-command-source");
-    let platform: PlainPlatform = PlainPlatform::new();
+    let platform: Arc<dyn Platform + Send + Sync> = Arc::new(PlainPlatform::new());
     // A stale stat that only content can vouch for.
     let readme: PathBuf = root.join("wt/README.md");
     let bytes: Vec<u8> = std::fs::read(&readme).expect("read");
@@ -194,7 +194,7 @@ fn all_refuses_when_the_registrations_cannot_be_listed() {
         return;
     }
     let (parent, root) = two_worktrees("convert-command-unlistable");
-    let platform: PlainPlatform = PlainPlatform::new();
+    let platform: Arc<dyn Platform + Send + Sync> = Arc::new(PlainPlatform::new());
     let registrations: PathBuf = root.join(".git/worktrees");
     // A directory that can be searched but not listed.
     std::fs::set_permissions(&registrations, std::os::unix::fs::PermissionsExt::from_mode(0o311)).expect("search without listing");
@@ -212,7 +212,7 @@ fn all_refuses_when_the_registrations_cannot_be_listed() {
 #[test]
 fn all_covers_a_link_spelled_registration_and_says_what_it_leaves_out() {
     let (parent, root, worktree) = checkout_moved_behind_a_link("convert-command-link");
-    let platform: PlainPlatform = PlainPlatform::new();
+    let platform: Arc<dyn Platform + Send + Sync> = Arc::new(PlainPlatform::new());
     git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "../outside"]);
     git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "gone"]);
     std::fs::remove_dir_all(root.join("gone")).expect("the directory Git would prune");

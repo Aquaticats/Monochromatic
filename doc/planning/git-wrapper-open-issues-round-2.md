@@ -205,12 +205,76 @@ The pattern itself survives once,
   `FORMAT_PREFIX` and rebuilds an `OsString` from them,
   so any path round-trips.
 
-Everything else under `src/native/lock/` and `src/native/landing/` that converts a path
- lossily converts it for a message,
- or reads back what it wrote with the same lossy conversion
- (`service_scratch_ref_marker_of_a_batch.rs`,
- `service_rules_precompile.rs`),
- so no other strict comparison can miss.
+## `#6005` fixed on `fix/git-policy-cli-service-work-items-keep-path-bytes`
+
+The work-item pair above is fixed,
+ and so is every other record in `src/native/` that kept a path as text and read it back as a path,
+ compared it,
+ hashed it,
+ or passed it to Git.
+The one idiom is `foundation/path_bytes_in_records.rs`:
+ a field written twice,
+ `gitDir` as plain text and `gitDirHex` as the path's bytes,
+ with the bytes read first and the plain text kept for a record an earlier release wrote.
+It is applied in `work_item.rs`,
+ `push_retry_store.rs`,
+ `service_scratch_ref_marker_of_a_batch.rs`,
+ `merge_isolation_journal.rs`,
+ `service_journal_intent_text_and_parse.rs`,
+ `service_units_of_removed_worktrees.rs`,
+ `worktree_removal_rescue.rs`,
+ `service_protocol_encode_messages_to_lines.rs` and
+ `service_protocol_decode_lines_to_messages.rs`.
+`WorkItem::repository` and `WorkItem::git_dir` are `PathBuf` now,
+ so no call site can compare text with a path again.
+
+Still lossy,
+ with the reason each is not fixed here:
+
+- `src/native/worktree_copying/`:
+  the copy journal keeps its four roots as text,
+  and its recovery,
+  its settle and its stage-claim files read them back as paths
+  (`worktree_copy_journal.rs`,
+  `worktree_copy_recovery.rs`,
+  `worktree_copy_stage_claim.rs`).
+  Fixing it changes an on-disk format that several of its files and controls share,
+  so it is one job of its own,
+  with the same two-field idiom.
+- `src/native/repository_link_check/`:
+  the gate holds `link_path`,
+  `canonical_root` and `mount_point` as text and compares them with real paths;
+  it is a report about links,
+  not a step of a commit,
+  so a lost byte misnames a finding there and nothing else.
+- Messages and journal fields
+  (`service_client.rs`,
+  `service_commit.rs`,
+  `push_trigger_log.rs`,
+  `discard_audit.rs`,
+  `worktree_slow_route.rs`,
+  `worktree_dirty_restore.rs`,
+  `real_git_resolution.rs`,
+  and the `quote(...)` calls of `worktree_copying/` and `conflict/`):
+  a byte lost in a line a person reads changes nothing.
+- `src/native/landing/service_rules_precompile.rs` and
+  `src/native/service/service_journal.rs`:
+  each reads back what it wrote with the same lossy conversion,
+  so the comparison stays consistent.
+- `src/native/service/service_provision.rs`:
+  the placeholders of a systemd unit file are text by the file's own format.
+- `src/native/merge/merge_isolation_apply.rs` and
+  `src/native/push/auto_push_reconcile_branch_advance.rs`:
+  each names its root through the intent record above,
+  which keeps the bytes.
+
+One defect of another shape was found on the way:
+ a commit's changed paths (`Change::path`) travel the socket as JSON strings,
+ so a file whose name is not UTF-8 cannot be committed through the service at all.
+That is a path inside a commit,
+ not a repository path,
+ and it needs the protocol's change list to carry bytes;
+ it is not fixed here.
 
 ## What was run
 

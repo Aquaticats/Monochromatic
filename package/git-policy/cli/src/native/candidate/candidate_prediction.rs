@@ -6,11 +6,8 @@
 //!  Both are answered before Git touches the real index.
 //!  `git add` is replayed on a
 //!      private copy of the index,
-//!  and the candidates are the entries the replay changed,
-//!      as the installed wrapper's `add-policy-facts.ts` and `add-staged-delta.ts` define
-//!      them.
+//!  and the candidates are the entries the replay changed.
 //!  A direct command stages its scope with `git add --all` on a private copy,
-//!      as `direct-check-facts.ts` does,
 //!  and every selected entry is a candidate.
 //!  Either
 //!      way the bytes are blobs Git hashed from the worktree at that moment,
@@ -389,6 +386,29 @@ fn note_listing(
 /// What:
 ///  Prepare the candidates of one request.
 ///  `real_git`,
+/// What:
+///  The caller's global arguments followed by `--no-literal-pathspecs`.
+/// Why:
+///  Every listing the candidate store makes relies on pathspec magic (`:/`,
+///  `:(top,literal)`),
+///  which literal pathspec mode,
+///  from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`,
+///  turns into names that match nothing and so list no candidate at all.
+///  Only the replay of the caller's own command keeps the caller's mode.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const magicEnabledPrefix = (prefix: string[]) => [...prefix, '--no-literal-pathspecs'];
+/// ```
+fn magic_enabled_prefix(global_prefix: &[OsString]) -> Vec<OsString> {
+    let mut prefix: Vec<OsString> = global_prefix.to_vec();
+    prefix.push(OsString::from("--no-literal-pathspecs"));
+    return prefix;
+}
+
+/// What:
+///  Prepare the candidates of one request.
+///  `real_git`,
 ///  `global_prefix` and `overlay`
 ///       are the Git executable,
 ///  the caller's arguments before the subcommand and the
@@ -397,18 +417,11 @@ fn note_listing(
 /// Why:
 ///   The real index is copied first,
 ///  so nothing below can change it.
-///  For `git add`
-///       the store's own listings add `--no-literal-pathspecs` after the caller's prefix:
-///       they rely on pathspec magic (`:/`,
-///  `:(top,literal)`),
-///  which literal pathspec
-///       mode,
-///  from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`,
-///  would turn into
-///       names that match nothing,
-///  leaving every change unchecked.
-///  The replay keeps the
-///       caller's mode.
+///  Every listing and the staging of a direct scope read their pathspecs through
+///       `magic_enabled_prefix`,
+///  so no global pathspec mode can empty them;
+///  only the replay of a
+///       `git add` keeps the caller's mode.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -490,8 +503,7 @@ pub fn prepare_candidates(
     // `mut store` because building the version below reads the store's generation.
     let (mut store, records): (CandidateStore, Vec<CandidateRecord>) = match request {
         CandidateRequest::Add(region) => {
-            let mut listing_prefix: Vec<OsString> = global_prefix.to_vec();
-            listing_prefix.push(OsString::from("--no-literal-pathspecs"));
+            let listing_prefix: Vec<OsString> = magic_enabled_prefix(global_prefix);
             let mut add_store: CandidateStore = CandidateStore::new(
                 real_git,
                 listing_prefix.as_slice(),
@@ -510,10 +522,7 @@ pub fn prepare_candidates(
             unreachable!("landed and pushed requests return before the staged match");
         }
         CandidateRequest::Direct(pathspecs) => {
-            // The same magic-enabled prefix as the add arm: the staging and the listings must read
-            // `:/` and the selected pathspecs alike, so literal mode cannot split them.
-            let mut scope_prefix: Vec<OsString> = global_prefix.to_vec();
-            scope_prefix.push(OsString::from("--no-literal-pathspecs"));
+            let scope_prefix: Vec<OsString> = magic_enabled_prefix(global_prefix);
             let mut scope_store: CandidateStore =
                 CandidateStore::new(real_git, scope_prefix.as_slice(), private_overlay.as_slice());
             let selected: Vec<CandidateRecord> = projected_scope(
@@ -526,14 +535,20 @@ pub fn prepare_candidates(
             (scope_store, selected)
         }
         CandidateRequest::Staged(pathspecs) => {
+            let scope_prefix: Vec<OsString> = magic_enabled_prefix(global_prefix);
             let mut scope_store: CandidateStore =
-                CandidateStore::new(real_git, global_prefix, private_overlay.as_slice());
+                CandidateStore::new(real_git, scope_prefix.as_slice(), private_overlay.as_slice());
             let selected: Vec<CandidateRecord> = staged_scope(&mut scope_store, pathspecs.as_slice())?;
             (scope_store, selected)
         }
         CandidateRequest::StagedAtBase { base, pathspecs } => {
-            let mut scope_store: CandidateStore =
-                CandidateStore::new(real_git, global_prefix, private_overlay.as_slice()).with_baseline(base.clone());
+            let scope_prefix: Vec<OsString> = magic_enabled_prefix(global_prefix);
+            let mut scope_store: CandidateStore = CandidateStore::new(
+                real_git,
+                scope_prefix.as_slice(),
+                private_overlay.as_slice(),
+            )
+            .with_baseline(base.clone());
             // An empty scope would list the whole index, so it is answered without asking Git.
             let selected: Vec<CandidateRecord> = if pathspecs.is_empty() {
                 Vec::new()

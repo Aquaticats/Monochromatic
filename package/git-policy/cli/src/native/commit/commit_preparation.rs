@@ -11,9 +11,7 @@
 //!  Every hook is off in the shadow (its config switches the commit events off and the hooks-off option comes
 //!  first),
 //! so Git starts no external program for a hook and never starts the wrapper.
-//!  A failing preparation removes the shadow so no shadow outlives the failure
-//!  (`src/policy-engine/commit-preparation-native.ts`,
-//! `src/shadow-repository/shadow-repository.ts`).
+//!  A failing preparation removes the shadow so no shadow outlives the failure.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
