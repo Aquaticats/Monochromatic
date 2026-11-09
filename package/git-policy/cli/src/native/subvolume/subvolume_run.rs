@@ -205,7 +205,11 @@ impl Run<'_> {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }
-        return MigrateError::from_io_result(std::fs::write(&self.layout.unreadable_path, text), "write the list of unreadable files", self.layout.unreadable_path.as_path());
+        return MigrateError::from_io_result(
+            crate::private_storage::replace_private_file(&self.layout.unreadable_path, text.as_bytes()),
+            "write the list of unreadable files",
+            self.layout.unreadable_path.as_path(),
+        );
     }
 
     /// Stop here when the control asked for a simulated kill at this point.
