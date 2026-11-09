@@ -81,14 +81,49 @@ pub const STARTED_AS_GIT_VARIABLE: &str = "CLI_GIT_STARTED_AS_GIT";
 /// finding 1).
 /// Counting the starts ends any such chain,
 ///  however many processes stand between two of them,
-/// and a legitimate nesting (a hook,
-/// an alias,
-/// an editor that runs `git`) is nowhere near
-///  this deep:
-/// each level costs a real Git run of its own.
-/// A stop one level too early is repaired by the person who reads the message;
+/// and a legitimate nesting is nowhere near this deep:
+/// each level costs a
+///  real Git run of its own,
+/// the wrapper's Git starts carry every hook off,
+/// and a `!` alias runs real Git rather than the wrapper
+///  (Git puts its own exec directory first on the `PATH` it runs one with).
+/// A stop one level too early is repaired by the
+///  person who reads the message;
 /// a chain that never ends is not.
 pub const MOST_STARTS_IN_ONE_CHAIN: u32 = 8;
+
+/// What:
+///  How many processes above this one the chain marker is looked for in,
+/// when this process's own environment has
+///  none.
+/// Why:
+///   A launcher that clears the environment of the program it starts removes the marker from that
+/// program's
+///  environment only;
+/// the environment the launcher itself was started with still holds it,
+/// and neither
+///  `env --ignore-environment` nor a shell between the two changes the launcher's own environment.
+/// `env` replaces itself with
+///  the program it runs,
+/// so a launcher that runs `env --ignore-environment` and one that runs
+/// `env --ignore-environment sh -c 'exec ...'` put one and two processes between the marker and the arriving
+///  wrapper;
+/// two levels cover both,
+/// and they cost 0.18 ms of a forwarded command measured by alternating two builds that differ only in this walk
+///  (`native:build`,
+/// 300 pairs,
+/// median 4.76 ms without the walk;
+/// `doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+///  finding 2 of the round-1 review).
+/// The reads are made only when this process's own environment carries no marker,
+/// so a
+///  start that is already marked costs nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ANCESTORS_ASKED_FOR_THE_CHAIN = 2;
+/// ```
+pub const ANCESTORS_ASKED_FOR_THE_CHAIN: usize = 2;
 
 /// The byte between the fields of the marker:
 /// the unit separator,
@@ -287,28 +322,178 @@ pub fn mark_real_git_start(command: &mut Command, mode: StartMode) {
 }
 
 /// What:
-///  How many marked starts of real Git the environment of this process records.
+///  How many marked starts of real Git this process's chain records,
+/// read from its own environment or,
+///  when that
+///  carries none,
+/// from the nearest process above it that does.
 /// Why:
 ///   Every builder that starts Git calls `mark_real_git_start` with nothing but its command,
 /// so the count of the chain is read from this
-///  process's own environment,
-/// which is the only place a start can carry it.
-/// No policy input is read here;
-///  the one
-///  variable is the wrapper's own trace of its starts.
-/// An environment of another program's making reads as no start,
-///  which is what a first start is.
+///  process's environment,
+/// which is where a start carries it.
+/// A launcher that clears the environment of the wrapper it
+///  starts removes it there,
+/// and the environment of the launcher itself is the record that survives
+///  (`a_launcher_that_clears_the_environment_ends_the_chain`);
+/// without it the chain of such a launcher never ends.
+/// No policy input is
+///  read here;
+/// the one variable is the wrapper's own trace of its starts.
+/// An environment of another program's making
+///  reads as no start,
+/// which is what a first start is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const starts = parseMarker(process.env.CLI_GIT_STARTED_AS_GIT)?.starts ?? 0;
+/// const starts = ownMarker()?.starts ?? nearestAncestorMarker()?.starts ?? 0;
 /// ```
 fn own_start_count() -> u32 {
-    let Some(value): Option<OsString> = std::env::var_os(STARTED_AS_GIT_VARIABLE) else { return 0 };
-    return match parse_marker(value.as_os_str()) {
-        Some(marker) => marker.starts,
-        None => 0,
-    };
+    if let Some(value) = std::env::var_os(STARTED_AS_GIT_VARIABLE)
+        && let Some(marker) = parse_marker(value.as_os_str())
+    {
+        return marker.starts;
+    }
+    // The own environment carries none: the nearest ancestor that does names the chain this start continues.
+    return ancestor_marker().map_or(0, |marker| marker.starts);
+}
+
+/// What:
+///  The marker held by the nearest process above this one,
+/// or nothing when none of them holds one.
+/// Why:
+///   This is the record a launcher that clears the environment cannot reach:
+/// it is the launcher's own environment,
+///  written by the wrapper that started the launcher as its Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const environment of ancestorEnvironments()) { const marker = parseMarker(environment.CLI_GIT_STARTED_AS_GIT); if (marker) return marker; }
+/// ```
+fn ancestor_marker() -> Option<StartMarker> {
+    return first_marker_above(|pid| { return environment_of(pid); }).map(|(marker, _environment)| { return marker; });
+}
+
+/// What:
+///  The nearest process above this one that holds a chain marker,
+/// and the environment it holds it in.
+/// Why:
+///   The walk stops at the first marker,
+/// so a chain that is in progress costs its levels one read each and not
+///  the whole bound;
+/// the reader is a parameter so a control can name the processes the walk sees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function firstMarkerAbove(environmentOf): [StartMarker, [string, string][]] | undefined;
+/// ```
+fn first_marker_above(environment_of: impl Fn(u32) -> Option<Vec<(OsString, OsString)>>) -> Option<(StartMarker, Vec<(OsString, OsString)>)> {
+    let mut pid: u32 = parent_pid();
+    for _level in 0..ANCESTORS_ASKED_FOR_THE_CHAIN {
+        if pid == 0 {
+            return None;
+        }
+        let Some(environment) = environment_of(pid) else { return None };
+        if let Some(marker) = marker_of(environment.as_slice()) {
+            return Some((marker, environment));
+        }
+        let Some(parent) = parent_of(pid) else { return None };
+        pid = parent;
+    }
+    return None;
+}
+
+/// What:
+///  The environments of the first `ANCESTORS_ASKED_FOR_THE_CHAIN` processes above this one,
+/// nearest first,
+///  each as name/value pairs.
+/// Why:
+///   `env --ignore-environment` clears the environment it passes on and nothing else,
+/// so the environment of the
+///  process that ran it is still there to read,
+/// and so is the one of a shell above that.
+/// A process whose
+///  environment or parent cannot be read ends the walk:
+/// nothing further up can belong to a chain this process is in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ancestorEnvironments(): [string, string][][] { const found = []; let pid = ppid; for (let level = 0; level < ANCESTORS; level++) { const env = environmentOf(pid); if (!env) break; found.push(env); pid = parentOf(pid); } return found; }
+/// ```
+#[cfg(unix)]
+fn ancestor_environments() -> Vec<Vec<(OsString, OsString)>> {
+    let mut found: Vec<Vec<(OsString, OsString)>> = Vec::new();
+    let mut pid: u32 = parent_pid();
+    for _level in 0..ANCESTORS_ASKED_FOR_THE_CHAIN {
+        if pid == 0 {
+            break;
+        }
+        let Some(environment) = environment_of(pid) else { break };
+        found.push(environment);
+        let Some(parent) = parent_of(pid) else { break };
+        pid = parent;
+    }
+    return found;
+}
+
+/// Without a process table there is no ancestor to read (this crate runs on Linux only).
+#[cfg(not(unix))]
+fn ancestor_environments() -> Vec<Vec<(OsString, OsString)>> {
+    return Vec::new();
+}
+
+/// What:
+///  The environment of the process with this number,
+/// as name/value pairs,
+/// or nothing when it cannot be read.
+/// Why:
+///   `/proc/<pid>/environ` holds the bytes the program was started with,
+/// separated by NUL bytes,
+/// and a
+///  name may be separated from its value by the first `=` only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readFileSync(`/proc/${pid}/environ`, 'binary').split('\0').filter(Boolean).map((entry) => [entry.slice(0, entry.indexOf('=')), entry.slice(entry.indexOf('=') + 1)])
+/// ```
+#[cfg(unix)]
+fn environment_of(pid: u32) -> Option<Vec<(OsString, OsString)>> {
+    use std::os::unix::ffi::OsStrExt;
+    let bytes: Vec<u8> = std::fs::read(format!("/proc/{pid}/environ")).ok()?;
+    let mut environment: Vec<(OsString, OsString)> = Vec::new();
+    for entry in bytes.split(|byte| { return *byte == 0; }) {
+        if entry.is_empty() {
+            continue;
+        }
+        let Some(equals) = entry.iter().position(|byte| { return *byte == b'='; }) else { continue };
+        let name: OsString = OsString::from(OsStr::from_bytes(&entry[..equals]));
+        let value: OsString = OsString::from(OsStr::from_bytes(&entry[equals + 1..]));
+        environment.push((name, value));
+    }
+    return Some(environment);
+}
+
+/// What:
+///  The number of the parent of the process with this number,
+/// or nothing when it cannot be read.
+/// Why:
+///   `/proc/<pid>/stat` holds the command name in parentheses,
+/// which may contain spaces and parentheses of its own,
+/// so
+///  the fields after it are read from after its last `)`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Number(readFileSync(`/proc/${pid}/stat`, 'utf8').slice(readFileSync(...).lastIndexOf(')') + 2).split(' ')[1])
+/// ```
+#[cfg(unix)]
+fn parent_of(pid: u32) -> Option<u32> {
+    let text: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let after_name: &str = &text[text.rfind(')')? + 1..];
+    let mut fields = after_name.split_whitespace();
+    // The first field after the name is the process's state; its parent's number is the second.
+    let _state = fields.next()?;
+    return fields.next()?.parse::<u32>().ok();
 }
 
 /// What:
@@ -495,12 +680,90 @@ fn live_identity_of(pid: u32) -> Option<String> {
 /// function refusalWhenStartedAsGit(environment, ownExecutable): string | undefined;
 /// ```
 pub fn refusal_when_started_as_git(environment: &[(OsString, OsString)], own_executable: &Path) -> Option<String> {
-    let marker: StartMarker = marker_of(environment)?;
+    return refusal_when_started_as_git_among(environment, own_executable, ancestor_environments().as_slice());
+}
+
+/// What:
+///  `refusal_when_started_as_git` with the environments of the processes above this one given,
+/// and what the
+///  chain marker says there.
+/// Why:
+///   A launcher that clears the environment of the wrapper it starts is found through the
+/// environment
+///  the launcher itself was started with,
+/// so the control of that shape hands the check made-up ancestors instead of
+///  reading a process table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refusalWhenStartedAsGitAmong(environment, ownExecutable, ancestors): string | undefined;
+/// ```
+pub fn refusal_when_started_as_git_among(
+    environment: &[(OsString, OsString)],
+    own_executable: &Path,
+    ancestors: &[Vec<(OsString, OsString)>],
+) -> Option<String> {
+    let (marker, said_in): (StartMarker, &[(OsString, OsString)]) = chain_marker_and_where(environment, ancestors)?;
     let facts: ProcessFacts<'_> = ProcessFacts { own_pid: std::process::id(), parent_pid: parent_pid(), identity_of: &live_identity_of };
     if !started_as_git(&marker, &facts) {
         return None;
     }
-    return Some(refusal_text(&marker, own_executable, environment));
+    // The environment the marker was read from is the one that names the `git` that led back and the PATH that offered
+    //  it; a chain's later levels have no marker of their own to read them from.
+    return Some(refusal_text(&marker, own_executable, said_in));
+}
+
+/// What:
+///  The chain marker this start continues:
+/// the one in this process's own environment,
+/// or else the one held by the nearest
+///  process above it that holds any.
+/// Why:
+///   The count of a chain and the identity of the start it began are one record,
+/// and a launcher that clears the
+///  environment of the wrapper it starts removes it from that wrapper only
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the round-1
+///  review).
+/// The nearer record wins,
+/// so a wrapper that carries its own says nothing about the processes above it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function chainMarkerAmong(environment, ancestors) { return parseMarker(environment.CLI_GIT_STARTED_AS_GIT) ?? ancestors.map(parseMarker).find(Boolean); }
+/// ```
+pub fn chain_marker_among(
+    environment: &[(OsString, OsString)],
+    ancestors: &[Vec<(OsString, OsString)>],
+) -> Option<StartMarker> {
+    return chain_marker_and_where(environment, ancestors).map(|(marker, _where)| { return marker; });
+}
+
+/// What:
+///  `chain_marker_among` and the environment the marker was read from.
+/// Why:
+///   The message a person reads names the file that start chose as Git and the PATH that offered it,
+/// and those are
+///  recorded beside the marker,
+/// so a chain whose later levels carry none of their own still says where it came from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function chainMarkerAndWhere(environment, ancestors): [StartMarker, [string, string][]] | undefined;
+/// ```
+pub fn chain_marker_and_where<'a>(
+    environment: &'a [(OsString, OsString)],
+    ancestors: &'a [Vec<(OsString, OsString)>],
+) -> Option<(StartMarker, &'a [(OsString, OsString)])> {
+    if let Some(marker) = marker_of(environment) {
+        return Some((marker, environment));
+    }
+    for ancestor in ancestors {
+        if let Some(marker) = marker_of(ancestor.as_slice()) {
+            return Some((marker, ancestor.as_slice()));
+        }
+    }
+    return None;
 }
 
 /// What:

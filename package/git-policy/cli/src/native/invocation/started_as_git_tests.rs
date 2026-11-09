@@ -20,8 +20,10 @@
 /// its parser,
 /// the check and the builders under test.
 use super::{
-    FIELD_SEPARATOR, MOST_STARTS_IN_ONE_CHAIN, ProcessFacts, STARTED_AS_GIT_VARIABLE, StartMarker, StartMode, marker_of, marker_value,
-    mark_real_git_start, parse_marker, refusal_text, refusal_when_started_as_git, started_as_git,
+    ANCESTORS_ASKED_FOR_THE_CHAIN, FIELD_SEPARATOR, MOST_STARTS_IN_ONE_CHAIN, ProcessFacts, STARTED_AS_GIT_VARIABLE, StartMarker,
+    StartMode, ancestor_environments, chain_marker_and_where, chain_marker_among, environment_of, marker_of, marker_value,
+    mark_real_git_start, parent_of, parse_marker, refusal_text, refusal_when_started_as_git, refusal_when_started_as_git_among,
+    started_as_git,
 };
 use std::ffi::OsString;
 use std::path::Path;
@@ -250,6 +252,107 @@ fn the_refusal_names_what_a_person_needs() {
     assert!(chained.contains("/opt/launchers/git"), "{chained}");
     assert!(chained.contains("PATH here is /opt/launchers"), "{chained}");
     assert!(chained.contains("remove the entry that leads back to monochromatic-git-policy-cli"), "{chained}");
+}
+
+/// What:
+///  A start whose own environment carries no marker continues the chain of the nearest process above it that does.
+/// Why:
+///  `env --ignore-environment` clears the environment it passes on and not the one of the process that ran it,
+/// so a
+///  launcher that wipes the marker cannot hide the count from the wrapper it starts
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the round-1 review);
+/// without this the count of every level was zero and the chain
+///  never ended.
+/// What this process carries itself is the record of its own chain,
+/// so an ancestor says nothing when this
+///  environment has one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(chainMarker(own = [], ancestors = [unmarked, marked(starts: 3)])).toEqual({ starts: 3 });
+/// ```
+#[test]
+fn a_chain_whose_own_environment_has_no_marker_continues_the_nearest_one_above_it() {
+    let own: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), OsString::from("/nowhere"))];
+    let unmarked: Vec<(OsString, OsString)> = vec![(OsString::from("HOME"), OsString::from("/home/someone"))];
+    let nearer: Vec<(OsString, OsString)> = vec![(OsString::from(STARTED_AS_GIT_VARIABLE), marker_value(StartMode::Child, 700, STARTER_IDENTITY, 2))];
+    let further: Vec<(OsString, OsString)> = vec![(OsString::from(STARTED_AS_GIT_VARIABLE), marker_value(StartMode::Child, 600, STARTER_IDENTITY, 5))];
+    assert_eq!(chain_marker_among(own.as_slice(), &[]), None, "nothing above and nothing here");
+    assert_eq!(chain_marker_among(own.as_slice(), &[unmarked.clone()]), None, "an ancestor without a marker says nothing");
+    assert_eq!(
+        chain_marker_among(own.as_slice(), &[unmarked.clone(), nearer.clone(), further.clone()]),
+        Some(StartMarker { starts: 2, ..marker(700, StartMode::Child) }),
+        "the nearest marker above"
+    );
+    let mut with_own: Vec<(OsString, OsString)> = own.clone();
+    with_own.push((OsString::from(STARTED_AS_GIT_VARIABLE), marker_value(StartMode::Child, 800, STARTER_IDENTITY, 1)));
+    assert_eq!(
+        chain_marker_among(with_own.as_slice(), &[nearer.clone()]),
+        Some(marker(800, StartMode::Child)),
+        "this process's own record is its chain"
+    );
+    let above: Vec<Vec<(OsString, OsString)>> = vec![unmarked, nearer.clone()];
+    let (found, said_in) = chain_marker_and_where(own.as_slice(), above.as_slice()).expect("the marker above");
+    assert_eq!(found.starts, 2);
+    assert_eq!(said_in, nearer.as_slice(), "the environment the message is written from");
+}
+
+/// What:
+///  A start that continues a chain past the bound is refused,
+/// and the message names the Git and the PATH of the environment
+///  the marker was read from.
+/// Why:
+///   A chain of launchers that clear the environment never writes those two variables into the arriving wrapper's
+///  environment,
+/// so without the chain's own environment the message a person needs would name nothing they can
+///  remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(refusalWhenStartedAsGitAmong([], '/wrapper', [above])).toContain('/opt/launchers/git');
+/// ```
+#[test]
+fn a_chain_refused_above_names_the_git_and_the_path_it_was_told_about() {
+    let above: Vec<(OsString, OsString)> = vec![
+        (OsString::from(STARTED_AS_GIT_VARIABLE), marker_value(StartMode::Replace, 700, STARTER_IDENTITY, MOST_STARTS_IN_ONE_CHAIN + 1)),
+        (OsString::from("CLI_GIT_NATIVE_FORWARD_TARGET"), OsString::from("/opt/launchers/git")),
+        (OsString::from("PATH"), OsString::from("/opt/launchers")),
+    ];
+    let said: String = refusal_when_started_as_git_among(Vec::new().as_slice(), Path::new("/wrapper"), &[above]).expect("a chain past the bound");
+    assert!(said.contains("/opt/launchers/git"), "{said}");
+    assert!(said.contains("PATH here is /opt/launchers"), "{said}");
+    assert!(said.contains(format!("start {}", MOST_STARTS_IN_ONE_CHAIN + 1).as_str()), "{said}");
+    assert!(said.contains("started as Git"), "{said}");
+    assert_eq!(refusal_when_started_as_git_among(Vec::new().as_slice(), Path::new("/wrapper"), &[]), None, "nothing to continue");
+}
+
+/// What:
+///  The live reads of the chain walk:
+///  this process's own environment,
+///  its parent's number,
+///  and the walk itself.
+/// Why:
+///   The walk is the one part the controls above hand made-up values to;
+/// a read that cannot find the process or the
+///  variable must end it rather than fail the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(environmentOf(process.pid).PATH).toBeDefined(); expect(parentOf(process.pid)).toBe(process.ppid);
+/// ```
+#[test]
+fn the_chain_walk_reads_this_process_and_the_ones_above_it() {
+    let own: Vec<(OsString, OsString)> = environment_of(std::process::id()).expect("this process has an environment");
+    assert!(own.iter().any(|(name, _value)| { return name == "PATH"; }), "the test process has a PATH: {} entries", own.len());
+    // SAFETY: `getppid` takes no argument, reads no memory of this process and cannot fail.
+    let parent: u32 = u32::try_from(unsafe { libc::getppid() }).expect("a parent number");
+    assert_eq!(parent_of(std::process::id()), Some(parent), "the parent's number as the process table says it");
+    let above: Vec<Vec<(OsString, OsString)>> = ancestor_environments();
+    assert!(!above.is_empty(), "a test process is started by another");
+    assert!(above.len() <= ANCESTORS_ASKED_FOR_THE_CHAIN);
+    assert_eq!(environment_of(0), None, "there is no process zero");
+    assert_eq!(parent_of(u32::MAX), None, "there is no process with that number");
 }
 
 /// The builders put the marker of the right mode on a command,

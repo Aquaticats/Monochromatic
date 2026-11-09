@@ -4776,6 +4776,21 @@ the options weighed and the controls.)
   (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
   finding 1,
   measured there at sixteen levels and no end).
+  The bound stays 8 starts,
+  and the count means what it meant before the environment of the process above is read:
+  one start of real Git per level.
+  A legitimate nesting needs a program the real Git itself runs that runs `git` again,
+  and the wrapper's own Git starts carry every hook off,
+  so those shapes are an editor or a `run`-style subcommand,
+  one level under the person's command.
+  A chain of nine `!` aliases does not reach the wrapper at all,
+  so no count of it can refuse it:
+  Git puts its own exec directory first on the `PATH` it runs an alias with,
+  and `git <alias>` inside one is real Git
+  (measured: the marker's count is 1 at every level of nine such aliases,
+  and the wrapped `git a` answers with real Git's own output).
+  Test:
+  `a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for`.
   The stop is the same exit status 2 and the same message:
   it says this is start N of one chain,
   names the file the previous start chose as Git
@@ -4783,6 +4798,37 @@ the options weighed and the controls.)
   which is the script),
   the `PATH`,
   and both ways out.
+- Covered since 2026-11-09T03:00:00-05:00,
+  where the count alone did not:
+  a launcher that clears the environment of the wrapper it starts
+  (`env --ignore-environment`).
+  The marker lives in the environment of the start,
+  so a clearer removes it from the arriving wrapper and every level looked like a first start.
+  What survives the wipe is what the wrapper reads about the process above it:
+  this process's own environment first,
+  then the environment of the process that started it and of the one above that
+  (`ANCESTORS_ASKED_FOR_THE_CHAIN`,
+  `chain_marker_and_where`),
+  which the clearer cannot change,
+  and the count continues from there,
+  so the chain ends at `MOST_STARTS_IN_ONE_CHAIN`.
+  The message is written from the environment the marker was read in,
+  so it names that Git and that `PATH`
+  even though the arriving wrapper's own environment held neither.
+  The walk costs 0.18 ms of a forwarded command, measured by alternating two builds that differ only in it
+  (median 4.76 ms without it, 300 pairs);
+  it is made only when this process's own environment carries no marker.
+  Test:
+  `a_launcher_that_clears_the_environment_ends_the_chain`.
+- What a cleared environment still hides:
+  a launcher that both clears it and replaces itself with the wrapper
+  (`exec env --ignore-environment ... wrapper`),
+  which leaves one process number running the wrapper, the launcher and the wrapper again with no
+  environment of its own to read and no second process to ask.
+  Nothing in the process survives that `exec` but its number, its open descriptors and its limits,
+  and the wrapper carries none of them as a record,
+  so the level after that one starts again from a first start and no chain of it is counted.
+  The reported shape, whose levels wait for their children, is covered above.
 
 ### The wrapper falls back to the Git its commit service was set up with
 

@@ -474,6 +474,138 @@ fn a_script_named_git_that_starts_the_wrapper_without_exec_ends_the_chain() {
 }
 
 /// What:
+///  Nine shell aliases that each run the next one through `git` on `PATH`,
+/// the last of them running the command the
+///  person asked for.
+/// Why:
+///  Every level is a real Git of its own that runs an alias,
+/// and the wrapper of each level arrives as a child of a
+///  shell rather than of the level above,
+/// so each is a legitimate nesting;
+/// the count of the marker ended
+///  the chain at
+/// `MOST_STARTS_IN_ONE_CHAIN`,
+/// and nine aliases needed a tenth start
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 3 of the round-1 review).
+/// The answer is the one real Git gives,
+/// not a refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [i, name] of ['a','b','c','d','e','f','g','h','i'].entries()) await git(['config', `alias.${name}`, `!git ${['b','c','d','e','f','g','h','i','rev-parse HEAD'][i]}`]);
+/// expect(runWrapped(['a'])).toEqual(runGit(['rev-parse', 'HEAD']));
+/// ```
+#[test]
+fn a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for() {
+    let fixture: Fixture = fixture("alias-chain");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let names: [&str; 9] = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+    for (index, name) in names.iter().enumerate() {
+        let next: &str = names.get(index + 1).copied().unwrap_or("rev-parse");
+        let body: String = if *name == "i" { String::from("!git rev-parse HEAD") } else { format!("!git {next}") };
+        git(&fixture, repo.as_path(), &["config", format!("alias.{name}").as_str(), body.as_str()]);
+    }
+    let expected: std::process::Output = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let observed: Observed = super::support::run_wrapped(&fixture, repo.as_path(), &["a"]);
+    let text: String = words(&observed);
+    assert_eq!(observed.code, Some(0), "the chain of aliases must run: {text}");
+    assert_eq!(observed.stdout, expected.stdout, "the answer is the one real Git gives: {text}");
+    assert!(!text.contains("started as Git"), "a finite chain of aliases is no recursion: {text}");
+    remove(&fixture);
+}
+
+/// What:
+///  Write a launcher named `git` that runs the wrapper as a **child** of a cleared environment:
+/// it counts its own level,
+///  then runs `/usr/bin/env --ignore-environment` as a child with the same `path` and the wrapper,
+/// and waits for it.
+/// Why:
+///  `env --ignore-environment` removes the marker variable from the environment of the wrapper it starts,
+/// so neither
+///  check that reads the marker sees anything there,
+/// and a launcher that starts the wrapper again is a chain no count ends
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the round-1 review).
+/// The launcher waits for its child,
+/// as the reported chain's levels did,
+/// and it is the process whose own environment still
+///  holds the marker the wrapper wrote for it.
+/// The level travels in the environment the launcher itself builds after the wipe,
+/// so one level counts once;
+/// the
+///  cap is the control's own backstop and not a wrapper limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeExecutable(launcher, `#!/bin/sh\nlevel=$(( ${LEVEL:-0} + 1 )); echo $level >> counter; if [ $level -gt cap ]; then exit 97; fi\nenv --ignore-environment HOME=... PATH=... LEVEL=$level wrapper "$@"`);
+/// ```
+fn launcher_that_clears_the_environment(path: &Path, counter: &Path, path_variable: &OsStr, wrapper: &Path, cap: usize) {
+    let script: String = format!(
+        "#!/bin/sh\n\
+         level=$(( ${{{CHAIN_LEVEL_VARIABLE}:-0}} + 1 ))\n\
+         echo \"$level\" >> '{counter}'\n\
+         if [ \"$level\" -gt {cap} ]; then\n\
+         echo 'stand-in: start cap reached' >&2\n\
+         exit {STAND_IN_STOP_CODE}\n\
+         fi\n\
+         /usr/bin/env --ignore-environment HOME=\"$HOME\" PATH='{path_variable}' {CHAIN_LEVEL_VARIABLE}=$level '{wrapper}' \"$@\"\n",
+        counter = counter.display(),
+        path_variable = path_variable.to_string_lossy(),
+        wrapper = wrapper.display(),
+    );
+    executable(path, script.as_bytes());
+}
+
+/// What:
+///  The reported launcher that clears the environment:
+/// the wrapper must end the chain itself,
+/// with the stop and the message
+///  that names the `git` on `PATH` which led back,
+/// and not by growing until the stand-in's own cap.
+/// Why:
+///  Both recursion checks read a variable of the environment,
+/// and the clearing launcher removes it,
+/// so the
+///  wrapper saw a fresh start at every level and started one more wrapper
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 2 of the round-1 review).
+/// What survives the wipe is what the wrapper can read about the process that started it:
+/// the environment
+///  the launcher itself was started with,
+/// which no child can clear.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: [bin, launchers] }).code).toBe(2); expect(deepestLevel(counter)).toBeLessThan(CHAIN_CAP);
+/// ```
+#[test]
+fn a_launcher_that_clears_the_environment_ends_the_chain() {
+    let fixture: Fixture = fixture("launcher-clears-environment");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let launchers: PathBuf = directory(&fixture, "launchers");
+    let counter: PathBuf = fixture.root.join("starts");
+    let mut path: OsString = fixture.root.join("bin").into_os_string();
+    path.push(":");
+    path.push(launchers.as_os_str());
+    launcher_that_clears_the_environment(launchers.join("git").as_path(), counter.as_path(), path.as_os_str(), fixture.wrapper.as_path(), CHAIN_CAP);
+    let observed: Observed = observe(
+        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str()).current_dir(repo.as_path()).args(["rev-parse", "HEAD"]),
+        b"",
+    );
+    let text: String = words(&observed);
+    let deepest: usize = deepest_level(counter.as_path());
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, deepest level {deepest}: {text}");
+    assert!(
+        (2..CHAIN_CAP).contains(&deepest),
+        "the chain must end after one step and before the launcher's backstop at level {CHAIN_CAP}: deepest level {deepest}: {text}"
+    );
+    assert!(text.contains("started as Git"), "{text}");
+    assert!(text.contains(launchers.join("git").to_string_lossy().as_ref()), "names the `git` on PATH that led back: {text}");
+    remove(&fixture);
+}
+
+/// What:
 ///  The same script spelled with `exec`,
 /// which keeps the wrapper in the process the marker names.
 /// Why:
