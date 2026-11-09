@@ -137,6 +137,50 @@ await describe({
       },
     },),
     it({
+      name: 'lists the calls still open oldest first, whichever tool the feed first wrote about',
+      fn: async () => {
+        await using runs = await standInRunsFolder({
+          runs: [
+            {
+              name: 'a-1',
+              feedLines: [
+                {
+                  t: 0,
+                  kind: 'tool_start',
+                  tool: 'bash',
+                },
+                {
+                  t: SECOND,
+                  kind: 'tool_end',
+                  tool: 'bash',
+                },
+                {
+                  t: 2 * SECOND,
+                  kind: 'tool_start',
+                  tool: 'read',
+                  args: 'a file',
+                },
+                {
+                  t: 9 * SECOND,
+                  kind: 'tool_start',
+                  tool: 'bash',
+                  args: 'mise run test',
+                },
+              ],
+            },
+          ],
+        },);
+        /**
+         What the feed says.
+         */
+        const times = await toolCallTimesOfFeed({ feedFile: runs.entryPathOf('a-1/feed.jsonl',), },);
+        expect(times.openCalls.map(function toolOf(call,) {
+          return call.tool;
+        },),).toEqual(['read', 'bash',],);
+        expect(times.openCalls[0]?.startedMilliseconds,).toBe(2 * SECOND,);
+      },
+    },),
+    it({
       name: 'skips a line cut in half and a line that carries no moment, which a feed being written can hold',
       fn: async () => {
         await using runs = await standInRunsFolder({

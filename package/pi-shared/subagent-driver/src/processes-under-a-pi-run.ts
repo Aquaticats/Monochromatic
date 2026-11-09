@@ -328,10 +328,15 @@ export function processesUnder({
    */
   const found: ProcessUnderARun[] = [];
   /**
+   The process numbers already taken, so a table that names a process as its own parent, or two as each other's, is read once
+   rather than followed for ever.
+   */
+  const taken = new Set([rootPid,],);
+  /**
    The processes whose children are still to be looked for. A work stack, so a deep tree costs no stack frames of its own.
    */
   const parents = [rootPid,];
-  while (parents.length > 0) {
+  while ((parents.length > 0) && (found.length < table.length)) {
     /**
      The process whose children are looked for next.
      */
@@ -339,6 +344,10 @@ export function processesUnder({
     for (const candidate of table.filter(function isChildOf(entry,) {
       return entry.parentPid === parent;
     },)) {
+      if (taken.has(candidate.pid,)) {
+        continue;
+      }
+      taken.add(candidate.pid,);
       found.push(candidate,);
       parents.push(candidate.pid,);
     }

@@ -7,6 +7,7 @@
  @module
  */
 
+import type { CheckedRuns, } from './checked-runs.ts';
 import type { OverdueLook, } from './look-at-pi-runs.ts';
 import {
   comparedAgainstTextOf,
@@ -49,6 +50,22 @@ export type OverdueWatchRequest = {
 };
 
 /**
+ What one run of the wait answers with.
+ */
+export type OverdueWatchOutcome = {
+  /**
+   The lines to print: the findings, or the one line saying how the wait ended.
+   */
+  readonly lines: readonly string[];
+
+  /**
+   When each finding was reported, for the caller to keep once it has printed them. Absent when the lines are not findings,
+   so a line saying how the wait ended acknowledges nothing.
+   */
+  readonly acknowledged?: CheckedRuns;
+};
+
+/**
  Waits for a Pi run to be past a limit.
 
  @param look - one look at the runs going now, which keeps what it reported
@@ -63,11 +80,11 @@ export type OverdueWatchRequest = {
 
  @param once - whether to look once and end
 
- @returns the lines to print: the findings, or the one line saying how the wait ended
+ @returns the lines to print and what to acknowledge once they are printed
 
  @example
  ```ts
- const lines = await watchForOverdueRuns({ look, now: Date.now, wait, deadline, intervalMilliseconds, once: false, },);
+ const outcome = await watchForOverdueRuns({ look, now: Date.now, wait, deadline, intervalMilliseconds, once: false, },);
  ```
  */
 export async function watchForOverdueRuns({
@@ -77,7 +94,7 @@ export async function watchForOverdueRuns({
   deadline,
   intervalMilliseconds,
   once,
-}: OverdueWatchRequest,): Promise<readonly string[]> {
+}: OverdueWatchRequest,): Promise<OverdueWatchOutcome> {
   /* oxlint-disable eslint/no-await-in-loop -- a look, then a wait, then the next look: the wait is what keeps one command up
      while the runs work, and a promise per look would put every look at once. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -88,20 +105,23 @@ export async function watchForOverdueRuns({
     if (found.lines
       .length
       > 0) {
-      return found.lines;
+      return {
+        lines: found.lines,
+        acknowledged: found.reported,
+      };
     }
     if (!found.anyRunning) {
-      return ['no Pi agent is running',];
+      return { lines: ['no Pi agent is running',], };
     }
     if (once) {
-      return [comparedAgainstTextOf(found.evidence,),];
+      return { lines: [comparedAgainstTextOf(found.evidence,),], };
     }
     /**
      How much of the deadline is left.
      */
     const left = deadline - now();
     if (left <= 0) {
-      return [deadlineTextOf(found.evidence,),];
+      return { lines: [deadlineTextOf(found.evidence,),], };
     }
     await wait(Math.min(
       intervalMilliseconds,

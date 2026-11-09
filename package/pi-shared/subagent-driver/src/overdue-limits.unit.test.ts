@@ -174,6 +174,18 @@ await describe({
                 endReason: 'model-error',
                 totalMilliseconds: 3 * MINUTE,
               },
+              feedLines: [
+                {
+                  t: 0,
+                  kind: 'tool_start',
+                  tool: 'read',
+                },
+                {
+                  t: MINUTE,
+                  kind: 'tool_end',
+                  tool: 'read',
+                },
+              ],
             },
             {
               name: 'prompt-rejected-1',
@@ -209,8 +221,9 @@ await describe({
         const evidence = await evidenceFromRunsFolder({ runsFolder: runs.path, },);
         expect(evidence.finishedRuns,).toBe(2,);
         expect(evidence.overdueMilliseconds,).toBe(rankOf([MINUTE, TWELVE_MINUTES,], 0.9,),);
-        expect(evidence.toolCalls,).toBe(2,);
-        expect(evidence.openCallMilliseconds,).toBe(rankOf([THIRTY_SECONDS, TEN_MINUTES,], 0.999,),);
+        expect(evidence.finishedRuns,).toBe(2,);
+        expect(evidence.toolCalls,).toBe(3,);
+        expect(evidence.openCallMilliseconds,).toBe(rankOf([THIRTY_SECONDS, TEN_MINUTES, MINUTE,], 0.999,),);
       },
     },),
     it({

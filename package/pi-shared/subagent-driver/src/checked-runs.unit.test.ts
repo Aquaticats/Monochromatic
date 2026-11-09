@@ -113,6 +113,25 @@ await describe({
       },
     },),
     it({
+      name: 'drops a value that is no moment, so an edited file cannot silence a finding',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         A state file whose values are not all moments: one is infinite, which JSON writes as a number too large to hold.
+         */
+        const file = join(
+          folder.path,
+          'not-times.json',
+        );
+        await writeFile(
+          file,
+          '{"pi-alpha.service":1e999,"pi-beta.service":1800000000000}',
+          { encoding: 'utf8', },
+        );
+        expect(await readCheckedRuns({ file, },),).toEqual({ 'pi-beta.service': REPORTED_AT, },);
+      },
+    },),
+    it({
       name: 'keeps the times a hand-edited file holds and leaves everything else in it out',
       fn: async () => {
         await using folder = await makeFolder();

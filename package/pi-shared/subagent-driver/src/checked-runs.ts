@@ -123,7 +123,9 @@ export async function readCheckedRuns({
      */
     const times: Record<string, number> = {};
     for (const [key, value,] of Object.entries(parsed,)) {
-      if ((typeof value) === 'number') {
+      // Only a finite moment is a time this watch wrote: an edited file may hold anything, and a value that is not a moment
+      // would silence a finding for as long as the interval lasts.
+      if (((typeof value) === 'number') && Number.isFinite(value,)) {
         times[key] = value;
       }
     }

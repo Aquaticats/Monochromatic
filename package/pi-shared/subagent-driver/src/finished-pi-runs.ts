@@ -1,5 +1,6 @@
 /**
- Which finished runs the overdue watch learns from: the run folders a driver left behind, and how long each run lasted.
+ Which finished runs the overdue watch learns from: the run folders a driver left behind, how long each run lasted, and
+ whether that length says anything about how long the work takes.
 
  @module
  */
@@ -42,12 +43,21 @@ export type FinishedPiRun = {
    How long the run lasted, as its summary reports it.
    */
   readonly totalMilliseconds: number;
+
+  /**
+   Whether that length says how long the work takes. A run the model provider ended, a prompt Pi refused and a driver that
+   failed all stopped for their own reasons, so their length is no estimate; the calls they finished before stopping are
+   still calls that finished.
+   */
+  readonly lengthCountsAsWork: boolean;
 };
 
 /**
- End reasons whose duration says nothing about how long the work takes, so a run that ended on one is no evidence of what a
- running run should have finished in: the model answered with an error, the prompt was refused, or the driver itself failed.
- A run that hit its wall clock or its turn cap is evidence all the same: it did the work for as long as it was allowed.
+ End reasons whose duration says nothing about how long the work takes, so a run that ended on one is left out of the length
+ sample: the model answered with an error, the prompt was refused, or the driver itself failed.
+
+ A run that hit its wall clock or its turn cap counts all the same: it did the work for as long as it was allowed. Whatever a
+ run ended on, the tool calls it finished before stopping are calls that finished, so its feed stays in the call sample.
  */
 export const END_REASONS_WITHOUT_A_JOB: readonly string[] = [
   'model-error',
@@ -90,7 +100,8 @@ async function summaryTextIn(folder: string,): Promise<string | typeof NO_SUMMAR
 
  @param folder - run folder
 
- @returns the finished run, or {@link NO_SUMMARY} or {@link NOT_EVIDENCE}
+ @returns the finished run, or {@link NO_SUMMARY} when it has not finished, or {@link NOT_EVIDENCE} when its summary says
+ nothing usable
 
  @example
  ```ts
@@ -123,12 +134,10 @@ async function finishedRunIn(folder: string,): Promise<FinishedPiRun | typeof NO
    Why the run ended, which decides whether its length is evidence.
    */
   const {endReason} = summary;
-  if (((typeof endReason) === 'string') && END_REASONS_WITHOUT_A_JOB.includes(endReason,)) {
-    return NOT_EVIDENCE;
-  }
   return {
     folder,
     totalMilliseconds,
+    lengthCountsAsWork: !(((typeof endReason) === 'string') && END_REASONS_WITHOUT_A_JOB.includes(endReason,)),
   };
 }
 
@@ -137,7 +146,7 @@ async function finishedRunIn(folder: string,): Promise<FinishedPiRun | typeof NO
 
  @param runsFolder - folder the driver writes one run folder per run into
 
- @returns the finished runs, in folder order, without the runs whose length is no evidence
+ @returns the finished runs, in folder order, each saying whether its length is evidence
 
  @throws the error a read gave, other than a folder without a summary
 

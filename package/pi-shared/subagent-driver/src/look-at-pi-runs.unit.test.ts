@@ -287,6 +287,29 @@ await describe({
       },
     },),
     it({
+      name: 'reports a run a state file claims was reported in the future, which no watch of ours wrote',
+      fn: async () => {
+        await using runs = await finishedRuns();
+        /**
+         What the look found.
+         */
+        const look = await lookAtPiRuns({
+          runsFolder: runs.path,
+          units: [
+            unitOf({
+              name: 'alpha',
+              elapsedMilliseconds: 2 * AN_HOUR,
+            },),
+          ],
+          checked: { 'pi-alpha.service': NOW + (365 * 24 * 60 * MILLISECONDS_PER_MINUTE), },
+          now: NOW,
+          recheckMilliseconds: RECHECK_MILLISECONDS,
+        },);
+        expect(look.lines,).toHaveLength(1,);
+        expect(look.lines[0],).toContain('OVERDUE pi-alpha.service',);
+      },
+    },),
+    it({
       name: 'reports every run older than a limit the caller set, and leaves the recheck interval as it was',
       fn: async () => {
         await using runs = await finishedRuns();

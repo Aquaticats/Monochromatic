@@ -204,7 +204,14 @@ function isDue({
   readonly now: number;
   readonly recheckMilliseconds: number;
 },): boolean {
-  return (now - (checked[key] ?? 0)) >= recheckMilliseconds;
+  /**
+   When this finding was reported before.
+   */
+  const reportedAt = checked[key];
+  if ((reportedAt === undefined) || (reportedAt > now)) {
+    return true;
+  }
+  return (now - reportedAt) >= recheckMilliseconds;
 }
 
 /**

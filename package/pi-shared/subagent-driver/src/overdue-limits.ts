@@ -157,11 +157,18 @@ export async function evidenceFromRunsFolder({
   readonly runsFolder: string;
 }): Promise<FinishedRunEvidence> {
   /**
-   Every finished run whose length is evidence.
+   Every finished run.
    */
   const finished = await finishedPiRunsIn({ runsFolder, },);
   /**
-   The calls each of those runs made, with the runs that wrote no feed left out.
+   The finished runs whose length says how long the work takes.
+   */
+  const runsWithEvidence = finished.filter(function countsAsWork(run,) {
+    return run.lengthCountsAsWork;
+  },);
+  /**
+   The calls each finished run made, with the runs that wrote no feed left out. A run whose length is no evidence still
+   finished the calls it finished.
    */
   const perRunCalls = await Promise.all(finished.map(function callsOf(run,) {
     return closedCallTimesIn(run.folder,);
@@ -178,7 +185,7 @@ export async function evidenceFromRunsFolder({
    How long a run lasts when it goes well.
    */
   const overdueMilliseconds = percentileOf({
-    sample: finished.map(function lengthOf(run,) {
+    sample: runsWithEvidence.map(function lengthOf(run,) {
       return run.totalMilliseconds;
     },),
     fraction: OVERDUE_PERCENTILE,
@@ -191,7 +198,7 @@ export async function evidenceFromRunsFolder({
     fraction: OPEN_CALL_PERCENTILE,
   },);
   return {
-    finishedRuns: finished.length,
+    finishedRuns: runsWithEvidence.length,
     ...((typeof overdueMilliseconds) === 'symbol' ? {} : { overdueMilliseconds, }),
     toolCalls: closedMilliseconds.length,
     ...((typeof openCallMilliseconds) === 'symbol' ? {} : { openCallMilliseconds, }),

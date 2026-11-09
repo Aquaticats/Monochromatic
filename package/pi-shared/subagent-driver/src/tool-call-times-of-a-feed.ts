@@ -56,7 +56,7 @@ export type ToolCallTimes = {
   readonly closedMilliseconds: readonly number[];
 
   /**
-   The calls the feed started and has not ended, in the order they started.
+   The calls the feed started and has not ended, oldest first, so the first one is the one that has been open longest.
    */
   readonly openCalls: readonly OpenToolCall[];
 };
@@ -205,6 +205,12 @@ export async function toolCallTimesOfFeed({
   }
   return {
     closedMilliseconds,
-    openCalls: [...openByTool.values(),].flat(),
+    openCalls: [...openByTool.values(),].flat()
+      .toSorted(function byStart(
+        left,
+        right,
+      ) {
+        return left.startedMilliseconds - right.startedMilliseconds;
+      },),
   };
 }

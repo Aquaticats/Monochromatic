@@ -109,6 +109,34 @@ await describe({
       },
     },),
     it({
+      name: 'reads a table that names a cycle once instead of following it for ever',
+      fn: async () => {
+        /**
+         A listing where two processes name each other as parent, which a real table never does.
+         */
+        const listing = [
+          '   4300    4301      120 S    do_wait            bash -c mise run //package/x:test',
+          '   4301    4300      120 S    do_wait            node --input-type=module-typescript -e "void 0"',
+        ].join(
+          '\n',
+        );
+        expect(processesUnder({
+          table: parseProcessListing({ listing, },),
+          rootPid: 4_242,
+        },),).toEqual([],);
+        /**
+         The same table asked from one of the two, which finds the other and then stops.
+         */
+        const found = processesUnder({
+          table: parseProcessListing({ listing, },),
+          rootPid: 4_300,
+        },);
+        expect(found.map(function pidOf(entry,) {
+          return entry.pid;
+        },),).toEqual([4_301,],);
+      },
+    },),
+    it({
       name: 'finds nothing under a process that started nothing',
       fn: async () => {
         expect(processesUnder({

@@ -44,7 +44,7 @@ const runningPiUnits = startRunningPiUnits({ run: runCommandWithChildProcess, },
 const startedAt = Date.now();
 
 /**
- Looks at the runs going now, and keeps what it reported so a rerun on the next turn stays quiet about the same run.
+ Looks at the runs going now.
 
  @returns what the look found
 
@@ -65,23 +65,13 @@ async function look(): Promise<OverdueLook> {
     recheckMilliseconds: options.recheckSeconds * MILLISECONDS_PER_SECOND,
     ...(options.limitMinutes === undefined ? {} : { limitMinutes: options.limitMinutes, }),
   },);
-  // A limit the caller set reports a run now and leaves the recheck interval as it was, so the next automatic look still
-  // reports what it would have reported.
-  if ((found.lines
-    .length
-    > 0) && (options.limitMinutes === undefined)) {
-    await writeCheckedRuns({
-      file: stateFile,
-      checked: found.reported,
-    },);
-  }
   return found;
 }
 
 /**
- The lines this run of the command answers with.
+ What this run of the command answers with.
  */
-const lines = await watchForOverdueRuns({
+const outcome = await watchForOverdueRuns({
   look,
   now: Date.now,
   wait: async function passTime(milliseconds,) {
@@ -94,4 +84,14 @@ const lines = await watchForOverdueRuns({
   once: options.once,
 },);
 
-console.log(lines.join('\n',),);
+console.log(outcome.lines
+  .join('\n',),);
+
+// What was reported is kept only once the caller has the lines, so a process killed between the two repeats a finding on the
+// next look rather than losing it. A limit the caller set acknowledges nothing, so the recheck interval stays as it was.
+if ((outcome.acknowledged !== undefined) && (options.limitMinutes === undefined)) {
+  await writeCheckedRuns({
+    file: stateFile,
+    checked: outcome.acknowledged,
+  },);
+}

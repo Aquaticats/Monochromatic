@@ -7,6 +7,7 @@
 
 import { execFile, } from 'node:child_process';
 import { promisify, } from 'node:util';
+import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 
 /**
  Bytes in one mebibyte.
@@ -23,6 +24,12 @@ const COMMAND_OUTPUT_MEBIBYTES = 8;
  The largest output a command may print.
  */
 const COMMAND_OUTPUT_BYTES: number = COMMAND_OUTPUT_MEBIBYTES * BYTES_PER_MEBIBYTE;
+
+/**
+ Seconds a question of the machine may take. `systemctl show` and `ps -e` each answered in tens of milliseconds on this machine
+ on 2026-11-08, so a command still running after half a minute is one that will not answer, and the look must not wait for it.
+ */
+const COMMAND_TIMEOUT_SECONDS = 30;
 
 /**
  `execFile` with a promise result, which never goes through a shell. Typed through Node's own adapter contract, because the
@@ -208,6 +215,8 @@ export async function runCommandWithChildProcess({
       {
         encoding: 'utf8',
         maxBuffer: COMMAND_OUTPUT_BYTES,
+        timeout: COMMAND_TIMEOUT_SECONDS * MILLISECONDS_PER_SECOND,
+        killSignal: 'SIGKILL',
       },
     );
     return {
@@ -217,7 +226,8 @@ export async function runCommandWithChildProcess({
     };
   }
   catch (caught) {
-    // A command that exits non-zero rejects here, and its own output is what the caller reads.
+    // A command that exits non-zero, or that ran past its own bound and was killed, rejects here, and its own output is what
+    // the caller reads.
     return failureOf(caught,);
   }
 }

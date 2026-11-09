@@ -105,9 +105,9 @@ await describe({
          */
         const clock = standInClock({ start: 0, },);
         /**
-         The lines the wait answers with.
+         What the wait answers with.
          */
-        const lines = await watchForOverdueRuns({
+        const outcome = await watchForOverdueRuns({
           look: async function found() {
             clock.looks += 1;
             return lookFound({ lines: ['OVERDUE pi-alpha.service: running long',], },);
@@ -118,7 +118,8 @@ await describe({
           intervalMilliseconds: 600,
           once: false,
         },);
-        expect(lines,).toEqual(['OVERDUE pi-alpha.service: running long',],);
+        expect(outcome.lines,).toEqual(['OVERDUE pi-alpha.service: running long',],);
+        expect(outcome.acknowledged,).toEqual({},);
         expect(clock.waits,).toEqual([],);
       },
     },),
@@ -138,7 +139,9 @@ await describe({
           deadline: 1_000,
           intervalMilliseconds: 600,
           once: false,
-        },),).toEqual(['no Pi agent is running',],);
+        },),).toEqual({
+          lines: ['no Pi agent is running',],
+        },);
       },
     },),
     it({
@@ -149,9 +152,9 @@ await describe({
          */
         const clock = standInClock({ start: 0, },);
         /**
-         The line the wait answers with.
+         What the wait answers with.
          */
-        const lines = await watchForOverdueRuns({
+        const outcome = await watchForOverdueRuns({
           look: async function none() {
             clock.looks += 1;
             return lookFound({},);
@@ -163,9 +166,10 @@ await describe({
           once: true,
         },);
         expect(clock.looks,).toBe(1,);
-        expect(lines,).toHaveLength(1,);
-        expect(lines[0],).toContain('no Pi agent is past a limit',);
-        expect(lines[0],).toContain('90% of 2 finished runs were done within 90 min',);
+        expect(outcome.lines,).toHaveLength(1,);
+        expect(outcome.lines[0],).toContain('no Pi agent is past a limit',);
+        expect(outcome.lines[0],).toContain('90% of 2 finished runs were done within 90 min',);
+        expect(outcome.acknowledged,).toBeUndefined();
         expect(clock.waits,).toEqual([],);
       },
     },),
@@ -177,9 +181,9 @@ await describe({
          */
         const clock = standInClock({ start: 0, },);
         /**
-         The line the wait answers with.
+         What the wait answers with.
          */
-        const lines = await watchForOverdueRuns({
+        const outcome = await watchForOverdueRuns({
           look: async function none() {
             clock.looks += 1;
             return lookFound({},);
@@ -193,8 +197,9 @@ await describe({
         expect(clock.waits,).toEqual([600, 400,],);
         expect(clock.at,).toBe(1_000,);
         expect(clock.looks,).toBe(3,);
-        expect(lines,).toHaveLength(1,);
-        expect(lines[0],).toContain('the watch reached its deadline with no Pi agent past a limit',);
+        expect(outcome.lines,).toHaveLength(1,);
+        expect(outcome.lines[0],).toContain('the watch reached its deadline with no Pi agent past a limit',);
+        expect(outcome.acknowledged,).toBeUndefined();
       },
     },),
     it({
@@ -205,9 +210,9 @@ await describe({
          */
         const clock = standInClock({ start: 0, },);
         /**
-         The line the wait answers with.
+         What the wait answers with.
          */
-        const lines = await watchForOverdueRuns({
+        const outcome = await watchForOverdueRuns({
           look: async function none() {
             return lookFound({ evidence: NO_EVIDENCE, },);
           },
@@ -217,8 +222,8 @@ await describe({
           intervalMilliseconds: 600,
           once: false,
         },);
-        expect(lines,).toHaveLength(1,);
-        expect(lines[0],).toContain('no finished run with a summary is in the runs folder',);
+        expect(outcome.lines,).toHaveLength(1,);
+        expect(outcome.lines[0],).toContain('no finished run with a summary is in the runs folder',);
       },
     },),
   ],
