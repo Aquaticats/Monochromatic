@@ -677,8 +677,11 @@ fn a_registration_under_a_path_that_is_not_text_is_read() {
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("recovery-registration-bytes");
-    let source: PathBuf = repository(root.as_path(), "source");
-    let parent: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"dst\xff"));
+    // The repository itself sits under a name that is not text, so the pointer Git writes in the destination holds those bytes.
+    let repository_parent: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"repo\xff"));
+    std::fs::create_dir_all(repository_parent.as_path()).expect("repository parent");
+    let source: PathBuf = repository(repository_parent.as_path(), "source");
+    let parent: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"dst\xfe"));
     std::fs::create_dir_all(parent.as_path()).expect("destination parent");
     let destination: PathBuf = parent.join("topic");
     let arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "topic"]
