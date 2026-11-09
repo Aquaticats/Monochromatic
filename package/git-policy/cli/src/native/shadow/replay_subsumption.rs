@@ -22,7 +22,9 @@ use crate::replay_subsumption_text::{TextSubsumptionError, subsumed_text_paths};
 use crate::replay_shadow::{replay_base_index, run_shadow_checked};
 use crate::transaction_git::{GitContext, GitFailure};
 /// Decisions per path and the path-keyed maps.
-use std::collections::BTreeMap;
+/// The capture-order decisions by path,
+/// and the set of the subsumed text paths.
+use std::collections::{BTreeMap, HashSet};
 /// `Path` names the shadow and the directories.
 use std::path::Path;
 
@@ -307,8 +309,13 @@ pub fn subsume_landed_changes(
             text_candidates.push(entry.clone());
         }
     }
-    let text: Vec<String> = subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
-        .map_err(SubsumptionError::Text)?;
+    // A set answers "is this path a subsumed text path" by naming the one collected path it
+    //  compares with, so deciding every unordered path is one pass
+    //  (`AGENTS.md` `RG2`); the paths beside the question are not read in order.
+    let text: HashSet<String> = subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
+        .map_err(SubsumptionError::Text)?
+        .into_iter()
+        .collect();
     // Every synthetic base edit in Git order.
     let mut edits: Vec<BaseEdit> = Vec::new();
     for entry in shared {
@@ -316,7 +323,10 @@ pub fn subsume_landed_changes(
             CaptureOrderDecision::Prepared => edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Prepared }),
             CaptureOrderDecision::Landed => edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Landed }),
             CaptureOrderDecision::Unordered => {
-                let subsumed: bool = is_identical(entry) || text.contains(&entry.path);
+                let subsumed: bool = is_identical(entry) || {
+                    crate::collected_elements_looked_at::note_looked_at(1);
+                    text.contains(&entry.path)
+                };
                 if subsumed {
                     edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Subsumed });
                 }

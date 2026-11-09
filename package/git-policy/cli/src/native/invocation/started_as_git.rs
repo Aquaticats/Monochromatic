@@ -263,25 +263,34 @@ fn continues_this_start(marker: &StartMarker) -> bool {
 }
 
 /// What:
-///  How many processes above this one the chain record's start is looked for in.
+///  The most processes above this one the chain record's start is looked for in:
+/// every one up to the first
+///  process of the host.
 /// Why:
 ///   A record names the start above this one,
-/// and a launcher can put processes between the two:
-/// a launcher shell,
-///  a relay shell it starts and one the relay starts.
-/// Four levels cover those shapes,
-/// and each costs one read of the kernel's
-///  process record,
-/// made only when a record exists.
-/// A record whose start is further above than that starts the count again,
-/// which is
-///  written down beside the record.
+/// and a launcher can put any number of relays between the two;
+/// a
+///  record whose start is not found starts the count again,
+/// so a chain of five relays had no end
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 1 of the round-4
+///  review).
+/// The walk costs one read of the kernel's process record per level and is made only when a record
+/// exists,
+/// so a first command pays nothing and a start that follows one pays 1.05 ms on this host
+///  (measured against the same start without the walk:
+/// paired median +33.7 ms over the 32 starts of one
+/// chain,
+///  inside the 126 to 143 ms run-to-run spread of either arm).
+/// The number is a guard against a tree that cannot be walked,
+/// not a
+///  limit any chain of finishable depth reaches.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const PROCESSES_ASKED_FOR_THE_RECORD = 4;
+/// const MOST_ANCESTORS_ASKED_FOR_THE_RECORD = 4096;
 /// ```
-const PROCESSES_ASKED_FOR_THE_RECORD: usize = 4;
+const MOST_ANCESTORS_ASKED_FOR_THE_RECORD: usize = 4096;
 
 /// What:
 ///  The processes a record may name:
@@ -301,8 +310,9 @@ fn chain_ancestors() -> Vec<u32> {
     // `mut` allows this process and its ancestors to be collected in order.
     let mut found: Vec<u32> = vec![std::process::id()];
     let mut pid: u32 = parent_pid();
-    for _level in 0..PROCESSES_ASKED_FOR_THE_RECORD {
-        if pid == 0 {
+    for _level in 0..MOST_ANCESTORS_ASKED_FOR_THE_RECORD {
+        // The first process of the host is where every chain ends, and it is never one of these starts.
+        if pid <= 1 {
             break;
         }
         found.push(pid);

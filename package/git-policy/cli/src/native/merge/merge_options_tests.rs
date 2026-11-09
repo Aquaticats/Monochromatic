@@ -171,3 +171,24 @@ fn a_reference_that_is_not_text_is_accepted() {
         assert_eq!(shape.reference.as_encoded_bytes(), &[b'b', 0xff]);
     }
 }
+
+/// What:
+///  `--summary` is a `--stat` and `--no-summary` a `--no-stat`,
+/// as Git's own help documents them.
+/// Why:
+///  `git merge -h` of 2.56.0 prints `--[no-]summary (synonym to --stat)`,
+///  and native Git 2.56.0 was measured on this host:
+///  `merge --no-summary` printed no diffstat and `-c merge.stat=false merge --summary`
+///  printed one,
+/// which is what the isolated merge must reproduce
+///  (`merge/merge_isolation_apply.rs`,
+/// the `shape.stat.unwrap_or(plan.config.stat)` decision).
+///  Reading them as no-ops left the diffstat to `merge.stat` and printed it where native Git did not.
+#[test]
+fn the_summary_switches_decide_the_diffstat_as_git_documents_them() {
+    assert_eq!(supported(&["--summary", "feature"]).stat, Some(true));
+    assert_eq!(supported(&["--no-summary", "feature"]).stat, Some(false));
+    // Read in the order they come, as the diffstat switches are.
+    assert_eq!(supported(&["--stat", "--no-summary", "feature"]).stat, Some(false));
+    assert_eq!(supported(&["--no-stat", "--summary", "feature"]).stat, Some(true));
+}

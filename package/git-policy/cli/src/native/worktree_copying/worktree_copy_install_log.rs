@@ -197,7 +197,10 @@ fn read_complete_records(path: &Path) -> Result<(InstallLogRecords, u64, u64), W
         Some(index) => index + 1,
         None => 0,
     };
-    let text: String = String::from_utf8_lossy(&content[..complete_length]).into_owned();
+    // Every complete line is text this wrapper wrote; a byte that is not text is damage, not a path with a replacement.
+    let Ok(text) = String::from_utf8(content[..complete_length].to_vec()) else {
+        return Err(corrupt_install_log(path));
+    };
     let mut records: InstallLogRecords = InstallLogRecords::default();
     for line in text.split('\n') {
         if line.is_empty() {

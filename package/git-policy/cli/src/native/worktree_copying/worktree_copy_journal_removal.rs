@@ -103,7 +103,7 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
         };
         write_journal(pending.path.as_path(), &completed)?;
     }
-    remove_stage(Path::new(pending.journal.stage_container.as_str()))?;
+    remove_stage(pending.journal.stage_container.as_path())?;
     remove_file_if_present(pending.path.as_path())?;
     remove_unfinished_writes(pending.path.as_path())?;
     if let Some(parent) = pending.path.parent() {

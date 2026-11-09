@@ -83,6 +83,9 @@ pub mod policy_forbidden_strings;
 ///  all or none.
 pub mod direct_fix_install;
 
+/// The extended attributes a replacement carries with it.
+pub mod direct_fix_install_attributes;
+
 /// The swap and the replacement write an install uses.
 pub mod direct_fix_install_writes;
 

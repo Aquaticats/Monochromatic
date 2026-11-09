@@ -904,7 +904,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     assert!(seen.contains(&format!("authorization: bearer {SECRET}\r\n")), "{seen}");
     assert!(seen.contains("src/a.ts"), "the request carries the changed file");
     let written: String = std::fs::read_to_string(shared_log_path(common.as_path())).expect("the live log");
-    assert!(written.starts_with("- Date:\n") && written.contains("cost_verdict: no"), "{written}");
+    assert!(written.starts_with("\n- Date:\n") && written.contains("cost_verdict: no"), "{written}");
     assert!(!written.contains(SECRET));
     assert_eq!(std::fs::read_to_string(log.as_path()).expect("tracked log"), "# Log\n", "the tracked log is never written");
     remove(parent.as_path());

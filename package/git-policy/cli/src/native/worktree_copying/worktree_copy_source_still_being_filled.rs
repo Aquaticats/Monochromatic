@@ -161,7 +161,7 @@ pub fn source_is_still_being_filled_around(
     }
     for pending in read_pending_journals(common_dir)? {
         // A journal of another destination is none of this command's business.
-        if !names_root(Path::new(pending.journal.destination_root.as_str()), source_root) {
+        if !names_root(pending.journal.destination_root.as_path(), source_root) {
             continue;
         }
         // A live owner is installing into this source now; a dead owner's install stopped before it finished.

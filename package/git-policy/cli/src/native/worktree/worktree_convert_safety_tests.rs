@@ -17,6 +17,7 @@ use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_workt
 use crate::test_support::{fixture, git, remove};
 use crate::worktree_convert_journal::Phase as JournalPhase;
 use crate::worktree_convert_remove::remove_recorded_old_tree_seamed;
+use std::os::unix::fs::MetadataExt;
 
 /// The options of a real run.
 const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
@@ -80,7 +81,7 @@ fn the_journal_never_writes_through_a_file_that_is_in_the_way() {
 fn a_fresh_journal_never_replaces_one_that_exists() {
     let (parent, _root, worktree) = quiet_worktree("safety-journal-new");
     let admin: PathBuf = admin_of(worktree.as_path());
-    let made = Journal { phase: JournalPhase::Started, token: String::from("a"), path: b"/x".to_vec(), old_identity: ObjectId { device: 1, inode: 2, birth: Some((3, 4)) }, git_file: b"g".to_vec(), new_identity: None };
+    let made = Journal { phase: JournalPhase::Started, token: String::from("a"), path: b"/x".to_vec(), old_identity: ObjectId { device: 1, inode: 2, birth: Some((3, 4)) }, git_file: b"g".to_vec(), new_identity: None, synced_ms: None };
     made.create_new(admin.as_path()).expect("first journal");
     let other = Journal { token: String::from("b"), ..made.clone() };
     assert!(other.create_new(admin.as_path()).is_err(), "the second one must not replace the first");
@@ -153,6 +154,59 @@ fn a_file_written_after_a_synced_kill_is_not_lost() {
     remove(parent.as_path());
 }
 
+/// A permission change made in the last window of a conversion,
+/// after the proving pass and before the removal,
+/// keeps the old tree and is named;
+/// nothing is deleted and the installed copy is not altered.
+#[test]
+fn a_permission_change_after_the_proof_keeps_the_old_tree() {
+    let (parent, _root, worktree) = quiet_worktree("safety-mode");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    std::fs::set_permissions(converting.join("script.sh"), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("a narrowed copy in the old tree");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("script.sh") && message.contains("permission bits") && message.contains("kept"), "{message}");
+    assert!(converting.join("script.sh").exists(), "the old tree is kept whole");
+    assert_eq!(std::fs::metadata(worktree.join("script.sh")).expect("installed").mode() & 0o777, 0o755, "the installed copy is unchanged");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A same-size edit made in the last window of a conversion,
+/// with its modification time put back,
+/// keeps the old tree and is named.
+/// Why:
+///  The comparison could only see the type,
+/// size,
+/// time,
+/// mode,
+/// owner and attributes;
+/// an edit that keeps the length and puts the time back leaves all of them
+///  equal,
+/// so the removal deleted the bytes the person wrote.
+/// The file's change time cannot be put back,
+/// and
+///  the contents are compared for a file that changed after the proof.
+#[test]
+fn a_same_size_edit_with_the_time_put_back_after_the_proof_keeps_the_old_tree() {
+    let (parent, _root, worktree) = quiet_worktree("safety-same-size");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    let edited: PathBuf = converting.join("script.sh");
+    let before: std::fs::Metadata = std::fs::metadata(&edited).expect("the old copy");
+    let mut bytes: Vec<u8> = std::fs::read(&edited).expect("the old copy's bytes");
+    bytes[0] = b'A';
+    std::fs::write(&edited, &bytes).expect("an edit of the same length");
+    std::fs::OpenOptions::new().write(true).open(&edited).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back");
+    assert_eq!(std::fs::metadata(&edited).expect("the edited copy").len(), before.len(), "the length is unchanged");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("script.sh") && message.contains("contents") && message.contains("kept"), "{message}");
+    assert!(edited.exists(), "the old tree is kept whole");
+    remove(parent.as_path());
+}
+
 /// A difference between the old tree and the installed one keeps the old tree and is reported;
 /// nothing is ever copied from the
 ///  old tree,
@@ -213,7 +267,7 @@ fn the_removal_follows_the_pinned_directory_not_the_name() {
     let recorded: ObjectId = identity_at(&open_root(parent.as_path()).expect("held parent"), std::ffi::OsStr::new("old")).expect("identity");
     let held = open_root(parent.as_path()).expect("held parent");
     let moved: PathBuf = parent.join("moved");
-    let outcome = remove_recorded_old_tree_seamed(&platform, &held, std::ffi::OsStr::new("old"), recorded, installed.as_path(), &mut || {
+    let outcome = remove_recorded_old_tree_seamed(&platform, &held, std::ffi::OsStr::new("old"), recorded, installed.as_path(), None, &mut || {
         std::fs::rename(&old, &moved).expect("move the old tree away");
         std::fs::create_dir(&old).expect("another directory at the name");
         std::fs::write(old.join("theirs"), b"theirs").expect("theirs");
@@ -279,14 +333,46 @@ fn a_failed_index_refresh_keeps_the_old_tree() {
     remove(parent.as_path());
 }
 
-/// Run `work` on a thread and fail when it does not finish within the patience:
-/// a blocked open would otherwise hang the run.
+/// What:
+///  Run `work` on a thread and give its answer,
+///  failing when the run it waits in shows no sign of work instead.
+/// Why:
+///   The event is the answer itself:
+/// a run that blocked on a named pipe's open never gives one,
+/// and a run that
+///  is merely slow on this disk gives it late.
+/// A stated patience confused the two:
+/// measured on 2026-11-09 with the host at a load average of 70,
+/// the control below failed alone in 24.7 s at
+///  "a run with a pipe for a journal did not finish within 20s" while the run was working,
+/// and passed alone on quieter minutes.
+/// The window is the watchdog's own (`test_support::STILL_WORKING_WINDOW`), so a blocked open ends the wait and a slow
+///  disk does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await answerWhileTheRunWorks(what, work); // rejects when the run shows nothing for the window
+/// ```
 fn finishes<T: Send + 'static>(what: &str, work: impl FnOnce() -> T + Send + 'static) -> T {
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _sent = sender.send(work());
     });
-    return receiver.recv_timeout(PATIENCE).unwrap_or_else(|_error| { panic!("{what} did not finish within {PATIENCE:?}") });
+    let mut judge: crate::run_progress::Judge = crate::run_progress::Judge::new(crate::test_support::STILL_WORKING_WINDOW);
+    let began: std::time::Instant = std::time::Instant::now();
+    // This thread's own looks are not the run's work, and neither are another reader's.
+    let _reading: Option<crate::run_progress::Reading> = crate::run_progress::Reading::begin();
+    loop {
+        match receiver.recv_timeout(crate::test_support::WAIT_LOOK_EVERY) {
+            Ok(answer) => return answer,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                if let Some(ending) = judge.observe(began.elapsed(), crate::run_progress::look_now()) {
+                    panic!("{what} did not finish: the run {ending}");
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("{what}: the thread that runs it ended without an answer"),
+        }
+    }
 }
 
 /// The mode of a file only its owner may use.
@@ -297,9 +383,6 @@ const SEARCH_WITHOUT_LISTING: u32 = 0o311;
 
 /// An ordinary directory mode.
 const LISTABLE: u32 = 0o755;
-
-/// How long a step that must not block may take in a control.
-const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// A named pipe at `path`,
 /// which blocks whoever opens it for reading until a writer comes.
@@ -389,7 +472,7 @@ fn the_old_root_is_recorded_with_its_birth_time_and_compared_with_it() {
     let (parent, _root, worktree) = quiet_worktree("safety-birth");
     let admin: PathBuf = admin_of(worktree.as_path());
     let identity = ObjectId { device: 1, inode: 2, birth: Some((3, 4)) };
-    let made = Journal { phase: JournalPhase::Started, token: String::from("a"), path: b"/x".to_vec(), old_identity: identity, git_file: b"g".to_vec(), new_identity: None };
+    let made = Journal { phase: JournalPhase::Started, token: String::from("a"), path: b"/x".to_vec(), old_identity: identity, git_file: b"g".to_vec(), new_identity: None, synced_ms: None };
     made.save(admin.as_path()).expect("saved");
     assert_eq!(Journal::load(admin.as_path()).expect("load"), Some(made));
     let legacy: String = format!("cli-git-convert v1\nphase=started\ntoken=a\npath=2f78\nold_device=5\nold_inode=6\ngit_file=67\nnew_identity=-\n");
@@ -416,7 +499,7 @@ fn a_directory_with_another_birth_time_is_not_removed() {
     let real: ObjectId = identity_at(&held, std::ffi::OsStr::new("old")).expect("identity");
     let other_birth: ObjectId = ObjectId { birth: Some((0, 0)), ..real };
     assert_ne!(Some((0, 0)), real.birth, "the control needs a real birth time to differ from");
-    let outcome = remove_recorded_old_tree(&platform, &held, std::ffi::OsStr::new("old"), other_birth, worktree.as_path()).expect("no failure");
+    let outcome = remove_recorded_old_tree(&platform, &held, std::ffi::OsStr::new("old"), other_birth, worktree.as_path(), None).expect("no failure");
     assert!(matches!(outcome, Removal::Kept(_)), "{outcome:?}");
     assert!(old.exists(), "nothing was removed");
     remove(parent.as_path());
@@ -496,6 +579,7 @@ fn a_journal_write_sweeps_the_temporary_file_of_a_killed_conversion() {
         old_identity: ObjectId { device: 1, inode: 2, birth: None },
         git_file: b"gitdir: /common/worktrees/wt\n".to_vec(),
         new_identity: None,
+        synced_ms: None,
     };
     journal.save(admin.as_path()).expect("the journal is written");
     assert!(admin.join("cli-git-convert").is_file(), "the write published the journal");

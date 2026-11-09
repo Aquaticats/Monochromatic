@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, remove};
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 
 /// Environment of every Git child in these fixtures.
@@ -272,4 +273,64 @@ fn forced_deleting_and_multi_ref_pushes_are_never_integrated() {
     }
     assert_eq!(oid(&race.remote, &race.default), before);
     remove(&race.root);
+}
+
+/// The variable that marks the child of the signalled-push control.
+const PUSH_SIGNAL_CHILD_VARIABLE: &str = "CLI_GIT_PUSH_SIGNAL_CHILD";
+
+/// What:
+///  A push whose Git a signal ended ends the wrapper by that signal.
+/// Why:
+///  The route keeps a process around Git,
+/// reports its death as a value,
+/// and that value was turned into the status a
+///  shell prints (128 + the signal):
+/// with stacking off,
+/// and with stacking on and no divergence,
+/// that status was returned as
+///  the command's,
+/// so the caller saw a normal exit with 143 where native Git's caller sees `WIFSIGNALED`
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-4
+///  review).
+/// The body runs in a child,
+/// because the death is the assertion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // in a child: runStackedPush(pushThroughAStandInThatKillsItself); expect(parent).toSeeSignal('SIGTERM');
+/// ```
+#[test]
+fn a_push_whose_git_a_signal_ended_keeps_the_signal() {
+    if std::env::var_os(PUSH_SIGNAL_CHILD_VARIABLE).is_some() {
+        let root: PathBuf = fixture("push-signal");
+        let stand_in: PathBuf = root.join("git");
+        crate::test_support::executable(stand_in.as_path(), b"#!/bin/sh\nkill -TERM $$\n");
+        let forward = PushForward {
+            real_git: stand_in,
+            arguments: vec![OsString::from("push"), OsString::from("origin"), OsString::from("main")],
+            overlay: Vec::new(),
+            copy: None,
+            subcommand_index: 0,
+            environment: fixture_environment(),
+            lfs: false,
+            lfs_settings: None,
+            stack: false,
+        };
+        let code: i32 = run_stacked_push(&forward);
+        // Only reached when the death could not end this process: the parent names that status.
+        std::process::exit(code);
+    }
+    let output: std::process::Output = crate::test_support::child_test_process::run(
+        PUSH_SIGNAL_CHILD_VARIABLE,
+        "push::push_stacking::tests::a_push_whose_git_a_signal_ended_keeps_the_signal",
+    );
+    assert_eq!(
+        output.status.signal(),
+        Some(libc::SIGTERM),
+        "the push ended with {:?} instead of the death by signal {}: {}",
+        output.status.code(),
+        libc::SIGTERM,
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
 }

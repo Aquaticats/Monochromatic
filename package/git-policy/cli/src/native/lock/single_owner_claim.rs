@@ -282,7 +282,7 @@ fn publish_new(directory: &Path, target: &Path, record: &ClaimRecord) -> std::io
 /// or nothing when the file is gone,
 /// or an error when it is not a claim of this command.
 fn read_record(path: &Path) -> Result<Option<ClaimRecord>, MigrateError> {
-    let bytes: Vec<u8> = match crate::worktree_convert_journal::read_plain_file(path, SMALL_RECORD_LIMIT) {
+    let bytes: Vec<u8> = match crate::plain_file::read_plain_file(path, SMALL_RECORD_LIMIT) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(MigrateError::io("read the claim", path, &error)),

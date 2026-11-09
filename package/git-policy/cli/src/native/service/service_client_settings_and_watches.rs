@@ -159,6 +159,10 @@ pub struct ManagerWatch {
     /// so a start is not refused as repeated too quickly;
     /// whether the manager took the request.
     pub reset: fn(&std::path::Path, &str) -> bool,
+    /// Asks the manager to read the unit files again,
+    /// which is what makes it forget a unit whose executable is gone;
+    /// whether the manager took the request.
+    pub reload: fn(&std::path::Path) -> bool,
 }
 
 /// How often the service manager is asked whether the service unit failed,
@@ -177,6 +181,13 @@ pub(crate) fn unit_state(bus: &std::path::Path, unit: &str) -> Option<String> {
 pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
     let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
     return connection.start_unit(unit).is_ok();
+}
+
+/// Asks the manager to read the units again;
+/// whether the request was taken.
+pub(crate) fn reload_units(bus: &std::path::Path) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+    return connection.reload().is_ok();
 }
 
 /// Asks the manager to forget that `unit` failed;
@@ -207,5 +218,6 @@ pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
         state: unit_state,
         start: start_unit,
         reset: reset_failed_unit,
+        reload: reload_units,
     };
 }

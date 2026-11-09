@@ -16,6 +16,8 @@
 
 use crate::wrapper_names_old_and_new::WORKTREE_COPY_RECORD_FOLDER;
 use crate::json_record::quote;
+use crate::path_bytes::path_bytes_of;
+use crate::path_bytes_in_records::{HEX_SUFFIX, hex_of_path, read_field};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path};
@@ -119,17 +121,17 @@ pub struct Journal {
     /// Selected paths claimed before installation.
     pub intended_entries: Vec<String>,
     /// The worktree receiving the copy.
-    pub destination_root: String,
+    pub destination_root: PathBuf,
     /// The durable phase.
     pub phase: Phase,
     /// The ignored roots the staged payload represents.
     pub selected_roots: Vec<String>,
     /// The source worktree.
-    pub source_root: String,
+    pub source_root: PathBuf,
     /// The private container beside the destination.
-    pub stage_container: String,
+    pub stage_container: PathBuf,
     /// The payload root inside the container.
-    pub stage_root: String,
+    pub stage_root: PathBuf,
 }
 
 /// What:
@@ -181,11 +183,37 @@ pub fn owner_token_of(path: &Path) -> Option<String> {
 }
 
 /// What:
+///  One root of a journal as the two fields that hold it:
+/// the path's text when text spells every byte of it,
+/// and its bytes in hexadecimal always.
+/// Why:
+///   The text field is what the release installed before the bytes field reads,
+/// so it is written only when it names the same directory;
+/// a path that is not text has no such spelling,
+/// and leaving the field out makes that release refuse the record
+/// instead of acting on the replacement characters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = path.toString(); return [...(Buffer.from(text).equals(Buffer.from(path)) ? [`"${key}":${JSON.stringify(text)}`] : []), `"${key}Hex":${JSON.stringify(hexOfPath(path))}`];
+/// ```
+fn root_fields(key: &str, path: &Path) -> Vec<String> {
+    let mut fields: Vec<String> = Vec::new();
+    if let Some(text) = path.to_str() {
+        fields.push(format!("\"{key}\":{}", quote(text)));
+    }
+    fields.push(format!("\"{key}{HEX_SUFFIX}\":{}", quote(hex_of_path(path).as_str())));
+    return fields;
+}
+
+/// What:
 ///  The JSON text of one journal,
 /// with the incumbent's key order and a final line feed.
 /// Why:
 ///   The incumbent reads these bytes,
 /// so the order and spelling must match its `JSON.stringify` output.
+/// Each root keeps its text field where it was,
+/// and its bytes field follows it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -197,17 +225,17 @@ pub fn encode_journal(journal: &Journal) -> String {
         .iter()
         .map(encode_installed_entry)
         .collect();
-    return format!(
-        "{{\"createdEntries\":[{}],\"intendedEntries\":{},\"destinationRoot\":{},\"phase\":{},\"selectedRoots\":{},\"sourceRoot\":{},\"stageContainer\":{},\"stageRoot\":{},\"version\":1}}\n",
-        created.join(","),
-        string_array(journal.intended_entries.as_slice()),
-        quote(journal.destination_root.as_str()),
-        quote(journal.phase.as_str()),
-        string_array(journal.selected_roots.as_slice()),
-        quote(journal.source_root.as_str()),
-        quote(journal.stage_container.as_str()),
-        quote(journal.stage_root.as_str()),
-    );
+    let mut fields: Vec<String> = Vec::with_capacity(13);
+    fields.push(format!("\"createdEntries\":[{}]", created.join(",")));
+    fields.push(format!("\"intendedEntries\":{}", string_array(journal.intended_entries.as_slice())));
+    fields.extend(root_fields("destinationRoot", journal.destination_root.as_path()));
+    fields.push(format!("\"phase\":{}", quote(journal.phase.as_str())));
+    fields.push(format!("\"selectedRoots\":{}", string_array(journal.selected_roots.as_slice())));
+    fields.extend(root_fields("sourceRoot", journal.source_root.as_path()));
+    fields.extend(root_fields("stageContainer", journal.stage_container.as_path()));
+    fields.extend(root_fields("stageRoot", journal.stage_root.as_path()));
+    fields.push(String::from("\"version\":1"));
+    return format!("{{{}}}\n", fields.join(","));
 }
 
 /// What:
@@ -247,21 +275,6 @@ pub fn string_array(items: &[String]) -> String {
 }
 
 /// What:
-///  Whether a path component is a plain name:
-/// not empty,
-/// not `.` and not `..`.
-/// Why:
-///   A journal path that is not in canonical form could name a different file than the one validated.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// component !== '' && component !== '.' && component !== '..'
-/// ```
-fn is_plain_component(component: &str) -> bool {
-    return !component.is_empty() && component != "." && component != "..";
-}
-
-/// What:
 ///  Whether a byte is an ASCII decimal digit.
 /// Why:
 ///   Device and inode numbers are digits only.
@@ -292,21 +305,50 @@ fn text_of(item: &serde_json::Value) -> Option<String> {
 ///  Whether a path is absolute and already in lexical canonical form.
 /// Why:
 ///   A journal path that is not canonical could name a different file than the one validated.
+/// The check reads the path's bytes,
+/// because text loses a byte that is not UTF-8 and could then pass a check the path fails.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// isAbsolute(value) && resolve(value) === value
 /// ```
-pub fn is_canonical_absolute(value: &str) -> bool {
-    if !value.starts_with('/') {
+pub fn is_canonical_absolute(path: &Path) -> bool {
+    let Some(rest) = path_bytes_of(path).strip_prefix(b"/") else {
         return false;
-    }
-    if value == "/" {
+    };
+    if rest.is_empty() {
         return true;
     }
-    return value[1..]
-        .split('/')
-        .all(is_plain_component);
+    return rest.split(is_separator_byte).all(is_plain_component);
+}
+
+/// What:
+///  Whether a byte separates the components of a path.
+/// Why:
+///  The canonical check splits the path's bytes on it,
+/// so a name that holds other bytes stays whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x2f
+/// ```
+fn is_separator_byte(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// What:
+///  Whether a path component is a plain name:
+/// not empty,
+/// not `.` and not `..`.
+/// Why:
+///   A journal path that is not in canonical form could name a different file than the one validated.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// component.length > 0 && component !== '.' && component !== '..'
+/// ```
+fn is_plain_component(component: &[u8]) -> bool {
+    return !component.is_empty() && component != b"." && component != b"..";
 }
 
 /// What:
@@ -397,12 +439,12 @@ fn read_shape(value: &serde_json::Value) -> Option<Journal> {
     return Some(Journal {
         created_entries,
         intended_entries: string_list(object.get("intendedEntries"))?,
-        destination_root: object.get("destinationRoot")?.as_str()?.to_string(),
+        destination_root: read_field(value, "destinationRoot").ok()?,
         phase,
         selected_roots: string_list(object.get("selectedRoots"))?,
-        source_root: object.get("sourceRoot")?.as_str()?.to_string(),
-        stage_container: object.get("stageContainer")?.as_str()?.to_string(),
-        stage_root: object.get("stageRoot")?.as_str()?.to_string(),
+        source_root: read_field(value, "sourceRoot").ok()?,
+        stage_container: read_field(value, "stageContainer").ok()?,
+        stage_root: read_field(value, "stageRoot").ok()?,
     });
 }
 
@@ -446,30 +488,30 @@ pub fn parse_journal(
         ));
     }
     for (field, field_value) in [
-        ("destinationRoot", journal.destination_root.as_str()),
-        ("sourceRoot", journal.source_root.as_str()),
-        ("stageContainer", journal.stage_container.as_str()),
-        ("stageRoot", journal.stage_root.as_str()),
+        ("destinationRoot", journal.destination_root.as_path()),
+        ("sourceRoot", journal.source_root.as_path()),
+        ("stageContainer", journal.stage_container.as_path()),
+        ("stageRoot", journal.stage_root.as_path()),
     ] {
         if !is_canonical_absolute(field_value) {
             return Err(failure_with_cause(
                 format!(
                     "monochromatic-git-policy-cli: worktree-copy journal has unsafe {field}: {}.",
-                    quote(field_value)
+                    quote(field_value.to_string_lossy().as_ref())
                 )
                 .as_str(),
                 None,
             ));
         }
     }
-    let stage_named: bool = match Path::new(journal.stage_container.as_str()).file_name() {
-        Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
+    let stage_named: bool = match journal.stage_container.file_name() {
+        Some(name) => path_bytes_of(Path::new(name)).starts_with(STAGE_PREFIX.as_bytes()),
         None => false,
     };
-    let stage_relation: bool = Path::new(journal.stage_container.as_str()).parent()
-        == Path::new(journal.destination_root.as_str()).parent()
+    let stage_relation: bool = journal.stage_container.parent()
+        == journal.destination_root.parent()
         && stage_named
-        && journal.stage_root == format!("{}/payload", journal.stage_container);
+        && journal.stage_root == journal.stage_container.join("payload");
     if !stage_relation {
         return Err(failure_with_cause(
             format!(

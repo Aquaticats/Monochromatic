@@ -146,6 +146,22 @@ fn region_contains(prepared: &BaseChange, landed: &[BaseChange], base: &[Vec<u8>
 }
 
 /// What:
+///  Whether a prepared change ends before a landed change begins,
+///  so it cannot cover it and no earlier prepared change can either.
+/// Why:
+///   A prepared change that stops where a landed change of one line or more begins holds none
+///  of its lines;
+///  a prepared insertion at that point holds all of a landed insertion there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// candidate.end < change.start || (candidate.end === change.start && change.end > change.start)
+/// ```
+fn ends_before(candidate: &BaseChange, change: &BaseChange) -> bool {
+    return candidate.end < change.start || (candidate.end == change.start && change.end > change.start);
+}
+
+/// What:
 ///  Whether the prepared change contains the landed change region by region:
 ///       every landed hunk lies inside one prepared hunk that extends it on at most one side.
 /// Why:
@@ -162,32 +178,34 @@ pub fn contains_landed_change(
     base: &[Vec<u8>],
 ) -> bool {
     let prepared_changes: Vec<BaseChange> = prepared.iter().map(base_change).collect();
-    // Each landed change with the index of the prepared change covering it, if any.
-    let mut covered: Vec<(Option<usize>, BaseChange)> = Vec::new();
+    // The landed changes grouped under the prepared change covering each, in the order the
+    //  landed list gave them.
+    let mut grouped: Vec<Vec<BaseChange>> = vec![Vec::new(); prepared_changes.len()];
+    // Both lists ascend by start coordinate and the hunks of one diff do not overlap, so one
+    //  walk gives every landed change its cover: a prepared change that ends before the landed
+    //  change begins cannot cover it,
+    //  nor can a prepared change ending exactly where a landed change of at least one line
+    //  begins,
+    //  and no earlier one can cover it either (`AGENTS.md` `RG2`).
+    let mut prepared_index: usize = 0;
     for hunk in landed {
         let change: BaseChange = base_change(hunk);
-        let mut cover: Option<usize> = None;
-        for (index, candidate) in prepared_changes.iter().enumerate() {
-            if candidate.start <= change.start && change.end <= candidate.end {
-                cover = Some(index);
-                break;
-            }
+        while prepared_index < prepared_changes.len() && ends_before(&prepared_changes[prepared_index], &change) {
+            crate::collected_elements_looked_at::note_looked_at(1);
+            prepared_index += 1;
         }
-        covered.push((cover, change));
-    }
-    for (cover, _) in &covered {
-        if cover.is_none() {
+        crate::collected_elements_looked_at::note_looked_at(1);
+        let cover: Option<usize> = match prepared_changes.get(prepared_index) {
+            Some(candidate) if candidate.start <= change.start && change.end <= candidate.end => Some(prepared_index),
+            _ => None,
+        };
+        let Some(index) = cover else {
             return false;
-        }
+        };
+        grouped[index].push(change);
     }
     for (index, change) in prepared_changes.iter().enumerate() {
-        let mut inside: Vec<BaseChange> = Vec::new();
-        for (cover, landed_change) in &covered {
-            if *cover == Some(index) {
-                inside.push(landed_change.clone());
-            }
-        }
-        if !(inside.is_empty() || region_contains(change, &inside, base)) {
+        if !(grouped[index].is_empty() || region_contains(change, grouped[index].as_slice(), base)) {
             return false;
         }
     }

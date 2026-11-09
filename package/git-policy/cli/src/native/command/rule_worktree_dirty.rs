@@ -130,6 +130,124 @@ pub const IGNORED_PATHS_QUERY_BYTES: usize = 128 * 1024;
 pub const SHARED_PATHS_NAMED: usize = 5;
 
 /// What:
+///  Every path of `paths` with each directory on the way to it,
+/// each named once.
+///  `&[Vec<u8>]` borrows the paths as their tree holds them.
+/// Why:
+///   A form that writes a tree creates the directories that tree needs,
+///  and a worktree that holds a
+///       file where one of those directories must go loses the file whatever it is:
+///  Git removes it to make
+///  the directory,
+///  so the directory itself is a path the worktree may hold as an ignored file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withAncestors(paths: Buffer[]): Buffer[];
+/// ```
+pub fn with_ancestors(paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    // A set keeps each ancestor and each path once, and its own order keeps the answer the same every run.
+    let mut all: std::collections::BTreeSet<Vec<u8>> = std::collections::BTreeSet::new();
+    for path in paths {
+        for (index, byte) in path.iter().enumerate() {
+            if *byte == b'/' && index > 0 {
+                all.insert(path[..index].to_vec());
+            }
+        }
+        all.insert(path.clone());
+    }
+    return all.into_iter().collect();
+}
+
+/// What:
+///  Whether one path lies below another at a component boundary,
+///  `a/b` below `a` and `ab` not.
+/// Why:
+///   A tree path below which the worktree holds ignored files is the path a regular file replaces,
+///  and a
+///       name that merely starts the same letters names nothing below it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isBelow(path: Buffer, directory: Buffer): boolean;
+/// ```
+fn is_below(path: &[u8], directory: &[u8]) -> bool {
+    return path.starts_with(directory)
+        && path.get(directory.len()) == Some(&b'/');
+}
+
+/// What:
+///  Whether the query asked about this very path.
+/// Why:
+///   A path the query asked about is one the worktree may hold as a file,
+/// and a named function keeps the
+///  scan free of a closure that captures nothing but the path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function askedAt(asked: Buffer[], path: Buffer): boolean;
+/// ```
+fn asked_at(asked: &[Vec<u8>], path: &[u8]) -> bool {
+    for known in asked {
+        if known == path {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether the tree holds a regular file at a path this one lies below.
+/// Why:
+///   Such a tree replaces that directory with the file,
+/// so every file inside it is deleted;
+///  a named
+///  function keeps the scan free of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function belowATrackedPath(tracked: Buffer[], path: Buffer): boolean;
+/// ```
+fn below_a_tracked_path(tracked: &[Vec<u8>], path: &[u8]) -> bool {
+    for known in tracked {
+        if is_below(path, known) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The ignored files one answer names that the form would delete:
+///  those at a path the query asked about,
+///  and those inside a directory the tree replaces with a regular file.
+///  `asked` and `tracked` borrow the paths the query asked about and the tree's own paths.
+/// Why:
+///   An answer deeper than an asked path means the worktree holds a directory there,
+///  and writing the tree
+///       leaves the files inside it alone
+///  unless the tree holds a regular file at that path,
+///  which replaces the
+///  directory and every file in it.
+///  Dropping those answers would let a `git reset --hard` delete a person's
+///  directory without a guard,
+///  so only an entry inside a directory the tree also has is left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function replacedAnswers(asked: Buffer[][], tracked: Buffer[][], answer: Buffer[]): Buffer[][];
+/// ```
+pub fn replaced_answers(asked: &[Vec<u8>], tracked: &[Vec<u8>], answer: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let mut named: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for path in answer {
+        if asked_at(asked, path) || below_a_tracked_path(tracked, path) {
+            named.push(path.clone());
+        }
+    }
+    return named;
+}
+
+/// What:
 ///  The queries that list which of `paths` the worktree holds as ignored files,
 /// one argument
 ///       list per bounded start,
@@ -235,13 +353,30 @@ pub fn ignored_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>
             .to_string();
         return Err(format!("Git could not read the ignored files: {detail}"));
     }
+    return Ok(nul_separated_paths(answer.stdout.as_slice()));
+}
+
+/// What:
+///  The paths one `-z` answer holds,
+/// each in the answer's own bytes and none empty.
+///  `&[u8]` borrows the answer's standard output.
+/// Why:
+///   Every `-z` answer separates its paths with zero bytes,
+/// and two readers of two such answers
+///       (the ignored files and a tree's paths) split them the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nulSeparatedPaths(answer: Buffer): Buffer[];
+/// ```
+pub fn nul_separated_paths(answer: &[u8]) -> Vec<Vec<u8>> {
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for path in answer.stdout.split(is_nul) {
+    for path in answer.split(is_nul) {
         if !path.is_empty() {
             paths.push(path.to_vec());
         }
     }
-    return Ok(paths);
+    return paths;
 }
 
 /// What:

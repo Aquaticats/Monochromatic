@@ -108,7 +108,9 @@ pub fn settled_entry(
     // The pathspec is magic, and this start skips the caller's prefix, so literal pathspec mode,
     // from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`, is switched off here: under it the
     // name would match nothing and a landed correction would never reach the worktree copy.
-    let mut request: GitRequest = GitRequest::new(cwd, &["--no-literal-pathspecs", "ls-files", "--stage", "-z", "--"]);
+    // `--full-name` answers with repository-relative names, which is how `path` is written: from a
+    // nested working directory `ls-files` would otherwise report `a.txt` for the `sub/a.txt` asked about.
+    let mut request: GitRequest = GitRequest::new(cwd, &["--no-literal-pathspecs", "ls-files", "--stage", "-z", "--full-name", "--"]);
     request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     request.without_prefix = true;
     request.index = Some(index.to_path_buf());

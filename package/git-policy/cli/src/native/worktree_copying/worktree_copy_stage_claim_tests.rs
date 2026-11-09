@@ -10,6 +10,8 @@ use crate::worktree_copy_journal::{create_journal, ensure_journal_root, journal_
 use crate::worktree_copy_journal_encoding_and_validation::JOURNAL_PARENT_NAME;
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_selection::CopySelection;
+use std::ffi::OsString;
+use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 use crate::worktree_copy_stage::stage_ignored_snapshot;
 use std::os::unix::fs::PermissionsExt;
 
@@ -57,7 +59,8 @@ fn a_claim_names_the_container_and_creates_no_container() {
     assert!(!claim.container().exists(), "the claim precedes the container");
     let recorded: String = std::fs::read_to_string(claim.path.as_path()).expect("claim file");
     let mut lines = recorded.lines();
-    assert_eq!(lines.next(), Some(claim.container().to_string_lossy().as_ref()));
+    assert_eq!(lines.next(), Some(claim.container().to_string_lossy().as_ref()), "a text path stays where the earlier release reads it");
+    assert_eq!(lines.next(), Some(format!("{CONTAINER_HEX_PREFIX}{}", hex_of_path(claim.container())).as_str()), "the claim carries the container's bytes");
     assert_eq!(lines.next(), Some(format!("owner={}", current_copy_owner().expect("owner").token()).as_str()), "the claim names its owner");
     assert_eq!(claim.path.parent(), Some(journal_root(common.as_path()).as_path()));
     assert!(claim.path.to_string_lossy().ends_with(".stage"));
@@ -213,6 +216,56 @@ fn a_claim_naming_another_directory_is_refused() {
     assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
     assert!(victim.exists());
     assert!(claim.path.exists(), "an unproven claim stays for inspection");
+    remove(root.as_path());
+}
+
+/// An earlier release wrote a container path verbatim,
+/// so a destination parent that holds line breaks puts lines of its own inside the claim.
+/// A line of bytes inside such a path is not where this release writes one,
+/// so the claim is refused and the private directory those bytes name survives.
+#[test]
+fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_survives() {
+    let (root, common, destination) = scene("claim-path-lines");
+    let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
+    create_private_directory(target.as_path()).expect("a private directory with the stage naming");
+    std::fs::write(target.join("keep"), b"user data").expect("user data");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let claim: PathBuf = journals.join("injected.stage");
+    // The record the earlier release wrote for the destination parent `/w/p\ncontainerHex=<bytes>\nq`.
+    let text: String = format!(
+        "/w/p\n{CONTAINER_HEX_PREFIX}{}\nq\n{OWNER_LINE_PREFIX}{}\n",
+        hex_of_path(target.as_path()),
+        dead_copy_owner().token()
+    );
+    crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
+    reap_abandoned_stages(common.as_path()).expect_err("a claim of a shape this release does not write is refused");
+    assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
+    assert!(claim.exists(), "a record that cannot be trusted is kept");
+    remove(root.as_path());
+}
+
+/// A claim this release writes names one path on its line of text and on its line of bytes.
+/// Two lines that name different paths are refused,
+/// and the directory the bytes name survives.
+#[test]
+fn a_claim_whose_text_and_bytes_name_different_paths_is_refused() {
+    let (root, common, destination) = scene("claim-text-bytes-disagree");
+    let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
+    create_private_directory(target.as_path()).expect("a private directory with the stage naming");
+    std::fs::write(target.join("keep"), b"user data").expect("user data");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let claim: PathBuf = journals.join("disagreeing.stage");
+    let named_elsewhere: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}other"));
+    let text: String = format!(
+        "{}\n{CONTAINER_HEX_PREFIX}{}\n{OWNER_LINE_PREFIX}{}\n",
+        named_elsewhere.to_string_lossy(),
+        hex_of_path(target.as_path()),
+        dead_copy_owner().token()
+    );
+    crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
+    reap_abandoned_stages(common.as_path()).expect_err("a claim whose two lines name two paths is refused");
+    assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
+    assert!(claim.exists(), "a record that cannot be trusted is kept");
     remove(root.as_path());
 }
 
@@ -379,7 +432,9 @@ fn releasing_an_add_claim_removes_the_destination_record() {
 /// a stage and a destination nothing
 ///  proves to be the add's:
 /// recovery changes nothing,
-/// and tells the person about the stage and how to see and remove the destination.
+/// tells the person about the stage and how to see and remove the destination,
+/// and keeps
+///  the stage's claim while the stage stands so the next command names it again.
 #[test]
 fn an_unbound_add_deletes_nothing_and_is_reported() {
     let (root, common, destination) = scene("claim-add-interrupted");
@@ -394,10 +449,11 @@ fn an_unbound_add_deletes_nothing_and_is_reported() {
     assert!(container.exists(), "the stage stays");
     assert_eq!(notices.len(), 2, "{notices:?}");
     std::fs::set_permissions(container.join("payload/locked"), std::fs::Permissions::from_mode(0o700)).expect("writable");
-    let shown: String = quote(destination.to_string_lossy().as_ref());
+    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     assert!(notices[1].contains("nothing proves it is the add's") && notices[1].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[1]);
     assert!(destination.join(".git").exists(), "nothing was deleted");
-    assert_eq!(reap_abandoned_stages(common.as_path()).expect("again"), Vec::<String>::new(), "the notice is given once");
+    let again: Vec<String> = reap_abandoned_stages(common.as_path()).expect("again");
+    assert!(again.iter().any(|notice: &String| { return notice.contains("was left by an interrupted"); }), "the stage is named again while it stands: {again:?}");
     remove(root.as_path());
 }
 
@@ -430,25 +486,50 @@ fn killed_add(name: &str, bound: bool, marked: bool) -> (PathBuf, PathBuf, PathB
     return (root, repo.clone(), destination, repo.join(".git/worktrees/topic"));
 }
 
-/// An add killed before it was bound deletes nothing,
-/// even when a worktree with a valid pair stands at the recorded path:
-///  a person ran real Git there and may have edited files in it.
+/// What:
+///  An add killed before its binding was recorded deletes nothing,
+/// and its record stays while the worktree it
+///  created is not proven whole.
+/// Why:
+///   Real Git's `--no-checkout` registers the destination before the wrapper writes the binding,
+/// so the kill
+///  between them leaves a planned record and a pointer,
+/// and the pointer is what names the registration the
+///  proof reads.
+/// The stage is gone and the record alone names the worktree,
+/// so one report and a forgetting would leave
+///  a registered,
+/// `.git`-only worktree that nothing ever mentions again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = reap(common); expect(first.length).toBe(1); expect(reap(common)).toEqual(first);
+/// git(destination).resetHard(); expect(reap(common)).toEqual([]); expect(claimsExist(common)).toBe(false);
+/// ```
 #[test]
-fn an_add_killed_before_git_never_deletes_a_worktree_someone_else_made_at_the_path() {
-    let (root, repo, destination, admin) = killed_add("claim-add-pre-git", false, false);
-    std::fs::write(destination.join("mine.txt"), b"edited by a person").expect("their work");
-    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
-    assert!(destination.join("mine.txt").exists() && admin.exists(), "{notices:?}");
-    assert_eq!(notices.len(), 1, "{notices:?}");
-    assert!(notices[0].contains("nothing proves it is the add's"), "{}", notices[0]);
+fn an_add_killed_before_its_binding_is_recorded_is_named_until_it_is_finished() {
+    let (root, repo, destination, admin) = killed_add("claim-add-pre-binding", false, false);
+    let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(destination.join(".git").exists() && admin.exists(), "nothing of the worktree was changed");
+    assert_eq!(first.len(), 1, "{first:?}");
+    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
+    assert!(first[0].contains(format!("git -C {shown} reset --hard").as_str()) && first[0].contains(format!("git worktree remove --force {shown}").as_str()), "the report names what finishes or removes it: {}", first[0]);
+    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays while the worktree is not whole");
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), first, "the next command says the same");
+    // The person finishes the checkout the report names.
+    crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing"), Vec::<String>::new(), "a worktree that is whole is not reported");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and its record goes");
     remove(root.as_path());
 }
 
 /// An add killed after it was bound and before it completed leaves a registered worktree:
 /// recovery changes nothing,
 /// says
-///  once what is incomplete and the commands that finish or remove it,
-/// and drops its records.
+///  what is incomplete and the commands that finish or remove it,
+/// and keeps its records until that worktree is whole or
+///  gone,
+/// so the next command says the same.
 #[test]
 fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     let (root, repo, destination, admin) = killed_add("claim-add-killed", true, false);
@@ -456,10 +537,10 @@ fn an_add_killed_after_binding_is_reported_and_nothing_is_changed() {
     let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
     assert!(destination.join(".git").exists() && destination.join("mine.txt").exists() && admin.exists(), "{notices:?}");
     assert_eq!(notices.len(), 1, "{notices:?}");
-    let shown: String = quote(destination.to_string_lossy().as_ref());
+    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     assert!(notices[0].contains(format!("git -C {shown} reset --hard").as_str()) && notices[0].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[0]);
-    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
-    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), Vec::<String>::new(), "said once");
+    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records stay while the worktree is not whole");
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), notices, "the next command says the same");
     remove(root.as_path());
 }
 
@@ -478,6 +559,98 @@ fn a_replaced_destination_is_left_whole_and_reported() {
     let listed: String = crate::test_support::git_text(repo.as_path(), &["worktree", "list", "--porcelain"]);
     assert_eq!(listed.lines().filter(|line: &&str| { return line.starts_with("worktree "); }).count(), 3, "all three worktrees stay registered: {listed}");
     assert!(root.join("moved").exists(), "the moved worktree stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  An interrupted add that is not proven whole is named by every command that runs the recovery,
+///  and its
+///  records stay,
+/// until the worktree is finished or removed.
+/// Why:
+///   A person's `git status`,
+/// `git commit` or `git log` in the main checkout never reaches the recovery,
+/// and an
+///  agent reads only its own command's output,
+/// so one line about one command's standard error is lost work:
+///  the
+///  worktree looks ordinary in `git worktree list` and holds only `.git`,
+/// and the stage beside it stays.
+///   A worktree that is whole,
+/// or gone,
+/// settles silently and takes the records with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(reap(common)).toEqual(reap(common)); // the same line twice
+/// git(destination).resetHard(); expect(reap(common)).toEqual([]);
+/// ```
+#[test]
+fn an_interrupted_add_is_named_by_every_recovery_until_it_is_finished_or_removed() {
+    let (root, repo, destination, _admin) = killed_add("claim-add-repeated", true, false);
+    let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert_eq!(first.len(), 1, "{first:?}");
+    let second: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("the next command");
+    assert_eq!(second, first, "the next command says the same about the same worktree");
+    // The person finishes the checkout the way the line tells them to.
+    crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing"), Vec::<String>::new(), "a worktree that is whole is not reported");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records go once the worktree is whole");
+    remove(root.as_path());
+}
+
+/// An interrupted add whose worktree the person removes stops being reported,
+/// and its records go.
+#[test]
+fn an_interrupted_add_that_is_removed_stops_being_reported() {
+    let (root, repo, destination, _admin) = killed_add("claim-add-removed", true, false);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("reap").len(), 1);
+    crate::test_support::git(repo.as_path(), &["worktree", "remove", "--force", destination.to_string_lossy().as_ref()]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after removing"), Vec::<String>::new(), "a worktree that is gone is not reported");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing is left to report");
+    remove(root.as_path());
+}
+
+/// What:
+///  A kill inside the index install leaves the new worktree's `index.lock`,
+/// and the report names it with the one
+///  step that makes the rest work.
+/// Why:
+///   `git -C <destination> reset --hard` cannot start while that lock stands (Git answers
+/// `fatal: Unable to create '.../index.lock': File exists`),
+/// so a report that offers only that command offers a
+///  remedy that cannot run;
+/// and `git status` in the worktree still works,
+/// so the worktree looks usable while every
+///  write to it fails.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(admin, 'index.lock'), '')
+/// const line = reap(common).find((text) => text.includes('index.lock'))
+/// expect(git(destination).resetHard().code).toBe(128)
+/// rmSync(join(admin, 'index.lock')); expect(git(destination).resetHard().code).toBe(0)
+/// expect(reap(common)).toEqual([])
+/// ```
+#[test]
+fn a_leftover_index_lock_is_named_and_the_remedy_works() {
+    let (root, repo, destination, admin) = killed_add("claim-add-index-lock", true, false);
+    let lock: PathBuf = admin.join("index.lock");
+    std::fs::write(lock.as_path(), b"").expect("the lock a killed Git leaves");
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    let Some(line) = notices.iter().find(|notice: &&String| { return notice.contains("index.lock"); }) else {
+        panic!("the report names the lock the remedy has to get past: {notices:?}");
+    };
+    assert!(line.contains(lock.to_string_lossy().as_ref()), "the exact file is named: {line}");
+    // The premise: the command the report offered cannot run while the lock stands.
+    let blocked: std::process::Output = crate::test_support::git_output(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(blocked.status.code(), Some(128), "{}", String::from_utf8_lossy(&blocked.stderr));
+    assert!(String::from_utf8_lossy(&blocked.stderr).contains("index.lock"), "{}", String::from_utf8_lossy(&blocked.stderr));
+    // The remedy the report prints: the named file goes once no Git runs there, and then the checkout finishes.
+    std::fs::remove_file(lock.as_path()).expect("the named lock");
+    crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy"), Vec::<String>::new(), "the remedy finishes the add");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the records go");
     remove(root.as_path());
 }
 
@@ -514,7 +687,9 @@ fn a_lookup_that_fails_keeps_the_record_and_says_the_state_is_unknown() {
 }
 
 /// A stage that the claim of a worktree add names is reported and never removed,
-/// whatever stands at the name.
+/// whatever stands at the name,
+/// and
+///  its claim stays so the next command reports it again.
 #[test]
 fn a_stage_named_by_an_add_is_reported_and_never_removed() {
     let (root, common, destination) = scene("claim-add-stage");
@@ -526,7 +701,8 @@ fn a_stage_named_by_an_add_is_reported_and_never_removed() {
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
     assert!(container.join("payload/foreign").exists(), "the stage stays");
     assert!(notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("was left by an interrupted"); }), "{notices:?}");
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "reported once");
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the claim stays while the stage stands");
+    assert_eq!(reap_abandoned_stages(common.as_path()).expect("again"), notices, "the next command names the stage again");
     std::fs::set_permissions(container.join("payload/locked"), std::fs::Permissions::from_mode(0o700)).expect("writable");
     remove(root.as_path());
 }
@@ -685,4 +861,393 @@ fn an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed(
     assert!(refused.0.contains("31337"), "{}", refused.0);
     assert!(journals.join(dead_name.as_str()).exists(), "nothing was removed before the refusal");
     remove(root.as_path());
+}
+
+/// What:
+///  A worktree whose commit has an empty tree is whole once its checkout wrote the empty index,
+/// so the report
+///  stops and the records go.
+/// Why:
+///   Nothing beside Git's pointer is written by a checkout of an empty tree,
+/// so a proof that asked for a file
+///  beside the pointer could never be satisfied:
+/// the report would name the same worktree in every command for ever,
+///  and the remedy it prints could not end it.
+/// The index's entry count is what tells a tree with nothing to write
+///  from a checkout that never ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = claimForAdd(common, destination); await git(repo, 'worktree add --no-checkout ...');
+/// expect(reap(common).length).toBe(1);
+/// git(destination).resetHard(); expect(reap(common)).toEqual([]);
+/// ```
+#[test]
+fn an_add_interrupted_in_a_worktree_of_an_empty_tree_settles_once_its_checkout_is_whole() {
+    let root: PathBuf = fixture("claim-add-empty-tree");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    crate::test_support::git(repo.as_path(), &["commit", "--allow-empty", "--quiet", "--message=empty tree"]);
+    let destination_wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
+    let claim: StageClaim = claim_stage_for_add_as(repo.join(".git").as_path(), destination_wanted.as_path(), &dead_copy_owner()).expect("claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    claim.record_binding(&bound.binding).expect("recorded");
+    // The process dies here: the claim is neither released nor dropped cleanly.
+    std::mem::forget(claim);
+    let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert_eq!(first.len(), 1, "an add whose checkout never ran is named: {first:?}");
+    // The person finishes the checkout the report names: an empty tree writes nothing beside the pointer.
+    crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(std::fs::read_dir(destination.as_path()).expect("listing").count(), 1, "the worktree holds only Git's pointer");
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy"), Vec::<String>::new(), "the remedy ends the report");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the records go");
+    remove(root.as_path());
+}
+
+/// What:
+///  The awkward path shapes a command printed for a person has to survive:
+/// a shell expansion,
+/// a substitution,
+/// both quotes,
+/// a newline,
+/// a control character,
+/// a leading dash and bytes that are not UTF-8.
+/// Why:
+///   The instruction is copied into a shell,
+/// so a name is read by the shell and not only by the wrapper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = ['$bucket', '`id`', "it's", 'say "hi"', 'a\nb', '\x1b[31mred', '-leading', <0xff>];
+/// ```
+fn awkward_components() -> Vec<OsString> {
+    return vec![
+        OsString::from("$bucket"),
+        OsString::from("`id`"),
+        OsString::from("it's"),
+        OsString::from("say \"hi\""),
+        OsString::from("a\nb"),
+        OsString::from("escape\u{1b}[31mred"),
+        OsString::from("-leading-dash"),
+        OsString::from_vec(vec![b'n', b'o', b't', 0xff, b'.', b'd']),
+    ];
+}
+
+/// What:
+///  The commands a report of an interrupted add prints,
+/// as the shell would read them,
+/// naming exactly the
+///  destination and the lock file.
+/// Why:
+///   `git -C <path> reset --hard` and `rm <lock>` act on whatever path the shell read,
+/// so the text has
+///  to name one place under a shell,
+/// whatever the directory is called.
+/// A report that prints the path the way JSON does leaves
+///  `$` and a backquote to the shell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const path of awkward) { const text = finishInstructions(path); for (const word of words(text)) expect(shellReads(word)).toEqual(word) }
+/// ```
+#[test]
+fn a_report_names_its_path_as_the_shell_reads_it_back() {
+    let root: PathBuf = fixture("claim-report-shell-quoting");
+    for component in awkward_components() {
+        let repository: PathBuf = root.join(&component).join("repo");
+        let admin: PathBuf = repository.join(".git/worktrees/topic");
+        std::fs::create_dir_all(admin.as_path()).expect("administrative directory");
+        std::fs::write(admin.join(INDEX_LOCK), b"").expect("the lock a killed Git leaves");
+        let destination: PathBuf = repository.join("topic");
+        let text: String = finish_instructions(destination.as_path(), admin.as_path());
+        let expected: Vec<(&str, &str, PathBuf)> = vec![
+            ("git -C ", " reset --hard", destination.clone()),
+            ("git worktree remove --force ", "` removes it.", destination.clone()),
+            ("rm ", "` removes it,", admin.join(INDEX_LOCK)),
+        ];
+        for (marker, end, path) in expected {
+            let word: &str = word_between(text.as_str(), marker, end);
+            assert_eq!(shell_reads(word), path.as_os_str().as_bytes(), "{marker}{word}{end} in {text}");
+        }
+        remove(repository.parent().expect("the component's directory"));
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  The one word a report writes between `marker` and `end`,
+/// which is the word the person would copy.
+/// Why:
+///   The check reads what was printed,
+/// not what the code meant to print.
+fn word_between<'a>(text: &'a str, marker: &str, end: &str) -> &'a str {
+    let at: usize = match text.find(marker) {
+        Some(found) => found,
+        None => panic!("the report prints {marker}: {text}"),
+    };
+    let after: &str = &text[at + marker.len()..];
+    return &after[..match after.find(end) {
+        Some(found) => found,
+        None => panic!("the report ends the word with {end}: {text}"),
+    }];
+}
+
+/// What:
+///  What `bash` reads a word as,
+/// byte for byte.
+/// Why:
+///   A quoted word is right when a real shell hands the shell's own reader the same bytes;
+/// nothing
+///  else proves it.
+fn shell_reads(word: &str) -> Vec<u8> {
+    let printed: std::process::Output = std::process::Command::new("bash").arg("-c").arg(format!("printf %s {word}")).output().expect("start bash");
+    return printed.stdout;
+}
+
+/// What:
+///  The lock-removal instruction removes the lock it names and no other repository's lock at the path a
+///  shell would expand the name to.
+/// Why:
+///   The lock path is printed for the person to run,
+/// and a repository may live at a path holding `$bucket`:
+///  with the name quoted the way JSON quotes it,
+/// the shell expands it and `rm` clears another repository's lock while the
+///  named one stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = finishInstructions('/work/$bucket/repo/topic'); execSync(text.match(/`(rm [^`]*)`/)[1], { env: { bucket: 'other' } })
+/// ```
+#[test]
+fn the_lock_removal_instruction_clears_only_the_lock_it_names() {
+    let root: PathBuf = fixture("claim-lock-shell-quoting");
+    let literal: PathBuf = root.join("$bucket").join("repo");
+    let decoy: PathBuf = root.join("other").join("repo");
+    for repository in [&literal, &decoy] {
+        let admin: PathBuf = repository.join(".git/worktrees/topic");
+        std::fs::create_dir_all(admin.as_path()).expect("administrative directory");
+        std::fs::write(admin.join(INDEX_LOCK), b"").expect("a lock");
+    }
+    let admin: PathBuf = literal.join(".git/worktrees/topic");
+    let destination: PathBuf = literal.join("topic");
+    let text: String = finish_instructions(destination.as_path(), admin.as_path());
+    let command: &str = word_between(text.as_str(), "`rm ", "` removes it,");
+    let ran: std::process::Output = std::process::Command::new("bash").arg("-c").arg(format!("bucket=other; rm {command}")).output().expect("start bash");
+    assert!(ran.status.success(), "{text}: {}", String::from_utf8_lossy(&ran.stderr));
+    assert!(!admin.join(INDEX_LOCK).exists(), "the lock the report names is gone: {text}");
+    assert!(decoy.join(".git/worktrees/topic/index.lock").exists(), "another repository's lock at the path the shell expands the name to is untouched: {text}");
+    remove(root.as_path());
+}
+
+/// What:
+///  The registration a destination's pointer names is read the way Git reads it,
+/// on bytes,
+/// so a
+///  path holding a newline is whole and a remedy never names another repository.
+/// Why:
+///   Git reads the rest of the file after `gitdir: `,
+/// removing only the newlines at its end
+///  (`read_gitfile_gently`,
+/// `setup.c`).
+/// A reader that takes the first line truncates such a path,
+/// and the truncated name
+///  can be a directory that exists,
+/// another repository's,
+/// so the lock-removal step printed for the person would clear
+///  the wrong lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(registrationDirectory(destination)).toEqual(root.join('other/.git\nowner/repo/.git/worktrees/topic'));
+/// ```
+#[test]
+fn a_registration_named_across_a_newline_is_read_as_git_reads_it() {
+    let root: PathBuf = fixture("claim-pointer-newline");
+    let admin: PathBuf = root.join("other/.git\nowner/repo/.git/worktrees/topic");
+    std::fs::create_dir_all(admin.as_path()).expect("the registration the pointer names");
+    // The truncated name is a directory too, which is what makes a wrong reader look right.
+    std::fs::create_dir_all(root.join("other/.git").as_path()).expect("the directory the truncated name reaches");
+    let destination: PathBuf = root.join("topic");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
+    assert_eq!(registration_directory(destination.as_path()), Some(admin), "the whole path the pointer names, as Git reads it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A checkout that another process restored only partly is settled as whole,
+/// and this is the limit named in `SPEC.md`
+///  rather than a mechanism.
+/// Why:
+///   The proof is what the two directories say:
+/// an index,
+/// no `index.lock`,
+/// and a file beside Git's
+///  pointer.
+/// A separate process that runs `git read-tree HEAD` in the destination installs the index without
+///  writing the files,
+/// and one that then copies `a.txt` and stops leaves the destination looking whole although
+///  `b.txt` was never written.
+/// Closing that window needs to know another process's progress,
+/// which no reading of the
+///  destination can tell,
+/// so the sequence is written down where the proof is described and the record goes:
+/// the
+///  person who ran the partial restoration is the one who knows it was partial.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git(destination, 'read-tree HEAD'); writeFileSync(join(destination, 'a.txt'), 'a');
+/// expect(reap(common)).toEqual([]); expect(existsSync(join(admin, 'index'))).toBe(true); expect(existsSync(join(destination, 'b.txt'))).toBe(false);
+/// ```
+#[test]
+fn a_checkout_another_process_restored_partly_is_settled_as_whole() {
+    let root: PathBuf = fixture("claim-add-partly-restored");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    for name in ["a.txt", "b.txt"] {
+        std::fs::write(repo.join(name), format!("{name}\n").as_bytes()).expect("a tracked file");
+    }
+    crate::test_support::git(repo.as_path(), &["add", "a.txt", "b.txt"]);
+    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=two files"]);
+    let destination_wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
+    let claim: StageClaim = claim_stage_for_add_as(repo.join(".git").as_path(), destination_wanted.as_path(), &dead_copy_owner()).expect("claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    claim.record_binding(&bound.binding).expect("recorded");
+    let admin: PathBuf = bound.binding.admin.clone();
+    // The process dies here: the claim is neither released nor dropped cleanly.
+    std::mem::forget(claim);
+    // Another process installs the index without the files, then copies one of the two.
+    crate::test_support::git(destination.as_path(), &["read-tree", "HEAD"]);
+    std::fs::write(destination.join("a.txt"), b"a.txt\n").expect("one file only");
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert_eq!(notices, Vec::<String>::new(), "the proof reads an index and a file and settles: {notices:?}");
+    assert!(!destination.join("b.txt").exists(), "the file the other process never copied is the one this limit is about");
+    assert!(admin.join(INDEX).exists() && !admin.join(INDEX_LOCK).exists(), "an index with no lock is what the proof reads");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the record goes with the settlement");
+    remove(root.as_path());
+}
+/// A scene whose destination sits under a parent named with bytes that are not text,
+/// so the stage container beside it holds those bytes too.
+fn scene_with_bytes(name: &str, parent_bytes: &[u8]) -> (PathBuf, PathBuf, PathBuf) {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let (root, common, _destination) = scene(name);
+    let parent: PathBuf = root.join(OsStr::from_bytes(parent_bytes));
+    std::fs::create_dir_all(parent.as_path()).expect("a parent that is not text");
+    return (root, common, parent.join("topic"));
+}
+
+/// The claim reader of the release installed before the line of hexadecimal bytes,
+/// copied from `read_claim` in `worktree_copy_stage_claim_reaping.rs` at commit 9462675cd8.
+/// Why:
+///  A record this build writes must still be read by that release when the path is text,
+///  and must make it refuse rather than act on the replacement character when it is not.
+fn earlier_release_claim_container(text: &str) -> Option<PathBuf> {
+    let mut lines = text.lines();
+    let container: PathBuf = PathBuf::from(lines.next().unwrap_or_default());
+    let stage_named: bool = match container.file_name() {
+        Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
+        None => false,
+    };
+    if !(container.is_absolute() && stage_named) {
+        return None;
+    }
+    return Some(container);
+}
+
+/// A claim keeps the bytes of a container whose parent is not text,
+/// so the reader names the container the claim was made for.
+#[test]
+fn a_claim_keeps_the_bytes_of_a_container_path_that_is_not_text() {
+    let (root, common, destination) = scene_with_bytes("claim-bytes", b"par\xffnt");
+    let owner: crate::worktree_copy_owner::CopyOwner = dead_copy_owner();
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &owner).expect("claim");
+    assert_eq!(claim.container().parent(), destination.parent(), "the container stands beside the destination");
+    let read: (PathBuf, Option<String>) = read_claim(claim.path.as_path()).expect("read").expect("present");
+    assert_eq!(read.0, claim.container().to_path_buf(), "the claim names the container it was made for");
+    assert_eq!(read.1, Some(owner.token()), "the claim names its owner");
+    claim.release().expect("release");
+    remove(root.as_path());
+}
+
+/// Two destinations that differ only in a byte that is not text keep two claims,
+/// and releasing one leaves the other's record.
+#[test]
+fn two_claims_whose_paths_differ_only_in_bytes_are_two_records() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let (root, common, _destination) = scene("claim-two-byte-names");
+    let mut claims: Vec<StageClaim> = Vec::new();
+    for bytes in [b"one\xff".as_slice(), b"one\xfe".as_slice()] {
+        let parent: PathBuf = root.join(OsStr::from_bytes(bytes));
+        std::fs::create_dir_all(parent.as_path()).expect("parent");
+        claims.push(claim_stage_for(common.as_path(), parent.join("topic").as_path(), &dead_copy_owner()).expect("claim"));
+    }
+    let first: StageClaim = claims.remove(0);
+    let second: StageClaim = claims.remove(0);
+    assert_ne!(first.path, second.path, "two records, two files");
+    assert_eq!(read_claim(first.path.as_path()).expect("read").expect("present").0, first.container().to_path_buf());
+    assert_eq!(read_claim(second.path.as_path()).expect("read").expect("present").0, second.container().to_path_buf());
+    let first_path: PathBuf = first.path.clone();
+    let second_path: PathBuf = second.path.clone();
+    first.release().expect("release");
+    assert!(!first_path.exists(), "its own record goes");
+    assert!(second_path.exists(), "the other record stays");
+    second.release().expect("release");
+    remove(root.as_path());
+}
+
+/// An abandoned stage whose path is not text is removed,
+/// and a directory standing at the replacement spelling is not touched.
+#[test]
+fn an_abandoned_stage_that_is_not_text_is_removed_and_no_other_directory_is() {
+    let (root, common, destination) = scene_with_bytes("claim-reap-bytes", b"par\xffnt");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    abandoned_stage(claim.container());
+    let container: PathBuf = claim.container().to_path_buf();
+    let replacement: PathBuf = PathBuf::from(container.to_string_lossy().into_owned());
+    std::fs::create_dir_all(replacement.as_path()).expect("a directory at the replacement spelling");
+    std::fs::set_permissions(replacement.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private decoy");
+    std::fs::write(replacement.join("keep"), b"not the stage").expect("marker");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reaped");
+    assert!(!container.exists(), "the stage the claim named is removed");
+    assert!(replacement.join("keep").exists(), "the replacement spelling names another directory and is not touched");
+    assert!(!claim.path.exists(), "the claim goes with its stage");
+    assert_eq!(
+        notices,
+        vec![format!(
+            "monochromatic-git-policy-cli: removed the stage {} that an interrupted ignored-state copy left behind.",
+            quote(container.to_string_lossy().as_ref())
+        )]
+    );
+    remove(root.as_path());
+}
+
+/// The release now installed reads a claim this build writes for a text path,
+/// and refuses one that names other bytes instead of acting on the replacement spelling.
+#[test]
+fn an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes() {
+    let (root, common, destination) = scene("claim-earlier-text");
+    let text_claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let text: String = std::fs::read_to_string(text_claim.path.as_path()).expect("claim file");
+    assert_eq!(
+        earlier_release_claim_container(text.as_str()),
+        Some(text_claim.container().to_path_buf()),
+        "a path that is text stays readable by the installed release"
+    );
+    text_claim.release().expect("release");
+    remove(root.as_path());
+    let (bytes_root, bytes_common, bytes_destination) = scene_with_bytes("claim-earlier-bytes", b"par\xffnt");
+    let bytes_claim: StageClaim = claim_stage_for(bytes_common.as_path(), bytes_destination.as_path(), &dead_copy_owner()).expect("claim");
+    let bytes_text: String = std::fs::read_to_string(bytes_claim.path.as_path()).expect("claim file");
+    assert_eq!(
+        earlier_release_claim_container(bytes_text.as_str()),
+        None,
+        "the installed release refuses rather than naming the replacement character"
+    );
+    bytes_claim.release().expect("release");
+    remove(bytes_root.as_path());
 }

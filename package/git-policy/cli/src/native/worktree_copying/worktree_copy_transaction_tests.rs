@@ -183,7 +183,7 @@ fn interrupted_installation_resumes_from_its_log() {
     let resumable: PendingJournal = read_pending_journals(common.as_path())
         .expect("pending")
         .remove(0);
-    let stage_root: PathBuf = PathBuf::from(resumable.journal.stage_root.as_str());
+    let stage_root: PathBuf = resumable.journal.stage_root.clone();
     let rebuilt_from: PendingJournal = read_pending_journals(common.as_path())
         .expect("pending")
         .remove(0);

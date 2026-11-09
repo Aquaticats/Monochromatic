@@ -43,6 +43,7 @@
 //! ```
 
 pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, install_index_in, install_index_in_with};
+use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
 use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StatLookup, StatTrust, StoredStat, rewrite_index_stat_with};
 use crate::subvolume_file_write_steps::write_all_then_sync;
 use crate::subvolume_lock::is_ours;
@@ -66,6 +67,16 @@ pub use crate::subvolume_registered_worktrees::{LeftOutWorktree, LinkedWorktree,
 /// The call the refresh makes at its seam when no control wants one:
 /// none.
 fn do_nothing() {}
+
+/// The largest index file this reads.
+///  A plain file is read to its end,
+/// so the bound is what keeps a file that is not an index from being read whole into memory;
+///  the largest index this repository holds is 3,097,973 bytes (measured 2026-11-09,
+/// one of its linked worktrees' `.git/worktrees/<name>/index`),
+/// and a gigabyte is that with room for a repository several hundred times larger.
+///  The merge pass reads an index up to the same bound (`INDEX_LIMIT_BYTES`,
+/// `merge_second_pass_worktree.rs`).
+const INDEX_FILE_LIMIT: u64 = 1 << 30;
 
 /// What:
 ///  What `lstat` of `tree/path` reports now,
@@ -287,7 +298,7 @@ fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), RefreshStatus::NoIndex),
         Err(error) => return (format!("skipped (cannot examine it: {error})"), RefreshStatus::Skipped),
     };
-    let bytes: Vec<u8> = match std::fs::read(index_path) {
+    let bytes: Vec<u8> = match read_plain_file(index_path, INDEX_FILE_LIMIT) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (String::from("no index file"), RefreshStatus::NoIndex),
         Err(error) => return (format!("skipped (cannot read it: {error})"), RefreshStatus::Skipped),
@@ -480,7 +491,7 @@ pub fn refresh_index_file(index_path: &Path, tree: &Path) -> String {
 /// function repositoryHashLength(gitDirectory: string): 20 | 32 | undefined;
 /// ```
 pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
-    let text: String = String::from_utf8_lossy(std::fs::read(git_directory.join("config")).ok()?.as_slice()).into_owned();
+    let text: String = String::from_utf8_lossy(read_plain_file(&git_directory.join("config"), SMALL_FILE_LIMIT).ok()?.as_slice()).into_owned();
     let mut in_extensions: bool = false;
     for raw in text.lines() {
         let line: &str = raw.trim();

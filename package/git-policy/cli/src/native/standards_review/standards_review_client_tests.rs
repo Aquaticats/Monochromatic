@@ -407,3 +407,50 @@ fn the_quiet_gap_kept_for_a_call_is_the_calls_own_and_not_the_idle_waiting_threa
     let kept: Duration = figures.iter().find(|(step, _)| { return step == "standards review gateway call"; }).map(|(_, gap)| { return *gap; }).expect("the call keeps a figure");
     assert!(kept >= PAUSE, "the call kept a quiet gap of {kept:?} though a byte arrived every {PAUSE:?}");
 }
+
+/// How many body bytes one chunk of a chunked answer carries:
+/// small,
+/// so a refused answer is refused inside its stream and not at its end.
+const CHUNK_BYTES: usize = 1024;
+
+/// What:
+///  A body of `bytes` bytes,
+/// filling every byte but the first,
+/// which is the brace a JSON answer opens with.
+/// Why:
+///   The control reads a length,
+/// and the first byte keeps the text a body a reader could parse,
+/// not a value whose own size is the subject.
+fn body_of(bytes: usize) -> Vec<u8> {
+    let mut body: Vec<u8> = vec![b'{'];
+    body.resize(bytes, b'x');
+    return body;
+}
+
+/// An answer exactly at the byte bound is read whole:
+/// the probe that shows a refusal can tell a bound from a client that refuses everything.
+#[test]
+fn an_answer_at_the_byte_bound_is_read_whole() {
+    let body: Vec<u8> = body_of(MAX_RESPONSE_BYTES);
+    let text: String = String::from_utf8(body.clone()).expect("the body is text");
+    let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", text.as_str())));
+    let url: String = mock.url.clone();
+    let reply: Reply = post_decision(&gateway(url.as_str(), ANSWER_WINDOW), "{}").expect("an answer at the bound is read");
+    assert_eq!((reply.status, reply.body.len()), (200, MAX_RESPONSE_BYTES));
+    mock.finish();
+}
+
+/// An error answer past the byte bound is refused while it arrives,
+/// with the bound named,
+/// instead of being collected whole and excerpted afterwards.
+#[test]
+fn an_error_answer_past_the_byte_bound_is_refused_while_it_arrives() {
+    let body: Vec<u8> = body_of(MAX_RESPONSE_BYTES + CHUNK_BYTES);
+    let mock: Mock = Mock::start(Answer::Chunked { body, chunk: CHUNK_BYTES });
+    let url: String = mock.url.clone();
+    match post_decision(&gateway(url.as_str(), ANSWER_WINDOW), "{}") {
+        Ok(reply) => panic!("an answer past the bound was collected whole, {} bytes", reply.body.len()),
+        Err(refusal) => assert!(refusal.contains(&format!("{MAX_RESPONSE_BYTES}")), "the refusal names the bound: {refusal}"),
+    }
+    mock.finish();
+}

@@ -21,6 +21,7 @@
 //! const { inside, leftOut } = scanLinkedWorktrees(root);
 //! ```
 
+use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -137,7 +138,7 @@ pub fn scan_linked_worktrees(root: &Path) -> Result<LinkedWorktreeScan, String> 
     };
     for name in names.flatten() {
         let admin_directory: PathBuf = name.path();
-        let recorded: Vec<u8> = match std::fs::read(admin_directory.join("gitdir")) {
+        let recorded: Vec<u8> = match read_plain_file(&admin_directory.join("gitdir"), SMALL_FILE_LIMIT) {
             Ok(bytes) => bytes,
             Err(error) => {
                 scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} has no readable gitdir file ({error}), so Git would prune it", admin_directory.display())));

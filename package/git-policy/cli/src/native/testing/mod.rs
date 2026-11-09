@@ -27,6 +27,11 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+/// The owner of a process that really started and was then killed,
+/// a fixture of the controls beside `test_support.rs`.
+#[cfg(test)]
+pub(crate) mod test_support_dead_copy_owner;
+
 /// The configuration and attribute locations a content decision reads in a fixture;
 /// never part of the release executable.
 #[cfg(all(test, target_os = "linux"))]
