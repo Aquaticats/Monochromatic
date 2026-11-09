@@ -217,6 +217,9 @@ pub struct NativeCommitNotice {
     written: std::sync::mpsc::Receiver<()>,
     /// How long the writer spent on the lines it finished.
     wrote: std::sync::Arc<Mutex<Duration>>,
+    /// Set once the command is over,
+    /// so the writer stops instead of printing a line about a step that ended.
+    abandoned: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// What is reported when no thread ran,
     /// so a record still says that no ceiling was armed and why.
     unarmed: ScratchStepFacts,
@@ -322,6 +325,7 @@ impl NativeCommitNotice {
             answers,
             written,
             wrote: std::sync::Arc::default(),
+            abandoned: std::sync::Arc::default(),
             unarmed: ScratchStepFacts::unarmed(ceiling),
             step: ChildNumber::not_started(),
         };
@@ -389,6 +393,8 @@ impl NativeCommitNotice {
         let wrote: std::sync::Arc<Mutex<Duration>> = std::sync::Arc::default();
         // The writer's own copy of the time it spends, so the notice thread's figures can say it without waiting for a write.
         let spending: std::sync::Arc<Mutex<Duration>> = wrote.clone();
+        let abandoned: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
+        let stand_down: std::sync::Arc<std::sync::atomic::AtomicBool> = abandoned.clone();
         let began: Instant = Instant::now();
         let step: ChildNumber = ChildNumber::not_started_pinned();
         let watched: ChildNumber = step.clone();
@@ -397,6 +403,10 @@ impl NativeCommitNotice {
         let _writer = std::thread::Builder::new().name(String::from("native-commit-notice-writer")).spawn(move || {
             let mut to_write: Box<dyn Write + Send> = sink;
             for line in waiting {
+                // The command is over: the line it was handed and every line behind it say nothing a reader can act on.
+                if stand_down.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
                 let writing: Instant = Instant::now();
                 let _written = to_write.write_all(line.as_bytes());
                 let _flushed = to_write.flush();
@@ -494,6 +504,7 @@ impl NativeCommitNotice {
                 answers,
                 written,
                 wrote,
+                abandoned,
                 unarmed: ScratchStepFacts::unarmed(Some(ceiling)),
                 step,
             },
@@ -538,6 +549,9 @@ impl NativeCommitNotice {
         };
         // The line already handed to the writer is written if the reader takes it within the same bound, and no longer.
         let _written = self.written.recv_timeout(NOTICE_BOUND);
+        // The command is over, so the writer prints nothing more: a line it still holds is dropped when its write returns,
+        // and the thread ends with it instead of living on beside a reader that stopped reading.
+        self.abandoned.store(true, std::sync::atomic::Ordering::SeqCst);
         facts.wrote = *self.wrote.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         facts.notice = began.elapsed();
         return facts;
