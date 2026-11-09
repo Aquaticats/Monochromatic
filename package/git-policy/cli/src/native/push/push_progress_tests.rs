@@ -34,9 +34,21 @@ const PROBE_HOLD_VARIABLE: &str = "CLI_GIT_DISK_WAIT_PROBE_HOLD_MILLISECONDS";
 /// or `idle` to sleep as a process waiting on a server.
 const PROBE_THEN_VARIABLE: &str = "CLI_GIT_DISK_WAIT_PROBE_THEN";
 
+/// The variable that names a file the probe creates from inside its hold;
+/// without it the probe announces nothing.
+const PROBE_ANNOUNCE_VARIABLE: &str = "CLI_GIT_DISK_WAIT_PROBE_ANNOUNCE_PATH";
+
+/// How long the probe of the disk wait is suspended before it says so,
+/// so that the announcement comes from inside the hold and never from a process still on its way into it.
+const ANNOUNCE_AFTER: Duration = Duration::from_millis(50);
+
 /// Pause between two looks of a control,
 /// shorter than every limit it uses.
 const LOOK: Duration = Duration::from_millis(50);
+
+/// How often a control asks whether a fact it waits for has happened,
+/// so a fact that never comes fails the control instead of holding it.
+const POLL: Duration = Duration::from_millis(5);
 
 /// How long a control waits for something that must happen,
 /// so a broken meter fails it and never holds it.
@@ -341,23 +353,65 @@ fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
     remove(root.as_path());
 }
 
+/// What the vfork child of a disk wait is told:
+/// how long to sleep,
+/// when to announce,
+/// and what to create as the announcement.
+///  It lives in the memory the child shares with the thread that started it,
+/// and that thread's frame outlives the child,
+/// so the child reads it and writes nothing.
+#[repr(C)]
+struct DiskWaitHold {
+    /// How long the child sleeps before it ends, in milliseconds.
+    milliseconds: usize,
+    /// How long the child sleeps before it announces, in milliseconds,
+    /// so the announcement is made from inside the hold.
+    announce_after_milliseconds: usize,
+    /// A NUL-terminated path the child creates once the thread that holds is suspended, or null for no announcement.
+    announce: *const libc::c_char,
+}
+
+/// Sleep for `milliseconds` in a way that only the async-signal-safe calls of a vfork child may use:
+/// the child shares the memory of a suspended thread,
+/// so it may not allocate,
+/// take a lock or return.
+extern "C" fn sleep_for_the_hold(milliseconds: usize) {
+    let pause: libc::timespec = libc::timespec {
+        tv_sec: libc::time_t::try_from(milliseconds / 1000).unwrap_or(0),
+        tv_nsec: libc::c_long::try_from((milliseconds % 1000) * 1_000_000).unwrap_or(0),
+    };
+    // SAFETY: `nanosleep` touches only the `timespec` it is given and the thread that calls it.
+    unsafe {
+        libc::nanosleep(&pause, std::ptr::null_mut());
+    }
+}
+
 /// What the probe's child does for its hold:
-/// sleep,
+/// sleep in each of two phases,
+/// create the announcement between them,
 /// and end.
-/// The probe's thread is then blocked in `clone` with
+/// The probe's thread is blocked in `clone` with
 ///  `CLONE_VFORK`,
 /// which the kernel waits out in uninterruptible sleep (state `D`) without any disk,
 /// byte or processor time.
-extern "C" fn hold_in_vfork_child(milliseconds: *mut libc::c_void) -> libc::c_int {
-    let hold: usize = milliseconds as usize;
-    let pause: libc::timespec = libc::timespec {
-        tv_sec: libc::time_t::try_from(hold / 1000).unwrap_or(0),
-        tv_nsec: libc::c_long::try_from((hold % 1000) * 1_000_000).unwrap_or(0),
-    };
-    // SAFETY: `nanosleep` and `_exit` are async-signal-safe and touch nothing of the parent but the stack this child owns;
-    //  the child shares the parent's memory until it ends, so it calls nothing else.
+///  The announcement is created in the second phase,
+/// so it says that the calling thread is suspended in that wait and not that it is on its way into it.
+extern "C" fn hold_in_vfork_child(note: *mut libc::c_void) -> libc::c_int {
+    // SAFETY: `note` points at the `DiskWaitHold` of the frame that called `clone`, which outlives this child (that frame
+    //  returns only after this child ended); the child calls only `nanosleep`, `open`, `close` and `_exit`, all
+    //  async-signal-safe and none of them allocating. The child shares the parent's memory until it ends, so it touches
+    //  nothing of the parent but the read-only note and the stack this child owns.
     unsafe {
-        libc::nanosleep(&pause, std::ptr::null_mut());
+        let hold: &DiskWaitHold = &*note.cast::<DiskWaitHold>();
+        sleep_for_the_hold(hold.announce_after_milliseconds);
+        if !hold.announce.is_null() {
+            let made: libc::c_int =
+                libc::open(hold.announce, libc::O_WRONLY | libc::O_CREAT | libc::O_TRUNC | libc::O_CLOEXEC, 0o644 as libc::mode_t);
+            if made >= 0 {
+                let _closed: libc::c_int = libc::close(made);
+            }
+        }
+        sleep_for_the_hold(hold.milliseconds);
         libc::_exit(0);
     }
 }
@@ -369,14 +423,25 @@ extern "C" fn hold_in_vfork_child(milliseconds: *mut libc::c_void) -> libc::c_in
 /// which is
 ///  what a wait for a slow disk looks like to `/proc` and what no file system,
 /// device or FUSE mount is needed to make.
-fn hold_in_disk_wait(milliseconds: usize) {
+///  `announce` is created from inside the hold,
+/// so whoever waits for that file knows the thread is suspended.
+fn hold_in_disk_wait(milliseconds: usize, announce: Option<&std::path::Path>) {
+    let path: Option<std::ffi::CString> = announce.map(|named: &std::path::Path| {
+        return std::ffi::CString::new(named.as_os_str().as_encoded_bytes()).expect("a path without a nul byte");
+    });
+    let note: DiskWaitHold = DiskWaitHold {
+        milliseconds,
+        announce_after_milliseconds: usize::try_from(ANNOUNCE_AFTER.as_millis()).unwrap_or(0),
+        announce: path.as_ref().map_or(std::ptr::null(), |held: &std::ffi::CString| { return held.as_ptr(); }),
+    };
     let mut stack: Vec<u8> = vec![0; 64 * 1024];
     // SAFETY: the child gets its own stack (`stack` outlives the call, which returns only after the child ended) and runs
-    //  `hold_in_vfork_child`, which only sleeps and exits; the parent waits for it with `waitpid` so no zombie is left.
+    //  `hold_in_vfork_child`, which only sleeps, creates one file and exits; the parent waits for it with `waitpid` so no
+    //  zombie is left, and the note it reads lives in this frame, which is unmoved while the child runs.
     unsafe {
         let top: *mut libc::c_void = stack.as_mut_ptr().add(stack.len()).cast();
-        let child: libc::pid_t =
-            libc::clone(hold_in_vfork_child, top, libc::CLONE_VM | libc::CLONE_VFORK | libc::SIGCHLD, milliseconds as *mut libc::c_void);
+        let held: *mut libc::c_void = std::ptr::from_ref(&note).cast_mut().cast();
+        let child: libc::pid_t = libc::clone(hold_in_vfork_child, top, libc::CLONE_VM | libc::CLONE_VFORK | libc::SIGCHLD, held);
         assert!(child > 0, "clone failed: {}", std::io::Error::last_os_error());
         libc::waitpid(child, std::ptr::null_mut(), 0);
     }
@@ -387,12 +452,15 @@ fn hold_in_disk_wait(milliseconds: usize) {
 /// it does nothing unless the
 ///  variable names a hold,
 /// and then holds a thread in uninterruptible sleep for that long and either ends or sleeps on.
+///  It creates the file `PROBE_ANNOUNCE_VARIABLE` names from inside the hold, so a control that reads it knows the tree is
+/// suspended rather than still starting up.
 #[test]
 fn disk_wait_probe() {
     let Some(hold) = std::env::var(PROBE_HOLD_VARIABLE).ok().and_then(|text| { return text.parse::<usize>().ok(); }) else {
         return;
     };
-    hold_in_disk_wait(hold);
+    let announce: Option<std::path::PathBuf> = std::env::var_os(PROBE_ANNOUNCE_VARIABLE).map(std::path::PathBuf::from);
+    hold_in_disk_wait(hold, announce.as_deref());
     if std::env::var(PROBE_THEN_VARIABLE).as_deref() == Ok("idle") {
         std::thread::sleep(Duration::from_secs(600));
     }
@@ -402,8 +470,9 @@ fn disk_wait_probe() {
 /// this test binary,
 /// the probe only,
 /// holding for `hold`,
-/// then `then`.
-pub(crate) fn disk_wait_command(hold: Duration, then: &str) -> Command {
+/// then `then`,
+/// and creating `announce` from inside the hold when it names a path.
+pub(crate) fn disk_wait_command(hold: Duration, then: &str, announce: Option<&std::path::Path>) -> Command {
     #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so the control can start the probe test of it as a process of its own")]
     let test_binary: std::path::PathBuf = std::env::current_exe().expect("this test binary");
     let mut command: Command = Command::new(test_binary);
@@ -412,7 +481,22 @@ pub(crate) fn disk_wait_command(hold: Duration, then: &str) -> Command {
         .env(PROBE_HOLD_VARIABLE, hold.as_millis().to_string())
         .env(PROBE_THEN_VARIABLE, then)
         .stdin(Stdio::null());
+    if let Some(path) = announce {
+        command.env(PROBE_ANNOUNCE_VARIABLE, path);
+    }
     return command;
+}
+
+/// Wait until the probe has created the file it announces its hold with.
+///  A control that looks before that point is looking at a process still starting up,
+/// which is work for the same meter;
+///  so the first look of the control below follows the announcement and never a guess at how fast this host starts a process.
+fn wait_for_announcement(announced: &std::path::Path) {
+    let began: Instant = Instant::now();
+    while !announced.exists() {
+        assert!(began.elapsed() < PATIENCE, "the probe never announced its hold: {}", announced.display());
+        std::thread::sleep(POLL);
+    }
 }
 
 /// A thread in uninterruptible sleep is a sign of life at every look,
@@ -423,15 +507,23 @@ pub(crate) fn disk_wait_command(hold: Duration, then: &str) -> Command {
 /// The probe's hold ends and it sleeps on,
 /// and then
 ///  the tree is idle at last.
+///  Every look falls inside the hold:
+/// the probe creates its announcement from inside the hold,
+/// and the look that  records the counters the others are measured against comes after it,
+/// so nothing here is timed from the probe's start.
 #[test]
 fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
-    let mut probe: Command = disk_wait_command(Duration::from_millis(3000), "idle");
+    let root: std::path::PathBuf = fixture("progress-disk-wait");
+    let announced: std::path::PathBuf = root.join("in-disk-wait");
+    let mut probe: Command = disk_wait_command(Duration::from_millis(4000), "idle", Some(announced.as_path()));
     probe.stdout(Stdio::null()).stderr(Stdio::null());
     let child: Child = spawn_owned(&mut probe).expect("start the probe");
     let pid: i32 = i32::try_from(child.id()).expect("pid");
     let mut meter: Meter = Meter::new();
-    // The probe starts up and works for a moment first; the looks below fall in its hold or in that start-up, both alive.
-    std::thread::sleep(Duration::from_millis(700));
+    wait_for_announcement(announced.as_path());
+    // The counters and the states of the tree as the hold began: what the looks below find is a change since this look, so a
+    //  process seen for the first time cannot pass one of them by being new.
+    assert!(meter.sample(pid), "the probe moved bytes on its way into the hold, and this look records them");
     for look in 0..4 {
         std::thread::sleep(Duration::from_millis(400));
         assert!(meter.sample(pid), "look {look}: a thread in uninterruptible sleep is alive");
@@ -444,13 +536,14 @@ fn a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends() {
     }
     assert!(idle, "once the hold is over and the probe sleeps, the tree is idle");
     end(child);
+    remove(root.as_path());
 }
 
 /// A push-like tree in disk wait for longer than the stall window is not stopped,
 /// and one that sleeps on afterwards is.
 #[test]
 fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
-    let mut probe: Command = disk_wait_command(Duration::from_millis(4000), "idle");
+    let mut probe: Command = disk_wait_command(Duration::from_millis(4000), "idle", None);
     probe.stdout(Stdio::null()).stderr(Stdio::null());
     let child: Child = spawn_owned(&mut probe).expect("start the probe");
     let stall: Duration = Duration::from_millis(1500);
