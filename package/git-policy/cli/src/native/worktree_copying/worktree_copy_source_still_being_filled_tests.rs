@@ -133,14 +133,19 @@ fn a_copy_that_hands_over_between_the_two_scans_is_still_seen() {
     let root: PathBuf = fixture("source-readiness-handoff");
     let (source, main, common) = repository_with_a_source(root.as_path());
     let mut held: Option<StageClaim> = Some(add_claim_of(common.as_path(), source.as_path(), &current_copy_owner().expect("owner")));
+    let mut handed_over: bool = false;
     let judged = source_is_still_being_filled_around(common.as_path(), source.as_path(), &mut || {
-        // The writer's own order: the journal names the stage before the claim goes.
+        // The writer's own order: the journal names the stage before the claim goes. The reader listed the claim names
+        // before this runs, so the claim it is about to read is gone and only the journal can be seen.
         let _published: PendingJournal = journal_of(common.as_path(), main.as_path(), source.as_path(), &current_copy_owner().expect("owner"));
         held.take().expect("the claim is still this reader's").release().expect("released");
+        handed_over = true;
     })
     .expect("judged");
+    assert!(handed_over, "the handoff ran between the listing of the claims and the reading of them");
     assert_eq!(judged, Some(UnfinishedCopy::Running), "the handoff leaves the source busy");
-    assert!(!journal_root(common.as_path()).join("nonexistent").exists());
+    assert_eq!(claim_names(journal_root(common.as_path()).as_path()).expect("claims"), Vec::<String>::new(), "the claim is gone");
+    assert_eq!(read_pending_journals(common.as_path()).expect("journals").len(), 1, "the journal is the record that is left");
     remove(root.as_path());
 }
 

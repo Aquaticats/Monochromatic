@@ -125,9 +125,13 @@ pub fn source_is_still_being_filled_around(
     between: &mut dyn FnMut(),
 ) -> Result<Option<UnfinishedCopy>, WorktreeCopyError> {
     // Claims come first: the copy that owns a stage publishes its journal before it releases its claim, so a reader that
-    // finds no claim is looking at a stage whose journal already exists.
+    // reads the claims first and then the journals cannot see neither. `between` runs after the claim names are listed and
+    // before any of them is read, so a control holds the copy's own handoff there: the journal is published and the claim
+    // released after the listing, and the journal scan that follows still finds the copy.
     let root: PathBuf = journal_root(common_dir);
-    for name in claim_names(root.as_path())? {
+    let names: Vec<String> = claim_names(root.as_path())?;
+    between();
+    for name in names {
         let claim: PathBuf = root.join(name.as_str());
         // A copy's own claim records no destination, so it never makes a worktree its own source's business.
         let Some(recorded) = claim_destination(claim.as_path()) else {
@@ -155,7 +159,6 @@ pub fn source_is_still_being_filled_around(
         );
         return Ok(Some(unfinished));
     }
-    between();
     for pending in read_pending_journals(common_dir)? {
         // A journal of another destination is none of this command's business.
         if !names_root(Path::new(pending.journal.destination_root.as_str()), source_root) {
