@@ -19,14 +19,13 @@
 //! ```
 #![cfg(unix)]
 
-use std::time::Instant;
 use crate::work_item::WorkKind;
 use crate::push_retry::PushRetries;
 use crate::parallel_budget::HostResources;
 use crate::service_work_run_round::run_planned_round;
 use super::*;
 use crate::push_failure_notice::notice_directory;
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{fixture, git, git_context, git_text, remove, repository, wait_until};
 use crate::work_item::enqueue;
 use std::os::unix::fs::PermissionsExt;
 use crate::push_retry::PLAN_DIRECTORY;
@@ -47,6 +46,9 @@ fn round_of<H: WorkHandlers + Sync>(git_dir: &Path, handlers: &H, retries: &mut 
     let asked: Vec<(PathBuf, Duration)> = run_planned_round(&HostResources::read(), &[git_dir.to_path_buf()], handlers, retries, &ClaimTime::read());
     return asked.into_iter().find(|(directory, _)| { return directory == git_dir; }).map(|(_, wait)| { return wait; });
 }
+
+/// The stall window of the controls as a number.
+const STALL_SECONDS_NUMBER: u64 = 2;
 
 /// The stall window of the controls,
 /// short enough to wait for and longer than a healthy local push.
@@ -83,6 +85,7 @@ fn stage(name: &str) -> Stage {
     std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
     git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
     let marker: PathBuf = root.join("stalled-once");
     let hook: PathBuf = remote.join("hooks").join("pre-receive");
@@ -102,12 +105,22 @@ fn stage(name: &str) -> Stage {
         tries: 0,
     };
     enqueue(work_directory(repo.join(".git").as_path()).as_path(), &work_item).expect("enqueue");
-    return Stage { root, repo, remote, landed };
+    let staged: Stage = Stage { root, repo, remote, landed };
+    // The reading of the remote's ref file is the one every control waits on, so it is shown to see a push this stage made.
+    assert_eq!(remote_tip(&staged), first, "the control's reading of the remote's ref shows the push the stage made");
+    return staged;
 }
 
-/// The branch tip the remote holds.
+/// What:
+///  The branch tip the remote holds,
+///  read from the bare remote's own ref file.
+/// Why:
+///   A control waits for the push by asking this every `LOOK_EVERY`,
+/// and starting Git for it costs the contended disk a process a second,
+/// which is work that keeps a wait for the push alive and delays the very push it watches.
+/// The stage's own first push, made by real Git before any control runs, is the positive control that this reading sees a push.
 fn remote_tip(stage: &Stage) -> String {
-    return git_text(stage.remote.as_path(), &["rev-parse", "refs/heads/main"]).trim().to_owned();
+    return std::fs::read_to_string(stage.remote.join("refs").join("heads").join("main")).map(|text| { return text.trim().to_owned(); }).unwrap_or_default();
 }
 
 /// How many records of failed pushes the repository holds for the person.
@@ -250,25 +263,6 @@ fn a_push_that_lands_cancels_the_plan_of_its_branch() {
     remove(root.as_path());
 }
 
-/// How often the restart control looks at what the services have done.
-const LOOK_EVERY: Duration = Duration::from_millis(50);
-
-/// The margin the restart control adds for a loaded host:
-/// many times the stall window of the controls,
-/// which is itself longer than
-/// a healthy local push,
-/// so a slow start is waited for and a plan that was lost is still found out within a fixed time.
-const RESTART_MARGIN: Duration = Duration::from_secs(STALL_SECONDS_NUMBER * 5);
-
-/// The stall window of the controls as a number.
-const STALL_SECONDS_NUMBER: u64 = 2;
-
-/// How long the restart control gives a restarted service to deliver:
-/// its first pause,
-/// the slack the schedule adds,
-/// and the margin.
-const RESTART_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
-
 /// Run `work_loop` on a thread,
 /// as the service does,
 /// and give the way to wake it;
@@ -277,20 +271,6 @@ fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers
     let (sender, mut receiver) = unbounded_channel::<Wake>();
     let running = scope.spawn(move || { work_loop(&mut receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::in_memory()); });
     return (sender, running);
-}
-
-/// Wait until `done` holds,
-/// looking every `LOOK_EVERY` for at most `RESTART_PATIENCE`;
-/// gives whether it held.
-fn wait_until(done: &dyn Fn() -> bool) -> bool {
-    let began: Instant = Instant::now();
-    while began.elapsed() < RESTART_PATIENCE {
-        if done() {
-            return true;
-        }
-        std::thread::sleep(LOOK_EVERY);
-    }
-    return done();
 }
 
 /// A service that is stopped while a push waits for a new try does not take the plan with it:
@@ -817,11 +797,6 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     remove(stage.root.as_path());
 }
 
-/// How long the controls of a fault in the notes wait for the service to try again:
-/// the pause,
-/// the slack and a margin for a loaded host.
-const NOTE_RETRY_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
-
 /// Puts a file where the notes' directory should be,
 /// so that nothing can be written or listed under it,
 /// and gives the store's path.
@@ -853,11 +828,7 @@ fn a_note_that_could_not_be_written_is_written_after_the_fault_is_mended() {
         assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the push was made although the note could not be written");
         assert!(wait_until(&|| { return busy.load(Ordering::SeqCst) == 1; }), "the service stays up for the note it has to write");
         std::fs::remove_file(&blocker).expect("the fault is mended");
-        let began: Instant = Instant::now();
-        while ClaimWatch::restored(store.as_path(), None).directories().is_empty() && began.elapsed() < NOTE_RETRY_PATIENCE {
-            std::thread::sleep(LOOK_EVERY);
-        }
-        assert_eq!(ClaimWatch::restored(store.as_path(), None).directories(), vec![git_dir.clone()], "the note was written by the retry");
+        assert!(wait_until(&|| { return !ClaimWatch::restored(store.as_path(), None).directories().is_empty(); }), "the note was written by the retry");
         drop(sender);
         running.join().expect("the service ends");
     });
