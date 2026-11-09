@@ -9685,7 +9685,10 @@ then we have a defect and should log more."
   which nothing sets.
   The commit was signed (`gpgsig` in the object),
   so the signing program ran;
-  the host was under the pressure other sessions keep up (load average 90 on 6 threads that evening),
+  the host was busy with what other sessions keep up (the journal of that minute holds image work of a
+  container probe,
+  a `repository-move` measurement deleting btrfs subvolumes,
+  an `rsync` of `/var` and several test scopes),
   and the same minute holds a `git commit` step of 50 ms in another worktree,
   so the pressure alone is not the answer.
   This is the defect the owner named.
@@ -9720,7 +9723,8 @@ then we have a defect and should log more."
   and treats an empty look as "the step ended by itself" only after it has seen it running.
   The look reads the kernel's per-thread child lists and one `/proc/<pid>/stat` per descendant
   (19.6 microseconds against 17.6 ms for the pass over `/proc` the kill still reads,
-  measured 2026-11-09 on 1,210 entries at load average 90 on 6 threads),
+  measured 2026-11-09 on 1,210 entries,
+  the load average 44 to 91 on 6 threads around the runs),
   and a step that ends sooner than the first interval is ended by its own channel,
   so an ordinary commit pays one look.
   Controls:

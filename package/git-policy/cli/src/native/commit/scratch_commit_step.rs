@@ -52,13 +52,15 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 /// The most programs one entry names.
-/// Measured on 2026-11-09 with `strace` over ten commits of the shaped repository:
-/// a step runs Git and,
+/// A step runs Git and,
 /// when the commit is signed,
 /// one signing program,
-/// so two names are the usual number;
-/// a hook would add one,
-/// and the step runs with every hook off.
+/// so one or two names are the usual number;
+/// the step runs with `core.hooksPath` at a directory that cannot exist and every commit event switched off
+/// (`commit_preparation.rs`),
+/// so no hook adds a name.
+/// The list is bounded so a record never grows with the work,
+/// and a step that starts more programs than this names the first ones only.
 pub const MAX_BELOW_NAMES: usize = 8;
 
 /// One program other than Git that ran below the step,

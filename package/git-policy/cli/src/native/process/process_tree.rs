@@ -130,8 +130,8 @@ pub fn descendants_of(_root: i32) -> Vec<TreeMember> {
 /// read from the kernel's per-thread child lists.
 /// Why:
 ///   A notice that looks many times must not pay a pass over `/proc` for each look.
-/// Measured on 2026-11-09 on this host (1,210 entries in `/proc`,
-/// load average 90 on 6 threads):
+/// Measured on 2026-11-09 on this host (1,210 entries in `/proc`;
+/// the load average was 44 on 6 threads when the runs ended and 91 an hour before them):
 /// one pass reading every `/proc/<pid>/stat` took 17.6 ms at the median and 19.7 ms at most over 30 looks,
 /// and one walk of the child lists 19.6 microseconds at the median and 26.3 at most over 30 walks,
 /// about 900 times cheaper.

@@ -104,7 +104,7 @@ const LOOK_PAUSE: Duration = Duration::from_millis(1);
 /// so the ceiling never ended it.
 ///  A look reads every `/proc` entry (`descendants_of`):
 /// measured on 2026-11-09 on this host (1,210 entries,
-/// load average 90 on 6 threads),
+/// load average 44 to 91 on 6 threads around the runs),
 /// 17.6 ms at the median and 19.7 ms at most over 30 looks.
 /// A quarter of a second keeps a step that is started late seen within that much of its start,
 /// and a step that ends sooner than that is ended by its own channel before a second look.
