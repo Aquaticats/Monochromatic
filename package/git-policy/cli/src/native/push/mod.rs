@@ -191,6 +191,9 @@ pub mod push_failure_notice_machine_output;
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;
 
+/// One record of a failed push as a command holds it,
+/// with the step that shows it and removes it.
+pub mod push_failure_notice_shown_then_removed;
 /// The words that say how to change the push deadline,
 /// for the terminal and for the resident commit service.
 pub mod push_deadline_advice;

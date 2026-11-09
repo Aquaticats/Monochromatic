@@ -44,9 +44,11 @@ use crate::auto_push_branch_key::encode_branch_key;
 use crate::lfs_output_mask::mask_userinfo_text;
 pub use crate::push_failure_notice_machine_output::is_machine_read;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+/// One record as a command holds it before it shows it,
+/// with the step that removes it once its words are out.
+pub use crate::push_failure_notice_shown_then_removed::Notice;
 use crate::service_messages::RESTART_COMMAND;
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// Directory under the worktree's own Git directory that holds the records for the person.
@@ -664,95 +666,6 @@ fn read_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
 /// ```
 pub fn push_failures(git_dir: &Path) -> Vec<Notice> {
     return push_failures_for(git_dir, None, &FullCommitName);
-}
-
-/// What:
-///  One record read from the disk:
-/// the words the person is to be shown,
-/// and the text they were worded from.
-/// Why:
-///   The record goes only after its words have been written out,
-/// and only while the file still holds the text that
-///  was worded,
-/// so a command killed before it prints loses nothing,
-/// and a record the service replaced meanwhile is not
-///  taken for the one this command read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Notice = { path: string; seen: string; text: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Notice {
-    /// The record's file.
-    path: PathBuf,
-    /// The record's text as it was read,
-    /// which is what may be removed.
-    seen: String,
-    /// The words for the person.
-    text: String,
-}
-
-impl Notice {
-    /// The words the person is shown.
-    pub fn text(&self) -> &str {
-        return self.text.as_str();
-    }
-
-    /// The record's file,
-    /// for a caller that shows the words somewhere else and then removes them.
-    pub fn path(&self) -> &Path {
-        return self.path.as_path();
-    }
-
-    /// What:
-    ///  Shows the words on `out`,
-    /// and removes the record once they are out.
-    /// Why:
-    ///   A record removed before its words reach the person is gone with nothing shown,
-    /// and the next command cannot
-    ///  find it;
-    /// when the write fails the record stays for that command.
-    /// The removal names what was read,
-    /// so a record
-    ///  written meanwhile at the same name is kept for the person.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// out.write(text + '\n'); out.flush(); if (readFile(path) === seen) unlink(path);
-    /// ```
-    pub fn show(&self, out: &mut impl Write) -> std::io::Result<()> {
-        writeln!(out, "{}", self.text)?;
-        out.flush()?;
-        self.remove_what_was_read();
-        return Ok(());
-    }
-
-    /// What:
-    ///  Removes the record once its words are out,
-    /// if the file still holds the text this notice was worded from.
-    /// Why:
-    ///   A command that pauses while it words a notice can outlive the service's replacement of that same record,
-    /// a
-    ///  terminal failure after a retryable one,
-    /// and removing the file then would delete words nobody has read.
-    /// A removal
-    ///  that fails leaves the record to be shown again,
-    /// which costs a repeat and loses nothing.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// if (readFile(path) === seen) unlink(path);
-    /// ```
-    pub fn remove_what_was_read(&self) {
-        let Ok(now) = std::fs::read_to_string(self.path.as_path()) else {
-            return;
-        };
-        if now != self.seen {
-            return;
-        }
-        let _removed = std::fs::remove_file(self.path.as_path());
-    }
 }
 
 /// A commit name as it is,
