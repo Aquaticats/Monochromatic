@@ -17,6 +17,7 @@ import {
   Visitor,
 } from 'rolldown/utils';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   extractTypeFromAttributes,
@@ -24,6 +25,16 @@ import {
   getStringLiteralValue,
   NO_ATTR_TYPE,
 } from './ast-extract.ts';
+
+/**
+ Logger root for importer source scanning.
+ 
+ @example
+ ```ts
+ const rl = tagged({ tag: scanImporterForAttribute.name, l, });
+ ```
+ */
+const l = tagged({ tag: 'import-attributes', },);
 
 /**
  Scans an importer file's source code to find the import attribute type
@@ -63,6 +74,15 @@ export async function scanImporterForAttribute({
   importerSourceCache: Map<string, string>;
 },): Promise<string | typeof NO_ATTR_TYPE> {
   /**
+   Logger tagged for this scanner; the tag chain names both the plugin and the
+   function instead of a hand-written prefix inside the message.
+   */
+  const rl = tagged({
+    tag: scanImporterForAttribute.name,
+    l,
+  },);
+
+  /**
    Importer source text; lazily read from disk on cache miss and stored back.
    */
   let source = importerSourceCache.get(importerPath,);
@@ -80,10 +100,11 @@ export async function scanImporterForAttribute({
     catch (error: unknown) {
       // Best-effort scan: an unreadable or virtual importer (e.g. a plugin-generated
       // module whose id is not a real filesystem path) has no source to scan, so
-      // report no attribute rather than failing the build; surface the cause for diagnosis.
-      console.warn(
-        `import-attributes: could not read importer ${importerPath} while scanning for import attributes; treating as no attribute type.`,
-        error,
+      // report no attribute rather than failing the build; the caught error rides in
+      // the message because the logger takes one string and the cause is what a
+      // reader needs to diagnose it.
+      rl.warn(
+        `could not read importer ${importerPath} while scanning for import attributes; treating as no attribute type: ${String(error,)}`,
       );
       return NO_ATTR_TYPE;
     }
