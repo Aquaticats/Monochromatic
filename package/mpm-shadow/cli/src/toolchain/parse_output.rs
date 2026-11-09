@@ -1,7 +1,5 @@
 //! What:
 //! Readers for the text other tools print about what they have installed (`bin list`,
-//! `cargo binstall
-//!           --list`,
 //! `uv tool list`,
 //! `pnpm list --global --json`),
 //! and the version comparison `list` and `install` use.
@@ -14,7 +12,6 @@
 //! ```ts
 //! // parse-output.ts
 //! export function parseBinList(output: string): Map<string, string>
-//! export function parseCargoBinstallList(output: string): Map<string, string>
 //! export function parseUvToolList(output: string): Map<string, string>
 //! export function globalPnpmVersions(parsed: unknown): Map<string, string>
 //! export function versionMatches(observed: string, locked: string): boolean
@@ -165,33 +162,6 @@ pub fn parse_bin_list(output: &str) -> BTreeMap<String, String> {
             continue;
         }
         versions.insert(base_name(&columns[0]), without_version_prefix(marked));
-    }
-    return versions;
-}
-
-/// What:
-/// Parses `cargo binstall --list`:
-/// rows of `crate  cargo-version  binstall-version  source` giving the crate
-///           to its installed version (the binstall column unless it prints `-`).
-/// Why:
-/// The `Package` header and `Total:` footer are not crates.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function parseCargoBinstallList(output: string): Map<string, string>
-/// ```
-pub fn parse_cargo_binstall_list(output: &str) -> BTreeMap<String, String> {
-    let mut versions: BTreeMap<String, String> = BTreeMap::new();
-    for row in split_rows(output) {
-        if row.starts_with(char::is_whitespace) {
-            continue;
-        }
-        let words: Vec<&str> = row.split_whitespace().collect();
-        if words.len() < 4 || words[0] == "Package" || words[0] == "Total:" {
-            continue;
-        }
-        let version: String = if words[2] == "-" { without_version_prefix(words[1]) } else { without_version_prefix(words[2]) };
-        versions.insert(words[0].to_string(), version);
     }
     return versions;
 }

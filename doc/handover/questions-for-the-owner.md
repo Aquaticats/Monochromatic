@@ -73,6 +73,42 @@ The median model turn was 3937 ms against 3153 ms in the two hours before,
 and that difference has not been compared with the run-to-run spread,
 so it may be noise.
 
+### What should a commit do when a step of it is stuck inside the kernel?
+
+The signed scratch commit has the ceiling you chose,
+about 16 seconds,
+and at the ceiling the wrapper sends `SIGKILL`.
+A process in uninterruptible sleep does not end until its kernel call returns,
+for example one waiting on a dead NFS server or a stopped FUSE daemon.
+So today that commit waits with no bound after the ceiling,
+against "nothing should ever wait forever or indefinitely".
+This rests on the kernel's documented behaviour and on reading the code,
+because no test on this host can produce that state.
+The write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`,
+on the branch `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`.
+
+Option B leaves after the ceiling and a short grace.
+The commit exits nonzero and says the step could not be stopped,
+and the killed process is reaped by the system later.
+It is the only option that bounds the wait.
+The cost is a failed commit in that case,
+against "Commits should never fail",
+and a dead process holding the scratch folder open until the kernel lets go,
+which holds none of your files.
+
+Option A keeps waiting and says so.
+After the ceiling the commit prints that the stop was sent and the kernel has not released the step.
+Nothing fails,
+but the terminal stays stuck for as long as the kernel call does,
+which can be forever.
+
+Ranking:
+B > A,
+because a failed commit that says why can be run again,
+and a stuck terminal cannot be acted on at all.
+Nothing changes until you answer:
+write "A" or "B" here.
+
 ### Should a commit whose command died before its checks ran still be pushed?
 
 A landing moves the branch first and runs the post-commit checks after,
@@ -84,8 +120,12 @@ The branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` now
 because a cross-vendor review found a push could stay stranded,
 and a held push with no living owner would otherwise wait forever,
 against your "nothing should ever wait forever or indefinitely".
-A check that is still running is never overtaken:
-only a command proven gone has its push released.
+The intent is that a check still running is never overtaken and that only a command proven gone has its push released.
+The review `landing-route-round-5` found two defects in that behaviour,
+and both go back to the branch's agent whatever you answer here:
+a command that has not yet written its owner record can be taken for gone,
+and a commit whose checks ran and blocked it can be pushed by a later recovery.
+This question is only about a commit whose checks never ran.
 
 The cost is that a commit whose checks never ran can reach the remote.
 The alternative keeps that commit local until someone pushes it,
@@ -1216,6 +1256,12 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T03:14:38-05:00,
+  `mpm-shadow` now refuses a `cargo-git` plan entry that has no `packageId`,
+  where it used to take the plan key as the crate name (issue 2626).
+  The cross-vendor review points out that an entry whose key equals its crate name worked before and is refused now.
+  No entry in `toolchain.plan.jsonc` or `toolchain.lock.json` uses that route,
+  so nothing changes today.
 - 2026-11-09T02:08:59-05:00,
   `search-shadow link` when something else already sits at a tool's name:
   it leaves the entry in place,
