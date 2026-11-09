@@ -308,8 +308,10 @@ same scripts:
   (`rc=0`,
   16.1 s).
 
-Run again after merging `main` on 2026-11-09 (commit `84294c24f7`'s tree,
-built fresh),
+Run again after merging `main` on 2026-11-09,
+on the trees of `84294c24f7` and then `f18aa1bda5`
+(`main` at `99d610e06b`,
+each built fresh),
 the same three scripts end the same way:
 `repro-01` `rc=0` in 0.0 s with the branch moved,
 `repro-02`'s configured variant at `rc=2` in 0.1 s,
