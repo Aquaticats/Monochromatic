@@ -281,6 +281,9 @@ so an attempt is counted only once it was sent.
 A wait the stop file, the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
 the run ends for that reason,
 and `modelError` still names what the model said.
+That standing failure is why a run the stop file ends reports `model-error` and exits non-zero rather than `stop-file`:
+the task the run was given was not answered,
+so a stop file cannot make it read as finished.
 `rateLimitErrors` counts the model errors that named a rate limit or a quota,
 whether or not another attempt could fix them,
 because those are measured apart from other failures.

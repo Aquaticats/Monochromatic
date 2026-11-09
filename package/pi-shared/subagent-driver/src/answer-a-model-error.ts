@@ -156,12 +156,13 @@ async function answerWithAnotherAttempt(
  that ended in an error when it builds the request for the model, so the attempt reads the last state the model produced
  successfully. The delay grows with each attempt and is cut to the time the run has left, so no attempt is waited for past the
  run's own wall clock. The attempt also waits for Pi to rest: a prompt handed to a Pi that is at work is queued behind that run
- or refused, and the error it answers may yet be recovered by that run's own reply. Once the retries a run allows have gone, the
- run ends on the error, as it ended before any of this existed.
+ or refused, and the error it answers may yet be recovered by that run's own reply. For the same reason nothing is decided on the
+ failure while Pi is at work. Once the retries a run allows have gone, and Pi is at rest, the run ends on the error, as it ended
+ before any of this existed.
 
  @param watch - watch request
 
- @param retry - where the watch stands with the model error it last counted
+ @param retry - where the watch stands with the model error it is answering
 
  @returns why the run is over, or that it goes on
 
