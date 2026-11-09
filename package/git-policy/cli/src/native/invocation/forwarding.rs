@@ -98,11 +98,30 @@ pub fn git_command(
     }
     // Every real-Git start says it is one, so a monochromatic-git-policy-cli executable that arrives as "Git" stops (`started_as_git.rs`).
     mark_real_git_start(&mut command, StartMode::Child);
+    // The chain record names the file this start runs as Git, so a refusal a launcher leaves behind can name it
+    //  (`chain_starts_record.rs`).
+    crate::chain_starts_record::remember_chosen(real_git.as_os_str());
     return command;
 }
 
 /// The base a POSIX shell and Git 2.56.0 `run-command.c` add to a signal number.
 pub const SIGNAL_EXIT_BASE: i32 = 128;
+
+/// What:
+///  The signal the control of `end_as_git_ended` blocks and expects a death by,
+/// which is the one a supervisor or a person sends to stop a command.
+/// Why:
+///  A control cannot name a signal the wrapper's own start is likely to block,
+/// and this one shows the case:
+/// the signal is blocked,
+/// so raising
+///  it leaves it pending unless the block is lifted first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SIGNAL_TO_END_BY = 15; // SIGTERM
+/// ```
+pub const SIGNAL_TO_END_BY: i32 = libc::SIGTERM;
 
 /// What:
 ///  Translate a child's end into this process's exit code.
@@ -201,6 +220,56 @@ pub fn run_real_git(
     let status: std::process::ExitStatus = git_command(real_git, arguments, overlay).status_retrying()?;
     // `Ok(...)` is the success variant carrying how the child ended.
     return Ok(outcome_of(status));
+}
+
+/// What:
+///  End this process by the signal Git was ended by,
+/// as replacing the process with Git does,
+/// and answer the code a shell
+///  reports for that death when the signal cannot end it here.
+/// Why:
+///   The plain forward replaces this process with Git,
+/// so the caller's `wait` sees `WIFSIGNALED` with Git's
+///  signal and a shell reports 128 + the signal.
+/// A route that keeps a process around Git,
+/// the copy route's child or a coordinated run,
+/// has to end the same way:
+/// restoring the signal's default action and raising it makes the kernel report
+///  exactly what Git's own death reported.
+/// Rust's start makes `SIGPIPE` ignored,
+/// and an ignored signal is discarded,
+/// so the
+///  default action is restored first.
+/// The return is the fallback for a signal this process blocks or cannot receive,
+///  where ending is impossible but the status still has to be one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // signal(SIG, SIG_DFL); raise(SIG); return 128 + SIG;  // only reached when SIG cannot end this process
+/// ```
+pub fn end_as_git_ended(signal: i32) -> i32 {
+    #[cfg(unix)]
+    {
+        // SAFETY: `sigemptyset` and `sigaddset` write only this local set, `pthread_sigmask` reads it, `signal` and
+        //  `raise` take one number each, and none of them touches other memory of this process; every call is checked
+        //  only by what this process then observes, which is the death the caller asked for.
+        unsafe {
+            libc::signal(signal, libc::SIG_DFL);
+            // What: The block this process may hold on the signal is lifted before it is raised.
+            // Why:  A blocked signal stays pending and `raise` returns, so the wrapper left the command as a normal exit
+            //       with `128 + the signal` where native Git's caller sees `WIFSIGNALED`; a signal a parent blocked before
+            //       the wrapper ran, or one this process's own start left blocked, is removed here
+            //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 5 of the
+            //       round-3 review). `pthread_sigmask` changes the calling thread's mask, which is the thread `raise`
+            //       sends to.
+            let mut blocked: libc::sigset_t = std::mem::zeroed();
+            libc::sigemptyset(&mut blocked);
+            libc::sigaddset(&mut blocked, signal);
+            let _unblocked = libc::pthread_sigmask(libc::SIG_UNBLOCK, &blocked, std::ptr::null_mut());
+            libc::raise(signal);
+        }
+    }
+    return SIGNAL_EXIT_BASE + signal;
 }
 
 /// What:

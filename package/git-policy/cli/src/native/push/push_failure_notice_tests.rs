@@ -15,6 +15,8 @@ impl<Name: Fn(&str) -> String> CommitNamer for Name {
     }
 }
 use crate::test_support::{fixture, remove};
+/// The line every failed-push notice ends with.
+use crate::auto_push::PUSH_FAILED_NOTE;
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";
@@ -22,6 +24,32 @@ const BRANCH: &str = "refs/heads/main";
 
 fn region(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
+}
+
+/// What:
+///  The words of every record,
+/// shown to a buffer and removed as a command shows and removes them.
+/// Why:
+///   A record goes only once its words are out,
+/// so every control that read a record through the old take must
+///  show it through the step the person's terminal receives it by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// shownNotices(pushFailures(directory))
+/// ```
+fn take_push_failures(directory: &Path) -> Vec<String> {
+    return crate::test_support::shown_notices(push_failures(directory));
+}
+
+/// `take_push_failures` for the records of one asking worktree.
+fn take_push_failures_for(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
+    return crate::test_support::shown_notices(push_failures_for(directory, worktrees, abbreviate));
+}
+
+/// `take_push_failures` for the records of removed worktrees.
+fn take_orphaned_failures(directory: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
+    return crate::test_support::shown_notices(orphaned_push_failures(directory, abbreviate));
 }
 
 /// The text names the branch,
@@ -349,6 +377,217 @@ fn the_branches_of_the_worktrees_are_read_from_their_head_files() {
     branches.sort();
     assert_eq!(branches, vec![String::from("refs/heads/feature/a"), String::from("refs/heads/main")]);
     assert_eq!(branch_of_head(root.join("missing").as_path()), None);
+    remove(root.as_path());
+}
+
+/// A notice is still on disk while its commit is being named,
+/// so a command killed there,
+/// or one whose standard error cannot be written,
+/// leaves the only durable statement that the commit is not backed up for the next command.
+#[test]
+fn a_notice_survives_being_worded() {
+    let root: PathBuf = fixture("push-failure-word-then-remove");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
+    let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
+    let naming = |commit: &str| {
+        // The record is claimed under a name only this command holds while its words are made; whichever of the two exists,
+        //  the notice is still on disk and a command killed here loses nothing.
+        let held: usize = std::fs::read_dir(notice_directory(root.as_path())).map_or(0, |entries| { return entries.flatten().count(); });
+        assert_eq!(held, 1, "the notice is on disk while its commit is named");
+        let _ = &record;
+        return commit.to_string();
+    };
+    let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &naming);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")]);
+    assert!(!record.exists(), "and it is gone once its words exist");
+    assert!(take_push_failures(root.as_path()).is_empty(), "a record is shown once");
+    remove(root.as_path());
+}
+
+/// What:
+///  Two commands that read a record before either showed it show it once,
+/// because only one of them wins the claim on it.
+/// Why:
+///   A record is shown once,
+/// and a command that finds the record already claimed by another shows nothing,
+/// rather
+///  than printing words the other command is printing.
+#[test]
+fn two_commands_that_read_a_record_show_it_once() {
+    let root: PathBuf = fixture("push-failure-one-claim");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
+    let first: Vec<Notice> = push_failures(root.as_path());
+    let second: Vec<Notice> = push_failures(root.as_path());
+    assert_eq!(first.len(), 1, "the first command holds the record");
+    assert!(second.is_empty(), "the second finds it claimed and shows nothing");
+    assert_eq!(crate::test_support::shown_notices(first), vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")]);
+    assert!(notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT)).exists() == false, "the claim went with the words");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record the service writes in the instant before a claim is removed stays,
+/// and the next command shows it.
+/// Why:
+///   The claim is this command's own name,
+/// so removing it cannot delete a record the service wrote meanwhile;
+/// the
+///  service's statement is a different file.
+#[test]
+fn a_record_written_in_the_instant_before_removal_stays() {
+    let root: PathBuf = fixture("push-failure-written-then-removed");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected for now").expect("record");
+    let recording: PathBuf = root.to_path_buf();
+    let _played = crate::push_failure_notice_shown_then_removed::before_removal_in_a_control(move || {
+        record_push_failure(recording.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login").expect("the newer record");
+    });
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    drop(_played);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected for now")], "the words are the ones this command took");
+    let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
+    assert!(record.exists(), "the record the service wrote as the claim went stays");
+    let next: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(next, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login")], "and the next command shows it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A claim left by a command that is gone is taken over,
+/// so the notice reaches the person.
+/// Why:
+///   A command killed between taking a record and showing it must not take the person's only word about the commit with
+///  it,
+/// and a claim whose holder is gone is the next command's to show.
+#[test]
+fn a_claim_left_by_a_command_that_is_gone_is_taken_over() {
+    let root: PathBuf = fixture("push-failure-claim-orphan");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
+    // The claim of a command that no longer runs: no process has this number, and its start time is none this kernel made.
+    let directory: PathBuf = notice_directory(root.as_path());
+    let record: PathBuf = directory.join(record_name(BRANCH, COMMIT));
+    let claim: PathBuf = directory.join(format!("{}.4294967294~1~gone.claim", record_name(BRANCH, COMMIT)));
+    std::fs::rename(record.as_path(), claim.as_path()).expect("the claim a killed command left");
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")], "the claim of a dead command is shown");
+    assert_eq!(std::fs::read_dir(directory).expect("directory").count(), 0, "its claim went with the words");
+    remove(root.as_path());
+}
+
+/// What:
+///  Taking over a claim whose command is gone never replaces the record this command claimed first,
+/// when both are statements about the same branch and commit.
+/// Why:
+///   One name for every claim of a command made the take-over compute the name the first claim already holds,
+/// and the
+///  rename replaced the newer statement with the older one on disk;
+/// a command killed before it printed would leave only
+///  the obsolete words for the next command to find.
+#[test]
+fn taking_over_an_abandoned_claim_keeps_the_record_it_claimed_first() {
+    let root: PathBuf = fixture("push-failure-claim-takeover");
+    let directory: PathBuf = notice_directory(root.as_path());
+    std::fs::create_dir_all(directory.as_path()).expect("directory");
+    // The newer statement, under the record's own name.
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login").expect("record");
+    // The older statement of the same branch and commit, under a claim whose command is gone.
+    let older: PathBuf = directory.join(format!("{}.4294967294~1~gone~0.claim", record_name(BRANCH, COMMIT)));
+    std::fs::write(older.as_path(), format!("{RECORD_MAGIC}\n{BRANCH_FIELD}{BRANCH}\n{COMMIT_FIELD}{COMMIT}\n\nrejected for now\n")).expect("the older claim");
+    let notices: Vec<Notice> = push_failures(root.as_path());
+    // Nothing has been shown yet: what is on the disk is what a later command finds if this one is killed before it prints.
+    let on_disk: String = std::fs::read_dir(directory.as_path())
+        .expect("directory")
+        .flatten()
+        .map(|entry| { return std::fs::read_to_string(entry.path()).unwrap_or_default(); })
+        .collect();
+    assert!(on_disk.contains("the remote wants a login"), "the newer statement is still on disk under this command's claim: {on_disk}");
+    assert!(on_disk.contains("rejected for now"), "and the older one is held too: {on_disk}");
+    let shown: Vec<String> = crate::test_support::shown_notices(notices);
+    assert_eq!(shown.len(), 2, "both statements are shown: {shown:?}");
+    assert!(shown.contains(&push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login")), "the newer statement is shown: {shown:?}");
+    assert!(shown.contains(&push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected for now")), "and the older one: {shown:?}");
+    assert_eq!(std::fs::read_dir(directory).expect("directory").count(), 0, "the claims went with their words");
+    remove(root.as_path());
+}
+
+/// What:
+///  A notice given back after its words could not be written never replaces a newer record of the same name.
+/// Why:
+///   `rename` replaces its destination,
+/// so giving the older claim back over a terminal failure's record deleted that
+///  record,
+/// and the next command read the obsolete statement that promised a retry.
+#[test]
+fn a_notice_given_back_keeps_a_newer_record_of_the_same_name() {
+    let root: PathBuf = fixture("push-failure-give-back");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected for now").expect("record");
+    let notices: Vec<Notice> = push_failures(root.as_path());
+    assert_eq!(notices.len(), 1);
+    // The service writes the terminal failure while the claim is held, and then the words cannot be written.
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login").expect("the newer record");
+    assert!(notices[0].show(&mut ClosedTerminal).is_err(), "the terminal refused the words");
+    let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
+    let held: String = std::fs::read_to_string(record.as_path()).expect("the record's own name");
+    assert!(held.contains("the remote wants a login"), "the newer statement is still under its name: {held}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A notice whose words cannot be written out stays for the next command.
+/// Why:
+///   A record removed before its words reach the person is gone with nothing shown,
+/// and the next command cannot
+///  find it;
+/// a standard error that nobody reads is what that looks like.
+#[test]
+fn a_notice_whose_words_cannot_be_written_stays() {
+    let root: PathBuf = fixture("push-failure-unwritten");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected").expect("record");
+    let record: PathBuf = notice_directory(root.as_path()).join(record_name(BRANCH, COMMIT));
+    let notices: Vec<Notice> = push_failures(root.as_path());
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].show(&mut ClosedTerminal).is_err(), "the terminal refused the words");
+    assert!(record.exists(), "the record is kept for the next command");
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(shown, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected")], "the next command shows it");
+    assert!(!record.exists(), "and takes it once its words are out");
+    remove(root.as_path());
+}
+
+/// A terminal that takes no words,
+/// as a standard error whose reader is gone.
+struct ClosedTerminal;
+
+impl std::io::Write for ClosedTerminal {
+    fn write(&mut self, _bytes: &[u8]) -> std::io::Result<usize> {
+        return Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe));
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A record the service replaced while a command was wording it is kept,
+/// so the person sees both statements.
+/// Why:
+///   A retryable failure's record is replaced by the terminal failure's of the same branch and commit;
+/// a reader that
+///  removed the pathname would delete the words nobody has read,
+/// and the promise it replaced would be the last thing shown.
+#[test]
+fn a_newer_record_at_the_same_name_survives_the_older_reader() {
+    let root: PathBuf = fixture("push-failure-replaced");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, "rejected for now").expect("record");
+    // The service replaces the record while the command words it: the namer stands for that pause.
+    let replacing = |commit: &str| {
+        record_push_failure(root.as_path(), BRANCH, commit, PushOutcome::Refused, "the remote wants a login").expect("the newer record");
+        return commit.to_string();
+    };
+    let first: Vec<String> = take_push_failures_for(root.as_path(), None, &replacing);
+    assert_eq!(first, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "rejected for now")], "the words are the ones this command read");
+    let second: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(second, vec![push_failure_text(BRANCH, COMMIT, PushOutcome::Refused, "the remote wants a login")], "the newer statement is still there to show");
     remove(root.as_path());
 }
 

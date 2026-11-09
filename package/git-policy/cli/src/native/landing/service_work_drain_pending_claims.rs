@@ -135,7 +135,12 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
                     //  have reached the remote, so its record says that instead of naming what was refused, and it says
                     //  whether a plan will try it again.
                     let (said, outcome): (String, PushOutcome) = match (members.last(), replanning.first) {
-                        (Some(newest), Some(first)) => (planned_retry(git_dir, replanning, first, &newest.item, 1, text.as_str()), PushOutcome::Unfinished),
+                        (Some(newest), Some(first)) => {
+                            let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &newest.item, 1, text.as_str());
+                            // The framing promises a retry only when the plan the words speak of exists.
+                            let outcome: PushOutcome = if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry };
+                            (planned.words, outcome)
+                        }
                         _ => (text, PushOutcome::UnfinishedWithNoRetry),
                     };
                     if let Some(newest) = members.last()

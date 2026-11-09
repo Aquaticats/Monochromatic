@@ -54,6 +54,11 @@ pub mod entry_rules_text_change_warm;
 /// Spellings of the wrapper-only escape hatches shared by several modules.
 pub mod escape_hatch;
 
+/// The command a Git alias really runs:
+///  the expansion of ordinary aliases,
+///  and the executable Git selects first.
+pub mod external_git_command;
+
 /// Starting real Git with unchanged arguments,
 ///  streams and exit status.
 pub mod forwarding;
@@ -102,6 +107,15 @@ pub mod real_git_record;
 /// `PATH`,
 /// then the Git the commit service's unit records.
 pub mod real_git_resolution;
+
+/// The marker every start of real Git carries:
+///  its format,
+///  and the one lookup of it in an environment.
+pub mod start_marker;
+
+/// The chain record carried in an inherited descriptor:
+///  the start that a launcher which clears the environment cannot hide.
+pub mod chain_starts_record;
 
 /// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
 pub mod started_as_git;

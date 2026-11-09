@@ -259,43 +259,33 @@ fn a_push_that_lands_cancels_the_plan_of_its_branch() {
 /// How often the restart control looks at what the services have done.
 const LOOK_EVERY: Duration = Duration::from_millis(50);
 
-/// The margin the restart control adds for a loaded host:
-/// many times the stall window of the controls,
-/// which is itself longer than
-/// a healthy local push,
-/// so a slow start is waited for and a plan that was lost is still found out within a fixed time.
-const RESTART_MARGIN: Duration = Duration::from_secs(STALL_SECONDS_NUMBER * 5);
+/// The longest a push the service made took while the whole suite ran at once,
+/// measured on 2026-11-09:
+/// `git push` took 23.1 s while `git-receive-pack` sat in uninterruptible disk I/O,
+/// and the push's own wait loop looked at its child every 10 ms with no gap over 44 ms,
+/// so nothing in the wait was starved and the child itself was slow.
+/// The journal of one of these controls kept `push_ms=23058` in a run of 85 of them,
+/// against 1.2 to 3 s for the same push alone.
+/// The wait allows that figure and half again,
+/// so a push held by the host is waited for,
+/// and a plan that was lost is still found out within a fixed time.
+const LONGEST_CONTENDED_PUSH: Duration = Duration::from_millis(23_100);
+
+/// Half of the longest contended push,
+/// so that the wait allows that figure and half again.
+const HALF_A_CONTENDED_PUSH: Duration = Duration::from_millis(11_550);
 
 /// The stall window of the controls as a number.
 const STALL_SECONDS_NUMBER: u64 = 2;
 
-/// How long a first push to a fresh bare remote may take on this host,
-/// so the wait below covers the push itself and not only the stall it was written for.
-///  Citation:
-/// measured 2026-11-09 on this host's encrypted disk,
-/// six first pushes with the same small commit:
-/// 10.4,
-/// 11.5 and 15.8
-/// seconds with Git's default `core.fsync`,
-/// and 13.5,
-/// 19.0 and 22.0 seconds with `core.fsync=none` on the remote,
-/// so the
-///  setting is not the cause and this allowance is three times the longest of the six.
-/// With it the controls waited out a push that
-///  took 13.3 s (`push_ms=13323`) and passed,
-/// where the wait before it ended at 11.8 s.
-const FIRST_PUSH_ALLOWANCE: Duration = Duration::from_secs(66);
-
-/// How long the restart control gives a restarted service to deliver:
+/// How long a control waits for a service to deliver:
+/// the longest contended push and half of it again,
 /// its first pause,
-/// the slack the schedule adds,
-/// the margin,
-/// and a first push.
-///  Every wait of these controls is for something to become true,
-/// never for it to stay false,
-/// so a longer wait
-///  can only let a slow disk pass and cannot hide a plan that was lost.
-const RESTART_PATIENCE: Duration = FIRST_PUSH_ALLOWANCE.saturating_add(RESTART_MARGIN).saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+/// and the slack the schedule adds.
+const RESTART_PATIENCE: Duration = LONGEST_CONTENDED_PUSH
+    .saturating_add(HALF_A_CONTENDED_PUSH)
+    .saturating_add(PAUSE)
+    .saturating_add(RETRY_SLACK);
 
 /// Run `work_loop` on a thread,
 /// as the service does,
@@ -346,7 +336,7 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
         first.join().expect("the first service ends");
         assert_ne!(remote_tip(&stage), stage.landed, "nothing was delivered before the restart");
         // The person's next command shows and removes the failure record, as it does in a day of work.
-        let _shown = crate::push_failure_notice::take_push_failures(git_dir.as_path());
+        let _shown = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
         let (nobody, second) = start_service(scope, &handlers, plans.as_path(), &busy);
         assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the restarted service delivered the commit by itself");
         drop(nobody);
@@ -355,6 +345,266 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     assert_eq!(notices(&stage), 0, "the record of the failure is gone once the push landed");
     assert_eq!(git_text(stage.repo.as_path(), &["rev-list", "--count", "--all"]), commits_before, "no commit was made");
     remove(stage.root.as_path());
+}
+
+/// How long the control of the wait holds its work:
+/// five stall windows and two seconds more,
+/// which is longer than the wait
+///  used to allow,
+/// and no Git at all,
+/// so only the wait's own figure is measured.
+const HELD_PUSH: Duration = Duration::from_secs(STALL_SECONDS_NUMBER * 5 + 2);
+
+/// What:
+///  The wait for work the service does holds while that work is unfinished for longer than five stall windows.
+/// Why:
+///   The controls of this module failed in whole-suite runs on 2026-11-09 with a push that took 23.1 s,
+/// while the wait
+///  allowed only five stall windows:
+/// the stall window says when a push is silent for too long,
+/// never how long a
+///  push may take,
+/// because a push that works is never stopped (owner,
+/// 2026-11-03:
+/// "Stop only on no progress").
+/// The work here is a hold and nothing else,
+/// so the figure measured is the wait's own.
+#[test]
+fn the_wait_for_a_service_push_holds_past_five_stall_windows() {
+    let began: Instant = Instant::now();
+    let finished: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            std::thread::sleep(HELD_PUSH);
+            finished.store(true, Ordering::SeqCst);
+        });
+        assert!(wait_until(&|| return finished.load(Ordering::SeqCst)), "the wait held for work that took {HELD_PUSH:?}");
+    });
+    assert!(began.elapsed() >= HELD_PUSH, "the work really took that long: {:?}", began.elapsed());
+}
+
+/// What:
+///  A push of a branch the person deleted settles with one notice and is not planned again,
+/// and the notice names the
+///  commit and the ref that still holds it.
+/// Why:
+///   Nothing was sent and every later attempt would fail the same way before anything is,
+/// so the item has a terminal
+///  state rather than an endless retry;
+/// the commit is not on that branch any more because the person removed the branch,
+///  and the words say where it still lives.
+#[test]
+fn a_push_of_a_branch_the_person_deleted_settles_with_one_notice() {
+    let (root, git_dir, work, item, gone): (PathBuf, PathBuf, PathBuf, WorkItem, String) = deleted_branch_world("push-deleted-branch", false);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "nothing is planned for a branch that is gone");
+    assert_eq!(settled_names(work.as_path()), vec![item.id()], "the push settles as done, not as a failure to retry");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
+    assert!(record.contains("no longer exists"), "the person is told the branch is gone: {record}");
+    assert!(record.contains(gone.as_str()), "with the commit named: {record}");
+    assert!(record.contains("refs/remotes/origin/feature"), "and the ref that still holds it: {record}");
+    // Nothing is tried again: a second round plans nothing and writes no second record.
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "a second round plans nothing either");
+    assert_eq!(std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").count(), 1, "one notice, not one per attempt");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit no ref of the repository holds any more is said to be in the object store alone,
+/// and is named.
+/// Why:
+///   The person deleted the branch and the commit went with it,
+/// so the only remaining word about that commit must say
+///  that,
+/// or they would look for it on a branch that does not exist.
+#[test]
+fn a_push_of_a_commit_no_ref_holds_says_so() {
+    let (root, git_dir, work, item, gone): (PathBuf, PathBuf, PathBuf, WorkItem, String) = deleted_branch_world("push-deleted-branch-everywhere", true);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "nothing is planned for a branch that is gone");
+    assert_eq!(settled_names(work.as_path()), vec![item.id()], "the push settles as done");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
+    assert!(record.contains("no ref of this repository"), "the person is told no ref holds the commit: {record}");
+    assert!(record.contains(gone.as_str()), "and it is named: {record}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A failed push of a branch that still exists is retried,
+/// even when the program the push ran printed a line about a missing branch.
+/// Why:
+///   The words of a push's output can be any program's,
+/// and only the repository says whether this branch is there;
+/// settling a
+///  live branch as deleted would stop its retry for good and tell the person it was deleted.
+#[test]
+fn a_failed_push_of_a_branch_that_exists_is_not_settled_as_a_gone_branch() {
+    let root: PathBuf = fixture("push-live-branch-gone-words");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let remote: PathBuf = root.join("remote.git");
+    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    // The program the push runs prints what a nested push of a missing branch prints, and refuses the push.
+    let refusing: PathBuf = root.join("receive-pack-that-names-another-branch");
+    std::fs::write(refusing.as_path(), "#!/bin/sh\necho 'error: src refspec refs/heads/helper does not match any' >&2\nexit 1\n").expect("the refusing program");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(refusing.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    }
+    git(repo.as_path(), &["config", "remote.origin.receivepack", refusing.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"two\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=two"]);
+    let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let git_dir: PathBuf = repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: landed.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-09T10:00:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work.as_path(), &item).expect("enqueue");
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert!(round_of(git_dir.as_path(), &handlers, &mut retries).is_some(), "the push is planned again, because main is still there");
+    assert!(names_in(work.as_path(), crate::work_item::DONE).is_empty(), "and it is not settled as done");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).map(|entries| { return entries.flatten().map(|entry| { return std::fs::read_to_string(entry.path()).unwrap_or_default(); }).collect::<String>(); }).unwrap_or_default();
+    assert!(!record.contains("no longer exists"), "the person is not told the branch was deleted: {record}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A notice about a deleted branch whose refs could not be read says that it could not tell,
+/// never that no ref holds the commit.
+/// Why:
+///   A failed query is not an empty answer,
+/// and the person would stop looking for a commit the repository still holds.
+#[test]
+fn a_notice_of_a_gone_branch_says_when_the_refs_could_not_be_read() {
+    let root: PathBuf = fixture("push-gone-branch-unreadable-refs");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let remote: PathBuf = root.join("remote.git");
+    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    let git_dir: PathBuf = repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    // The branch is gone, and the commit the item names is no object of this repository, so the containment query fails.
+    let absent: String = String::from("1234567890abcdef1234567890abcdef12345678");
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/feature"),
+        oid: absent.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-09T10:00:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work.as_path(), &item).expect("enqueue");
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "the branch is gone, so nothing is planned");
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).map(|entries| { return entries.flatten().map(|entry| { return std::fs::read_to_string(entry.path()).unwrap_or_default(); }).collect::<String>(); }).unwrap_or_default();
+    assert!(record.contains("no longer exists"), "the branch is said to be gone: {record}");
+    assert!(record.contains("could not be told"), "and the notice says the refs could not be read: {record}");
+    assert!(!record.contains("no ref of this repository"), "it never says no ref holds it: {record}");
+    assert!(record.contains(absent.as_str()), "the commit is still named: {record}");
+    remove(root.as_path());
+}
+
+/// The names a state directory of a work directory holds,
+/// sorted.
+fn names_in(work: &Path, state: &str) -> Vec<String> {
+    let directory: PathBuf = crate::work_item::state_directory(work, state);
+    let mut names: Vec<String> = std::fs::read_dir(directory.as_path())
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .collect();
+    names.sort();
+    return names;
+}
+
+/// What:
+///  A repository with a commit on `feature`,
+/// pushed once,
+/// whose branch is then deleted.
+/// Why:
+///   The push's own failure is what the service must read,
+/// so the fixture is a real repository and a real remote;
+/// `everywhere` also deletes the branch on the remote and its tracking ref,
+/// so no ref of the repository holds
+///  the commit any more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, remote } = await repositoryWithBranch('feature');
+/// ```
+fn deleted_branch_world(name: &str, everywhere: bool) -> (PathBuf, PathBuf, PathBuf, WorkItem, String) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let remote: PathBuf = root.join("remote.git");
+    git(root.as_path(), &["init", "--bare", "--quiet", remote.to_str().expect("utf-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("b.txt"), b"gone\n").expect("file");
+    git(repo.as_path(), &["add", "--", "b.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=two"]);
+    git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "feature"]);
+    let gone: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    git(repo.as_path(), &["branch", "--delete", "--force", "feature"]);
+    if everywhere {
+        git(repo.as_path(), &["push", "--quiet", "origin", "--delete", "feature"]);
+        git(repo.as_path(), &["update-ref", "-d", "refs/remotes/origin/feature"]);
+    }
+    let git_dir: PathBuf = repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/feature"),
+        oid: gone.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-09T08:00:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work.as_path(), &item).expect("enqueue");
+    return (root, git_dir, work, item, gone);
+}
+
+/// The names a work directory holds as done,
+/// sorted.
+fn settled_names(work: &Path) -> Vec<String> {
+    let done: PathBuf = crate::work_item::state_directory(work, crate::work_item::DONE);
+    let mut names: Vec<String> = std::fs::read_dir(done.as_path())
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .collect();
+    names.sort();
+    return names;
 }
 
 /// What a hook that declines every push says;
@@ -687,11 +937,29 @@ fn let_pushes_through(stage: &Stage) {
     std::fs::write(stage.root.join("stalled-once"), b"").expect("the marker that makes the hook accept");
 }
 
+/// The file name of the push record of `commit` on the stage's branch,
+/// which is `main`:
+/// the record's own id,
+/// which carries the branch as well as the commit.
+fn push_record_id(commit: &str) -> String {
+    return WorkItem {
+        kind: WorkKind::Push,
+        repository: PathBuf::new(),
+        git_dir: PathBuf::new(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from(commit),
+        parent: String::new(),
+        created: String::new(),
+        tries: 0,
+    }
+    .id();
+}
+
 /// Moves the item of `commit` to `claimed` as a service would have claimed it `age` ago,
 /// and gives the claim's path.
 fn claim_as_a_dead_service_did(stage: &Stage, commit: &str, age: Duration) -> PathBuf {
     let work: PathBuf = work_directory(stage.repo.join(".git").as_path());
-    let id: String = format!("push-{commit}");
+    let id: String = push_record_id(commit);
     let last_renewal: ClaimTime = ClaimTime::read().rewound(age);
     let claimed: PathBuf = work.join("claimed").join(crate::work_item::claim_file_name(id.as_str(), "0123456789abcdef0123456789abcdef", &last_renewal));
     std::fs::create_dir_all(work.join("claimed")).expect("the claimed directory");
@@ -736,7 +1004,7 @@ fn a_claim_left_by_a_killed_service_is_run_by_its_successor_with_no_wake() {
         drop(sender);
         running.join().expect("the service ends");
     });
-    assert!(work_directory(stage.repo.join(".git").as_path()).join("done").join(format!("push-{}", stage.landed)).exists(), "settled as done");
+    assert!(work_directory(stage.repo.join(".git").as_path()).join("done").join(push_record_id(stage.landed.as_str())).exists(), "settled as done");
     remove(stage.root.as_path());
 }
 
@@ -798,7 +1066,7 @@ fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
         assert!(wait_until(&|| { return remote_tip(&stage) == newer; }), "the pending push was run at the start");
-        assert!(wait_until(&|| { return work_directory(git_dir.as_path()).join("done").join(format!("push-{newer}")).exists(); }), "the pending push was settled");
+        assert!(wait_until(&|| { return work_directory(git_dir.as_path()).join("done").join(push_record_id(newer.as_str())).exists(); }), "the pending push was settled");
         assert!(claimed.exists(), "the claim of a holder that renewed a moment ago was not taken");
         drop(sender);
         running.join().expect("the service ends");
@@ -845,13 +1113,10 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     remove(stage.root.as_path());
 }
 
-/// How long the controls of a fault in the notes wait for the service to try again:
-/// the pause,
-/// the slack,
-/// a margin for a loaded host,
-/// and a first push,
-/// because the note's retry runs on the same disk as the push before it.
-const NOTE_RETRY_PATIENCE: Duration = FIRST_PUSH_ALLOWANCE.saturating_add(RESTART_MARGIN).saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+/// How long the control of a fault in the notes waits for the service to try again:
+/// the patience a delivery gets,
+/// because the pause it was given is the same plan.
+const NOTE_RETRY_PATIENCE: Duration = RESTART_PATIENCE;
 
 /// Puts a file where the notes' directory should be,
 /// so that nothing can be written or listed under it,
@@ -1050,7 +1315,7 @@ fn a_due_push_with_no_retry_plan_left_is_worded_as_one_nothing_tries_again() {
     };
     let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
     // A round that keeps no plan: no first pause, and this push due again.
-    let round: Retrying = Retrying { first: None, due: vec![due] };
+    let round: Retrying = Retrying { first: None, due: vec![due], plans: None };
     let drained: Drained = drain_planned_with(git_dir.as_path(), &handlers, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
     assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "the due push ran");
     assert!(
@@ -1058,7 +1323,7 @@ fn a_due_push_with_no_retry_plan_left_is_worded_as_one_nothing_tries_again() {
         "the branch's plan was dropped"
     );
     // The wording is applied when the notice is shown, so that is what the person reads.
-    let shown: Vec<String> = crate::push_failure_notice::take_push_failures(git_dir.as_path());
+    let shown: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
     assert_eq!(shown.len(), 1, "one record for the push: {shown:?}");
     let notice: &str = shown[0].as_str();
     assert!(notice.contains("Could not resolve host"), "the person is told what happened: {notice}");
@@ -1098,13 +1363,13 @@ fn a_due_push_with_a_kept_plan_is_worded_as_one_the_service_keeps_trying() {
     };
     let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
     // A round that keeps a plan: this push due again, and the first pause to plan the next try with.
-    let round: Retrying = Retrying { first: Some(PAUSE), due: vec![due] };
+    let round: Retrying = Retrying { first: Some(PAUSE), due: vec![due], plans: None };
     let drained: Drained = drain_planned_with(git_dir.as_path(), &handlers, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
     assert!(
         drained.changes.iter().any(|change| { return matches!(change, RetryChange::Plan { .. }); }),
         "a new try was planned"
     );
-    let shown: Vec<String> = crate::push_failure_notice::take_push_failures(git_dir.as_path());
+    let shown: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
     assert_eq!(shown.len(), 1, "one record for the push: {shown:?}");
     let notice: &str = shown[0].as_str();
     assert!(notice.contains("keeps the push in its retry plan"), "the notice promises the planned retry: {notice}");

@@ -23,6 +23,7 @@
 //! ```
 
 use crate::add_timing::{begin_step, end_step};
+use crate::path_bytes_in_records::{hex_of_path, text_in_one_line};
 use crate::private_storage::sync_directory;
 use crate::worktree_add_binding::{Binding, planned_record};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
@@ -261,6 +262,47 @@ pub fn claim_stage(
 pub(crate) const OWNER_LINE_PREFIX: &str = "owner=";
 
 /// What:
+///  The line of a claim's text that holds the container path's bytes.
+/// Why:
+///   The first line stays the path itself when the path is text and fits one line,
+/// because the release installed before this line reads it there;
+/// a path that is text cannot spell another one on that line,
+/// so both readers name the same directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const CONTAINER_HEX_PREFIX = 'containerHex=';
+/// ```
+pub(crate) const CONTAINER_HEX_PREFIX: &str = "containerHex=";
+
+/// What:
+///  The text of a claim:
+/// the container's text on the first line when it can hold it,
+/// its bytes on a line of its own,
+/// and the owner last.
+/// Why:
+///   The bytes line is the whole path whatever bytes it holds,
+/// and a container whose text needs replacement characters or a line break leaves the first line out,
+/// so a reader that knows only the first line refuses the record instead of naming the replacement spelling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${textInOneLine(container) ?? ''}\n${CONTAINER_HEX_PREFIX}${hexOfPath(container)}\n${OWNER_LINE_PREFIX}${owner.token()}\n`
+/// ```
+fn claim_text(container: &Path, owner: &CopyOwner) -> String {
+    let mut text: String = String::new();
+    if let Some(line) = text_in_one_line(container) {
+        text.push_str(line);
+        text.push('\n');
+    }
+    text.push_str(format!("{CONTAINER_HEX_PREFIX}{}", hex_of_path(container)).as_str());
+    text.push('\n');
+    text.push_str(format!("{OWNER_LINE_PREFIX}{}", owner.token()).as_str());
+    text.push('\n');
+    return text;
+}
+
+/// What:
 ///  Claims a stage name for a named owner:
 /// the claim file holds the container path and,
 /// on a line of its own,
@@ -287,7 +329,7 @@ pub fn claim_stage_for(
         .trim_start_matches(STAGE_PREFIX)
         .to_string();
     let path: PathBuf = root.join(format!("{identifier}{CLAIM_SUFFIX}"));
-    let text: String = format!("{}\n{OWNER_LINE_PREFIX}{}\n", container.to_string_lossy(), owner.token());
+    let text: String = claim_text(container.as_path(), owner);
     write_atomic(path.as_path(), text.as_bytes(), "stage claim")?;
     return Ok(StageClaim { path, container, destination_record: None });
 }

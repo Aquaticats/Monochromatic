@@ -210,7 +210,8 @@ pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
 /// its holder was stopped,
 /// or lost,
 /// on every
-///  try.
+///  try,
+/// and answers whether every notice is where a command will show it.
 /// Why:
 ///   Such an item moves to `failed` by recovery,
 /// not by a handler,
@@ -218,12 +219,15 @@ pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
 ///  and the person would not be told.
 /// The notice is the one a skipped push leaves,
 /// because nothing failed and nothing was sent.
+///  A notice that could not be written answers that it is not there,
+/// so the push is not settled in silence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const item of givenUp.filter(isPush)) await recordPushSkip(gitDir, item, reason)
+/// for (const item of givenUp.filter(isPush)) if (!(await recordPushSkip(gitDir, item, reason))) return false; return true;
 /// ```
-pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
+pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool {
+    let mut told: bool = true;
     for item in given_up {
         if item.kind != WorkKind::Push {
             continue;
@@ -234,7 +238,30 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
         );
         if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
             crate::service_error!("the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
+            told = false;
         }
+    }
+    return told;
+}
+
+/// What:
+///  The notice a recovery leaves for a push whose holder died on every try:
+/// the skipped-push record of the branch,
+/// written into the directory the recovery works on.
+/// Why:
+///   The record moves to `failed` right after the notice,
+/// and nothing scans `failed`,
+/// so the notice is the person's only remaining word about that branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class SkipNotice { tell(item) { recordPushSkip(this.gitDir, item) } }
+/// ```
+pub(crate) struct SkipNotice<'a>(pub(crate) &'a Path);
+
+impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
+    fn tell(&self, given_up: &WorkItem) -> bool {
+        return tell_about_given_up(self.0, std::slice::from_ref(given_up));
     }
 }
 
@@ -281,6 +308,9 @@ pub(crate) struct Replanning {
     pub(crate) first: Option<Duration>,
     /// What was asked of the plan.
     pub(crate) changes: Vec<RetryChange>,
+    /// The directory a plan is kept in,
+    /// or nothing for a plan kept in memory only.
+    pub(crate) plans: Option<PathBuf>,
 }
 
 /// Methods over the state.
@@ -290,6 +320,39 @@ impl Replanning {
     /// or the person must act.
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
         self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
+    }
+
+    /// What:
+    ///  Keep the plan of the try `attempt` of the branch of `item` on disk now,
+    /// before any words that promise it reach the person,
+    /// and answer whether it
+    ///  is kept.
+    /// Why:
+    ///   The loop applies the changes a worker asks only once every repository of the round is drained,
+    /// so a kill before it applies them would take the plan,
+    /// and a notice that says the service keeps trying would be the only statement left and it would be false.
+    /// A worker writes only its own branch's plan,
+    /// whose file name the branch key and the try number make,
+    /// and the loop writes the same file again when it applies the change.
+    ///  A plan that cannot be written answers that it is not kept,
+    /// so the caller promises nothing the next service cannot keep.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// return savePlans(this.plans, { gitDir, item, attempt });
+    /// ```
+    pub(crate) fn keep_the_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32) -> bool {
+        let Some(directory) = self.plans.as_deref() else {
+            // A plan kept in memory only is kept as long as the service that keeps it lives.
+            return true;
+        };
+        return match crate::push_retry_store::save(directory, &crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt }) {
+            Ok(()) => true,
+            Err(reason) => {
+                crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
+                false
+            }
+        };
     }
 }
 
@@ -306,14 +369,41 @@ impl Replanning {
 /// the person's record says the service keeps trying,
 /// so they do not push by hand for nothing.
 ///  The plan is asked of the service loop (`Replanning`),
-/// which owns it.
+/// which owns it,
+/// and it is written before those words exist:
+/// the promise a record makes
+///  is the plan's,
+/// so a plan that cannot be kept leaves the record with Git's own words alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const said = plannedRetry(gitDir, replanning, first, item, attempt, text);
 /// ```
-pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> String {
+/// What:
+///  The words a record of a planned retry carries,
+/// and whether the plan they promise is kept.
+/// Why:
+///   The promise and the plan are one fact:
+/// main's words say the service keeps trying only when the plan could be kept,
+///  and the notice's framing needs the same answer as a value rather than as the presence of a sentence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PlannedRetry = { words: string; kept: boolean };
+/// ```
+pub(crate) struct PlannedRetry {
+    /// The words for the person's record,
+    /// with the promise only when the plan is kept.
+    pub(crate) words: String,
+    /// Whether the plan the words promise exists.
+    pub(crate) kept: bool,
+}
+
+pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> PlannedRetry {
     let pause: Duration = pause_before(attempt, first);
+    // The notice below says the service keeps trying, so the plan that keeps it is written first,
+    // and its answer says whether the words may promise it.
+    let kept: bool = replanning.keep_the_plan(git_dir, item, attempt);
     replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
     let plan: String = format!(
         "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
@@ -330,7 +420,10 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
         format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), text.lines().next().unwrap_or_default()).as_str(),
         &fields,
     );
-    return format!("{plan}\n{text}");
+    // A plan that could not be kept is not promised: the service of this run still tries the push, and a service started in
+    //  its place would not know it, so the person is left with Git's own words and pushing by hand.
+    let words: String = if kept { format!("{plan}\n{text}") } else { text.to_string() };
+    return PlannedRetry { words, kept };
 }
 
 /// What:
@@ -352,14 +445,14 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
 /// ```
 pub(crate) fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable) -> Drained {
     crate::service_warn!("{unreachable}; its work stays where it is for the next command, nothing runs, and its push plans keep their pauses");
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new() };
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     let Some(first) = retrying.first else {
         return Drained { wait: None, changes: replanning.changes };
     };
     for due in &retrying.due {
         if due.git_dir == git_dir {
             let cause: String = format!("the repository at {} is not reachable now (is its drive mounted?)", git_dir.display());
-            let _said: String = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str());
+            let _said: PlannedRetry = planned_retry(git_dir, &mut replanning, first, &due.item, due.attempt + 1, cause.as_str());
         }
     }
     return Drained { wait: None, changes: replanning.changes };
@@ -408,7 +501,12 @@ pub(crate) fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, 
             Verdict::Retry(text) => {
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
                 let (said, outcome): (String, PushOutcome) = match replanning.first {
-                    Some(first) => (planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str()), PushOutcome::Unfinished),
+                    Some(first) => {
+                        let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str());
+                        // The framing promises a retry only when the plan the words speak of exists.
+                        let outcome: PushOutcome = if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry };
+                        (planned.words, outcome)
+                    }
                     None => {
                         replanning.forget(git_dir, branch);
                         (text, PushOutcome::UnfinishedWithNoRetry)

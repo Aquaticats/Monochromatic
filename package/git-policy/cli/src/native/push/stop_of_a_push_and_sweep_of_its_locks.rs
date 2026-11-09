@@ -30,7 +30,7 @@ use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 /// for the task that sweeps after the child ends.
 use crate::lazy_runtime::spawn_on_runtime;
 /// When a stop that asked its tree to end may force the end.
-use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
+use crate::stop_waits_while_a_member_cannot_be_interrupted::{STOP_CEILING, escalation_waits};
 /// The processes a push started,
 /// and the calls that look at and end them.
 use crate::process_tree::{TreeMember, descendants_of, member_of, still_running};
@@ -51,16 +51,23 @@ pub(crate) const POLL_PAUSE: Duration = Duration::from_millis(10);
 
 /// Ask a running push to end,
 ///  so Git can stop the helper processes it started.
+/// A child that was already reaped has no number (`OwnedChild::id` answers nothing for it),
+/// and a signal sent to
+///  number zero would reach every process in this command's group,
+/// so no signal is sent then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// child.kill('SIGTERM');
+/// if (id > 0) child.kill('SIGTERM');
 /// ```
 #[cfg(unix)]
 fn ask_to_stop(id: u32) {
     let Ok(pid) = libc::pid_t::try_from(id) else {
         return;
     };
+    if pid <= 0 {
+        return;
+    }
     // SAFETY: `kill` sends one signal to the PID of a child this module started and has not reaped;
     // a failure is ignored because the child may have ended.
     unsafe { libc::kill(pid, libc::SIGTERM) };
@@ -114,11 +121,17 @@ async fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 ///  The child is handed over as the standard library's value and adopted inside the task,
 /// so a task that never runs
 ///  leaves it as it was and never waits for it.
+/// The wait for the child has the ceiling every stop has:
+/// past it the child is left to the
+///  kernel and said here,
+/// never waited for,
+/// because a task nobody waits for must not be held by a process the
+///  kernel may never release.
 /// Returns nothing where the runtime has no worker to run the task.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// void child.exited.then(() => locks.sweep(tree));
+/// void Promise.race([child.exited, delay(ceiling)]).then(() => locks.sweep(tree));
 /// ```
 pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
     return sweep_task(Some(child), tree, locks);
@@ -128,14 +141,30 @@ pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) 
 /// with no child there is only the tree to wait for.
 fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
     let started = spawn_on_runtime(async move {
+        // Whatever an earlier stop left behind and the kernel has released is collected first, so no sweep waits on that list.
+        let _earlier: usize = reap_abandoned_children();
         if let Some(uncollected) = child {
             let mut owned: OwnedChild = adopt(uncollected);
             // The exit status is not reported: the push was reported at its deadline.
-            let _status = owned.wait().await;
+            let ceiling: Duration = ceiling_for_a_child(owned.id());
+            match tokio::time::timeout(ceiling, owned.wait()).await {
+                Ok(_collected) => {}
+                Err(_late) => {
+                    // The child is left to the kernel, as one it has not released yet must be, and its handle is kept: a handle
+                    //  dropped here would leave the process a zombie for the life of the service once the kernel does let it go.
+                    if let Some(left) = owned.into_std_when_unreaped() {
+                        keep_abandoned(left);
+                    }
+                    debug(TAG, "the child of the stopped push was not collected within the ceiling of a stop; it is left to the kernel for the next round to collect, and its locks to the stale-lock judgement");
+                }
+            }
         }
-        // Nothing waits for this task, so it waits for the rest of the tree as long as that runs.
-        while tree.iter().any(still_running) {
-            tokio::time::sleep(POLL_PAUSE).await;
+        // Nothing waits for this task, so it waits for the rest of the tree no longer than every other wait of a stop:
+        //  a descendant wedged in a dead file system, or one that left the process group the signal reached, is left to the
+        //  stale-lock judgement every later push and fetch makes.
+        let gone: bool = wait_until_gone(tree.as_slice(), STOP_CEILING).await;
+        if !gone {
+            debug(TAG, "a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement");
         }
         // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
         if let Err(error) = run_blocking_job(move || { locks.sweep(tree.as_slice()); }).await {
@@ -146,6 +175,133 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
         debug(TAG, "the runtime has no worker to sweep a stopped push's locks");
     }
     return started;
+}
+
+/// What:
+///  The ceiling the sweep gives the child it was handed:
+/// the stop's own,
+/// or a control's for one child.
+/// Why:
+///   A control must see a child the kernel does not release without waiting the stop's whole ceiling,
+///  which is three
+///  times the longest delay measured on this host;
+/// and one child's ceiling belongs to that child alone,
+/// so no other
+///  sweep of the run is shortened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// controlCeilingFor(pid) ?? STOP_CEILING
+/// ```
+fn ceiling_for_a_child(id: u32) -> Duration {
+    #[cfg(test)]
+    if let Some(ceiling) = control_ceiling_for(id) {
+        return ceiling;
+    }
+    let _ = id;
+    return STOP_CEILING;
+}
+
+/// The ceiling a control gives one child,
+/// and the child's number;
+/// nothing outside a control.
+#[cfg(test)]
+static CONTROL_CEILING: std::sync::Mutex<Option<(u32, Duration)>> = std::sync::Mutex::new(None);
+
+/// Gives the child `id` a ceiling of its own for a control.
+#[cfg(test)]
+pub(crate) fn ceiling_for_a_child_in_a_control(id: u32, ceiling: Duration) {
+    if let Ok(mut slot) = CONTROL_CEILING.lock() {
+        *slot = Some((id, ceiling));
+    }
+}
+
+/// The ceiling a control gave the child `id`,
+/// or nothing.
+#[cfg(test)]
+fn control_ceiling_for(id: u32) -> Option<Duration> {
+    let slot = CONTROL_CEILING.lock().ok()?;
+    return match *slot {
+        Some((control_id, ceiling)) if control_id == id => Some(ceiling),
+        _ => None,
+    };
+}
+
+/// The children a stop left behind whose exit nothing else collects,
+/// kept so that a later round reaps them.
+static ABANDONED: std::sync::Mutex<Vec<Child>> = std::sync::Mutex::new(Vec::new());
+
+/// Keeps `child` for a later round to collect.
+fn keep_abandoned(child: Child) {
+    if let Ok(mut list) = ABANDONED.lock() {
+        list.push(child);
+    }
+}
+
+/// Whether `child` has not ended yet,
+/// collecting its exit when it has.
+/// A handle that cannot be judged is given up,
+/// since keeping it would hold a place for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (child) => { const status = child.pollExit(); return status === undefined }
+/// ```
+fn has_not_ended(child: &mut Child) -> bool {
+    return match child.try_wait() {
+        Ok(Some(_status)) => false,
+        Ok(None) => true,
+        Err(_) => false,
+    };
+}
+
+/// What:
+///  Collects every kept child the kernel has released,
+/// without waiting for one it has not,
+/// and answers how many were collected.
+/// Why:
+///   Dropping a `Child` reaps nothing:
+/// a process that exits after its stop was reported stays a zombie for the life of
+///  the service,
+/// and one entry of the process table per such stop is a leak the service cannot afford.
+/// `try_wait` is
+///  the non-blocking collection:
+/// it answers the exit of a child that ended and nothing of one that has not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// abandoned = abandoned.filter((child) => child.exitCode === null && child.pidAlive())
+/// ```
+pub fn reap_abandoned_children() -> usize {
+    let Ok(mut list) = ABANDONED.lock() else {
+        return 0;
+    };
+    let before: usize = list.len();
+    list.retain_mut(has_not_ended);
+    return before.saturating_sub(list.len());
+}
+
+/// What:
+///  Wait until `running` answers nothing,
+/// or until `ceiling` has passed,
+/// answering whether the tree was gone.
+/// Why:
+///   A wait nobody waits for still needs a bound:
+/// a task that wakes every `POLL_PAUSE` for the life of the service does nothing but hold the tree in memory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = Date.now(); while (running() && Date.now() - began < ceilingMs) await sleep(POLL_PAUSE);
+/// ```
+async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
+    let began: Instant = Instant::now();
+    while tree.iter().any(still_running) {
+        if began.elapsed() >= ceiling {
+            return false;
+        }
+        tokio::time::sleep(POLL_PAUSE).await;
+    }
+    return true;
 }
 
 /// What:
@@ -254,3 +410,8 @@ pub async fn settle_locks(child: Option<Child>, tree: Vec<TreeMember>, locks: Lo
     };
     return sweep_task(Some(uncollected), tree, locks);
 }
+
+/// The sweep's wait and its bound are controlled in the test module.
+#[cfg(test)]
+#[path = "stop_of_a_push_and_sweep_of_its_locks_tests.rs"]
+mod tests;
