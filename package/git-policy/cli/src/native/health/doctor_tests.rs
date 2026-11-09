@@ -537,3 +537,57 @@ fn a_hook_of_an_event_the_author_switched_off_is_not_reported() {
     assert_eq!(on_stdout, "hook.control (events: pre-commit)\n");
     remove(root.as_path());
 }
+
+/// What:
+///  A `core.hooksPath` value that holds a line break is one directory,
+/// and doctor scans the hooks in it.
+/// Why:
+///   Git reports every value of the key NUL-delimited,
+/// so splitting the listing on line breaks turned one configured
+///  directory into two values and scanned a directory the person never named.
+#[cfg(unix)]
+#[test]
+fn a_hooks_path_that_holds_a_line_break_is_scanned_where_it_points() {
+    let root: PathBuf = fixture("doctor-hooks-path-line-break");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let directory: PathBuf = repo.join("custom\nhooks");
+    std::fs::create_dir(directory.as_path()).expect("configured directory");
+    executable(directory.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    git(repo.as_path(), &["config", "core.hooksPath", "custom\nhooks"]);
+    let location: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
+    assert_eq!(location.configured, Some(directory.clone()), "one configured value, not two");
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the executable hook is found: {stdout}{stderr}");
+    assert_eq!(stdout, format!("{}\n", directory.join("pre-commit").display()));
+    remove(root.as_path());
+}
+
+/// What:
+///  A later value still decides, and the value the wrapper supplied is still not the person's.
+/// Why:
+///   The listing is read for its values, not for its line breaks,
+/// so a value holding a line break, one of the wrapper's own
+///  paths and an empty value all have to be told apart.
+#[cfg(unix)]
+#[test]
+fn every_value_of_the_hooks_path_is_told_apart_from_the_one_before_it() {
+    let root: PathBuf = fixture("doctor-hooks-path-values");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let directory: PathBuf = repo.join("odd\nhooks");
+    std::fs::create_dir(directory.as_path()).expect("configured directory");
+    executable(directory.join("pre-commit").as_path(), b"#!/bin/sh\n");
+    // The wrapper's own transaction directory is one of its values and never the person's.
+    let wrapper: String = format!(
+        "{}/monochromatic-git-policy-cli/shadow/0123abcd-0000-4000-8000-000000000000/no-hooks",
+        repo.join(".git").display()
+    );
+    git(repo.as_path(), &["config", "--add", "core.hooksPath", wrapper.as_str()]);
+    git(repo.as_path(), &["config", "--add", "core.hooksPath", "odd\nhooks"]);
+    let location: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
+    assert_eq!(location.configured, Some(directory.clone()), "the last value that is not the wrapper's is the person's");
+    // An empty last value is the person's own reset and names no directory.
+    git(repo.as_path(), &["config", "--add", "core.hooksPath", ""]);
+    let reset: HooksLocation = located(&git_context(), repo.as_path()).expect("locate");
+    assert_eq!(reset.configured, None, "an empty value is no directory");
+    remove(root.as_path());
+}

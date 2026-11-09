@@ -301,20 +301,30 @@ async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<O
 ///  is not the wrapper's,
 /// an empty one names no directory,
 /// and a value that cannot be decoded is not read.
+///   The values are read from the NUL-delimited listing Git was asked for:
+/// a directory whose name holds a line break
+///  is one value,
+/// and splitting on line breaks read it as two,
+/// the second of which named a directory the person
+///  never chose.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const values = (await git(['config', '--type=path', '--get-all', 'core.hooksPath'])).trimEnd().split('\n');
+/// const values = (await git(['config', '--type=path', '--null', '--get-all', 'core.hooksPath'])).split('\0').slice(0, -1);
 /// values.filter((value) => !isWrapperHooksPath(value)).at(-1);
 /// ```
 fn configured_hooks_directory(text: &str) -> Option<String> {
+    // Git terminates every value with a NUL, so the empty piece after the last one is no value of its own.
+    let listing: &str = text.strip_suffix('\0').unwrap_or(text);
+    if listing.is_empty() {
+        return None;
+    }
     let mut chosen: Option<String> = None;
-    for line in text.lines() {
-        let value: String = String::from(line);
-        if crate::traditional_hook_warning::is_wrapper_hooks_path(value.as_str()) {
+    for value in listing.split('\0') {
+        if crate::traditional_hook_warning::is_wrapper_hooks_path(value) {
             continue;
         }
-        chosen = Some(value);
+        chosen = Some(String::from(value));
     }
     return chosen;
 }
@@ -346,8 +356,10 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
     let (Some(common), Some(git_directory)) = (lines.next(), lines.next()) else {
         return Err(String::from("git rev-parse did not report the common and Git directories"));
     };
-    // Every value of the key, because the wrapper's own command-scope entry is placed last by Git.
-    let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get-all", "core.hooksPath"]).await? {
+    // Every value of the key, because the wrapper's own command-scope entry is placed last by Git; NUL-delimited, so a
+    //  value holding a line break stays one value.
+    let configured_text: Option<String> =
+        match query(context, cwd, &["config", "--type=path", "--null", "--get-all", "core.hooksPath"]).await? {
         // An empty value is the person's own reset, and it names no directory.
         Some(text) => match configured_hooks_directory(text.as_str()) {
             Some(value) if value.is_empty() => None,
