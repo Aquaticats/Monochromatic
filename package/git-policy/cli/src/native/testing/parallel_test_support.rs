@@ -19,6 +19,44 @@ use std::time::Duration;
 /// How long an arrival waits for the others when the control expects them to come.
 pub(crate) const PATIENCE: Duration = Duration::from_secs(10);
 
+/// The patience of a wait that takes no clock:
+/// `wait_timeout_while` has no untimed form,
+/// so the bound it is given is one no run reaches,
+/// and the
+///  control's own deadline (`finished_within_at`) is what turns a wait that never finishes into a failure.
+const NO_CLOCK: Duration = Duration::from_secs(60 * 60);
+
+/// What:
+///  `work`'s value,
+/// or nothing when it did not finish within `deadline`;
+/// the thread that runs it is abandoned with the process.
+/// Why:
+///   A control whose work waits on another job's work needs a bound that covers that work,
+/// which costs what the
+///  fixture and the host make it cost;
+/// a fixed short clock over work fails a busy host while the work itself is fine,
+/// so
+///  such a control states its own deadline and the wait it guards takes no clock.
+/// A panic inside the work is the work's own failure and is raised here as itself,
+/// so this
+///  deadline cannot be blamed for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const result = await finishedWithinAt(150_000, () => refresh()); // undefined when the deadline passed
+/// ```
+pub(crate) fn finished_within_at<T: Send + 'static>(deadline: Duration, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (sender, receiver) = std::sync::mpsc::channel::<std::thread::Result<T>>();
+    std::thread::spawn(move || {
+        let _ = sender.send(std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)));
+    });
+    return match receiver.recv_timeout(deadline) {
+        Ok(Ok(value)) => Some(value),
+        Ok(Err(payload)) => std::panic::resume_unwind(payload),
+        Err(_passed_or_abandoned) => None,
+    };
+}
+
 /// How long the control for a serial run waits at a point it can never pass.
 pub(crate) const SERIAL_PATIENCE: Duration = Duration::from_millis(200);
 
@@ -107,6 +145,26 @@ impl Rendezvous {
     pub(crate) fn wait_for_target(&self) -> bool {
         let count = self.arrived.lock().expect("lock");
         return self.wait_while_short(count);
+    }
+
+    /// What:
+    ///  Wait without arriving until the target number have arrived,
+    /// with no clock that a run could reach.
+    /// Why:
+    ///   A control of one job of a pipeline that waits for the *work* of another cannot bound that wait with a clock:
+    ///  the work costs what the fixture and the host make it cost,
+    /// so a fixed patience fails a busy host while the pipeline is fine.
+    /// Such a control bounds the whole run instead (`test_support::finished_within_at`),
+    /// which turns a job that
+    ///  never arrives into a named failure rather than a hang.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// point.waitForTargetWithoutAClock();
+    /// ```
+    pub(crate) fn wait_for_target_without_a_clock(&self) {
+        let count = self.arrived.lock().expect("lock");
+        let (_guard, _elapsed) = self.changed.wait_timeout_while(count, NO_CLOCK, |seen: &mut usize| { return *seen < self.target; }).expect("wait");
     }
 
     /// How many threads have arrived at the point;
