@@ -10,6 +10,8 @@ const config: NodeFlavorConfig = nodeConfig({
   input: {
     'index': './src/index.ts',
     'drive-pi-subagent': './src/drive-pi-subagent.ts',
+    'watch-overdue-pi-runs': './src/watch-overdue-pi-runs.ts',
+    'check-in-on-pi-runs': './src/check-in-on-pi-runs.ts',
   },
 },);
 

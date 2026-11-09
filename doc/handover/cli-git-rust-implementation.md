@@ -59,3032 +59,140 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-Installed versions and the release in flight were written 2026-11-04T14:08:00-05:00 against main `651fc7b9a5`;
-the branch and agent lists below them are older and carry their own times.
+### Where the work stands (2026-11-09T00:11:22-05:00)
+
+Merged since the last record here:
+`71795ab77a`,
+the audit of the wrapper's entry and service lifecycle route
+(`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`);
+`a8295d5de8`,
+the second pass over open wrapper issues (`doc/planning/git-wrapper-open-issues-round-2.md`);
+`3e48c84c17`,
+landing and lock controls that read what happened rather than a clock;
+`235972a29e`,
+browser suites that fit their container limits;
+and `6e97ea7777`,
+this handover's stale sections moved to their canonical docs.
+
+Issues closed against main in this stretch:
+634,
+635,
+4576,
+4563,
+6003,
+2135,
+2108,
+4530,
+4585,
+4505,
+4514,
+4515 and 4516.
+Issue 6005 stays open for its surviving instance,
+`landing/service_handoff.rs` against `service_work_handlers_replanning_and_acceptance.rs`.
+
+#### The 860 move
+
+The cut-over finished at 2026-11-09T05:27:00+00:00:
+`package/repository-move/cli/src/run-repository-move.ts status` records every stage through `c28-ide-through-link`.
+Kopia no longer backs this repository up,
+by the owner's word recorded in `questions-for-the-owner.md`,
+so a folder vanishing during a read can no longer fail that stage.
+
+The last checks were made through the link spelling.
+`c27-container-bind` started a container that read the Git folder.
+A container created first and started afterwards did the same (W13 of `doc/planning/repository-on-the-860-drive.md`).
+`c28` opened the installed IDE in a headless nested compositor:
+the file tree listed the repository,
+`README.md` opened,
+and a content search returned matches from `package/git-policy/cli/SPEC.md` and other files.
+That IDE shows the physical path `/var/mnt/encrypted/repository/Monochromatic/README.md`,
+so it resolves the link rather than keeping the spelling it was given,
+as the stage's text says it does.
+Its language servers did not start in that check,
+which used an empty settings folder so the run left the owner's alone;
+`mise` reported no global version there.
+They were not otherwise checked through the link.
+
+`c27-container-bind` stopped because the repository's top folder carries the private label
+`container_file_t:s0:c311,c738`,
+which SELinux enforces against any container that did not get that label.
+Every container this repository runs passes `--security-opt label=disable`,
+and the stage did not.
+It now does (`73428ae89d`).
+What gave the folder that label is not known.
+
+`922fa7d1fb` merged the move tool's fixes,
+and `cargo-shadow-lean.timer` is running again.
+The old tree kept for the rollback stays until the owner deletes it.
+
+#### Reviews and landings in progress (2026-11-09T00:56:19-05:00)
+
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`,
+  at `66c35466ea`:
+  the cross-vendor review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-2-sol.txt`)
+  says a rewrite reported as never started can stay queued in Tokio and run later,
+  so the report's promise that the index stayed as it was can be false.
+  Not ready to merge.
+  Run 3 of its agent is on that finding.
+- `fix/git-policy-cli-push-route-records-and-ceilings`,
+  at `5b0393dbf6`:
+  its agent reports all eleven audit findings fixed,
+  and a cross-vendor review is running.
+- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
+  at `3509de3e01`:
+  the cross-vendor review of its latest round
+  (`${HOME}/temp/agent/reviews/landing-route-round-3-sol.txt`)
+  names seven more defects,
+  among them a failed reset that commits a deletion and an approved push left stranded.
+  Not ready to merge.
+  This one waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `landing-route-findings-fixed` as run 4,
+  with `landing-route-findings-fixed-round-4-prompt.md` and the session file named in run 3's `summary.json`.
+- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
+  at `493e72d1e9`:
+  the library suite passed 4835 of 4835.
+  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/copy-records-round-5-sol.txt`)
+  names three more ways a new worktree can end up unfilled or filled by the wrong command,
+  so it is not ready to merge.
+  This one waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `copy-route-records-before-git` as run 6,
+  with `copy-route-records-round-6-prompt.md` and the session file named in run 5's `summary.json`.
+  The fix for a ladder rung that already made its destination has no test of its own,
+  and the two-process race has no failing test,
+  because nothing can hold a wrapper at a named step.
+- `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
+  the cross-vendor review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-1-sol.txt`)
+  names defects in the stop,
+  among them a blocked notice write that keeps the command from returning and a signal that can reach a reused process id.
+  Not ready to merge.
+  This one waits for a free agent slot too:
+  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 2,
+  with `scratch-commit-ceiling-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  It raises the ceiling to 16,332 ms,
+  makes the stop keep looking for a step that starts late,
+  and logs what ran below each step.
+  Of the three slow commits,
+  171,383 ms and 26,256 ms are the retry index without stat data,
+  fixed in 0.6.1-alpha.4.
+  The cause of 36,651 ms is not established.
+- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`,
+  `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`,
+  `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
+  and `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
+  their agents are working through their reviews.
+
+Running agents are the `pi-*.service` user units,
+each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.32 (`toolchain.lock.json`,
-  row `cargo:monochromatic-git-policy-cli`,
-  lock commit `e6bb6fbb62`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.32,
-  shadowing git at /usr/bin/git" over Git 2.56.0).
-  Installed by `upgrade-wrapper.ts 0.5.32`:
-  the 0.5.31 service retired on the client's request,
-  0.5.32 started (protocol 7),
-  and the sample commit on main landed in 1680 ms in all,
-  1215 ms of it provisioning the new service (landing 31 ms,
-  lock hold 28 ms).
-  Its commit service unit runs with systemd's defaults
-  (`systemctl --user show` at 2026-11-03T10:47-05:00:
-  `MemoryMax=infinity`,
-  `MemoryHigh=infinity`,
-  `CPUQuotaPerSecUSec=infinity`,
-  `IOWeight` not set,
-  `TasksMax=75462`,
-  systemd's own default).
-- `monochromatic-mpm-shadow` 0.2.5,
-  `monochromatic-pnpm-shadow` 0.1.1,
-  `monochromatic-search-shadow` 0.2.1,
-  `monochromatic-file-enforcer-cli` 0.1.1,
-  `monochromatic-lint` 0.5.0 (all from the same lock file).
-- `monochromatic-dependency-catalog` 0.2.0 (with `trustLockfile`) was published 2026-11-04T18:58:16Z,
-  after the cargo-shadow merge reached main;
-  0.1.0 is the earlier version.
-- `monochromatic-cargo-shadow` 0.1.0 was published 2026-11-04 with the owner's `cargo login` token
-  (`mise run //package/cargo-shadow/cli:publish`);
-  Trusted Publishing config 30988 (`Aquaticats/Monochromatic`,
-  `cargo-publish.yml`,
-  no environment,
-  `repository_owner_id` 343218767) was created through the API.
-  It is not yet in `toolchain.lock.json`.
-- The global toolchain lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`) was moved to wrapper 0.5.25
-  on
-  2026-11-03;
-  its copy from before that move is `~/temp/agent/global-lock/toolchain.lock.json.before-2026-11-03T0715`.
-
-### Release in flight
-
-Owner,
-2026-11-04T17:50-05:00 (approximate time of reading),
-verbatim:
-"Don't discard work,
-but aside from layout + linting fixes,
-pause everything else - but let work already in flight run to their natural conclusions.
-Layout + linting fixes are the biggest priority."
-So only the source layout (issue 6261,
-principles in AGENTS.md MKY,
-LYD,
-LYF) and lint fixes go forward.
-In-flight steps finish,
-commit and stop:
-branch-write round 5 (re-gate with main,
-`-v2` bundle;
-its review not started),
-the commit-protocol models round (main merge and the fix in progress;
-reviews A and B of step3c left for later),
-cargo-shadow round 21 (the fix in progress;
-the rest written to its resume point),
-the lean build directories proposal (finished as a proposal,
-nothing built),
-and the claim-watch fix review already running.
-Paused,
-not started:
-release 0.5.35 (one executable,
-claim-watch fixes and the startup wake are on main;
-round 5 not yet),
-the mpm-shadow release,
-the TypeScript port,
-new review rounds,
-and the `semantic-line-breaks` findings (owner:
-"Put the semantic line break findings on hold.").
-
-Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
-
-- `monochromatic-file-enforcer-cli` 0.1.2 is published (bump `fadde01fff`,
-  crates.io 2026-11-04T20:41:44Z),
-  locked and installed (`7929d95d65`);
-  `file-enforcer --version` prints 0.1.2.
-  0.1.1 had been built with dependency-catalog 0.1.0 and rejected `rust-catalog.toml` once `912e82a0c7` set `trustLockfile`
-  ("is not a catalog table or a supported setting"),
-  so `mise run sync:files` failed on main;
-  `bce22f7456` had moved the cli source to `=0.2.0` without a version bump.
-  CLAUDE.md is regenerated and carries SUF.
-- The installed wrapper 0.5.34 is not the release archive's binary:
-  the archive `monochromatic-git-policy-cli-0.5.34-x86_64-unknown-linux-gnu.tar.gz` holds only `cli-git-native`
-  (13,728,056 bytes) and `README.md`,
-  while the install directory `~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/0.5.34/bin/`
-  holds `cli-git-native` (13,710,088 bytes) and `cli-git-service`.
-  Cause:
-  the crate declares two `[[bin]]` targets since `e9eaf63d14` (2026-11-01),
-  the release job builds and packages only `cli-git-native` (`cargo-publish.yml:2506`),
-  cargo-binstall needs every `[[bin]]` in the archive,
-  and mpm-shadow runs `cargo binstall` without `--disable-strategies compile`
-  (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs:61-84`),
-  so it compiled the crate from source.
-  The same archive fails CI's `catalog-specifiers` job (`catalog-specifiers.yml:58` passes `--disable-strategies compile`:
-  "bin cli-git-service is not found");
-  that job's last success was 2026-11-01T14:34:19Z (`72541fe39c`).
-- Owner,
-  2026-11-04:
-  "Bazel doesn't need to distribute as 2 bins."
-  The service becomes a mode of `cli-git-native`;
-  agent `a26d7ef8229ffbeb2` on branch `fix/git-policy-cli-one-executable`
-  (worktree `~/temp/agent/cli-git-one-executable`);
-  then gate,
-  merge,
-  release 0.5.35,
-  and check that `catalog-specifiers` goes green.
-- Owner,
-  2026-11-04:
-  "mpm-shadow should still be able to compile tools that are not controlled by this repo."
-  Queued (the five agent slots were full at 15:49):
-  mpm-shadow disables cargo-binstall's compile strategy for crates this repository publishes
-  (its existing `monochromatic-` prefix test,
-  `cargo_installs.rs:70`,
-  or the crate-release registry)
-  and keeps the fallback for third-party crates;
-  red test first;
-  a failing repository crate names the crate,
-  version,
-  binstall's reason and the remedies;
-  audit every `cargo-binstall` row with a dry run;
-  release only after wrapper 0.5.35 is locked,
-  because a fresh install of 0.5.34 would then fail.
-  Owner's clarification:
-  "It should still BE ABLE TO compile tools this repo doesn't control when needed."
-  CM7 rewritten as the owner chose ("Rewrite CM7 (Recommended)",
-  `5f03ec99b3`).
-  Agent `a97a9a4124bdb9776` started 2026-11-04T15:52-05:00 on branch
-  `fix/mpm-shadow-cli-never-compiles-a-repository-crate`
-  (worktree `~/temp/agent/mpm-shadow-no-compile`).
-- Models agent (`a9c775c9196f1d836`) finished the step-2b fixes and plan step 3 behind `--lane`
-  (models tip `45bee5ba00`,
-  design tip `1fc759ba80`;
-  `native:test:model` 605 passed,
-  4 leaky;
-  map 66 covered,
-  20 narrower,
-  9 historical,
-  13 not yet).
-  Cross-vendor reviews running:
-  `~/temp/agent/reviews/commit-models-step3-sol-a1.txt` (code against whole files),
-  `-a2.txt` (component tests),
-  `-b.txt` (models,
-  map,
-  handover).
-  Its `--lane` options in `service_main.rs` will conflict with the one-executable change;
-  that agent was told to keep the service options a pass-through.
-  The `-a2.txt` review (component tests) returned "Sufficient after named additions,
-  not sufficient as is"
-  with one product risk (blocking doorbell sends can wait without a bound);
-  sent to the models agent at once,
-  which resumed even with five other agents running
-  (resuming a finished agent was not refused by the five-agent limit).
-  `-a1.txt` ("not correct as is":
-  a disposal revalidation hole and the doorbell blocking clients) and `-b.txt`
-  ("correct after named fixes") were sent the moment each landed.
-  The fix round is done (models tip `f98a499e8d`;
-  `native:test:model` 625 passed,
-  none leaky;
-  both clippy tasks clean;
-  `source_guard` 39 of 39):
-  revalidation reads the newest record's whole retained set;
-  the doorbell is a socket file `service.ring` in the lane directory with non-blocking sends and one owner by `service.lock`;
-  a double close in `launch_detached_preparing` (a core dump per returned helper in debug builds) fixed;
-  every false-green window of `-a2.txt` checked with its guard removed;
-  one surviving mutation ("a second service may own the lane") stated as redundant with the live-socket refusal.
-  Not done (stated in its handover):
-  the flusher lock spans an until-empty sweep loop.
-  Cross-vendor reviews:
-  `~/temp/agent/reviews/commit-models-step3b-sol-a.txt` (diffs of code,
-  tests,
-  models,
-  handover) "correct after named fixes—not approved as-is" ("The primary disposal fix is convincing.")
-  and `-sol-b.txt` (whole current files) "correct after named fixes—not correct as-is";
-  both sent to the models agent,
-  which is fixing them.
-- cargo-shadow 0.1.1 as `cargo` blocked every wrapper gate:
-  `bin/native-scanner-snapshot.ts` runs `cargo vendor --manifest-path` on a staged copy outside the work tree,
-  and the shadow counted all 281 locked versions of an unchanged lockfile as new and refused 4 on trust level
-  (log `~/temp/agent/gate/gpc-gate-branch-write-round4-retry-20261104T155841-0500.log`).
-  The `cargo` link is off (`8917a3f221`;
-  the install left the old symlinks,
-  removed by hand in the main checkout and in the branch-write worktree;
-  that stale-link defect went to the mpm-shadow agent).
-  The cargo-shadow agent has the vendor defect as top priority;
-  the link returns after its fixed release passes the launcher trace again.
-- Branch-write round 4 (`aa0fee0c2cf70bb31`,
-  tip `07076dc23b`,
-  host suite 4874/4874) re-gated without the link:
-  unit `gpc-gate-branch-write-round4-no-cargo-link-20261104T160436-0500`;
-  review `~/temp/agent/reviews/branch-write-r4-sol.txt` returned "correct after named fixes" (B,
-  the side-ref reflog proof,
-  still lacks a valid safety proof).
-  That gate failed 4873/4874:
-  `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
-  with `thread 'cli-git-durable' ... panicked at library/std/src/thread/scoped.rs:206:46: failed to spawn thread: ... Resource temporarily unavailable`
-  and the same panic on `main`;
-  the test passed on the round 3 and startup-wake gates.
-  Not a round 4 change (its diff adds no scoped spawn):
-  `landing/service_durable.rs` `sync_batch` (line 60) and `force` (line 132) call `scope.spawn`,
-  which panics when a thread cannot start;
-  shipped since `eaad11a3a6` (0.5.28 and later).
-  The fix and an audit of every production `std::thread::scope` site go out in the next release.
-  Sent to the branch-write agent first,
-  before the review fixes,
-  on its round 5 branch (`fix/git-policy-cli-side-ref-proof-round5`,
-  worktree `~/temp/agent/branch-write-round5`);
-  round 4 and round 5 merge together once that gate passes.
-  Owner decision on the earlier single service,
-  2026-11-04 (question tool):
-  "A:
-  fail,
-  retry (Recommended)",
-  which round 4 built;
-  record it in `doc/planning/cli-git-no-unbounded-waits.md` and `SPEC.md` when the branch merges.
-- Service startup wake (`aca6e78c5ffbd5680` done;
-  branch `fix/git-policy-cli-service-recovers-claims-without-a-wake`,
-  gate 4847/4847 on the Rust tip `f2dc8833f8`,
-  e2e kill scenarios green on seeds 1 to 3):
-  main merged in cleanly,
-  gate `gpc-gate-service-startup-wake-with-main-20261104T160613-0500` running,
-  review `~/temp/agent/reviews/service-startup-wake-sol.txt` returned "correct after named fixes"
-  (fixes on `fix/git-policy-cli-claim-watch-identity-and-errors`);
-  the gate passed 4866/4866 and the branch is merged to main.
-  Main now holds it together with the leaked one-executable commit,
-  first gated together by the one-executable branch's gate.
-- QWD tightened as the owner chose ("Tighten QWD (Recommended)",
-  `3abcbf585e`).
-- Leak to main:
-  the one-executable and mpm-shadow branches were created with `git worktree add -b <branch> <path> origin/main`,
-  which set `origin/main` as their upstream,
-  and the wrapper's auto-push sends commits to the upstream when the names differ,
-  so `9b360150c0` (service as a mode of `cli-git-native`,
-  not gated),
-  the mpm-shadow never-compile commits (`ae2f2210bc`,
-  `0154f65dea`,
-  package tests 546/546) and its link retirement (`5b7213a46a`,
-  `c71ad82ba1`) reached origin/main.
-  Both upstreams were removed at 2026-11-04T16:20-05:00.
-  Owner (question tool):
-  "A:
-  keep,
-  gate first (Recommended)":
-  the one-executable branch is gated before merge and before 0.5.35.
-  Future briefs start branches from a commit hash or local `main`,
-  or pass `--no-track`.
-- Owner on cargo-binstall's quick-install (question tool,
-  after a clarification):
-  "A:
-  one flag,
-  our crates (Recommended)":
-  crates this repository publishes get `--disable-strategies compile,quick-install`,
-  third-party crates keep the defaults;
-  owner's note:
-  "The point of cargo-binstall is for us to not manually point to gh releases ourselves!"
-  Sent to the mpm-shadow agent.
-  Its audit:
-  only wrapper 0.5.34 among repository rows fails with compile disabled (archive lacks `cli-git-service`);
-  release mpm-shadow after 0.5.35 is locked.
-- cargo-shadow round 19 merged to main (`bc671de431`;
-  gate 648/648;
-  staged copies in ignored directories go to cargo untouched;
-  running-image identity from `/proc/self/exe`;
-  K1 unreadable inventory reported as unknown);
-  next:
-  release 0.1.2,
-  relock,
-  launcher trace,
-  put the `cargo` link back,
-  then the fifth certification pass (bundles `~/temp/agent/reviews/cargo-shadow-cert5-*.txt`,
-  15 groups).
-  0.1.2 published (crates.io 2026-11-04T21:23:13Z,
-  publish run 41915321457 built from `b96ca268de`),
-  locked and installed without the `cargo` link (`3a59c6cc1c`).
-  The launcher trace (`~/temp/agent/cgs-installed-launcher-trace.ts`) passed at 2026-11-04T16:40-05:00:
-  `cargo --version` and `cargo metadata` exited 0,
-  the link and the shadow each ran once per command,
-  and the real cargo ran only through `.cache/toolchain-bin/cargo`
-  (three times for `metadata`:
-  the shadow's own lockfile checks plus the command).
-  The `cargo` link is back (`c5e3d0d268`);
-  in the repo environment `cargo --version` prints `cargo-shadow 0.1.2, shadowing cargo at .../.cache/toolchain-bin/cargo`.
-  Not yet seen:
-  a wrapper gate's `cargo vendor` step through the link (the next gate an agent launches shows it).
-- Fifth cargo-shadow certification pass:
-  all 15 groups "not certified" (`~/temp/agent/reviews/cargo-shadow-cert5-sol-<n>.txt`).
-  Groups 1,
-  2,
-  4,
-  7,
-  9 and 14 ran without the manifest (packet plus manifest over 250 KB),
-  and several say the bodies the manifest assigns were not in the packet;
-  the rest are findings.
-  Group 15 (launcher):
-  the replacement test injects a fixture identity (false green);
-  the chosen candidate stays a pathname,
-  so a path swapped to the shadow between the check and the exec starts the shadow again;
-  the no-record launcher test allows one to six launcher runs.
-  All sent to the cargo-shadow agent (`ae0fbdf78c31bd757`) with the packet-splitting suggestion.
-  Owner decisions,
-  2026-11-04 (question tool):
-  re-entry through an unrecorded launcher,
-  option A with the note "A,
-  but make the help message descriptive enough that even a monkey can understand and execute it."
-  (the second cargo-shadow exits 2 before any work,
-  like the Git wrapper's arrival stop in `package/git-policy/cli/SPEC.md`,
-  and the bounded fallback goes away);
-  the nine delegated picks of 2026-11-03 (`doc/planning/cargo-shadow-update.md`,
-  "Delegated picks of 2026-11-03"):
-  "Keep all nine (Recommended)",
-  so they are owner decisions now.
-  Both sent to the agent,
-  which records them in the planning doc.
-- cargo-shadow round 20 (tip `7d66717bb6`,
-  gate 652/652,
-  clippy clean) merged to main (`fd6a3cd183`):
-  the second start stops at once with exit 2 (`src/arrival.rs`),
-  and a test runs both printed fixes as printed;
-  the chosen real cargo is checked again before each start.
-  0.1.3 published (crates.io 2026-11-04T21:59:45Z,
-  publish run 41921008620 built from `a9901d3503`),
-  locked and installed as `cargo` (`9c51ac07f2`) after the launcher trace passed again
-  (`~/temp/agent/cgs-trace-013.log`).
-  Sixth certification pass (14 groups,
-  every packet with its manifest,
-  `~/temp/agent/reviews/cargo-shadow-cert6-sol-<n>.txt`):
-  groups 2 and 4 "certified after named fixes",
-  the other 12 "not certified";
-  all sent to the agent.
-  Round 21 (agent `ae0fbdf78c31bd757`):
-  the check-to-start window is closed for a compiled real cargo by starting the checked file through its descriptor
-  (`execveat` with `AT_EMPTY_PATH`;
-  the real cargo here is rustup's ELF proxy);
-  scripts keep the pathname and the re-check,
-  because `man 3 fexecve` and `man 2 execveat` say a script started through a close-on-exec descriptor fails with
-  `ENOENT`,
-  and a hit there ends at the arrival stop.
-  Coordinator's reading,
-  not an owner question:
-  the owner's rule "We should never invoke ourselves recursively.
-  That's bad design.
-  Audit,
-  remove,
-  and ban that design aggressively."
-  determines it.
-  Then the open list of the fifth pass and every sixth-pass group's named fixes,
-  groups 2 and 4 first.
-- Worktree adds into `~/temp/agent` take over 15 minutes and fill the disk queue:
-  `~/temp/agent` is `/var/mnt/encrypted/temp/agent`,
-  another filesystem than the main checkout,
-  so the wrapper's add falls to rung 3 (Git's checkout,
-  then the ignored-state copy of `node_modules`,
-  `target/`,
-  `dist/`,
-  local configuration and `.cache/`,
-  README "worktree add" section) as a byte copy.
-  Measured 2026-11-04T16:30-05:00 with `/proc/<pid>/io`:
-  the branch-write round 5 and claim-watch adds had each read about 52 GB and written about 49.5 GB,
-  three ran at once,
-  two waited in `blk_mq_get_tag`,
-  and `/proc/pressure/io` full avg300 was 22%.
-  The same add under `.claude/worktrees/` was a snapshot in seconds (trace worktree `cgs-trace-892d1fa0`).
-  The trace script and new briefs now put worktrees under `.claude/worktrees/`.
-  Measured with `du` (`~/temp/agent/worktree-copy-sizes.txt`,
-  1 KiB blocks):
-  `package/ide/app/target` 40,582,652,
-  `package/nested-wayland-session/cli/target` 14,144,844,
-  `package/git-policy/cli.fuzz/target` 3,991,544,
-  `node_modules` 3,256,040,
-  `.cache` 52,148.
-  Owner decisions,
-  2026-11-04 (question tool,
-  after asking what "wrapper fix" meant):
-  on the copy,
-  "No lefting out build outputs.
-  The real fix is to make sure every build dir is always lean.
-  That's not the wrapper's responsibility,
-  but I'm assigning this to you to.";
-  on an AGENTS.md rule for worktree placement,
-  "No exposing underlying machinary to always-loaded context.";
-  then,
-  "(debuginfo level,
-  incremental off for dependencies - no messing with these."
-  and
-  "other profile settings (split-debuginfo,
-  strip,
-  codegen-units) should be off-limits too".
-  So the wrapper's copy stays,
-  no AGENTS.md rule is added,
-  and no build profile setting changes (debuginfo level,
-  incremental,
-  split-debuginfo,
-  strip,
-  codegen-units).
-  Agent `a0cd49729007486f4` measures what each build directory holds,
-  researches mechanisms that keep them lean without changing what a build produces,
-  and writes `doc/planning/lean-build-dirs.md` with ranked options and a cross-vendor review;
-  it deletes nothing;
-  the owner picks before anything is built.
-- One executable merged to main (`ab40458516`,
-  branch tip `4a46ac09bc`,
-  gate 4880/4880;
-  main was ahead only by doc commits).
-  It fixed main's red `lint:clippy` (`service_executable` unused) and the three main-only test failures that blocked the
-  branch-write round 5 and claim-watch gates;
-  `lint:clippy` on main after the merge exits 0.
-  Both agents were told to merge main and re-gate;
-  round 5 restores `service_executable` and regenerates its review bundle (`-v2`).
-- Owner,
-  2026-11-04,
-  on the source layout (after stopping the issue 6261 child session:
-  "I told the layout subagent to stop because it couldn't ever produce something good enough.
-  Lets do this ourselves."):
-  "Principle 1:
-  Lint issues need to be taken care of asap.
-  Principle 2:
-  every name of a dirent must be understandable to a monkey.
-  If jargon is unavoidable,
-  the file's top doc must explain everything,
-  in a way that would make any monkey understand.
-  Principle 3:
-  Who depends on who must be immediately visible from looking at the file structure."
-  and "Consider monkey someone who only knows what git commit and git push are."
-  Then "Put the semantic line break findings on hold.
-  They aren't the most serious issues right now."
-  Question tool answers:
-  TypeScript in the Rust package "A:
-  port all to Rust (Recommended)";
-  structure "B:
-  numbered layers (Recommended)" with the note "Don't be afraid of using extremely long names.
-  B,
-  but make sure a monkey even just looking at one thing know what it means.";
-  granularity "Files too,
-  checked (Recommended)";
-  scope "Repo-wide rules (Recommended)",
-  written as AGENTS.md MKY,
-  LYD and LYF (`b1955e0b49`,
-  CLAUDE.md regenerated).
-  Measured on main (`~/temp/agent/issue-6261/scc/`,
-  comments and strings excluded):
-  554 production modules,
-  2,296 references between them,
-  266 in one dependency loop (plus loops of 4 and 2);
-  the best order found leaves 82 references pointing backwards (a heuristic upper bound,
-  mostly inside one folder:
-  15 in `landing/`,
-  7 in `push/`,
-  6 in `worktree/`).
-  The flat glob re-exports in `lib.rs` (`pub use <folder>::*;`) have to go so every `use` names its folder.
-  Lint counts on main before the fixes (`~/temp/agent/issue-6261/lint-now.log`,
-  `mlint-now.log`):
-  package `lint` had 1 clippy error and 6 oxlint errors with 14 warnings (now 0 errors and 1 pre-existing warning,
-  `8f475bf9e9`);
-  the repo linter reports 31,009 `markdown/semantic-line-breaks` (on hold),
-  2,528 `rust/avoidable-closure` warnings,
-  37 `rust/max-lines` and 3 `rust/tests-in-sidecars` errors.
-  The package holds 142 TypeScript files (34,270 lines:
-  79 in `e2e/` from 2026-09-25,
-  63 in `bin/`),
-  29 of them TypeScript tests,
-  all to be ported to Rust.
-  Update 2026-11-04T18:40-05:00 (main `7663284896`):
-  a group order with no upward reference is found and committed with its group map (`bb9d8f3505`,
-  `doc/planning/cli-git-source-layout.md`,
-  section "Group order found,
-  from the bottom");
-  a rescan of main after the branch-write merge gives the same result;
-  27 loops between files inside groups remain (79 files).
-  Branch-write round 5 is merged (`de36a92311`,
-  gate 4927/4927 at `258e0a2e14`).
-  The three `rust/tests-in-sidecars` errors are fixed on main (`7663284896`):
-  the inline test-only helper modules moved to `*_test_support.rs` files under the same module names.
-  Four lint agents work from `7663284896`,
-  one disjoint folder set each,
-  on `rust/avoidable-closure` and
-  `rust/max-lines` (brief `~/temp/agent/issue-6261/lint-brief.md`):
-  `refactor/git-policy-cli-lint-worktree-folders` (worktree,
-  worktree_copying),
-  `refactor/git-policy-cli-lint-service-landing-and-runner-folders` (landing,
-  service,
-  transaction,
-  invocation,
-  process,
-  foundation),
-  `refactor/git-policy-cli-lint-reader-push-and-lock-folders` (repo_read,
-  subvolume,
-  push,
-  index,
-  lock),
-  `refactor/git-policy-cli-lint-command-and-policy-folders` (every other folder).
-  Oversized files are split by these agents,
-  with each folder's file-loop list so a split breaks a loop rather than
-  adding one;
-  the layout pass renames and moves files afterwards.
-  The coordinator merges the four branches and gates the result once.
-  The owner then added AGENTS.md VGW (no vague word such as `native` alone in a name;
-  "helper_<specific> is fine")
-  and answered the layout questions:
-  plain-sentence folder names (the draft in
-  `doc/planning/cli-git-source-layout.md`,
-  `src/native/` gone),
-  "hand back 'run this next'" in place of the two
-  in-process recursions,
-  and all four smaller call changes.
-  A fifth agent builds the LYD and LYF checks into `monochromatic-lint`,
-  off by default
-  (branch `feat/monochromatic-lint-folder-uses-and-file-loops`,
-  brief `~/temp/agent/issue-6261/layout-lint-brief.md`).
-  Update 2026-11-05 (main `1942f0de53`):
-  the fifth agent's rules `rust/folder-uses-links` and
-  `rust/file-order-in-folder` are merged to main (78 layout tests in the container,
-  810 native),
-  off unless a config block selects them;
-  measured on the wrapper at `8c9eb6e035`:
-  364 findings
-  (288 missing `uses/` links,
-  27 glob re-exports,
-  1 folder loop,
-  21 file loops,
-  27 top docs without a file list).
-  Open to veto from that agent:
-  `mod.rs` and other crate roots are left out of the in-folder loop check.
-  Asked the owner async on 2026-11-05 (owner:
-  ask "async",
-  not with the question tool),
-  pick adopted at once:
-  index files (`mod.rs`,
-  `lib.rs` as index) hold only the top doc,
-  `mod` lines and re-exports,
-  anything else is a
-  finding;
-  a name reached through a re-export counts as a use of the file that defines it.
-  An agent builds it on `feat/monochromatic-lint-index-files-hold-only-declarations`
-  (worktree `.claude/worktrees/lint-index-files-only-declarations`,
-  from `bec267799f`);
-  the owner's veto stays open.
-  Merged to main 2026-11-05 (840 tests,
-  108 in the container).
-  A use through a re-export counts for both the
-  re-exporting file and the defining one (replacing the edge lost a real 15-file loop in `landing/`).
-  The entry-point check for `main.rs` beside `lib.rs` and `src/bin/*.rs` is merged to main too (842 tests,
-  110 in the container);
-  repo-wide survey:
-  74 entry-point and 107 index-file findings outside the wrapper,
-  none in it.
-  The `exclude = ["**/uses"]` for the wrapper's `Cargo.toml` is still to add through file-enforcer.
-  The worktree lint branch is done (`refactor/git-policy-cli-lint-worktree-folders` at `8d19c13a28`):
-  `worktree/` and `worktree_copying/` have zero `rust/avoidable-closure` and `rust/max-lines` findings,
-  11 closure statements carry an `expect` documented in
-  `src/native/worktree/worktree_closure_lint_suppressions.md`,
-  host tests 582 passed,
-  clippy clean,
-  no container gate run;
-  it waits for the other three branches,
-  then one merge and one container gate.
-  The reader,
-  push and lock branch is done too (`refactor/git-policy-cli-lint-reader-push-and-lock-folders` at
-  `0b422a9115`):
-  zero `rust/avoidable-closure` and `rust/max-lines` in repo_read,
-  subvolume,
-  push,
-  index and lock;
-  19 `expect`s in 11 files,
-  documented in `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`;
-  host tests 1178 passed,
-  clippy clean,
-  no container gate.
-  Open from that branch:
-  one run of `lock::` and `push::` failed three
-  `landing::service_index_lock::claim_tests::*` tests ("took the whole ceiling") that passed on rerun;
-  the agent called it host load without measuring,
-  which the repository treats as a contention or ordering defect
-  until measured;
-  the merged gate must check these three,
-  and a failure there is a defect to find.
-  Its seam closures (`dyn Fn` parameters in subvolume,
-  push and `start_retry`) stay suppressed;
-  turning them into traits changes signatures used by `worktree/worktree_clone.rs` and test sidecars.
-  The command and policy branch is done too (`refactor/git-policy-cli-lint-command-and-policy-folders` at
-  `0595efcd4b`):
-  zero findings of both rules in its 17 folders,
-  10 `expect`s documented in
-  `doc/planning/cli-git-closure-lint-suppressions.md`,
-  1507 host tests passed with the same test names as before,
-  clippy clean,
-  no container gate.
-  All three finished branches are merged into `refactor/git-policy-cli-lint-all-folders`
-  (worktree `.claude/worktrees/lint-all-folders`,
-  from main `bec267799f`) without conflicts;
-  clippy passed after the first two.
-  Next,
-  after the service,
-  landing and runner branch lands:
-  merge it,
-  one container gate,
-  merge to main.
-  Update 2026-11-05:
-  that branch is done too (`refactor/git-policy-cli-lint-service-landing-and-runner-folders` at
-  `c97766b11a`;
-  662 closure and 12 max-lines findings to 0;
-  17 `expect`s;
-  lib 4248 passed,
-  binary 678 passed,
-  no container gate).
-  All four branches and `main` are merged into the integration branch,
-  plus the probe-test move
-  (`5983d1603d`) and the `repo_read_hook` import that breaks its loop with `git_metadata` and `transaction_git`
-  (`a8b41b0d62`);
-  clippy is clean there.
-  The container gate runs on `a8b41b0d62` as unit `git-policy-cli-lint-all-folders-gate`
-  (log `~/temp/agent/issue-6261/lint-all-folders-gate.log`).
-  The suppression pass runs in parallel from the same commit on `refactor/git-policy-cli-fewer-closure-suppressions`
-  (worktree `.claude/worktrees/fewer-closure-suppressions`),
-  gated on its own after it lands.
-  Gate result on `a8b41b0d62`:
-  `4930 tests run: 4930 passed (1 slow), 8 skipped` in the container
-  (the slow one is `push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`,
-  which
-  waits past a 60 s cutoff by design);
-  all 27 `landing::service_index_lock::claim_tests` passed.
-  The earlier one-time host failure of three of them stays unexplained;
-  it is still open,
-  to be measured if it recurs.
-  Merged to main 2026-11-05 (483 files).
-  The five lint worktrees are removed;
-  their branches stay.
-  Layout next:
-  an agent drafts the whole target tree on main `977e697ad5` (rescan,
-  crate split,
-  every folder and
-  file old to new with `uses/` lists,
-  every change the moves need,
-  move order,
-  cross-vendor review) into
-  `doc/planning/cli-git-source-layout-target-tree.md`;
-  nothing moves until the owner has seen it.
-  Suppression pass done on `refactor/git-policy-cli-fewer-closure-suppressions` (`cbaa95e9b9`,
-  main merged in at
-  `9829d05863`):
-  `expect(avoidable_closure)` sites 56 to 3,
-  the three in `src/native/foundation/`
-  (`side_by_side_threads.rs` for `std::thread::scope`,
-  `scoped_start.rs` for `spawn_scoped`,
-  `call_catching_panics.rs` for `catch_unwind`);
-  callees take traits on named structs,
-  guards,
-  or an enum instead;
-  blanket closure impls only in test sidecars;
-  lib 4259 and binary 678 passed on the host;
-  8 new tests,
-  none renamed.
-  The four suppression notes become one,
-  `package/git-policy/cli/doc/closure-lint-suppressions.md`
-  (moved 2026-11-05 from `src/native/worktree/worktree_closure_lint_suppressions.md`,
-  `doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`,
-  `doc/closure-lint-suppressions-service-landing-and-runner-folders.md`
-  and `doc/planning/cli-git-closure-lint-suppressions.md`,
-  which are deleted on that branch).
-  Planted controls:
-  of the 46 in `bin/native-planted-controls-{commit,entry,landing}.ts`,
-  3 had a `from` line
-  that matched nothing before the lint merge (checked at `7663284896`) and 7 after it,
-  on main and on the branch
-  (checker `~/temp/agent/issue-6261/planted-from-lines.ts`);
-  an agent repoints the seven on the suppression branch,
-  proving each fails its test when planted.
-  Then:
-  container gate on that branch,
-  `native:mutation:planted` over
-  its image,
-  merge to main.
-  Correction:
-  two of the seven were checker artifacts (it could not read a `from` written as an array `.join` or
-  `String.raw`);
-  the real breaks were one before the lint merge and four through it,
-  and two controls named
-  binary tests with a wrong folder prefix (from `9533c30e80`) so they could never count as noticed.
-  All fixed at `a7e32e118e` (48 controls,
-  0 problems;
-  each planted and seen failing on the host).
-  Container gate running on `a7e32e118e` as unit `git-policy-cli-fewer-closure-suppressions-gate`.
-  Target tree drafted and reviewed cross-vendor (`doc/planning/cli-git-source-layout-target-tree.md` and
-  `-files.md`,
-  last `0912bd4661`);
-  its owner questions are in `doc/handover/questions-for-the-owner.md`.
-  The layout rule's file-list marker now reads across a line break (branch
-  `fix/monochromatic-lint-file-list-marker-may-wrap` at `dd600cb33b`,
-  merged to main;
-  854 tests,
-  122 in the
-  container),
-  because `markdown/semantic-line-breaks` demands a break after its comma.
-  Suppression branch gate on `a7e32e118e`:
-  `4938 tests run: 4938 passed (1 slow), 8 skipped`;
-  planted controls over its image run as unit `git-policy-cli-planted-controls-after-suppressions`
-  (log `~/temp/agent/issue-6261/planted-controls-after-suppressions.log`);
-  merge after they pass.
-  Next for the layout:
-  break the file loops with named changes,
-  split the large groups into folders,
-  name every folder and file plainly with its `uses/` list,
-  rescan after the lint branches land,
-  and put the whole tree before the owner before anything moves.
-  The fuzz crate `package/git-policy/cli.fuzz` compiles again on `fix/git-policy-cli-fuzz-builds-again`
-  (merged to main;
-  `git log --grep=fuzz-builds-again` names the merge):
-  `src/owners.rs` had imported `git_policy_cli::owner_lock_record`,
-  deleted in `ee30d244f6`
-  ("worktree add takes no settlement lock",
-  2026-11-03T02:36:31-05:00),
-  so the `owner_records` target now reads the copy owner token that replaced that record
-  (`worktree_copy_owner.rs`) and the two file names that carry it.
-  Its `lint:types` build check already existed
-  (`039b0e2d47`,
-  2026-11-01T11:08:17-05:00)
-  and failed first on a stale `Cargo.lock`,
-  which is regenerated.
-  The crate split changes every `git_policy_cli::` import the crate uses,
-  so each move keeps `mise run //package/git-policy/cli.fuzz:lint:types` passing,
-  and its compile joins the container gate at the first move.
-- Program rename (task #165;
-  plan `doc/planning/git-policy-cli-program-rename.md`):
-  step 1 built on `feat/git-policy-cli-program-rename` (worktree `.claude/worktrees/git-policy-cli-program-rename`,
-  tip `9dbcb5ce92` with 22 commits on `a7e32e118e`;
-  host lib 4305 and binary 690 passed,
-  clippy clean,
-  planted checker 48/0;
-  container gate not yet run).
-  Two follow-ups sent back to its agent at 2026-11-05T03:58:47Z:
-  (A) the root settings file keeps the name `cli-git.config.jsonc` until step 3,
-  because the installed old program
-  reads only that name (the branch's `f781971973` renamed it,
-  and four later commits on the branch ran with no
-  policies);
-  (B) an open batch an old helper left in the old service state folder must still land after the switch.
-  A done at `0c840d0e17` (root file restored in `d513d1cadd`;
-  host lib 4306 and binary 690 passed,
-  clippy clean,
-  planted checker 48/0;
-  the installed wrapper's `check` over the paths changed since `f781971973` found nothing).
-  Container gate on `0c840d0e17` passed:
-  `4997 tests run: 4997 passed (1 slow), 8 skipped`
-  (unit `git-policy-cli-program-rename-gate`,
-  worktree `.claude/worktrees/git-policy-cli-program-rename-gate`,
-  log `~/temp/agent/issue-6261/program-rename-gate.log`).
-  Final tip `cbb5b463e8` (main merged in as `dfa6798f1f`;
-  13 oxlint findings fixed by restructuring) passed the
-  container gate:
-  `5005 tests run: 5005 passed (1 slow), 8 skipped`.
-  Merged to main as `ca6cd899b3` (2026-11-05T04:41:34Z),
-  with the suppression branch it contains;
-  per the owner
-  ("Mutation runs don't block publish and release",
-  "Treat reviews as async") the planted run and the cross-vendor
-  review of B did not hold the merge;
-  a miss or a finding is fixed forward.
-  Review of B:
-  two cross-vendor runs (10 files,
-  then 4 files with the diff) each timed out after 3600 s with no
-  output;
-  a one-line control prompt answered `ok`,
-  so the reviewer works and the input was too heavy.
-  A third run over only the three fixed source files on main (846 lines) also timed out after 3600 s with no output
-  (`~/temp/agent/issue-6261/sol-review-after-fixes/`).
-  The fourth run answered (see the release blockers entry dated 2026-11-07T02:03:01-05:00) and
-  its findings are fixed on `fix/git-policy-cli-earlier-helper-review-fixes`;
-  no cross-vendor review of that fix has
-  run.
-  A same-vendor second pass
-  (`claude-second-pass.md` beside it) found three P1s,
-  no P0:
-  the `/proc` look misses helpers started by units older than `9b360150c0` and the shared service;
-  the adoption's `Drop` can remove the intent of a landing in flight,
-  leaving a landed commit with no record;
-  `current_value` reads a failed Git run as "branch not moved",
-  which also leads to `Drop`.
-  Fixed with red tests on `fix/git-policy-cli-earlier-helper-adoption`
-  (worktree `.claude/worktrees/earlier-helper-adoption-fixes`,
-  from main `35310097267f`,
-  tip `c4b6812564`):
-  all three P1s and the five P2s (unreadable process counts as "may be running",
-  the `/proc` scan bounded by
-  `PROCESS_LOOK_CEILING` 10 s after a measured 0.64 s for 899 processes,
-  same-user filter,
-  each adopted batch logged,
-  earlier journals read-only);
-  `current_value` now answers "no answer" on a Git failure for both the adoption and
-  the service's own recovery.
-  Host lib 4327,
-  binary 691,
-  clippy and oxlint clean.
-  Container gate on `c4b6812564` passed:
-  `5019 tests run: 5019 passed (1 slow), 8 skipped`;
-  merged to main.
-  The rename,
-  hand-over-fix and gate worktrees are removed;
-  the suppression worktree stays until its planted run ends.
-  Still uncovered (plan doc,
-  "Open batches of the old helper"):
-  a helper in another PID namespace;
-  an intent left on
-  disk is never settled if the old units are removed;
-  the Windows build of the new module was not compiled (owner:
-  Windows paused).
-  The rename note added to 117 old records said "is now" and sat in 6 `doc/decision/` records;
-  on the owner's
-  "Run the fix as described" (2026-11-07T02:03:01-05:00) `31f3223d25` removed it from the decision records and
-  reworded it in the other 111.
-  Release blockers at 2026-11-07T02:03:01-05:00 (owner:
-  the one release goes out "After the test gap is fixed"),
-  all four fixed on `fix/git-policy-cli-earlier-helper-review-fixes` (worktree
-  `.claude/worktrees/earlier-helper-review-fixes`;
-  each with a red test committed first),
-  recorded 2026-11-07T03:01:27-05:00:
-  - The fourth cross-vendor run (`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) found three defects:
-    (1) an old helper can start between the `/proc` scan and the adoption.
-    The helper installed here (tag `monochromatic-git-policy-cli-v0.5.34`) holds no lock on its journal
-    (`service_main.rs`),
-    so no exclusion both sides honour exists;
-    the adoption now defers while a socket of the earlier
-    units listens (`/proc/net/unix`,
-    read before the processes),
-    and deferred batches stay on disk until the earlier helper or
-    the next start of this service settles them (plan doc,
-    "Changes after the fourth review");
-    (2) journal arguments are compared by device and inode,
-    relative ones in the process's working directory,
-    and an
-    unresolvable one means "may be running";
-    (3) a command line longer than the bytes read means "may be running".
-  - The planted control "worktree copy installation batches" went unnoticed because the batch size grew from 512 to 4096
-    in `f538c41379` (2026-11-02) while the test kept 1,100 files,
-    so one batch held the whole tree;
-    the closure-lint
-    refactor did not touch the split.
-    The test now installs two full batches plus one file,
-    derived from the constant.
-    Rerun over the fixed image:
-    that control and the six the shutdown never reached (the log reached 42 of 48 with 41 noticed,
-    not the 38 and 37 first recorded)
-    were all noticed.
-    The `fewer-closure-suppressions` worktree can be removed.
-  Fifth cross-vendor run (`~/temp/agent/issue-6261/sol-review-fix-5/review.txt`,
-    recorded 2026-11-07):
-    the command line and
-  folder identity fixes hold;
-    one P1 left,
-    the old-release wrapper that starts the old helper between the look and the
-  adoption.
-    Owner pick "Stop the old socket" built on `fix/git-policy-cli-stop-earlier-helper-socket` (worktree
-  `.claude/worktrees/stop-earlier-helper-socket`):
-    the commit that sets up the service also stops the same worktree's
-  `cli-git@<instance>.socket` (same instance text;
-    job mode `ignore-dependencies`;
-    a running old helper is not stopped;
-    the
-  socket file is never unlinked;
-    failures are logged and never fail a commit).
-    Masking that unit would make an old-release
-  wrapper exit 1 on its commit (tag `service_commit.rs` 386 to 388),
-    so it was not built.
-    Owner pick "Off,
-    settle on request"
-  (2026-11-07):
-    the service has no adoption path or option;
-    `git monochromatic-git-policy-cli service settle-earlier-batches`
-  finishes the worktree's leftover batches when asked,
-    after the look passes,
-    saying first that it is safe only when no
-  old-release wrapper is in use in that worktree;
-    `doctor` reports the count.
-    Sixth review (`sol-review-socket-6/review.txt`):
-  both findings fixed (option removed;
-    no unlink,
-    retry read from `/proc/net/unix`).
-    Cost while an old helper runs:
-    about one
-  millisecond per commit.
-    Plan doc,
-    "Changes after the fifth review" and "Changes after the sixth review".
-  Seventh cross-vendor run (`sol-review-settle-7/review.txt`,
-    2026-11-07):
-    three defects in the settle command,
-    fixed on
-  `fix/git-policy-cli-settle-command-review-fixes` (condition write failure refuses;
-    unexamined batches are named and exit 1;
-  the hold keeps which socket or helper caused it and the remedy fits;
-    plan doc,
-    "Changes after the seventh review").
-  The rename audit (plan doc,
-    "Earlier names after the rename audit") fixed three names that had been renamed along with the
-  program but name the earlier program's artifacts:
-    `LEGACY_SOCKET_RELATIVE` (the single service's socket),
-    the first lines of
-  the earlier push records,
-    and the first line of the earlier claim files.
-    Open for the owner:
-    the earlier `cli-git-scratch`
-  folders in Git directories are not moved or swept.
-  After the one release,
-    every later release carries `-alpha.N` and skips crates.io,
-    but this machine installs our
-  seven tools through crates.io (`cargo-binstall`);
-    until they install from GitHub releases (the `archive` route
-  `mpm-shadow` uses,
-    task #167),
-    no later fix can be installed here.
-    The owner has not yet said whether that route
-  change comes right after the release or after layout and lint.
-  B done at `7fe6ac14ff`:
-    `landing/earlier_service_journal_adopted.rs` finishes,
-    at service start,
-    batches left open
-  in the old journal (`<state>/cli-git/service/<instance>` and the shared `<state>/cli-git/service`) when no service
-  of that instance shows in `/proc`,
-    and counts their finished identities as landed (host lib 4313,
-    binary 691).
-  Not covered:
-    a helper in another PID namespace;
-    the old helper restarted by its unit during the adoption.
-  Cross-vendor review of B running (`~/temp/agent/issue-6261/sol-review-part-b/review.txt`).
-  oxlint on the branch:
-    10 warnings and 3 errors in `bin/` files A touched (main is at 0 since `995cab8d1c`);
-  sent back to the agent with a main merge;
-    then the container gate reruns on the final tip.
-  Release and lock (steps 2 and 3) wait for the owner's release-timing answer.
-  Step 3 also renames the root settings file and the link folder (to `.cache/monochromatic-git-policy-cli-bin`).
-- crates.io footprint (owner 2026-11-05:
-  "Can we avoid polluting crates.io too much?"):
-  measured and ranked in `doc/planning/crates-io-footprint.md` (`dd61b20559`),
-  owner answers recorded there.
-  Decided by the owner:
-  "One release each.
-  And we publish less to crates.io".
-  Research done:
-  `doc/research/cargo-crates-and-tools-without-crates-io.md` (option 1 works;
-  floating git and
-  GitHub Packages do not;
-  a static index on GitHub Pages would) and `doc/research/tests-inside-published-rust-crates.md`
-  (distributions and crater run `cargo test` from a published crate);
-  summary in the planning doc,
-  section "Research results (2026-11-05)".
-  Owner questions open in `doc/handover/questions-for-the-owner.md` (kept open in Zed):
-  where the libraries go,
-  and when the one release of each crate happens.
-  Chosen by the session (non-destructive,
-  owner's likely pick):
-  tools move to the `archive` route and
-  `publish = false` after their one release,
-  not started until layout and lint land;
-  test files stay in.
-  The wrapper's crate with test files left out packs and verifies (1.6 MiB compressed against 3.1 MiB for the
-  published 0.5.34;
-  details in the planning doc);
-  the throwaway worktree is removed.
-  The one release of each crate is held until the route research is answered by the owner and,
-  for the wrapper and the crates it pins,
-  until the four lint branches are merged and gated,
-  so all of them ship in one batch;
-  the automatic yank step (task #166) is on hold for the same answer.
-- Issue 6261 reopened by the owner at 2026-11-04T21:30:23Z
-  (<https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105>):
-  "The current layout is still completely unacceptable and far from enough to consider this issue complete."
-  The five agent slots were full,
-  so a child session (`spawn-claude`,
-  spawn id `7ee83419-2ce0-4ac8-a4f7-36f0731b095c`,
-  brief `~/temp/agent/issue-6261/brief.md`) writes the target layout proposal
-  (`doc/planning/cli-git-source-layout.md`,
-  a file-by-file mapping,
-  the crate-root map,
-  the placement guide,
-  the `native` layer decision) and a cross-vendor review,
-  reports in `~/temp/agent/issue-6261/report.md`,
-  and waits:
-  the owner sees the target tree before any file moves,
-  then a re-runnable move tool applies it on the latest main.
-
-Git wrapper 0.5.33 is installed:
-branch-write round 2 (`6fc72e8abe`,
-gate r7 4839/4839 with main,
-`native:clippy` on main clean),
-release run 41896129005,
-publish run 41896943949 built from `6a922adfee`,
-crates.io 2026-11-04T19:28:15Z;
-`upgrade-wrapper.ts 0.5.33`:
-the 0.5.32 service retired on the client's request,
-0.5.33 started (protocol 7),
-and the sample commit on main landed in 1980 ms in all,
-1271 ms of it provisioning the new service (landing 34 ms,
-lock hold 31 ms).
-
-cargo-shadow 0.1.1:
-round 17 merged to main (`a439de1578`;
-branch tip `a3c703025d`,
-release gate 618/618,
-clippy clean;
-launcher fix:
-a PATH candidate whose `<launcher>.launch` record leads back to the shadow is skipped,
-chains up to 8 hops;
-the live check behind a copy of the real launcher ran the shadow once per command);
-dispatched as run 41900374975,
-`release:wait` following;
-then relock (`toolchain:update -- cargo:monochromatic-cargo-shadow` after restoring the plan row from `efe10d9745`),
-install,
-and the launcher check before the `cargo` link stays.
-The branch's auto-push was refused once with GH009 (`doc/troubleshooting/github-lfs-integrity-rejection.md`);
-a later push reached origin (`git ls-remote` shows `a3c703025d`).
-
-Agents and reviews at 2026-11-04T15:05:00-05:00:
-- Branch-write round 3 (`aa0fee0c2cf70bb31`):
-  owner pick B for foreign-owner patience plus every round-2 review finding.
-- Models (`a9c775c9196f1d836`):
-  step-1 review findings fixed and step 2 built as callables (`43fbb6041f`;
-  `native:test:model` 543 passed;
-  nothing in `git commit` calls it;
-  the shipped service only gains `--flush-lane`);
-  the decision-22 route is `systemd-run --user`,
-  recorded as within the decision ("Systemd unit + fallback (Recommended)";
-  `systemd-run` creates "a transient .service or .scope unit");
-  now closing the step-2 leftovers (`WAIT_DRAIN` measured,
-  forcing I/O errors,
-  disposal crash injection,
-  establishment record,
-  spool and attempt durability).
-  Step-2 reviews running:
-  `commit-models-step2-sol-a.txt` (code and component tests),
-  `commit-models-step2-sol-b.txt` (models and map).
-- cargo-shadow third certification pass,
-  seven groups in parallel (`run-cert3-reviews.ts`,
-  outputs `cargo-shadow-cert3-sol-1.txt` to `-7.txt`);
-  the agent (`ae0fbdf78c31bd757`) is idle until they return.
-- e2e `sigkill-service-during-work` (`aca6e78c5ffbd5680`,
-  branch `fix/git-policy-cli-e2e-sigkill-service-during-work`):
-  diagnose whether the product or the scenario is wrong,
-  fix,
-  gate.
-
-cargo-shadow 0.1.0 is done:
-both proving runs passed (dry run 41893310452;
-run 41893318423 authenticated through Trusted Publishing,
-skipped the upload and created the immutable release `monochromatic-cargo-shadow-v0.1.0`),
-and the consumer checks passed
-(runbook section "monochromatic-cargo-shadow 0.1.0").
-Owner action open:
-revoke the `cargo login` token,
-then `cargo logout`.
-
-Update 2026-11-04T15:35:00-05:00:
-cargo-shadow 0.1.1 is live as `cargo` for every session of this checkout
-(lock `cac4766b11`,
-link `.cache/cargo-shadow-bin/cargo` to the toolchain launcher).
-Traced in the repository's own mise environment from a throwaway worktree:
-`cargo --version` ran the link,
-the shadow and the real cargo once each;
-`cargo metadata` ran the shadow once and the real cargo three times;
-the worktree stayed clean.
-cargo-shadow round 18 merged to main (`22a3c5b812`;
-hard-link identity skip,
-`.done` completion barrier counted as mandatory,
-`u128` kept-size sum);
-its release gate on main failed:
-`a_killed_wrapper_with_an_escaped_writer_stops_the_recovery` (fixture `ready` did not appear in 30 s)
-and `a_descendant_is_stopped_with_its_parent_at_the_bound` (`pid never held a process id`),
-both passing alone in 0.1 s and 0.5 s;
-not attributed to load (owner:
-"I don't see any load,
-and once again,
-load is not an excuse.");
-the cargo-shadow agent is diagnosing the block;
-0.1.2 waits for a green gate on main.
-Fourth certification pass (eleven groups) running.
-Branch-write round 3 merged (`e75a2549c9`) and released as 0.5.34 (run 41905476029);
-its review returned four P1s (pruning withdrawal confirmations,
-existing reflogs,
-foreign refusal after mutations,
-an unbounded receive on the review timeout path),
-sent as round 4.
-
-Before that:
-cargo-shadow as `cargo` for every session was not live.
-It was locked (`efe10d9745`) and installed,
-then reverted (`65f5733aec`) and its link `.cache/cargo-shadow-bin/cargo` removed the same minute:
-the install links `cargo` to the toolchain launcher (`.cache/toolchain-launchers/cargo-shadow`),
-and through it the shadow runs itself once before the real cargo
-(strace:
-launcher,
-shadow,
-launcher again,
-shadow again,
-rustup proxy,
-real cargo;
-`cargo metadata` ran the shadow 4 times for 3 real cargo runs),
-against "We should never invoke ourselves recursively.".
-Started from its binary it ran once per command.
-Sent to the cargo-shadow agent (`ae0fbdf78c31bd757`) as the first 0.1.1 fix,
-the way pnpm-shadow 0.1.1 learned to skip its launcher;
-then 0.1.1,
-relock,
-and the launcher check (`/var/home/user/temp/agent/cgs-recursion-check.ts <launcher> <throwaway worktree> <toolchain-bin>`)
-before linking again.
-
-Older:
-0.5.28 was published to crates.io at 2026-11-04T03:09:07Z (publish run 41764751088,
-built from `7b41c215ec`) and installed by `upgrade-wrapper.ts 0.5.28`
-(`git --version`:
-"monochromatic-git-policy-cli 0.5.28,
-shadowing git at /usr/bin/git").
-Its lock commit on main took 1743 ms in all,
-1140 ms of it provisioning the new service (the 0.5.27 service refused the protocol-7 request line,
-then retired after its batch);
-the 0.5.28 service's landing took 44 ms (`lock_hold_ms=25`,
-`sync_ms=22`).
-`sync_ms` is not a disk sync:
-it times removing the conclusion state and building and installing the new index (`service_timing.rs:84`);
-queued:
-rename it by its role.
-History of the 0.5.28 release:
-base gate `gpc-gate-base-0-5-28-final-20261103T214518-0500` passed 4706 of 4706 (7 skipped) on `d9e8907ae8`;
-the base was merged into main as `920fdce60d` (2026-11-03T21:57:04-05:00,
-body `Closes #6260`);
-dispatched as run <https://github.com/Aquaticats/Monochromatic/actions/runs/41764055048>;
-`native:release:wait` is following it;
-next:
-`upgrade-wrapper.ts 0.5.28`,
-then time commits on main against native Git.
-Before 0.5.28:
-0.5.27 was dispatched 2026-11-03T10:28-05:00 from main after its gate passed (4264 of 4264,
-6 skipped),
-run <https://github.com/Aquaticats/Monochromatic/actions/runs/41663034226>,
-published to crates.io at 2026-11-03T15:44:38Z,
-and installed by `upgrade-wrapper.ts 0.5.27`.
-Its lock commit on main took 1625 ms in all,
-of which 1169 ms was provisioning the new service (the 0.5.26 service retired after its batch);
-the service's landing took 49 ms (`lock_hold_ms=28`,
-`sync_ms=25`).
-0.5.26 was published to crates.io at 2026-11-03T13:21:01Z.
-
-### Unmerged branches and worktrees of this effort
-
-Tips were read from `git for-each-ref` at 2026-11-03T08:16:08-05:00 and keep moving while the owning agents work.
-
-- `fix/git-policy-cli-commits-never-fail` `f160209787`,
-  worktree `.claude/worktrees/commits-never-fail`.
-- `fix/git-policy-cli-plain-commit-finishes-conflicted-merge` `a06af6102c` (finished),
-  worktree `.claude/worktrees/plain-commit-conflicted`.
-- `fix/git-policy-cli-no-inner-quiet-and-slow-server-waits` `e38a7dea6a` (finished),
-  worktree `.claude/worktrees/no-inner-quiet-slow-server`.
-- `feat/git-policy-cli-word-level-second-merge-pass` `8cc36cd4b6`,
-  fifteen commits ahead of the merge base,
-  worktrees `.claude/worktrees/word-level-second-merge-pass` and the gate copy
-  `.claude/worktrees/gate-word-level-merge-pass`.
-- `feat/cargo-shadow-cli` `504a82aa3f`,
-  worktree `.claude/worktrees/cargo-shadow`,
-  fifty commits ahead,
-  all on origin.
-- `worktree-agent-ab3dd6294f9d91284` `fe2081f2a1`,
-  the copy-in-service design that was never merged (see the P1 section).
-- `e2e-trace-diagnosis-20261101` `a0126e571c`,
-  unmerged and kept on purpose.
-- `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` `2ac6da873e` is the stopped first 0.5.21 candidate;
-  both of its parts shipped by other routes,
-  so it is stale and can be deleted once the owner agrees to branch deletions.
-
-Many detached worktrees under `.claude/worktrees/` (`integrate-0NN`,
-`gate-*`,
-`survivors-*` and others) remain from merged work;
-their files and mutation evidence were kept deliberately,
-and removing them is open (see "Housekeeping").
-
-### Agents and gates running
-
-At 2026-11-04T03:27:12-05:00 (the owner's cap is five delegate agents at once),
-two delegate agents and four cross-vendor reviews running:
-- Design revision 16,
-  `fix/git-policy-cli-commits-never-fail` (from revision 15,
-  `4a6ad9d34a`):
-  records the owner's revision-15 answers (in "Owner decisions in force") as decisions 15 to 18
-  and answers the fifteenth review (`commits-never-fail-sol-15.txt`,
-  R15-1 to R15-8;
-  protocol "approve continued model work only",
-  questions "accurate after named edits").
-  Two of its findings bear on owner rules:
-  R15-1,
-  accurate attribution of the post-success exception is not yet shown to be the owner's approval;
-  R15-6,
-  start-only materialization adds an unbounded foreground phase the owner never approved.
-  Done:
-  tip `f8d83c760f` (2026-11-04T03:30:19-05:00);
-  R15-2 to R15-5 closed,
-  R15-6 closed by mechanism (only a terminating,
-  size-limited,
-  child-free class runs inline),
-  R15-7 a unit configuration obligation (stop timeout infinity,
-  drain on upgrade),
-  R15-1 narrowed to owner question 8 (a lost success receipt and a replay after a power loss;
-  recommended B,
-  force the receipt before success only when no service runs)
-  in `commits-never-fail-questions-f8d83c760f.md`;
-  not asked until review 16 checks it.
-  The design is 254 KB (history moved to `commits-never-fail-history-f8d83c760f.md`).
-- Models round 11,
-  `feat/git-policy-cli-commit-protocol-models` (from `ffc98d1eae`,
-  293 of 293):
-  merges main (the subsystem folders of #6261),
-  puts the `commit_*` component files in `commit/` and the `model_*` files in a new `model/` folder,
-  fixes components review 7 ("Not correct"),
-  models review 5a ("sound after named fixes") and 5b ("Not sound":
-  the discharge green is tautological and its checkpoint rule is unsafe),
-  applies decisions 14 to 18,
-  and adds the fifteenth review's model controls.
-  Done in part:
-  tip `57c0fb3c9b`,
-  319 of 319,
-  both clippy tasks clean;
-  main merged (`eaacff58bc`;
-  components in `native/commit/`,
-  models in `native/model/`,
-  the `native_models` test root at `model/mod.rs`);
-  decision 14 as `Rules::Fifteen` in the barrier and register models (barrier stage exempt from the wait bound,
-  `BARRIER_ENTRIES` FOREGROUND,
-  COMMITTING,
-  DEPART,
-  STOP);
-  decisions 16 to 18 in the watch model (its one reachable violation is the accepted 7a concession);
-  discharge rebuilt as a crash-state machine (`UnsafeCheckpoint` red,
-  `Fifteen` green;
-  R2 the only live dependency modelled);
-  components review 7 items 2.1,
-  2.2,
-  3.1,
-  3.2,
-  3.4,
-  4.1,
-  4.3,
-  4.4,
-  4.6,
-  4.7 and a `Departure` order.
-  Not done:
-  models 5a #2A,
-  #3,
-  #4,
-  #5,
-  #6,
-  #8;
-  the 5b pipe,
-  T1 and merge items;
-  components 2.4,
-  3.3,
-  4.2,
-  unknown-version preservation,
-  the wall-clock replay test;
-  fifteenth-review controls 1,
-  3 to 6,
-  8 to 12 and 16.
-  The component tests were written with their fixes and not run against the old code.
-  Reviews:
-  `commit-components-sol-8.txt` "Not correct" (checkpoint dependencies are paths,
-  not validated replacement-root authority,
-  and their ancestry is not made durable;
-  a candidate is recovery-authoritative before its dependencies are forced;
-  departure is a caller-assembled flush list;
-  quarantine is an unowned destructive mutation;
-  selection races reclamation;
-  "Non-reclaiming component and model work can continue");
-  `commit-models-sol-6a.txt` "sound after named fixes" (the register has an unchecked route around its barrier stages;
-  final forcing cannot repair a failed disposition creation;
-  planned shutdown can still end a protected hook);
-  `commit-models-sol-6b.txt` "Not sound" (a checkpoint can erase a still-live R1 and the invariant accepts it).
-  Design revision 17 done:
-  tip `34a3c22f2f` (2026-11-04T04:14:48-05:00),
-  design 244 KB;
-  R16a-1 to R16a-6 and R16a-8 to R16a-10 closed in the rule,
-  R16a-7 narrowed (receipts queued for a flusher;
-  with no service a detached one-shot flusher through the manager,
-  else a detached child;
-  if neither starts the command exits success saying the receipt is not yet forced);
-  components 2.1 to 2.5 and 3.x and the models' checkpoint finding closed in the rule,
-  open in the component;
-  question 8 rewritten (recommends A,
-  accept the residual window;
-  option B dropped) in `commits-never-fail-questions-34a3c22f2f.md`.
-  Review 16b failed at 2026-11-04T04:28:19-05:00 after 57 minutes ("OpenAI Responses stream ended before a terminal response event",
-  input 258 KB);
-  not rerun,
-  since 17b reads the whole revision 17 design that replaces revision 16.
-  If 17b (250 KB) fails the same way,
-  split the design into two halves for review.
-  Review 17a (`commits-never-fail-sol-17a.txt`):
-  R16a closure "not closed";
-  question 8 "accurate after named edits" (R17a-10,
-  ten points);
-  P1s R17a-1 (receipt forcing at L4 brings back a foreground wait),
-  R17a-2 (a running service or a started child is not yet durable responsibility),
-  R17a-3 (detached flushers need descriptor,
-  ownership and resource-lifetime rules),
-  R17a-4 (equal content in some predecessor is not enough support),
-  R17a-5 (optional verification cannot become unprotected by declaration).
-  Review 17b (the whole design) running.
-  Revisions 12 to 17 each drew new P1s;
-  the next round narrows its scope before it starts.
-  Review 17c (`commits-never-fail-sol-17c.txt`,
-  the convergence question):
-  R17a-1,
-  R17a-2 and R17a-4 are rule gaps;
-  R17a-3 and R17a-5 mixed (rule parts:
-  the detached flusher's survival and handoff contract;
-  abandoned-worker late-effect fencing and the blanket slow-I/O exemption);
-  "Yes:
-  a finite,
-  conditional acceptance contract is possible",
-  given as properties and controls by transition group,
-  with "A new counterexample may reopen one of these properties;
-  it should not silently introduce a new acceptance criterion.";
-  the three literal rule conflicts (a foreign lock that never frees,
-  a departure sync that never returns,
-  a power cut before the only copy is durable) are already ranked by decisions 4,
-  5 and 14 and the outside-cause list,
-  so no new owner question.
-  Revision 18 done:
-  tip `21b8042205` (2026-11-04T04:55:40-05:00),
-  design 246 KB (the first ten reviews moved to the new tracked `doc/planning/cli-git-commits-never-fail-review-history-archive.md`);
-  the five rule gaps fixed (L4 queues receipts without forcing;
-  seal protocol with `lane/sealed`,
-  a doorbell and a final sweep;
-  a one-shot flusher from an internal entry point under `lane/flusher.lock`;
-  support as the fold of live `install` entries in tail order;
-  the command creates the side ref,
-  the helper only reads and flushes);
-  "Acceptance target" and "Rule conflicts and the decisions that rank them" sections added;
-  question 8 rewritten (`commits-never-fail-questions-21b8042205.md`,
-  recommends A,
-  ranking A > C > B labelled a policy preference).
-  R17a-6 to R17a-9 untouched on purpose.
-  Scoped review running (`commits-never-fail-sol-18a.txt`:
-  the five gaps,
-  the copied target,
-  the flusher against the recursion rule and the lock rule,
-  question 8).
-  Models round 13 started (the models agent resumed),
-  building to the acceptance target with a coverage map.
-  Review 18a (`commits-never-fail-sol-18a.txt`):
-  "Rule gaps:
-  closed after named fixes" (the first design verdict since revision 12 with no new P1;
-  R17a-1 and R17a-4 closed,
-  R17a-3 closed subject to R17a-2,
-  R17a-2 needs recurring enumeration independent of the doorbell,
-  R17a-5 needs level 2 disabled on that path or bounded whole);
-  the copied acceptance target "substantively preserved";
-  "Internal helper launch:
-  no inherent recursion conflict";
-  "`lane/flusher.lock`:
-  no demonstrated violation";
-  question 8 "accurate after named edits".
-  Coordinator's pick (veto open):
-  disable level 2 on that path.
-  Revision 19 started (the two named fixes and the question 8 edits only).
-  Models round 12 started (the models agent resumed):
-  the P1s of components 8,
-  models 6a and 6b,
-  built on revision 17's rules;
-  P2 and P3 queued for round 13.
-- cargo-shadow sixth review,
-  four parts (`cargo-shadow-sol-6a.txt`,
-  `-6b.txt`,
-  `-6b2.txt`,
-  `-6c.txt`),
-  of round 6 (tip `d206fd5321`,
-  472 of 472);
-  round 6 is described in "Cargo shadow and the Rust catalog tools".
-
-Done since the last list:
-- Issue #6261 (subsystem folders):
-  merged into main as `fec77945dd` (parents `5435980375` and `ac5414810a`);
-  the issue closed at 2026-11-04T08:22:56Z through `186e264e06`,
-  and main matches origin.
-  29 subsystem folders;
-  `lib.rs` re-exports each folder (`pub mod <folder>; pub use <folder>::*;`),
-  so old paths keep working.
-  Removing the `native` layer is deferred (option A,
-  coordinator's pick under the delegation,
-  veto open).
-- Issue #6260 (nested-aware source scans):
-  shipped in 0.5.28 and closed at 2026-11-04T02:57:10Z.
-- 0.5.28:
-  see "Release in flight";
-  its measurements are in `doc/planning/cli-git-commit-latency-under-disk-pressure.md`.
-  It carries the batch-number fix (`fix/git-policy-cli-service-batch-numbers-unique` tip `9c3d279e1a`,
-  merged as `d9e8907ae8`):
-  services sharing a journal (development runs and the test harness;
-  production gives each instance its own journal) could give two landings one number,
-  and one landing's records then overwrote the other's;
-  each number is now claimed with an `O_EXCL` claim file.
-- Design revision 15 (`4a6ad9d34a`) and its review:
-  the owner answered questions 5,
-  7a,
-  7b and 7c (all recommended).
-- cargo-shadow fifth review:
-  all four parts "not correct";
-  round 6 answered it.
-- Every wait has a bound:
-  fast-forwarded into the 0.5.28 base (tip `f89fa63f10`).
-  Step ceilings with measurements:
-  `PLUMBING_STEP_CEILING` 120 s (longest read step of 1,651 landings 9,663 ms),
-  `OBJECT_STEP_CEILING` 600 s (longest client preparation 250,280 ms),
-  `REFERENCE_STEP_CEILING` 60 s (longest of 1,651 reference updates 3,438 ms);
-  a reference update ended at its ceiling is followed by a read of the branch:
-  moved means landed,
-  not moved means withdrawn as at `LOCK_CEILING`.
-  The push stall prints that the push is queued (not yet seen through a real service).
-  The coordinator's picks on its option sets are in `doc/planning/cli-git-no-unbounded-waits.md`,
-  "Picks" (veto open).
-- Index writer round 5,
-  `fix/git-policy-cli-index-recovery-never-overwrites-staging` tip `b47467ebd1`,
-  gate 4641 of 4641:
-  a restart replays a batch only if the live index is still the very file the landing saw (inode,
-  size,
-  times,
-  checksum tail);
-  otherwise it resets nothing and logs a notice.
-  Visible change:
-  any rewrite of the index between a failed install and the restart,
-  even a `git status` refresh,
-  leaves the commit's paths un-updated in the index (nothing is lost).
-  Not closed:
-  the `HEAD` race after the last check (the same window native Git has);
-  physical-index reclamation is mitigated,
-  with options A (one reclaimer per physical alternate index:
-  refuse to finish an index outside the instance's own Git directory) > B (document);
-  coordinator's pick A under the delegation,
-  veto open,
-  queued after the integration.
-  The weaker options it offered (per-path replay,
-  content-only witness) are not taken:
-  both discard ABA staging.
-- Design revision 12 (`18ca87c579`) and the owner's four answers.
-- Models round 7,
-  `feat/git-policy-cli-commit-protocol-models` tip `7b87e79d3d`,
-  188 of 188 model tests,
-  both clippy tasks clean:
-  components on rule V (`commit_inbox.rs`:
-  one checksummed request file linked from `inbox/tmp/`,
-  identity the hash of content and lane instance;
-  `commit_state.rs`:
-  `state.a`/`state.b` written in place without a sync);
-  red test first counted the revision 11 path at exactly 22 syncs,
-  the new waiting path makes 0,
-  a departure syncs request file,
-  inbox directory and newest state file in that order before returning.
-  `LedgerOwner` is a non-blocking exclusive lock on `<ledger>.owner`
-  (the standalone `repair_tail` and `append` are still public);
-  amendments and gitlink changes are refused before acceptance and go to real Git (a test shows real Git commits them).
-  The explorer gained `explore_eventually` (cycles with no exit).
-  Not done:
-  the order and ledger lines at the departure barrier (not built yet);
-  F2,
-  F1 reflog,
-  F5,
-  E1,
-  persistence intermediate states,
-  M1 compare-and-unlink;
-  deferred to revision 13:
-  the register's cumulative deadlines,
-  the merge edit-loss invariant.
-  The revision 11 binding,
-  spool and record modules are unused by the new path;
-  coordinator's pick (veto open):
-  remove what revision 13 still leaves unused,
-  after it lands.
-  Reviews:
-  `commit-components-sol-5.txt` "Not correct as submitted" (the state pair loses its checkpoint across successive unsynced transitions;
-  the departure barrier omits state-name durability and the order and ledger lines;
-  equal payloads get one identity),
-  each answered by a revision 13 mechanism (state log,
-  D-sets,
-  invocation nonce) and sent to models round 8;
-  `commit-models-sol-3a.txt` "sound after named fixes" (liveness semantics and truncation of `explore_eventually`;
-  historical greens kept out of approval evidence);
-  `commit-models-sol-3b.txt` "Not sound as verification of revision 12" (recovery still infallible,
-  child progress owner-dependent,
-  the register still assumes timeout completion;
-  F7 `EEXIST` and F9 not retired by rule V).
-  Both were sent to models round 8.
-- Models round 8 (tip `8b31735dd3`,
-  198 of 198,
-  both clippy tasks clean),
-  partly done before that agent ran out of room:
-  `commit_state_log.rs` (hash-chained log,
-  longest valid prefix,
-  rotation safe at every step,
-  0 syncs while waiting);
-  `repair_tail` and `append` crate-private behind `LedgerOwner`;
-  the departure forces request files,
-  inbox directory,
-  order file,
-  state log and ledger with their directories;
-  a 16-byte invocation nonce in each request (`REQUEST_VERSION` 4);
-  `explore_eventually` stated as AG EF and truncation no longer makes violations.
-  A fresh agent took the rest (models round 9,
-  same branch):
-  the W1 and register models rebuilt for revision 13 with fallible recovery,
-  the twenty controls,
-  F7 and F9 re-opened,
-  the leftovers,
-  historical greens labelled,
-  components items 3.5 to 3.7 and removal of unused legacy modules.
-- #6260 merged into the base.
-
-Started before 2026-11-04T03:34:02-05:00 (the commit `372828457c` that records them) from main `05c16d73d2`,
-each in its own worktree:
-- Latency round 3,
-  `perf/git-policy-cli-less-foreground-work`:
-  the sections "Git's pack sync in `fast-import`",
-  "Less work in the client and the landing",
-  "The service unit and the host's swap" and "The queue and the next commit"
-  of `doc/planning/cli-git-commit-latency-under-disk-pressure.md`,
-  and the `sync_ms` rename.
-  The plan's option B (loose objects in process) conflicts with `doc/decision/cli-git-concurrent-commits.md` lines 512 to 514
-  ("Landing migrates the shadow's new objects into the real store as a pack kept with a `.keep` file
-  until the compare-and-swap succeeds");
-  the agent builds only an option that keeps that guarantee,
-  else it writes an owner question.
-- Index reclamation,
-  `fix/git-policy-cli-one-reclaimer-per-physical-index` (tip `dd37f0c462` at its first report):
-  the race shown red (`landing::service_index_lock::reclaim_tests::a_live_lock_taken_aside_by_a_late_reclaimer_is_never_open_to_a_third_program`,
-  "a third program placed its lock while the live holder's lock was off its name");
-  pick A reversed on its evidence:
-  three call sites reclaim (`remove_stale` and `try_acquire` in `settle`,
-  `wait_and_place` in the live landing),
-  A covers only the restart,
-  and extending it to the live landing makes a dead service's lock on an alternate index fail the commit at `LOCK_CEILING`.
-  Coordinator's pick under the delegation (veto open):
-  B,
-  a non-blocking exclusive `flock` held only for the reclaim sequence
-  (on the stale lock's own inode,
-  or a sidecar,
-  whichever the agent shows has fewer moving parts);
-  options in `doc/planning/cli-git-one-reclaimer-per-index.md`.
-  Built as B1 (the `flock` on the stale lock's own inode;
-  ranking B1 > B2 > A > C):
-  tip `9db8794047`,
-  gate 4714 of 4714 (7 skipped);
-  `reclaim_if` opens,
-  reads the marker,
-  takes `LOCK_EX|LOCK_NB`,
-  checks device and inode against the name and unlinks;
-  no `.aside-*` files any more.
-  Left open:
-  a person's `rm index.lock` between the inode check and the unlink;
-  file systems without `flock` (reclaim unguarded,
-  logged);
-  reclaimers on different hosts;
-  `.aside-*` files 0.5.28 already left are not swept (queued);
-  `native:clippy:windows` not run (paused by the owner).
-  Cross-vendor review (`one-reclaimer-sol-1.txt`):
-  "correct after named fixes" (P1 a failed `flock` permits unlinking a live lock,
-  through the no-`flock` fallback;
-  P2 the `Busy` test does not show a wait;
-  P3 the regression control does not probe the old aside window;
-  "Can the lock be avoided?
-  Not with an equivalent sequence of ordinary pathname operations under the current protocol.").
-  Fix round sent to the agent,
-  with the coordinator's pick (veto open):
-  where `flock` is unavailable,
-  never remove the lock;
-  the landing waits as for a held lock (bounded by `LOCK_CEILING`) and its notice names the stale lock,
-  the dead holder and how to remove it;
-  plus the sweep of 0.5.28's `.aside-*` files.
-  Merge into main after its gate.
-  Fix round done (`de34a39194`,
-  gate 4719 of 4719);
-  its re-review (`one-reclaimer-sol-2.txt`) "correct after named fixes":
-  the original three closed,
-  two new P1s in the `.aside-*` sweep (an incomplete process view authorizes deleting a live aside;
-  prefix matching does not show the file is disposable).
-  Coordinator's pick (veto open):
-  remove the sweep,
-  document the leftovers and a manual removal ("Allow the rare leftover");
-  plus the notice's evidence and deterministic `Busy` controls.
-  Sent to the agent.
-  The older index review's P2 and P3 findings (`private_index_path` aliasing,
-  `head_names` revalidation,
-  `Interrupted` writes) are already fixed on main,
-  each with named tests.
-- Test containers to CachyOS,
-  `build/git-policy-cli-cachyos-test-containers`:
-  `e2e/concurrent-commits.Containerfile` (Debian `node:24.11.0-slim`)
-  and the `native:test:container` base,
-  per `doc/decision/container-base-distro.md`.
-- Design review 16 in two parts (`commits-never-fail-sol-16a.txt`:
-  R15 closure,
-  decisions 15 to 18 and question 8 from the diff;
-  `-16b.txt`:
-  the whole design),
-  before question 8 is asked.
-
-- Mutation campaign over what 0.5.28 changed (no recorded campaign covers it;
-  161 product files and 14,935 changed lines between the `monochromatic-git-policy-cli-v0.5.27` and `-v0.5.28` tags,
-  list in `~/temp/agent/mutation-scope-0528.txt`):
-  gate of main (`690e0eb89d`,
-  worktree `.claude/worktrees/mutation-main-0528`) running as `gpc-gate-mutation-main-0528-20261104T042223-0500`;
-  then `native:mutation:parallel` with `GIT_POLICY_NATIVE_IMAGE_TAG` set to that unit's name,
-  first landing,
-  index,
-  lock,
-  push and invocation files,
-  then the merge passes.
-
-State at 2026-11-04T08:25:42-05:00 (after the Claude Code restart the owner asked for at about 07:30-05:00):
-- Models round 14 done:
-  `feat/git-policy-cli-commit-protocol-models` tip `6c4446d2de`;
-  items 1 to 6 of `commit-models-sol-8.txt` section 4 done;
-  full `native:test:model` 411 passed (`~/temp/agent/r14/full-model2.log`),
-  both clippy variants clean;
-  coverage map 70 covered,
-  11 narrower,
-  9 historical,
-  17 not yet (107 rows);
-  the author's findings for the reviewer:
-  only the double-forked helper launch is built (no manager-started unit route,
-  fork refusal not injected),
-  the helper runs Rust after a bare `fork` (safe only single-threaded),
-  Git experiments on one version and two backends,
-  the reference-interpreter row's Covered is the author's call.
-  Cross-vendor reviews returned:
-  `commit-models-sol-9a.txt` "does not meet the target items it claims" (component authority,
-  departure prefixes,
-  `state_covers` succession,
-  launch success on a failed second fork,
-  the single-threaded fork precondition,
-  helpers bounded only at the lock,
-  a receipt joining after the error snapshot,
-  an unforced directory entry counted as forced)
-  and `commit-models-sol-9b.txt` "no,
-  as submitted" (the receipt error handoff still atomic;
-  two false-green decision 19 schedules:
-  a notice left Scheduled after positive authority survives,
-  and reclamation on an earlier attempt's delivery;
-  map rows to mark narrower);
-  both say no acceptance criterion is added.
-  Round 15 running on both (same branch and worktree);
-  it cuts `commit-models-10-part-*.diff` when done.
-- cargo-shadow round 9 done:
-  `feat/cargo-shadow-cli` tip `16249ffe94`;
-  debug suite and release gate 561 passed,
-  3 skipped (ignored helper entries other tests start),
-  clippy clean after one rename;
-  two stale contract names fixed;
-  README and "Round 9" written;
-  all 16 rows "shown".
-  Cross-vendor reviews returned:
-  `cargo-shadow-sol-9a.txt` "does not meet the list for this part" (D1:
-  an unsettled scope upgraded by a later `exists()` check,
-  in two schedules;
-  D2:
-  a malformed boot identity read as a reboot;
-  D3:
-  discovery cleanup past its shared deadline;
-  the boot rule needs an authoritative kernel boot identity or a stated premise)
-  and `cargo-shadow-sol-9b.txt` "Meets it after named fixes" (seven false-green test assertions,
-  the missing same-namespace bind-mount schedule);
-  no row added.
-  Round 10 running on both (same branch and worktree);
-  it cuts `cargo-shadow-10*.diff` when done.
-- Latency round 3 merged to main (`b0d9708b17`;
-  gate `gpc-gate-less-foreground-r3-fixes-20261104T073150-0500` passed 4751/4751;
-  `native:clippy` on main clean);
-  0.5.29 published (crates.io 2026-11-04T13:32:49Z,
-  run 41837674379) and installed (`d4979bab1b`);
-  the sample commit took 2665 ms,
-  1254 ms of it provisioning the upgraded service,
-  as earlier upgrades did (1016 to 1491 ms);
-  the landing took 36 ms.
-- Agents running:
-  index-lock reclaim without `flock` (`fix/git-policy-cli-index-lock-reclaim-without-flock`,
-  worktree `.claude/worktrees/index-lock-without-flock`);
-  models round 15;
-  cargo-shadow round 10;
-  test images from pacman (`feat/git-policy-cli-test-images-from-pacman`,
-  worktree `.claude/worktrees/test-images-from-pacman`).
-  Not done from that round:
-  a built root-commit control.
-- Planted controls and the `service_durable.rs` survivors merged to main (`3248a86254`;
-  branch tip `c279110576`,
-  gate 4720/4720,
-  `gpc-gate-planted-control-and-durable-survivors-20261104T070548-0500`);
-  two stale controls fixed (self-exclusion by identity and content;
-  the deleted `worktree_copy_lock.rs` control replaced by a live-owner journal control in `worktree_copy_recovery.rs`);
-  two tests kill the `index_is_hardened` survivors,
-  but the function has no production caller,
-  so deleting it may beat testing it;
-  resume point in `package/git-policy/cli/doc/planted-control-and-durable-survivors-resume.md` on that branch.
-- Mutation campaigns paused (2026-11-04 at about 07:40-05:00),
-  after the owner asked "We're not close to doing mutation runs though,
-  right?
-  Don't we still have a lot of things to fix before doing them?":
-  the commit design is still at step 1 (models only;
-  "Nothing past the red controls and the conflicted-file changes is built",
-  `doc/planning/cli-git-commits-never-fail.md`,
-  "Verification plan and build order"),
-  and its live protocol replaces the commit path,
-  whose directories hold most of the 0.5.28 scope (measured with `~/temp/agent/mutation-scope-overlap.ts` and a per-directory sum of `~/temp/agent/mutation-scope-0528.txt`:
-  of 14,758 changed lines in 160 files,
-  `index` 2,515,
-  `landing` 2,261,
-  `service` 1,098,
-  `lock` 828;
-  `merge` 2,571 also changes with the word-level pass;
-  the latency branch rewrites 7 more scope files holding 621 lines);
-  which of those files the live protocol rewrites is the coordinator's reading,
-  not measured.
-  The planted-control run started for the resume point (unit `mutctl-planted-0528b`) was stopped after its first control and its container removed.
-  Resume the campaign after the commit protocol is built and the lint-debt pass (task 88) lands:
-  first `native:mutation:planted` on that tree to show the two edited controls noticed,
-  then a fresh scope.
-  The planted-control branch still merges on its own (it fixes a crash on main:
-  `node bin/native-planted-controls.unit.test.ts` stops with ENOENT on the deleted `worktree_copy_lock.rs`).
-  Open:
-  `index_is_hardened` has no production caller,
-  so delete it rather than keep the two new tests (to decide when the branch merges).
-- No agent process or unit is left in any of the four worktrees (checked 2026-11-04 at about 07:35-05:00).
-- Decision record corrected (`05dc3800a8`,
-  owner's "Correct it now."):
-  `doc/decision/cli-git-concurrent-commits.md` now says landing writes objects with one `fast-import` (small batches loose,
-  large ones a pack,
-  measured with Git 2.56.0),
-  protected by the scratch ref `refs/worktree/cli-git-service/<seq>` until the compare-and-swap.
-
-Veto batch to ask the owner after the restart (the owner said "I'm fully back now,
-ask me."),
-through the question tool in groups of four,
-each with context,
-the pick,
-the alternative and a ranking:
-- cargo-shadow:
-  delegated transient scope as the default containment;
-  the weaker path promises what pnpm promises and its recovery waits for an acknowledgement;
-  assumptions a (no deliberate same-uid escape),
-  b (pre-existing directories are durable),
-  c amended (same mount and inode at recovery,
-  else refuse),
-  d (storage progress for blocking calls),
-  e (one machine at a time,
-  no checkpoint and restore);
-  a verified-absent scope is proof of no members;
-  same machine id plus a different boot id clears liveness;
-  "Force at leaving,
-  else background" read as the exit barrier only;
-  the `user.delegate` route dropped.
-- Commit design:
-  level 2 disabled on the execution path where its eligibility cannot be shown.
-- Answered after the restart,
-  see "Answers after the restart (2026-11-04)" under "Owner decisions in force":
-  the decision record's prune limit,
-  reference-lock removal (shipped lock removal question 5),
-  saved conflict copies that can be the only copy (shipped-limits pick 10's question),
-  and the mutation pause.
-- Index reclamation:
-  the `flock` on the stale lock's own inode;
-  without `flock` the lock is never removed;
-  `.aside-*` leftovers documented,
-  not swept.
-- Latency:
-  pack-sync option C;
-  `sync_ms` renamed `index_update_ms`.
-- CachyOS containers:
-  `latest` resolved once per run and cached by the pulled id;
-  registry unreachable means a run on the local copy with a warning;
-  Git 2.56.0 from source;
-  Rust from pacman;
-  Node from the tarball;
-  strace pinned.
-- #6261:
-  the `native` layer removal deferred (option A).
-- Older picks still marked veto open in "Picks made under the owner's delegation" and in the planning records (shipped limits,
-  waits,
-  fallback to the real Git,
-  word-level merge pass,
-  cargo-shadow's nine questions):
-  list them for the owner in the same way.
-
-At 2026-11-04T06:55:05-05:00 (main `a72b474e1d`):
-- Merged into main:
-  index reclamation as `5d23a0f800` (branch tip `5ae971d1ec`,
-  gate 4718 of 4718;
-  the `.aside-*` sweep removed and its leftovers documented with a manual removal,
-  coordinator's pick,
-  veto open)
-  and the CachyOS test containers as `a72b474e1d` (branch tip `976efc2fca`,
-  gate 4707 of 4707 with passing names identical to main's control;
-  e2e unchanged including the pre-existing `sigkill-service-during-work` failure,
-  not investigated).
-  Container agent's picks (veto open):
-  resolve `latest` once per run and key a derived base on the pulled image id plus the Containerfile hash;
-  Git 2.56.0 from source in the gate base;
-  with the registry unreachable the run continues on the local CachyOS copy with a loud warning (the one pick near "Must be latest");
-  Rust from pacman;
-  Node 24.11.0 from the tarball;
-  strace 6.13 by checksum.
-  Other packages' images still on Debian:
-  `cli.fuzz/bin/fuzz-images.ts`,
-  `forbidden-strings/cli/bin/snapshot-constants.ts`,
-  `linter/monochromatic-lint/test.Containerfile`.
-- Latency round 3 done (`perf/git-policy-cli-less-foreground-work` tip `e24d0cd017`,
-  gate 4727 of 4727):
-  warm wrapped commit 108 to 78 ms unsigned and 143 to 109 ms signed (native 53 and 57);
-  pack sync option C (the one `fast-import` child gets `core.fsync` minus `pack` and `pack-metadata` unless loose objects are synced),
-  pack-first object reads,
-  cache-tree comparison,
-  built-commit checks from the object store,
-  `sync_ms` renamed `index_update_ms`;
-  swap (0 kB over 25 minutes) and the queue link (not shown) need no change.
-  Decision-record drift for the owner:
-  `doc/decision/cli-git-concurrent-commits.md` lines 118 to 121 and 512 to 514 describe a kept pack per landing,
-  but the code keeps the scratch ref `refs/worktree/cli-git-service/<seq>` as the protection and unpacks small batches;
-  the record needs an owner-accepted correction.
-  Cross-vendor review running (`less-foreground-sol-1.txt`);
-  merge and release 0.5.29 after it.
-- cargo-shadow round 8 done (tip `089585a116`,
-  540 passed,
-  3 skipped):
-  all sixteen list rows have tests,
-  nine fully shown,
-  seven partly;
-  the delegated-scope route built (`systemd-run` with an escaped command line,
-  since `systemd-run` rewrites `$`;
-  the slice started before discovery);
-  the `user.delegate` route dropped (needs `clone3` with `CLONE_INTO_CGROUP`);
-  amended c's boot-scoped mount id makes every killed run's journal wait for acknowledgment after a reboot,
-  so the coordinator proposes recording the boot id and treating a different boot as proof the run's processes are gone
-  (in the review prompt).
-  Review:
-  8a "Does not meet the list as submitted" with "No additional acceptance row is needed" (F1 an absent scope accepted while its launcher can still create it;
-  F2 manager discovery not fully bounded;
-  F3 internal locks wait instead of returning busy;
-  F4 an incomplete acknowledgement can count as valid;
-  K1 an unreadable beside-lockfile directory suppresses the warning);
-  8b "Meets it after named fixes" with "No additional acceptance rows or deeper adversarial model are required" (seven false-green or mis-scoped tests).
-  On the boot id:
-  "A genuine reboot of the originating kernel proves that its old local processes are gone",
-  but a different boot id alone does not (a second host sharing the workspace).
-  Coordinator's pick (veto open):
-  record boot id and machine id;
-  same machine id and a different boot id discharge process liveness only,
-  every other recovery check kept;
-  otherwise refusal and acknowledgement;
-  assumption added that a workspace is used from one machine at a time.
-  Round 9 started with both parts.
-  Earlier review prompt note:
-  the boot-id idea was in the round-8 prompt.
-- Models round 13 done (tip `bf786b2004`,
-  368 model tests):
-  the round-12 findings closed red first;
-  revision 18's support fold and receipt protocol modelled;
-  coverage map 62 of 96 target items covered,
-  9 only by historical controls,
-  25 not yet.
-  Review against the acceptance target (`commit-models-sol-8.txt`):
-  "no,
-  as submitted",
-  with "None of these requests adds an acceptance criterion";
-  a six-item path (component authority boundaries;
-  departure promises;
-  overstated controls;
-  a corrected coverage map;
-  current evidence for historical and not-yet rows;
-  decision 19's fresh attempt with a stored notice);
-  the author's two design findings are implementation obligations.
-  Round 14 started on that path.
-- Design:
-  decision 19 recorded (`6d053403db`),
-  no open owner question;
-  review 17b timed out at its 3600 s bound (superseded by 18a and 19a).
-- Mutation campaign:
-  `landing/service_durable.rs` pass 1 scored 19 mutants (11 caught,
-  6 unviable,
-  2 missed:
-  `index_is_hardened` replaced with `true` and with `false`);
-  pass 2 did not run because the planted control "self-exclusion by identity and content" matches 0 times in `invocation/real_git_candidate.rs`.
-  An agent fixes the stale control and kills both survivors (`fix/git-policy-cli-planted-control-and-durable-survivors`);
-  campaign tags no longer need a `podman tag` by hand:
-  `native:mutation:parallel` makes each unit's tag from the gate image before it starts any unit,
-  and refuses to start when a tag cannot be made
-  (`fix/mutation-launcher-makes-image-tags`;
-  `package/mutation-test/cli-cargo-mutants/README.md`,
-  "Image tags").
-  Dated note,
-  2026-11-07T18:04:24-05:00:
-  before that change a campaign needed one `podman tag` of the gate image per unit (`m0528-durable0` was added by hand),
-  and a launch without the tags started units that died at once with "image not known" while the launcher exited 0
-  (`tokio-062`,
-  21 units).
-
-Flagged for the owner (measured,
-not forecasts):
-cargo-shadow has had seven review rounds with no part passing,
-and the commit protocol design six revisions (12 to 17) each drawing new P1s,
-with the protocol verdict "approve continued model work only" since revision 12.
-Cause found:
-no written contract says what is promised and what is assumed,
-so each review moves the adversary one level deeper (threads,
-mount views,
-a same-uid process that leaves its group).
-Remedy taken:
-cargo-shadow writes `doc/planning/cargo-shadow-guarantees.md` (guarantees,
-assumptions,
-behavior where an assumption fails) before more code,
-and the reviewer turns it into a finite acceptance list;
-the design reviewer is asked (`commits-never-fail-sol-17c.txt`) which of R17a-1 to R17a-5 are rule gaps,
-for the finite property set that would move its verdict,
-and which owner rules cannot all hold together for some schedule.
-The cargo-shadow assumptions are coordinator's picks (veto open):
-no deliberate same-uid escape (such a process can write `Cargo.lock` after the run anyway);
-directories that existed before the transaction are durable;
-the journal resolves to the same mount and inode at recovery,
-else recovery refuses;
-the weaker path promises what pnpm promises and its recovery waits for a person's acknowledgment.
-cargo-shadow contract (`doc/planning/cargo-shadow-guarantees.md` on `feat/cargo-shadow-cli`,
-`29af137137`):
-cross-vendor review `cargo-shadow-sol-contract-1.txt` "fit after the named edits",
-with a finite acceptance list (sixteen rows) and "No remaining round-7 safety finding inherently requires going another adversarial level deeper.";
-the delegated-scope probe works (`systemd-run --user --scope --property=Delegate=yes`;
-strace showed no cgroup file opened by cargo-shadow;
-`user.delegate` appears only on `user@1000.service`).
-Coordinator's picks for the two choices it left open (veto open):
-a verified-absent scope is proof of no members (systemd removes a scope only when empty or after stopping its members),
-scope names carry a random token and are never reused while a journal can name them;
-every wait cargo-shadow controls has a deadline,
-and blocking kernel and file-system calls rest on a stated storage-progress assumption mirroring "Assume the final disk save would never be cut short.".
-Round 8 started:
-the contract edits,
-then every row of the acceptance list with a coverage map.
-cargo-shadow P1 re-review (round 7):
-7a "not closed" (F1 to F6:
-the spawn lock does not stop capturing another thread's child;
-discovery outside the spawn lock;
-failure to leave the group returns an ordinary I/O error;
-a completed process-group record cannot authorize recovery;
-the boundary is writable by the payload;
-recovery checks the cgroup namespace,
-not the mount view);
-7b "not closed" (a mount boundary is not a durable anchor;
-`begin` turns an entry-level `NotFound` into "no earlier journals");
-7c "not closed" (weaker-path recovery without quiescence;
-the documented same-uid escape).
-
-Queue,
-in order:
-- Design revision 17 (started by 2026-11-04T04:05:21-05:00,
-  commit `1e301bfdc1`),
-  from review 16a (`commits-never-fail-sol-16a.txt`:
-  R15 closure "not closed";
-  P1s R16a-1 level 2 still lacks the promised durable representation (the ref store need not share the object store's file system),
-  R16a-2 the no-manager materialization path brings back the forbidden wait,
-  R16a-3 an indefinite foreground upgrade or restart,
-  R16a-4 `not-submitted` must be final for the whole attempt,
-  R16a-5 same-path re-keying underspecified;
-  question 8 "accurate after named edits",
-  R16a-10)
-  and review 16b when it is in.
-  Question 8 is asked only after revision 17 settles what it depends on.
-- Models round 13 after revision 18 lands,
-  building to its "Acceptance target" section,
-  with the round-12 reviews:
-  `commit-components-sol-9.txt` "not closed" (the replacement authority is still caller-asserted;
-  later appends escape its dependency check;
-  completion can delete a dependency it just validated and forced;
-  full-file identities lack a lifetime contract for mutable dependencies;
-  departure validates argument presence,
-  not the disposition's promise)
-  and `commit-models-sol-7.txt` "P1 set:
-  not closed" (one P1:
-  ordinary successful completion still bypasses the register's final-save obligation;
-  P2s on the shutdown green's monitor and `FifteenDropsLive` also removing R2's guard).
-  Models round 12 tip `99bdd7f48b`,
-  333 of 333.
-  Its reviews then judge against the acceptance target,
-  not a new open search.
-- Lint task 88 once the open branches of this package merge.
-- Native-layer removal (#6261 option A,
-  veto open).
-- Ask the owner for the measured span values (decision 17) before that part ships.
-- Final re-review.
-
-Older entries,
-from the 2026-11-03T10:00-05:00 list,
-are history to prune into canonical docs:
-- Shipped-limits pick 1's classing with the measured citations 7,
-  8,
-  13,
-  14 and 15,
-  branch `fix/git-policy-cli-limits-cite-measurements`,
-  worktree `.claude/worktrees/limits-cite-measurements`.
-- Shipped-limits picks 4 and 9,
-  branch `feat/git-policy-cli-steps-end-only-on-no-progress` from the 0.5.28 base `f58510c538`,
-  worktree `.claude/worktrees/steps-end-only-on-no-progress`.
-- Done and merged into the 0.5.28 base:
-  the wrapper never runs itself as Git,
-  `fix/git-policy-cli-never-runs-itself-as-git` `7ed8e9abe5`.
-  Cause:
-  `classify_candidate` (`real_git_candidate.rs`) compared a `PATH` candidate with the running file by inode,
-  path and bytes,
-  so the toolchain launcher counted as real Git,
-  and the `forwarded_to_self` guard (`entry.rs`) named the launcher,
-  not the binary behind it.
-  Fix:
-  candidates with a `<name>.launch` record of this tool are skipped,
-  and every real-Git start sets `CLI_GIT_STARTED_AS_GIT` (starter pid,
-  birth,
-  mode),
-  so a wrapper that arrives as its own starter's Git stops with exit 2 and a message naming every candidate.
-  Coordinator's picks under the delegation,
-  veto open:
-  a user script named `git` that runs the wrapper without `exec` stays a documented limit
-  (a depth cap would need an uncited number;
-  a script that uses `exec` is caught);
-  falling back to the real Git the wrapper was installed over when `PATH` holds none is queued after 0.5.28.
-  Found by the cargo-shadow agent's bench on 0.5.26:
-  `PATH` held `cli-git-bin/git` (a symlink to the toolchain launcher `.cache/toolchain-launchers/cli-git-native`)
-  and no real Git;
-  `git rev-parse ... @{upstream}^{commit}` became a parent-to-child chain of wrappers,
-  each adding its `-c hook.*.enabled=false` options,
-  exactly 100 at the scope's `TasksMax=100`,
-  all sleeping,
-  until the scope was stopped;
-  `git --version` still printed "shadowing git at /usr/bin/git".
-  Against "We should never invoke ourselves recursively."
-  (`doc/planning/cli-git-no-self-invocation.md`);
-  without a cap it can exhaust the host's process limit.
-- Done and merged into the 0.5.28 base (`177f9ebc50`):
-  shipped-limits picks 2 and 6,
-  `feat/git-policy-cli-index-lock-and-service-waits` `008b74d3a3`.
-  Its follow-ups,
-  picked under the delegation (veto open) and queued:
-  an unproven lock owner is waited for like a proven one,
-  because an editor-held `git commit` would otherwise make ours fail after 1 s;
-  poll when no inotify watch is available;
-  ask the service manager to start an inactive unit after `START_WAIT`;
-  a scratch file can be aged out during a wait longer than a day.
-  The 150 s hold-age margin is for the owner to approve on return.
-- Done and merged into the 0.5.28 base (`cfd30ccd18`):
-  the two shipped lock-deletion P1s from the eighth design review (S-1,
-  S-2),
-  `fix/git-policy-cli-never-removes-a-live-lock` `9f92dae98c` (from `177f9ebc50`).
-  The stopped-child sweep no longer deletes anything itself
-  (it deleted a live foreign writer's empty lock,
-  and a lock made after an old pid file);
-  it calls the same judgement as every fetch and push.
-  The boot-time proof is gone (a clock step fooled it);
-  a pid number proves a holder gone only from the initial PID namespace,
-  without `hidepid`,
-  and when no process carries that number inside a nested namespace (`NSpid:`).
-  Companion files (pid file,
-  `packed-refs.new`) go through the same rename,
-  compare and remove-or-put-back step as the lock;
-  that step now checks identity twice and moves with `RENAME_NOREPLACE`.
-  7 red tests first,
-  98 library and 10 binary tests,
-  clippy clean.
-  Its four questions are in "Picks made under the owner's delegation".
-  Conflict to expect:
-  the citations follow-ups set `BOOT_SLACK` to 3607 s,
-  which this branch removes.
-- Done:
-  the second cross-vendor review of cargo-shadow,
-  split in three after the whole 733 KB diff timed out at 3600 s with no output
-  (2026-11-03T11:23:48-05:00),
-  each part from `504a82aa3f` to `09bb7820ea` with the first review attached.
-  None of the three parts passes.
-  Part 2a (the Git reader,
-  `cargo-shadow-sol-2a.txt`,
-  2026-11-03T11:38:43-05:00) says "not correct",
-  with three P1s that can pick `HEAD` where Git picks an older upstream:
-  a `\` at the end of a comment line joins the next line,
-  hiding an `[include]`;
-  `extensions.worktreeConfig = yes` (or `on`,
-  or a nonzero number) is not read as true;
-  the last `branch.<name>.merge` entry is used where Git uses the first.
-  P2s:
-  the section header parser (dotted section with a quoted subsection,
-  `]` inside quotes);
-  trailing whitespace trimmed from quoted values;
-  a bare key read as the string `true`;
-  worktree-private refs read from the common directory;
-  `refs/remotes/<name>/HEAD` missing from short-name lookup;
-  a hexadecimal ref value taken as a commit without reading the object;
-  `/etc/gitconfig` assumed as the system file;
-  `gitdir:` path whitespace trimmed and `commondir` read errors taken as absence;
-  unknown extensions and invalid refspecs answered natively.
-  P3:
-  the fallback can start four Git processes,
-  not one.
-  It asks for a differential suite with Git as the oracle.
-  Part 2b (the journal and restore,
-  `cargo-shadow-sol-2b.txt`) says "Not correct":
-  output attributed by reading after Cargo returns,
-  an exchange-then-unlink race,
-  a fallback race,
-  predictable temporary names,
-  read errors taken as empty,
-  no fsync ordering,
-  an unreadable manifest index read as success,
-  a global `kept_a_lock`,
-  no recovery claim;
-  P2s for lossy paths and CSV memory.
-  Part 2c (install,
-  verify,
-  policy and the planning record,
-  `cargo-shadow-sol-2c.txt`,
-  2026-11-03T11:37:58-05:00) says "not ready for 0.1.0",
-  with seven P1s:
-  a Cargo call that writes a lockfile and then exits nonzero leaves it unrecorded,
-  and the `--locked` fallback builds it;
-  a lookup error after an age refusal erases the refusal and builds;
-  `cargo update` checks only versions this command added,
-  so an unchanged `--precise` target is never judged;
-  the same post-Cargo read attribution as 2b;
-  placeholder cleanup reads,
-  then deletes,
-  so a lockfile published in between is lost;
-  a sync-failure rollback writes the old catalog over another writer's edit;
-  a malformed historical timestamp sorts first and gives a new publisher earlier history.
-  P2s:
-  frozen non-strict age warnings are dropped;
-  `cargo update -m` without a value becomes a full update;
-  an option value equal to the verb is taken as the verb;
-  partial sync edits are not recorded.
-  P3:
-  seven comments say the opposite of the code.
-  Before those reviews,
-  the first review's follow-ups were done:
-  294 of 294 tests,
-  the trust base read from Git's files with one `git` start only in the cases they cannot answer,
-  saving 1.5 to 4 ms per call,
-  `file-enforcer write` from source reproduces the generated line,
-  and about 4300 comment lines,
-  partly from a regex tool,
-  which the review checks for false statements).
-- Done,
-  not merged anywhere (design code,
-  nothing live calls it):
-  step 1 of the commits-never-fail build,
-  `feat/git-policy-cli-commit-protocol-models` `22e0ba1f37`,
-  worktree `.claude/worktrees/commit-protocol-models`.
-  A hand-written schedule explorer (stateright is not in the offline registry;
-  loom and shuttle cannot model system calls)
-  and models F1 to F9,
-  each red under revisions 6 and 7 with literal replays and green for revision 8 or a candidate;
-  step 3 components (ledger,
-  identity binding,
-  request,
-  spool) and the step 4 pure replay,
-  differential against Git 2.56.0;
-  105 of 105 tests (`native:test:model`),
-  clippy clean.
-  Four findings against revision 8,
-  sent to the revision 9 agent:
-  a resend answered from a visible but not yet durable inbox record (F7);
-  an owner wedged with no gate cannot be ended by a catchable signal (F3,
-  L7);
-  L4 must raise the capture generation to odd first (F6);
-  a recorded swap-failed replays silently after the post-anchor reflog lines are erased (F1,
-  R4).
-  The eighth review's section-4 controls are not built;
-  they follow revision 9.
-  Its comment density is below the dum-dum skill's in the F2 to F9 models and three component files.
-- Done and merged into the 0.5.28 base (`afc9a8621d`,
-  both merges clean,
-  clippy clean on the result):
-  the fallback to the real Git the wrapper was installed over (task 150),
-  `feat/git-policy-cli-falls-back-to-installed-git` `6453c380b1`.
-  When `PATH` offers no real Git,
-  it uses the `--git` path from the commit service's unit file under `$XDG_RUNTIME_DIR/systemd/user`,
-  checked as every `PATH` candidate is,
-  and prints one line naming the path and the directory to add to `PATH`;
-  no usable record keeps the stop.
-  7 new binary tests and 17 new unit tests,
-  red first;
-  its four questions are in "Picks made under the owner's delegation".
-- Done and merged into the 0.5.28 base (`afc9a8621d`):
-  the shipped-limits follow-ups after the citations (task 151),
-  `fix/git-policy-cli-limits-cite-measurements` `e314460f79`
-  (2026-11-03,
-  measured under the load other sessions put on the host;
-  figures in the audit doc's "Follow-up measurements" section).
-  Lock age `MARGIN` 7 s (twice 3438 ms,
-  rounded up),
-  `BOOT_SLACK` 3607 s;
-  8 local queries at once (the earlier measurement,
-  not repeated) and 4 remote;
-  batch cap 256,
-  the size at which the per-request landing cost (0.16 ms) had not yet doubled,
-  from a burst of up to 1024 clients against a throwaway service;
-  claim lease kept at 120 s (a killed claim recovered 119.55 to 119.57 s after the kill;
-  a live holder losing its claim was not measured);
-  copy,
-  install and clone go parallel from 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`;
-  the old 4096,
-  1024 and 512 left up to 145,
-  50 and 12 ms unused);
-  removal split depth 3,
-  install batch 4096 (12% slower than one batch with a stand-in recorder;
-  the owner's trade) and 4 index copies kept as measured.
-  Red tests first for each changed value;
-  688 unit tests,
-  8 binary tests and clippy clean;
-  the full gate was not run.
-  The claim-kill probe's scope showed inactive before the tests ran,
-  so that run was bounded only by the tests' five-minute limit.
-- Done and merged into the 0.5.28 base (`a840964c97`):
-  the third round on the in-process index writer,
-  `perf/git-policy-cli-follow-up-index-in-process` `01e4d4c610`.
-  Findings 1 to 5 of the third re-review fixed,
-  each red first;
-  6 (the reclaimer's check-then-unlink) recorded in SPEC,
-  not fixed.
-  The shipped P1:
-  `IndexLock::release_with_record` installs the index,
-  records `<batch>.indexed` (the commit name,
-  synced) while the lock is held,
-  then unlocks;
-  recovery that finds the record replays only the conclusion state.
-  The HEAD check is asked again once the lock is held;
-  recovery that finds another branch checked out leaves its index alone.
-  `PrivateCopy` is made with `O_EXCL` and never reused,
-  so copies a killed run left can pile up (no cleanup yet).
-  720 library and 70 binary tests,
-  clippy clean.
-  The fourth cross-vendor re-review (`~/temp/agent/reviews/follow-up-index-sol-4.txt`,
-  2026-11-03T12:08:52-05:00):
-  "Safe after named fixes,
-  not safe to ship as shown".
-  P1s:
-  recovery can still overwrite later staging (a build or install error unlocks with a replayable intent;
-  recovery unlinks a stale lock before taking its own;
-  a panic in `record` unlocks),
-  and an unreadable `.indexed` record is taken as absent.
-  P2s:
-  durability ordering of the install,
-  record and done mark;
-  the second HEAD check is still apart from the ref update;
-  the private copy is filled at default permissions;
-  the private name is not owned for the whole operation;
-  branch-change recovery drops an alternate index's update and pending cleanup;
-  HEAD read from the wrong worktree;
-  sixteen abandoned copies exhaust the names for good.
-  P3:
-  a long alternate index name overflows `NAME_MAX`.
-- Done:
-  fourth round on the index writer,
-  `perf/git-policy-cli-follow-up-index-in-process` `2dd575cfc1`,
-  all ten findings red first,
-  774 library and 70 binary tests,
-  clippy clean.
-  Recovery resets only paths whose entries still equal the `<seq>.start` record taken under the lock before the ref moves;
-  `.indexed` is three-valued and recovery stops on an unreadable one;
-  the index directory is synced before the record,
-  and the journal directory before `.indexed` goes;
-  the release disarms before syncing,
-  so an error or a panic keeps the lock;
-  an alternate index is still finished after a switch;
-  HEAD is read from the request's own worktree Git directory;
-  private copies live in an owner-only `cli-git-private-<uuid>` directory with an owner marker,
-  swept only when its pid is dead.
-  Finding 4 differs from the pick:
-  Git 2.56.0 refuses `symref-verify HEAD` beside an update of its referent ("multiple updates for 'HEAD' ...
-  are not allowed",
-  probed),
-  so HEAD is read again after the ref moved,
-  under the lock,
-  and a worktree that left the branch keeps its index;
-  accepted under the delegation,
-  veto open.
-  The gate's ACL test now sets the default ACL by the `system.posix_acl_default` xattr (passed in the existing image).
-  Present in 0.5.27 (tag `monochromatic-git-policy-cli-v0.5.27`):
-  1(A),
-  1(B),
-  1(C),
-  3,
-  4,
-  6 (worse),
-  8;
-  not 2,
-  5,
-  9,
-  10;
-  7 inverted (0.5.27 replays onto a switched worktree).
-  Not fixed:
-  the `remove_stale` check-then-unlink;
-  a batch with no start record (a commit Git built) replays every path;
-  two extra fsyncs per landing,
-  unmeasured.
-  It merged the base `14c26dbcc9` with no textual conflicts (`f6be7b42e2`);
-  one semantic conflict found at compile time,
-  the carried conflict stages against the private-copy directory,
-  fixed in `e7e304ffd6` (stages written into the copy's own `index` before the release);
-  794 of 795 library tests (`service_index_lock::tests::a_foreign_lock_is_described_with_the_process_that_has_it_open` failed once,
-  then passed alone and in its 64-test module:
-  a load flake to confirm in the gate)
-  and 95 of 95 binary tests,
-  clippy clean.
-  The base was fast-forwarded to `e7e304ffd6`.
-  Running,
-  not an agent:
-  the fifth cross-vendor re-review (`follow-up-index-sol-5.txt`).
-- Check the container image `native:test:container` builds:
-  the index agent reports a Debian trixie base,
-  against the repository's rule of the newest CachyOS image (`doc/decision/container-base-distro.md`).
-  Picked under the delegation (veto open):
-  recovery resets a path only while its index entry still equals the one the landing started from,
-  so a later `git add` survives however the lock handoff goes ("never discard user data");
-  the HEAD expectation moves into the ref transaction (`update-ref --stdin` `symref-verify`,
-  to be checked against the installed Git).
-- Done:
-  design revision 9 of `doc/planning/cli-git-commits-never-fail.md`,
-  `a7b917e47e` to `5ff9706edc` (2026-11-03T11:44:10-05:00 to 11:54:15),
-  answering all of the eighth review and the four model findings;
-  the three choices it left were picked in `7afb60a024` (see "Picks made under the owner's delegation").
-  The ninth cross-vendor review (`~/temp/agent/reviews/commits-never-fail-sol-9.txt`,
-  2026-11-03T12:09:51-05:00):
-  "Approve continued executable-model work and disposable backend experiments only.
-  Do not approve the live protocol."
-  Closed:
-  the ungated restart,
-  the shared ledger repair,
-  shared candidates,
-  the suppression example,
-  the signal choice.
-  P1s:
-  C0 releases the lane lock while its client lives,
-  so the next owner kills a healthy client (R9-1);
-  a resend acknowledges a binding whose directory entry is not durable (R9-2);
-  M1's journaled inode number is not deletion authority (R9-3);
-  MG2 and MG3 erase unrelated staging and ignore a completed switch (R9-4);
-  T1 assumes reachability holds through a maintenance run's earlier view (R9-6);
-  and the shipped lock-removal step (R9-S,
-  see "Shipped lock removal").
-  P2s:
-  merge staging captured before publish-begin and a reverse carry that is no inverse (R9-5),
-  R4 cannot tell an erased suffix from none so the F1 closure is withdrawn (R9-7),
-  E1 retries a refusal after a foreign change (R9-8),
-  B3 with path-set changes (R9-9),
-  undefined exits (R9-10);
-  P3 rule S's arithmetic (R9-11).
-- Done:
-  design revision 10,
-  `7afb60a024` to `dc6e809eca` (2026-11-03T12:22:02-05:00 to 12:27:13),
-  answering all of the ninth review;
-  new rule D (whoever relies on a visible name makes it durable first),
-  rule N (the lane removes only names no foreign program creates),
-  a recovery helper for C0,
-  delta merge installs with attachment authority,
-  a hold ref rooting each recovery copy,
-  E1 by exit status first,
-  amendments as fresh identities,
-  a `resume` point on every waiting request,
-  a durable hook result file.
-  It states that shipped code should stop removing reference locks until a primitive that cannot revoke a replacement lock is shown;
-  that is the open owner question in "Shipped lock removal".
-  Its five choices picked in `eed561efaa` (see "Commits never fail,
-  revision 10").
-  The tenth cross-vendor review (`~/temp/agent/reviews/commits-never-fail-sol-10.txt`,
-  2026-11-03T12:41:05-05:00):
-  "Approve continued executable-model work,
-  pure components without reclamation,
-  and disposable backend experiments only.
-  Do not approve the live protocol."
-  P1s:
-  an absent `index.lock` does not prove M1 installed the index (R10-1);
-  W-detect and MG6 cannot restore after a detected switch (R10-3,
-  so W-detect is not approved as specified);
-  G-root's invariant is not established (R10-4).
-  P2s include a recovery helper that can wait without end (R10-5)
-  and P-wait being possibly indefinite,
-  both now against the owner's no-unbounded-wait rule.
-  Done:
-  design revision 11,
-  `eed561efaa` to `1430d7ddfa` (2026-11-03T12:48:49-05:00 to 12:54:14),
-  answering the tenth review and applying the owner's bound answers:
-  rule B registers every blocked process with its bound;
-  W1 at a command's bound withdraws the request durably,
-  keeps the commit on `refs/cli-git/<instance>/withdrawn/<id>`,
-  leaves staging alone and exits non-zero;
-  P2 is `update-ref --stdin` prepare,
-  decide,
-  commit,
-  and W1 races the decision by `link` to `lane/decision/<id>`,
-  so a request with a client lands or never lands;
-  bounds START,
-  FOREGROUND,
-  MARKER,
-  ACQUIRE,
-  REAP,
-  KILL,
-  COMMITTING,
-  STALL and PUSH start from shipped constants,
-  labelled unmeasured.
-  Its choices (`9c2b2ec0ab`,
-  `e6199d4e4f`):
-  the owner decided P-carry ("Merge anyway,
-  unstage x") and W-detect with its residue ("Allow the rare leftover");
-  the coordinator picked G-order,
-  N-silent and H-episode.
-  Running,
-  not an agent:
-  the eleventh cross-vendor review (`commits-never-fail-sol-11.txt`).
-  Running:
-  step 1,
-  fifth round (revision 11 models with `explore_bounded` over every registered wait,
-  the W1-versus-P2 race,
-  the tenth review's controls,
-  the components' third-review fixes,
-  the per-site comment pass).
-- Done,
-  not merged:
-  step 1,
-  third round,
-  `feat/git-policy-cli-commit-protocol-models` `27fa595034`,
-  149 of 149 model tests,
-  clippy clean.
-  Revision 10 modelled for F1 (an earlier "green" relied on an oracle and is corrected),
-  E1,
-  F8 and M1 (each red under revision 9,
-  green under 10);
-  most of the ninth review's controls are not built.
-  The components re-review's P1s are fixed (a durable chain through an anchor on every call;
-  a canonical manifest checked against the bytes returned),
-  with the P2s and most P3s;
-  not done:
-  a populated-submodule fixture,
-  deterministic fault points,
-  the comment-density pass.
-  The components' third review (`commit-components-sol-3.txt`,
-  2026-11-03T12:51:01-05:00):
-  "Ready after named fixes".
-  A and B are repaired provided the anchor is durable;
-  to do:
-  an initialized-root constructor that makes the root durable through a known-durable parent
-  (P1 integration prerequisite),
-  bare relative ledger filenames and ancestor durability before a repair (P2),
-  gitlink and amendment eligibility and retention contracts (P2),
-  the trace gated out of production (P3),
-  a fully canonical manifest syntax or an accurate claim (P3),
-  deterministic filesystem-ordering tests,
-  and bumping `REQUEST_VERSION` for the new mandatory line.
-  In step 1's fifth round.
-  Done:
-  step 1,
-  fourth round (`bc3ff62cd4`,
-  157 of 157 model tests,
-  clippy clean):
-  `explore_bounded` flags a wait longer than N of the protocol's own steps,
-  or a wait with no own step left;
-  `model_observe.rs` separates what a reader sees from what a power loss keeps;
-  deterministic fault points before the link in `bind`,
-  `publish` and the spool;
-  a real populated-submodule fixture for `GitlinkNeedsAncestry`.
-  The comment pass was a script adding one generic block per concept from a fixed list
-  (F2 and F6 got none);
-  a real per-site pass is still owed.
-  The models' first review waits for revision 11's models
-  (the models diff is 386 KB and must be split).
-- Done,
-  not merged anywhere:
-  step 1,
-  second round,
-  `feat/git-policy-cli-commit-protocol-models` `52ccb3e38e`.
-  Revision 9 modelled:
-  each changelog schedule red under revision 8 and green under 9
-  (F1,
-  F3,
-  F4,
-  F6,
-  F8,
-  F9,
-  plus new two-lane ledger,
-  M1 kill-point and merge models),
-  135 of 135 tests.
-  It found one revision 9 defect:
-  C4 answers `handed over` when its no-replace link finds a visible but not durable record
-  (fix proposed as variant `NineFsyncOnExists`,
-  sent to revision 10).
-  Components review P1s fixed
-  (type-aware replay,
-  per-lane ledgers,
-  durable directory creation,
-  resends sync the name,
-  request format version 2 with the base bytes in the spool);
-  not fixed:
-  byte paths,
-  gitlink fast-forwards,
-  `merge-tree -z`,
-  race-test barriers,
-  and the comment-density pass.
-  Some red states were compile errors rather than failing assertions.
-  The components re-review (`~/temp/agent/reviews/commit-components-sol-2.txt`,
-  2026-11-03T12:21:53-05:00):
-  "not correct".
-  The type-merge P1 and the `.torn` ordering are fixed;
-  per-lane ledgers hold under revision 9's single-appender contract.
-  P1s:
-  `create_dir_all_durable` stops at the first existing ancestor,
-  so an ancestor another creator made but never synced can vanish after acceptance;
-  the spool manifest's order and indices are unchecked,
-  so a correctly hashed manifest can make `read_closure` return old and new bytes swapped,
-  and an index such as `../other` is read as a path.
-  P2s:
-  an agreed type change (symlink to regular file on both sides) is refused;
-  a relative path fails (`create_dir("")`);
-  an empty commit and a message-only amendment are indistinguishable (no operation kind);
-  v1 requests are rejected (fine before release).
-  P3s:
-  the oracle strips legitimate `~<hex>` names;
-  the test sync counter runs in production code;
-  the counter tests prove neither the target nor the order.
-- Step 1,
-  second round:
-  its agent is resumed to model revision 9 (red under revision 8,
-  green under 9 for each changelog schedule),
-  build the eighth review's section-4 controls,
-  raise the comment density,
-  and then fix the components review:
-  "not correct" (`commit-components-sol-1.txt`),
-  P1s for a mode and object merged across file types (a symlink made from an edited file),
-  ledger repair racing an append (answered by revision 9's per-lane ledgers),
-  new directory names never synced into their parents,
-  a resend acknowledging a link whose directory entry was never synced,
-  and a spool that cannot be replayed once the base objects are pruned.
-- cargo-shadow fixes for all three second-review parts,
-  its agent resumed;
-  it writes the three diffs for the third review to `~/temp/agent/reviews/cargo-shadow-3a.diff`,
-  `-3b.diff` and `-3c.diff`.
-- The word-level second merge pass (task 114),
-  `feat/git-policy-cli-word-level-second-merge-pass` at `2a37bb7682`:
-  the 0.5.28 base merged in (`9763599f3a`;
-  in `merge_isolation.rs` a clean-index conflict still goes to native Git first,
-  then the pass runs on the stopped merge);
-  autostash and `branch.<name>.mergeOptions` verified;
-  a pull that is stated to merge now runs as `git fetch` plus the isolated `git merge FETCH_HEAD`
-  (`pull_isolation.rs`),
-  because native `git pull` starts its merge as Git's own child,
-  out of the wrapper's sight.
-  Second round done (`411e98e732`) and merged into the 0.5.28 base (`9e0b06ad83`):
-  the three picks built
-  (an autostash whose apply would conflict leaves the merge stopped as Git does,
-  the work kept in `MERGE_AUTOSTASH`;
-  the pull's working-tree update waits for the index lock);
-  a fast-forwarding pull skips the isolated attempt.
-  Measured under the load there was (load average 9 to 11,
-  debug build,
-  nine alternating rounds,
-  native-versus-native spread 2 ms or less):
-  a merging pull 367 ms against native 14 to 16 ms,
-  a fast-forwarding pull 128 ms against 11 to 12 ms;
-  most of the merging cost is the isolated merge itself (a typed merge 302 ms).
-  Answering the pull's queries in process is open.
-  179 library and 83 binary tests,
-  clippy clean.
-  Its agent is resumed on `fix/git-policy-cli-conflict-warning-reads-the-content` from `9e0b06ad83`:
-  the false conflict-marker warning in "Known flakes and failures not yet fixed",
-  then carry-back A.
-- Passed:
-  a second early gate of the 0.5.28 base at `afc9a8621d` (after the waits,
-  citations follow-ups and fallback merges),
-  unit `gpc-gate-candidate-0-5-28-fallback-citations-20261103T114530-0500.service`,
-  4468 of 4468,
-  6 skipped,
-  one slow.
-- Failed,
-  2 of 4575 (8 skipped):
-  a third early gate at `9e0b06ad83` (after the index writer's third round,
-  the lock-removal fix and the word-level pass),
-  unit `gpc-gate-candidate-0-5-28-index-r3-locks-word-level-20261103T120421-0500.service`.
-  `index_reset_file::tests::the_file_mode_under_a_default_acl_equals_git`:
-  the gate's container has no `setfacl` (`NotFound`);
-  sent to the index round 4 agent (add the ACL tools to the image).
-  `git_stop_lock_tests::a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own`:
-  a regression from the lock-removal fix,
-  passing on the host;
-  the stopped child's lock and its pid file stay,
-  read as the general judge declining inside the container's own PID namespace,
-  so inside any container every Git child the wrapper ends would leave a lock.
-  Fixed and merged into the base (`3c7aaa1122`):
-  `fix/git-policy-cli-sweeps-its-own-reaped-childs-locks` `9176f9302c`.
-  The reading was confirmed (the judge reports a PID namespace of its own and returns Unproven).
-  The sweep passes the judge the ended members of the tree it reaped (`Judge.own_ended`);
-  a pid file born at or after the lock,
-  a lock born after the child started (`COARSE_CLOCK_SLACK` 50 ms back),
-  and no process with that number again prove it gone in any process view,
-  without the 4 s margin.
-  Container run 2 red then 93 of 93;
-  host 104 of 104;
-  six negative controls for the container view.
-  It adds occasions for the move-aside residue (R9-S) without changing the step;
-  SPEC now states that residue beside the removal step.
-- Failed,
-  7 of 4596:
-  a fourth early gate at `3c7aaa1122` (after the waits follow-ups and the regression fix),
-  unit `gpc-gate-candidate-0-5-28-waits-own-child-locks-20261103T122526-0500.service`.
-  The ACL test as expected (no `setfacl` in the image,
-  with the index round 4);
-  the stop-lock test now passes;
-  and six `budget::` binary tests:
-  "starts of git check-attr:
-  observed 1,
-  budget 0" on every ordinary commit,
-  a regression from the conflict-warning fix (`conflict_markers.rs` asks for `conflict-marker-size` even when no path was conflicted).
-  Its agent is fixing it on `fix/git-policy-cli-conflict-check-only-for-conflicted-paths`
-  (start nothing new for an ordinary commit;
-  budget constants unchanged).
-- Done and merged into the 0.5.28 base (fast-forward to `d300bb806d`):
-  `fix/git-policy-cli-conflict-warning-reads-the-content`.
-  The marker claim reads the committed blob (`conflict_markers.rs`,
-  honouring `conflict-marker-size`,
-  default 7,
-  a lone `=======` not enough);
-  any named-path commit during a merge or cherry-pick prints one line saying how to finish it.
-  Carry-back A:
-  a conflicted autostash's `stash@{0}: autostash` and its unmerged stages reach the real repository
-  (objects already land in the real store;
-  `autostash_carry.rs`,
-  stored once so a restart does not store it twice);
-  removing either half turned its control red.
-  134 library and 90 binary tests,
-  clippy clean.
-- Done:
-  the index-lock and service waits follow-ups,
-  `feat/git-policy-cli-index-lock-and-service-waits` `82633304d0`,
-  each pick red first:
-  unproven index-lock owners waited for with no bound (`UNPROVEN_OWNER_BACKOFF` and `unproven_backoff.rs` deleted);
-  polling every 50 ms (`POLL_PAUSE`,
-  classed exempt) where no inotify watch can be set;
-  an `inactive` unit asked to start after each `START_WAIT`;
-  a waiting command renews its scratch directory once an hour so the sweep keeps it.
-  903 library and 92 binary tests,
-  clippy clean;
-  the real manager calls (`active_state`,
-  `start_unit`) were not run against a real user manager.
-  Open audit question:
-  the heartbeat proves the service and its connection,
-  not that the landing thread makes progress.
-  It merged the base `d300bb806d` with no conflicts (`db0e92df64`),
-  dropped its handover edit (`afbf402146`;
-  the base branch's copy of this handover is stale,
-  and main's copy wins when the base merges into main),
-  and the base was fast-forwarded to `afbf402146`
-  (260 wait,
-  68 carry-back and conflict,
-  29 binary tests;
-  clippy clean).
-- Passed:
-  an early gate of the 0.5.28 base at its tip after the index writer's second round
-  (unit `gpc-gate-candidate-0-5-28-early-20261103T111639-0500.service`,
-  4424 of 4424,
-  7 skipped,
-  one slow).
-- Done:
-  the eighth cross-vendor design review (`~/temp/agent/reviews/commits-never-fail-sol-8.txt`,
-  2026-11-03T11:33:50-05:00),
-  with the shipped stale-lock code attached.
-  Recorded in `doc/planning/cli-git-commits-never-fail.md` on `fix/git-policy-cli-commits-never-fail` (`a7b917e47e`,
-  section on the owner questions):
-  the shipped stale-lock rule does not survive (S-1,
-  S-2,
-  fixed on their own branch);
-  B2 is withdrawn for B1,
-  because a restarter's correct "no program running" observation can be followed by a hook starting,
-  which the restart then ends (R8-1);
-  A2 stays as an accepted narrowing:
-  ending a stalled Git child that ignores the terminate signal can leave a lock only the person clears.
-  The other findings need design revision 9:
-  the ledger has several writers,
-  C2 is not immutable,
-  generations do not cover every state,
-  X1's classification,
-  M2 brings back a removed path,
-  T1 conflicts with G3,
-  and the state machine has gaps,
-  merge among them (R8-2 to R8-8).
-  Revision 8 `833b4ef80a` to `3f49d76ec6` (2026-11-03T11:04:37-05:00 to 11:06:22) is the normative state machine
-  (L1 to L7,
-  C1 to C5,
-  B1,
-  B2,
-  P1 to P4 with recovery R1 to R5,
-  M1,
-  M2,
-  T1,
-  X1,
-  G1 to G4);
-  its two owner questions were picked in `3beecf2368`:
-  A2 (kill a Git child that ignores the terminate signal,
-  the owner's "End Git") and B2 (restart a quiet owner that holds the gate,
-  against handing our own wedge to the person);
-  a lock either leaves goes through the stale-lock rule shipped since 0.5.26,
-  which revision 8's "the wrapper never removes a ref lock" contradicts,
-  so the eighth review judges that shipped rule too.
-- Done and merged into the 0.5.28 base (`a7a19b590a`,
-  audit doc conflict resolved by keeping both sections):
-  shipped-limits picks 4 and 9,
-  `feat/git-policy-cli-steps-end-only-on-no-progress` `1d30940265`
-  (Git steps,
-  queries,
-  the linter,
-  the review gateway and the repair tool end only after a labelled unmeasured quiet window;
-  `QUERY_CEILING` gone;
-  every step now records its longest quiet gap in the timing records and the service journal).
-  Picked under the delegation:
-  collect quiet gaps from ordinary use and set each window above the longest by a margin the owner approves on return;
-  redo a quiet step that is safe to run twice once;
-  `update-ref` waited for,
-  not ended,
-  until the eighth review settles the lock question;
-  the review's local log write left without a judge.
-- Done and merged into the 0.5.28 base (`fc19017f67`,
-  audit doc conflict resolved by keeping both agents' sections):
-  shipped-limits pick 1 and the measured citations 7,
-  8,
-  13,
-  14,
-  15,
-  `fix/git-policy-cli-limits-cite-measurements` `9b65660e95`
-  (free space from the entry count,
-  about 1 KiB of btrfs metadata per entry measured;
-  ref-lock `MARGIN` 4 s from the longest journal `ref_ms` 3438 ms;
-  `BOOT_SLACK` 3604 s;
-  `REPOSITORY_MEMORY` and `ENTRY_MEMORY` 128 MiB;
-  35 constants classed exempt;
-  `MAX_BATCH` and `CLAIM_LEASE` have no data).
-  Its follow-up questions,
-  picked under the delegation (recorded in the audit doc,
-  "Picked for these follow-ups"):
-  measure the batch size and claim lease against a throwaway service;
-  keep the 3 h idle exit;
-  8 concurrent local queries and 4 remote;
-  measure the copy-stage and install thresholds on the real stage;
-  patience 1 h now,
-  derived again when the index-lock wait pick lands;
-  lock margin 7 s (twice the sample maximum);
-  the preflight as built.
-  Those follow-ups are queued for the next free slot (resume that agent).
-  The gate owes its `native_binary` run:
-  `binary_stale_ref_lock_tests.rs:151` now sleeps the margin plus 0.5 s.
-- Not an agent:
-  the cross-vendor re-review of the in-process index fixes (`pi`,
-  output `~/temp/agent/reviews/follow-up-index-sol-2.txt`);
-  the fixes are done (`dac87edc5e`,
-  merged into the 0.5.28 base):
-  the helper refuses to run unless the live `index.lock` marker names this process and batch,
-  the landing holds that lock from the copy through the install (`service_land.rs:359`,
-  `147-153`,
-  `service_index_hold.rs:140-165`),
-  one exclusively created temporary per run,
-  Git's mode under `core.sharedRepository`,
-  EWAH bitmaps checked and bounded,
-  every protected-name spelling declined;
-  the intent-to-add finding does not reproduce on Git 2.56.0 (a byte-for-byte differential pins it).
-Queued,
-in this order:
-- Done (`cb2b9fe766`,
-  merged into the 0.5.28 base with the no-`--quiet` test conflict resolved by keeping both sides),
-  third re-review running (`~/temp/agent/reviews/follow-up-index-sol-3.txt`,
-  with `service_land.rs`,
-  `service_index_hold.rs`,
-  `service_index_lock.rs`,
-  `service_land_follow.rs` and `index_reset_publish.rs` attached whole):
-  second round on the in-process index writer,
-  from its re-review (2026-11-03T10:51:00-05:00,
-  `~/temp/agent/reviews/follow-up-index-sol-2.txt`:
-  "safe after fixing the remaining NTFS alias,
-  correcting permission ordering,
-  resolving the test-build/isolation issues,
-  and verifying the cited outer locking and installation code";
-  the temporary-file race and EWAH are fixed,
-  and the intent-to-add finding is withdrawn):
-  decline the hashed NTFS short name of `.gitmodules` (`GI7EBA~1`) with a real-reset differential;
-  set the file mode before writing any byte,
-  tested with a mode narrower than the umask gives;
-  pass a borrow of the held `IndexLock` guard to the helper instead of a marker check;
-  run umask-changing tests in a child process;
-  assert the intent-to-add entry's flags,
-  not the index version bytes;
-  tests for injected write and sync failures,
-  concurrent publication with distinct payloads,
-  and an unselected change staged before the lock that must survive.
-  The non-Linux test imports stay paused ("Ignore Win and mac until I say so.").
-  Then a third re-review with `service_land.rs`,
-  `service_index_hold.rs` and the lock-marker code attached whole.
-- Third round on the in-process index writer and its outer landing code,
-  first in line,
-  starting now that the index-lock and service waits branch is merged (`177f9ebc50`);
-  resume its agent with the findings in this entry.
-  From the third re-review (2026-11-03T11:29:26-05:00,
-  `~/temp/agent/reviews/follow-up-index-sol-3.txt`:
-  "Safe after named fixes,
-  not safe to ship as shown";
-  the second round's fixes hold):
-  - P1,
-    also in shipped 0.5.27's outer code:
-    `release_with` (`service_index_hold.rs` 168-172) installs the index and removes `index.lock` before `mark_done`,
-    and recovery replays an open intent's reset,
-    so a `git add` made between the unlock and a service death is overwritten;
-    `follow_up` also installs and unlocks when conclusion cleanup returned false.
-    Record index completion durably while the lock is held,
-    and keep index completion apart from cleanup completion.
-  - P2:
-    the mode calculation `0o666 & !umask` (`index_reset_publish.rs` 98-110) ignores an inherited default ACL;
-    create the file as Git would,
-    read its mode,
-    adjust before the first byte.
-  - P2:
-    `private_index_path` (`service_land_follow.rs` 173-176) can equal the live index under `GIT_INDEX_FILE`
-    or another client's index;
-    reserve the private copy by exclusive creation and refuse aliasing.
-  - P2,
-    also in shipped outer code:
-    `head_names` (`service_land.rs` 233-243) is checked before waiting for the index lock;
-    revalidate after acquisition and before the ref move,
-    and give recovery a rule for a branch no longer checked out.
-  - P3:
-    retry `Interrupted` writes;
-    restore the deleted `later_status_and_diff_are_right_after_a_reset_without_a_refresh` coverage and the racy-entry
-    fallback assertion;
-    a reader-start handshake in the concurrent publication test.
-  - Not a blocker for this Linux-only release:
-    the reclamation check-then-unlink in `service_index_lock.rs` 285-289 needs a per-physical-index single-reclaimer
-    guarantee or a test;
-    the non-Linux test imports stay paused.
-- The fifth index re-review once the fourth round writes `follow-up-index-fixes-4.diff` and its `index-r5-` files.
-- Running:
-  every wait in the wrapper gets a bound (the owner's "nothing should ever wait forever or indefinitely"),
-  the waits agent on `fix/git-policy-cli-every-wait-has-a-bound` from `14c26dbcc9`:
-  an inventory in `doc/planning/cli-git-no-unbounded-waits.md` first,
-  then each bound with a red test,
-  values measured from the timing logs and journals,
-  unclear end behaviors left as choices for the coordinator.
-  A blocker for 0.5.28.
-- Done and fast-forwarded into the 0.5.28 base (`14c26dbcc9`):
-  `fix/git-policy-cli-conflict-check-only-for-conflicted-paths`;
-  an ordinary commit starts no `check-attr` again (the six `budget::` tests red on the base,
-  green after;
-  16 of 16 with the `commit_during_merge` controls).
-- GitHub issue #6260 (2026-11-03T16:23:05Z,
-  no comments):
-  the source scans must find nested modules and key identities and exceptions by relative path.
-  Running:
-  a new agent on `fix/git-policy-cli-source-scans-cover-nested-modules` from `14c26dbcc9`.
-- GitHub issue #6261 (2026-11-03T16:23:43Z,
-  blocked by #6260):
-  group the 1,012 flat files under `src/native/` into subsystem directories and weigh dropping the `native` layer,
-  keeping the file-size rule.
-  Queued after the 0.5.28 release and the open branches merge,
-  because it moves every file;
-  then the lint-debt pass (task 88).
-- Retire option B of the autostash pick now that carry-back A exists,
-  so the wrapper's finish ends a conflicting autostash as Git does
-  (merge commit made,
-  stash kept,
-  `UU` entries),
-  instead of leaving the merge stopped (picked under the delegation:
-  "Auto merging should never fail.").
-  Done and fast-forwarded into the 0.5.28 base:
-  `fix/git-policy-cli-finish-applies-a-conflicting-autostash` `2b5e99f5a8`
-  (`autostash_blocks_finish` removed;
-  merge and pull controls compare with a twin repository on which Git stops,
-  the person resolves and `git commit` concludes;
-  the wrapper had ended with status 1 where Git's commit gives 0;
-  6 of 6 autostash controls plus one for unsaved changes to a stash file;
-  44 library and 41 binary tests,
-  clippy clean).
-- A gate after the regression fix,
-  the index round 4 and the waits follow-ups merge,
-  then release 0.5.28.
-- After step 1's third round:
-  the components' third review from `commit-components-3.diff`,
-  and the models' first cross-vendor review from `commit-models-1.diff` (split if it exceeds about 250 KB).
-- After the tenth design review:
-  revision 11 if it needs one.
-- Done:
-  the cargo-shadow fix round for all three second-review parts,
-  `feat/cargo-shadow-cli` `ce9a17d7d7`,
-  354 of 354 tests,
-  clippy and `monochromatic-lint` clean (20 new `avoidable-closure` warnings that capture variables).
-  Ownership of an output file now comes from one place (`file_owner.rs`):
-  a changed file whose inode change time falls in a window around the cargo call is this run's,
-  any other is another writer's and is never restored over
-  (blind spot:
-  a writer within about one scheduler tick of the call,
-  which loses no data because every displaced file is kept).
-  The restore is a preservation protocol (`RENAME_EXCHANGE`,
-  a hard link of what came out before any unlink,
-  undo on a mismatch,
-  no destructive fallback).
-  The Git reader is a lexer after Git's `config.c`,
-  proves commits from loose objects or pack entries,
-  delegates everything else,
-  and falls back with one `git cat-file --batch-check` start;
-  a 20-case differential suite against `/usr/bin/git`.
-  Not fixed:
-  the system config path is assumed to be `/etc/gitconfig`;
-  power loss is untested.
-  The third cross-vendor review,
-  in three parts (all finished within the hour):
-  3a,
-  the Git reader (`~/temp/agent/reviews/cargo-shadow-sol-3a.txt`):
-  "still not equivalent to Git";
-  P1s:
-  a symbolic-link `HEAD` is read as detached,
-  remote `"."` is not the merge spelling returned literally;
-  P2s:
-  trailing path characters,
-  the object reader proves a type marker rather than a readable commit,
-  a fatal batch error can drop an existing upstream,
-  configuration validation narrower than Git's,
-  the system config path,
-  Git's dubious-ownership rejection bypassed;
-  P3 an unreaped child on a pipe-write failure.
-  3b,
-  journal and ownership (`-3b.txt`):
-  seven P1s
-  (the undo deletes an inode another writer can have open;
-  per-root manifest recovery fails open;
-  `begin` can truncate an earlier transaction's only snapshots;
-  a `/proc` lookup failure can call a live owner dead;
-  claim-by-rename does not stop directory-name reuse or a live transaction;
-  durability ordering incomplete;
-  a missing manifest index still authorizes deleting manifest snapshots);
-  P2s:
-  `ctime` cannot establish ownership,
-  `atomic_write` uses a non-exclusive temporary,
-  a concurrent deletion is undone.
-  3c,
-  install and policy (`-3c.txt`):
-  "not ready for 0.1.0";
-  fix the refusal-preservation path,
-  the verification scope of ordinary updates and the placeholder race first.
-- Running:
-  cargo-shadow's fourth fix round from the three third-review parts,
-  with the owner's "nothing should ever wait forever or indefinitely" and the error-at-the-bound answers applied to its waits;
-  it writes `cargo-shadow-4a.diff`,
-  `-4b.diff` and `-4c.diff` for the fourth review.
-- Gate the 0.5.28 base once the index round and the lock-deletion fix are merged into it
-  (and the word-level merge pass,
-  if it is ready by then;
-  it does not hold the release),
-  then release 0.5.28,
-  install it and time commits against native Git.
-
-0.5.27 ships without the in-process index work
-(coordinator's pick under the delegation,
-veto open:
-the cross-vendor review of it,
-2026-11-03T10:09:59-05:00,
-`~/temp/agent/reviews/follow-up-index-sol.txt`,
-says "safe after named fixes,
-not safe as-is",
-and its measured wall-clock gain was nil,
-a median 139 ms against 137 ms before and 38 ms native on a throwaway copy of main's shape,
-so holding back the rest of 0.5.27 for it buys nothing).
-Its branch is `integrate/git-policy-cli-0-5-27-without-index-in-process` at `00259fff5e`,
-worktree `.claude/worktrees/integrate-0-5-27-without-index`,
-gate unit `gpc-gate-release-0-5-27-without-index-20261103T101115-0500.service`
-(log `~/temp/agent/gate/gpc-gate-release-0-5-27-without-index-20261103T101115-0500.log`).
-The gate on the combined tip `3848f9581d` was stopped by the coordinator at 3908 of 4338 tests passed.
-
-The review's findings on `perf/git-policy-cli-follow-up-index-in-process` (`48d6abb28c`),
-queued first for the next free slot,
-with red tests first:
-- P1:
-  `index_reset_file.rs` writes every run to the same `<file>.cli-git-reset` name and removes it unconditionally,
-  so two runs can publish each other's partial file;
-  the writer takes no `index.lock`,
-  so the outer protocol must be shown to hold the live `index.lock` from the read through the install.
-- P2:
-  an intent-to-add entry whose blob equals the tree's (an empty file) is kept with its flag,
-  where `git reset --no-refresh` writes an ordinary entry (`index_reset.rs` 212-215).
-- P2:
-  `path_is_plain` accepts names Git refuses under `core.protectNTFS`
-  (for example `.gitmodules::$DATA` as a link);
-  port Git's checks or decline those settings and names.
-- P2:
-  a malformed EWAH bitmap of a few bytes expands without a bound and can exhaust memory before the fallback
-  (`index_ewah.rs` 175-224);
-  validate and bound by entry or directory count.
-- P2:
-  the rewritten file takes the process umask,
-  losing `core.sharedRepository` modes.
-- P3 (non-Linux test builds,
-  paused by the owner's "Ignore Win and mac until I say so."):
-  Linux-only fixture imports.
-- Also asked:
-  SHA-1 reference vectors (empty,
-  `abc`,
-  lengths around block edges,
-  over 512 MiB),
-  and tests of later `status` and `diff` after `--no-refresh` and zero stat data.
-It found no mismatch in the quiet check for ordinary entries,
-and no SHA-1 arithmetic or padding defect.
-
-The combined branch `integrate/git-policy-cli-plain-commit-no-quiet-index-in-process` (tip `3848f9581d`,
-worktree `.claude/worktrees/integrate-plain-commit-no-quiet-index`) becomes the 0.5.28 base once those fixes land.
-It adds to 0.5.27's content
-the follow-up `reset` and `diff-tree` and the `diff-index --cached --quiet` checks in process
-(the remaining Git `reset` calls pass `--no-refresh`;
-merge conflict with the no-`--quiet` branch resolved as `reset --no-refresh` with both branches' tests kept).
-0.5.27's content:
-plain commit over unmerged files,
-no inner `--quiet`,
-the service unit without limits,
-the audit rotation fix,
-the flaky-test fixes,
-the doctor fsmonitor line (`072ac84868`)
-and main up to `a9e81617a1`.
-0.5.27 waits for its gate,
-then merges into main,
-is released,
-installed,
-and measured on main against native Git.
+`toolchain.lock.json` records what is installed,
+and `git --version` prints the wrapper's own.
+At 2026-11-08T23:47:13-05:00 that was wrapper `0.6.1-alpha.5` over Git 2.56.0.
+The wrapper commits on main after that release are not published yet.
+Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footprint.md`).
 
 ## Open work
 
@@ -3114,11 +222,6 @@ An earlier version of this section also listed a container probe,
 the build-folder timer and the worktree conversions.
 The owner doubted that,
 and checking each one showed none needed the move.
-
-Two rounds wait only for the next free slots,
-both from cross-vendor reviews read at 2026-11-08T23:10:25-05:00:
-`landing-route-findings-fixed-round-2-prompt.md` and `copy-route-records-before-git-round-4-prompt.md` in that folder,
-each resumed with the session named in its last run's `summary.json`.
 
 Converting the remaining worktrees waits on a defect instead:
 301 of 353 registrations spell the repository link,
@@ -7468,6 +4571,77 @@ they and the scratch files that hold a child's standard error,
 used by the LFS upload and the held-lock retry,
 are in append mode now).
 
+- Five binary controls of this crate failed once in whole-suite runs on 2026-11-08
+  (logs `~/temp/agent/pi-printed-waits/full-binary.log` and `binary-rest.log`,
+  host load average above 100;
+  four of them passed alone in 7.2 s).
+  Each cause was measured,
+  and each fix,
+  its failing output and its plant are in the commits of
+  `fix/git-policy-cli-binary-suite-holds-under-contention`.
+  - `service_mode::the_same_start_with_the_real_git_listens` bound its socket at
+    `<fixture root>/real.sock`.
+    The fixture root under this host's build directory makes that name 135 bytes,
+    and a Unix socket name must fit `SUN_LEN` (107 bytes),
+    so the start was refused and
+    the control failed with "the service ended before it listened" after 1.028 s.
+    Measured:
+    the same start with a 170-byte `--path` answers "cannot listen:
+    path must be shorter than
+    SUN_LEN" and exits 3,
+    and the pre-fix control failed with this host's root and passed with one 54 bytes shorter.
+    The socket is now in `short_runtime_directory` (the directory the fixture's own services use)
+    and the service's own error stream goes into the failure (`kept_stderr_pipe`).
+    No production path reaches the limit:
+    `socket_for` names a socket by a 32-digit hash of the Git directory,
+    never by its path,
+    and `service_instance_tests::the_name_is_short_and_plain_for_any_directory` holds a
+    400-segment directory's socket under 108 bytes.
+  - `service_landing_lock::a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_it`
+    and `service_landing_lock::a_foreign_holder_proven_alive_is_waited_for_until_it_lets_go_and_the_commit_lands_on_top`
+    failed with the wrapper's `concurrent-commit/replay-conflict` finding
+    (`left: Some(1)`,
+    `right: Some(0)`):
+    the foreign holder ran `git commit --all`,
+    which staged the `a.txt` the control writes while the holder's editor is open,
+    so the holder landed the control's own change,
+    and the landing built again after the branch moved met the same file changed on both sides.
+    The holder now names `b.txt`,
+    and a new assertion requires the holder's commit to change only that file;
+    with `--all` restored it fails with `left: "a.txt\nb.txt"`,
+    `right: "b.txt"`.
+  - `service_heartbeat::a_waiting_command_keeps_its_scratch_directory_from_being_swept` failed with
+    `answer: Os { code: 32, kind: BrokenPipe }` after 2.884 s.
+    Its client calls the service stopped after `QUICK_SILENCE` (300 ms) without a beat,
+    and the control does its own work (aging two directories,
+    then the sweep) between two beats,
+    so a stall longer than that closed the connection before the answer went out.
+    The control's client now has `PATIENCE` as its silence bound,
+    and an answer that cannot be written reports what the client ended with;
+    with `renew_scratch` made a no-op the control fails in 15.2 s with
+    "the waiting command's directory was swept".
+  - `service::a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once` failed with
+    "the client is answered after the restart:
+    ServiceSilent" after 108.98 s,
+    and its amend sibling passed that run in 235 s.
+    The client's silence bound was 60 s,
+    which is `SETTLE_LOCK_CEILING`,
+    the wait of the restart's `settle_open_batches` for the `index.lock` the killed service left;
+    `serve_in_a_landing` settles before `start_acceptor_or_exit`,
+    so a settle that used its whole ceiling kept the restarted service from greeting until the client
+    had given up.
+    Both controls' clients now wait `RESTART_PATIENCE` (240 s,
+    below the per-test limit) and report the
+    notices they printed instead of `submit_quietly`'s silence;
+    with the service restarted at another address the control fails in 75.4 s with
+    "the client ended before the restarted service answered:
+    DidNotStart".
+    Not observed directly:
+    that the settle waited for that lock.
+    The failing run logged `ready` and then nothing for 60 s;
+    a `settle_ms` line for that restart would settle it,
+    and the journal writes no such line while the settle waits.
+
 - `fault_limits::a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` failed once in the
   gate of the repository-lint branch at `d75d5a2d91`:
   the service logged `cannot start the thread for the after-commit work: Resource temporarily unavailable (os error 11)`
@@ -7572,6 +4746,85 @@ are in append mode now).
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
+
+### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
+
+`foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+was aborted once by the run's own 120 s watchdog,
+and the cause is its own durability work,
+measured with `strace --follow-forks --summary-only --trace=fsync,fdatasync` on the test binary:
+one walk of the 21 kill points made 306 `fsync` calls and spent 2.999 s inside them of a 10.61 s run,
+with single calls 1.755,
+1.211 and 1.071 s apart,
+and the same control alone then took 34.73 s,
+9.64 s and 1.83 s in three runs with nothing changed.
+A bad minute of the disk is what carries 306 commits past 120 s,
+and the earlier "side by side" change cut the waiting but not the number of commits.
+
+What each kill point tests is the fold's steps and their outcomes:
+the stop is the fold's own step boundary,
+not a crash,
+so what a crash would leave is not in question and the flush of each step is pure cost.
+`private_storage::skip_the_durability_syncs_here` makes the process's durability syncs no-ops in test builds
+while still recording them,
+so their order stays observable,
+and nothing of it is in the release executable;
+it reaches the fold's journal,
+its moved log,
+the log append and `sync_directory`.
+The two sweeps beside it in `earlier_log_lines_added_to_current_log_tests.rs`
+(`a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line` and
+`a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line`)
+were aborted by the same watchdog in a filtered run of the same modules,
+so they use the switch too.
+Measured after it on the same binary and disk:
+0 `fsync` calls and 0.48 s for the walk,
+and 0.054 s and 0.061 s for the two sweeps that had been aborted.
+Each sweep was broken and failed before being restored,
+and the plants and their messages are in the report of
+`fix/git-policy-cli-landing-controls-wait-on-order-everywhere`.
+
+### A lock control's wait said nothing, and its holder's thread then held the failure for a minute
+
+One host full-suite run reported `landing::service_index_lock::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`
+as an empty list where a waiting line was expected.
+Not reproduced here:
+five runs of that control and its sibling,
+thirty copies in six processes,
+three module runs at half a processor and one run beside the fold sweep all passed.
+The state it reports is reachable and has one shape:
+a look that finds the lock gone says nothing,
+and the acquisition then places it at its next attempt.
+Planted that state (the lock removed at the reclaimer's own point,
+a staging flush slower than the hold),
+the control failed in 5.518 s with
+`the wait said nothing at all, so the lock it was to wait for went away first`,
+and the same plant without the guard that lets the holder go took 60.022 s with the holder's `Timeout`,
+because four of those controls join a holder thread that waits for the wait's own line.
+Those four now hold that guard,
+and the three that read what the wait said name that state in those words instead of printing `[]`.
+No verdict is claimed about which control the reported run failed,
+because the recorded control reads its list only after joining the holder,
+which cannot happen unless the wait did say a line.
+
+The whole host suite on that branch (2026-11-08T23:26:23-05:00,
+`mise run //package/git-policy/cli:native:test:host`)
+ran 4028 of 4812 tests and 4023 passed;
+the five failures are all of `subvolume::`,
+`subvolume_btrfs_tests::a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange`
+and four of `subvolume_migrate::tests`,
+each aborted by the run's own watchdog between 122.3 and 149.7 s.
+That module is not touched by the branch,
+and its controls are the family this record already calls slow on this host
+("Two lock controls claim their endings",
+and the btrfs measurement under it).
+The 784 tests the run then stopped include the 709 of
+`testing::`,
+`transaction::`,
+`worktree::` and `worktree_copying::`,
+which passed when run on their own,
+and 75 inside `subvolume::` itself,
+which that run did not reach.
 
 - `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
   (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main
@@ -7683,6 +4936,58 @@ are in append mode now).
   a cheaper fixture,
   or its own bound).
 
+### The source layout waits for the owner's read (2026-11-08T23:57:46-05:00)
+
+The target tree is drafted and cross-vendor reviewed in
+`doc/planning/cli-git-source-layout-target-tree.md` and
+`doc/planning/cli-git-source-layout-target-tree-files.md`:
+every folder and file old to new with its `uses/` list,
+the crate split,
+the move order and every change the moves need.
+Nothing moves until the owner has read it,
+and the questions it raises for him are in `doc/handover/questions-for-the-owner.md`.
+Issue 6261 is still open,
+its last update 2026-11-04T21:35:36Z.
+
+Removing the `native` layer is deferred (issue 6261 option A,
+the coordinator's pick under the delegation,
+veto open),
+so `package/git-policy/cli/src/native/` still holds the subsystem folders.
+
+The layout rules `rust/folder-uses-links` and `rust/file-order-in-folder` are merged to main
+and off unless a config block selects them,
+so the tree holds no `uses/` folder and nothing enforces the target layout while it waits.
+The baseline it works from is "What the scan counts now" in the target-tree doc.
+
+### The branches and worktrees this effort still holds (2026-11-08T23:57:46-05:00)
+
+Read with `git for-each-ref` and `git merge-base --is-ancestor main` on 2026-11-08,
+the day this page dropped `### Unmerged branches and worktrees of this effort`.
+Unmerged,
+and each kept on purpose:
+
+- `fix/git-policy-cli-commits-never-fail` `1fc759ba80`,
+the commit protocol design,
+whose newest revision asks the owner for the measured span values of its decision 17
+(the cleanup window's `ATTACH_WATCH_SPAN`) before that part ships.
+The 2026-11-04 pause was never lifted for it;
+`### Open: decisions a read-only audit of all recorded work found`
+in `doc/handover/questions-for-the-owner.md` asks whether it still covers it.
+- `worktree-agent-ab3dd6294f9d91284` `fe2081f2a1`,
+the copy-in-service design that was never merged.
+- `e2e-trace-diagnosis-20261101` `a0126e571c`,
+kept on purpose.
+
+Stale,
+and deletable once the owner agrees to branch deletions:
+`integrate/git-policy-cli-deadline-stop-and-conversion-real-git` `2ac6da873e`,
+the stopped first 0.5.21 candidate,
+both of whose parts shipped by other routes.
+
+Detached worktrees under `.claude/worktrees/` from merged work remain,
+their files and mutation evidence kept deliberately;
+`### Housekeeping` holds their removal.
+
 ### Questions waiting for the owner
 
 - Delete the thirteen merged branches with nondescript names
@@ -7707,6 +5012,14 @@ are in append mode now).
   a debug override would be a different thing).
   Not built.
 - Windows and macOS CI effects of the shared pnpm `storeDir` and `virtualStoreType: global` are paused per the owner.
+- Whether the coordinator picks still marked "veto open" in this page and in the planning records stand
+  (shipped limits,
+  waits,
+  the fallback to the real Git,
+  the word-level merge pass,
+  cargo-shadow's nine questions).
+  Each was recorded as a coordinator pick with the owner's veto open,
+  and no message put them to him as one list.
 - Whether the 2026-10-13 standing authorization to bump and publish the wrapper still holds beyond that session (see
   working rules).
 
@@ -7715,7 +5028,36 @@ are in append mode now).
 - Remove the stale detached worktrees listed by `git worktree list` under `.claude/worktrees/` when their evidence is
   no longer
   needed (needs the owner's word for deletions);
-  the stale integration branch named under "Unmerged branches and worktrees of this effort" goes with them.
+  the stale integration branch named under "Unmerged branches and worktrees of this effort"
+  (a subsection this page dropped on 2026-11-08;
+  its surviving items are under "The branches and worktrees this effort still holds")
+  goes with them.
+- Stale agent worktrees under `.claude/worktrees/` were removed on 2026-11-08 under the owner's
+  "Cleanup whenever it makes sense on your own."
+  and "It covers deleting stale detached worktrees."
+  (`questions-for-the-owner.md`).
+  Every branch was kept.
+  Commits that were on no branch are pinned under `refs/kept-detached-worktree-heads/`
+  (`integrate-064`,
+  `integrate-065`,
+  `integrate-072`,
+  `integrate-073`,
+  `integrate-075`).
+  Still present:
+  worktrees a Markdown file still cites by path,
+  which stay until that citation is reworded;
+  worktrees whose branch holds commits main lacks (`agent-a5dcd5dad237603e3`,
+  `agent-ab3dd6294f9d91284`,
+  `agent-aba63f1400b66332c`,
+  `integrate-deadline-conversion`,
+  `source-layout`,
+  `pi-repository-move-tool-fixes`);
+  and worktrees with real uncommitted edits (`agent-a563e0c526d53df51`,
+  `agent-a6e4566588e9ec087`,
+  `fix-ureq`,
+  `follow-ups-059`).
+- The stale branch `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` still needs the owner's word,
+  because the owner's cleanup messages named worktrees and not branches.
 - Test services that crash on purpose:
   checked 2026-11-08 by reading `coredumpctl`,
   and clean.
@@ -8283,7 +5625,9 @@ on `feat/git-policy-cli-word-level-second-merge-pass` (`2a37bb7682`).
 
 - 0.5.27 ships without the in-process index work,
   which waits for its review's fixes and ships in 0.5.28;
-  reasons under "Agents and gates running".
+  reasons under "Agents and gates running",
+  a subsection this page dropped on 2026-11-08;
+  the review's findings are in `doc/planning/cli-git-in-process-reads.md`.
 - The fallback to the installed real Git was queued for after 0.5.28;
   it finished first and is merged into the 0.5.28 base (`afc9a8621d`),
   so it ships in 0.5.28 (coordinator's pick:
@@ -8325,7 +5669,11 @@ Through the question tool,
 answered before 08:22:29-05:00 (`b0d9708b17`,
 the next commit):
 - Mutation runs:
-  "Pause all (Recommended)":
+  "Pause all (Recommended)",
+  after his own question,
+  "We're not close to doing mutation runs though,
+  right?
+  Don't we still have a lot of things to fix before doing them?":
   no mutation runs until the commit protocol is built and the lint cleanup (task 88) lands,
   then one fresh campaign on the new code,
   starting with `native:mutation:planted`.
@@ -8594,7 +5942,9 @@ the next commit):
   release wiring committed (`651fc7b9a5`;
   the crate-release cli test now reads the expected crate list from the registry);
   0.1.0 published and Trusted Publishing config 30988 created
-  (state in "Release in flight").
+  (state in "Release in flight",
+  a subsection this page dropped on 2026-11-08;
+  the published record is in `package/cargo-shadow/cli/README.md`).
   Branch-write round 2 (agent `aa0fee0c2cf70bb31`,
   finished):
   all twelve follow-up items done except item 10,
@@ -9351,7 +6701,9 @@ section "Owner questions for revision 12"):
   what a command promises when it leaves is forced to disk first;
   a power cut while it still waits loses that attempt,
   as with native Git).
-  The coordinator applies the same rule to today's landing (the integration agent in "Agents and gates running").
+  The coordinator applies the same rule to today's landing
+  (the integration agent named under "Agents and gates running",
+  a subsection this page dropped on 2026-11-08).
 
 ### Commit protocol question 8 answer
 
@@ -9506,6 +6858,12 @@ And you never used it."
 (that earlier permission was not written into this handover,
 SPEC or any planning doc;
 a search for it just before the commit that records this entry found nothing).
+On the release gate that failed on main on 2026-11-04
+(`a_killed_wrapper_with_an_escaped_writer_stops_the_recovery`),
+when the coordinator read the failure without naming a cause:
+"I don't see any load,
+and once again,
+load is not an excuse."
 Meaning for this effort:
 a command slower under load,
 disk pressure,
@@ -10219,6 +7577,75 @@ Push stop rule "Stop only on no progress (Recommended)" (`SPEC.md`,
 - Disk weight:
   `IOWeight` never above 10 (`AGENTS.md` RXS);
   containers get `--blkio-weight=10 --cgroup-conf=io.weight=10`.
+
+### Owner words the dropped state subsections held (2026-11-08T23:57:46-05:00)
+
+Verbatim,
+spoken on 2026-11-04 and 2026-11-05.
+They stood in `### Release in flight` and `### Agents and gates running`,
+which described 2026-11-03 and 2026-11-04 and left this page on 2026-11-08.
+Each entry names the doc that carries the decision today.
+
+The pause,
+2026-11-04T17:50-05:00:
+"Don't discard work,
+but aside from layout + linting fixes,
+pause everything else - but let work already in flight run to their natural conclusions.
+Layout + linting fixes are the biggest priority."
+Its later reading,
+including whether it still covers the commit protocol,
+is in `doc/handover/questions-for-the-owner.md`.
+
+The semantic line breaks:
+"Put the semantic line break findings on hold."
+then,
+"Put the semantic line break findings on hold.
+They aren't the most serious issues right now."
+The rule,
+its history and the count it stands at are in `doc/planning/repository-linter-stays-at-zero.md`.
+
+mpm-shadow and crates outside this repository:
+"mpm-shadow should still be able to compile tools that are not controlled by this repo."
+then,
+"It should still BE ABLE TO compile tools this repo doesn't control when needed."
+with the question-tool picks "Rewrite CM7 (Recommended)" (`5f03ec99b3`)
+and "one flag,
+our crates (Recommended)",
+the second quoted in `package/mpm-shadow/cli/README.md`.
+
+QWD,
+2026-11-04:
+"Tighten QWD (Recommended)" (`3abcbf585e`).
+
+The commits that reached origin/main without a gate,
+2026-11-04:
+"keep,
+gate first (Recommended)",
+so the one-executable branch was gated before its merge and before 0.5.35.
+
+How the earlier single service ends a wait,
+2026-11-04:
+"A:
+fail,
+retry (Recommended)",
+recorded in `package/git-policy/cli/SPEC.md` and `doc/planning/cli-git-no-unbounded-waits.md`.
+
+Issue 6261,
+written in the issue at 2026-11-04T21:30:23Z
+(<https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105>):
+"The current layout is still completely unacceptable and far from enough to consider this issue complete."
+The proposal it asked for is `doc/planning/cli-git-source-layout-target-tree.md`
+and `### The source layout waits for the owner's read` under `## Open work`.
+
+After the restart,
+2026-11-04 at about 07:30-05:00:
+"I'm fully back now,
+ask me."
+
+How a question reaches him,
+2026-11-05:
+he asked for it as plain prose in the session ("async"),
+not through the question tool.
 
 ## Working rules for this effort
 
