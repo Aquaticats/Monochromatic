@@ -132,7 +132,7 @@ export function groupByName(posts: readonly Post[],): Record<string, Post[]> {
  // ['typescript', 'css', 'web']
  ```
  */
-export function allTags(posts: readonly Post[],): string[] {
+function allTags(posts: readonly Post[],): string[] {
   return [...new Set(posts.flatMap(function getTags(post,) {
     return post.data
       .tags;
@@ -167,41 +167,6 @@ export function groupByTag(posts: readonly Post[],): Record<string, Post[]> {
             .includes(tag,);
         },),
       ];
-    },),
-  );
-}
-
-/**
- Groups posts first by language, then by tag within each language.
- 
- Uses per-language tag sets so each language only contains tags
- that actually have posts in that language, avoiding empty arrays
- for tags that only exist in other languages.
- 
- @param posts - all loaded posts
- 
- @returns nested map of lang \> tag \> posts; absent locales have no key
- 
- @example
- ```ts
- const grouped = groupByLangThenTag(posts);
- // Map { 'en' => { typescript: [...], css: [...] }, 'zh' => { ... } }
- ```
- */
-export function groupByLangThenTag(
-  posts: readonly Post[],
-): ReadonlyMap<Locale, Record<string, Post[]>> {
-  /**
-   Stage one of the two-level grouping; second-level tag grouping happens per language to avoid empty buckets.
-   */
-  const byLang = groupByLang(posts,);
-
-  return new Map(
-    [...byLang,].map(function langEntry([lang, langPosts,],) {
-      return [
-        lang,
-        groupByTag(langPosts,),
-      ] as const;
     },),
   );
 }

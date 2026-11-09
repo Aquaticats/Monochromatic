@@ -4,8 +4,8 @@
  Wraps `@monochromatic-dev/i18n-compose-core`: each locale spec is built
  from a static label table (the site uses no grammar AST, nouns, verbs, or
  subjects, so those vocabulary records are empty). Consumers import `i18n`,
- `locales`, `Locale`, `isLocale`, and `assertLocale` from here; nothing
- imports the composition package directly.
+ `locales`, `Locale`, and `isLocale` from here; nothing imports the
+ composition package directly.
  
  @module
  */
@@ -82,8 +82,3 @@ export const i18n = createI18n({
  Type guard narrowing an arbitrary string to a supported {@link Locale}.
  */
 export const {isLocale} = i18n;
-
-/**
- Asserts a string is a supported {@link Locale}, returning it narrowed or throwing.
- */
-export const {assertLocale} = i18n;
