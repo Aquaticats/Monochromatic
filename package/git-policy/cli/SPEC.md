@@ -3175,6 +3175,14 @@ on the commit path:
   names the paths,
   keeps the record and leaves the staged content in the index,
   because a staged version has no other name.
+  That check is read before the write and cannot be made part of it: `git update-index --index-info` has no way to
+  write an entry only when the one it replaces is the one that was read,
+  and `git read-tree -m -u`,
+  which refuses a path that is not up to date,
+  would replace the whole install this route is built on.
+  So a staged entry that arrives after the check and before the write replaces the merge's entry,
+  and the merge lands over it;
+  the window is the length of one `git update-index` call on the index lock.
   An edit made meanwhile to one of the merge's own paths is never overwritten:
   the finish stops and names the file.
   A merge whose commit cannot be kept on a side ref is refused with nothing changed,
@@ -7718,8 +7726,14 @@ and the next command finishes the same merge.
 Settling takes every file it must write aside by one rename that never replaces,
 and checks what it took against the device,
 inode,
-size and modification time the judgement read,
-so the bytes that make way for the merge are exactly the bytes that were judged;
+size,
+mode and modification time the judgement read,
+and then against the bytes:
+the taken file is hashed with the attributes of the path it belongs to and must be the object the judgement read,
+so the bytes that make way for the merge are exactly the bytes that were judged.
+A program that keeps its descriptor across the rename can write the same length into the file and put its modification time back,
+which leaves every part of the identity as it was;
+the bytes are what decides there.
 a file saved in between is put back,
 nothing of the merge is written,
 the paths are named on standard error and the record is kept.
@@ -7734,10 +7748,18 @@ says on standard error that it did,
 and where the path holds something else keeps both and names the private file.
 A file written into a taken one after the take checked it is kept rather than removed,
 and its private name is said.
-The private name is removed only on a proof that nothing can write into the file any more:
-its identity is the one the take checked,
-and a scan of every process this command can read finds none with the file open,
-which is the proof the commit service's lock removal acts on.
+The private name is removed only on a proof that nothing can write into the file any more,
+asked in this order:
+a scan of every process this command can read finds none with the file open,
+which is the proof the commit service's lock removal acts on,
+and then the file's bytes still hash to the object it held when it was judged.
+A writer that still holds the file is seen by the scan,
+and a writer that let go has already written,
+so the bytes then show it;
+a write that arrives after both would have to open the private name,
+which nothing outside this command knows.
+The guarantee rests on that,
+not on a check made just before the unlink.
 The limit is that removal's:
 a process in another user namespace,
 or one that cannot be read,

@@ -927,13 +927,20 @@ fn a_file_written_after_it_was_taken_is_kept_and_named() {
     let world: World = world("merge-recovery-written-after-take");
     let location: PathBuf = world.repo.join("f.txt");
     let aside: PathBuf = stranded_name(location.as_path());
+    let expected: String = git_text(world.repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
     // The program that had the file open writes its edit into the inode the take holds.
     std::fs::write(aside.as_path(), b"an edit written after the check\n").expect("the writer's edit");
     let mut said: Vec<u8> = Vec::new();
-    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk { location: location.clone(), aside: aside.clone(), taken }];
-    finish_asides(&entries, &mut said).expect("the asides are finished");
+    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
+        location: location.clone(),
+        path: b"f.txt".to_vec(),
+        aside: aside.clone(),
+        taken,
+        expected: expected.clone(),
+    }];
+    finish_asides(&place(&world), world.repo.as_path(), &entries, &mut said).expect("the asides are finished");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(text.contains("f.txt") && text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
     assert!(aside.exists(), "the file written after the check is kept");
@@ -1307,9 +1314,16 @@ fn a_file_a_process_holds_open_is_kept_and_a_file_nothing_holds_is_removed() {
     let world: World = world("merge-recovery-held-open-aside");
     let location: PathBuf = world.repo.join("f.txt");
     let aside: PathBuf = stranded_name(location.as_path());
+    let expected: String = git_text(world.repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
-    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk { location: location.clone(), aside: aside.clone(), taken }];
+    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
+        location: location.clone(),
+        path: b"f.txt".to_vec(),
+        aside: aside.clone(),
+        taken,
+        expected: expected.clone(),
+    }];
     // A writer that had the file open before the take holds the very inode the take renamed; the scan leaves this process out,
     //  so the holder is a child of it, as an editor would be.
     let kept_open: std::fs::File = std::fs::File::open(aside.as_path()).expect("the writer's descriptor to hand on");
@@ -1318,7 +1332,7 @@ fn a_file_a_process_holds_open_is_kept_and_a_file_nothing_holds_is_removed() {
     let mut writer: std::process::Child = holder.spawn().expect("a writer holding the file open");
     drop(holder);
     let mut said: Vec<u8> = Vec::new();
-    finish_asides(&entries, &mut said).expect("the asides are finished");
+    finish_asides(&place(&world), world.repo.as_path(), &entries, &mut said).expect("the asides are finished");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(aside.exists(), "a file a process holds open is never removed");
     assert!(text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
@@ -1326,7 +1340,7 @@ fn a_file_a_process_holds_open_is_kept_and_a_file_nothing_holds_is_removed() {
     writer.kill().expect("the writer ends");
     writer.wait().expect("reaped");
     let mut afterwards: Vec<u8> = Vec::new();
-    finish_asides(&entries, &mut afterwards).expect("the asides are finished");
+    finish_asides(&place(&world), world.repo.as_path(), &entries, &mut afterwards).expect("the asides are finished");
     assert!(!aside.exists(), "a file nothing holds open is removed once its content was checked");
     remove(world.parent.as_path());
 }
@@ -1494,5 +1508,95 @@ fn a_saved_merge_for_another_branch_is_not_installed_into_the_checked_out_one() 
     assert_eq!(snapshot(&world), before, "nothing of the merge is in that checkout");
     assert!(record.exists(), "the record is kept for when its branch is checked out");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/26"]), world.new_oid, "the side ref is kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A file whose bytes were replaced with the same length,
+///  and whose modification time was put back,
+///  is not taken for the file that was judged.
+/// Why:
+///  The identity a take compares is the device,
+/// the inode,
+/// the size,
+/// the mode and the modification time,
+/// and a program that
+///  writes the same length and restores the time leaves every one of them as it was,
+/// so the merge replaced an
+///  edit that was never hashed or copied
+/// (a cross-vendor review of the third round,
+/// the second of its timing findings).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const (changes, judged) = judge(world); writeSameLength('f.txt', edit); restoreMtime('f.txt', judged.identity.modified); await expect(installEntries(...)).rejects.toMatch(/f.txt/); expect(read('f.txt')).toEqual(edit);
+/// ```
+#[test]
+fn a_file_whose_bytes_changed_with_its_length_and_time_kept_is_not_replaced() {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    let world: World = world("merge-recovery-same-length-edit");
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let location: PathBuf = world.repo.join("f.txt");
+    let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
+    let kept_time = judged.identity.expect("the identity the judgement read");
+    let modified: SystemTime = UNIX_EPOCH + Duration::new(u64::try_from(kept_time.modified_seconds).expect("a time"), u32::try_from(kept_time.modified_nanos).expect("nanoseconds"));
+    // The same length as "f.txt base\n", written over the same inode, and the modification time put back.
+    std::fs::write(location.as_path(), b"f.txt EDIT\n").expect("the person's edit");
+    std::fs::File::options().write(true).open(location.as_path()).expect("open").set_modified(modified).expect("the time put back");
+    assert_eq!(file_identity(location.as_path()), Some(kept_time), "the identity is the one that was judged");
+    let mut said: Vec<u8> = Vec::new();
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
+        .expect_err("bytes that changed are not the bytes that were judged");
+    assert!(refused.error.0.contains("f.txt"), "the path is named: {}", refused.error.0);
+    assert_eq!(std::fs::read(location.as_path()).expect("the file"), b"f.txt EDIT\n", "the person's bytes are kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A taken file whose bytes were replaced,
+///  with its length and modification time kept,
+///  is kept rather than removed with its private name.
+/// Why:
+///  A program that had the file open keeps its descriptor across the rename,
+/// and a write through it lands in the file
+///  that waits aside;
+/// the identity cannot see that,
+/// but the bytes can,
+/// and a file whose bytes are not the ones that
+///  were judged is kept and named
+/// (a cross-vendor review of the third round,
+/// the first and second of its timing findings).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const take = takeAside(file); writeSameLength(take.aside, edit); restoreMtime(take.aside, take.taken.modified); const left = finishAsides([take], sink); expect(exists(take.aside)).toBe(true); expect(sink).toContain(take.aside);
+/// ```
+#[test]
+fn a_taken_file_whose_bytes_changed_is_kept_and_named() {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    let world: World = world("merge-recovery-same-length-aside");
+    let location: PathBuf = world.repo.join("f.txt");
+    let expected: String = git_text(world.repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
+    let aside: PathBuf = stranded_name(location.as_path());
+    std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
+    let taken = file_identity(aside.as_path()).expect("the identity the take checked");
+    // A write through the descriptor a program kept: the same length, and the time put back.
+    std::fs::write(aside.as_path(), b"f.txt EDIT\n").expect("the writer's edit");
+    let modified: SystemTime = UNIX_EPOCH + Duration::new(u64::try_from(taken.modified_seconds).expect("a time"), u32::try_from(taken.modified_nanos).expect("nanoseconds"));
+    std::fs::File::options().write(true).open(aside.as_path()).expect("open").set_modified(modified).expect("the time put back");
+    assert_eq!(file_identity(aside.as_path()), Some(taken), "the identity is the one that was judged");
+    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
+        location: location.clone(),
+        path: b"f.txt".to_vec(),
+        aside: aside.clone(),
+        taken,
+        expected,
+    }];
+    let mut said: Vec<u8> = Vec::new();
+    finish_asides(&place(&world), world.repo.as_path(), &entries, &mut said).expect("the asides are finished");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(aside.exists(), "a file whose bytes changed is kept");
+    assert!(text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
+    assert_eq!(std::fs::read(aside.as_path()).expect("the writer's edit"), b"f.txt EDIT\n", "the edit is not lost");
     remove(world.parent.as_path());
 }

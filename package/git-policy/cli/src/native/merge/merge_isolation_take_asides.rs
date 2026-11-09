@@ -25,7 +25,8 @@
 //! ```
 
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
-use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, worktree_path};
+use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, file_identity, state_of_file, worktree_path};
+use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::rename_that_never_replaces::rename_noreplace;
 use std::io::Write;
@@ -231,6 +232,8 @@ pub(crate) enum Take {
         aside: PathBuf,
         /// What the file system says of it there.
         taken: FileIdentity,
+        /// The object the file held when it was judged.
+        expected: String,
     },
     /// Something else stands there now,
     /// or the judged file was written after it was judged;
@@ -261,26 +264,60 @@ pub(crate) enum Take {
 /// ```ts
 /// function takeAside(location: string, judged?: FileIdentity): Take; // renameNoReplace; identityOf(aside) === judged ? aside : putBack
 /// ```
-pub(crate) fn take_aside(location: &Path, judged: Option<FileIdentity>) -> Result<Take, RecoveryError> {
+pub(crate) fn take_aside(
+    place: &RecoveryPlace,
+    root: &Path,
+    path: &[u8],
+    location: &Path,
+    judged: &Judged,
+) -> Result<Take, RecoveryError> {
     let aside: PathBuf = aside_name(location);
     match rename_noreplace(location, aside.as_path()) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             // The path was empty when it was judged; a file that is there now came after the judgement and is not the
             //  merge's to replace.
-            return Ok(if judged.is_none() { Take::Nothing } else { Take::Changed });
+            return Ok(if judged.content.is_some() { Take::Changed } else { Take::Nothing });
         }
         Err(error) => return Err(io_failure("setting aside", location, &error)),
     }
     let taken: Option<FileIdentity> = file_identity(aside.as_path());
-    if judged.is_some() && taken == judged {
-        return match taken {
-            Some(identity) => Ok(Take::Aside { aside, taken: identity }),
-            // `taken == judged` with nothing read is no match at all.
-            None => Ok(Take::Changed),
-        };
+    let Some(expected) = judged.content.as_deref() else {
+        // Nothing stood there when it was judged, so a file that is there now is someone else's.
+        return put_back_and_report(location, aside);
+    };
+    // The identity is the cheap check and the bytes are the authority:
+    // a program that keeps its descriptor across the rename can write the same
+    //  length into the file and put the modification time back, which leaves every part of the identity as it was.
+    if judged.identity.is_none() || taken != judged.identity {
+        return put_back_and_report(location, aside);
     }
-    // It is not the file that was judged: put it back whole, and say nothing was replaced.
+    let bytes: WorktreeState = match state_of_file(&place.git, root, path, aside.as_path()) {
+        Ok(found) => found,
+        Err(error) => return Err(RecoveryError(error)),
+    };
+    if bytes != WorktreeState::Content(String::from(expected)) {
+        return put_back_and_report(location, aside);
+    }
+    return match taken {
+        Some(identity) => Ok(Take::Aside { aside, taken: identity, expected: String::from(expected) }),
+        None => put_back_and_report(location, aside),
+    };
+}
+
+/// What:
+///  Put back a file that turned out not to be the one that was judged,
+///  and say what the take made of it.
+/// Why:
+///  A file that changed after the judgement belongs to someone else,
+/// so it goes back where it was found and the
+///  merge stops for it rather than replacing it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// putBack(location, aside): Take; // renameNoReplace(aside, location) ? 'changed' : throw
+/// ```
+fn put_back_and_report(location: &Path, aside: PathBuf) -> Result<Take, RecoveryError> {
     return match rename_noreplace(aside.as_path(), location) {
         Ok(()) => Ok(Take::Changed),
         Err(error) => Err(RecoveryError(format!(
@@ -291,7 +328,6 @@ pub(crate) fn take_aside(location: &Path, judged: Option<FileIdentity>) -> Resul
         ))),
     };
 }
-
 
 /// What:
 ///  Put back every file that was taken aside and not yet written,
@@ -324,11 +360,17 @@ pub(crate) fn put_back(taken: &[TakenOnDisk]) -> Vec<String> {
 pub struct TakenOnDisk {
     /// The path the merge writes or deletes.
     pub location: PathBuf,
+    /// The repository path of the file,
+    /// which names the attributes its bytes are read with.
+    pub path: Vec<u8>,
     /// Where the file that was judged waits.
     pub aside: PathBuf,
     /// The identity the take checked,
-    /// so a write into the aside after that check is seen.
+    /// so a file replaced before the take is seen.
     pub taken: FileIdentity,
+    /// The object the file held when it was judged,
+    /// which its bytes must still hash to before its private name goes.
+    pub expected: String,
 }
 
 /// What:
@@ -343,12 +385,13 @@ pub struct TakenOnDisk {
 /// ```ts
 /// for (const entry of taken) await rm(entry.aside, { force: true });
 /// ```
-pub fn finish_asides(taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
+pub fn finish_asides(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
+    let _ = (place, root);
     for entry in taken {
         // `may_remove` proves that nothing can write into the file any more;
         // a file it cannot prove that of is kept where it is,
         //  because its private name is then one of that write's only names.
-        if !may_remove(entry) {
+        if !may_remove(place, root, entry) {
             let _noted = out.write_all(
                 format!(
                     "monochromatic-git-policy-cli: {} was written or is still held open after this command checked it, so it is kept \
@@ -404,10 +447,9 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 /// ```ts
 /// function mayRemove(entry): boolean; // identity unchanged && no readable process has it open && the scan finished
 /// ```
-fn may_remove(entry: &TakenOnDisk) -> bool {
-    if file_identity(entry.aside.as_path()) != Some(entry.taken) {
-        return false;
-    }
+fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
+    // The scan comes first and the bytes second, and that order is the guarantee: a writer that still holds the file is
+    //  seen by the scan, and a writer that let go has already written, so the bytes then show it.
     let scanned: HolderEvidence = scan_platform_holders_bounded(entry.aside.as_path(), entry.taken.device, entry.taken.inode);
     if !scanned.holders.is_empty() {
         return false;
@@ -417,7 +459,11 @@ fn may_remove(entry: &TakenOnDisk) -> bool {
             return false;
         }
     }
-    return true;
+    let bytes: WorktreeState = match state_of_file(&place.git, root, entry.path.as_slice(), entry.aside.as_path()) {
+        Ok(found) => found,
+        Err(_) => return false,
+    };
+    return bytes == WorktreeState::Content(entry.expected.clone());
 }
 
 /// What:
@@ -435,7 +481,7 @@ fn may_remove(entry: &TakenOnDisk) -> bool {
 /// ```ts
 /// for (const entry of taken) if (!exists(entry.location)) renameNoReplace(entry.aside, entry.location); else keepOrDrop(entry);
 /// ```
-pub(crate) fn restore_what_git_did_not_write(taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
+pub(crate) fn restore_what_git_did_not_write(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
     let mut written: Vec<TakenOnDisk> = Vec::new();
     for entry in taken {
         if std::fs::symlink_metadata(entry.location.as_path()).is_err() {
@@ -452,9 +498,15 @@ pub(crate) fn restore_what_git_did_not_write(taken: &[TakenOnDisk], out: &mut dy
             }
             continue;
         }
-        written.push(TakenOnDisk { location: entry.location.clone(), aside: entry.aside.clone(), taken: entry.taken });
+        written.push(TakenOnDisk {
+            location: entry.location.clone(),
+            path: entry.path.clone(),
+            aside: entry.aside.clone(),
+            taken: entry.taken,
+            expected: entry.expected.clone(),
+        });
     }
-    return finish_asides(written.as_slice(), out);
+    return finish_asides(place, root, written.as_slice(), out);
 }
 
 

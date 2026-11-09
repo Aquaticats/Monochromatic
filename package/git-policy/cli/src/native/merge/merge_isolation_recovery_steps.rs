@@ -521,7 +521,13 @@ fn changed_after_judging(root: &Path, paths: &[String]) -> RecoveryError {
 fn everything_taken(written: &[TakenOnDisk], deleted: &[TakenOnDisk]) -> Vec<TakenOnDisk> {
     let mut all: Vec<TakenOnDisk> = Vec::with_capacity(written.len() + deleted.len());
     for entry in written.iter().chain(deleted.iter()) {
-        all.push(TakenOnDisk { location: entry.location.clone(), aside: entry.aside.clone(), taken: entry.taken });
+        all.push(TakenOnDisk {
+            location: entry.location.clone(),
+            path: entry.path.clone(),
+            aside: entry.aside.clone(),
+            taken: entry.taken,
+            expected: entry.expected.clone(),
+        });
     }
     return all;
 }
@@ -582,11 +588,11 @@ pub fn install_entries(
             //  anyone's to set aside; the deletions empty it before the checkout writes the file.
             continue;
         }
-        match take_aside(location.as_path(), judged.identity) {
+        match take_aside(place, root, change.path.as_slice(), location.as_path(), judged) {
             Ok(Take::Nothing) => {}
             Ok(Take::Changed) => changed.push(String::from_utf8_lossy(change.path.as_slice()).into_owned()),
-            Ok(Take::Aside { aside, taken }) => {
-                let entry: TakenOnDisk = TakenOnDisk { location, aside, taken };
+            Ok(Take::Aside { aside, taken, expected }) => {
+                let entry: TakenOnDisk = TakenOnDisk { location, path: change.path.clone(), aside, taken, expected };
                 if change.exists_after() {
                     taken_writes.push(entry);
                 } else {
@@ -641,7 +647,7 @@ pub fn install_entries(
         }
         deletions.push(worktree_path(root, change.path.as_slice()));
     }
-    if let Err(error) = finish_asides(&taken_deletions, out) {
+    if let Err(error) = finish_asides(place, root, &taken_deletions, out) {
         return Err(MergeRefusal { error, began });
     }
     for location in &deletions {
@@ -655,7 +661,7 @@ pub fn install_entries(
         let checked_out = match run_git_checked(&place.git, &checkout) {
             Ok(done) => done,
             Err(error) => {
-                let restored: Result<(), RecoveryError> = restore_what_git_did_not_write(&taken_writes, out);
+                let restored: Result<(), RecoveryError> = restore_what_git_did_not_write(place, root, &taken_writes, out);
                 return Err(match restored {
                     Ok(()) => MergeRefusal { error: RecoveryError(error.to_string()), began },
                     Err(left) => MergeRefusal { error: RecoveryError(format!("{error} ({})", left.0)), began },
@@ -665,7 +671,7 @@ pub fn install_entries(
         // The checkout carries no `--quiet`; what Git said of it is kept in the journal.
         record_words(&["checkout-index", "-z", "--stdin"], &checked_out);
     }
-    if let Err(error) = finish_asides(&taken_writes, out) {
+    if let Err(error) = finish_asides(place, root, &taken_writes, out) {
         return Err(MergeRefusal { error, began });
     }
     return Ok(Installed::Written);

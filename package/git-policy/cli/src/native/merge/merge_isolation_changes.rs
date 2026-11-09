@@ -234,15 +234,32 @@ pub fn worktree_path(root: &Path, path: &[u8]) -> PathBuf {
 /// async function worktreeState({ context, root, path }): Promise<WorktreeState>;
 /// ```
 pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<WorktreeState, String> {
-    let location: PathBuf = worktree_path(root, path);
-    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location.as_path()) {
+    return state_of_file(context, root, path, worktree_path(root, path).as_path());
+}
+
+/// What:
+///  The state of the file at `location`,
+/// read as the repository path `path` would be.
+/// Why:
+///  A take moves a file to a private name beside it,
+/// and its bytes must be judged there with the attributes of the path
+///  it belongs to;
+/// one function reads both,
+/// so the judgement of a taken file and of a file in place cannot differ.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function stateOfFile({ context, root, path, location }): Promise<WorktreeState>;
+/// ```
+pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &Path) -> Result<WorktreeState, String> {
+    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(WorktreeState::Missing),
         Err(error) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(WorktreeState::Missing),
         Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
     };
     if metadata.file_type().is_symlink() {
-        let target: PathBuf = match std::fs::read_link(location.as_path()) {
+        let target: PathBuf = match std::fs::read_link(location) {
             Ok(read) => read,
             Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
         };
@@ -257,14 +274,13 @@ pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<
     if !metadata.is_file() {
         return Ok(WorktreeState::Other);
     }
-    // The attribute lookup and the file are both named by the path from the worktree top, where Git runs.
-    let relative: std::ffi::OsString = worktree_path(Path::new(""), path).into_os_string();
+    // The attribute lookup is named by the path from the worktree top, where Git runs, and the bytes are read from `location`.
     let mut named: std::ffi::OsString = std::ffi::OsString::from("--path=");
-    named.push(relative.as_os_str());
+    named.push(worktree_path(Path::new(""), path).into_os_string());
     let mut request: GitRequest = GitRequest::new(root, &["hash-object"]);
     request.arguments.push(named);
     request.arguments.push(std::ffi::OsString::from("--"));
-    request.arguments.push(relative);
+    request.arguments.push(location.as_os_str().to_os_string());
     let output = match run_git_checked(context, &request) {
         Ok(done) => done,
         Err(error) => return Err(error.to_string()),
