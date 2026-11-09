@@ -329,6 +329,17 @@ pub fn settle_failed_merge(
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
     let root: &Path = Path::new(intent.repository_root.as_str());
     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
+    let changes: Vec<Change> = merge_changes(place, root, intent).map_err(untouched)?;
+    // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
+    //  while the file waits beside it, and would otherwise be read as someone else's.
+    put_back_stranded_takes(root, changes.as_slice(), out);
+    let judgements: Vec<Judged> = judge_changes(place, root, changes.as_slice()).map_err(untouched)?;
+    let index_standing: Vec<Standing> = index_standings(place, root, intent.old_oid.as_str(), changes.as_slice()).map_err(untouched)?;
+    let index_started: bool = index_standing.iter().any(holds_the_merges_entry);
+    // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
+    let worktree_started: bool = judgements.iter().any(holds_the_merge);
+    // What the index and the checkout already hold of this merge, which every refusal from here on says.
+    let began: bool = index_started || worktree_started;
     let current: Option<String> = resolve_commit(place, root, target).map_err(untouched)?;
     if current.as_deref() == Some(intent.new_oid.as_str()) {
         drop_record_and_side_ref(place, root, record, intent).map_err(untouched)?;
@@ -351,6 +362,23 @@ pub fn settle_failed_merge(
         Some(head) if head == intent.old_oid => {}
         Some(head) => {
             if intent.side_ref.is_some() {
+                // A merge that is partly installed here has files and index entries nobody else can settle: its record stays,
+                //  and the command is told, because dropping it would leave them with nothing that ever recovers them.
+                if began {
+                    return Err(MergeRefusal {
+                        error: RecoveryError(format!(
+                            "A merge saved for {target} in {} is partly installed in this worktree, and {target} has moved to {} \
+                             since. Its index entries and any file it had set aside are still here, so the record {} was kept and \
+                             nothing was removed; the merge's commit is still where it was saved. Check `git status`, finish or \
+                             undo what is staged, then remove the record {} when the checkout is as you want it.",
+                            root.display(),
+                            head,
+                            record.display(),
+                            record.display()
+                        )),
+                        began,
+                    });
+                }
                 // A merge that a command already reported as saved must not vanish: the record goes, so nothing stops a later
                 //  command, and the side ref keeps its commit and is named.
                 drop_record(record).map_err(untouched)?;
@@ -373,15 +401,6 @@ pub fn settle_failed_merge(
             ))));
         }
     }
-    let changes: Vec<Change> = merge_changes(place, root, intent).map_err(untouched)?;
-    // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
-    //  while the file waits beside it, and would otherwise be read as someone else's.
-    put_back_stranded_takes(root, changes.as_slice(), out);
-    let judgements: Vec<Judged> = judge_changes(place, root, changes.as_slice()).map_err(untouched)?;
-    let index_standing: Vec<Standing> = index_standings(place, root, intent.old_oid.as_str(), changes.as_slice()).map_err(untouched)?;
-    let index_started: bool = index_standing.iter().any(holds_the_merges_entry);
-    // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
-    let worktree_started: bool = judgements.iter().any(holds_the_merge);
     // A merge that was saved on a side ref is finished even though nothing of it is in the checkout yet: the record with a side
     //  ref is what says the merge should land, not the checkout (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
     //  finding 3).
@@ -395,9 +414,6 @@ pub fn settle_failed_merge(
             foreign.push(String::from_utf8_lossy(change.path.as_slice()).into_owned());
         }
     }
-    // The index and the worktree have already been read here: a refusal now leaves whatever of the merge they hold, so the
-    //  flag says what that is.
-    let began: bool = index_started || worktree_started;
     if !foreign.is_empty() {
         return Err(MergeRefusal {
             error: RecoveryError(format!(
