@@ -96,3 +96,8 @@ pub fn ceiling_came(step: i32) -> CeilingCame {
     }
     return CeilingCame::TheStepEnded;
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "scratch_step_ceiling_stop_tests.rs"]
+mod tests;

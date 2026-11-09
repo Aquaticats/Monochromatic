@@ -374,6 +374,10 @@ pub enum MemberRead {
 /// or which of the two ways it is not one.
 #[cfg(target_os = "linux")]
 pub fn member_read(pid: i32) -> MemberRead {
+    #[cfg(test)]
+    if claim_an_unreadable_for(pid) {
+        return MemberRead::Unreadable;
+    }
     let text: String = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
         Ok(read) => read,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return MemberRead::Gone,
@@ -413,6 +417,10 @@ pub fn member_read(_pid: i32) -> MemberRead {
 #[cfg(target_os = "linux")]
 pub(crate) fn identity_of(pid: i32) -> Option<(u64, bool)> {
     #[cfg(test)]
+    if claim_an_unreadable_for(pid) {
+        return None;
+    }
+    #[cfg(test)]
     if let Some(claimed) = claim_a_reuse_for(pid) {
         return Some((claimed, false));
     }
@@ -446,6 +454,49 @@ pub(crate) fn reused_after_the_next_read(pid: i32, started: u64) {
 
 /// The control's answer for `pid`,
 /// when one is armed for that number.
+// What:
+//  A control that makes the next identity read of one number fail,
+//  as a record that cannot be read does (`EACCES`, `EIO`, `ENOMEM`).
+// Why:
+//   A read that fails for one process while `/proc` itself answers cannot be produced on demand,
+// so the kernel's answer is injected.
+//  A control of this process's own thread:
+// the notice's own thread reads identities too.
+#[cfg(all(test, target_os = "linux"))]
+thread_local! {
+    /// The number whose read fails,
+    /// and how many of its reads answer normally first.
+    static UNREADABLE_AFTER_THE_NEXT_READ: std::cell::Cell<Option<(i32, usize)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Make the read of `pid` that comes after `answered_first` normal reads of it fail.
+/// Why:
+///   A control that must reach the read inside the pin,
+/// past the one the caller makes before it,
+/// says how many reads are answered first.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn unreadable_after_the_next_reads(pid: i32, answered_first: usize) {
+    UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| { slot.set(Some((pid, answered_first))); });
+}
+
+/// Take the control's refusal for `pid`, when one is armed for it and its normal reads are used up.
+#[cfg(all(test, target_os = "linux"))]
+fn claim_an_unreadable_for(pid: i32) -> bool {
+    let armed: Option<(i32, usize)> = UNREADABLE_AFTER_THE_NEXT_READ.with(std::cell::Cell::get);
+    let Some((armed_pid, answered_first)) = armed else {
+        return false;
+    };
+    if armed_pid != pid {
+        return false;
+    }
+    if answered_first > 0 {
+        UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| { slot.set(Some((armed_pid, answered_first.saturating_sub(1)))); });
+        return false;
+    }
+    UNREADABLE_AFTER_THE_NEXT_READ.with(|slot| { slot.set(None); });
+    return true;
+}
+
 #[cfg(all(test, target_os = "linux"))]
 fn claim_a_reuse_for(pid: i32) -> Option<u64> {
     let armed: Option<(i32, u64)> = REUSED_AFTER_THE_NEXT_READ.with(std::cell::Cell::get);
