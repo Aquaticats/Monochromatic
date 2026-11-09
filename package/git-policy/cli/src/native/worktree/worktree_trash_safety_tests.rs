@@ -220,6 +220,67 @@ fn something_in_the_trash_that_was_not_moved_there_stays() {
     remove(root.as_path());
 }
 
+/// What:
+///  The trash of a disposal that failed is tried again by the next add,
+///  and named to the person each time it still cannot be emptied,
+///  instead of being dropped when the service gives up on it.
+/// Why:
+///   The service settles a failed trash item as failed,
+/// so it is never tried again,
+/// and the inline path's promise that the
+///  service "empties it when it next runs" holds only for its first try.
+/// Nothing else swept the trash parent,
+/// so a full copy of
+///  left-out directories could sit in a worktree for ever with no command naming it.
+#[test]
+fn a_trash_that_could_not_be_emptied_is_tried_again_and_named() {
+    let name: String = "9".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-retry", name.as_str(), 2);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    // One entry is a directory somebody else put under the name the leave-out used: the disposal refuses for ever.
+    std::fs::rename(trash.join("d0"), worktree.join("moved-away")).expect("move the real entry away");
+    put(trash.as_path(), "d0/precious", b"somebody else's directory under the same name
+");
+    // The record of the failed emptying, in the state the service leaves it in.
+    let mut say: Vec<u8> = Vec::new();
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::PENDING).join(item.id());
+    let failed: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::FAILED).join(item.id());
+    std::fs::rename(pending.as_path(), failed.as_path()).expect("the service gave up on it");
+    retry_given_up_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "the person is told which trash stays: {said}");
+    assert!(said.contains("precious") || said.contains("d0"), "and why: {said}");
+    assert!(failed.is_file() && trash.join("d0/precious").exists(), "the record and the replacement stay");
+    // The cause is dealt with, so the next add empties what the record names.
+    std::fs::remove_dir_all(trash.join("d0")).expect("the foreign directory goes");
+    let mut second: Vec<u8> = Vec::new();
+    retry_given_up_trash(git_dir.as_path(), worktree.as_path(), &mut second);
+    assert!(!trash.exists() && !failed.exists(), "the trash and its record are gone");
+    assert!(String::from_utf8_lossy(second.as_slice()).contains(&name[..8]), "the emptying is said: {}", String::from_utf8_lossy(second.as_slice()));
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory in the trash parent that no record names is named to the person and never deleted.
+/// Why:
+///   Removing trash deletes a person's folders,
+/// and a directory nobody recorded cannot be proven to be one the leave-out moved,
+///  so the sweep only says it is there.
+#[test]
+fn a_trash_no_record_names_is_named_and_left_alone() {
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-unrecorded", "7".repeat(40).as_str(), 1);
+    let unrecorded: PathBuf = worktree.join(TRASH_PARENT).join("6".repeat(40));
+    put(unrecorded.as_path(), "d0/precious", b"copied by hand\n");
+    let mut say: Vec<u8> = Vec::new();
+    retry_given_up_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(unrecorded.to_str().expect("UTF-8")), "the person is told what sits there: {said}");
+    assert!(unrecorded.join("d0/precious").exists(), "nothing is deleted");
+    remove(root.as_path());
+}
+
 /// Finding 12:
 /// the service's handler does not follow a link at `.claude`,
 /// so a trash that is only reached through a link is

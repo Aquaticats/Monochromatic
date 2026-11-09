@@ -1049,6 +1049,18 @@ A trash that cannot be emptied is reported on standard error as a warning that n
 the work item stays for the service;
 it does not fail the add,
 because the worktree is already in place and complete.
+The service settles a trash item it cannot empty as failed,
+so it never tries it again:
+every `git worktree add` for that worktree therefore tries the trash of each failed record again
+before it handles
+its own,
+withdraws the record once the trash is gone,
+and names a trash that still cannot be emptied on standard error with its path and the reason.
+It also names,
+without deleting,
+every directory in the worktree's trash parent that no record of that worktree accounts for,
+because a
+directory nobody recorded cannot be proven to be one the leave-out moved.
 The race with other processes is a risk the person accepts by using the command:
 a directory of the new worktree that another
 process replaces,
