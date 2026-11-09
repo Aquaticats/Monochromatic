@@ -61,7 +61,7 @@ asked 50 ms, 40 sleeps: median late 0.1 ms, p90 1.2 ms, max 1.2 ms
 ```
 
 So sleep lateness is not what breaks these controls here.
-What changes with host pressure is how long *work* takes:
+What changes with host pressure is how long the work takes:
 starting a process,
 reading a directory,
 running a conversion.
