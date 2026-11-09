@@ -6968,6 +6968,32 @@ are in append mode now).
   The rebuilt image reports `rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`
   (2026-11-08T15:41:28-05:00),
   so the container tasks are on the pin from now on.
+- `foundation::parallel_runner_on_the_runtime::tests::items_run_at_the_same_time` fails whenever the test process is
+  allowed 2 CPUs and passes on the same tree when it is allowed 5.
+  Measured 2026-11-08 on the branch of the conversion-summary and fold kill-point work in the test's own cgroup
+  (`CPUQuota=200%`,
+  `MemoryMax=2G`,
+  `TasksMax=512`,
+  `IOWeight=10`;
+  logs `~/temp/agent/fold-kill-cost/19-items-run-alone.log` and `20-items-run-cpu500.log`):
+  `left: 2` against `right: 4` after 10.010 s at the 200% cap,
+  and a pass in 0.012 s at 500%.
+  `nproc` inside those scopes printed 2 and 5,
+  which is the positive control that the allowance is what moves it.
+  The control asks the run for `ITEMS` workers,
+  but the runtime's worker count is `budgeted_workers` off `available_parallelism`,
+  which the quota lowers,
+  so a point every item must reach can never be met and the two workers that did start wait out `PATIENCE`
+  (10 s in `parallel_test_support.rs`).
+  The gate container runs at 2 CPUs,
+  so this control fails there;
+  it came in with the tokio runtime's first part (`2b1f830568`,
+  linted in `c1e6a78a4c`,
+  merged by `6240b51a7a`) and nothing on this branch touched it.
+  Not fixed here:
+  the choice is between a control that asks for no more items than the plan's workers and a floor the budget may not
+  go below,
+  which is the runtime's design and not this work's.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
