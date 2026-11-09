@@ -36,13 +36,11 @@ use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, open_root, plain_components, rename_at};
 use crate::fs_kind::{is_stand_in, is_subvolume_root};
 use crate::random_id::random_uuid;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_clean::stored_stats;
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_snapshot_source::SnapshotSource;
-pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, delete_trash, dispose_pending_trash, empty_trash, name_unaccounted_trash};
+pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, delete_trash, delete_trash_awaiting, dispose_pending_trash, dispose_pending_trash_awaiting, empty_trash, name_unaccounted_trash};
 pub use crate::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::collections::HashSet;
@@ -50,6 +48,11 @@ use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+
+#[path = "worktree_trash_set_aside_entries.rs"]
+mod set_aside_entries;
+
+use set_aside_entries::{inherited_trash_entries, names_the_container, remove_containers_beneath};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrash";
@@ -75,30 +78,6 @@ const DIRECTORY_MODES: [u32; 2] = [0o040_000, 0o160_000];
 
 /// The mode bits that carry the type of an index entry.
 const TYPE_MASK: u32 = 0o170_000;
-
-/// What:
-///  Whether Git ignores the place the trash would be made at in this worktree.
-/// Why:
-///   A trash directory Git does not ignore would list as untracked until emptied,
-/// so the leave-out removes in the foreground
-///  instead when the answer is no or unknown.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await runGit(['check-ignore', '--no-index', '--', `${TRASH_PARENT}/probe/x`]).exitCode === 0
-/// ```
-pub fn trash_location_is_ignored(context: &GitContext, root: &Path) -> bool {
-    let request: GitRequest = GitRequest {
-        cwd: root.to_path_buf(),
-        arguments: ["check-ignore", "--no-index", "--"].iter().map(std::ffi::OsString::from).chain(std::iter::once(std::ffi::OsString::from(format!("{TRASH_PARENT}/probe/x")))).collect(),
-        without_prefix: true,
-        ..GitRequest::default()
-    };
-    return match run_git(context, &request) {
-        Ok(output) => output.code == Some(0),
-        Err(_not_started) => false,
-    };
-}
 
 /// A name for one trash directory:
 /// forty hexadecimal digits,
@@ -194,10 +173,18 @@ impl Aside {
     /// so the add pays only the
     ///  container's own removal.
     fn put(&mut self, relative: &Path) -> Result<(), String> {
+        // A container is removed here and never renamed into the trash: the pattern is None for it either way.
+        let direct_container: bool = names_the_container(relative);
+        if !direct_container {
+            // A directory set aside whole can hold one, because a container stands beside the destination of one add and a
+            //  nested worktree is another such place; the sweep removes those before the rename, so a kill before the
+            //  emptying cannot leave another command's credentials in the trash.
+            let (holder, name): (File, OsString) = self.holder(relative)?;
+            remove_containers_beneath(&holder, name.as_os_str(), &self.stage.join(relative))?;
+        }
         let (parent, name): (File, OsString) = self.holder(relative)?;
         let shown: PathBuf = self.stage.join(relative);
-        // A container is removed here and never renamed into the trash: the pattern is None for it either way.
-        let into_trash: Option<&Trash> = match names_the_container(relative) {
+        let into_trash: Option<&Trash> = match direct_container {
             true => None,
             false => self.trash.as_ref(),
         };
@@ -451,94 +438,6 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     };
     debug(TAG, format!("{count} directories set aside in {} ({})", stage.display(), if manifest.is_some() { "into the trash" } else { "removed in place" }).as_str());
     return Ok(Pruned { count, trash: manifest });
-}
-
-/// What:
-///  Whether a path below the snapshot names another command's stage container,
-/// by its last component of the
-///  reserved prefix.
-/// Why:
-///   The walk calls the setting-aside step with the container itself,
-/// so the last component is what says whether what it
-///  holds is another command's ignored state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// path.basename(relative).startsWith(STAGE_PREFIX)
-/// ```
-fn names_the_container(relative: &Path) -> bool {
-    let Some(name) = relative.file_name() else { return false };
-    return name.as_bytes().starts_with(STAGE_PREFIX.as_bytes());
-}
-
-/// What:
-///  The name of the trash this add made,
-/// for the caller that has to tell its own from an earlier add's.
-/// Why:
-///   The own name is the one entry of the trash parent that this add must not move.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const trashName = (trash: Trash) => trash.name;
-/// ```
-fn trash_name(trash: &Trash) -> &str {
-    return trash.name.as_str();
-}
-
-/// What:
-///  Whether a listed entry is a directory.
-/// Why:
-///   Only directories are trash entries;
-/// a file the person put there is none of this add's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isDirectoryEntry = (entry: DirEntry) => entry.fileType().isDirectory();
-/// ```
-fn is_directory_entry(entry: &std::fs::DirEntry) -> bool {
-    return entry.file_type().is_ok_and(is_dir_kind);
-}
-
-/// Whether a file type is a directory's.
-fn is_dir_kind(kind: std::fs::FileType) -> bool {
-    return kind.is_dir();
-}
-
-/// What:
-///  The directories an earlier add left in the trash parent of the snapshot,
-/// as paths below the snapshot,
-///  except this add's own trash.
-/// Why:
-///   A kill before the emptying leaves them there,
-/// and the walk skips the trash parent so that this add's own trash is
-///  not moved into itself;
-/// naming them from the parent's listing is what tells the two apart.
-/// The parent is reached through the
-///  held handle of the snapshot and listed once,
-/// so a name that is not text is carried by its bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// readdir(join(stage, TRASH_PARENT)).filter((name) => name !== trash?.name).map((name) => join(TRASH_PARENT, name));
-/// ```
-fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec<PathBuf>, String> {
-    let parent: PathBuf = stage.join(TRASH_PARENT);
-    let mut found: Vec<PathBuf> = Vec::new();
-    let listed = match std::fs::read_dir(parent.as_path()) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(found),
-        Err(error) => return Err(format!("{} cannot be listed ({error})", parent.display())),
-    };
-    let own: Option<&str> = aside.trash.as_ref().map(trash_name);
-    for listed_entry in listed {
-        let entry: std::fs::DirEntry = path_failure(listed_entry, parent.as_path(), "cannot be listed")?;
-        let name: OsString = entry.file_name();
-        if own == name.to_str() || !is_directory_entry(&entry) {
-            continue;
-        }
-        found.push(Path::new(TRASH_PARENT).join(name));
-    }
-    return Ok(found);
 }
 
 /// Unlink the `.git` file of a copied directory,

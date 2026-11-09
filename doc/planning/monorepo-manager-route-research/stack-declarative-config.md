@@ -5,6 +5,11 @@ This research read the configuration as forbidden from being Turing-complete;
 the user only removed the requirement,
 so G and H are disqualified only under that reading.
 
+Note 2026-10-31:
+`mise.no-env.toml` was deleted in `7bbe5719d5` and became the hand-written `mise.toml`,
+with the static environment moved to `.config/mise/conf.d/20-env.toml`.
+Every `mise.no-env.toml` citation below keeps the text of its time and its line numbers no longer resolve.
+
 Research date:
 2026-09-16.
 Scope:
@@ -705,6 +710,10 @@ absent "retired_forbidden_strings_local" {
    "Cli-git statically bundles generated source mirrors into its single import and executable artifact"
    (Verified:
   `package/git-policy/forbidden-strings/README.md:6`).
+  That package was deleted on 2026-10-13,
+   in `a2b56c548c`,
+   and its Rust successor `package/forbidden-strings/cli/README.md` does not carry the sentence,
+   so this claim needs re-verification in the tree that exists.
 - Placement:
    general built-in `mirror` with `header` and `replace`.
   Retiring the mirrors through bundler path aliases in cli-git is possible in principle

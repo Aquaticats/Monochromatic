@@ -6,8 +6,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
+  type DisposableTempDir,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -197,11 +197,12 @@ function makeRecordingSpawn(): {
  
  @example
  ```ts
- const dir = await makeTmpDir();
+ await using directory = await makeTmpDir();
+ const dir = directory.path;
  ```
  */
-async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(scratchRoot(), 'watch-restart-start-',),);
+async function makeTmpDir(): Promise<DisposableTempDir> {
+  return mkdtempDisposable(join(scratchRoot(), 'watch-restart-start-',),);
 }
 
 /**
@@ -229,7 +230,8 @@ await describe({
     it({
       name: 'initial: true (default) spawns the child immediately after ready',
       fn: async function defaultsInitialTrue() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const { spawn, records, } = makeRecordingSpawn();
 
         const handle = await startWatchRestart({
@@ -243,13 +245,13 @@ await describe({
         expect(nonNullishOrThrow(records[0],).command,).toBe('noop',);
 
         await safeStop(handle,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'initial: false defers spawn until the first qualifying event',
       fn: async function noInitial() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const { spawn, records, } = makeRecordingSpawn();
 
         const handle = await startWatchRestart({
@@ -268,13 +270,13 @@ await describe({
         expect(records.length,).toBe(1,);
 
         await safeStop(handle,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'byte-identical write produces no restart',
       fn: async function byteIdenticalSkips() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const file = join(dir, 'same.ts',);
         await writeFile(file, 'unchanged',);
 
@@ -293,13 +295,13 @@ await describe({
         expect(records.length,).toBe(0,);
 
         await safeStop(handle,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'no-content-changed lets byte-identical writes through',
       fn: async function noContentChanged() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const file = join(dir, 'same.ts',);
         await writeFile(file, 'unchanged',);
 
@@ -319,13 +321,13 @@ await describe({
         expect(records.length,).toBe(1,);
 
         await safeStop(handle,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'two writes to different files within debounce coalesce to one restart',
       fn: async function debounceCoalesce() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
 
         const { spawn, records, } = makeRecordingSpawn();
         const handle = await startWatchRestart({
@@ -345,13 +347,13 @@ await describe({
         expect(records.length,).toBe(1,);
 
         await safeStop(handle,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'ext filter rejects non-matching extensions; admits matching',
       fn: async function extFilters() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
 
         const { spawn, records, } = makeRecordingSpawn();
         const handle = await startWatchRestart({
@@ -372,13 +374,13 @@ await describe({
         expect(records.length,).toBe(1,);
 
         await safeStop(handle,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'exclude beats include for overlapping files',
       fn: async function excludeBeatsInclude() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
 
         const { spawn, records, } = makeRecordingSpawn();
         const handle = await startWatchRestart({
@@ -399,13 +401,13 @@ await describe({
         expect(records.length,).toBe(1,);
 
         await safeStop(handle,);
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'stop() tears down without leaking events',
       fn: async function stopTearsDown() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
 
         const { spawn, records, } = makeRecordingSpawn();
         const handle = await startWatchRestart({
@@ -423,13 +425,13 @@ await describe({
 
         expect(records.length,).toBe(0,);
 
-        await rm(dir, { recursive: true, },);
       },
     },),
     it({
       name: 'stop() is idempotent: a second call is a no-op',
       fn: async function stopIdempotent() {
-        const dir = await makeTmpDir();
+        await using dirDirectory = await makeTmpDir();
+        const dir = dirDirectory.path;
         const { spawn, } = makeRecordingSpawn();
         const handle = await startWatchRestart({
           paths: [dir,],
@@ -443,7 +445,6 @@ await describe({
         // Second call must resolve without throwing.
         await handle.stop();
 
-        await rm(dir, { recursive: true, },);
       },
     },),
   ],

@@ -504,6 +504,15 @@ Read-only commands,
   and a record written by an earlier release is still read.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
+  A copy settles itself against the source:
+  a file the source removed meanwhile has nothing to copy and
+   leaves the stage,
+  a file that changed is copied again twice at most,
+   and a file that keeps changing stays untouched in its source,
+  is not installed,
+  and is named
+   on one line.
+  A file that cannot be copied at all fails the copy with its own path in the message.
   A worktree whose own ignored-state copy is still running is no source:
   a second add run from it creates its worktree,
   writes one line saying that the worktree received no ignored state and why,
@@ -626,6 +635,13 @@ Read-only commands,
    Those directories are emptied side by side,
      within the threads and memory the host allows,
      beside the package repair.
+   A directory set aside whole is swept for those containers first,
+     at any depth,
+     a nested worktree and another checkout among them,
+   so nothing of another command's reaches the trash through that route either;
+     the sweep reads no file and follows no link,
+     and a directory it cannot look inside
+   stops the leave-out with that path named instead of counting as one with nothing to sweep.
    Another command's stage container is not put in that trash at all:
      it is removed before the worktree is installed,
      so
@@ -648,7 +664,19 @@ Read-only commands,
    It does decline when a registered nested worktree holds a file the main checkout tracks.
      A trash that cannot be
    emptied is reported with its path and the reason,
-     and the worktree is whole either way.
+     the worktree is whole either way,
+     and the line says that nothing else will
+   empty it:
+     no work item names it,
+     only the person will remove it,
+     and it gives the `rm --recursive --force` command that does
+   when that command deletes exactly what the snapshot made.
+     It gives no removal command when the emptying kept something
+   (a directory the snapshot did not make under the recorded name,
+     an entry that changed,
+     or a file somebody put in the trash),
+     and names the path and the reason instead,
+     because removing that path recursively would delete what the emptying left alone.
      A trash that could not be emptied stays there,
    and the next command run in that worktree names it,
      with its path;
@@ -2368,9 +2396,10 @@ none is waited out or retried on the moved head yet:
   an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute;
   commits queued behind the same lock are refused at once),
-  or was left by a dead owner (Git's
-   lock PID file names a process that is gone;
-  a diagnostic names it at once).
+  or holds a Git lock PID file naming a number this process table does not have
+  (a killed Git leaves one,
+  and so does a live Git in another PID namespace,
+  so the commit waits and the line says which number was read).
   The commit is withdrawn,
    kept on a side ref named
    in the message (`refs/cli-git/kept/<batch>`),
@@ -3523,6 +3552,11 @@ a backquote,
 a quote or a newline in a path expands nothing and splits nothing when the line is pasted into a shell.
 The record stays until the worktree is whole or gone,
 so the same line comes again from every command that runs the recovery.
+A look at the destination that fails,
+rather than finding no pointer,
+keeps the record too:
+a directory the person or another process holds closed for a moment is no evidence
+ that the add left nothing.
 
 A worktree added from the main checkout receives the main checkout's ignored state minus what a new worktree does not need.
 Left out by directory name,

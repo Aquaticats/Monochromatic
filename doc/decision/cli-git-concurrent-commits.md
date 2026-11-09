@@ -105,10 +105,19 @@ not a reason to disable parts of it.
   2 before;
   see "Implementation-time decisions"),
   a commit reserves the next landing slot.
-- `--amend`,
-  merge,
+- Merge,
   cherry-pick,
-  and revert conclusions fail when `HEAD` moved.
+  and revert conclusions land on a moved `HEAD` through the same replay as an ordinary commit.
+  An `--amend` whose `HEAD` moved lands its changes as a new commit on top of the moved branch,
+  with its message,
+  and a notice says it became a new commit.
+  Owner decision 2026-11-09,
+  amending the earlier rule that these conclusions fail when `HEAD` moved:
+  "I would consider this to be a defect in our wrapper.
+  Agents should never wait on each other on commits or merges."
+  For `--amend` the owner chose "A:
+  land as a new commit (Recommended)",
+  over keeping the refusal and over rewriting another agent's landed commit.
   Every commit records the symbolic `HEAD` target at invocation
   and fails if a branch switch changed it.
 - `post-commit` runs once after landing through `git hook run post-commit` in the real worktree

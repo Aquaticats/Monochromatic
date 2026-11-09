@@ -97,9 +97,14 @@ its later Node steps validate artifacts and upload a publication.
 Those are additional implementations,
 not independently verified success claims in this investigation.
 
-[`mise.no-env.toml`](../../mise.no-env.toml):258 documents the existing task boundary:
+[`mise.toml`](../../mise.toml) documents the existing task boundary:
 default platform shells for command launching,
 explicit Node execution for logic.
+That citation read `mise.no-env.toml:258` when this record was written;
+the file was deleted on 2026-10-31,
+ in `7bbe5719d5`,
+ and became the hand-written `mise.toml`,
+ so the line number no longer resolves.
 The accepted [mise Node invocation decision](../decision/mise-task-node-invocations.md)
 distinguishes pure forwarding from actual orchestration.
 It governs mise tasks,

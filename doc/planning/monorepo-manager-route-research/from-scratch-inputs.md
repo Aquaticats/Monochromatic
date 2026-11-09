@@ -7,6 +7,11 @@ read-only research feeding a concrete design for the from-scratch route in
 `doc/planning/monorepo-manager-build-routes.md` ("Route B").
 Nothing under `/var/home/user/Monochromatic` was modified.
 
+Note 2026-10-31:
+`mise.no-env.toml` was deleted in `7bbe5719d5` and became the hand-written `mise.toml`,
+with the static environment moved to `.config/mise/conf.d/20-env.toml`.
+Every `mise.no-env.toml` citation below keeps the text of its time and its line numbers no longer resolve.
+
 ## Conventions used here
 
 - **Verified** means a cited file and line range (repository),
@@ -1797,7 +1802,7 @@ Commands that need root are marked `sudo`.
   Remediation:
   kernel 4.18 or newer.
   Reason:
-  see previous item.
+  see the repository-root-is-a-subvolume item.
 - **Reflink between cache and repository** (unblocks cheap output restoration).
   Detect:
   create a probe file in the cache directory and `FICLONE` it into the repository;

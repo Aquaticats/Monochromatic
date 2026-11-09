@@ -126,7 +126,10 @@ impl Drop for WritesKeptInMemory {
 /// ```
 pub fn write_all_then_sync(file: &mut std::fs::File, bytes: &[u8]) -> std::io::Result<()> {
     file.write_all(bytes)?;
-    if keeping_writes_in_memory() {
+    let keeping: bool = keeping_writes_in_memory();
+    #[cfg(test)]
+    sync_counts::note_file_sync(keeping);
+    if keeping {
         return Ok(());
     }
     return file.sync_all();
@@ -142,7 +145,10 @@ pub fn write_all_then_sync(file: &mut std::fs::File, bytes: &[u8]) -> std::io::R
 /// async function syncDirectory(directory: string): Promise<void>; // (await open(directory)).sync()
 /// ```
 pub fn sync_directory_to_disk(directory: &Path) -> std::io::Result<()> {
-    if keeping_writes_in_memory() {
+    let keeping: bool = keeping_writes_in_memory();
+    #[cfg(test)]
+    sync_counts::note_directory_sync(keeping);
+    if keeping {
         return Ok(());
     }
     let handle: std::fs::File = std::fs::File::open(directory)?;
@@ -200,3 +206,11 @@ pub fn write_beside_then_rename(target: &Path, bytes: &[u8]) -> std::io::Result<
 #[cfg(test)]
 #[path = "subvolume_file_write_steps_tests.rs"]
 mod tests;
+
+/// The control's own count of the syncs the steps made and skipped.
+#[cfg(test)]
+#[path = "subvolume_file_write_steps_sync_counts_test_support.rs"]
+mod sync_counts;
+
+#[cfg(test)]
+pub(crate) use sync_counts::{SyncCounts, take_sync_counts};

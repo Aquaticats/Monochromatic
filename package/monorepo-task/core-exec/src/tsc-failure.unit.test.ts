@@ -18,6 +18,12 @@ const unknownFailure = 'fixture compiler cannot read its configuration\n';
 const emission = 'TSFILE: /fixture/build-info.tsbuildinfo\n';
 /** Quoted syntax remains literal compiler output when embedded in the disposable executable. */
 const syntaxBoundary = `quote " slash \\ newline\n*/; process.exit(99); \${value}`;
+/** Signal that ends the disposable compiler before it can report a status of its own. */
+const killedBySignal = 'SIGTERM';
+/** The thrown error, not an exit-code assignment, reports a compiler that ended on a signal. */
+const killedBySignalReport = `ToolKilledBySignalError: [task-tsc] tsc terminated by signal: ${killedBySignal}`;
+/** The wrapper names itself and the missing compiler instead of exiting silently. */
+const missingCompilerReport = 'ToolNotStartedError: [task-tsc] failed to execute tsc:';
 
 /** Each case selects process output independently of the wrapper implementation. */
 const cases: readonly CompilerFailureCase[] = [
@@ -45,6 +51,10 @@ const cases: readonly CompilerFailureCase[] = [
     expectedCode: 2, expectedStdout: unknownFailure, expectedStderr: '' },
   { name: 'rejects emission metadata without a path', stdout: `${suppressed}TSFILE: \n`, stderr: '', exitCode: 2,
     expectedCode: 2, expectedStdout: 'TSFILE: \n', expectedStderr: '' },
+  { name: 'reports a compiler killed by a signal through a thrown error', stdout: '', stderr: '', exitCode: 0,
+    killSignal: killedBySignal, expectedCode: 1, expectedStdout: '', expectedStderr: [killedBySignalReport] },
+  { name: 'reports a compiler it could not start through a thrown error', stdout: '', stderr: '', exitCode: 0,
+    noCompiler: true, expectedCode: 1, expectedStdout: '', expectedStderr: [missingCompilerReport] },
 ];
 
 //region The emitted CLI preserves unsuccessful processes unless every diagnostic was knowingly suppressed
@@ -55,7 +65,10 @@ await describe({ name: '', concurrency: 1, children: cases.map(function compiler
     const result = await runCompilerFailureCase(input);
     expect(result.status).toBe(input.expectedCode);
     expect(result.stdout).toBe(input.expectedStdout);
-    expect(result.stderr).toBe(input.expectedStderr);
+    if ((typeof input.expectedStderr) === 'string')
+      expect(result.stderr).toBe(input.expectedStderr);
+    else
+      for (const fragment of input.expectedStderr) expect(result.stderr).toContain(fragment);
   } });
 }) });
 

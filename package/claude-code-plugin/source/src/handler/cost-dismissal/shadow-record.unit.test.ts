@@ -5,7 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -20,9 +20,13 @@ import {
 } from './shadow-record.ts';
 
 /**
- Scratch directory for this suite's shadow logs.
+ Scratch directory for this suite's shadow logs, removed when this module's
+ scope unwinds.
  */
-const SCRATCH = await mkdtemp(join(scratchRoot(), 'shadow-record-',),);
+await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'shadow-record-',),);
+
+/** Fixture root this suite shares; `scratchDirectory` owns its removal. */
+const SCRATCH = scratchDirectory.path;
 
 /**
  Hook events two concurrent observations can share.

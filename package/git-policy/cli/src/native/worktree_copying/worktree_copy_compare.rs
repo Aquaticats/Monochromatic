@@ -13,7 +13,7 @@
 //! await assertFinalSourceEquivalence({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries });
 //! ```
 
-use crate::side_by_side_threads::run_beside_caller;
+use crate::side_by_side_on_the_runtime::run_beside_the_caller_on_the_runtime;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
@@ -21,6 +21,7 @@ use crate::worktree_copy_manifest::{
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::filesystem_path;
 use crate::json_record::quote;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -209,36 +210,42 @@ pub fn entry_matches_stamped(
 
 /// What:
 ///  The manifest of the source under the leave-out rule,
-/// as the final check walks it on a thread beside the stage's walk.
+/// as the final check walks it on a job of the blocking pool beside the stage's walk.
 /// Why:
 ///   Entries the walk cannot read are not reported here:
 /// the final check compares the whole manifest and fails on any difference.
+/// The walk is a wait on storage,
+/// so it belongs on the blocking pool and never on a worker that polls tasks,
+/// and a job of the pool owns what it reads,
+/// so the root and the two lists travel as owned values.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with a discarded unreadable list
 /// ```
 fn walk_source_pruned(
-    (source_root, selected_roots, excluded_source_roots, prune): (&Path, &[String], &[PathBuf], Prune),
+    (source_root, selected_roots, excluded_source_roots, prune): (PathBuf, Vec<String>, Vec<PathBuf>, Prune),
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     let mut unreadable: Vec<String> = Vec::new();
-    return collect_pruned_manifest(source_root, selected_roots, excluded_source_roots, prune, &mut unreadable);
+    return collect_pruned_manifest(source_root.as_path(), selected_roots.as_slice(), excluded_source_roots.as_slice(), prune, &mut unreadable);
 }
 
 /// What:
 ///  The manifest of the stage,
 /// with no leave-out rule,
-/// as the final check walks it on the calling thread.
+/// as the final check walks it beside the source's walk.
 /// Why:
 ///   The stage holds exactly the selected roots,
-/// so nothing is excluded or pruned.
+/// so nothing is excluded or pruned,
+///  and the walk is a wait on storage,
+/// which a job of the blocking pool does with the root it owns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// walkStage([stageRoot, selectedRoots]) // collectEntryManifest(stageRoot, selectedRoots, [])
 /// ```
-fn walk_stage((stage_root, selected_roots): (&Path, &[String])) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    return collect_entry_manifest(stage_root, selected_roots, &[]);
+fn walk_stage((stage_root, selected_roots): (PathBuf, Vec<String>)) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+    return collect_entry_manifest(stage_root.as_path(), selected_roots.as_slice(), &[]);
 }
 
 /// What:
@@ -307,44 +314,213 @@ pub fn assert_final_source_equivalence_pruned(
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
-    // The source and the stage are independent trees, so their two walks run side by side.
-    let (source_joined, stage_walked): (std::thread::Result<Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>>, Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>) =
-        run_beside_caller(
-            ((source_root, selected_roots, excluded_source_roots, check.prune), walk_source_pruned),
-            ((stage_root, selected_roots), walk_stage),
-        );
-    let source_walked: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = match source_joined {
-        Ok(walked) => walked,
-        Err(_panic) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
+    return match crate::lazy_runtime::run_on_runtime(assert_final_source_equivalence_pruned_awaiting(
+        source_root,
+        stage_root,
+        selected_roots,
+        excluded_source_roots,
+        staged_entries,
+        check,
+    )) {
+        Ok(outcome) => outcome,
+        // Neither walk ran, and the reason the runtime could not make them is why.
+        Err(refusal) => Err(failure_with_cause(
+            format!("monochromatic-git-policy-cli: the source could not be checked after staging ({refusal}).").as_str(),
+            None,
+        )),
     };
-    let final_source: Vec<WorktreeCopyEntry> = source_walked?;
-    let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
-    if final_source.len() != staged_entries.len() || final_stage.len() != staged_entries.len() {
+}
+
+/// What:
+///  `assert_final_source_equivalence_pruned` on the process's runtime:
+/// the source's walk is one job of the blocking pool and the stage's walk runs beside it.
+/// Why:
+///   A caller that is itself a task of the runtime cannot enter it,
+/// so it awaits this face instead;
+/// the walks take as long as the slower of the two,
+///  and both are storage waits rather than work on a worker that polls tasks.
+/// A walk that panicked is the failure the scoped thread's panic was.
+/// The verdict is this branch's:
+/// every difference is named by relative path,
+/// so a caller that may
+///  tolerate one knows which one it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function assertFinalSourceEquivalencePruned({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries, check }): Promise<void>;
+/// ```
+async fn assert_final_source_equivalence_pruned_awaiting(
+    source_root: &Path,
+    stage_root: &Path,
+    selected_roots: &[String],
+    excluded_source_roots: &[PathBuf],
+    staged_entries: &[WorktreeCopyEntry],
+    check: &FinalCheck<'_>,
+) -> Result<(), WorktreeCopyError> {
+    let differences: Differences = differences_from_the_source(source_root, stage_root, selected_roots, excluded_source_roots, staged_entries, check).await?;
+    if !differences.gone.is_empty() || !differences.appeared.is_empty() {
         return Err(failure_with_cause(
             "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged.",
             None,
         ));
     }
+    if let Some(first) = differences.changed.first() {
+        let message: String = format!(
+            "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
+            quote(first.as_str())
+        );
+        return Err(failure_with_cause(message.as_str(), None));
+    }
+    return Ok(());
+}
+
+/// What:
+///  What the source and the stage walks say about the manifest the copy made,
+/// by relative path.
+/// Why:
+///   The caller has to know which entries went away,
+/// which ones changed under the copy,
+/// and which ones appeared after the listing:
+/// a vanished entry has nothing left to copy,
+/// an entry that
+///  keeps changing is retried and then left in its source,
+/// and an entry that appeared was never in the listing.
+/// Paths,
+///  not positions,
+/// are what makes the three tellable apart once the walks disagree on how many entries there are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Differences = { gone: string[]; changed: string[]; appeared: string[] };
+/// ```
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct Differences {
+    /// Manifest entries the source no longer holds.
+    pub gone: Vec<String>,
+    /// Manifest entries whose shape or bytes the source and the stage disagree about.
+    pub changed: Vec<String>,
+    /// Source paths the listing did not name,
+    /// which appeared while the copy ran.
+    pub appeared: Vec<String>,
+}
+
+/// What:
+///  Walk the source and the stage beside each other and compare them with the manifest,
+/// by relative
+///  path.
+/// Why:
+///   Two walks taken at one instant are the only evidence the stage matches the source,
+/// and a
+///  difference has to be named by its path so the caller can retry or leave out exactly that entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function differencesFromTheSource(...): Differences;
+/// ```
+pub async fn differences_from_the_source(
+    source_root: &Path,
+    stage_root: &Path,
+    selected_roots: &[String],
+    excluded_source_roots: &[PathBuf],
+    staged_entries: &[WorktreeCopyEntry],
+    check: &FinalCheck<'_>,
+) -> Result<Differences, WorktreeCopyError> {
+    // The source and the stage are independent trees, so their two walks run side by side.
+    let (source_joined, stage_walked): (Result<Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>, crate::blocking_job::BlockingJobError>, Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>) =
+        run_beside_the_caller_on_the_runtime(
+            ((source_root.to_path_buf(), selected_roots.to_vec(), excluded_source_roots.to_vec(), check.prune), walk_source_pruned),
+            ((stage_root.to_path_buf(), selected_roots.to_vec()), walk_stage),
+        )
+        .await;
+    let source_walked: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = match source_joined {
+        Ok(walked) => walked,
+        Err(crate::blocking_job::BlockingJobError::Panicked) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
+        Err(refused) => Err(raw_failure(&std::io::Error::other(format!("a manifest walk did not run ({refused})")))),
+    };
+    let final_source: Vec<WorktreeCopyEntry> = source_walked?;
+    let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
+    let mut by_source: BTreeMap<&str, &WorktreeCopyEntry> = BTreeMap::new();
+    for entry in &final_source {
+        by_source.insert(entry.relative_path.as_str(), entry);
+    }
+    let mut by_stage: BTreeMap<&str, &WorktreeCopyEntry> = BTreeMap::new();
+    for entry in &final_stage {
+        by_stage.insert(entry.relative_path.as_str(), entry);
+    }
+    let mut differences: Differences = Differences::default();
     for (index, staged) in staged_entries.iter().enumerate() {
-        let source_entry: &WorktreeCopyEntry = &final_source[index];
-        let stage_entry: &WorktreeCopyEntry = &final_stage[index];
-        let same_shape: bool = source_entry.kind == staged.kind
-            && source_entry.mode == staged.mode
-            && source_entry.relative_path == staged.relative_path
-            && stage_entry.kind == staged.kind
-            && stage_entry.mode == staged.mode
-            && stage_entry.relative_path == staged.relative_path;
+        let path: &str = staged.relative_path.as_str();
+        let Some(source_entry) = by_source.get(path) else {
+            differences.gone.push(String::from(path));
+            continue;
+        };
+        let same_shape: bool = match by_stage.get(path) {
+            Some(stage_entry) => {
+                source_entry.kind == staged.kind
+                    && source_entry.mode == staged.mode
+                    && stage_entry.kind == staged.kind
+                    && stage_entry.mode == staged.mode
+                    && stage_entry.relative_path == staged.relative_path
+            }
+            None => false,
+        };
         let stamp: Option<&FileStamp> = check.stamps.get(index).and_then(Option::as_ref);
         // The content check runs last so the cheap shape checks fail fast without reading large files.
         if !same_shape || !entry_matches_stamped(stage_root, source_root, staged, stamp)? {
-            let message: String = format!(
-                "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
-                quote(staged.relative_path.as_str())
-            );
-            return Err(failure_with_cause(message.as_str(), None));
+            differences.changed.push(String::from(path));
         }
     }
-    return Ok(());
+    let mut staged_paths: BTreeSet<&str> = BTreeSet::new();
+    for entry in staged_entries {
+        staged_paths.insert(entry.relative_path.as_str());
+    }
+    for path in by_source.keys() {
+        if !staged_paths.contains(path) {
+            differences.appeared.push(String::from(*path));
+        }
+    }
+    return Ok(differences);
+}
+
+/// What:
+///  `differences_from_the_source` for a caller that is not a task of the runtime:
+/// the walks run on the process's runtime and this face waits for them.
+/// Why:
+///   The staging of one created worktree's ignored state is synchronous,
+/// and its settling loop asks
+///  this question once per pass;
+/// a caller that is itself a task of the runtime awaits
+///  `differences_from_the_source` instead,
+/// because a job of the pool is already inside the runtime and
+///  the synchronous face refuses there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function differencesFromTheSource({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries, check }): Differences;
+/// ```
+pub fn differences_from_the_source_sync(
+    source_root: &Path,
+    stage_root: &Path,
+    selected_roots: &[String],
+    excluded_source_roots: &[PathBuf],
+    staged_entries: &[WorktreeCopyEntry],
+    check: &FinalCheck<'_>,
+) -> Result<Differences, WorktreeCopyError> {
+    return match crate::lazy_runtime::run_on_runtime(differences_from_the_source(
+        source_root,
+        stage_root,
+        selected_roots,
+        excluded_source_roots,
+        staged_entries,
+        check,
+    )) {
+        Ok(differences) => differences,
+        // Neither walk ran, and the reason the runtime could not make them is why.
+        Err(refusal) => Err(failure_with_cause(
+            format!("monochromatic-git-policy-cli: the source could not be checked after staging ({refusal}).").as_str(),
+            None,
+        )),
+    };
 }
 
 /// Compare controls stay out of the release executable.

@@ -44,6 +44,11 @@ pub mod worktree_copy_stage;
 #[cfg(unix)]
 pub mod worktree_copy_stage_leaf_copying;
 
+/// Settling a staged copy against its source:
+/// the passes that copy a changed entry again and leave a vanished one out.
+#[cfg(unix)]
+pub mod worktree_copy_settling;
+
 /// The exclusive creation of one destination entry from the stage,
 /// and the identity captured after it.
 #[cfg(unix)]

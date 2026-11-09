@@ -46,7 +46,7 @@ use std::ffi::OsString;
 use std::collections::HashMap;
 /// The parser of the ls-remote listing,
 /// beside the other listing parsers.
-use crate::manual_push_range::oids_by_ref;
+use crate::manual_push_range_published_tips::oids_by_ref;
 pub use crate::manual_push_update_and_query_limits::{LOCAL_QUERY_GAIN_STOPS_AT, MEASURED_WHOLE_HISTORY_QUERY, MOST_CONCURRENT_LOCAL_QUERIES, MOST_CONCURRENT_REMOTE_QUERIES, PushUpdate};
 
 /// The bytes one query holds at its peak:

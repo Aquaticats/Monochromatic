@@ -7,8 +7,7 @@
 
 import {
   chmod,
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -171,17 +170,18 @@ await describe({
     it({
       name: 'asks the compositor for its listing and returns the chosen node',
       fn: async ({ expect, }) => {
-        const directory = await mkdtemp(join(scratchRoot(), 'e2e-gpu-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-gpu-',),);
+        const directory = scratchDirectory.path;
         const compositorPath = await fakeCompositor({ directory, listing: REAL_LISTING, exitCode: 0, },);
         const gpu = await probeHeadlessGpu({ compositorPath, },);
-        await rm(directory, { recursive: true, force: true, },);
         expect(gpu,).toBe('/dev/dri/renderD129',);
       },
     },),
     it({
       name: 'fails with the status and the text when the listing command fails',
       fn: async ({ expect, }) => {
-        const directory = await mkdtemp(join(scratchRoot(), 'e2e-gpu-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-gpu-',),);
+        const directory = scratchDirectory.path;
         const compositorPath = await fakeCompositor({ directory, listing: 'boom text', exitCode: 3, },);
         let message = '';
         try {
@@ -190,7 +190,6 @@ await describe({
         catch (error: unknown) {
           message = caughtValueText(error,);
         }
-        await rm(directory, { recursive: true, force: true, },);
         expect(message,).toContain('status 3',);
         expect(message,).toContain(`${compositorPath} --list-gpus`,);
       },
@@ -204,17 +203,18 @@ await describe({
     it({
       name: 'gives a headless display on the probed node when no visible window was asked for',
       fn: async ({ expect, }) => {
-        const directory = await mkdtemp(join(scratchRoot(), 'e2e-gpu-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-gpu-',),);
+        const directory = scratchDirectory.path;
         const compositorPath = await fakeCompositor({ directory, listing: REAL_LISTING, exitCode: 0, },);
         const display = await resolveDisplay({ compositorPath, visible: false, gpu: '', },);
-        await rm(directory, { recursive: true, force: true, },);
         expect(display,).toEqual({ kind: 'headless', gpu: '/dev/dri/renderD129', },);
       },
     },),
     it({
       name: 'never turns a failed probe into a visible window',
       fn: async ({ expect, }) => {
-        const directory = await mkdtemp(join(scratchRoot(), 'e2e-gpu-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-gpu-',),);
+        const directory = scratchDirectory.path;
         const compositorPath = await fakeCompositor({ directory, listing: SOFTWARE_ONLY, exitCode: 0, },);
         let outcome: unknown = 'not reached';
         try {
@@ -223,7 +223,6 @@ await describe({
         catch (error: unknown) {
           outcome = error;
         }
-        await rm(directory, { recursive: true, force: true, },);
         expect(outcome,).toBeInstanceOf(Error,);
       },
     },),

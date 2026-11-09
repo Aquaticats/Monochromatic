@@ -18,9 +18,11 @@
 //! // checkBatchReply(...requestAndStream(data)); checkGeneratedReply(data);
 //! ```
 
-/// Import the reply reader under test and the values it produces.
+/// Import the reply reader under test,
+///  the ceiling a real check uses,
+///  and the values it produces.
 use git_policy_cli::candidate_batch::{
-    BatchReply, MAX_BATCH_HEADER_BYTES, ObjectKind, read_batch_reply,
+    BatchReply, CONTENT_CEILING, MAX_BATCH_HEADER_BYTES, ObjectKind, read_batch_reply_within,
 };
 use git_policy_cli::candidate_error::{CandidateError, CandidateFailure};
 use git_policy_cli::candidate_object::{ObjectId, parse_object_id};
@@ -67,6 +69,9 @@ pub struct GeneratedReply {
     pub request: Vec<u8>,
     /// The bytes the reader is given.
     pub stream: Vec<u8>,
+    /// The content ceiling the reader must be given,
+    ///  which the too-large shapes shorten.
+    pub ceiling: usize,
     /// What reading the stream must produce.
     pub expectation: Expectation,
 }
@@ -130,11 +135,36 @@ pub fn render_found(object: &str, kind: ObjectKind, bytes: &[u8]) -> Vec<u8> {
     return rendered;
 }
 
-/// Read one reply from an in-memory stream;
-///  returns the result and how many bytes were consumed.
-fn read(request: &[u8], stream: &[u8]) -> (Result<BatchReply, CandidateError>, usize) {
+/// What:
+///  Read one reply from an in-memory stream at the content ceiling the caller chose,
+///  and say how many bytes were consumed.
+///       `usize` is the unsigned integer every length uses (siblings `u32`,
+///  `u64`,
+///  `i32`,
+///  `i64`);
+///  it is
+///       the type the subject's own ceiling and lengths take.
+/// Why:
+///   A generated reply cannot hold the 32 MiB the real ceiling needs,
+///  so the control shortens the
+///       ceiling itself,
+///  which is the seam the subject exposes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readWithin(request: Uint8Array, stream: Uint8Array, ceiling: number): [Result, number];
+/// ```
+fn read_within(
+    request: &[u8],
+    stream: &[u8],
+    ceiling: usize,
+) -> (Result<BatchReply, CandidateError>, usize) {
+    // `mut` lets the reader advance the view; `remaining` is what is left after the reply.
     let mut remaining: &[u8] = stream;
-    let result: Result<BatchReply, CandidateError> = read_batch_reply(&mut remaining, request);
+    // The reader's answer, from the subject's own function at the caller's ceiling.
+    let result: Result<BatchReply, CandidateError> =
+        read_batch_reply_within(&mut remaining, request, ceiling);
+    // `stream.len() - remaining.len()` is how many bytes the reader took.
     return (result, stream.len() - remaining.len());
 }
 
@@ -147,13 +177,13 @@ fn read(request: &[u8], stream: &[u8]) -> (Result<BatchReply, CandidateError>, u
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkPrefixesRefused(request: Buffer, accepted: Buffer): void;
+/// function checkPrefixesRefused(request: Buffer, accepted: Buffer, ceiling: number): void;
 /// ```
-fn check_prefixes_refused(request: &[u8], accepted: &[u8]) {
+fn check_prefixes_refused(request: &[u8], accepted: &[u8], ceiling: usize) {
     let step: usize = accepted.len() / 64 + 1;
     // `(0..accepted.len()).step_by(step)` visits prefix lengths 0, step, 2 * step, ...
     for length in (0..accepted.len()).step_by(step) {
-        let (result, _consumed) = read(request, &accepted[..length]);
+        let (result, _consumed) = read_within(request, &accepted[..length], ceiling);
         let expected: CandidateFailure = if length == 0 {
             CandidateFailure::ReaderEnded
         } else {
@@ -166,7 +196,7 @@ fn check_prefixes_refused(request: &[u8], accepted: &[u8]) {
     }
     // The longest proper prefix lacks only the closing line feed.
     if let Some(last) = accepted.len().checked_sub(1) {
-        let (result, _consumed) = read(request, &accepted[..last]);
+        let (result, _consumed) = read_within(request, &accepted[..last], ceiling);
         assert!(
             result.is_err(),
             "the reply without its last byte was accepted"
@@ -175,7 +205,7 @@ fn check_prefixes_refused(request: &[u8], accepted: &[u8]) {
 }
 
 /// What:
-///  Assert the invariants of reading one reply to `request` from `stream`.
+///  Assert the invariants of reading one reply to `request` from `stream` at `ceiling`.
 /// Why:
 ///   Whatever the bytes are:
 ///  reading is repeatable;
@@ -186,14 +216,19 @@ fn check_prefixes_refused(request: &[u8], accepted: &[u8]) {
 ///  and a
 ///       refusal is one of the four reply failures,
 ///  "ended" only for an empty stream.
+///  A reply above the ceiling keeps no content,
+///  so its framing is
+///       what is checked instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkBatchReply(request: Uint8Array, stream: Uint8Array): void;
+/// function checkBatchReplyWithin(request: Uint8Array, stream: Uint8Array, ceiling: number): void;
 /// ```
-pub fn check_batch_reply(request: &[u8], stream: &[u8]) {
-    let (result, consumed) = read(request, stream);
-    let (again, consumed_again) = read(request, stream);
+pub fn check_batch_reply_within(request: &[u8], stream: &[u8], ceiling: usize) {
+    // The reader's answer and how many bytes of the stream it took.
+    let (result, consumed) = read_within(request, stream, ceiling);
+    // The same read again, which must agree with the first.
+    let (again, consumed_again) = read_within(request, stream, ceiling);
     assert_eq!(again, result, "reading is not repeatable");
     assert_eq!(
         consumed_again, consumed,
@@ -230,15 +265,46 @@ pub fn check_batch_reply(request: &[u8], stream: &[u8]) {
                         assert_eq!(&requested, object, "another object's bytes were accepted");
                     }
                 }
+                BatchReply::TooLarge {
+                    object,
+                    kind,
+                    size,
+                } => {
+                    // What: Git's header line for the object, ending with its line feed.
+                    // Why:  The content is thrown away, so the header is what can be compared with what was read.
+                    let header: String = format!("{} {} {size}\n", object.as_str(), kind_word(*kind));
+                    assert!(
+                        *size > ceiling,
+                        "a reply at or below the ceiling was skipped: {size} <= {ceiling}"
+                    );
+                    assert_eq!(
+                        accepted.len(),
+                        header.len() + *size + 1,
+                        "a skipped reply kept a different number of bytes"
+                    );
+                    assert_eq!(
+                        &accepted[..header.len()],
+                        header.as_bytes(),
+                        "a skipped reply was accepted with a different header"
+                    );
+                    assert_eq!(
+                        accepted.last(),
+                        Some(&b'\n'),
+                        "a skipped reply was accepted without its terminator"
+                    );
+                    if let Some(requested) = parse_object_id(request) {
+                        assert_eq!(&requested, object, "another object's bytes were skipped");
+                    }
+                }
             }
             // Bytes after the reply are not part of it.
-            let (alone, consumed_alone) = read(request, accepted);
+            let (alone, consumed_alone) = read_within(request, accepted, ceiling);
             assert_eq!(alone, result, "trailing bytes changed the reply");
             assert_eq!(
                 consumed_alone, consumed,
                 "trailing bytes changed what was consumed"
             );
-            check_prefixes_refused(request, accepted);
+            check_prefixes_refused(request, accepted, ceiling);
         }
         Err(error) => {
             assert!(
@@ -262,6 +328,22 @@ pub fn check_batch_reply(request: &[u8], stream: &[u8]) {
             );
         }
     }
+}
+
+/// What:
+///  Assert the invariants of reading one reply at the ceiling a real check uses.
+/// Why:
+///   The fuzz target reads raw bytes exactly as the wrapper does,
+///  so the ceiling must be the
+///       subject's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkBatchReply(request: Uint8Array, stream: Uint8Array): void;
+/// ```
+pub fn check_batch_reply(request: &[u8], stream: &[u8]) {
+    // `CONTENT_CEILING` is the ceiling a real check reads at.
+    check_batch_reply_within(request, stream, CONTENT_CEILING);
 }
 
 /// Lowercase hexadecimal digits,
@@ -317,8 +399,81 @@ fn object_of(name: &str) -> ObjectId {
     }
 }
 
-/// The number of case shapes `generated_reply` builds.
-pub const GENERATED_SHAPES: u8 = 14;
+/// What:
+///  Build exactly `size` content bytes from the fuzz input's own bytes,
+///  repeating them when the input is shorter.
+/// Why:
+///   A skipped reply must carry every byte its header declares,
+///  or the reader reports a
+///       truncated reply instead of skipping the object.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fillerContent(content: Uint8Array, size: number): Buffer;
+/// ```
+fn filler_content(content: &[u8], size: usize) -> Vec<u8> {
+    // An owned byte list of the length the header will declare.
+    let mut filled: Vec<u8> = Vec::with_capacity(size);
+    // `0..size` visits every position the header declares.
+    for position in 0..size {
+        // `content.get(..)` repeats the input's bytes, or yields nothing for an empty input.
+        let byte: u8 = match content.get(position % content.len().max(1)) {
+            Some(value) => *value,
+            None => 0,
+        };
+        filled.push(byte);
+    }
+    return filled;
+}
+
+/// What:
+///  Build a reply that declares `size` bytes and really holds `held` of them,
+///  with or without the
+///       line feed that ends it.
+/// Why:
+///   A skipped reply is framed by its header and its declared size,
+///  so a control can build the
+///       exact number of bytes the header claims without holding a 32 MiB object.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function replyDeclaring(name: string, kind: ObjectKind, size: number, held: Buffer, terminated: boolean): Buffer;
+/// ```
+fn reply_declaring(
+    name: &str,
+    kind: ObjectKind,
+    size: usize,
+    held: &[u8],
+    terminated: bool,
+) -> Vec<u8> {
+    // The header Git prints: the object name, the kind word and the declared size.
+    let mut stream: Vec<u8> = format!("{name} {} {size}\n", kind_word(kind)).into_bytes();
+    // The content bytes the stream really holds.
+    stream.extend_from_slice(held);
+    // A truncated shape leaves the closing line feed out.
+    if terminated {
+        stream.push(b'\n');
+    }
+    return stream;
+}
+
+/// What:
+///  The first shape whose reply is above a shortened ceiling,
+///  so its content is consumed and not kept.
+/// Why:
+///   The shape alone says which ceiling the generated case must be read at,
+///  and the fuzz input
+///       cannot hold the 32 MiB the real ceiling needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const FIRST_SKIPPED_SHAPE = 14;
+/// ```
+const FIRST_SKIPPED_SHAPE: u8 = 14;
+
+/// The number of case shapes `generated_reply` builds:
+///  the earlier shapes and five above a shortened ceiling.
+pub const GENERATED_SHAPES: u8 = FIRST_SKIPPED_SHAPE + 5;
 
 /// Header texts Git never prints;
 ///  `{name}` is replaced by the requested object name.
@@ -459,6 +614,67 @@ pub fn generated_reply(data: &[u8]) -> GeneratedReply {
             format!("{} missing\n", other_name(name.as_str())).into_bytes(),
             Expectation::Failure(CandidateFailure::ReplyMalformed),
         ),
+        // A reply whose declared size is above a shortened ceiling: the content is consumed and not kept.
+        14 => {
+            let size: usize = content.len() + 1 + usize::from(selector % 3);
+            let held: Vec<u8> = filler_content(content, size);
+            (
+                name.clone().into_bytes(),
+                reply_declaring(name.as_str(), kind, size, held.as_slice(), true),
+                Expectation::Reply(BatchReply::TooLarge {
+                    object: object_of(name.as_str()),
+                    kind,
+                    size,
+                }),
+            )
+        }
+        // The same skipped reply followed by further bytes.
+        15 => {
+            let size: usize = content.len() + 1 + usize::from(selector % 3);
+            let held: Vec<u8> = filler_content(content, size);
+            let mut followed: Vec<u8> =
+                reply_declaring(name.as_str(), kind, size, held.as_slice(), true);
+            followed.extend_from_slice(content);
+            (
+                name.clone().into_bytes(),
+                followed,
+                Expectation::Reply(BatchReply::TooLarge {
+                    object: object_of(name.as_str()),
+                    kind,
+                    size,
+                }),
+            )
+        }
+        // A skipped reply whose content ends before the declared size.
+        16 => {
+            let size: usize = content.len() + 2;
+            let held: Vec<u8> = filler_content(content, size - 1);
+            (
+                name.clone().into_bytes(),
+                reply_declaring(name.as_str(), kind, size, held.as_slice(), true),
+                Expectation::Failure(CandidateFailure::ReplyTruncated),
+            )
+        }
+        // A skipped reply whose content is complete but whose terminator is missing.
+        17 => {
+            let size: usize = content.len() + 1;
+            let held: Vec<u8> = filler_content(content, size);
+            (
+                name.clone().into_bytes(),
+                reply_declaring(name.as_str(), kind, size, held.as_slice(), false),
+                Expectation::Failure(CandidateFailure::ReplyTruncated),
+            )
+        }
+        // A skipped reply for a different object than the one requested.
+        18 => {
+            let size: usize = content.len() + 1;
+            let held: Vec<u8> = filler_content(content, size);
+            (
+                other_name(name.as_str()).into_bytes(),
+                reply_declaring(name.as_str(), kind, size, held.as_slice(), true),
+                Expectation::Failure(CandidateFailure::ReplyMismatched),
+            )
+        }
         // Nothing at all: the process ended.
         _ => (
             name.clone().into_bytes(),
@@ -466,9 +682,19 @@ pub fn generated_reply(data: &[u8]) -> GeneratedReply {
             Expectation::Failure(CandidateFailure::ReaderEnded),
         ),
     };
+    // What: A skipped shape is read at the ceiling just below its declared size; every other shape at the real one.
+    // Why:  The generated case carries the ceiling its stream was framed for, so no control holds a 32 MiB object.
+    let ceiling: usize = if shape >= FIRST_SKIPPED_SHAPE {
+        content.len()
+    } else {
+        CONTENT_CEILING
+    };
+    // What: The one generated case: its request, stream, ceiling and the outcome reading must produce.
+    // Why:  The caller reads at exactly this ceiling and compares with exactly this expectation.
     return GeneratedReply {
         request,
         stream,
+        ceiling,
         expectation,
     };
 }
@@ -488,7 +714,9 @@ pub fn generated_reply(data: &[u8]) -> GeneratedReply {
 /// ```
 pub fn check_generated_reply(data: &[u8]) {
     let case: GeneratedReply = generated_reply(data);
-    let (result, _consumed) = read(case.request.as_slice(), case.stream.as_slice());
+    // The reader's answer at the ceiling the case was framed for.
+    let (result, _consumed) =
+        read_within(case.request.as_slice(), case.stream.as_slice(), case.ceiling);
     let observed: Expectation = match result {
         Ok(reply) => Expectation::Reply(reply),
         Err(error) => Expectation::Failure(error.failure),
@@ -497,7 +725,7 @@ pub fn check_generated_reply(data: &[u8]) {
         observed, case.expectation,
         "generated case was read differently"
     );
-    check_batch_reply(case.request.as_slice(), case.stream.as_slice());
+    check_batch_reply_within(case.request.as_slice(), case.stream.as_slice(), case.ceiling);
 }
 
 /// Generator controls stay out of the fuzz targets.

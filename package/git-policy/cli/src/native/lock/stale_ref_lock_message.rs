@@ -100,9 +100,6 @@ fn born_text(born: Option<SystemTime>) -> String {
 /// Why a lock was removed.
 fn proof_text(proof: &Proof) -> String {
     return match proof {
-        Proof::PidGone(pid) => format!("process {pid}, named by the pid file beside it, has ended"),
-        Proof::PidReused { pid, command } => format!("process {pid}, named by the pid file beside it, has ended and the number now belongs to `{command}`"),
-        Proof::ClaimedBeforeStop(pid) => format!("process {pid} held it when this wrapper stopped that process (the pid file beside it named {pid} then), and {pid} has ended"),
         Proof::OrphanStaging => String::from("Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone"),
     };
 }

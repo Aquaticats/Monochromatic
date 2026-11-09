@@ -320,7 +320,7 @@ fn a_failing_upload_keeps_the_auto_pushed_commit_local() {
     assert_eq!(landed.code, Some(0), "the commit itself succeeds: {stderr}");
     // With the service the push ends after the command returned, and its failure is the notice the next commit shows.
     let report: String = super::support::push_report(world.repo.as_path(), &stderr);
-    assert!(report.contains(super::support::push_failed_words()), "{report}");
+    assert!(report.contains(super::support::push_unfinished_words()), "{report}");
     // The notice carries the wrapper's own explanation of the failed upload, which names the setting and never its value.
     assert!(report.contains("`git-lfs push` exited with status 4"), "{report}");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{report}");

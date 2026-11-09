@@ -368,6 +368,32 @@ fn generated_arguments_reach_every_frontier_ending() {
         (vec!["st"], 0, FrontierSeen::Forwarded),
         (vec!["status"], 1, FrontierSeen::Forwarded),
         (vec!["--version"], 1, FrontierSeen::Forwarded),
+        // A forced form whose target tree also tracks an ignored file rejects in a linked worktree.
+        (
+            vec!["checkout", "--force", "tracks"],
+            1 | 32,
+            FrontierSeen::Rejected,
+        ),
+        // The same form with nothing shared is measured by the clean status and runs.
+        (
+            vec!["checkout", "--force", "tracks"],
+            1,
+            FrontierSeen::Forwarded,
+        ),
+        // A stash drop rejects while the repository holds a stash.
+        (vec!["stash", "drop"], 1 | 64, FrontierSeen::Rejected),
+        (vec!["stash", "drop"], 1, FrontierSeen::Forwarded),
+        // A clean carrying its own exclusion rejects when Git would delete something.
+        (
+            vec!["clean", "-X", "-e", "keep", "."],
+            1 | 128,
+            FrontierSeen::Rejected,
+        ),
+        (
+            vec!["clean", "-X", "-e", "keep", "."],
+            1,
+            FrontierSeen::Forwarded,
+        ),
     ] {
         assert_eq!(
             check_frontier(text(values.as_slice()).as_slice(), mode),

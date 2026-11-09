@@ -1,0 +1,1020 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-09T20:10:12.061Z",
+  "label": "probe",
+  "binary": "/var/mnt/encrypted/temp/agent/gitp-bin/gate/before-b9000c1929",
+  "binaryBuild": "fe3dbbccf07b0dadccc08d7415d882fc55fd33ae5696b561f72fd62951be91da",
+  "repository": "/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-commit-post-commit-gate-cost",
+  "agents": 8,
+  "rounds": 1,
+  "barMilliseconds": 5000,
+  "failures": [],
+  "elapsed": {
+    "count": 8,
+    "median": 32927.515287,
+    "p95": 32953.512894,
+    "maximum": 32953.512894,
+    "overBar": 8
+  },
+  "elapsedOverBar": 8,
+  "records": 8,
+  "perRound": [
+    {
+      "count": 8,
+      "median": 32927.515287,
+      "p95": 32953.512894,
+      "maximum": 32953.512894,
+      "overBar": 8
+    }
+  ],
+  "phases": {
+    "prepareMs": {
+      "count": 8,
+      "median": 16410,
+      "p95": 16441,
+      "maximum": 16441,
+      "overBar": 8
+    },
+    "buildMs": {
+      "count": 8,
+      "median": 2,
+      "p95": 2,
+      "maximum": 2,
+      "overBar": 0
+    },
+    "provisionMs": {
+      "count": 8,
+      "median": 0,
+      "p95": 0,
+      "maximum": 0,
+      "overBar": 0
+    },
+    "submitMs": {
+      "count": 8,
+      "median": 16298,
+      "p95": 16303,
+      "maximum": 16303,
+      "overBar": 7
+    },
+    "afterLandingMs": {
+      "count": 8,
+      "median": 0,
+      "p95": 0,
+      "maximum": 0,
+      "overBar": 0
+    },
+    "gateMs": {
+      "count": 8,
+      "median": 163,
+      "p95": 6342,
+      "maximum": 6342,
+      "overBar": 1
+    },
+    "handoffMs": {
+      "count": 8,
+      "median": 2,
+      "p95": 20,
+      "maximum": 20,
+      "overBar": 0
+    },
+    "otherMs": {
+      "count": 8,
+      "median": 3,
+      "p95": 22,
+      "maximum": 22,
+      "overBar": 0
+    }
+  },
+  "gate": {
+    "residualMs": {
+      "count": 8,
+      "median": 3,
+      "p95": 38,
+      "maximum": 38,
+      "overBar": 0
+    },
+    "spans": {
+      "policy final-newline at post-commit": {
+        "count": 8,
+        "median": 25,
+        "p95": 6298,
+        "maximum": 6298,
+        "overBar": 1
+      },
+      "policy markdown/autofix at post-commit": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "policy mono/catalog-specifiers at post-commit": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "policy security/forbidden-strings at post-commit": {
+        "count": 8,
+        "median": 111,
+        "p95": 169,
+        "maximum": 169,
+        "overBar": 0
+      }
+    },
+    "slowest": [
+      {
+        "gateMs": 6342,
+        "totalMs": 23702,
+        "prepareMs": 16387,
+        "submitMs": 967,
+        "spans": [
+          {
+            "name": "policy final-newline at post-commit",
+            "calls": 1,
+            "totalMs": 6298,
+            "longestMs": 6298
+          },
+          {
+            "name": "policy markdown/autofix at post-commit",
+            "calls": 1,
+            "totalMs": 0,
+            "longestMs": 0
+          },
+          {
+            "name": "policy mono/catalog-specifiers at post-commit",
+            "calls": 1,
+            "totalMs": 0,
+            "longestMs": 0
+          },
+          {
+            "name": "policy security/forbidden-strings at post-commit",
+            "calls": 1,
+            "totalMs": 41,
+            "longestMs": 41
+          }
+        ],
+        "steps": [
+          {
+            "name": "git add",
+            "offsetMs": 245,
+            "durationMs": 49
+          },
+          {
+            "name": "git rev-parse",
+            "offsetMs": 306,
+            "durationMs": 2
+          },
+          {
+            "name": "git ls-files",
+            "offsetMs": 310,
+            "durationMs": 5
+          },
+          {
+            "name": "git diff-index",
+            "offsetMs": 315,
+            "durationMs": 6
+          },
+          {
+            "name": "git ls-tree",
+            "offsetMs": 15800,
+            "durationMs": 547
+          },
+          {
+            "name": "git diff-index",
+            "offsetMs": 16358,
+            "durationMs": 28
+          },
+          {
+            "name": "git var",
+            "offsetMs": 16388,
+            "durationMs": 1
+          },
+          {
+            "name": "git var",
+            "offsetMs": 16389,
+            "durationMs": 1
+          },
+          {
+            "name": "git diff-tree",
+            "offsetMs": 17358,
+            "durationMs": 6275
+          },
+          {
+            "name": "git rev-list",
+            "offsetMs": 23662,
+            "durationMs": 4
+          },
+          {
+            "name": "git ls-tree",
+            "offsetMs": 23667,
+            "durationMs": 14
+          }
+        ]
+      },
+      {
+        "gateMs": 197,
+        "totalMs": 32915,
+        "prepareMs": 16441,
+        "submitMs": 16267,
+        "spans": [
+          {
+            "name": "policy final-newline at post-commit",
+            "calls": 1,
+            "totalMs": 25,
+            "longestMs": 25
+          },
+          {
+            "name": "policy markdown/autofix at post-commit",
+            "calls": 1,
+            "totalMs": 0,
+            "longestMs": 0
+          },
+          {
+            "name": "policy mono/catalog-specifiers at post-commit",
+            "calls": 1,
+            "totalMs": 0,
+            "longestMs": 0
+          },
+          {
+            "name": "policy security/forbidden-strings at post-commit",
+            "calls": 1,
+            "totalMs": 169,
+            "longestMs": 169
+          }
+        ],
+        "steps": [
+          {
+            "name": "git add",
+            "offsetMs": 304,
+            "durationMs": 28
+          },
+          {
+            "name": "git rev-parse",
+            "offsetMs": 339,
+            "durationMs": 1
+          },
+          {
+            "name": "git ls-files",
+            "offsetMs": 341,
+            "durationMs": 5
+          },
+          {
+            "name": "git diff-index",
+            "offsetMs": 347,
+            "durationMs": 6
+          },
+          {
+            "name": "git ls-tree",
+            "offsetMs": 15811,
+            "durationMs": 603
+          },
+          {
+            "name": "git diff-index",
+            "offsetMs": 16423,
+            "durationMs": 17
+          },
+          {
+            "name": "git var",
+            "offsetMs": 16442,
+            "durationMs": 1
+          },
+          {
+            "name": "git var",
+            "offsetMs": 16443,
+            "durationMs": 0
+          },
+          {
+            "name": "git diff-tree",
+            "offsetMs": 32712,
+            "durationMs": 18
+          },
+          {
+            "name": "git rev-list",
+            "offsetMs": 32805,
+            "durationMs": 15
+          },
+          {
+            "name": "git ls-tree",
+            "offsetMs": 32821,
+            "durationMs": 53
+          }
+        ]
+      },
+      {
+        "gateMs": 170,
+        "totalMs": 32892,
+        "prepareMs": 16399,
+        "submitMs": 16298,
+        "spans": [
+          {
+            "name": "policy final-newline at post-commit",
+            "calls": 1,
+            "totalMs": 35,
+            "longestMs": 35
+          },
+          {
+            "name": "policy markdown/autofix at post-commit",
+            "calls": 1,
+            "totalMs": 0,
+            "longestMs": 0
+          },
+          {
+            "name": "policy mono/catalog-specifiers at post-commit",
+            "calls": 1,
+            "totalMs": 0,
+            "longestMs": 0
+          },
+          {
+            "name": "policy security/forbidden-strings at post-commit",
+            "calls": 1,
+            "totalMs": 97,
+            "longestMs": 97
+          }
+        ],
+        "steps": [
+          {
+            "name": "git add",
+            "offsetMs": 331,
+            "durationMs": 26
+          },
+          {
+            "name": "git rev-parse",
+            "offsetMs": 367,
+            "durationMs": 1
+          },
+          {
+            "name": "git ls-files",
+            "offsetMs": 369,
+            "durationMs": 5
+          },
+          {
+            "name": "git diff-index",
+            "offsetMs": 374,
+            "durationMs": 4
+          },
+          {
+            "name": "git ls-tree",
+            "offsetMs": 15812,
+            "durationMs": 562
+          },
+          {
+            "name": "git diff-index",
+            "offsetMs": 16385,
+            "durationMs": 12
+          },
+          {
+            "name": "git var",
+            "offsetMs": 16399,
+            "durationMs": 1
+          },
+          {
+            "name": "git var",
+            "offsetMs": 16400,
+            "durationMs": 1
+          },
+          {
+            "name": "git diff-tree",
+            "offsetMs": 32701,
+            "durationMs": 29
+          },
+          {
+            "name": "git rev-list",
+            "offsetMs": 32746,
+            "durationMs": 6
+          },
+          {
+            "name": "git ls-tree",
+            "offsetMs": 32753,
+            "durationMs": 47
+          }
+        ]
+      },
+      {
+        "gateMs": 163,
+        "totalMs": 32901,
+        "prepareMs": 16410,
+        "submitMs": 16297,
+        "spans": [
+          {
+            "name": "policy final-newline at post-commit",
+            "calls": 1,
+            "totalMs": 33,
+            "longestMs": 33
+          },
+          {
+            "name": "policy markdown/autofix at post-commit",
+            "calls": 1,
+            "totalMs": 0,
+            "longestMs": 0
+          },
+          {
+            "name": "policy mono/catalog-specifiers at post-commit",
+            "calls": 1,
+            "totalMs": 0,
+            "longestMs": 0
+          },
+          {
+            "name": "policy security/forbidden-strings at post-commit",
+            "calls": 1,
+            "totalMs": 127,
+            "longestMs": 127
+          }
+        ],
+        "steps": [
+          {
+            "name": "git add",
+            "offsetMs": 194,
+            "durationMs": 107
+          },
+          {
+            "name": "git rev-parse",
+            "offsetMs": 310,
+            "durationMs": 1
+          },
+          {
+            "name": "git ls-files",
+            "offsetMs": 312,
+            "durationMs": 4
+          },
+          {
+            "name": "git diff-index",
+            "offsetMs": 317,
+            "durationMs": 7
+          },
+          {
+            "name": "git ls-tree",
+            "offsetMs": 15805,
+            "durationMs": 550
+          },
+          {
+            "name": "git diff-index",
+            "offsetMs": 16368,
+            "durationMs": 16
+          },
+          {
+            "name": "git var",
+            "offsetMs": 16411,
+            "durationMs": 1
+          },
+          {
+            "name": "git var",
+            "offsetMs": 16412,
+            "durationMs": 1
+          },
+          {
+            "name": "git diff-tree",
+            "offsetMs": 32711,
+            "durationMs": 26
+          },
+          {
+            "name": "git rev-list",
+            "offsetMs": 32797,
+            "durationMs": 13
+          },
+          {
+            "name": "git ls-tree",
+            "offsetMs": 32811,
+            "durationMs": 39
+          }
+        ]
+      }
+    ]
+  },
+  "landing": {
+    "lockHoldMs": {
+      "count": 8,
+      "median": 117,
+      "p95": 117,
+      "maximum": 117,
+      "overBar": 0
+    },
+    "queuedBehind": [
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "readsMs": {
+      "count": 8,
+      "median": 26,
+      "p95": 26,
+      "maximum": 26,
+      "overBar": 0
+    },
+    "reads": {
+      "config": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "branch": {
+        "count": 8,
+        "median": 22,
+        "p95": 22,
+        "maximum": 22,
+        "overBar": 0
+      },
+      "parents": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "changed": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "content": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "witness": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "conclusion": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      },
+      "owed": {
+        "count": 8,
+        "median": 1,
+        "p95": 1,
+        "maximum": 1,
+        "overBar": 0
+      },
+      "follow": {
+        "count": 8,
+        "median": 0,
+        "p95": 0,
+        "maximum": 0,
+        "overBar": 0
+      }
+    },
+    "syncs": [
+      7,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+    ]
+  },
+  "service": {
+    "answered": 8,
+    "lines": [
+      {
+        "request": "c7b01978-cfc6-4c9b-86c0-ececc95e4838",
+        "branch": "refs/heads/perf/git-policy-cli-post-commit-gate-cost",
+        "outcome": "landed",
+        "batch": "1794254979091104",
+        "size": "1",
+        "position": "1",
+        "queued_behind": "7",
+        "read_ms": "0",
+        "queued_ms": "545",
+        "settle_ms": "0",
+        "lock_wait_ms": "0",
+        "lock_stage_ms": "0",
+        "lock_stage_kind": "cold",
+        "lock_place_ms": "0",
+        "lock_hold_ms": "76",
+        "reads_ms": "1",
+        "objects_ms": "342",
+        "journal_ms": "0",
+        "ref_ms": "3",
+        "index_update_ms": "73",
+        "attempts": "1",
+        "landing_ms": "420",
+        "reads_config_ms": "0",
+        "reads_branch_ms": "0",
+        "reads_parents_ms": "0",
+        "reads_changed_ms": "0",
+        "reads_content_ms": "0",
+        "reads_witness_ms": "0",
+        "reads_conclusion_ms": "0",
+        "reads_owed_ms": "0",
+        "reads_follow_ms": "0",
+        "syncs_waited": "0",
+        "syncs_queued": "7",
+        "sync_held_ms": "0",
+        "syncs": "intent-file=queued;intent-dir=queued;lock-marker=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued",
+        "answer_ms": "0",
+        "total_ms": "966",
+        "quiet_ms": "201.609",
+        "quiet_steps": "git fast-import=201.609;git update-ref=2.452",
+        "steps": "git fast-import@686+202;git update-ref@890+2",
+        "steps_dropped": "0",
+        "at_ms": "1794254996475"
+      },
+      {
+        "request": "0b994ff9-a2f5-4f83-a2a1-846d572b6a5a",
+        "branch": "refs/heads/perf/git-policy-cli-post-commit-gate-cost",
+        "outcome": "landed",
+        "batch": "1794254979091105",
+        "size": "7",
+        "position": "1",
+        "queued_behind": "0",
+        "read_ms": "0",
+        "queued_ms": "7241",
+        "settle_ms": "0",
+        "lock_wait_ms": "8818",
+        "lock_stage_ms": "8072",
+        "lock_stage_kind": "pre",
+        "lock_place_ms": "745",
+        "lock_hold_ms": "117",
+        "reads_ms": "26",
+        "objects_ms": "93",
+        "journal_ms": "0",
+        "ref_ms": "9",
+        "index_update_ms": "107",
+        "attempts": "1",
+        "landing_ms": "9055",
+        "reads_config_ms": "0",
+        "reads_branch_ms": "22",
+        "reads_parents_ms": "0",
+        "reads_changed_ms": "0",
+        "reads_content_ms": "0",
+        "reads_witness_ms": "0",
+        "reads_conclusion_ms": "0",
+        "reads_owed_ms": "1",
+        "reads_follow_ms": "0",
+        "syncs_waited": "0",
+        "syncs_queued": "6",
+        "sync_held_ms": "0",
+        "syncs": "intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued",
+        "answer_ms": "0",
+        "total_ms": "16297",
+        "quiet_ms": "80.048",
+        "quiet_steps": "git config=1.629;git fast-import=80.048;git maintenance=1.718;git rev-parse=1.557;git show=2.476;git update-ref=8.378",
+        "steps": "git fast-import@7266+80;git config@7318+1;git maintenance@7320+2;git show@7323+2;git update-ref@16180+8",
+        "steps_dropped": "0",
+        "at_ms": "1794255011806"
+      },
+      {
+        "request": "4caf7374-1211-4f78-b687-a769cb2cc8f5",
+        "branch": "refs/heads/perf/git-policy-cli-post-commit-gate-cost",
+        "outcome": "landed",
+        "batch": "1794254979091105",
+        "size": "7",
+        "position": "2",
+        "queued_behind": "0",
+        "read_ms": "0",
+        "queued_ms": "7240",
+        "settle_ms": "0",
+        "lock_wait_ms": "8818",
+        "lock_stage_ms": "8072",
+        "lock_stage_kind": "pre",
+        "lock_place_ms": "745",
+        "lock_hold_ms": "117",
+        "reads_ms": "26",
+        "objects_ms": "93",
+        "journal_ms": "0",
+        "ref_ms": "9",
+        "index_update_ms": "107",
+        "attempts": "1",
+        "landing_ms": "9055",
+        "reads_config_ms": "0",
+        "reads_branch_ms": "22",
+        "reads_parents_ms": "0",
+        "reads_changed_ms": "0",
+        "reads_content_ms": "0",
+        "reads_witness_ms": "0",
+        "reads_conclusion_ms": "0",
+        "reads_owed_ms": "1",
+        "reads_follow_ms": "0",
+        "syncs_waited": "0",
+        "syncs_queued": "6",
+        "sync_held_ms": "0",
+        "syncs": "intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued",
+        "answer_ms": "3",
+        "total_ms": "16299",
+        "quiet_ms": "0.000",
+        "quiet_steps": "",
+        "steps": "",
+        "steps_dropped": "0",
+        "at_ms": "1794255011809"
+      },
+      {
+        "request": "35a641e2-f343-480d-85b1-df30d9a62f6d",
+        "branch": "refs/heads/perf/git-policy-cli-post-commit-gate-cost",
+        "outcome": "landed",
+        "batch": "1794254979091105",
+        "size": "7",
+        "position": "3",
+        "queued_behind": "0",
+        "read_ms": "0",
+        "queued_ms": "7233",
+        "settle_ms": "0",
+        "lock_wait_ms": "8818",
+        "lock_stage_ms": "8072",
+        "lock_stage_kind": "pre",
+        "lock_place_ms": "745",
+        "lock_hold_ms": "117",
+        "reads_ms": "26",
+        "objects_ms": "93",
+        "journal_ms": "0",
+        "ref_ms": "9",
+        "index_update_ms": "107",
+        "attempts": "1",
+        "landing_ms": "9055",
+        "reads_config_ms": "0",
+        "reads_branch_ms": "22",
+        "reads_parents_ms": "0",
+        "reads_changed_ms": "0",
+        "reads_content_ms": "0",
+        "reads_witness_ms": "0",
+        "reads_conclusion_ms": "0",
+        "reads_owed_ms": "1",
+        "reads_follow_ms": "0",
+        "syncs_waited": "0",
+        "syncs_queued": "6",
+        "sync_held_ms": "0",
+        "syncs": "intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued",
+        "answer_ms": "9",
+        "total_ms": "16298",
+        "quiet_ms": "0.000",
+        "quiet_steps": "",
+        "steps": "",
+        "steps_dropped": "0",
+        "at_ms": "1794255011815"
+      },
+      {
+        "request": "56ef02c5-6f1b-4e65-bfa3-9c890bad1014",
+        "branch": "refs/heads/perf/git-policy-cli-post-commit-gate-cost",
+        "outcome": "landed",
+        "batch": "1794254979091105",
+        "size": "7",
+        "position": "4",
+        "queued_behind": "0",
+        "read_ms": "0",
+        "queued_ms": "7230",
+        "settle_ms": "0",
+        "lock_wait_ms": "8818",
+        "lock_stage_ms": "8072",
+        "lock_stage_kind": "pre",
+        "lock_place_ms": "745",
+        "lock_hold_ms": "117",
+        "reads_ms": "26",
+        "objects_ms": "93",
+        "journal_ms": "0",
+        "ref_ms": "9",
+        "index_update_ms": "107",
+        "attempts": "1",
+        "landing_ms": "9055",
+        "reads_config_ms": "0",
+        "reads_branch_ms": "22",
+        "reads_parents_ms": "0",
+        "reads_changed_ms": "0",
+        "reads_content_ms": "0",
+        "reads_witness_ms": "0",
+        "reads_conclusion_ms": "0",
+        "reads_owed_ms": "1",
+        "reads_follow_ms": "0",
+        "syncs_waited": "0",
+        "syncs_queued": "6",
+        "sync_held_ms": "0",
+        "syncs": "intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued",
+        "answer_ms": "9",
+        "total_ms": "16296",
+        "quiet_ms": "0.000",
+        "quiet_steps": "",
+        "steps": "",
+        "steps_dropped": "0",
+        "at_ms": "1794255011815"
+      },
+      {
+        "request": "65f71322-196b-415d-9823-f3b61948353c",
+        "branch": "refs/heads/perf/git-policy-cli-post-commit-gate-cost",
+        "outcome": "landed",
+        "batch": "1794254979091105",
+        "size": "7",
+        "position": "5",
+        "queued_behind": "0",
+        "read_ms": "0",
+        "queued_ms": "7226",
+        "settle_ms": "0",
+        "lock_wait_ms": "8818",
+        "lock_stage_ms": "8072",
+        "lock_stage_kind": "pre",
+        "lock_place_ms": "745",
+        "lock_hold_ms": "117",
+        "reads_ms": "26",
+        "objects_ms": "93",
+        "journal_ms": "0",
+        "ref_ms": "9",
+        "index_update_ms": "107",
+        "attempts": "1",
+        "landing_ms": "9055",
+        "reads_config_ms": "0",
+        "reads_branch_ms": "22",
+        "reads_parents_ms": "0",
+        "reads_changed_ms": "0",
+        "reads_content_ms": "0",
+        "reads_witness_ms": "0",
+        "reads_conclusion_ms": "0",
+        "reads_owed_ms": "1",
+        "reads_follow_ms": "0",
+        "syncs_waited": "0",
+        "syncs_queued": "6",
+        "sync_held_ms": "0",
+        "syncs": "intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued",
+        "answer_ms": "10",
+        "total_ms": "16291",
+        "quiet_ms": "0.000",
+        "quiet_steps": "",
+        "steps": "",
+        "steps_dropped": "0",
+        "at_ms": "1794255011815"
+      },
+      {
+        "request": "872bba01-b12d-4d26-838d-abd69710f298",
+        "branch": "refs/heads/perf/git-policy-cli-post-commit-gate-cost",
+        "outcome": "landed",
+        "batch": "1794254979091105",
+        "size": "7",
+        "position": "6",
+        "queued_behind": "0",
+        "read_ms": "0",
+        "queued_ms": "7223",
+        "settle_ms": "0",
+        "lock_wait_ms": "8818",
+        "lock_stage_ms": "8072",
+        "lock_stage_kind": "pre",
+        "lock_place_ms": "745",
+        "lock_hold_ms": "117",
+        "reads_ms": "26",
+        "objects_ms": "93",
+        "journal_ms": "0",
+        "ref_ms": "9",
+        "index_update_ms": "107",
+        "attempts": "1",
+        "landing_ms": "9055",
+        "reads_config_ms": "0",
+        "reads_branch_ms": "22",
+        "reads_parents_ms": "0",
+        "reads_changed_ms": "0",
+        "reads_content_ms": "0",
+        "reads_witness_ms": "0",
+        "reads_conclusion_ms": "0",
+        "reads_owed_ms": "1",
+        "reads_follow_ms": "0",
+        "syncs_waited": "0",
+        "syncs_queued": "6",
+        "sync_held_ms": "0",
+        "syncs": "intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued",
+        "answer_ms": "10",
+        "total_ms": "16288",
+        "quiet_ms": "0.000",
+        "quiet_steps": "",
+        "steps": "",
+        "steps_dropped": "0",
+        "at_ms": "1794255011816"
+      },
+      {
+        "request": "7ac03941-924a-4ef5-b122-07e1f77619cd",
+        "branch": "refs/heads/perf/git-policy-cli-post-commit-gate-cost",
+        "outcome": "landed",
+        "batch": "1794254979091105",
+        "size": "7",
+        "position": "7",
+        "queued_behind": "0",
+        "read_ms": "0",
+        "queued_ms": "7196",
+        "settle_ms": "0",
+        "lock_wait_ms": "8818",
+        "lock_stage_ms": "8072",
+        "lock_stage_kind": "pre",
+        "lock_place_ms": "745",
+        "lock_hold_ms": "117",
+        "reads_ms": "26",
+        "objects_ms": "93",
+        "journal_ms": "0",
+        "ref_ms": "9",
+        "index_update_ms": "107",
+        "attempts": "1",
+        "landing_ms": "9055",
+        "reads_config_ms": "0",
+        "reads_branch_ms": "22",
+        "reads_parents_ms": "0",
+        "reads_changed_ms": "0",
+        "reads_content_ms": "0",
+        "reads_witness_ms": "0",
+        "reads_conclusion_ms": "0",
+        "reads_owed_ms": "1",
+        "reads_follow_ms": "0",
+        "syncs_waited": "0",
+        "syncs_queued": "6",
+        "sync_held_ms": "0",
+        "syncs": "intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued",
+        "answer_ms": "10",
+        "total_ms": "16262",
+        "quiet_ms": "0.000",
+        "quiet_steps": "",
+        "steps": "",
+        "steps_dropped": "0",
+        "at_ms": "1794255011816"
+      }
+    ],
+    "queuedMs": {
+      "count": 8,
+      "median": 7230,
+      "p95": 7241,
+      "maximum": 7241,
+      "overBar": 7
+    },
+    "landingMs": {
+      "count": 8,
+      "median": 9055,
+      "p95": 9055,
+      "maximum": 9055,
+      "overBar": 7
+    },
+    "readsMs": {
+      "count": 8,
+      "median": 26,
+      "p95": 26,
+      "maximum": 26,
+      "overBar": 0
+    },
+    "lockHoldMs": {
+      "count": 8,
+      "median": 117,
+      "p95": 117,
+      "maximum": 117,
+      "overBar": 0
+    },
+    "syncHeldMs": {
+      "count": 8,
+      "median": 0,
+      "p95": 0,
+      "maximum": 0,
+      "overBar": 0
+    },
+    "queuedBehind": [
+      7,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "syncsWaited": 0,
+    "syncsQueued": 49,
+    "syncNames": [
+      [
+        "intent-file",
+        8
+      ],
+      [
+        "intent-dir",
+        8
+      ],
+      [
+        "lock-marker",
+        1
+      ],
+      [
+        "index-dir",
+        8
+      ],
+      [
+        "indexed-file",
+        8
+      ],
+      [
+        "indexed-dir",
+        8
+      ],
+      [
+        "journal-dir",
+        8
+      ]
+    ]
+  }
+}
