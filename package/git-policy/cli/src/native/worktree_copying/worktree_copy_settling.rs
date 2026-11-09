@@ -26,7 +26,7 @@
 //! const { entries, stamps, unsettled } = settleTheCopy({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, prune, entries, stamps, clone });
 //! ```
 
-use crate::worktree_copy_compare::{FinalCheck, differences_from_the_source};
+use crate::worktree_copy_compare::{FinalCheck, differences_from_the_source_sync};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_manifest::{FileStamp, WorktreeCopyEntry, apply_entry_modes};
 use crate::worktree_copy_prune::Prune;
@@ -161,7 +161,7 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
     apply_entry_modes(request.stage_root, entries.as_slice())?;
     let mut pass: usize = 0;
     loop {
-        let differences = differences_from_the_source(
+        let differences = differences_from_the_source_sync(
             request.source_root,
             request.stage_root,
             request.selected_roots,
