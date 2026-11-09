@@ -43,9 +43,24 @@ fn args(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
 }
 
+/// What:
+///  An environment naming no `PATH`,
+///  so no executable of the test process answers for an installed command.
+/// Why:
+///   The guard asks the same search the resolver asks,
+///  and a control sets every variable it depends on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noEnvironment = [];
+/// ```
+fn no_environment() -> Vec<(OsString, OsString)> {
+    return Vec::new();
+}
+
 /// Decide one invocation and return its decision together with the arguments Git will run.
 fn decided(pairs: &[(&str, &str)], words: &[&str]) -> GuardedForwarded {
-    return decide_guarded_forwarded(&context_with_aliases(pairs), args(words).as_slice());
+    return decide_guarded_forwarded(&context_with_aliases(pairs), no_environment().as_slice(), args(words).as_slice());
 }
 
 /// A built-in word is decided as it always was,
@@ -80,13 +95,11 @@ fn an_alias_is_decided_on_the_command_it_expands_to() {
         LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::ResetHard)
     );
     assert_eq!(wiped.arguments, args(&["reset", "--hard"]));
-    // An alias whose expansion carries a global option keeps it in front.
-    let cleaned: GuardedForwarded = decided(&[("sweep", "-C dir clean -fdx")], &["sweep"]);
-    assert_eq!(
-        cleaned.decision,
-        LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnored)
-    );
-    assert_eq!(cleaned.arguments, args(&["-C", "dir", "clean", "-fdx"]));
+    // An expansion that moves the directory is refused by Git before it runs anything, so the guard leaves it to Git:
+    //  no fact of the caller describes a repository the command never runs in.
+    let moved: GuardedForwarded = decided(&[("sweep", "-C dir clean -fdx")], &["sweep"]);
+    assert_eq!(moved.decision, LinkedWorktreeDecision::Pass);
+    assert_eq!(moved.arguments, args(&["sweep"]));
     // A harmless expansion runs, with the expansion as the arguments Git receives.
     let harmless: GuardedForwarded = decided(&[("short", "status --short")], &["short"]);
     assert_eq!(harmless.decision, LinkedWorktreeDecision::Pass);
@@ -105,7 +118,9 @@ fn an_alias_is_decided_on_the_command_it_expands_to() {
 #[test]
 fn a_shell_alias_and_an_undefined_name_are_left_to_git() {
     for (pairs, words) in [
-        (vec![("fixup", "!git reset --hard")], vec!["fixup"]),
+        // A shell command the plain reading cannot follow, and a command with a global option of its own.
+        (vec![("fixup", "!sh -c 'git reset --hard'")], vec!["fixup"]),
+        (vec![("fixup", "!git -C /elsewhere reset --hard")], vec!["fixup"]),
         (vec![], vec!["no-such-subcommand"]),
         (vec![], vec!["lfs", "pull"]),
         // An alias loop is Git's own error, not a guarded form.
@@ -115,7 +130,42 @@ fn a_shell_alias_and_an_undefined_name_are_left_to_git() {
         assert_eq!(walked.decision, LinkedWorktreeDecision::Pass, "{words:?}");
         assert_eq!(walked.arguments, args(words.as_slice()), "{words:?}");
     }
-    let none: GuardedForwarded = decide_guarded_forwarded(&context_with_aliases(&[]), &[]);
+    let none: GuardedForwarded =
+        decide_guarded_forwarded(&context_with_aliases(&[]), no_environment().as_slice(), &[]);
     assert_eq!(none.decision, LinkedWorktreeDecision::Pass);
     assert!(none.arguments.is_empty());
+}
+
+/// What:
+///  A shell alias that names one plain `git` command is decided on that command,
+///  and the caller's own arguments are
+///       what Git receives.
+/// Why:
+///   Git runs the shell with its own executable directory first on `PATH`,
+///  so the `git` in that alias
+///  is the real Git and this wrapper never sees the command run;
+///  the guard has to read it from the value,
+///  and
+///  handing Git the shell unchanged keeps the environment Git gives it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideGuardedForwarded({ pairs: [['fixup', '!git reset --hard']], words: ['fixup'] })
+/// //   => decision 'needs-effective-target: reset-hard', arguments ['fixup']
+/// ```
+#[test]
+fn a_shell_alias_is_decided_on_the_git_command_it_names() {
+    for (value, command) in [
+        ("!git reset --hard", GuardedCommand::ResetHard),
+        ("!git clean -fdx", GuardedCommand::CleanIgnored),
+        ("!git restore --staged .", GuardedCommand::RestoreStaged),
+    ] {
+        let walked: GuardedForwarded = decided(&[("fixup", value)], &["fixup"]);
+        assert_eq!(
+            walked.decision,
+            LinkedWorktreeDecision::NeedsEffectiveTarget(command),
+            "{value}"
+        );
+        assert_eq!(walked.arguments, args(&["fixup"]), "{value}: Git receives the alias word");
+    }
 }

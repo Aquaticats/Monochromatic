@@ -141,6 +141,11 @@ mod frontier;
 #[path = "binary_builtin_tests.rs"]
 mod builtin;
 
+/// The command a Git alias really runs,
+///  compared with the command real Git runs for the same configuration.
+#[path = "binary_alias_expansion_tests.rs"]
+mod alias_expansion;
+
 /// Taking one side of a conflicted file during a merge,
 /// rebase,
 /// cherry-pick or revert:
