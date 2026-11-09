@@ -32,11 +32,11 @@
 //! because the step runs below `SignalGuard`,
 //! which relays signals but names no child;
 //! this is the only child of the command at that point,
-//! the same reading `programs_below` already makes.
+//! the same reading `look_below` already makes.
 //! A commit that opens the person's editor prints nothing and is never stopped,
 //! because the person is the wait.
 //! The ceiling is counted from the first look that found the step below this process,
-//! never from when the notice started (`SIGHTING_INTERVAL`):
+//! never from when the notice started (`LOOK_INTERVAL`):
 //! a start this host held up would otherwise pass the ceiling before the step existed,
 //! and a look that finds nothing would then end the notice and the ceiling with it,
 //! which is how a commit landed after a 36,651 ms step under a 3,006 ms ceiling on 2026-11-08.
@@ -89,8 +89,7 @@ use crate::process_tree::TreeMember;
 /// so a very short interval does not spin.
 const LOOK_PAUSE: Duration = Duration::from_millis(1);
 
-/// The longest the notice goes between two looks for the step below this process,
-/// until it has found it.
+/// The longest the notice goes between two looks at what runs below this process.
 /// Why:
 ///   The ceiling is counted from the first look that found the step,
 /// so a start this host held up (a full process table,
@@ -102,13 +101,16 @@ const LOOK_PAUSE: Duration = Duration::from_millis(1);
 ///  3,006 ms ceiling on 2026-11-08:
 /// it landed,
 /// so the ceiling never ended it.
-///  A look reads every `/proc` entry (`descendants_of`):
-/// measured on 2026-11-09 on this host (1,210 entries,
-/// load average 44 to 91 on 6 threads around the runs),
-/// 17.6 ms at the median and 19.7 ms at most over 30 looks.
+///  The same look is what the record's `scratchSteps` reports,
+/// so this is also how finely the time of a program below the step is known.
+///  A look reads the kernel's per-thread child lists and one `/proc/<pid>/stat` per descendant
+/// (`look_below`),
+/// which cost 19.6 microseconds on 2026-11-09 on this host (1,210 entries,
+/// load average 44 to 91 on 6 threads around the runs);
+/// the pass over `/proc` it falls back to where the kernel has no child lists took 17.6 ms at the median and 19.7 ms at most over 30 looks.
 /// A quarter of a second keeps a step that is started late seen within that much of its start,
 /// and a step that ends sooner than that is ended by its own channel before a second look.
-const SIGHTING_INTERVAL: Duration = Duration::from_millis(250);
+const LOOK_INTERVAL: Duration = Duration::from_millis(250);
 
 /// What a started notice is given.
 pub struct NoticeStart<'a> {
@@ -427,8 +429,8 @@ impl NativeCommitNotice {
                 // Wake for the sooner of the next line, the look, and the ceiling.
                 let to_next: Duration = ticker.next_in(waited);
                 let pause: Duration = match seen_at {
-                    Some(_seen) => to_next.min(ceiling.saturating_sub(since_seen)).min(SIGHTING_INTERVAL),
-                    None => to_next.min(SIGHTING_INTERVAL),
+                    Some(_seen) => to_next.min(ceiling.saturating_sub(since_seen)).min(LOOK_INTERVAL),
+                    None => to_next.min(LOOK_INTERVAL),
                 };
                 match ended.recv_timeout(pause.max(LOOK_PAUSE)) {
                     Err(RecvTimeoutError::Timeout) => {}
