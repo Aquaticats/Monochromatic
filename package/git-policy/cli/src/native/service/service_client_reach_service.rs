@@ -224,21 +224,24 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
             Some(fixed) => fixed,
             None => {
                 let _written = writeln!(notices, "{UPDATING_NOTICE}");
+                // What: The record of the unit texts the manager was told about is dropped the moment another release
+                //       answers.
+                // Why:  That answer alone proves the unit the manager loaded and the files describe are not the same
+                //       (an interrupted downgrade, then an interrupted upgrade), whatever happens next: the service may
+                //       take the retire and leave, and the manager may then try a cached executable an upgrade removed,
+                //       which ends the wait with `DidNotStart` instead of the retirement deadline. Dropping the record
+                //       here makes the next commit write the units and reload instead of taking the fast path into that
+                //       same answer (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+                //       findings 2 of the round-2 review and 3 of the round-3 review).
+                if let Some(directory) = config.units_record_dir.as_ref() {
+                    crate::service_provision_loaded_unit_texts::forget(directory.as_path());
+                }
                 let fresh: Instant = Instant::now() + config.start_wait;
                 give_up_at = Some(fresh);
                 fresh
             }
         };
         if Instant::now() >= deadline {
-            // What: A service of another release will not stop, so the manager and the files disagree.
-            // Why:  The record of the texts the manager was told about can certify the files while the manager runs the
-            //       release they replaced (an interrupted downgrade, then an interrupted upgrade). Dropping it makes the
-            //       next commit write and reload instead of taking the fast path into the same answer
-            //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-            //        finding 2 of the round-2 review).
-            if let Some(directory) = config.units_record_dir.as_ref() {
-                crate::service_provision_loaded_unit_texts::forget(directory.as_path());
-            }
             return Err(ClientFailure::OtherRelease);
         }
         // Written in the version the service announced: a service of an earlier release reads a retire in no other.

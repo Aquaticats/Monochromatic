@@ -326,6 +326,63 @@ fn a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units
     crate::test_support::remove(runtime.as_path());
 }
 
+
+/// What:
+///  A service of another release that takes the retire and then cannot come back still drops the record.
+/// Why:
+///  Seeing another release answer at all proves that the unit the manager loaded is not the one the
+/// files describe,
+///  whatever happens next:
+/// the service that took the retire exits,
+/// the manager tries its cached older executable,
+///  which an upgrade may have removed,
+/// and the next connection finds nothing,
+/// so the wait ends with `DidNotStart`
+///  and never reaches the retirement deadline that dropped the record
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 3 of the
+///  round-3 review).
+/// The record has to be dropped when the other release is seen,
+/// or every later commit keeps the fast
+///  path into the manager's unchanged unit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await reachCurrent(answeringOnceFromAnotherRelease)).toEqual({ didNotStart: true }); expect(recordExists()).toBe(false);
+/// ```
+#[test]
+fn a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_the_record() {
+    let socket: String = address("client-reach-other-release-once");
+    let listener: UnixListener = listen_at(socket.as_str()).expect("the service listens");
+    // One answer from another release, then nothing: the service left and the manager could not start its own.
+    let serving = std::thread::spawn(move || {
+        if let Ok((mut stream, _address)) = listener.accept() {
+            let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from("another-release")) });
+            line.push('\n');
+            let _sent = stream.write_all(line.as_bytes());
+        }
+    });
+    let runtime: PathBuf = crate::test_support::fixture("client-reach-other-release-once-runtime");
+    let texts: [(&'static str, String); 1] = [("a.service", String::from("what the manager was told"))];
+    crate::service_provision_loaded_unit_texts::record(runtime.as_path(), texts.as_slice()).expect("the record is written");
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    settings.start_watch = None;
+    settings.start_wait = Duration::from_millis(200);
+    settings.units_record_dir = Some(runtime.clone());
+    let mut announced: bool = false;
+    let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect_err("a service that left and cannot come back ends the wait");
+    assert_eq!(failure, ClientFailure::DidNotStart);
+    assert!(
+        !crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
+        "the record is dropped when the other release answers, whatever the wait then finds"
+    );
+    serving.join().expect("the service's thread");
+    crate::test_support::remove(runtime.as_path());
+}
+
 /// The instance name every control's unit carries,
 /// in the shape systemd's instance units use.
 const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
