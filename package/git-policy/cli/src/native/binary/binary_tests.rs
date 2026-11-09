@@ -230,6 +230,11 @@ mod merge_isolation;
 #[path = "binary_word_merge_tests.rs"]
 mod word_merge;
 
+/// The stand-in Git that holds the second pass at its own attribute query,
+/// so a control of the pass acts inside the pass itself.
+#[path = "binary_word_merge_pass_gate.rs"]
+mod word_merge_pass_gate;
+
 /// The finish after the second pass:
 /// the operation ends like a clean run,
 /// and `--no-commit`,
