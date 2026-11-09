@@ -235,8 +235,8 @@ fn only_a_scan_that_finished_may_prove_a_lock_unheld() {
     let cut = |_lock: &Path, device: u64, inode: u64| { return scan_proc_fd_holders_stopping(&proc, device, inode, 0, ScanLimit { deadline: None, processes: Some(0) }); };
     let missing_proc: PathBuf = proc.join("no-such-proc-root");
     let unlistable = |_lock: &Path, device: u64, inode: u64| { return scan_proc_fd_holders_stopping(&missing_proc, device, inode, 0, ScanLimit::default()); };
-    // The process 9 has a descriptor record that is not a directory, which the scan reports as that process's descriptors being unreadable.
-    std::fs::write(proc.join("9").join("fdinfo"), "").expect("descriptor records");
+    // The process 9 has a descriptor directory that is not a directory, which the scan reports as that process's descriptors being unreadable.
+    std::fs::write(proc.join("9").join("fd"), "").expect("descriptors that cannot be listed");
     let refused = |_lock: &Path, device: u64, inode: u64| { return scan_proc_fd_holders_stopping(&proc, device, inode, 0, ScanLimit::default()); };
     for (name, scan, removed) in [
         ("cut at its bound", &cut as &dyn Fn(&Path, u64, u64) -> HolderEvidence, false),
