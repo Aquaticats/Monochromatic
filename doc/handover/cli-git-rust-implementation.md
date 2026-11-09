@@ -5341,8 +5341,8 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   and that the guest was destroyed with nothing run.
   The one timeout the 2026-10-06 Windows campaign ended with is still unverified
   (the timeout mutant in `count_prefix_parts`,
-  `src/path_name_bytes.rs` line 59,
-  as that section locates it),
+  `package/forbidden-strings/cli/src/path_name_bytes.rs` line 59,
+  which that section locates as `src/path_name_bytes.rs:59:35`),
   so the item resumes there in that section when the owner lifts the pause.
 - The Windows and macOS checks are paused by that same sentence,
   not closed.
