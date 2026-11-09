@@ -146,6 +146,7 @@ fn projection_failed(action: Action, trigger: &str, message: &str) {
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
         Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
     }
 }
 
@@ -583,6 +584,7 @@ fn direct_commands_go_on_beside_records_an_earlier_release_left() {
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
         Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
     }
     remove(root.as_path());
 }
@@ -631,6 +633,7 @@ fn direct_commands_report_git_failures() {
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
         Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
+        Action::ExitBytes { .. } => panic!("a report of pathnames is not expected in this control"),
     }
     remove(root.as_path());
 }
@@ -638,10 +641,11 @@ fn direct_commands_report_git_failures() {
 /// Unpack an exit action into its status,
 /// standard output and standard error.
 fn exit_parts(action: Action) -> (i32, String, String) {
-    let Action::Exit { code, stdout, stderr } = action else {
-        panic!("a management command ends in an exit action");
+    return match action {
+        Action::Exit { code, stdout, stderr } => (code, stdout, stderr),
+        Action::ExitBytes { code, stdout, stderr } => (code, String::from_utf8(stdout).expect("a report of text paths"), stderr),
+        other => panic!("a management command ends in an exit action, not {other:?}"),
     };
-    return (code, stdout, stderr);
 }
 
 /// `doctor` lists the traditional hooks with status 1,

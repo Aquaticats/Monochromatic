@@ -170,6 +170,10 @@ pub mod service_index_watch;
 
 /// The preparation of a commit that the service lands,
 /// for every command line.
+/// The notices a commit's preparation prints on standard error,
+/// given to the descriptor under a ceiling.
+pub mod preparation_notice;
+
 pub mod service_prepare;
 
 /// The renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.
@@ -320,6 +324,9 @@ pub mod service_index_reclaim;
 /// How long a commit whose branch moved under its build is built again,
 /// and the line that says so.
 pub mod service_commit_rebuild_ceiling;
+
+/// The submission of a prepared commit whose waiting notices are written away from the thread that waits.
+pub mod service_commit_waiting_notices;
 
 /// The removal of an index lock that no process holds and no Git lock PID file stands behind,
 /// on a proof written to the service journal.

@@ -90,30 +90,61 @@ fn a_name_that_is_not_utf8_is_matched_by_its_bytes() {
     assert!(!excluded(&["caf?.txt"], b"caf\xe9.md"));
 }
 
-/// A pattern the compiler refuses is reported with the pattern,
-///  never ignored.
-///  A literal brace is no longer such a pattern:
-///  it is text to Git,
-///  and the matcher is given it escaped.
+/// What:
+///  A pattern the compiler will not read is reported with the pattern,
+///  never dropped.
+/// Why:
+///  A refusal must name the caller's own pattern,
+///  and the pattern must not be silently dropped with it;
+///  a trailing escape is the shape left that Git matches
+///  nothing with,
+///  so it is the one this wrapper refuses rather than reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(() => compileExclude(['ok/', 'a\\'])).toThrow(/a\\/)
+/// ```
 #[test]
 fn a_pattern_that_cannot_compile_is_reported() {
-    // What: A character range that runs backwards is the one shape the glob compiler refuses and Git reads as a
-    //       class that matches nothing.
-    // Why:  The refusal must name the caller's own pattern, and the pattern must not be silently dropped with it.
-    //
-    // In TS you'd write (pseudocode):
-    // expect(() => compileExclude(['ok/', '[z-a].md'])).toThrow(/\[z-a\]\.md/);
     let refused: String =
-        compile_exclude(&[String::from("ok/"), String::from("[z-a].md")]).expect_err("refused");
+        compile_exclude(&[String::from("ok/"), String::from("a\\")]).expect_err("refused");
     assert!(
         refused.starts_with(
-            "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"[z-a].md\": "
+            "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"a\\\\\": "
         ),
         "{refused}"
     );
     // A literal brace compiles, and excludes exactly the file Git excludes.
     assert!(excluded(&["a{b.md"], b"a{b.md"));
     assert!(!excluded(&["a{b.md"], b"ab.md"));
+}
+
+/// What:
+///  A range that runs backwards excludes exactly what native Git excludes with it,
+///  and never fails the policy.
+/// Why:
+///  The option is documented as gitignore syntax,
+///  and Git reads a member character as itself before it can open
+///  a range,
+///  so `[z-a]` names `z` and nothing else;
+///  the glob compiler refuses that range,
+///  which failed the
+///  whole Markdown policy for a pattern Git accepts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(excluded(['[z-a].md'], 'z.md')).toBe(true); expect(excluded(['[z-a].md'], 'a.md')).toBe(false)
+/// ```
+#[test]
+fn a_backwards_range_matches_what_native_git_matches() {
+    assert!(excluded(&["[z-a].md"], b"z.md"), "the character that opens the range is a member");
+    assert!(!excluded(&["[z-a].md"], b"a.md"), "the character that closes it is not");
+    assert!(!excluded(&["[z-a].md"], b"README.md"));
+    assert!(excluded(&["[c-a9-0].md"], b"9.md"), "each backwards range keeps its own first character");
+    assert!(excluded(&["[c-a9-0].md"], b"c.md"));
+    assert!(!excluded(&["[c-a9-0].md"], b"a.md"));
+    assert!(!excluded(&["[!z-a].md"], b"z.md"), "a negated backwards range excludes what it names");
+    assert!(excluded(&["[!z-a].md"], b"a.md"));
 }
 
 /// A directory-only pattern never excludes a file of the same name,
@@ -154,7 +185,7 @@ struct Shape {
 ///  the alternate-group reading brace syntax would give,
 ///  an escaped leading exclamation mark,
 ///  and an escaped space.
-const SHAPES: [Shape; 9] = [
+const SHAPES: [Shape; 14] = [
     Shape { patterns: &["*.md"], name: "README.md" },
     Shape { patterns: &["*.md", "!keep.md"], name: "keep.md" },
     Shape { patterns: &["doc/", "!doc/keep.md"], name: "doc/keep.md" },
@@ -164,6 +195,17 @@ const SHAPES: [Shape; 9] = [
     Shape { patterns: &["notes{old,new}.md"], name: "notesold.md" },
     Shape { patterns: &["\\!literal.md"], name: "!literal.md" },
     Shape { patterns: &["space\\ .md"], name: "space .md" },
+    // What: A range that runs backwards, whose first character Git reads as a member of the class.
+    // Why:  The glob compiler refuses the range, so a wrapper that asked it directly failed the policy instead of
+    //       matching what Git matches.
+    //
+    // In TS you'd write (pseudocode):
+    // expect(excluded(['[z-a].md'], 'z.md')).toBe(await nativeGitIgnores('[z-a].md', 'z.md'));
+    Shape { patterns: &["[z-a].md"], name: "z.md" },
+    Shape { patterns: &["[z-a].md"], name: "a.md" },
+    Shape { patterns: &["[z-a].md"], name: "README.md" },
+    Shape { patterns: &["[c-a9-0].md"], name: "9.md" },
+    Shape { patterns: &["[!z-a].md"], name: "a.md" },
 ];
 
 /// What:

@@ -87,6 +87,7 @@ const REFUSED: readonly (readonly [label: string, line: string])[] = [
   ['no protocol', 'default dev eth0 table 52000',],
   ['a table keyword without a value', 'default proto 201 table',],
   ['a metric that is not a plain number', 'default metric 0x10 table 52000 proto 201',],
+  ['a metric with a leading zero', 'default metric 0600 table 52000 proto 201',],
   ['a metric beyond 32 bits', 'default metric 4294967296 table 52000 proto 201',],
   ['a repeated metric', 'default metric 1 metric 2 table 52000 proto 201',],
   ['an abbreviated metric keyword', 'default met 1 table 52000 proto 201',],

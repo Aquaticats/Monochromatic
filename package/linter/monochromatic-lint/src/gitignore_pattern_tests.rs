@@ -56,3 +56,26 @@ fn the_edges_of_a_pattern_are_kept() {
     assert_eq!(for_matcher("{"), "\\{");
     assert_eq!(for_matcher("}"), "\\}");
 }
+
+/// A range that runs backwards is reduced to the character that opens it,
+///  and a range the right way round is copied as it is.
+/// Why:
+///  Git tests every member character as itself before it can open a range,
+///  so `[z-a]` names `z` and nothing else;
+///  the glob compiler refuses the range itself,
+///  which failed a policy for a pattern Git accepts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(forMatcher('[z-a].md')).toBe('[z].md');
+/// ```
+#[test]
+fn a_backwards_range_keeps_only_the_character_that_opens_it() {
+    assert_eq!(for_matcher("[z-a].md"), "[z].md");
+    assert_eq!(for_matcher("[!z-a].md"), "[!z].md");
+    assert_eq!(for_matcher("[c-a9-0].md"), "[c9].md");
+    // A range the right way round is copied as it is, and so is everything around it.
+    assert_eq!(for_matcher("[a-z].md"), "[a-z].md");
+    assert_eq!(for_matcher("[!a-z0-9].md"), "[!a-z0-9].md");
+    assert_eq!(for_matcher("a[z-a]b[a-c]c.md"), "a[z]b[a-c]c.md");
+}

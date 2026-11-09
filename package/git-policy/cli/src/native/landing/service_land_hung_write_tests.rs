@@ -95,11 +95,17 @@ fn serve_on_a_thread(context: LandContext, name: &str) -> Serving {
 
 /// Start the service of `context` with the given threshold after which a write counts as stuck.
 fn serve_on_a_thread_stuck_after(context: LandContext, name: &str, stuck_after: Duration) -> Serving {
+    let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
+    settings.stuck_after = stuck_after;
+    return serve_on_a_thread_with_settings(context, name, settings);
+}
+
+/// Start the service of `context` with the settings of the run,
+/// which a control shortens so it ends in seconds.
+fn serve_on_a_thread_with_settings(context: LandContext, name: &str, settings: ServeSettings) -> Serving {
     let directory: PathBuf = short_directory(name);
     let socket: PathBuf = directory.join("s");
     let listener: UnixListener = UnixListener::bind(&socket).expect("bind");
-    let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
-    settings.stuck_after = stuck_after;
     std::thread::spawn(move || { serve(listener, &context, &settings); });
     return Serving { directory, socket };
 }
@@ -120,6 +126,7 @@ fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_
         keep_fresh: None,
         answer_ceiling,
         withdraw_ceiling,
+        waiting_notice_after: PATIENCE,
         extra_wait,
         start_ceiling: PATIENCE,
         units_record_dir: None,
@@ -234,6 +241,39 @@ fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_it
     let (third_answer, third_notices) = third.join().expect("third client");
     assert!(matches!(third_answer, Ok(Submitted::Landed { .. })), "{third_answer:?} {third_notices}");
     assert_eq!(subjects_since(&world, base.as_str()), "message of first\nmessage of third", "the withdrawn commit never landed");
+    wait_until_settled(&world);
+    remove(serving.directory.as_path());
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A commit the service lands after a wait is told its place on the wire,
+/// and its client prints it:
+/// the whole path from the batch to the person.
+/// Why:
+///   The place was never sent to a lone request before,
+/// so a control that only reads the deciding function does not prove the
+///  settings,
+/// the socket and the client's words line up.
+/// The service's threshold is zero here,
+/// so the place of a batch that begins at once is sent,
+/// and the client's is zero too,
+/// which makes what it prints the whole of what it is told.
+#[test]
+fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
+    let world: World = world("service-place-of-a-commit");
+    let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
+    settings.place_after = Duration::ZERO;
+    let context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    let serving: Serving = serve_on_a_thread_with_settings(context, "place", settings);
+    let config: ClientConfig = ClientConfig { waiting_notice_after: Duration::ZERO, ..client(&serving, PATIENCE, PATIENCE) };
+    let (answer, notices) = submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n")).join().expect("client");
+    assert!(matches!(answer, Ok(Submitted::Landed { .. })), "{answer:?} {notices}");
+    let place: String = crate::service_messages::position_notice(1, 1);
+    let lines: Vec<&str> = notices.lines().collect();
+    assert_eq!(lines.len(), 2, "two lines: {notices:?}");
+    assert!(lines[0].contains("has not said where this commit stands"), "the service not having said where it stands first: {notices:?}");
+    assert_eq!(lines[1], place, "then the place it sent: {notices:?}");
     wait_until_settled(&world);
     remove(serving.directory.as_path());
     remove(world.root.as_path());

@@ -227,7 +227,13 @@ async fn directories_of_the_listing_within_the_budget(listing: Vec<u8>, destinat
 /// async function manifestDirectoriesAwaiting(git: GitContext, destination: string): Promise<string[]>;
 /// ```
 pub async fn manifest_directories_awaiting(git: &GitContext, destination: &Path) -> Result<Vec<PathBuf>, String> {
-    let listing = GitRequest::new(destination, &["ls-files", "-z", "--", "*Cargo.toml"]);
+    // `--full-name` names every manifest from the top of the worktree, which is how each name is joined to the
+    // destination, so a caller whose `-C` moved Git below the top is still answered `sub/Cargo.toml`.
+    // The pattern is the wrapper's own pathspec, so no mode the caller set reaches it: under literal mode it would
+    // match nothing, case-insensitive matching would widen it, and two glob modes at once make Git refuse the
+    // listing and fail the repair.
+    let listing: GitRequest =
+        GitRequest::new(destination, &["ls-files", "-z", "--full-name", "--", "*Cargo.toml"]).own_pathspecs();
     let output = match run_git_awaiting(git, &listing).await {
         Ok(done) => done,
         Err(error) => return Err(format!("git could not list the tracked manifests ({error})")),

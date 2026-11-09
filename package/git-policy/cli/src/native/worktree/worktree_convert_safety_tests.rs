@@ -346,7 +346,8 @@ fn a_failed_index_refresh_keeps_the_old_tree() {
 /// the control below failed alone in 24.7 s at
 ///  "a run with a pipe for a journal did not finish within 20s" while the run was working,
 /// and passed alone on quieter minutes.
-/// The window is the watchdog's own (`test_support::STILL_WORKING_WINDOW`), so a blocked open ends the wait and a slow
+/// The window is the watchdog's own (`test_support::STILL_WORKING_WINDOW`),
+/// so a blocked open ends the wait and a slow
 ///  disk does not.
 ///
 /// In TS you'd write (pseudocode):

@@ -145,7 +145,10 @@ Native-scope evidence verified directly:
   with a `cdylib` product and its own workspace boundary.
 - `package/music-player/android-app/mise.toml` names `app/src/main/jniLibs` as the native output destination.
   Its current `lint` selects Android Lint,
-  while `lint:clippy` and `lint:rust` separately examine the Rust part.
+  while `lint:clippy` separately examines the Rust part.
+  A `lint:rust` task no longer exists there:
+  Rust linting moved to the root `lint:monochromatic-lint` task,
+  which walks every Rust package (`mise.toml`).
 
 Q11 A is accepted:
 a package-wide maintained concern such as
@@ -285,6 +288,12 @@ Every milestone carries a parity or conformance target measured against somethin
    identity as the filesystem ID paired with the canonical path;
    exact-byte snapshots evaluated in place of the live file;
    the registry under the account home with atomic replacement and private modes.
+   The native program retired `trust`,
+   `trust --yes`,
+   `untrust` and `status` with the TypeScript wrapper on 2026-10-13,
+   in `642b6d72cb`;
+   running either command names the retirement and changes no trust record,
+   so M5 cannot adopt that flow as it stands.
 - Evidence:
    a disposable-fixture suite covering each discovery branch,
    a blocked command whose JSON diagnostic names both recovery commands,

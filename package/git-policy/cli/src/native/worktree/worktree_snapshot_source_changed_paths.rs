@@ -138,9 +138,37 @@ fn word_text(word: &OsString) -> String {
 /// await git(root, arguments) // throws a sentence
 /// ```
 fn ask_git(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<u8>, String> {
-    let owned: Vec<OsString> = arguments.iter().copied().map(OsString::from).collect();
-    let words: String = subcommand_word(owned.as_slice());
-    let request: GitRequest = GitRequest { cwd: root.to_path_buf(), arguments: owned, without_prefix: true, ..GitRequest::default() };
+    return ask_git_request(context, GitRequest::new(root, arguments));
+}
+
+/// What:
+///  Run one request whose pathspecs are the wrapper's own,
+///  and give Git's standard output;
+/// the error says what Git said or why it did not start.
+/// Why:
+///   A listing built on a generated pathspec must run without the caller's modes,
+///  and `own_pathspecs` is the one way the wrapper says that.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await gitOwnPathspecs(root, arguments) // throws a sentence
+/// ```
+fn ask_git_own_pathspecs(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<u8>, String> {
+    return ask_git_request(context, GitRequest::new(root, arguments).own_pathspecs());
+}
+
+/// The runner both listings share:
+/// the request,
+/// its words for a failure,
+/// and Git's answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await gitRequest(request) // throws a sentence
+/// ```
+fn ask_git_request(context: &GitContext, mut request: GitRequest) -> Result<Vec<u8>, String> {
+    request.without_prefix = true;
+    let words: String = subcommand_word(request.arguments.as_slice());
     return match run_git(context, &request) {
         Ok(found) if found.code == Some(0) => Ok(found.stdout),
         Ok(found) => {
@@ -186,10 +214,11 @@ fn ask_git(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<
 /// ```
 pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, String> {
     let listing: Vec<u8> = ask_git(context, root, &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--no-renames"])?;
-    // `:(glob)**/.gitattributes` is pathspec magic, so literal pathspec mode, from `GIT_LITERAL_PATHSPECS` or
-    // `--literal-pathspecs`, is switched off here: under it the pattern would match nothing and an untracked
-    // attributes file deep in the tree would go unnoticed.
-    let untracked_attributes: Vec<u8> = ask_git(context, root, &["--no-optional-locks", "--no-literal-pathspecs", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
+    // `:(glob)**/.gitattributes` is pathspec magic the wrapper writes, so every pathspec mode the caller set is
+    // removed from this start: under literal mode the pattern would match nothing and an untracked attributes file
+    // deep in the tree would go unnoticed, two glob modes at once make Git refuse the listing, and case-insensitive
+    // matching would let it reach a file of another name.
+    let untracked_attributes: Vec<u8> = ask_git_own_pathspecs(context, root, &["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
     // Each status entry is two status letters, a space, then the path.
     let mut paths: Vec<&[u8]> = Vec::new();
     for entry in listing.split(is_nul_byte) {
@@ -211,3 +240,8 @@ pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, 
     let first: Option<String> = paths.first().map(plain_path_text);
     return Ok(ChangedPaths { count: paths.len(), first, attributes_changed });
 }
+
+/// Controls for the two listings.
+#[cfg(test)]
+#[path = "worktree_snapshot_source_changed_paths_tests.rs"]
+mod tests;

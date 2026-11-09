@@ -27,7 +27,8 @@ const VALUES: [&str; 22] = [
 ///  each with the value it was spelled from and the reading that value has,
 /// and each resulting spelling asked once.
 /// Why:
-///   Every value is returned, so the round-trip assertion of the controls below runs for every one of them:
+///   Every value is returned,
+/// so the round-trip assertion of the controls below runs for every one of them:
 /// a
 ///  serializer that loses a component gives two values the same spelling,
 /// and a value left out here would never reach the

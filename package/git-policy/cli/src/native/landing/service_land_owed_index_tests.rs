@@ -6,6 +6,8 @@
 
 use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
+/// The trait that gives a child's input and this process's standard error their `write_all`.
+use std::io::Write as _;
 use crate::service_journal::{OPEN_EXTENSION, batch_path};
 use crate::test_support::{git, git_text, remove};
 use std::path::Path;
@@ -200,7 +202,7 @@ fn a_path_with_conflict_stages_is_left_alone() {
         .spawn()
         .expect("git starts");
     {
-        use std::io::Write as _;
+        
         child.stdin.as_mut().expect("stdin").write_all(listing.as_bytes()).expect("the stages are fed");
     }
     assert!(child.wait().expect("git ends").success(), "the unmerged stages are made");
@@ -576,6 +578,39 @@ fn a_refused_reset_still_sets_the_entry_to_the_head() {
     remove(world.root.as_path());
 }
 
+/// The repair looks its entries up by repository-relative path,
+/// while `git ls-files` answers relative to the directory Git runs in:
+/// a commit from a nested directory must not read the person's staged entry as absent and reset it to `HEAD`.
+#[test]
+fn a_repair_keeps_the_staged_entry_of_a_nested_path_under_a_caller_prefix() {
+    let world: World = world("service-land-owed-nested-c");
+    let landed: CommitRequest = request(&world, "landed", "sub/f", "landed\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // The person writes other contents and stages them with real Git, so the worktree matches their staging.
+    std::fs::write(world.repo.join("sub/f"), "staged\n").expect("stage other contents");
+    git(world.repo.as_path(), &["add", "--", "sub/f"]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["show", ":sub/f"]), "staged", "the commit's copy holds the staged entry");
+    // The caller wrote `-C <repository>/sub`, so every Git of this commit runs one directory down.
+    let mut context: crate::transaction_git::GitContext = world.context.git.clone();
+    context.global_prefix = vec![std::ffi::OsString::from("-C"), world.repo.join("sub").into_os_string()];
+    let captured: crate::service_land_start::IndexWitness =
+        crate::service_land_start::witness_of(real_index_of(&world).as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &context,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(commit_index.as_path()),
+        &captured,
+    )
+    .expect("the repair of the landed path");
+    assert_eq!(left, Vec::<String>::new(), "the person's own staging is left alone");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["show", ":sub/f"]), "staged", "the staged contents stay in the commit's index");
+    remove(world.root.as_path());
+}
+
 /// A `--literal-pathspecs` the caller wrote as a global option makes every read answer empty,
 /// so the repair would exclude nothing and the next ordinary commit would record the contents the landing replaced.
 #[test]
@@ -712,7 +747,7 @@ fn a_check_that_cannot_be_made_still_leaves_the_moved_paths_out() {
         .spawn()
         .expect("git starts");
     {
-        use std::io::Write as _;
+        
         child.stdin.as_mut().expect("stdin").write_all(listing.as_bytes()).expect("the stages are fed");
     }
     assert!(child.wait().expect("git ends").success(), "the conflict stages are made");
@@ -1061,7 +1096,7 @@ fn a_staged_symlink_restoration_is_compared_by_its_target_text() {
     let _ = &landed;
     // Land the link's target text as a blob of its own: the change is the link, not its referent.
     let blob: String = {
-        use std::io::Write as _;
+        
         let mut child = std::process::Command::new(crate::test_support::REAL_GIT)
             .current_dir(world.repo.as_path())
             .args(["hash-object", "-w", "--stdin"])
@@ -1390,4 +1425,30 @@ fn an_unreadable_obligation_keeps_a_landed_deletion_out() {
     let landed_blob: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD:one.txt"]);
     assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "one.txt"]), format!("100644 {landed_blob} 0\tone.txt"), "the landed file stays in the commit");
     remove(world.root.as_path());
+}
+
+/// What:
+///  The notice a preparation prints reaches standard error while another thread holds its shared lock.
+/// Why:
+///  This write is on the commit's own path,
+/// after the warnings,
+/// so a lock a warning worker kept would hold the commit
+///  here forever;
+/// the notice is given to the descriptor with a ceiling instead,
+/// and the commit goes on whatever happens.
+#[cfg(unix)]
+#[test]
+fn a_notice_reaches_standard_error_while_its_shared_lock_is_held() {
+    // The lock is reentrant for the thread that holds it, so the delivery runs on a thread of its own, as the production
+    //  write does.
+    let (done, finished) = std::sync::mpsc::channel::<bool>();
+    let held = std::io::stderr().lock();
+    let worker = std::thread::spawn(move || {
+        let delivered: bool = crate::preparation_notice::deliver_notice_for_test("a notice holds no lock another writer needs\n");
+        let _sent = done.send(delivered);
+    });
+    let delivered: bool = finished.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(false);
+    drop(held);
+    let _joined = worker.join();
+    assert!(delivered, "the notice needed the lock a synchronous writer holds");
 }

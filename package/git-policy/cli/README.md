@@ -3093,6 +3093,32 @@ Each line names what the command waits for,
    36,651 and 171,383 ms,
    and the owner asked for each of them to be investigated.
    A commit that opens the person's editor prints nothing and has no ceiling.
+- A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
+  `service/wait_ceilings.rs`;
+  twice the owner's bound of 5 s on what a commit may add to native Git,
+  and reached by 26 of the 909 answer waits in this host's commit timing log of 2026-11-09):
+  one line says where the commit stands,
+  and it is said once for each place the service names,
+  not on the repeat schedule above.
+  When the service named the place of the commit's batch it reads `Waiting for N earlier commits.`,
+  or `This commit is next.` for the first place;
+  when it named none it reads "The commit service has not said where this commit stands yet;
+  it has waited 12 seconds.",
+  because the client cannot tell a request still in the queue from a landing waiting behind another
+  program's `index.lock`,
+  and may claim nothing about whether the landing began.
+  A commit that lands within those 10 seconds prints nothing,
+  and `CLI_GIT_STANDING_NOTICE_SECONDS` (a positive number of seconds) sets the wait for a control.
+  The service names the place of a batch's first request only once that request has waited as long,
+  so a client of an earlier release,
+  which prints every place it is told,
+  sees one only for a commit that waited.
+  A place belongs to the connection that named it:
+  a request sent again after its service went away starts with no place,
+  so a stale one is never printed as this wait's.
+  Every line is written by a thread of its own and dropped when the terminal stops taking lines,
+  so a reader that stopped draining costs the commit no more than `WARNING_WRITE_CEILING` (250 ms) at its end
+  and never its answer.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,
    or one with a template or clean-up mode) is built again on the new tip,
