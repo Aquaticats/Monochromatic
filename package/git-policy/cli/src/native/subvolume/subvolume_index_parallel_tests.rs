@@ -15,6 +15,7 @@ use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::os::unix::fs::OpenOptionsExt;
 use std::time::Duration;
 
 /// How many linked worktrees the checkout of these controls has;
@@ -351,6 +352,20 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
     assert_eq!(unsafe { libc::mkfifo(named.as_ptr(), 0o600) }, 0, "the named pipe at the configuration");
     let request: AllIndexes =
         AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, rewrite: Arc::new(refresh_index_file_with) };
+    // The process's only place is held by another job, so the preparation this run sends to the pool never starts and no
+    //  reader ever opens the pipe: the state a reviewer of this control found the cleanup hanging in.
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(crate::parallel_test_support::ONE_PLACE);
+    let (holding, held) = std::sync::mpsc::channel::<()>();
+    let (release, waiting) = std::sync::mpsc::channel::<()>();
+    let busy = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _outcome = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            let _told = holding.send(());
+            let _ = waiting.recv();
+        })
+        .await;
+    });
+    assert!(busy.is_some(), "the runtime has a worker, so a place of the blocking pool can be held");
+    assert!(held.recv_timeout(PATIENCE).is_ok(), "the job that holds the only place never started");
     let (told, heard) = std::sync::mpsc::channel::<&'static str>();
     let refresh = std::thread::spawn(move || {
         // A runtime of its own, so a thread this control hangs cannot take the suite with it.
@@ -369,12 +384,30 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
         std::mem::forget(runtime);
     });
     let answered: Result<&'static str, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(PREPARATION_STOP_BY);
-    // A writer that closes at once gives the blocked read an empty file, so `std::fs::read` ends and the thread can be
-    //  joined however the control ends.
-    let released = std::fs::OpenOptions::new().write(true).open(&config);
-    drop(released);
-    let ended = refresh.join();
-    assert!(ended.is_ok(), "the thread of the refresh ended");
+    // The place goes back, so the job the pool queued is not left waiting in this process.
+    let _let_go = release.send(());
+    // The cleanup runs on a thread and is waited for with a bound, because it must not hang where no reader can come.
+    let (cleaned, cleaning) = std::sync::mpsc::channel::<bool>();
+    let pipe: PathBuf = config.clone();
+    let tidy = std::thread::spawn(move || {
+        // A writer, if a reader is blocked, gives it an empty file and closes; with no reader the open fails and this
+        //  control says so instead of waiting for a writer's partner that cannot come.
+        let opened = std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(&pipe);
+        let met_a_reader: bool = opened.is_ok();
+        drop(opened);
+        let joined: bool = refresh.join().is_ok();
+        let _told = cleaned.send(met_a_reader && joined);
+    });
+    let cleanup_ended = cleaning.recv_timeout(PREPARATION_STOP_BY);
+    // The thread is joined only once it has answered, because a thread blocked in the open cannot be joined at all.
+    assert!(
+        cleanup_ended.is_ok(),
+        "the control's cleanup did not end within {} ms: opening the named pipe for a reader that can never come waits for ever",
+        PREPARATION_STOP_BY.as_millis()
+    );
+    let met_a_reader: bool = cleanup_ended.expect("the cleanup answered");
+    let _ended = tidy.join();
+    assert!(!met_a_reader, "nothing opened the named pipe, so the cleanup's writer found no reader");
     std::fs::remove_file(&config).expect("the named pipe goes");
     std::fs::rename(&kept, &config).expect("the configuration comes back");
     remove(parent.as_path());
