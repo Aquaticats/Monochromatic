@@ -190,6 +190,10 @@ pub struct ContentJudge<'a> {
     /// when it bounds what it reads (`CONTENT_LIMIT` shared with the landing),
     /// so the attributes read here are part of that bound.
     pub(super) budget: Option<&'a std::cell::Cell<u64>>,
+    /// The read an attributes file is taken with,
+    /// or nothing for the operating system's own;
+    /// a control sets one that hands over the bytes of a file that grew under the read.
+    pub(super) attribute_read: Option<&'a dyn Fn(&std::fs::File, &mut [u8]) -> std::io::Result<usize>>,
 }
 
 /// The moments of a judgment at which a control changes the file under it.
@@ -218,7 +222,7 @@ pub struct Place<'a> {
 impl<'a> ContentJudge<'a> {
     /// A judge for the worktree held open as `root`.
     pub fn new(root: &'a std::fs::File, git_dir: &'a Path, common_dir: &'a Path, environment: &'a ConversionEnvironment, format: ObjectFormat) -> ContentJudge<'a> {
-        return ContentJudge { root, git_dir, common_dir, environment, format, fixed: None, directories: HashMap::new(), budget: None };
+        return ContentJudge { root, git_dir, common_dir, environment, format, fixed: None, directories: HashMap::new(), budget: None, attribute_read: None };
     }
 
     /// What:

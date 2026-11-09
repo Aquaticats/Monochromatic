@@ -92,13 +92,59 @@ impl<'a> ContentJudge<'a> {
         if metadata.len() > room {
             return Err(format!("{label} is larger than the {room} bytes this caller may still read, so the attributes it sets cannot be ruled out"));
         }
-        let read: Option<Option<Vec<u8>>> = subject_failure(read_at_most(&file, room), &label, "cannot be read").ok();
-        let Some(bytes) = read.flatten() else {
-            self.charge(room);
+        let Some(bytes) = self.attribute_bytes(&file, room, &label)? else {
             return Err(format!("{label} changed while it was read, so the attributes it sets cannot be ruled out"));
         };
-        self.charge(bytes.len() as u64);
         return Ok(Some(AttributeFile { label, base, lines: parse_attribute_lines(bytes.as_slice()) }));
+    }
+
+    /// What:
+    ///  Take attributes files with `read`,
+    /// for a control that hands over what a file grown under the read would.
+    /// Why:
+    ///   The overshoot the review found needs a file that grows between the size check and the read,
+    /// and a control cannot make that race happen without a seam.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// judge.readAttributesWith(read);
+    /// ```
+    #[cfg(test)]
+    pub fn read_attributes_with(&mut self, read: &'a dyn Fn(&std::fs::File, &mut [u8]) -> std::io::Result<usize>) {
+        self.attribute_read = Some(read);
+    }
+
+    /// What:
+    ///  The bytes of an attributes file,
+    /// up to `room`,
+    /// taken with the read a control sets or the operating system's own.
+    /// Why:
+    ///   The read is one place,
+    /// so a control can hand over what a file grown under it would,
+    /// and the caller charges what was taken.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function attributeBytes(file, room) { let data = []; while (data.length <= room) { const taken = read(file, new Uint8Array(room + 1)); if (taken === 0) break; data.push(...taken); } return data.length > room ? undefined : data; }
+    /// ```
+    fn attribute_bytes(&self, file: &std::fs::File, room: u64, label: &dyn std::fmt::Display) -> Result<Option<Vec<u8>>, String> {
+        let mut data: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![0; usize::try_from(room.saturating_add(1)).unwrap_or(usize::MAX)];
+        while data.len() as u64 <= room {
+            let taken: usize = match self.attribute_read {
+                Some(read) => subject_failure(read(file, buffer.as_mut_slice()), label, "cannot be read")?,
+                None => {
+                    use std::io::Read as _;
+                    subject_failure((&*file).take(buffer.len() as u64).read(buffer.as_mut_slice()), label, "cannot be read")?
+                }
+            };
+            if taken == 0 {
+                break;
+            }
+            data.extend_from_slice(&buffer[..taken]);
+        }
+        self.charge(room.min(data.len() as u64));
+        return Ok(if data.len() as u64 > room { None } else { Some(data) });
     }
 
     /// Add `bytes` to the caller's bound,
@@ -245,3 +291,8 @@ impl<'a> ContentJudge<'a> {
         return Ok(None);
     }
 }
+
+/// Controls for the attribute reading stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_clean_content_attributes_tests.rs"]
+mod tests;
