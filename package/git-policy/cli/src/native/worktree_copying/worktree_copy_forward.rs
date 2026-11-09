@@ -20,7 +20,7 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::forwarding::{ChildOutcome, exit_code as child_exit_code, run_real_git};
+use crate::forwarding::{ChildOutcome, run_real_git};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
@@ -180,9 +180,15 @@ fn run_plain(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> ForwardedRun {
-    // `match` on the start result: the status is Git's, and an unstartable Git is an engine failure.
+    // `match` on the start result: the status is Git's, the death by a signal is Git's own too, and an unstartable Git
+    //  is an engine failure.
     match run_real_git(real_git, arguments, overlay) {
-        Ok(outcome) => return ForwardedRun::Ran(child_exit_code(outcome)),
+        Ok(ChildOutcome::Exited(code)) => return ForwardedRun::Ran(code),
+        // What: A Git that a signal ended stays a death by that signal.
+        // Why:  This route keeps a process around Git, so the death comes back as a value; flattening it into 128 + the
+        //       signal made the caller see a normal exit where native Git's caller sees `WIFSIGNALED`
+        //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 3 of the round-2 review).
+        Ok(ChildOutcome::Signaled(signal)) => return ForwardedRun::Killed(signal),
         Err(error) => {
             return ForwardedRun::Failed {
                 stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()),

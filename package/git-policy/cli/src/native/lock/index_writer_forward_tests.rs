@@ -158,6 +158,53 @@ fn coordinated_death_of_a_git_killed_by_sigterm(home: bool) -> CoordinatedRun {
     return run;
 }
 
+
+/// What:
+///  A Git child that a signal ended keeps its signal on the plain child route,
+/// where the command is not one the wrapper may
+///  run again and no copy is settled.
+/// Why:
+///   `git add --patch` is not run again after the service took the index,
+/// so its Git runs once through the plain route,
+///  and that route reported the death as the status a shell prints for it (128 + the signal)
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 3 of the round-2
+///  review).
+/// Neither of the two routes the signal fix covered was reached for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(runCoordinatedForward(addPatchThroughAStandInThatKillsItself)).toEqual({ killed: SIGTERM });
+/// ```
+#[test]
+fn a_git_child_of_a_command_that_is_not_run_again_keeps_its_signal() {
+    assert_eq!(plain_route_death_of_a_git_killed_by_sigterm(), CoordinatedRun::Killed(libc::SIGTERM));
+}
+
+/// The death of a Git that ends itself by `SIGTERM`,
+/// on the route a command the wrapper may not run again takes.
+fn plain_route_death_of_a_git_killed_by_sigterm() -> CoordinatedRun {
+    let root: PathBuf = fixture("forward-killed-once");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"content\n").expect("file to add");
+    let mut forward: CoordinatedForward = add_forward(repo.as_path());
+    // `--patch` reads the person's answers, so the command is never run again and its Git runs once.
+    forward.arguments = vec![OsString::from("-C"), repo.as_os_str().to_owned(), OsString::from("add"), OsString::from("--patch")];
+    forward.command = ResolvedCommand { arguments: forward.arguments.clone(), subcommand_index: 2, subcommand: Some(OsString::from("add")), route: Route::Direct };
+    assert!(!may_run_again(forward.command.word(), forward.command.region()), "this control is the plain route only if the command may not run again");
+    let scripts: PathBuf = root.join("scripts");
+    std::fs::create_dir_all(&scripts).expect("script directory");
+    let stand_in: PathBuf = scripts.join("git");
+    executable(
+        stand_in.as_path(),
+        format!("#!/bin/sh\nfor token in \"$@\"; do\nif [ \"$token\" = \"add\" ]; then kill -TERM $$; fi\ndone\nexec {REAL_GIT} \"$@\"\n").as_bytes(),
+    );
+    forward.real_git = stand_in;
+    let run: CoordinatedRun = run_coordinated_forward(&forward);
+    remove(root.as_path());
+    return run;
+}
+
 /// A non-writer that carries the linked-worktree copy still runs here,
 /// as a settled child,
 /// not as an exec.
