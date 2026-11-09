@@ -1250,11 +1250,12 @@ fn an_unborn_branch_with_an_orphaned_record_still_commits() {
     remove(root.as_path());
 }
 
-/// A record that exists and cannot be read is still an obligation:
-/// the commit says it could not tell,
-/// instead of leaving the entries it owes unprotected.
+/// A record that exists and cannot be read is still an obligation,
+/// and it no longer stops the commit:
+/// the landed deletion it could have named is left out,
+/// and the notice says why.
 #[test]
-fn an_unreadable_record_makes_the_commit_say_it_cannot_tell() {
+fn an_unreadable_record_leaves_the_landed_deletion_out_and_says_why() {
     let world: World = world("service-land-owed-unreadable-record");
     let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
     land_with_failed_index(&world, 1, &[landed]);
@@ -1264,7 +1265,8 @@ fn an_unreadable_record_makes_the_commit_say_it_cannot_tell() {
     assert!(found.is_empty(), "nothing can be read of it");
     assert_eq!(unreadable, 1, "and it counts as owed all the same");
     let commit_index: PathBuf = commit_index_of(&world);
-    let answered: Result<Vec<String>, String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+    let mut note: Option<String> = None;
+    let left: Vec<String> = crate::owed_index_repair::exclude_with_note(
         &world.context.git,
         world.repo.as_path(),
         world.repo.join(".git").as_path(),
@@ -1272,10 +1274,120 @@ fn an_unreadable_record_makes_the_commit_say_it_cannot_tell() {
         Some(commit_index.as_path()),
         Some(commit_index.as_path()),
         &crate::service_land_start::IndexWitness::Absent,
-    );
+        &mut note,
+    )
+    .expect("the commit goes on");
     std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
-    let reason: String = answered.expect_err("a commit that cannot tell what the index owes stops and says so");
-    assert!(reason.contains("cannot be read"), "{reason}");
+    assert_eq!(left, vec![String::from("one.txt")], "the deletion it could have named is left out");
+    let said: String = note.expect("the notice says why");
+    assert!(said.contains("cannot be read") && said.contains("one.txt"), "{said}");
     assert!(record.exists(), "the record is kept for the person");
+    remove(world.root.as_path());
+}
+
+/// A Git whose head probe fails with something other than "no such object",
+/// as a lock or an unreadable repository does.
+fn git_with_a_failing_head_probe(world: &World) -> PathBuf {
+    let program: PathBuf = world.root.join("failing-head-git");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" rev-parse \"*) echo 'fatal: cannot read the head' >&2; exit 128;;\nesac\nexec '{}' \"$@\"\n",
+        crate::test_support::REAL_GIT
+    );
+    std::fs::write(program.as_path(), script).expect("script");
+    std::fs::set_permissions(program.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// A head probe that failed is a failure,
+/// not an unborn branch:
+/// the repair says so and touches nothing,
+/// because taking it for an unborn head would write a removal.
+#[test]
+fn a_failed_head_probe_is_not_an_unborn_branch() {
+    let world: World = world("service-land-owed-head-probe");
+    std::fs::write(world.repo.join("f"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "f"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let landed: CommitRequest = request(&world, "landed", "f", "B\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    let before: String = index_text(&world, commit_index.as_path(), &["ls-files", "-s"]);
+    let mut context: crate::transaction_git::GitContext = world.context.git.clone();
+    context.real_git = git_with_a_failing_head_probe(&world);
+    let answered: Result<Vec<String>, String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &context,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(commit_index.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    );
+    assert!(answered.is_err(), "a probe that failed is a failure: {answered:?}");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s"]), before, "and nothing was written");
+    remove(world.root.as_path());
+}
+
+/// A record of another index names no path of this commit's index:
+/// the moved-index comparison leaves that path alone.
+#[test]
+fn a_record_of_another_index_names_no_path_of_this_one() {
+    let world: World = world("service-land-owed-other-index-names");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let mut records: Vec<crate::owed_index_update::Owed> = crate::owed_index_update::records_of(world.repo.join(".git").as_path());
+    assert_eq!(records.len(), 1);
+    records[0].index = world.root.join("other.index");
+    crate::owed_index_update::write(&records[0]).expect("the record names another index");
+    // The live index moves without this commit: the moved comparison runs, and the record is the only one that names one.txt.
+    let capture: PathBuf = world.root.join("capture.index");
+    std::fs::copy(real_index_of(&world), capture.as_path()).expect("the copy a commit makes");
+    let commit_index: PathBuf = commit_index_of(&world);
+    // The live index catches up with the landing, so the moved comparison lists one.txt although no record of this index names it.
+    git(world.repo.as_path(), &["add", "one.txt"]);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &world.context.git,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(capture.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    )
+    .expect("the repair has nothing to say about another index's paths");
+    assert!(!left.contains(&String::from("one.txt")), "the other index's path is not left out: {left:?}");
+    remove(world.root.as_path());
+}
+
+/// An obligation that cannot be read keeps a landed file from being recorded as deleted:
+/// the commit goes on,
+/// the deletion is left out,
+/// and the notice says why.
+#[test]
+fn an_unreadable_obligation_keeps_a_landed_deletion_out() {
+    let world: World = world("service-land-owed-unreadable-keeps");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let record: PathBuf = owed_of(&world, 1);
+    std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("no read");
+    let commit_index: PathBuf = commit_index_of(&world);
+    let mut note: Option<String> = None;
+    let left: Vec<String> = crate::owed_index_repair::exclude_with_note(
+        &world.context.git,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(commit_index.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+        &mut note,
+    )
+    .expect("the commit goes on");
+    std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
+    assert_eq!(left, vec![String::from("one.txt")], "the deletion it would have recorded is left out");
+    let said: String = note.expect("the notice says why");
+    assert!(said.contains("cannot be read") && said.contains("one.txt"), "{said}");
+    let landed_blob: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD:one.txt"]);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "one.txt"]), format!("100644 {landed_blob} 0\tone.txt"), "the landed file stays in the commit");
     remove(world.root.as_path());
 }

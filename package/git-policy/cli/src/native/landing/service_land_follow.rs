@@ -292,7 +292,12 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
             Err(code) => code,
         };
         if code == FailureCode::IndexInUse {
-            match wait_for_index_release_within(index, "commit", ceiling, Cadence::from_environment(), &mut std::io::stderr()) {
+            // The wait gets what is left of the one ceiling, so a hold that ends and is taken again cannot add a full wait.
+            let left: std::time::Duration = deadline.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return Err(code);
+            }
+            match wait_for_index_release_within(index, "commit", left, Cadence::from_environment(), &mut std::io::stderr()) {
                 // The diagnostic of a wait that ended on a dead owner is already written.
                 IndexWait::OwnerGone(_) | IndexWait::GaveUp(_) => return Err(code),
                 // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well, under the
