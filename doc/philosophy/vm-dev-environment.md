@@ -214,8 +214,8 @@ Image changes never require re-provisioning user tools.
 
 ## Why file-enforcer for the provisioner
 
-The monorepo already has [file-enforcer](../../packages/dev-script/file-enforcer):
-a declarative TypeScript tool for syncing derived files.
+The monorepo already has [file-enforcer](../../package/file-enforcer):
+a declarative tool for syncing derived files.
 Its primitives map directly to provisioner needs:
 
 <table>

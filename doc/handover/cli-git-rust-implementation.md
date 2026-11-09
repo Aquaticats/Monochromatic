@@ -59,23 +59,20 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-### Where the work stands (2026-11-08T23:47:13-05:00)
+### Where the work stands (2026-11-09T00:11:22-05:00)
 
-This subsection is the current picture.
-`### Release in flight`,
-`### Unmerged branches and worktrees of this effort` and `### Agents and gates running` date from 2026-11-03 and 2026-11-04.
-They no longer describe now,
-and the Pi agent `wrapper-handover-stale-sections-moved-out` is moving their durable facts to canonical docs and deleting them.
-
-Main is at `3e48c84c17`.
 Merged since the last record here:
 `71795ab77a`,
 the audit of the wrapper's entry and service lifecycle route
 (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`);
 `a8295d5de8`,
 the second pass over open wrapper issues (`doc/planning/git-wrapper-open-issues-round-2.md`);
-and `3e48c84c17`,
-landing and lock controls that read what happened rather than a clock.
+`3e48c84c17`,
+landing and lock controls that read what happened rather than a clock;
+`235972a29e`,
+browser suites that fit their container limits;
+and `6e97ea7777`,
+this handover's stale sections moved to their canonical docs.
 
 Issues closed against main in this stretch:
 634,
@@ -95,42 +92,116 @@ Issue 6005 stays open for its surviving instance,
 
 #### The 860 move
 
-`package/repository-move/cli/src/run-repository-move.ts status` is the live record;
-stages through `c25-pnpm-links` are done.
-`c26-kopia-snapshot` has failed three times,
-each for a different reason:
-kopia could not re-create `/mnt/pcloud/rclone` while the pCloud client restarted;
-the coordinator removed a worktree during a snapshot;
-and a Pi agent finished while kopia read its per-worktree wrapper service folder
-(`.git/worktrees/pi-index-reset-keeps-stat-data/monochromatic-git-policy-cli-service-*/shadow/objects`),
-which kopia counted as one fatal error.
-That third run still created snapshot `99b6c01bdec1c8a50a491236552601e3`,
-but `kopia snapshot create` exits non-zero on a fatal error,
-so the stage stops before its own check,
-`kopia snapshot list`.
+The cut-over finished at 2026-11-09T05:27:00+00:00:
+`package/repository-move/cli/src/run-repository-move.ts status` records every stage through `c28-ide-through-link`.
+Kopia no longer backs this repository up,
+by the owner's word recorded in `questions-for-the-owner.md`,
+so a folder vanishing during a read can no longer fail that stage.
 
-Next:
-rerun the cut-over once no worktree is being removed.
-If it fails again only on a folder that vanished during the read,
-change that stage in `package/repository-move/cli/src/guided-cutover-stages.data.ts` rather than rerunning,
-because with Pi agents running another vanished service folder is likely.
-After it come `c27-container-bind`,
-the `c28` IDE check in the nested compositor with `--assert=c28-ide-through-link`,
-and the merge of `fix/repository-move-cli-checks-after-the-860-move`.
+The last checks were made through the link spelling.
+`c27-container-bind` started a container that read the Git folder.
+A container created first and started afterwards did the same (W13 of `doc/planning/repository-on-the-860-drive.md`).
+`c28` opened the installed IDE in a headless nested compositor:
+the file tree listed the repository,
+`README.md` opened,
+and a content search returned matches from `package/git-policy/cli/SPEC.md` and other files.
+That IDE shows the physical path `/var/mnt/encrypted/repository/Monochromatic/README.md`,
+so it resolves the link rather than keeping the spelling it was given,
+as the stage's text says it does.
+Its language servers did not start in that check,
+which used an empty settings folder so the run left the owner's alone;
+`mise` reported no global version there.
+They were not otherwise checked through the link.
+
+`c27-container-bind` stopped because the repository's top folder carries the private label
+`container_file_t:s0:c311,c738`,
+which SELinux enforces against any container that did not get that label.
+Every container this repository runs passes `--security-opt label=disable`,
+and the stage did not.
+It now does (`73428ae89d`).
+What gave the folder that label is not known.
+
+`922fa7d1fb` merged the move tool's fixes,
+and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress
+#### Reviews and landings in progress (2026-11-09T01:44:42-05:00)
 
-- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`:
-  its round-four commits pass 201 tests on top of main.
-  The cross-vendor review of them found two defects,
-  and the agent is on round five.
-  A `.gitattributes` rewritten on the same inode between two reads can mix two versions and still match the current size,
-  so an obsolete rule can record a falsely clean entry.
-  An interrupted read of that file drops stat data for the rest of the landing.
-- `fix/test-browser-runs-fit-their-container-limits`:
-  finished,
-  waiting for the coordinator's check and merge.
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
+  the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
+  names a final wake that can be missed so a run waits for ever,
+  index preparation that can block the runtime before its first await,
+  and refused jobs that later run outside the blocking-job budget.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `tokio-pure-file-sites-on-the-awaited-runner` as run 4,
+  with the session file named in run 3's `summary.json`.
+- `fix/git-policy-cli-push-route-records-and-ceilings`,
+  at `5b0393dbf6`:
+  its agent reports all eleven audit findings fixed,
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/push-route-round-1-sol.txt`) names nine more.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+- `fix/git-policy-cli-unit-test-watchdog-judges-progress`:
+  362 of 362 tests pass on top of main,
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-1-sol.txt`) names five defects in the watchdog and its controls,
+  all in test code or test builds.
+  Run 2 of its agent is on them.
+- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
+  at `3509de3e01`:
+  the cross-vendor review of its latest round
+  (`${HOME}/temp/agent/reviews/landing-route-round-3-sol.txt`)
+  names seven more defects,
+  among them a failed reset that commits a deletion and an approved push left stranded.
+  Not ready to merge.
+  Run 4 of its agent is on them.
+- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
+  at `493e72d1e9`:
+  the library suite passed 4835 of 4835.
+  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/copy-records-round-5-sol.txt`)
+  names three more ways a new worktree can end up unfilled or filled by the wrong command,
+  so it is not ready to merge.
+  Run 6 of its agent is on them.
+  The fix for a ladder rung that already made its destination has no test of its own,
+  and the two-process race has no failing test,
+  because nothing can hold a wrapper at a named step.
+- `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
+  the cross-vendor review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-1-sol.txt`)
+  names defects in the stop,
+  among them a blocked notice write that keeps the command from returning and a signal that can reach a reused process id.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+  The branch raises the ceiling to 16,332 ms,
+  makes the stop keep looking for a step that starts late,
+  and logs what ran below each step.
+  Of the three slow commits,
+  171,383 ms and 26,256 ms are the retry index without stat data,
+  fixed in 0.6.1-alpha.4.
+  The cause of 36,651 ms is not established.
+- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
+  with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
+- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
+  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/merge-route-round-2-sol.txt`)
+  says a branch that advances discards a merge already reported as saved,
+  and that finishing a saved merge can overwrite a staged-only edit.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `merge-route-findings-fixed` as run 3,
+  with `merge-route-findings-fixed-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+- `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
+  and `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
+  their agents are working through their reviews.
+- `fix/git-policy-cli-conversion-compares-modes-and-can-finish`,
+  `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`
+  and `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
+  their agents fix what these audits on main found:
+  `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`,
+  `doc/planning/cli-git-worktree-add-route-findings-on-main.md`
+  and `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
+  The locks audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
+  ("cli-git never deletes a lock") waits for the owner.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
@@ -153,6 +224,17 @@ where it lives and its evidence.
 The owner:
 "Pi doesn't have a limit to number of concurrent subagents.
 In practice it's 16."
+The owner later:
+"I said 16 is practical,
+based on a rough estimation.
+Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20."
+and,
+on going higher:
+"no,
+that's definitely going to blow up."
+The trial's result goes in [`questions-for-the-owner.md`](questions-for-the-owner.md).
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
@@ -581,16 +663,11 @@ Two readings are open:
 
 Still to do:
 
-- The landing's in-process index reset writes the commit's paths with all-zero stat data
-  (`index/index_reset.rs` `StatData::default()`,
-  as `git reset --no-refresh` does),
-  where native `git commit` leaves the worktree's stat data.
-  The next commit therefore finds those paths stale and refreshes them once,
-  through the question here,
-  one Git start and one hash per path the previous commit landed and this one does not name.
-  Native Git pays nothing for them.
-- The question's pass is single-threaded;
-  preloading it across threads as Git's `core.preloadIndex` does would cut the 56 ms above to about Git's 10 ms.
+- The landing's in-process index reset wrote the commit's paths with all-zero stat data,
+  which the next commit refreshed once;
+  closed by the section below.
+- The question's pass was single-threaded;
+  closed by the section below.
 - A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
   (Git answers a held lock at once,
   measured 0.00 s,
@@ -599,6 +676,321 @@ Still to do:
   bounded by `LANDING_LOCK_CEILING`.
 - The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
   `native:perf` compares paired commit deltas and is the run for it.
+
+### The landing records the stat data it can prove, and the staleness question walks its entries in parallel (2026-11-08T19:20:00-05:00)
+
+Branch `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`.
+
+What changed:
+
+- The in-process index reset takes a `WorktreeStat` source
+  (`src/native/index/index_reset.rs`),
+  and the landing names one that records the worktree's stat data
+  (`src/native/index/index_reset_worktree_stat.rs`)
+  for a path whose file provably holds the entry's bytes.
+  The proof is a set of facts together,
+  as narrowed by the cross-vendor review of 2026-11-09 (commit `91c7dafc9c`,
+  which answers its five findings):
+  the path is a regular file whose directories on the way are real ones on the worktree's device,
+  reached below a root held open without following a link (a symbolic link is left to Git,
+  since it is rare and a link read across a swap of its parent cannot be proven to be the one examined);
+  the file's raw bytes hash to the entry's object name read as a blob;
+  no attribute Git applies converts these bytes,
+  and the bytes hold no carriage return
+  (`ContentJudge::conversion_is_the_identity`,
+  read in process from the files Git itself would read,
+  with `attr.tree` and `GIT_ATTR_SOURCE` refused and an unestablished fact refusing the record);
+  the state of the one inode read is the same before,
+  during and after the read and the path still names it;
+  and the file is older than the index file being written,
+  compared to the nanosecond as Git's `is_racy_stat` compares them.
+  Everything else keeps the all-zero value `git reset --no-refresh` writes:
+  a file as new as the index (racily clean to Git),
+  another kind of file,
+  a symlink,
+  a file above `CONTENT_LIMIT`,
+  a file that changed while it was read,
+  a path a conversion may change,
+  and a path no file holds.
+  The review's raw-byte finding is why the earlier sentence here,
+  that a conversion could only cost a refresh,
+  is gone:
+  a clean filter,
+  `ident` or a `working-tree-encoding` can leave raw bytes equal to the blob while Git's view of the file is another
+  blob,
+  and a reader trusting the recorded stat data would then call the file clean.
+  The open does not block (`fs_beneath::open_file_at`,
+  `O_NONBLOCK`),
+  so a fifo renamed over the path is refused by its type instead of holding the landing's index lock for a writer.
+  One landing reads at most `CONTENT_LIMIT` bytes in all,
+  every read is charged including one the stability checks refuse,
+  and a read takes at most what is left of the bound,
+  so a file grown after its first examination is not read past it.
+  The attribute facts cost one `git var GIT_ATTR_SYSTEM` the first time a given real Git has no cache entry for them
+  (traced from a fresh `XDG_CACHE_HOME`:
+  one `execve`,
+  then none),
+  and the steady state adds no Git start;
+  the check itself took 0.094 to 0.104 ms for a landing of 200 paths in five directories,
+  and the whole proof 2.9 to 3.1 ms (about 15 microseconds a path).
+  The 4,000 newest non-merge commits of this repository change a median of 27 KB
+  (p90 209 KB,
+  p99 3.3 MB,
+  largest 23.1 MB,
+  `package/git-policy/cli/e2e/commit-shape-trace.json`),
+  so no commit there spends the bound.
+- The staleness question
+  (`src/native/commit/commit_index_stat_staleness.rs`)
+  walks its entries in contiguous slices on several threads,
+  one linear walk in all,
+  from `STAT_WALK_BREAK_EVEN_ENTRIES` entries up,
+  with the worker count of `parallel_budget.rs`;
+  a worker that panicked counts as one that found a stale entry.
+  It still reads the index's bytes and takes no lock.
+
+Controls,
+each written before its fix:
+
+- `src/native/index/index_reset_worktree_stat_tests.rs`:
+  a file that holds the entry's bytes records the file's stat data,
+  one that holds other bytes of the same size records nothing,
+  one as new as the index records nothing while the same file older than it records,
+  a symbolic link records nothing,
+  one that changed while it was read records nothing,
+  one above the content bound records nothing,
+  a path of another kind,
+  a missing path and a gitlink record nothing,
+  and the review's four:
+  a clean filter,
+  a `working-tree-encoding` and an `ident` each refuse while a path they do not name records;
+  a carriage return refuses while the same bytes without one record;
+  a fifo renamed over the path before the open is not opened for reading (bounded at five seconds,
+  which it timed out at before the fix);
+  a read the stability checks refuse is still charged;
+  and one read takes at most what is left of the bound.
+- `src/native/index/index_reset_recorded_stat_tests.rs`:
+  a path the worktree still holds records the file's stat data while a path edited after its capture keeps the zero value and
+  its edit stays in `git status`,
+  a file older than the index records its stat data while one dated after it records nothing,
+  and the commit after a landing asks for no refresh for the paths that landing recorded.
+- `src/native/commit/commit_index_stat_staleness_tests.rs`:
+  the sliced walk answers exactly what the one linear walk answers for one to eight threads on a clean index and on one whose
+  file moved inode,
+  and a walk below the break-even uses one thread.
+- `src/native/index/index_reset_file_tests.rs`:
+  the root commit case compares the two indexes with the stat data zeroed,
+  since the landing now records values where `git reset --no-refresh` writes zeros;
+  every other differential control still compares the files byte for byte.
+
+Failing output of the new controls,
+before their fix:
+
+- With the proof replaced by a plain `lstat` of the path (no content,
+  stability or racy check),
+  eight controls failed,
+  among them `a_path_the_worktree_holds_records_the_files_stat_data_and_one_edited_after_its_capture_records_none`
+  ("a path edited after its capture keeps the zero stat data Git hashes",
+  the edit would have been hidden),
+  `a_file_that_changed_while_it_was_read_records_nothing`,
+  `a_file_as_new_as_the_index_records_nothing`,
+  `a_file_that_holds_other_bytes_records_nothing`,
+  and `a_file_edited_in_the_same_second_as_its_stat_data_was_read_records_nothing`
+  ("the reset is the plain case",
+  the recorded racily clean entry made the update decline to Git).
+- With the landing's `WorktreeStat::None`,
+  all three controls of `index_reset_recorded_stat_tests.rs` failed
+  ("the path the worktree holds records the file's stat data",
+  "an older file records its stat data",
+  and the commit after a landing needing the refresh).
+
+The measurements and what is still open are in the section after this one.
+
+### The second review of the recorded stat data (2026-11-09T04:30:00-05:00)
+
+The second cross-vendor review found four defects in the proof and named three things it could not determine.
+
+What it found,
+and what each answer was:
+
+- An attributes file the index holds applies where the worktree's copy is missing,
+  and the proof treated a missing file as no attributes:
+  real Git falls back to the index (`attr.c` `prepare_attr_stack`),
+  probed on Git 2.56.0
+  (`git check-attr filter -- a.txt` still answers `filter: weird` after the worktree's `.gitattributes` is removed,
+  and a sparse checkout whose cone excludes the file reads the index the same way).
+  Fixed in `be7d25c004`:
+  the landing collects the directories whose `.gitattributes` the index holds
+  (`indexed_attribute_directories`,
+  from the entries before the reset and the tree it installs),
+  and the proof refuses a path whose ancestry has such a directory without a worktree copy,
+  from the root down.
+  A path with no indexed copy in its ancestry is unaffected.
+- An unsuccessful read escaped the content bound:
+  the overflow probe read one byte past the room and the caller charged the room,
+  and a partial read that then failed charged nothing.
+  Fixed in `1d16a4aa5e`:
+  the read is one linear pass in `READ_CHUNK` pieces charged as they arrive,
+  capped at the room,
+  and the size the open handle reports decides whether a file is read at all,
+  so nothing is read past the bound and nothing charged for it.
+  Its controls count the bytes the file hands over,
+  through the new read seam,
+  rather than the counter they feed.
+- Attribute reads bypassed the bound and the parsed files stayed cached without one.
+  Fixed in `c5989ba4eb`:
+  `ContentJudge` charges every attribute byte it reads to the landing's budget
+  (`charge_attributes_to`),
+  refuses a file that does not fit,
+  and keeps no more than it charged.
+  A refusal costs the record and never the commit:
+  the reset still proceeds and the entry keeps the zero value.
+  The attribute reading moved to `worktree_clean_content_attributes.rs` for the line limit.
+- A stalled regular-file read has no time bound,
+  and `O_NONBLOCK` does not supply one.
+  It holds:
+  `guarded` is panic protection only (`repo_read_hook.rs:73`),
+  and every ceiling in the landing wraps a child process (`child_watch`) or a client's wait,
+  never an in-process read.
+  What bounds the person is the client's `ANSWER_CEILING` (20 minutes,
+  `wait_ceilings.rs:34`):
+  the client then withdraws the request,
+  the service takes a withdrawal between two landings,
+  and a landing inside the read reports `WithdrawalUnconfirmed` with the step it is stuck in,
+  so the commit is reported and never lands by itself.
+  What we add over native Git:
+  native `git commit` reads the same files synchronously while holding `index.lock`,
+  so a stalled mount stalls it too,
+  but only its own process;
+  our read holds the service's landing thread,
+  and that worktree's other commits queue behind it.
+  Not fixed here:
+  a time bound needs the proof on a worker thread with a deadline
+  (the judge and its caches borrow the landing,
+  so a bounded job would be a per-landing worker that is abandoned on a
+  stall,
+  leaving a thread and a file handle behind each time),
+  which is a cost on the commit path and a leak on the mount it guards,
+  and moving the proof before the lock costs a wide change through the landing's recovery paths
+  and work repeated on every rebuild.
+  The read is bounded in bytes (32 MiB) and the proof costs 2.9 to 3.1 ms for 200 paths,
+  three orders of magnitude inside the owner's five-second bound for a filesystem that answers at all.
+  The bound that was declined is measured:
+  a worker thread serving the proof's requests costs 0.047 ms to start and join,
+  and 1.239 ms with one round trip for each of 200 paths,
+  against the proof's own 2.9 to 3.1 ms,
+  so the dispatch is not what declined it:
+  the worker would own the judge and its cached attributes (the decision borrows the landing today),
+  be abandoned on each stall with its thread and file handle,
+  and need its own control for a read that never returns.
+  That is open work for the owner to weigh,
+  not a silent gap.
+
+What the review could not determine,
+checked here:
+
+- Attribute matching with case folding and Unicode:
+  `may_apply` answers "may apply" for every spelling it does not model (a quote,
+  an escape,
+  a bracket class,
+  `**`,
+  a trailing slash,
+  a comparison over the work limit),
+  and compares the modelled ones byte for byte,
+  which is Git's own case-sensitive byte matcher (`wildmatch` with `WM_PATHNAME` and no case folding);
+  a "does not apply" answer is therefore one Git would also not match.
+- The nanosecond racy comparison:
+  `IndexStamp::is_racy` is Git's `is_racy_stat` with `USE_NSEC`,
+  and a Git built without nanosecond times compares whole seconds,
+  which marks more entries racily clean than the proof does,
+  so it can only hash more than the proof recorded and never hide an edit.
+  The build here (Git 2.56.0) does not report the option in `git version --build-options`.
+- Sparse indexes and sparse checkouts:
+  `index.sparse` and `core.splitIndex` are in the reset's declined configuration
+  (`index_settings.rs`),
+  so no proof runs for such an index,
+  and the configuration control now covers both keys;
+  a sparse checkout's missing files and missing `.gitattributes` are refused by the proof's own checks.
+
+### What the recorded stat data and the parallel walk measured (2026-11-08T19:45:00-05:00)
+
+Measured on this host (8 CPUs,
+other sessions running),
+with alternating arms and the same binary with the feature switched off as the control,
+so the only difference between the arms is the recording and the parallel walk.
+
+The commit after a commit,
+in throwaway repositories of twelve files where each commit names one path
+(the path the previous commit landed is the one this one does not name),
+traced with `strace -f -e trace=execve,openat` around the second commit,
+three rounds per arm,
+the same counts in every round:
+
+- The arm with the recording off started eight Git processes in that commit,
+  and its debug log has the line `refreshStatData … holds the worktree's stat data now`:
+  the staleness question asked for the `git update-index --refresh` that hashes the path the previous commit landed.
+- The arm with the recording on started seven Git processes,
+  and its debug log carries no `refreshStatData` line:
+  the question answered "not needed",
+  so the commit paid no Git start and no hash for that path.
+- The reads the trace attributes to that path varied between rounds (one or two with the recording off,
+  one with it on),
+  because the wrapper's own checks read it too;
+  the Git starts and the refresh line did not vary.
+- Re-measured after the review's fixes of 2026-11-09 (commit `91c7dafc9c`),
+  which add the attribute facts to the proof:
+  the counts are the same,
+  because the first commit of each fixture warms the attributes cache and the second pays no start for it.
+- The wall clock of that commit was 891 and 1,854 ms with the recording off and 960 and 755 ms with it on in
+  four untraced runs,
+  a spread larger than any difference between the arms,
+  so this host under other sessions' load cannot show the saving as milliseconds;
+  the counters above are what the saving is.
+
+The staleness question's walk,
+release build,
+on a throwaway repository of 22,200 committed files
+(no locks taken,
+the index's bytes read in process),
+medians of nine walks for the whole pass and of twenty-five for the shorter ones:
+
+- One thread,
+  no thread started:
+  160.12 ms.
+  Seven workers,
+  the budget of this 8-CPU host:
+  30.56 ms.
+  Eight:
+  27.45 ms.
+  The whole question,
+  index bytes and walk together:
+  19.37 ms.
+- The break-even is 32 entries:
+  16 entries took 0.125 ms on one thread and 0.145 ms on seven,
+  so the threads lost there;
+  32 took 0.218 ms against 0.158 ms,
+  64 0.391 ms against 0.193 ms,
+  128 0.786 ms against 0.289 ms,
+  256 1.651 ms against 0.479 ms,
+  512 3.223 ms against 0.858 ms,
+  2,048 13.335 ms against 2.912 ms.
+  `STAT_WALK_BREAK_EVEN_ENTRIES` holds that 32 with the table beside it.
+
+Still to do:
+
+- The refresh a commit still asks for when a landed path was edited in the same instant as the index it landed in:
+  such an entry is racily clean to Git,
+  so it keeps the all-zero stat data and the next commit hashes it,
+  as native Git does.
+- The whole question's own index read and parse were not parallelised;
+  they are 19.37 ms of the 22,200-entry measurement above,
+  against Git's 10 ms for the same stat pass.
+- The cost the recording adds to a landing was not measured end to end:
+  it hashes the bytes of each path it can prove,
+  in process,
+  inside the landing's index lock,
+  at most `CONTENT_LIMIT` bytes per landing,
+  where 32 MiB of SHA-1 costs 10 to 20 ms on this host;
+  `native:perf` is the run that would show it against native Git.
 
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 
@@ -4226,6 +4618,77 @@ they and the scratch files that hold a child's standard error,
 used by the LFS upload and the held-lock retry,
 are in append mode now).
 
+- Five binary controls of this crate failed once in whole-suite runs on 2026-11-08
+  (logs `~/temp/agent/pi-printed-waits/full-binary.log` and `binary-rest.log`,
+  host load average above 100;
+  four of them passed alone in 7.2 s).
+  Each cause was measured,
+  and each fix,
+  its failing output and its plant are in the commits of
+  `fix/git-policy-cli-binary-suite-holds-under-contention`.
+  - `service_mode::the_same_start_with_the_real_git_listens` bound its socket at
+    `<fixture root>/real.sock`.
+    The fixture root under this host's build directory makes that name 135 bytes,
+    and a Unix socket name must fit `SUN_LEN` (107 bytes),
+    so the start was refused and
+    the control failed with "the service ended before it listened" after 1.028 s.
+    Measured:
+    the same start with a 170-byte `--path` answers "cannot listen:
+    path must be shorter than
+    SUN_LEN" and exits 3,
+    and the pre-fix control failed with this host's root and passed with one 54 bytes shorter.
+    The socket is now in `short_runtime_directory` (the directory the fixture's own services use)
+    and the service's own error stream goes into the failure (`kept_stderr_pipe`).
+    No production path reaches the limit:
+    `socket_for` names a socket by a 32-digit hash of the Git directory,
+    never by its path,
+    and `service_instance_tests::the_name_is_short_and_plain_for_any_directory` holds a
+    400-segment directory's socket under 108 bytes.
+  - `service_landing_lock::a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_it`
+    and `service_landing_lock::a_foreign_holder_proven_alive_is_waited_for_until_it_lets_go_and_the_commit_lands_on_top`
+    failed with the wrapper's `concurrent-commit/replay-conflict` finding
+    (`left: Some(1)`,
+    `right: Some(0)`):
+    the foreign holder ran `git commit --all`,
+    which staged the `a.txt` the control writes while the holder's editor is open,
+    so the holder landed the control's own change,
+    and the landing built again after the branch moved met the same file changed on both sides.
+    The holder now names `b.txt`,
+    and a new assertion requires the holder's commit to change only that file;
+    with `--all` restored it fails with `left: "a.txt\nb.txt"`,
+    `right: "b.txt"`.
+  - `service_heartbeat::a_waiting_command_keeps_its_scratch_directory_from_being_swept` failed with
+    `answer: Os { code: 32, kind: BrokenPipe }` after 2.884 s.
+    Its client calls the service stopped after `QUICK_SILENCE` (300 ms) without a beat,
+    and the control does its own work (aging two directories,
+    then the sweep) between two beats,
+    so a stall longer than that closed the connection before the answer went out.
+    The control's client now has `PATIENCE` as its silence bound,
+    and an answer that cannot be written reports what the client ended with;
+    with `renew_scratch` made a no-op the control fails in 15.2 s with
+    "the waiting command's directory was swept".
+  - `service::a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once` failed with
+    "the client is answered after the restart:
+    ServiceSilent" after 108.98 s,
+    and its amend sibling passed that run in 235 s.
+    The client's silence bound was 60 s,
+    which is `SETTLE_LOCK_CEILING`,
+    the wait of the restart's `settle_open_batches` for the `index.lock` the killed service left;
+    `serve_in_a_landing` settles before `start_acceptor_or_exit`,
+    so a settle that used its whole ceiling kept the restarted service from greeting until the client
+    had given up.
+    Both controls' clients now wait `RESTART_PATIENCE` (240 s,
+    below the per-test limit) and report the
+    notices they printed instead of `submit_quietly`'s silence;
+    with the service restarted at another address the control fails in 75.4 s with
+    "the client ended before the restarted service answered:
+    DidNotStart".
+    Not observed directly:
+    that the settle waited for that lock.
+    The failing run logged `ready` and then nothing for 60 s;
+    a `settle_ms` line for that restart would settle it,
+    and the journal writes no such line while the settle waits.
+
 - `fault_limits::a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` failed once in the
   gate of the repository-lint branch at `d75d5a2d91`:
   the service logged `cannot start the thread for the after-commit work: Resource temporarily unavailable (os error 11)`
@@ -4628,8 +5091,8 @@ their files and mutation evidence kept deliberately;
   `integrate-073`,
   `integrate-075`).
   Still present:
-  worktrees a Markdown file cites by path,
-  which go in the next pass once `wrapper-handover-stale-sections-moved-out` has landed and removed those citations;
+  worktrees a Markdown file still cites by path,
+  which stay until that citation is reworded;
   worktrees whose branch holds commits main lacks (`agent-a5dcd5dad237603e3`,
   `agent-ab3dd6294f9d91284`,
   `agent-aba63f1400b66332c`,
@@ -4794,6 +5257,35 @@ and a retry notice written before the retry plan is durable.
 The waits that no ceiling ends,
 the one move that can advance a branch the reconcile never checked,
 and the notice deleted before it is shown are there with `path:line` and suggested fixes.
+
+No review covers the discarding route either:
+the reading of `reset`,
+`checkout`,
+`switch`,
+`restore`,
+`clean`,
+`stash`,
+`rm`,
+`mv`,
+`checkout-index`,
+`read-tree`
+and the abort forms,
+the rule for the main worktree and for a dirty one,
+the audit log,
+and the saved copies under `discarded`.
+Its audit,
+with seven findings ranked by what they risk losing,
+six of them reproduced,
+is `doc/planning/cli-git-discarding-commands-route-findings-on-main.md`
+(2026-11-09;
+main at `9d4e5a9970`).
+The first two lose uncommitted work with the wrapper's approval:
+`git worktree remove` is not in the guard at all,
+and the dirtiness measurement cannot see ignored files,
+so `git clean -fdx` deletes them and a plain `git checkout <branch>` can replace them.
+An alias reaches no guard,
+`git stash drop` in a clean linked worktree discards the repository's stash,
+and `git branch -D` is unguarded.
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,

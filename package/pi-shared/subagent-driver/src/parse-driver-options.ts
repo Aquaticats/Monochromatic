@@ -5,8 +5,13 @@
  */
 
 import { parseArgs, } from 'node:util';
-import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import type { DriverOptions, } from './driver-types.ts';
+import {
+  type RequiredOption,
+  requiredPositiveNumber,
+  requiredSeconds,
+  requiredText,
+} from './required-option-values.ts';
 
 /**
  The driver's command line, for the error message.
@@ -25,113 +30,51 @@ export class DriverOptionsError extends Error {
 }
 
 /**
- Reads an option that must be present.
+ Builds the error this command answers a refused option with.
 
- @param value - option's value as parsed
+ @param message - what is wrong with the command line
 
- @param name - option's name for the message
-
- @returns option's text
-
- @throws DriverOptionsError when option is missing or empty
+ @returns the error the command exits with
 
  @example
  ```ts
- const folder = requiredText({ value: 'x', name: 'run-folder', },);
+ throw driverOptionsErrorOf('--runs-folder is required.',);
  ```
  */
-function requiredText({
-  value,
-  name,
-}: {
-  readonly value: unknown;
-  readonly name: string
-},): string {
-  if (((typeof value) !== 'string') || (value === '')) {
-    throw new DriverOptionsError(`--${name} is required.\nUsage: ${DRIVER_USAGE}`,);
-  }
-  return value;
+function driverOptionsErrorOf(message: string,): Error {
+  return new DriverOptionsError(message,);
 }
 
 /**
- Reads an option that must be a number above zero.
+ Describes one option for the readers that refuse it.
 
- @param value - option's value as parsed
+ @param value - the option's value as the command line parser read it
 
- @param name - option's name for the message
+ @param name - the option's name, without the leading dashes
 
- @returns option's number
-
- @throws DriverOptionsError when option is missing or not a number above zero
+ @returns what a reader of an option needs to refuse it
 
  @example
  ```ts
- const seconds = requiredPositiveNumber({ value: '60', name: 'wall-seconds', },);
+ const option = optionOf({
+          value: values['run-folder'],
+          name: 'run-folder',
+        },);
  ```
  */
-function requiredPositiveNumber({
+function optionOf({
   value,
   name,
 }: {
   readonly value: unknown;
-  readonly name: string
-},): number {
-  /**
-   The option's text.
-   */
-  const text = requiredText({
+  readonly name: string;
+},): RequiredOption {
+  return {
     value,
     name,
-  },);
-  /**
-   The option's number.
-   */
-  const parsed = Number(text,);
-  if ((!Number.isFinite(parsed,)) || (parsed <= 0)) {
-    throw new DriverOptionsError(`--${name} must be a number above zero; it was "${text}".\nUsage: ${DRIVER_USAGE}`,);
-  }
-  return parsed;
-}
-
-/**
- Reads an option that must be a duration above zero whose milliseconds, and whose deadline from now, stay finite. A limit that
- becomes infinite is no limit at all.
-
- @param value - option's value as parsed
-
- @param name - option's name for the message
-
- @returns option's number of seconds
-
- @throws DriverOptionsError when option is missing, not a number above zero, or too large to be a deadline
-
- @example
- ```ts
- const seconds = requiredSeconds({ value: '60', name: 'wall-seconds', },);
- ```
- */
-function requiredSeconds({
-  value,
-  name,
-}: {
-  readonly value: unknown;
-  readonly name: string
-},): number {
-  /**
-   The option's seconds.
-   */
-  const seconds = requiredPositiveNumber({
-    value,
-    name,
-  },);
-  /**
-   The milliseconds the driver computes a deadline from, which is what any timer receives.
-   */
-  const milliseconds = seconds * MILLISECONDS_PER_SECOND;
-  if ((!Number.isFinite(milliseconds,)) || (!Number.isFinite(Date.now() + milliseconds,))) {
-    throw new DriverOptionsError(`--${name} must be a number of seconds whose milliseconds stay finite; it was "${String(seconds,)}".\nUsage: ${DRIVER_USAGE}`,);
-  }
-  return seconds;
+    usage: DRIVER_USAGE,
+    errorOf: driverOptionsErrorOf,
+  };
 }
 
 /**
@@ -174,40 +117,40 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
       },
     },);
     return {
-      runFolder: requiredText({
+      runFolder: requiredText(optionOf({
         value: values['run-folder'],
         name: 'run-folder',
-      },),
-      workingFolder: requiredText({
+      },),),
+      workingFolder: requiredText(optionOf({
         value: values['working-folder'],
         name: 'working-folder',
-      },),
-      promptFile: requiredText({
+      },),),
+      promptFile: requiredText(optionOf({
         value: values['prompt-file'],
         name: 'prompt-file',
-      },),
-      provider: requiredText({
+      },),),
+      provider: requiredText(optionOf({
         value: values.provider,
         name: 'provider',
-      },),
-      model: requiredText({
+      },),),
+      model: requiredText(optionOf({
         value: values.model,
         name: 'model',
-      },),
+      },),),
       ...(values.session === undefined ? {} : { session: values.session, }),
       piArguments: values['pi-argument'] ?? [],
-      wallSeconds: requiredSeconds({
+      wallSeconds: requiredSeconds(optionOf({
         value: values['wall-seconds'],
         name: 'wall-seconds',
-      },),
-      idleSeconds: requiredSeconds({
+      },),),
+      idleSeconds: requiredSeconds(optionOf({
         value: values['idle-seconds'],
         name: 'idle-seconds',
-      },),
-      turnCap: requiredPositiveNumber({
+      },),),
+      turnCap: requiredPositiveNumber(optionOf({
         value: values['turn-cap'],
         name: 'turn-cap',
-      },),
+      },),),
     };
   }
   catch (error) {
