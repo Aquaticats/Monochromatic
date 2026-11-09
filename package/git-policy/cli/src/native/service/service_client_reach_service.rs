@@ -132,7 +132,9 @@ pub(crate) fn reach(
                     // ```
                     if answer.as_deref() == Some("failed") && repairs == 0 {
                         repairs += 1;
+                        // The service unit requires the socket unit, so one start covers both and both states are forgotten.
                         let _forgotten = (watch.reset)(watch.bus.as_path(), watch.unit.as_str());
+                        let _socket_forgotten = (watch.reset)(watch.bus.as_path(), watch.socket_unit.as_str());
                         let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
                         last_start_request = Some(Instant::now());
                         failed_answers = 0;

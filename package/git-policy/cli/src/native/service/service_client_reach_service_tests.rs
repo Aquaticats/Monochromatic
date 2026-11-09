@@ -144,13 +144,22 @@ fn asked() -> Vec<String> {
 /// ```ts
 /// reachConfig({ socket, every: 40, startWait: 200, startCeiling: 5000 })
 /// ```
-fn config(socket: &str, unit: &str) -> ClientConfig {
+fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
     return ClientConfig {
         address: Bind::Abstract(String::from(socket)),
         activation: Activation::Managed,
-        start_wait: Duration::from_millis(200),
+        // A whole second, so the covered case cannot spend it unnoticed: the client must ask after the first answer.
+        start_wait: Duration::from_secs(1),
         heartbeat_silence: Duration::from_millis(200),
-        start_watch: Some(ManagerWatch { bus: PathBuf::from("/nonexistent/bus"), unit: String::from(unit), every: Duration::from_millis(40), state: stand_in_state, start: stand_in_start, reset: stand_in_reset }),
+        start_watch: Some(ManagerWatch {
+            bus: PathBuf::from("/nonexistent/bus"),
+            unit: String::from(unit),
+            socket_unit: String::from(socket_unit),
+            every: Duration::from_millis(40),
+            state: stand_in_state,
+            start: stand_in_start,
+            reset: stand_in_reset,
+        }),
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
         withdraw_ceiling: Duration::from_secs(5),
@@ -188,7 +197,7 @@ const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// expect(await reach(config)).toBeDefined();
-/// expect(asked).toContain('start monochromatic-git-policy-cli@…socket');
+/// expect(asked).toContain('start monochromatic-git-policy-cli@….service');
 /// ```
 #[test]
 fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_reached() {
@@ -199,9 +208,16 @@ fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_re
         manager.state = Some(String::from("failed"));
         manager.asked.clear();
     }
-    let unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
     let mut announced: bool = false;
-    let reached = reach(&config(socket.as_str(), unit.as_str()), &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
+    let reached = reach(
+        &config(socket.as_str(), unit.as_str(), socket_unit.as_str()),
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    );
     let asked_of_the_manager: Vec<String> = asked();
     let (reader, version, release) = reached.unwrap_or_else(|failure| {
         panic!("the service the manager was asked to start must be reached: {failure:?} after {asked_of_the_manager:?}")
@@ -217,4 +233,7 @@ fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_re
     assert!(reset_at.is_some(), "the failed state is forgotten: {asked_of_the_manager:?}");
     assert!(start_at.is_some(), "the unit is asked to start: {asked_of_the_manager:?}");
     assert!(reset_at < start_at, "the reset comes before the start: {asked_of_the_manager:?}");
+    // The socket unit is required by the service unit, so its failed state is forgotten in the same repair.
+    let socket_reset: String = format!("reset-failed {socket_unit}");
+    assert!(asked_of_the_manager.iter().any(|call| { return *call == socket_reset; }), "the socket unit's failed state is forgotten too: {asked_of_the_manager:?}");
 }

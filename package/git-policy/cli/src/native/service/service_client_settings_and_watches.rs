@@ -13,7 +13,7 @@
 //! ```
 
 use crate::service_messages::Platform;
-use crate::service_instance::service_unit_instance;
+use crate::service_instance::{service_unit_instance, socket_unit_instance};
 use crate::service_provision::ProvisionHost;
 use crate::systemd_dbus::{Bus, EXCHANGE_WAIT};
 use crate::service_server::Bind;
@@ -107,7 +107,7 @@ pub struct FreshScratch {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ManagerWatch = { bus: string; unit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean; reset: (bus, unit) => boolean };
+/// type ManagerWatch = { bus: string; unit: string; socketUnit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean; reset: (bus, unit) => boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ManagerWatch {
@@ -115,6 +115,11 @@ pub struct ManagerWatch {
     pub bus: std::path::PathBuf,
     /// The service unit of the worktree.
     pub unit: String,
+    /// The socket unit of the worktree,
+    /// which the service unit requires:
+    /// a start of the service starts it too,
+    /// so a failed state is forgotten for both together.
+    pub socket_unit: String,
     /// How often the manager is asked while the greeting has not come.
     pub every: Duration,
     /// The unit's `ActiveState` now (`active`,
@@ -176,6 +181,7 @@ pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
     return ManagerWatch {
         bus: host.bus.clone(),
         unit: service_unit_instance(host.instance.as_str()),
+        socket_unit: socket_unit_instance(host.instance.as_str()),
         every: MANAGER_ASK_EVERY,
         state: unit_state,
         start: start_unit,
