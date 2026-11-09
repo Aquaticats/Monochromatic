@@ -5797,6 +5797,11 @@ a line still waiting at that ceiling is abandoned and logged.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
+An override is recognized only as a `command` scope value
+(the only place the wrapper's overrides come from)
+that names `<git-common-dir>/<data folder>/shadow/<transaction>/no-hooks`,
+where the data folder is `monochromatic-git-policy-cli` or its earlier spelling:
+a path that merely ends the same way belongs to whoever made it and still warns.
 
 ### Core finding event
 

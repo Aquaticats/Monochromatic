@@ -108,19 +108,21 @@ fn the_last_entry_decides_and_empty_entries_name_no_directory() {
     assert_eq!(configured_hooks_path(&valueless), None);
 }
 
-/// The wrapper's own hooks-off values are not the user's choice and never warn;
+/// The wrapper's own hooks-off values are not the person's choice and never warn;
 /// lookalikes still do.
 #[test]
 fn the_wrappers_own_overrides_do_not_warn() {
     for own in [
         String::from(NO_HOOKS_DIRECTORY),
         format!("/repo/.git/monochromatic-git-policy-cli/{SHADOW_ROOT_NAME}/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}"),
+        format!("/repo/.git/cli-git/{SHADOW_ROOT_NAME}/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}"),
     ] {
-        assert!(is_wrapper_hooks_path(own.as_str()), "{own}");
+        assert!(is_wrapper_hooks_path("command", own.as_str()), "{own}");
         let snapshot: ConfigSnapshot = listing_snapshot(&[("command", format!("core.hookspath\n{own}").as_str())]);
         assert_eq!(traditional_hooks_warning(Some(&snapshot)), None, "{own}");
     }
     for other in [
+        format!("/project/{SHADOW_ROOT_NAME}/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}"),
         format!("/repo/.git/monochromatic-git-policy-cli/{SHADOW_ROOT_NAME}/{TRANSACTION}/elsewhere"),
         format!("/repo/.git/monochromatic-git-policy-cli/{SHADOW_ROOT_NAME}/{TRANSACTION}/hooks"),
         format!("/repo/.git/other-root/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}"),
@@ -130,10 +132,15 @@ fn the_wrappers_own_overrides_do_not_warn() {
         String::from("hooks"),
         String::new(),
     ] {
-        assert!(!is_wrapper_hooks_path(other.as_str()), "{other}");
+        assert!(!is_wrapper_hooks_path("command", other.as_str()), "{other}");
     }
     let lookalike: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\n/repo/.git/hooks")]);
     assert!(traditional_hooks_warning(Some(&lookalike)).is_some());
+    // Even the wrapper's own spelling is the person's choice in a configuration file: the wrapper writes none.
+    let written: String = format!("/repo/.git/monochromatic-git-policy-cli/{SHADOW_ROOT_NAME}/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}");
+    assert!(!is_wrapper_hooks_path("local", written.as_str()), "{written}");
+    let file_scope: ConfigSnapshot = listing_snapshot(&[("local", format!("core.hookspath\n{written}").as_str())]);
+    assert!(traditional_hooks_warning(Some(&file_scope)).is_some(), "{written}");
 }
 
 /// The writer puts exactly one line on the stream when the setting exists and nothing when it does not.
@@ -225,4 +232,24 @@ fn a_blocked_warning_write_returns_within_its_ceiling() {
     // The writer is left waiting on purpose: a blocked write has no end, and the test process ends it.
     let _abandoned = writer;
     assert!(answered.is_ok(), "the warning write never returned, so a stream that stops draining holds a commit forever");
+}
+
+/// What:
+///  A `core.hooksPath` the wrapper does not own warns,
+/// even when it ends in `shadow/<transaction>/no-hooks`.
+/// Why:
+///  The wrapper's own override is written by its shadow commands into the data folder it keeps inside the
+///  repository's Git directory;
+/// a path a person chose that merely ends the same way is the person's choice,
+/// and the disclosure
+///  that traditional hooks never run must not be suppressed by a suffix.
+#[test]
+fn a_user_owned_shadow_shaped_path_still_warns() {
+    let unrelated: String = format!("/project/{SHADOW_ROOT_NAME}/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}");
+    assert!(!is_wrapper_hooks_path("command", unrelated.as_str()), "{unrelated}");
+    let snapshot: ConfigSnapshot = listing_snapshot(&[("command", format!("core.hookspath\n{unrelated}").as_str())]);
+    assert!(
+        traditional_hooks_warning(Some(&snapshot)).is_some(),
+        "a directory the wrapper does not own is the person's choice and must warn"
+    );
 }

@@ -36,6 +36,8 @@ use crate::wait_ceilings::WARNING_WRITE_CEILING;
 /// awaited no longer than that ceiling.
 use crate::work_awaited_within_a_ceiling::work_within;
 use crate::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
+/// The spellings of the folder the wrapper keeps inside a Git directory.
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
 /// How the wrapper names its transaction directories.
 use crate::random_id::is_canonical_uuid;
 /// A stream the warning is written to.
@@ -50,6 +52,11 @@ pub const TRADITIONAL_HOOKS_UNSUPPORTED_CODE: &str = "traditional-hooks-unsuppor
 
 /// Canonical (lowercase) snapshot key of the setting that triggers the warning.
 const HOOKS_PATH_KEY: &str = "core.hookspath";
+
+/// The scope of a value that reaches Git as a `-c` option or through `GIT_CONFIG_PARAMETERS`,
+/// which is
+///  the only place the wrapper's own overrides come from.
+const COMMAND_SCOPE: &str = "command";
 
 /// Module tag for diagnostics.
 const TAG: &str = "traditionalHookWarning";
@@ -68,9 +75,13 @@ const TAG: &str = "traditionalHookWarning";
 /// ```ts
 /// value === NO_HOOKS_DIRECTORY || /\/monochromatic-git-policy-cli\/shadow\/[0-9a-f-]{36}\/no-hooks$/.test(value)
 /// ```
-pub fn is_wrapper_hooks_path(value: &str) -> bool {
+pub fn is_wrapper_hooks_path(scope: &str, value: &str) -> bool {
     if value == NO_HOOKS_DIRECTORY {
         return true;
+    }
+    // A value a configuration file holds is somebody's choice, whatever it spells; the wrapper writes no configuration.
+    if scope != COMMAND_SCOPE {
+        return false;
     }
     let path: &Path = Path::new(value);
     let Some(name) = path.file_name().and_then(OsStr::to_str) else {
@@ -88,8 +99,16 @@ pub fn is_wrapper_hooks_path(value: &str) -> bool {
     if !is_canonical_uuid(identifier) {
         return false;
     }
-    return match shadow.parent().and_then(Path::file_name) {
-        Some(root) => root == SHADOW_ROOT_NAME,
+    let Some(root) = shadow.parent() else {
+        return false;
+    };
+    if root.file_name() != Some(OsStr::new(SHADOW_ROOT_NAME)) {
+        return false;
+    }
+    // The folder above `shadow` is the wrapper's own data folder inside the Git directory, whose name this build knows.
+    // A path that merely ends in `shadow/<transaction>/no-hooks` belongs to whoever made it.
+    return match root.parent().and_then(Path::file_name) {
+        Some(folder) => folder == OsStr::new(DATA_FOLDER.current) || folder == OsStr::new(DATA_FOLDER.earlier),
         None => false,
     };
 }
@@ -121,7 +140,7 @@ pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
         return None;
     }
     let text: String = String::from_utf8_lossy(bytes).into_owned();
-    if is_wrapper_hooks_path(text.as_str()) {
+    if is_wrapper_hooks_path(entry.scope.as_str(), text.as_str()) {
         return None;
     }
     return Some(text);
