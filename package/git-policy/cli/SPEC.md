@@ -2145,8 +2145,14 @@ the command whose rename wins shows the words,
 so two commands that read the record before either showed it print it once,
 and its removal can take only its own name,
 never a record the service wrote meanwhile.
-A claim whose holder is provably gone is taken over,
-and a record whose words could not be written goes back to its own name for the next command
+Every claim takes a name of its own,
+and every move is a no-replace rename (`renameat2` with `RENAME_NOREPLACE`),
+so a name that is already taken keeps whatever holds it:
+taking over an abandoned claim cannot replace a record the same command claimed first,
+and a record whose words could not be written goes back to its own name for the next command only when that name is
+free,
+staying under its claim otherwise,
+where a later command finds it once this one is gone
 (`Notice::show`).
 
 #### Merges and commits never fail
@@ -2321,9 +2327,12 @@ and the message it passes is the branch's reflog entry for the move.
 A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
 content,
 and the merge is computed again on the moved head (`src/native/merge/merge_isolation_moved.rs`).
-A `git switch` that lands between that look and the `read-tree` is put back to the tree the checkout shows then,
-never to the branch the reconcile checked,
-and nothing is written back when that tree is the merge's already
+A `git switch` that lands between that look and the `read-tree` is put back to the tree this fast-forward started from,
+never to the branch the reconcile checked and never to the checkout's whole tree:
+`read-tree -u -m` changes only the paths where that tree and the merge's differ,
+which are exactly the paths the move wrote,
+so a staged edit of the person's on any other path stays as it was.
+Nothing is written back when the checkout already shows the merge's tree
 (`move_the_named_branch` in `src/native/push/auto_push_reconcile_branch_advance.rs`).
 A push the service stopped or that failed is tried again by the service on its own,
 with doubling pauses from
@@ -2332,9 +2341,14 @@ until it lands or the person must act (`src/native/push/push_retry.rs`).
 A branch the person deleted is settled as done with one notice that names the commit and every ref that still holds it:
 nothing is sent,
 every later attempt would fail the same way,
-and when no ref holds the commit any more the notice says so
-(`source_branch_is_gone` in `src/native/push/push_retry.rs`,
-`branch_is_gone_words` in `src/native/landing/service_work.rs`).
+and when no ref holds the commit any more the notice says so.
+The repository decides this,
+never the words of the push's output,
+which any program a push runs can print:
+`rev-parse --verify --quiet <branch>` answers whether the branch is there
+(`branch_exists` and `branch_is_gone_words` in `src/native/landing/service_work.rs`).
+A search for the refs that hold the commit that fails is not an empty answer:
+the notice says that it could not be told and names the commit still.
 The person must act for a conflict,
 for a login the service does not have,
 and for a hook on the server that declined the push
@@ -2621,6 +2635,10 @@ of the review call and of the whole review).
   and the writer gives up once the command has taken
   none of its input for the window
   (`write_within_the_window` in `src/native/push/bounded_query.rs`).
+  The writer reports what it could not write,
+  and a query whose request could not be written whole is a failure that names it,
+  never a success made from the prefix the command read:
+  a command can keep its own quiet meter busy on another stream while it postpones reading its input.
 - The reconcile's own Git children (`git merge-tree --write-tree`,
   every command of the word-level second pass,
   and the
@@ -4035,6 +4053,13 @@ in-process reader can) gives every value of the multi-valued keys.
   a push that ended between two looks with more printed than that keeps its own status,
   and the attempt says that only the head of its output is kept
   (`shortened_output_line` in `src/native/push/bounded_push.rs`).
+  The check of the output's size and the read of the output are two steps,
+  so a helper that keeps writing after the push exited can still pass the cap between them,
+  and that attempt then misses the line that says its output was cut.
+  It is left as it is:
+  reaching it needs a background helper writing inside that window,
+  and what it can cost is that line and nothing else
+  (`run_bounded_push_awaiting` in `src/native/push/bounded_push.rs`).
   Citation of the 4 MiB:
   none;
   the owner decided "Keep all lines" for push output and no
