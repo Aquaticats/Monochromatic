@@ -24,7 +24,7 @@ That file was deleted on 2026-10-31 in `e7b5130459`,
 so the line citations below count from it,
 not from the tree:
 the rule is now the `browserslist` kind declared in
-`file-enforcer.config.jsonc:199-207`
+`file-enforcer.config.jsonc:200-207`
 and implemented in `package/file-enforcer/cli/src/kind_browserslist.rs`.
 The config now reads the checked-in `.browserslistrc` path directly:
 `file-enforcer.config.ts:29-37`.
