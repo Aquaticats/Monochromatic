@@ -162,6 +162,8 @@ impl PendingJournal {
 /// if the name has that shape.
 /// Why:
 ///   The owner is part of the name so that taking a journal over is one atomic rename.
+///  A name of that shape has a token field,
+///  so a stranger's name whose token field is empty names no owner.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -171,6 +173,10 @@ pub fn owner_token_of(path: &Path) -> Option<String> {
     let name: String = path.file_name()?.to_string_lossy().into_owned();
     let stem: &str = name.strip_suffix(JOURNAL_SUFFIX)?;
     let (_identifier, token) = stem.rsplit_once('.')?;
+    // The writer fills both fields, so an empty token field is a stranger's file that must name no owner.
+    if token.is_empty() {
+        return None;
+    }
     return Some(token.to_string());
 }
 

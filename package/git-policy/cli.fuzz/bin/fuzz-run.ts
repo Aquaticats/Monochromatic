@@ -32,6 +32,16 @@ const statisticsTailBytes = 262_144;
  The line libFuzzer's `-print_final_stats=1` prints before the executed-unit count.
  */
 const statisticsMarker = 'stat::number_of_executed_units:';
+/**
+ Seconds one unit may run before libFuzzer reports a timeout: 60.
+
+ The bound is wall time, and a unit's wall time includes waits the fuzzer does not control: its own diagnostics leave
+ through the container's standard error, which `podman start --attach` drains into the evidence log. On 2026-11-08 a
+ 14-byte input was reported as a timeout at the earlier 5-second bound while the target sat inside a write to that
+ stream, and the same input completed in 0.15 seconds with a file as its standard error. Every unit measured on that
+ host took under a second (`stat::slowest_unit_time_sec: 0`), so this bound still reports a target that hangs.
+ */
+const unitTimeoutSeconds = 60;
 
 /**
  Last bytes of a possibly very large log, so a long campaign never loads the whole stream.
@@ -167,7 +177,7 @@ export async function fuzzTarget({
       `-max_total_time=${secondsPerTarget}`,
       `-max_len=${maxInputBytes}`,
       '-rss_limit_mb=1536',
-      '-timeout=5',
+      `-timeout=${String(unitTimeoutSeconds)}`,
       '-print_final_stats=1',
       `-artifact_prefix=/fuzz/artifacts/${target.name}/`,
       `-dict=/fuzz/dictionary/${target.dictionary}`,
