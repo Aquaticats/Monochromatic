@@ -18,10 +18,12 @@
 /// The marker lines a committed file still holds,
 /// and the line about an operation left open.
 use crate::conflict_markers::{open_operation_line, paths_with_markers};
+/// The commit an amend makes when the branch moved under it.
+use crate::service_amend_replayed::AmendedCommit;
 /// The kind of operation a commit concludes.
 use crate::transaction_journal::Conclusion;
 use crate::commit_transaction::{CommitInvocation, TransactionStop};
-use crate::landed_summary::{rebuilt_note, short_name, subject_of, summary_line};
+use crate::landed_summary::{amend_lands_as_new_note, rebuilt_note, short_name, subject_of, summary_line};
 use crate::service_prepare::{NativeInputs, Ready};
 use crate::service_protocol::CommitRequest;
 use crate::worktree_completion::install_added_worktree_files;
@@ -30,17 +32,19 @@ use std::path::PathBuf;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, print_note, print_summary};
 
 /// What:
-///  The request for a commit that Git built in the shadow:
+///  The request for a commit that Git built in the shadow,
+/// or that the wrapper wrote whole:
 /// the built commit is named whole and the service lands it.
 /// Why:
 ///  The service moves the branch to a commit it did not make,
-/// so the request carries no changes and no message.
+/// so the request carries no changes and no message,
+/// and `amend` says whether the commit replaces the branch's last commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const requestForGitBuilt = (ready, inputs, id, builtCommit) => ({ id, ...identity(ready, inputs), changes: [], commit: builtCommit, cleanup: ready.cleanup });
+/// const requestForGitBuilt = (ready, inputs, id, builtCommit, amend) => ({ id, ...identity(ready, inputs), changes: [], commit: builtCommit, amend, cleanup: ready.cleanup });
 /// ```
-pub(crate) fn request_for_git_built(invocation: &CommitInvocation<'_>, ready: &Ready, native_inputs: &NativeInputs, id: &str, built_commit: String) -> CommitRequest {
+pub(crate) fn request_for_git_built(ready: &Ready, native_inputs: &NativeInputs, id: &str, built_commit: String, amend: bool) -> CommitRequest {
     return CommitRequest {
         id: id.to_string(),
         repository: ready.repository.clone(),
@@ -54,7 +58,7 @@ pub(crate) fn request_for_git_built(invocation: &CommitInvocation<'_>, ready: &R
         message: String::new(),
         author: None,
         committer: String::new(),
-        amend: invocation.region.amend,
+        amend,
         tree: None,
         commit: Some(built_commit),
         cleanup: ready.cleanup.clone(),
@@ -123,6 +127,7 @@ pub(crate) fn report_landing(
     fixed_message: Option<&PathBuf>,
     embedded_in_use: Option<&Embedded>,
     native: bool,
+    amended_as_new: Option<&AmendedCommit>,
     unlanded: &[String],
 ) -> Result<(), TransactionStop> {
     if let Some(file) = fixed_message {
@@ -143,6 +148,21 @@ pub(crate) fn report_landing(
             commit,
         );
         print_summary(summary_line(ready.reference.as_str(), first_parent, name.as_str(), subject_of(made.message.as_str()).as_str()).as_str());
+    }
+    // An amend whose branch moved became a new commit: its own summary line (unless `--quiet`), and the words that say what
+    //  it became and that the commit it named was left as it is.
+    if let Some(amended) = amended_as_new {
+        let name: String = short_name(
+            invocation.context,
+            invocation.cwd,
+            native_inputs.capture.layout.object_directory.as_path(),
+            native_inputs.capture.layout.config_snapshot.as_ref(),
+            commit,
+        );
+        if !amended.quiet() {
+            print_summary(summary_line(ready.reference.as_str(), first_parent, name.as_str(), amended.subject().as_str()).as_str());
+        }
+        print_note(amend_lands_as_new_note(ready.reference.trim_start_matches("refs/heads/"), name.as_str()).as_str());
     }
     // A commit Git built again printed a summary for each build; one line names the builds that did not land and the one that did.
     if native && !unlanded.is_empty() {
