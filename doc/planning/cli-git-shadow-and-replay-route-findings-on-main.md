@@ -48,14 +48,14 @@ All source paths in this document are relative to the repository root.
 
 - A commit that needs native Git,
   including configured signing or an editor,
-  uses `package/git-policy/cli/src/native/landing/service_native.rs:195`.
+  uses `package/git-policy/cli/src/native/landing/service_native.rs:200`.
   `build_with_git` creates a scratch shadow with `create_shadow_repository_carrying`,
   runs native `git commit` against a private index,
   and reads the prepared object.
   The current scratch path is `<git-dir>/monochromatic-git-policy-cli-service-<id>/shadow`,
   not the historical per-transaction registry path still described in some source comments.
 - A commit sent back after its branch moved enters
-  `package/git-policy/cli/src/native/landing/service_replay.rs:244`,
+  `package/git-policy/cli/src/native/landing/service_replay.rs:245`,
   `merge_captured`.
   This first calls Git's `merge-tree` with the original preparation base.
   Only conflicted paths enter capture ordering and subsumption.
@@ -65,7 +65,7 @@ All source paths in this document are relative to the repository root.
   This current caller passes the real common Git directory and real object store to the helpers named "shadow".
   Replay is not confined to the native preparation shadow.
 
-The accepted decision in `doc/decision/cli-git-concurrent-commits.md:73` says:
+The accepted decision in `doc/decision/cli-git-concurrent-commits.md:79` says:
 "when the landed change for that path
 (its diff from the preparation base to the new `HEAD`)
 applies in reverse to the prepared version,
@@ -81,7 +81,8 @@ so an intentional later-capture override cannot explain their results.
 
 ### P1: A non-ASCII conflict can silently revert another file's landed change
 
-Status: **reproduced** through `service_replay::merge_captured`,
+Status:
+**reproduced** through `service_replay::merge_captured`,
 including the final word-level pass.
 The wrong result is an accepted tree,
 not merely a malformed diagnostic or an intermediate synthetic base.
@@ -101,25 +102,25 @@ Relevant code:
 - `package/git-policy/cli/src/native/shadow/replay_subsumption.rs:219`
   reads the original base into a private index;
   `:230` installs those wrongly named records with `update-index -z --index-info`.
-- `package/git-policy/cli/src/native/landing/service_replay.rs:250`
-  selects the originally conflicted paths,
-  and `:290` uses the synthetic base for another whole-tree merge.
+- `package/git-policy/cli/src/native/landing/service_replay.rs:251`
+  lists paths before filtering them to the originally conflicted set,
+  and `:285` uses the synthetic base for another whole-tree merge.
 
 Exact sequence:
 
-1. Create a base commit with `é.txt` containing `a\nb\nc\nd\n`
+1.  Create a base commit with `é.txt` containing `a\nb\nc\nd\n`
    and the distinct filename `Ã©.txt` containing `unrelated base\n`.
    Their UTF-8 filename prefixes are respectively `c3 a9` and `c3 83 c2 a9`.
-2. From that base,
+2.  From that base,
    make the landed commit change `é.txt` to `a\nB\nc\nd\n`
    and change `Ã©.txt` to the same bytes `a\nB\nc\nd\n`.
-3. Independently from the base,
+3.  Independently from the base,
    prepare `é.txt` as `a\nB\nC\nd\n`.
    Leave `Ã©.txt` untouched at `unrelated base\n`.
-4. Real `git merge-tree --write-tree -z --merge-base=<base> <landed> <prepared>`
+4.  Real `git merge-tree --write-tree -z --merge-base=<base> <landed> <prepared>`
    exits `1` for the contained adjacent edit on `é.txt`.
    Its output tree preserves `Ã©.txt` as `a\nB\nc\nd\n`.
-5. Call the production `merge_captured` with those histories and capture stamp zero.
+5.  Call the production `merge_captured` with those histories and capture stamp zero.
    It accepts a `Combined` result:
    the word-level pass resolves the original `é.txt` conflict,
    but `Ã©.txt` has reverted to `unrelated base\n`.
@@ -149,7 +150,8 @@ this is not a missing-path or failed-`show` artifact.
 An otherwise identical history using `a.txt` and `b.txt` passes:
 Git's output tree and production replay both retain `b.txt` as `a\nB\nc\nd\n`.
 
-Suggestion: keep repository paths as bytes through the synthetic-index writer,
+Suggestion:
+keep repository paths as bytes through the synthetic-index writer,
 or explicitly invert the Latin-1 carrier at that boundary.
 Add a consumer-level control with distinct real filenames that alias under the current encoding,
 checking both the combined file and the unrelated file's content and mode.
@@ -157,7 +159,8 @@ Do not treat adding another UTF-8-only parser test as sufficient.
 
 ### P1: A real-gitdir signing include disappears in the shadow and an unsigned commit succeeds
 
-Status: **reproduced** through the production invocation capture,
+Status:
+**reproduced** through the production invocation capture,
 `create_shadow_repository_at`,
 `run_native_commit_within`,
 and `read_prepared_commit`.
@@ -169,7 +172,7 @@ the editor,
 templates,
 message cleanup,
 and signing."
-Current `package/git-policy/cli/SPEC.md:7469` supersedes the hook portion by supporting no external hooks;
+Current `package/git-policy/cli/SPEC.md:7473` supersedes the hook portion by supporting no external hooks;
 it does not retire configured commit signing.
 The shadow route must not change a person's signing request into a successful unsigned commit.
 
@@ -188,20 +191,20 @@ Relevant code:
 
 Exact sequence:
 
-1. Create an ordinary repository and a disposable SSH signing key with no passphrase.
-2. Put `commit.gpgSign=true`,
+1.  Create an ordinary repository and a disposable SSH signing key with no passphrase.
+2.  Put `commit.gpgSign=true`,
    `gpg.format=ssh`,
    and `user.signingKey=<disposable key>` in a separate configuration file.
-3. Include that file from the repository config only under
+3.  Include that file from the repository config only under
    `[includeIf "gitdir:<absolute repository path>/.git"]`.
-4. Native `git commit --allow-empty --message=<message>` succeeds.
+4.  Native `git commit --allow-empty --message=<message>` succeeds.
    Require that its raw commit header contains `gpgsig`:
    this positive control was asserted,
    not merely printed.
-5. Capture the same repository with the production capture functions,
+5.  Capture the same repository with the production capture functions,
    create its shadow,
    and initialize a private index from `HEAD`.
-6. Run production native preparation with `--allow-empty --message=<message>`,
+6.  Run production native preparation with `--allow-empty --message=<message>`,
    no `--no-gpg-sign`,
    and no command-line signing override.
    It exits `0`,
@@ -226,14 +229,16 @@ checks `onbranch:main`,
 which is preserved by the symbolic shadow `HEAD`;
 it does not exercise an exact gitdir condition.
 
-Suggestion: preserve the relevant effective native-commit configuration from the invocation context,
+Suggestion:
+preserve the relevant effective native-commit configuration from the invocation context,
 with its intended precedence and path-resolution semantics,
 rather than assuming that including the real file recreates every condition.
 A regression control should require a signed native positive control and a signed production shadow commit.
 
 ### P2: An unrelated Git-valid non-UTF-8 tag blocks native preparation
 
-Status: **reproduced** through production invocation capture and `create_shadow_repository_at`.
+Status:
+**reproduced** through production invocation capture and `create_shadow_repository_at`.
 This is a visible failure,
 not silent data loss,
 so it ranks after the accepted wrong results.
@@ -246,22 +251,22 @@ decodes the complete `for-each-ref` listing as UTF-8
 and returns `GitFailure("git for-each-ref returned non-UTF-8 output.")` on any invalid sequence.
 `write_shadow_refs` calls it at `:205`,
 and the creator propagates its failure at
-`package/git-policy/cli/src/native/shadow/shadow_create.rs:371`.
+`package/git-policy/cli/src/native/shadow/shadow_create.rs:370`.
 The production caller is the native builder at
 `package/git-policy/cli/src/native/landing/service_native.rs:214`.
 
 Exact sequence:
 
-1. Create a repository on `main` with an empty base commit.
-2. Use `git update-ref --stdin` with raw input bytes to create the valid ref name
+1.  Create a repository on `main` with an empty base commit.
+2.  Use `git update-ref --stdin` with raw input bytes to create the valid ref name
    `refs/tags/nonutf-` followed by byte `ff`,
    pointing at that base.
    The non-UTF-8 name is unrelated to `HEAD` and to the requested change.
-3. Native `git commit --allow-empty --message=<message>` succeeds in the same repository.
-4. Capture the repository and base through production capture,
+3.  Native `git commit --allow-empty --message=<message>` succeeds in the same repository.
+4.  Capture the repository and base through production capture,
    both successfully,
    then request a production shadow.
-5. Shadow creation fails at the complete-ref snapshot's UTF-8 decode.
+5.  Shadow creation fails at the complete-ref snapshot's UTF-8 decode.
    A commit needing this route,
    such as one with an editor,
    cannot reach native preparation even though Git accepts the repository and the commit.
@@ -275,7 +280,8 @@ shadow creation=Err(GitFailure("git for-each-ref returned non-UTF-8 output."))
 valid non-UTF-8 reference should not block a commit
 ```
 
-Suggestion: parse and reproduce ref names as bytes on Unix,
+Suggestion:
+parse and reproduce ref names as bytes on Unix,
 keeping diagnostic text separate from the bytes written to the ref snapshot.
 A control should put a non-UTF-8 ref outside the target branch and require native shadow creation to succeed.
 
@@ -312,7 +318,7 @@ For the current native route,
 (`package/git-policy/cli/src/native/landing/service_prepare_ready_shapes.rs:36`).
 After a successful preparation,
 the client also hands the scratch directory to a service watch
-(`package/git-policy/cli/src/native/landing/service_commit.rs:237`).
+(`package/git-policy/cli/src/native/landing/service_commit.rs:222`).
 Connection closure queues its release
 (`package/git-policy/cli/src/native/service/service_server_connection_handling.rs:305`),
 and the service removes released trees (`service_server.rs:470`).
@@ -365,13 +371,26 @@ the corrected separate filters produced the named results.
 An initial launcher was stopped before execution because it lacked the explicit fixture-root environment.
 No result from that launcher is counted either.
 
+The required document tasks both returned zero:
+`mise run //:format:monochromatic-lint -- doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`,
+then `mise run //:lint:monochromatic-lint -- doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`.
+Pandoc's CommonMark-to-HTML output was read to check the rendered headings,
+sequences,
+code spans,
+and emphasis.
+The uncommitted probe sources,
+generators,
+and full outputs are preserved under `.audit-shadow-replay/`,
+not under the crate's source tree.
+`git diff --exit-code -- package/git-policy/cli` confirmed that temporary crate edits were removed.
+
 A cross-vendor Kimi review challenged the reachability,
 positive controls,
 and interpretation.
 The conflict status was asserted,
 the full resulting tree was inspected,
 and configured native signing was proved before accepting the failures.
-The review's proposed interhunk defect was not supported by the measured Git output.
+The interhunk hypothesis was not supported by the measured Git output.
 A separate DeepSeek review returned no visible text and supplies no review evidence.
 
 ## Verification limits
@@ -401,7 +420,8 @@ No general safety claim follows for those surfaces.
   `remove_shadow_repository` removes the partial tree without following its `info` link.
   The test first reads the real sentinel through the shadow link,
   then checks the original sentinel bytes after deletion.
-  Output: `partial shadow: shared sentinel intact=true, shadow removed=true`.
+  Output:
+  `partial shadow: shared sentinel intact=true, shadow removed=true`.
   This exercises the removal helper,
   not a whole client/service crash-recovery cycle.
 - The ASCII equivalent of the filename-collision history retains the unrelated landed edit.
