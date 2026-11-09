@@ -79,14 +79,27 @@ fn empty_and_unfinished_values_split_to_one_empty_word_or_fail() {
     assert_eq!(split_alias_command(b"a\\"), None);
 }
 
-/// Surrounding ASCII whitespace goes;
-///  invalid UTF-8 keeps its non-space bytes.
+/// The value Git reports is used byte for byte:
+///  whitespace at either end belongs to it,
+///  because Git's own split keeps it.
 #[test]
-fn alias_values_are_trimmed_before_splitting() {
-    assert_eq!(trim_alias_value(b"  commit \n"), b"commit".to_vec());
-    assert_eq!(trim_alias_value(b" \t "), Vec::<u8>::new());
-    assert_eq!(trim_alias_value(&[0xff, b' ', b'x', b' ']), vec![0xff, b' ', b'x']);
-    assert_eq!(trim_alias_value(&[b' ', 0xff]), vec![0xff]);
+fn alias_value_bytes_are_kept_exactly() {
+    let context: GitContext = context_with_aliases(&[("fixturespaces", "  commit \n")]);
+    assert_eq!(
+        lookup_alias(&context, &[], &OsString::from("fixturespaces")),
+        Some(b"  commit \n".to_vec())
+    );
+}
+
+/// A value that starts with a space keeps its empty first word,
+///  which names no command Git can run,
+///  so the invocation is left to Git instead of being trimmed into a command.
+#[test]
+fn a_value_with_a_leading_space_is_unresolved_and_not_trimmed_into_a_command() {
+    let context: GitContext = context_with_aliases(&[("fixturetrim", " commit -v")]);
+    let resolved: ResolvedCommand = resolve_forwarded_command(&context, &args(&["fixturetrim"]));
+    assert_eq!(resolved.route, Route::Unresolved);
+    assert!(!resolved.is_builtin());
 }
 
 /// A built-in named directly is resolved without an alias lookup and keeps its global options.
