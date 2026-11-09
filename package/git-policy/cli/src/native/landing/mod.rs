@@ -181,6 +181,9 @@ pub mod service_commit;
 /// The small steps of a service commit and the commit the service builds itself.
 pub mod service_commit_input_notes_and_embedded_commit;
 
+/// Whether the request the embedded route would send fits the one line the service reads.
+pub mod service_commit_fitting_request;
+
 /// The requests of a service commit and what a landed commit leaves for the person.
 pub mod service_commit_requests_and_landing_report;
 

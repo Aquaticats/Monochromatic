@@ -25,7 +25,7 @@ pub use crate::service_protocol_messages_and_name_checks::{
 };
 /// The line writers,
 /// re-exported under the path they had in this file.
-pub use crate::service_protocol_encode_messages_to_lines::{encode_client, encode_retire, encode_service};
+pub use crate::service_protocol_encode_messages_to_lines::{commit_line, commit_request_fits, encode_client, encode_retire, encode_service};
 /// The line readers,
 /// re-exported under the path they had in this file.
 pub use crate::service_protocol_decode_lines_to_messages::{decode_client, decode_service};

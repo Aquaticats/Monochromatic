@@ -78,9 +78,15 @@ impl BatchTimes {
     }
 }
 
-/// The repository-relative path a change names.
+/// The repository-relative path a change names,
+/// as the text a rule is warmed for.
+/// Why:
+///   The rules are keyed by a path's text,
+/// so a name that is not text is warmed under its readable spelling,
+/// which only decides whether a rule is looked at early;
+/// the entry that is written keeps the name's bytes.
 fn path_of_change(change: &crate::service_protocol::Change) -> String {
-    return change.path.clone();
+    return crate::path_bytes::path_message_text(crate::path_bytes::path_bytes_of(change.path.as_path()));
 }
 
 /// Writes the log line for an answered request:

@@ -210,11 +210,11 @@ auth:
     );
 }
 
-/// A comment a tab introduces is not part of a package name:
-/// `- app\t# published` lists the package `app`,
-/// as a YAML parser reads it.
+/// A '#' on a list item is refused with its line,
+/// so a colon inside a trailing comment can never change the list's shape:
+/// the generator writes no '#' on an item.
 #[test]
-fn reads_a_comment_a_tab_introduces() {
+fn refuses_a_hash_on_a_list_item() {
     let text: &str = "\
 auth:
   oidc:
@@ -222,9 +222,12 @@ auth:
       workloads:
         - registry: monochromatic-dev
           packages:
-            - app\t# published
+            - app # publication: enabled
 ";
-    assert_eq!(names(text), ["app"]);
+    assert_eq!(
+        reason(text),
+        "holds a '#' on a list item, where the generated configuration writes none on line 7"
+    );
 }
 
 /// A sequence item with more spaces after its dash than the generator writes is
