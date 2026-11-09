@@ -80,9 +80,10 @@ fn a_held_push_of_a_living_command_is_not_promoted() {
     crate::work_item::claim(work_dir.as_path(), item.id().as_str());
     assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 0, "a living command's gate is not overtaken");
     assert!(!state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "nothing runnable was made");
-    // The command is gone when no owner names a process: the next command may finish its push.
-    let _gone: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("{}.owner", item.id())));
-    assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 1, "an ownerless record is a dead command's");
+    // The command is gone when its owner names a process that is not there: the next command may finish its push.
+    let owner: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("{}.owner", item.id()));
+    std::fs::write(owner.as_path(), "999999\n0#0#0\n").expect("an owner that is gone");
+    assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 1, "a dead owner's record is finished by the next command");
     assert!(state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "the push is runnable");
     remove(world.root.as_path());
 }
@@ -124,6 +125,9 @@ fn a_service_with_no_instance_promotes_the_held_push_of_a_worktree_it_remembers(
         tries: 0,
     };
     crate::work_item::hold(work_dir.as_path(), &item).expect("held");
+    // Its command is gone: the owner names a process that is not there.
+    let owner: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("{}.owner", item.id()));
+    std::fs::write(owner.as_path(), "999999\n0#0#0\n").expect("an owner that is gone");
     // No instance name: the worktree is one this service remembers, not one it can name from its unit.
     let promoted: usize = crate::service_server_work_loop::promote_held_at_start(None, std::slice::from_ref(&world.repo.join(".git")));
     assert_eq!(promoted, 1, "the approved push of a remembered worktree is promoted");
@@ -147,7 +151,58 @@ fn a_service_start_leaves_the_held_push_of_a_worktree_it_does_not_remember() {
         tries: 0,
     };
     crate::work_item::hold(work_dir.as_path(), &item).expect("held");
+    let owner: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("{}.owner", item.id()));
+    std::fs::write(owner.as_path(), "999999\n0#0#0\n").expect("an owner that is gone");
     assert_eq!(crate::service_server_work_loop::promote_held_at_start(None, &[]), 0, "nothing is promoted for a worktree nothing named");
     assert!(!state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "nothing runnable was made");
+    remove(world.root.as_path());
+}
+
+/// A held push whose wrapper is alive but has not claimed it yet is not promoted:
+/// the service publishes the owner with the record,
+/// and a claim is judged from the file this promotion takes.
+#[test]
+fn a_held_push_the_service_published_is_not_promoted_while_the_service_lives() {
+    let world: World = world("service-land-owed-push-service-owner");
+    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: world.repo.display().to_string(),
+        git_dir: world.repo.join(".git").display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0".repeat(40)),
+        parent: String::from("0".repeat(40)),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    // The service holds it: the owner names this live process, published before the record.
+    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
+    assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 0, "a living owner is never overtaken");
+    assert!(!state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "nothing runnable was made");
+    remove(world.root.as_path());
+}
+
+/// A blocked gate keeps its commit local through a later recovery:
+/// the verdict is a durable record that a fresh hold honours.
+#[test]
+fn a_blocked_verdict_keeps_its_push_from_being_held_again() {
+    let world: World = world("service-land-owed-push-blocked");
+    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: world.repo.display().to_string(),
+        git_dir: world.repo.join(".git").display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0".repeat(40)),
+        parent: String::from("0".repeat(40)),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
+    crate::work_item::block(work_dir.as_path(), item.id().as_str());
+    // A later recovery holds the batch's pushes again; the verdict is what stops it.
+    crate::work_item::hold(work_dir.as_path(), &item).expect("held again");
+    assert!(!state_directory(work_dir.as_path(), crate::work_item::HELD).join(item.id()).exists(), "the blocked commit is not held again");
+    assert_eq!(crate::work_item::promote_held(work_dir.as_path()), 0, "and nothing promotes it");
     remove(world.root.as_path());
 }

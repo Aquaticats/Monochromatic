@@ -199,7 +199,8 @@ pub fn promote_stranded_pushes(handoff: &ServiceHandoff, landed: &str) {
 pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let id: String = push_item(handoff, landed).id();
-    crate::work_item::forget_held(work_dir.as_path(), id.as_str());
+    // The verdict is durable: a later recovery of the same batch must not hold the push again.
+    crate::work_item::block(work_dir.as_path(), id.as_str());
     let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id));
 }
 

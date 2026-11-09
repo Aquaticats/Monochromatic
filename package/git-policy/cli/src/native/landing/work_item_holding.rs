@@ -40,6 +40,12 @@ use std::path::{Path, PathBuf};
 ///
 /// The work queue's own words when the record cannot be written.
 pub fn hold(work_dir: &Path, item: &WorkItem) -> Result<(), String> {
+    // A gate that blocked this commit keeps it local: no later hold, recovery included, may publish it.
+    if is_blocked(work_dir, item.id().as_str()) {
+        return Ok(());
+    }
+    // The owner is published before the record, so no reader ever meets a held record that says no one holds it.
+    claim(work_dir, item.id().as_str());
     if let Err(error) = create_private_directory_all(state_directory(work_dir, HELD).as_path()) {
         return Err(format!("creating the {HELD} directory failed: {error}"));
     }
@@ -79,6 +85,10 @@ pub fn promote(work_dir: &Path, id: &str) -> bool {
 /// The extension of the file that names the process which holds an item until its gate decides.
 const OWNER_EXTENSION: &str = "owner";
 
+
+/// The state directory of the blocked verdicts.
+pub const BLOCKED: &str = "blocked";
+
 /// The path of one held item's owner record.
 fn owner_path(work_dir: &Path, id: &str) -> PathBuf {
     return state_directory(work_dir, HELD).join(format!("{id}.{OWNER_EXTENSION}"));
@@ -117,39 +127,13 @@ pub fn claim(work_dir: &Path, id: &str) {
     let _written: std::io::Result<()> = write_private_file_unsynced(owner_path(work_dir, id).as_path(), text.as_bytes());
 }
 
-/// The owner a held item names:
-/// its process and its birth identity.
-fn owner_of(work_dir: &Path, id: &str) -> Option<(i64, String)> {
-    let text: String = std::fs::read_to_string(owner_path(work_dir, id)).ok()?;
+/// The owner one owner-shaped file names.
+fn owner_of_file(path: &Path) -> Option<(i64, String)> {
+    let text: String = std::fs::read_to_string(path).ok()?;
     let mut lines = text.lines();
     let pid: i64 = lines.next()?.trim().parse().ok()?;
     let identity: String = lines.next()?.trim().to_string();
     return Some((pid, identity));
-}
-
-/// What:
-///  Whether the process that holds an item is proven gone,
-/// so that another command may promote it.
-/// Why:
-///   A record with no owner is an item whose command died before it could claim it.
-/// A record whose process
-///  runs under another birth identity is one whose number was used again.
-/// A process that cannot be judged is
-///  not gone:
-/// its gate may still decide.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ownerIsGone(workDir, id) // true when absent, or its process is gone or was born again
-/// ```
-fn owner_is_gone(work_dir: &Path, id: &str) -> bool {
-    let Some((pid, recorded)) = owner_of(work_dir, id) else { return true };
-    return match crate::process_identity::process_birth_identity(pid) {
-        Ok(None) => true,
-        Ok(Some(now)) => now != recorded,
-        // A process in another namespace, or a `/proc` that refuses: nothing is decided.
-        Err(_) => false,
-    };
 }
 
 /// What:
@@ -163,10 +147,71 @@ fn owner_is_gone(work_dir: &Path, id: &str) -> bool {
 /// promoteProven(workDir, id)
 /// ```
 pub fn promote_proven(work_dir: &Path, id: &str) -> bool {
-    if !owner_is_gone(work_dir, id) {
+    if is_blocked(work_dir, id) {
         return false;
     }
-    return promote(work_dir, id);
+    // The right to promote this record is taken by one exclusive name, and the owner is judged from the file taken with it: a claim
+    //  that lands after that point recreates the owner file, and its presence stops this promotion.
+    let claiming: PathBuf = state_directory(work_dir, HELD).join(format!("{id}.promoting"));
+    if create_private_directory_all(state_directory(work_dir, HELD).as_path()).is_err()
+        || write_private_file_unsynced(claiming.as_path(), b"promoting\n").is_err()
+    {
+        return false;
+    }
+    let judging: PathBuf = state_directory(work_dir, HELD).join(format!("{id}.judging"));
+    let taken: bool = std::fs::rename(owner_path(work_dir, id), judging.as_path()).is_ok();
+    let gone: bool = match taken {
+        true => {
+            let judged: bool = match owner_in(judging.as_path()) {
+                Some((pid, recorded)) => match crate::process_identity::process_birth_identity(pid) {
+                    Ok(None) => true,
+                    Ok(Some(now)) => now != recorded,
+                    Err(_) => false,
+                },
+                None => false,
+            };
+            let _gone_file: std::io::Result<()> = std::fs::remove_file(judging.as_path());
+            judged
+        }
+        false => false,
+    };
+    // A claim written after the owner was taken means a command owns it now.
+    let reclaimed: bool = owner_path(work_dir, id).exists();
+    let promoted: bool = gone && !reclaimed && promote(work_dir, id);
+    let _released: std::io::Result<()> = std::fs::remove_file(claiming.as_path());
+    return promoted;
+}
+
+/// What:
+///  Says durably that the gate of this commit kept it local,
+/// and gives the held record up.
+/// Why:
+///   `forget_the_push` alone leaves no trace of the verdict,
+/// so a later recovery of the same batch would hold the push again
+///  and publish a commit the gate refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// block(workDir, id) // write `blocked/<id>`, hold nothing
+/// ```
+pub fn block(work_dir: &Path, id: &str) {
+    if create_private_directory_all(state_directory(work_dir, BLOCKED).as_path()).is_err() {
+        crate::service_error!("the blocked verdict of the push record {id} cannot be kept");
+        return;
+    }
+    let _written: std::io::Result<()> = write_private_file_unsynced(state_directory(work_dir, BLOCKED).join(id).as_path(), b"blocked\n");
+    forget_held(work_dir, id);
+}
+
+/// Whether the gate of this commit kept it local.
+fn is_blocked(work_dir: &Path, id: &str) -> bool {
+    return state_directory(work_dir, BLOCKED).join(id).exists();
+}
+
+/// The owner one file names,
+/// as its process and its birth identity.
+fn owner_in(path: &Path) -> Option<(i64, String)> {
+    return owner_of_file(path);
 }
 
 /// What:
@@ -186,7 +231,7 @@ pub fn promote_proven(work_dir: &Path, id: &str) -> bool {
 /// createStates(workDir) // pending, claimed, done, failed, recovering
 /// ```
 fn create_states(work_dir: &Path) -> bool {
-    for state in [PENDING, HELD, CLAIMED, DONE, FAILED, RECOVERING] {
+    for state in [PENDING, HELD, BLOCKED, CLAIMED, DONE, FAILED, RECOVERING] {
         if create_private_directory_all(state_directory(work_dir, state).as_path()).is_err() {
             return false;
         }
@@ -219,7 +264,7 @@ pub fn promote_held(work_dir: &Path) -> usize {
     let mut promoted: usize = 0;
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(OWNER_EXTENSION) {
+        if name.ends_with(OWNER_EXTENSION) || name.ends_with("promoting") || name.ends_with("judging") {
             continue;
         }
         if promote_proven(work_dir, name.as_str()) {

@@ -5804,6 +5804,9 @@ so no commit writes the live index for this reason.
 What a commit does instead is record nothing about those paths.
 For every path of a record whose entry in the commit's own index is still exactly the entry the landing
 replaced,
+and whose worktree does not hold that same content (a worktree that does is the person's own statement,
+so it is committed),
+and which the commit did not select by name,
 that index is set to the worktree's head,
 and the commit prints one line naming the paths and both ways on:
 `git reset -- <paths>` to catch the index up with the branch,

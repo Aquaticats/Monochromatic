@@ -30,6 +30,25 @@
 //! Nothing here writes the live index or removes a record.
 //! What it reads is `owed_index_entries.rs`.
 //!
+//! The rule this file enforces:
+//!   It may change only a path a record names,
+//! and only while every fact it has about that path agrees that the index still holds the content the
+//! landing replaced:
+//! the commit's own index holds exactly the entry the landing's
+//!  old tree held there,
+//! the worktree does not match that entry (so the staging is not the person's own doing),
+//! and the commit did not select the path by name.
+//! On no evidence it changes nothing,
+//! leaves the landed content where it belongs,
+//! and says which path it left out;
+//! when it cannot even make the change it decided on,
+//! it stops the commit instead of letting stale content be recorded.
+//! A path whose live entry moved after the commit copied the index is left out too,
+//! on the same terms:
+//! the copy,
+//! not the staged index,
+//! is what the live index is compared with.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const left = await excludeWhatALandedCommitLeft(git, gitDir, liveIndex, commitIndex);
@@ -216,50 +235,34 @@ fn set_to_head_paths(git: &GitContext, repository: &Path, index: &Path, paths: &
 /// ```
 pub fn exclude_what_a_landed_commit_left(
     git: &GitContext,
+    repository: &Path,
     git_dir: &Path,
     live_index: &Path,
     commit_index: Option<&Path>,
+    captured_index: Option<&Path>,
     captured: &crate::service_land_start::IndexWitness,
-) -> Vec<String> {
+) -> Result<Vec<String>, String> {
     let mut left: Vec<String> = Vec::new();
-    // What the commit copies is not what the index holds any more: the paths whose entry moved since the copy are left out,
-    //  because what the snapshot would record there is not the person's current intent. No record is needed for this, so a record
-    //  another command removed, or one the service settled, cannot expose the snapshot.
-    if let (Some(index), Ok(now)) = (commit_index, crate::service_land_start::witness_of(live_index))
+    // What the commit copied is not what the index holds any more: the paths whose live entry moved since the copy are left out,
+    //  because what the snapshot would record there is not the person's current intent. The copy, not the commit's staged index, is
+    //  what the live index is compared with: the commit's own staging (`--all`) is the person's and must never be reported as moved.
+    if let (Some(index), Some(copy), Ok(now)) = (commit_index, captured_index, crate::service_land_start::witness_of(live_index))
         && now != *captured
     {
-        match moved_since(git, git_dir.parent().unwrap_or(git_dir), live_index, index) {
-            Ok(moved) => {
-                if !moved.is_empty() {
-                    match set_to_head_paths(git, git_dir.parent().unwrap_or(git_dir), index, moved.as_slice()) {
-                        Ok(()) => {
-                            for path in &moved {
-                                left.push(crate::path_bytes::path_message_text(path.as_slice()));
-                            }
-                        }
-                        Err(code) => crate::diagnostic_log::warn(
-                            "servicePrepare",
-                            format!("the commit's own index could not be set to the head for the entries the index moved since its copy ({code:?}), so this commit records them as its index holds them").as_str(),
-                        ),
-                    }
-                }
-            }
-            Err(_unwritable) => match moved_since_listing(git, git_dir.parent().unwrap_or(git_dir), live_index, index) {
-                Ok(moved) if moved.is_empty() => {}
-                Ok(moved) => match set_to_head_paths(git, git_dir.parent().unwrap_or(git_dir), index, moved.as_slice()) {
-                    Ok(()) => {
-                        for path in &moved {
-                            left.push(crate::path_bytes::path_message_text(path.as_slice()));
-                        }
-                    }
-                    Err(code) => crate::service_error!(
-                        "the entries the index moved since the commit's copy cannot be set to the head ({code:?}), so this commit records them as its index holds them"
-                    ),
-                },
-                Err(code) => crate::service_error!(
-                    "the entries the index moved since the commit's copy cannot be read either way ({code:?}), so this commit records them as its index holds them"
-                ),
+        let moved: Vec<Vec<u8>> = match moved_since(git, repository, live_index, copy) {
+            Ok(moved) => moved,
+            Err(_unwritable) => match moved_since_listing(git, repository, live_index, copy) {
+                Ok(moved) => moved,
+                Err(code) => return Err(format!("the entries the index moved since this commit copied it cannot be read ({code:?})")),
             },
+        };
+        if !moved.is_empty() {
+            if let Err(code) = set_to_head_paths(git, repository, index, moved.as_slice()) {
+                return Err(format!("the entries the index moved since this commit copied it cannot be set to the head ({code:?})"));
+            }
+            for path in &moved {
+                left.push(crate::path_bytes::path_message_text(path.as_slice()));
+            }
         }
     }
     for owed in records_of(git_dir) {
@@ -270,25 +273,27 @@ pub fn exclude_what_a_landed_commit_left(
         let snapshot: &Path = commit_index.unwrap_or(live_index);
         let names: Vec<Vec<u8>> = match names_of(git, &owed) {
             Ok(names) => names,
-            Err(code) => {
-                crate::diagnostic_log::warn("servicePrepare", format!("the paths of the index update batch {} owes cannot be read ({code:?}), so this commit leaves them as its index holds them", owed.seq).as_str());
-                continue;
-            }
+            Err(code) => return Err(format!("the paths of the index update batch {} owes cannot be read ({code:?})", owed.seq)),
         };
         let replaced: BTreeMap<Vec<u8>, Entry> = match tree_entries(git, &owed, names.as_slice()) {
             Ok(entries) => entries,
-            Err(code) => {
-                crate::diagnostic_log::warn("servicePrepare", format!("the tree the landing of batch {} replaced cannot be read ({code:?}), so this commit leaves its paths as its index holds them", owed.seq).as_str());
-                continue;
-            }
+            Err(code) => return Err(format!("the tree the landing of batch {} replaced cannot be read ({code:?})", owed.seq)),
         };
         let held: BTreeMap<Vec<u8>, Entry> = match index_entries(git, &owed, snapshot, names.as_slice()) {
             Ok(entries) => entries,
-            Err(code) => {
-                crate::diagnostic_log::warn("servicePrepare", format!("the commit's own index cannot be read for the paths of batch {} ({code:?}), so it leaves them as it holds them", owed.seq).as_str());
-                continue;
-            }
+            Err(code) => return Err(format!("the commit's own index cannot be read for the paths of batch {} ({code:?})", owed.seq)),
         };
+        // A path the person selected is never changed by a guess.
+        if commit_index.is_none() {
+            for name in &names {
+                if held.get(name) == replaced.get(name) && !is_unmerged(held.get(name)) {
+                    left.push(crate::path_bytes::path_message_text(name.as_slice()));
+                }
+            }
+            continue;
+        }
+        // The worktree is asked whether the staging is the person's own: a worktree that holds what the index holds means they
+        //  staged what they have, so it is their statement and never the landing's leftover.
         let mut excluded: Vec<Vec<u8>> = Vec::new();
         for name in &names {
             let entry: Option<&Entry> = held.get(name);
@@ -296,35 +301,57 @@ pub fn exclude_what_a_landed_commit_left(
                 // A merge in progress is the person's own act.
                 continue;
             }
-            // What the command staged itself (`--all`, `--include`) is its own: only the entry the landing replaced is left out.
-            //  Entries that moved in the live index are caught above, where the file the commit copied is compared with the file the
-            //  index is now.
-            if entry == replaced.get(name) {
+            if entry != replaced.get(name) {
+                continue;
+            }
+            let theirs: bool = match (entry, worktree_object(git, repository, name.as_slice())) {
+                (Some((_, object)), Some(mine)) => *object == mine,
+                (None, None) => true,
+                _ => false,
+            };
+            if !theirs {
                 excluded.push(name.clone());
             }
         }
         if excluded.is_empty() {
             continue;
         }
-        if let Some(index) = commit_index {
-            match set_to_head(git, &owed, index, excluded.as_slice()) {
-                Ok(()) => {
-                    for path in &excluded {
-                        left.push(crate::path_bytes::path_message_text(path.as_slice()));
-                    }
-                }
-                Err(code) => crate::diagnostic_log::warn(
-                    "servicePrepare",
-                    format!("the commit's own index could not be set to the head for the entries batch {} owes ({code:?}), so this commit records them as its index holds them", owed.seq).as_str(),
-                ),
-            }
-        } else {
-            for path in &excluded {
-                left.push(crate::path_bytes::path_message_text(path.as_slice()));
-            }
+        if let Err(code) = set_to_head(git, &owed, snapshot, excluded.as_slice()) {
+            return Err(format!("the commit's own index cannot be set to the head for the entries batch {} owes ({code:?})", owed.seq));
+        }
+        for path in &excluded {
+            left.push(crate::path_bytes::path_message_text(path.as_slice()));
         }
     }
-    return left;
+    return Ok(left);
+}
+
+/// What:
+///  The object the worktree holds at one path,
+/// or nothing when it holds no file there.
+/// Why:
+///   A worktree that still holds the entry the index holds means the person staged what they have,
+/// so the
+///  entry is their own statement and nothing may be changed there;
+/// a worktree that holds something
+///  else is an index that no longer describes it,
+/// which is what a failed index update leaves.
+/// The object is
+///  asked of the file itself,
+/// so no stat cache can answer for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// worktreeObject(name) // `git hash-object -- <path>`
+/// ```
+fn worktree_object(git: &GitContext, repository: &Path, name: &[u8]) -> Option<String> {
+    let path: OsString = <OsString as std::os::unix::ffi::OsStringExt>::from_vec(name.to_vec());
+    let request: GitRequest = GitRequest::new(repository, &[OsStr::new("hash-object"), OsStr::new("--"), path.as_os_str()]);
+    return match run_git(git, &request) {
+        // A path the worktree does not hold has no object of its own.
+        Ok(answer) if answer.succeeded() => Some(String::from_utf8_lossy(answer.stdout.as_slice()).trim().to_string()),
+        _ => None,
+    };
 }
 
 /// What:
