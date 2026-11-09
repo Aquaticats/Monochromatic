@@ -182,10 +182,13 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `process-and-child-lifetime-round-6-prompt.md` for `process-and-child-lifetime-findings-fixed` as run 6
-  (eight findings in the reader threads and stop of that branch,
-  among them an unbounded output queue and a wait with no deadline,
-  so that branch is not to land until it reports).
+  `wrapper-issue-defects-round-3-prompt.md` for `wrapper-issue-defects-and-linear-scans` as run 3
+  (its branch landed as `3de639be89`;
+  a merge message can claim a false tracking relationship,
+  a conflict diagnostic names the wrong branch,
+  a repository path with a newline reads the wrong index,
+  and `published_tips` is quadratic).
+  Issue 6007 stays open until that round reports.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
 - The provider ended several runs with `terminated`:
