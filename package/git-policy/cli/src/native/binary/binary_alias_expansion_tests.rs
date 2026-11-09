@@ -354,7 +354,8 @@ fn a_relative_exec_path_is_searched_where_git_searches_it() {
 ///  not from the one the caller stood in before `-C`.
 /// Why:
 ///   `-C` changes Git's directory before it looks a command up
-///  (`git.c:316` to `git.c:328`, then `git.c:988`),
+///  (`git.c:316` to `git.c:328`,
+///  then `git.c:988`),
 ///  and a `PATH` entry without
 ///       a leading separator is resolved against that directory;
 ///  a reading that resolves it against the caller's directory finds a program Git never runs.

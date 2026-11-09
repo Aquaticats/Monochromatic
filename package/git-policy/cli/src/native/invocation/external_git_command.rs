@@ -34,7 +34,8 @@ use crate::diagnostic_log::debug;
 use crate::child_environment::environment_value;
 /// The directories a caller's `-C` options move Git through.
 use crate::global_arguments::directory_changes;
-/// The directory a `--exec-path=` global names, read from the caller's own options.
+/// The directory a `--exec-path=` global names,
+///  read from the caller's own options.
 use crate::global_arguments::exec_path_option;
 /// Running real Git,
 ///  for the exec path only Git knows.
@@ -59,7 +60,8 @@ const OWNER_EXECUTE_BIT: u32 = 0o100;
 ///       environment the real Git will be started with;
 ///  `Option<&Path>` is the directory the wrapper was started in,
 ///  which the caller's
-///       `-C` options move, and nothing when it cannot be read.
+///       `-C` options move,
+///  and nothing when it cannot be read.
 /// Why:
 ///  The wrapper substitutes the expansion it resolved,
 ///  so it must not do that for a word Git resolves
@@ -173,7 +175,8 @@ fn search_directories(
 ///  The directory Git runs in after the caller's `-C` options,
 ///  read from the directory the wrapper was started in.
 /// Why:
-///  Each `-C` moves Git once, in the order written,
+///  Each `-C` moves Git once,
+///  in the order written,
 ///  and a relative value is resolved against the directory the
 ///       move starts from
 ///  (`git.c:316` to `git.c:328`);
