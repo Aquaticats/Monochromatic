@@ -111,16 +111,18 @@ fn discard_unreadable_needs_remove_old_or_rollback() {
     );
 }
 
-/// Discarding what the carry left out has meaning only with the deletion of the old tree.
+/// Discarding what the carry left out has meaning only with the deletion of the old tree or the rollback.
 #[test]
-fn discard_left_out_needs_remove_old() {
-    for arguments in [vec!["--discard-left-out"], vec!["--rollback", "--discard-left-out"]] {
-        let reason: String = parse(arguments.as_slice()).expect_err("refused");
-        assert!(reason.contains("applies only with --remove-old"), "{arguments:?}: {reason}");
-    }
+fn discard_left_out_needs_remove_old_or_rollback() {
+    let reason: String = parse(&["--discard-left-out"]).expect_err("refused");
+    assert!(reason.contains("applies only with --remove-old or --rollback"), "{reason}");
     assert_eq!(
         parse(&["--remove-old", "--discard-left-out"]),
         Ok(MigrateArguments { mode: MigrateMode::RemoveOld, discard_left_out: true, ..DEFAULTS })
+    );
+    assert_eq!(
+        parse(&["--rollback", "--discard-left-out"]),
+        Ok(MigrateArguments { mode: MigrateMode::Rollback, discard_left_out: true, ..DEFAULTS })
     );
 }
 

@@ -31,7 +31,7 @@ use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
-use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, uncarried_cause, uncarried_remedy};
+use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, shown_left_out, uncarried_cause, uncarried_remedy};
 use crate::subvolume_rollback_subvolume_removal::{remove_if_present, remove_subvolume_tree};
 use crate::subvolume_remove::remove_tree;
 use crate::subvolume_run::Run;
@@ -141,6 +141,43 @@ pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable
     return found;
 }
 
+/// The refusal of a rollback whose carry-back left entries of the new subvolume behind,
+/// or nothing when it left none or the person accepted the loss.
+/// Why:
+///   The carry-back keeps the original tree's entry where the two trees hold different kinds of entry at one path,
+/// so the new subvolume's directory and everything in it is the only copy of those files,
+/// and this rollback deletes that subvolume:
+/// the same rule the deletion of the old tree follows,
+/// and the same flag accepts the loss.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = carryBackLeftOut(run, carried, discardLeftOut);
+/// ```
+fn carry_back_left_out(run: &Run<'_>, carried: &SyncStats, discard_left_out: bool) -> Option<Refusal> {
+    if discard_left_out || (carried.left_out.is_empty() && carried.conflicts.is_empty()) {
+        return None;
+    }
+    let mut parts: Vec<String> = Vec::new();
+    if !carried.left_out.is_empty() {
+        parts.push(format!("{} entr(ies) that {} lacks ({})", carried.left_out.len(), run.layout.old_path.display(), shown_left_out(carried.left_out.iter())));
+    }
+    if !carried.conflicts.is_empty() {
+        parts.push(format!(
+            "{} entr(ies) whose path in {} holds another kind of entry, kept as the newer one ({})",
+            carried.conflicts.len(),
+            run.layout.old_path.display(),
+            shown_left_out(carried.conflicts.iter())
+        ));
+    }
+    return Some(Refusal {
+        cause: format!("{} did not reach {}: {} (this rollback deletes the new subvolume with them)", run.layout.root.display(), run.layout.old_path.display(), parts.join("; ")),
+        remedy: String::from(
+            "Copy anything you want to keep out of the new subvolume first. If what the original tree keeps there is there on purpose, pass --discard-left-out together with --rollback to delete the new subvolume with it; you can also delete the new subvolume yourself.",
+        ),
+    });
+}
+
 /// What:
 ///  The swap of the rollback:
 /// carry back what is newer in the new root,
@@ -165,8 +202,8 @@ pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable
 /// ```ts
 /// const refused = await swapBack(run);
 /// ```
-fn swap_back(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
-    return swap_back_seamed(run, discard_unreadable, &mut nothing_at_all);
+fn swap_back(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
+    return swap_back_seamed(run, discard_unreadable, discard_left_out, &mut nothing_at_all);
 }
 
 /// What:
@@ -186,7 +223,7 @@ fn swap_back(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<R
 /// ```ts
 /// swapBackSeamed(run, discardUnreadable, beforeExchange);
 /// ```
-fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, before_exchange: &mut dyn FnMut()) -> Result<Option<Vec<Refusal>>, MigrateError> {
+fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool, before_exchange: &mut dyn FnMut()) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let root: PathBuf = run.layout.root.clone();
     let new_path: PathBuf = run.layout.new_path.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
@@ -213,6 +250,9 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, before_exchange
                 cause: format!("{} file(s) that this user may not read exist only in the new subvolume {} and cannot be carried back: {}", carried.unreadable.len(), root.display(), shown.join(", ")),
                 remedy: String::from("Copy them out with the privilege they need (for example `sudo cp --archive`), or pass --discard-unreadable together with --rollback to delete them with the new subvolume."),
             }]));
+        }
+        if let Some(refusal) = carry_back_left_out(run, &carried, discard_left_out) {
+            return Ok(Some(vec![refusal]));
         }
         run.checkpoint("rollback-before-exchange")?;
         before_exchange();
@@ -278,7 +318,7 @@ fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, before_exchange
 /// ```ts
 /// const refused = await rollback(run);
 /// ```
-pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
+pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let refusals: Vec<Refusal> = rollback_refusals(run.layout, &run.journal);
     if !refusals.is_empty() {
         return Ok(Some(refusals));
@@ -295,7 +335,7 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
         run.journal.mark("exchange", "done")?;
     }
     if run.journal.is_done("exchange")
-        && let Some(blocked) = swap_back(run, discard_unreadable)?
+        && let Some(blocked) = swap_back(run, discard_unreadable, discard_left_out)?
     {
         return Ok(Some(blocked));
     }

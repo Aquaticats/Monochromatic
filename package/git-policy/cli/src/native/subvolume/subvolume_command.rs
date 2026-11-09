@@ -221,7 +221,7 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
         return Ok(0);
     }
     let refused: Option<Vec<Refusal>> = if arguments.mode == MigrateMode::Rollback {
-        rollback(&mut run, arguments.discard_unreadable)?
+        rollback(&mut run, arguments.discard_unreadable, arguments.discard_left_out)?
     } else {
         remove_old_tree(&mut run, arguments.discard_unreadable, arguments.discard_left_out)?
     };

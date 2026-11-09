@@ -1199,7 +1199,7 @@ a directory or any other name beside the journal is left alone.
 ```sh
 git monochromatic-git-policy-cli migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
 git monochromatic-git-policy-cli migrate-to-subvolume             # migrate; run it again after any stop and it resumes
-git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable]  # undo, finished or not
+git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable] [--discard-left-out]  # undo, finished or not
 git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--discard-left-out]  # delete the original tree
 ```
 
@@ -1351,6 +1351,12 @@ writes their relative paths to `.cli-git-migrate-<name>.left-out.txt` beside the
 names them,
 and deletes nothing until `--discard-left-out` is given with `--remove-old`
  (or you delete the original tree yourself).
+A rollback's carry back leaves an entry out the same way when the original tree holds another kind of entry at its
+path,
+and the new subvolume's directory there is the only copy of what it holds:
+the rollback names those entries and
+ deletes nothing until `--discard-left-out` is given with `--rollback`
+ (or you delete the new subvolume yourself).
 Both deletions make the directories this user owns writable on the way down,
 so a mode-555 directory does not stop them.
 Both refuse,

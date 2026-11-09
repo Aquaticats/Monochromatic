@@ -683,6 +683,48 @@ fn a_subtree_the_carry_refused_as_a_type_conflict_holds_back_the_deletion() {
 }
 
 /// What:
+///  A rollback whose carry-back refused a subtree refuses,
+///  so the new subvolume keeps the only copy of those files,
+///  and `--discard-left-out` accepts the loss as it does for the deletion of the old tree.
+/// Why:
+///   The carry-back keeps the original tree's entry where the two trees hold different kinds of entry at one path,
+/// so the new subvolume's directory and everything in it is the only copy of those files,
+/// and the rollback deletes that subvolume:
+/// nothing in that sequence needs a race or a kill,
+/// so the check must come from the same rule the deletion of the old tree follows.
+#[test]
+fn a_rollback_whose_carry_back_refused_a_subtree_keeps_the_new_subvolume() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-carry-conflict");
+    std::fs::create_dir_all(root.join("ignored")).expect("an ignored directory");
+    std::fs::write(root.join("ignored/saved"), b"the original file\n").expect("a file of the original tree");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    // In the installed checkout the file became a directory holding its only copy, and the original tree's file is newer.
+    std::fs::remove_file(root.join("ignored/saved")).expect("replace the file");
+    std::fs::create_dir_all(root.join("ignored/saved")).expect("its directory");
+    std::fs::write(root.join("ignored/saved/precious.txt"), b"its only copy\n").expect("its file");
+    set_seconds(root.join("ignored/saved").as_path(), 1_000_000_000);
+    set_seconds(root.join("ignored/saved/precious.txt").as_path(), 1_000_000_000);
+    set_seconds(layout.old_path.join("ignored/saved").as_path(), 2_000_000_000);
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    let text: String = lines2.join("\n");
+    assert!(text.contains("ignored/saved"), "the refusal names the entry it kept: {text}");
+    assert!(text.contains("--discard-left-out"), "and the flag that accepts the loss: {text}");
+    assert_eq!(std::fs::read(root.join("ignored/saved/precious.txt")).expect("the only copy"), b"its only copy\n", "the subtree stays in the new subvolume");
+    assert_eq!(std::fs::read(layout.old_path.join("ignored/saved")).expect("the original file"), b"the original file\n", "the file the carry kept is untouched");
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true), "nothing was exchanged");
+    // The same flag the deletion of the old tree takes accepts the loss, and then the rollback finishes.
+    let discarding: MigrateArguments = MigrateArguments { discard_left_out: true, ..rollback_arguments() };
+    let (code3, lines3) = run_command(&platform, &discarding, root.as_path(), &Interrupt::never());
+    assert_eq!(code3, DONE, "{lines3:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A file restored into the old tree with an older modification time,
 ///  which the carry leaves out,
 ///  holds back the deletion and is named.
@@ -781,7 +823,7 @@ fn a_replacement_that_arrives_before_the_exchange_is_not_exchanged_and_deleted()
         std::fs::create_dir_all(at.join("ignored")).expect("a directory at the checkout's path");
         std::fs::write(at.join("ignored/precious.txt"), b"somebody else's file\n").expect("a file of theirs");
     };
-    let refused = swap_back_seamed(&mut run, false, replace).expect("no failure");
+    let refused = swap_back_seamed(&mut run, false, false, replace).expect("no failure");
     let Some(reasons) = refused else { panic!("the rollback is refused, and nothing is exchanged: {say:?}") };
     assert!(reasons.iter().any(|reason: &Refusal| { return reason.cause.contains("installed checkout") || reason.cause.contains("not two directories") || reason.cause.contains("did not exchange"); }), "{reasons:?}");
     assert_eq!(std::fs::read(root.join("ignored/precious.txt")).expect("the replacement is kept"), b"somebody else's file\n");

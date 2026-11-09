@@ -1930,8 +1930,19 @@ then how many more)
 and stops with exit status 1 until the person passes `--discard-left-out`
 beside `--remove-old`,
 or deletes the old tree themselves.
-The flag applies to `--remove-old` alone,
-because a rollback carries every entry back and leaves nothing out.
+The flag applies to both deleting modes.
+A rollback's carry-back leaves the same kind of entry out when the original tree holds another kind of entry at its
+path,
+and the new subvolume's directory there,
+and the only copy of what it holds,
+would go with the subvolume the rollback deletes;
+the rollback therefore counts those entries,
+names them,
+and deletes nothing until the person passes `--discard-left-out` beside `--rollback`,
+or deletes the new subvolume themselves.
+A rollback writes no list file for them:
+the paths are relative to the new subvolume,
+and the run refuses before it exchanges anything.
 The mutation campaign's evidence directories and the host-wide gate slots (`package/mutation-test/cli-cargo-mutants`) are owned
 by claim files:
 a second run on a directory is refused,
