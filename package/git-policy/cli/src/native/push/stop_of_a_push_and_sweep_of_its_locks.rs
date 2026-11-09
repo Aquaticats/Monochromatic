@@ -140,6 +140,8 @@ pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) 
 /// with no child there is only the tree to wait for.
 fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
     let started = spawn_on_runtime(async move {
+        // Whatever an earlier stop left behind and the kernel has released is collected first, so no sweep waits on that list.
+        let _collected: usize = reap_abandoned_children();
         if let Some(uncollected) = child {
             let mut owned: OwnedChild = adopt(uncollected);
             // The exit status is not reported: the push was reported at its deadline.
@@ -147,10 +149,12 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
             match tokio::time::timeout(ceiling, owned.wait()).await {
                 Ok(_collected) => {}
                 Err(_late) => {
-                    // The handle is dropped without waiting: a `Child` does not wait when it is dropped, and the process is left
-                    //  to the kernel, as one it has not released yet must be.
-                    let _left = owned.into_std_when_unreaped();
-                    debug(TAG, "the child of the stopped push was not collected within the ceiling of a stop; it is left to the kernel, and its locks to the stale-lock judgement");
+                    // The child is left to the kernel, as one it has not released yet must be, and its handle is kept: a handle
+                    //  dropped here would leave the process a zombie for the life of the service once the kernel does let it go.
+                    if let Some(left) = owned.into_std_when_unreaped() {
+                        keep_abandoned(left);
+                    }
+                    debug(TAG, "the child of the stopped push was not collected within the ceiling of a stop; it is left to the kernel for the next round to collect, and its locks to the stale-lock judgement");
                 }
             }
         }
@@ -220,6 +224,51 @@ fn control_ceiling_for(id: u32) -> Option<Duration> {
         Some((control_id, ceiling)) if control_id == id => Some(ceiling),
         _ => None,
     };
+}
+
+/// The children a stop left behind whose exit nothing else collects,
+/// kept so that a later round reaps them.
+static ABANDONED: std::sync::Mutex<Vec<Child>> = std::sync::Mutex::new(Vec::new());
+
+/// Keeps `child` for a later round to collect.
+fn keep_abandoned(child: Child) {
+    if let Ok(mut list) = ABANDONED.lock() {
+        list.push(child);
+    }
+}
+
+/// What:
+///  Collects every kept child the kernel has released,
+/// without waiting for one it has not,
+/// and answers how many were collected.
+/// Why:
+///   Dropping a `Child` reaps nothing:
+/// a process that exits after its stop was reported stays a zombie for the life of
+///  the service,
+/// and one entry of the process table per such stop is a leak the service cannot afford.
+/// `try_wait` is
+///  the non-blocking collection:
+/// it answers the exit of a child that ended and nothing of one that has not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// abandoned = abandoned.filter((child) => child.exitCode === null && child.pidAlive())
+/// ```
+pub fn reap_abandoned_children() -> usize {
+    let Ok(mut list) = ABANDONED.lock() else {
+        return 0;
+    };
+    let before: usize = list.len();
+    list.retain_mut(|child| {
+        return match child.try_wait() {
+            // The child ended and its exit is collected here.
+            Ok(Some(_status)) => false,
+            Ok(None) => true,
+            // A handle that cannot be judged is given up: keeping it would hold a place for ever.
+            Err(_) => false,
+        };
+    });
+    return before.saturating_sub(list.len());
 }
 
 /// What:

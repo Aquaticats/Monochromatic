@@ -47,3 +47,31 @@ fn the_sweep_gives_up_on_a_child_the_kernel_does_not_release() {
     // SAFETY: `kill` takes no pointers, and the number is this test's own child, which this test has not reaped.
     unsafe { libc::kill(i32::try_from(id).unwrap_or(0), libc::SIGKILL) };
 }
+
+/// What:
+///  A child a sweep could not collect is kept,
+/// and the next round collects it once the kernel has released it.
+/// Why:
+///   Dropping the handle reaps nothing:
+/// a child that exits after its stop was reported stays a zombie for the life of
+///  the service,
+/// so the handle is kept and a later round takes the exit with a non-blocking wait.
+#[test]
+fn a_child_left_behind_is_collected_by_a_later_round() {
+    let child: std::process::Child = std::process::Command::new("sh").arg("-c").arg("exec sleep 0.2").spawn().expect("a child to hand over");
+    let id: u32 = child.id();
+    ceiling_for_a_child_in_a_control(id, Duration::from_millis(50));
+    let locks: LockLedger = LockLedger::before_start(&std::process::Command::new("true"));
+    let sweeping: tokio::task::JoinHandle<()> = sweep_after_exit(child, Vec::new(), locks).expect("the runtime has a worker to sweep with");
+    crate::lazy_runtime::run_on_runtime(async move {
+        let _ended: Result<Result<(), tokio::task::JoinError>, tokio::time::error::Elapsed> = tokio::time::timeout(Duration::from_secs(10), sweeping).await;
+    })
+    .expect("the runtime runs the wait");
+    // The child ends after the sweep gave up on it, and nothing has collected it: it is a zombie now.
+    std::thread::sleep(Duration::from_millis(400));
+    let table: std::path::PathBuf = std::path::PathBuf::from(format!("/proc/{id}"));
+    assert!(table.exists(), "the child ended and is still in the process table");
+    let collected: usize = reap_abandoned_children();
+    assert!(collected >= 1, "a later round collected the child the sweep left");
+    assert!(!table.exists(), "so it is no zombie after that");
+}

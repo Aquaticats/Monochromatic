@@ -96,6 +96,9 @@ pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandle
 /// const due = dirs.map((d) => retries.takeDue(d)); const answers = await Promise.all(dirs.map((d, i) => drain(d, due[i]))); retries.apply(answers.flatMap(changes));
 /// ```
 pub fn run_planned_round<H: WorkHandlers + Sync>(host: &HostResources, directories: &[PathBuf], handlers: &H, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+    // A child a stop left behind and the kernel has since released is collected here, so the service keeps no zombie for a
+    //  process it abandoned.
+    let _collected: usize = crate::stop_of_a_push_and_sweep_of_its_locks::reap_abandoned_children();
     let taken_at: Instant = Instant::now();
     let first: Duration = retries.first();
     let mut assignments: Vec<Assignment> = Vec::new();
