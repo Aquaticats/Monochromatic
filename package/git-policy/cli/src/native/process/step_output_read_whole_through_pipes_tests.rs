@@ -33,7 +33,8 @@ const READS: usize = 64;
 /// which is why telling the select which branch
 ///  comes first is not what answers:
 /// the answer is the read of the descriptor itself.
-///  The read is made of sixty-four pipes, so one that
+///  The read is made of sixty-four pipes,
+/// so one that
 ///  answered nothing by luck would show.
 #[cfg(target_os = "linux")]
 #[test]
@@ -72,7 +73,9 @@ fn end_of_file_wins_over_a_drain_that_is_ready_at_the_same_poll() {
 }
 
 /// What:
-///  A query whose ceiling came, and whose child the kernel would not let end, is reported as left running.
+///  A query whose ceiling came,
+/// and whose child the kernel would not let end,
+/// is reported as left running.
 /// Why:
 ///  The sentence of that ending was built from the text the wait carried,
 /// so the structured answer never reached the caller:

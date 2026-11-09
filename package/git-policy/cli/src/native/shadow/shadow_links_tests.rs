@@ -3,6 +3,7 @@
 //! private entries never do.
 
 use super::*;
+use crate::candidate_private_index::{PRIVATE_INDEX_PREFIX, STAGING_SUFFIX};
 use crate::test_support::{fixture, git, remove, repository};
 
 /// Shared entries of a plain repository become links to the real entries,
@@ -75,15 +76,55 @@ fn linked_worktree_copies_its_per_worktree_entries() {
 
 /// The private-entry list names every conclusion entry,
 /// the sequencer,
-/// and lock files.
+/// lock files,
+///  and the wrapper's own private copy of an index.
 #[test]
 fn private_names_cover_conclusion_state_and_locks() {
-    for name in ["HEAD", "refs", "index", "MERGE_HEAD", "sequencer", "monochromatic-git-policy-cli", "cli-git", "ORIG_HEAD.lock"] {
+    for name in [
+        "HEAD",
+        "refs",
+        "index",
+        "MERGE_HEAD",
+        "sequencer",
+        "monochromatic-git-policy-cli",
+        "cli-git",
+        "ORIG_HEAD.lock",
+        "cli-git-add-policy-1-2-3",
+        "cli-git-add-policy-1-2-3.making",
+    ] {
         assert!(is_private_shadow_entry(name), "{name}");
     }
-    for name in ["hooks", "info", "rr-cache", "description", "logs-not"] {
+    for name in ["hooks", "info", "rr-cache", "description", "logs-not", "cli-git-add-policies"] {
         assert!(!is_private_shadow_entry(name), "{name}");
     }
+}
+
+/// The wrapper's own private copy of an index never reaches the shadow,
+/// and every real entry beside it still links.
+///
+/// A common directory collects one such copy for every command that died before it removed it,
+/// so the number of names a shadow must link grows without a limit the person chose,
+///  and none of them is an entry a hook resolves.
+#[test]
+fn the_wrappers_private_index_copies_stay_out_of_the_shadow() {
+    let root: PathBuf = fixture("shadow-links-private-index");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    let dead: PathBuf = common.join(format!("{PRIVATE_INDEX_PREFIX}1-2-3"));
+    let staging: PathBuf = common.join(format!("{PRIVATE_INDEX_PREFIX}1-2-4{STAGING_SUFFIX}"));
+    std::fs::create_dir(dead.as_path()).expect("dead copy");
+    std::fs::write(dead.join("index"), b"index").expect("index");
+    std::fs::create_dir(staging.as_path()).expect("staging copy");
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
+    assert!(std::fs::symlink_metadata(shadow.join(dead.file_name().expect("name"))).is_err());
+    assert!(std::fs::symlink_metadata(shadow.join(staging.file_name().expect("name"))).is_err());
+    assert_eq!(
+        std::fs::read_link(shadow.join("hooks")).expect("hooks link"),
+        common.join("hooks")
+    );
+    remove(root.as_path());
 }
 
 /// The private `info` directory of a linked worktree is private to the account.

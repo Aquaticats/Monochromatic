@@ -311,6 +311,10 @@ and runs every gh child in a temporary directory so no ambient work tree can sup
 
 `package/search-fetch/pi-plugin/src/github-record-plan.ts` is not in the working tree and no commit
 in this repository carries it.
+`package/search-fetch/pi-plugin` is the extension package;
+the plan itself is `package/search-fetch/core/src/github-record-plan.ts`,
+tracked since 2026-10-31 in `77ecd57770`,
+and `.github/CONTRIBUTING.md` is not in the tree.
 
 ## Verification
 

@@ -14,11 +14,12 @@
 //! ```
 
 use crate::parallel_budget::{HostResources, sliced_workers};
-use crate::side_by_side_threads::run_all_side_by_side;
+use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, stamp_of};
 use crate::worktree_copy_selection::filesystem_path;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -344,31 +345,38 @@ pub fn copy_worker_count_on(host: &HostResources, entries: usize) -> usize {
 }
 
 /// What:
-///  Copies the files and links of one slice of a manifest into the stage,
-/// recording each cloned file's stamp.
+///  Copies the files and links of the manifest entries at `positions` into the stage,
+/// recording each cloned file's stamp in a list of the slice's own.
 /// Why:
 ///   Each entry is recreated from the source's no-follow view,
 /// so no symbolic link is ever followed;
 ///  directories exist already,
 /// and a parent is created only when the entry's parent changes.
+///  The stamps come back in the order of the positions rather than into one shared list,
+/// because a job of the blocking pool owns what it reads and writes;
+/// the caller places them by the slice each position belongs to,
+/// so a slice that stopped early cannot shift another slice's stamps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function copyLeaves({ sourceRoot, stageRoot, entries, stamps, failed }): Promise<void>;
+/// function copyLeaves({ sourceRoot, stageRoot, entries, positions, failed }): (FileStamp | undefined)[];
 /// ```
 fn copy_leaves(
     source_root: &Path,
     stage_root: &Path,
     entries: &[WorktreeCopyEntry],
-    stamps: &mut [Option<FileStamp>],
+    positions: &[usize],
     failed: &AtomicBool,
-) -> Result<(), WorktreeCopyError> {
+) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
     let mut last_parent: Option<PathBuf> = None;
-    for (entry, slot) in entries.iter().zip(stamps.iter_mut()) {
+    let mut stamps: Vec<Option<FileStamp>> = Vec::with_capacity(positions.len());
+    for at in positions {
+        let Some(entry) = entries.get(*at) else { continue };
         if failed.load(Ordering::Relaxed) {
-            return Ok(());
+            return Ok(stamps);
         }
         if entry.kind == EntryKind::Directory {
+            stamps.push(None);
             continue;
         }
         let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_str())?;
@@ -380,71 +388,41 @@ fn copy_leaves(
         }
         // `match` on the kind: files are cloned or copied and links recreated with their exact target.
         match entry.kind {
-            EntryKind::Directory => {}
+            EntryKind::Directory => stamps.push(None),
             EntryKind::File => {
-                *slot = copy_file_exclusive_with(source_path.as_path(), stage_path.as_path(), try_clone)?;
+                stamps.push(copy_file_exclusive_with(source_path.as_path(), stage_path.as_path(), try_clone)?);
             }
             EntryKind::Symlink => {
                 let target: PathBuf = std::fs::read_link(source_path.as_path())
                     .map_err(raw_failure_of)?;
                 symlink_at(target.as_path(), stage_path.as_path())?;
+                stamps.push(None);
             }
         }
     }
-    return Ok(());
+    return Ok(stamps);
 }
 
 /// What:
-///  Copies one manifest's entries into the stage:
-/// directories first,
-/// then files and links in parallel slices.
+///  One slice of the manifest as the state of one job:
+/// the entries,
+/// the positions of this slice,
+/// the two roots and the flag that stops the other workers.
 /// Why:
-///   The manifest is parent first,
-/// so every directory exists before a worker needs it;
-/// the slices are contiguous so
-///  neighbouring files share a directory,
-/// and the first failure stops the other workers.
+///   A job of the blocking pool owns what it reads,
+/// so the manifest the caller lent is shared once here
+///  and each job takes its own share of it with the positions it copies,
+/// which no job has to copy an entry for.
+/// The budget runner takes a function and the state it reads,
+/// never a closure,
+/// so the slice travels as values the job owns and
+///  may be taken again where no thread can start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function copyManifestEntries({ sourceRoot, stageRoot, entries }): Promise<(FileStamp | undefined)[]>;
+/// type ASliceToCopy = [entries: readonly WorktreeCopyEntry[], source: string, stage: string, positions: number[], failed: boolean];
 /// ```
-pub fn copy_manifest_entries(
-    source_root: &Path,
-    stage_root: &Path,
-    entries: &[WorktreeCopyEntry],
-) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
-    for entry in entries {
-        if entry.kind != EntryKind::Directory {
-            continue;
-        }
-        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
-        create_private_tree(stage_path.as_path())?;
-    }
-    let mut stamps: Vec<Option<FileStamp>> = vec![None; entries.len()];
-    let workers: usize = copy_worker_count(entries.len());
-    let failed: AtomicBool = AtomicBool::new(false);
-    if workers <= 1 {
-        copy_leaves(source_root, stage_root, entries, stamps.as_mut_slice(), &failed)?;
-        return Ok(stamps);
-    }
-    let slice_length: usize = entries.len().div_ceil(workers);
-    let mut slices: Vec<(&Path, &Path, &[WorktreeCopyEntry], &mut [Option<FileStamp>], &AtomicBool)> = Vec::new();
-    for (slice, slots) in entries.chunks(slice_length).zip(stamps.chunks_mut(slice_length)) {
-        slices.push((source_root, stage_root, slice, slots, &failed));
-    }
-    let mut outcomes: Vec<Result<(), WorktreeCopyError>> = Vec::new();
-    for joined in run_all_side_by_side(slices, copy_slice_and_flag_failure) {
-        outcomes.push(match joined {
-            Ok(outcome) => outcome,
-            Err(_panic) => Err(raw_failure(&std::io::Error::other("a copy worker panicked"))),
-        });
-    }
-    for outcome in outcomes {
-        outcome?;
-    }
-    return Ok(stamps);
-}
+type ASliceToCopy = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>, Arc<AtomicBool>);
 
 /// What:
 ///  Copy one slice of leaf entries on a worker,
@@ -457,16 +435,101 @@ pub fn copy_manifest_entries(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copySliceAndFlagFailure([sourceRoot, stageRoot, slice, slots, failed]) { const outcome = copyLeaves(...); if (outcome.isErr()) failed.set(true); return outcome; }
+/// function copySliceAndFlagFailure([entries, sourceRoot, stageRoot, positions, failed]) { const outcome = copyLeaves(...); if (outcome.isErr()) failed.set(true); return outcome; }
 /// ```
 fn copy_slice_and_flag_failure(
-    (source_root, stage_root, slice, slots, failed): (&Path, &Path, &[WorktreeCopyEntry], &mut [Option<FileStamp>], &AtomicBool),
-) -> Result<(), WorktreeCopyError> {
-    let outcome: Result<(), WorktreeCopyError> = copy_leaves(source_root, stage_root, slice, slots, failed);
+    (entries, source_root, stage_root, positions, failed): ASliceToCopy,
+) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
+    let outcome: Result<Vec<Option<FileStamp>>, WorktreeCopyError> = copy_leaves(source_root.as_path(), stage_root.as_path(), entries.as_ref(), positions.as_slice(), failed.as_ref());
     if outcome.is_err() {
         failed.store(true, Ordering::Relaxed);
     }
     return outcome;
+}
+
+/// What:
+///  Copies one manifest's entries into the stage:
+/// directories first,
+/// then files and links in parallel slices.
+/// Why:
+///   The manifest is parent first,
+/// so every directory exists before a worker needs it;
+/// the slices are contiguous so
+///  neighbouring files share a directory,
+/// and the first failure stops the other workers.
+/// Every slice is a job of the process's blocking pool,
+/// so the copy never holds a worker of the runtime that polls tasks.
+/// The callers of this face are synchronous (the staging of one created worktree's ignored state),
+/// so it enters the process's runtime once and waits there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function copyManifestEntries({ sourceRoot, stageRoot, entries }): Promise<(FileStamp | undefined)[]>;
+/// ```
+pub fn copy_manifest_entries(
+    source_root: &Path,
+    stage_root: &Path,
+    entries: &[WorktreeCopyEntry],
+) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
+    return match crate::lazy_runtime::run_on_runtime(copy_manifest_entries_awaiting(source_root, stage_root, Arc::from(entries))) {
+        Ok(stamps) => stamps,
+        // Nothing was copied, and the reason the runtime could not run the workers is why.
+        Err(refusal) => Err(raw_failure(&std::io::Error::other(format!("the staged copy could not be made ({refusal})")))),
+    };
+}
+
+/// What:
+///  `copy_manifest_entries` on the process's runtime:
+/// every slice of leaves is one job of the blocking pool.
+/// Why:
+///   A caller that is itself a task of the runtime cannot enter it,
+/// so it awaits this face instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function copyManifestEntries({ sourceRoot, stageRoot, entries }): Promise<(FileStamp | undefined)[]>;
+/// ```
+async fn copy_manifest_entries_awaiting(
+    source_root: &Path,
+    stage_root: &Path,
+    entries: Arc<[WorktreeCopyEntry]>,
+) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
+    for entry in entries.iter() {
+        if entry.kind != EntryKind::Directory {
+            continue;
+        }
+        let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_str())?;
+        create_private_tree(stage_path.as_path())?;
+    }
+    let mut stamps: Vec<Option<FileStamp>> = vec![None; entries.len()];
+    let workers: usize = copy_worker_count(entries.len());
+    let failed: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let slice_length: usize = entries.len().div_ceil(workers.max(1)).max(1);
+    let mut states: Vec<ASliceToCopy> = Vec::new();
+    let mut slices: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut at: usize = 0;
+    for chunk in entries.chunks(slice_length) {
+        let range: std::ops::Range<usize> = at..at + chunk.len();
+        states.push((Arc::clone(&entries), source_root.to_path_buf(), stage_root.to_path_buf(), range.clone().collect(), Arc::clone(&failed)));
+        slices.push(range);
+        at += chunk.len();
+    }
+    let mut outcomes: Vec<Result<Vec<Option<FileStamp>>, WorktreeCopyError>> = Vec::new();
+    for answer in run_all_side_by_side_on_the_runtime(states, copy_slice_and_flag_failure).await {
+        outcomes.push(match answer {
+            Ok(outcome) => outcome,
+            Err(crate::blocking_job::BlockingJobError::Panicked) => Err(raw_failure(&std::io::Error::other("a copy worker panicked"))),
+            Err(refused) => Err(raw_failure(&std::io::Error::other(format!("a copy worker did not run ({refused})")))),
+        });
+    }
+    for (range, outcome) in slices.into_iter().zip(outcomes) {
+        let copied: Vec<Option<FileStamp>> = outcome?;
+        // A slice writes the stamps of its own positions, so a slice that stopped early cannot shift another's.
+        for (slot, stamp) in stamps[range].iter_mut().zip(copied) {
+            *slot = stamp;
+        }
+    }
+    return Ok(stamps);
 }
 
 /// What:

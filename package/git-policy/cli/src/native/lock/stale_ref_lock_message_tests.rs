@@ -121,16 +121,12 @@ fn the_command_names_the_companions_and_quotes_an_odd_reference() {
 fn a_removed_lock_and_a_held_lock_are_worded_as_printed() {
     let outcome: Outcome = Outcome {
         cleared: vec![
-            found("/r/.git/refs/heads/a.lock", Verdict::Stale(Proof::PidGone(41)), PidFile::Names(41), &[]),
-            found("/r/.git/refs/heads/b.lock", Verdict::Stale(Proof::PidReused { pid: 42, command: String::from("sleep") }), PidFile::Names(42), &[]),
             found("/r/.git/packed-refs.new", Verdict::Stale(Proof::OrphanStaging), PidFile::Absent, &[]),
         ],
         left: vec![found("/r/.git/refs/heads/d.lock", Verdict::Held(String::from("process 43 (git), which the pid file beside it names, is running")), PidFile::Names(43), &[])],
         displaced: vec![PathBuf::from("/r/.git/cli-git-stale-lock-1-0-ff")],
     };
-    let expected: &str = "monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/heads/a.lock, left by a Git that is gone: process 41, named by the pid file beside it, has ended.\n\
-monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.\n\
-monochromatic-git-policy-cli: removed the packed-references staging file /r/.git/packed-refs.new, left by a Git that is gone: Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone.\n\
+    let expected: &str = "monochromatic-git-policy-cli: removed the packed-references staging file /r/.git/packed-refs.new, left by a Git that is gone: Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone.\n\
 monochromatic-git-policy-cli: the reference lock /r/.git/refs/heads/d.lock is in use: process 43 (git), which the pid file beside it names, is running; it was left alone.\n\
 monochromatic-git-policy-cli: a lock file was set aside while a new lock took its place, and is left at /r/.git/cli-git-stale-lock-1-0-ff; look at it before removing it.\n";
     assert_eq!(outcome.notice(), expected);

@@ -222,5 +222,20 @@ await describe({
         expect(html,).toContain('value="&quot;&gt;&lt;script&gt;x&lt;/script&gt;"',);
       },
     },),
+
+    it({
+      name: 'search input value escapes the apostrophe a single-quoted attribute would end at',
+      fn: async () => {
+        const state = defaultState({ probes: PROBES, },);
+        const html = renderControls({
+          probes: PROBES,
+          state: {
+            ...state,
+            search: "it's",
+          },
+        },);
+        expect(html,).toContain(`value="it&#39;s"`,);
+      },
+    },),
   ],
 },);

@@ -8688,7 +8688,7 @@ The general lesson,
 
 ### Settled by instrumentation: the resolver succeeds nowhere here
 
-The previous section left the question open and named the two ways to settle it.
+The "Correcting the claim I just made about the external channel" section left the question open and named the two ways to settle it.
  Instrumentation was the
  cheap one,
  so it was done:
@@ -8723,7 +8723,7 @@ So the stronger claim holds after all,
  kinds,
  the version-locking gate and the callback-relation mapping have never run on real input here.
 
-The narrower claim recorded in the previous section stands as the reasoning that got here,
+The narrower claim recorded in the "Correcting the claim I just made about the external channel" section stands as the reasoning that got here,
  and both are kept
  deliberately.
  An absence in a capture could not distinguish a clean external callee from an absent one;
@@ -9581,7 +9581,9 @@ Worth recording as a failure of my own discipline rather than as a neutral step.
 
 Re-applied the `getResolvedSymbol` change **with the gates still instrumented**,
  which is the measurement the
- previous section said was the only valid one:
+The "One hypothesis about that gate,
+tested invalidly,
+and the trap is one this document already names" section said was the only valid one:
 
 ```text
 EXT-REJECT call-identity     161
@@ -10767,7 +10769,7 @@ So this is a precision fix with zero measured effect on this workspace,
  instead.
  Recorded as such rather than as evidence of anything about real packages.
 
-### A correction to the previous entry
+### A correction to the entryless-resolution sweep
 
 That entry says no per-file warning naming panic-affected files was locatable.
 **Wrong,
@@ -11386,7 +11388,7 @@ unattributed escapes,
 
 ### The observer receiver landed, 2026-08-07
 
-Instrumenting the gate settled the mechanism the entry above could only narrow.
+Instrumenting the gate settled the mechanism the reduce-asymmetry entry could only narrow.
 Printing every arm for both forms of the same fold showed one difference and no others:
 
 ```text
@@ -11402,7 +11404,7 @@ the aliasing fallback false both times,
  result type
 identical.
 So `resultAliasesReceiverState` was not answering after all,
- which the entry above had reasoned
+ which the reduce-asymmetry entry had reasoned
 its way to;
  the first arm was firing because no arm was true.
 

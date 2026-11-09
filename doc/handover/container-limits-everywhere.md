@@ -846,7 +846,7 @@ counts above rather than on a stopwatch.
   exit 0 in 13 s with `positive control: 65 clean cases pass: true; tampered caught 42/45`,
   which is the fuzz package's container shape against the store.
 - Both required tasks once more on the exact final revision,
-  whose only change since the runs above is a docblock:
+  whose only change since the runs recorded under "Measured runs" is a docblock:
   `mise run //package/env-local-json/core:test:container` passed both combinations in 415.6 s
   (`[PASS] container:ubuntu / root / node, container:ubuntu / user / node`),
   the extra 6 min being `apt-get` retries inside the cell (`Ign:` lines while archive.ubuntu.com stalled),
