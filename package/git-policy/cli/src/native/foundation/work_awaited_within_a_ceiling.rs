@@ -26,6 +26,7 @@
 //! const found = await Promise.race([new Promise((resolve) => resolve(work())), sleep(ceiling).then(() => undefined)]);
 //! ```
 
+use std::io::Write;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::time::Duration;
 
@@ -68,6 +69,34 @@ where
         }
         Err(RecvTimeoutError::Disconnected) => None,
     };
+}
+
+/// What:
+///  Give `text` to `stream` on a thread of its own and wait for it no longer than `ceiling`.
+/// Why:
+///  A write to a descriptor whose reader has stopped draining waits in the kernel with no end,
+/// and a line a person
+///  may read is never worth a command that never returns:
+/// the job is left behind at the ceiling,
+/// and the caller says
+///  what that means for its own line.
+///  `Some(Ok(()))` is a line delivered,
+/// `Some(Err(..))` one the stream refused,
+/// and `None` one still waiting at the ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = writeWithin(WARNING_WRITE_CEILING, standardErrorDescriptor(), line);
+/// ```
+pub fn write_within<Stream: Write + Send + 'static>(ceiling: Duration, stream: Stream, text: String) -> Option<std::io::Result<()>> {
+    return work_within(ceiling, move || {
+        let mut target = stream;
+        // The stream is flushed only after the line was written, as the callers of this helper always did.
+        return match target.write_all(text.as_bytes()) {
+            Ok(()) => target.flush(),
+            Err(error) => Err(error),
+        };
+    });
 }
 
 /// The bounded job is controlled in the test module.

@@ -6379,6 +6379,12 @@ The line is delivered on a thread of its own and awaited for at most the `WARNIN
 `service/wait_ceilings.rs`,
 so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
+It is written to the standard error descriptor itself and not through the standard library's shared handle,
+whose lock every synchronous write to standard error takes,
+so a worker left at the ceiling holds no lock the commit's own writes would wait for.
+The notices a preparation prints (an obligation of the worktree that cannot be read, and the entries a landing left out of this commit)
+are given to the same descriptor under the same ceiling,
+and one that cannot be said in time is left unsaid rather than holding the commit.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
