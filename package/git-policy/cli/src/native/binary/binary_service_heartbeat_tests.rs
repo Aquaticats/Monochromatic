@@ -289,6 +289,41 @@ fn a_commit_whose_notice_stream_stopped_taking_lines_still_lands() {
     assert!(said.contains(UNPLACED_SAID), "the line the client said reached the stream: {said:?}");
 }
 
+/// What:
+///  A place named by a service whose connection then ended is not printed as the place of the wait that follows.
+/// Why:
+///   The place belongs to the batch of the service that named it,
+/// and the request is sent again to a service that decides its own
+///  batch;
+/// printing the old place turns an earlier service's batch into a false statement about this wait.
+#[test]
+fn a_place_from_a_service_that_went_away_is_not_printed_as_the_current_one() {
+    let name: String = address("stale-place");
+    let service: UnixListener = listen(name.as_str());
+    let waiting = client(config(name.as_str()));
+    // The first service names a place well before the wait matters, and its connection ends without an answer.
+    let (first, _) = service.accept().expect("the client connects");
+    greet(&first);
+    read_request(&first);
+    (&first).write_all(&line(&ServiceMessage::Position { number: 2, of: 2 })).expect("the place of its batch");
+    drop(first);
+    // The service that takes the request again names no place, and answers after the wait has mattered.
+    let (second, _) = service.accept().expect("the client sends its request again");
+    greet(&second);
+    read_request(&second);
+    let waited: Instant = Instant::now();
+    while waited.elapsed() < QUICK_NOTICE * 3 {
+        (&second).write_all(&line(&ServiceMessage::Heartbeat)).expect("beat");
+        std::thread::sleep(FAKE_BEAT);
+    }
+    let commit: String = "b".repeat(40);
+    (&second).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, notices) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
+    assert!(notices.contains(UNPLACED_SAID), "the second service named no place, and that is what the person is told: {notices:?}");
+    assert!(!notices.contains("earlier commit") && !notices.contains("is next"), "the place of the service that went away is not said of this wait: {notices:?}");
+}
+
 /// A commit that lands at once prints nothing at all,
 /// so the telling costs a person who commits quickly no line they did not have before.
 #[test]
