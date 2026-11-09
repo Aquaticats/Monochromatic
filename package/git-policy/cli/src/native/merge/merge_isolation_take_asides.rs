@@ -247,12 +247,35 @@ pub struct TakeFailure {
 /// and a clean filter can hide bytes from the object Git records for the
 ///  path,
 /// so the bytes themselves are what is compared.
+/// A symbolic link's object is the text of its target,
+/// and
+///  `git hash-object <path>` opens the file the link points at instead,
+/// so a link is hashed from its target text and
+///  never followed.
+///   The link was hashed by following it,
+/// so a saved merge that changes one compared its target's bytes with the
+///  link's own object,
+/// put the link back and refused,
+/// and every retry met the same mismatch
+///  (a cross-vendor review of the ninth round,
+/// its sixth finding).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// rawBytesOf(place, location): string | undefined; // hash-object --no-filters -- <location>
+/// rawBytesOf(place, location): string | undefined; // link ? hash-object --stdin < readlink : hash-object --no-filters -- <location>
 /// ```
 fn raw_bytes_of(place: &RecoveryPlace, root: &Path, location: &Path) -> Option<String> {
+    let found: std::fs::Metadata = std::fs::symlink_metadata(location).ok()?;
+    if found.file_type().is_symlink() {
+        let target: PathBuf = std::fs::read_link(location).ok()?;
+        let mut link: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
+        link.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
+        let output: GitOutput = run_git(&place.git, &link).ok()?;
+        if !output.succeeded() {
+            return None;
+        }
+        return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
+    }
     let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--"]);
     request.arguments.push(location.as_os_str().to_os_string());
     let output: GitOutput = run_git(&place.git, &request).ok()?;
