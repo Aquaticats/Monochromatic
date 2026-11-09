@@ -13,6 +13,7 @@ use crate::subvolume_test_support::{PlainPlatform, backdate, make_checkout};
 use crate::test_support::{fixture, git, remove};
 use crate::worktree_convert::CONVERTING_SUFFIX;
 use crate::worktree_convert_journal::JOURNAL_NAME;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
@@ -332,4 +333,73 @@ fn a_large_host_does_not_pass_the_storage_ceiling() {
     assert_eq!(conversion_workers(CONVERSION_STORAGE_CEILING * 4, None, &huge), CONVERSION_STORAGE_CEILING);
     assert_eq!(conversion_workers(CONVERSION_STORAGE_CEILING * 4, Some(2), &huge), 2);
     assert_eq!(conversion_workers(3, None, &huge), 3);
+}
+
+/// The files the fixture checkout commits,
+/// which every conversion copies into its worktree.
+const TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT: usize = 7;
+
+/// The changes the conversion copies into a worktree of this fixture:
+/// its files and the directories that hold them,
+/// measured on this fixture with `PlainPlatform`,
+/// which clones no data.
+const COPIED_ENTRIES: usize = 11;
+
+/// The entries of a worktree's index that the conversion's rewrite refreshes,
+/// measured on this fixture.
+const INDEX_ENTRIES_REFRESHED: usize = TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT - 1;
+
+/// The report of a run over `WORKTREES` worktrees,
+/// recorded from the code before this step,
+/// with the fixture's own path replaced.
+/// A legitimate change to the report breaks this control on purpose.
+fn the_recorded_report() -> Vec<String> {
+    let mut report: Vec<String> = vec![String::from(RISK_NOTICE)];
+    for index in 0..WORKTREES {
+        report.push(format!("<root>/{}", name_of(index)));
+        report.push(format!("  copied {COPIED_ENTRIES} entries ({TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT} files, 0 cloned)"));
+        report.push(format!("  index: {INDEX_ENTRIES_REFRESHED} of {TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT} entries refreshed"));
+        report.push(String::from("  converted into a subvolume"));
+    }
+    report.push(format!("{WORKTREES} worktree(s) looked at, {WORKTREES} converted or completed, 0 skipped."));
+    return report;
+}
+
+/// What a person reads is the report the code gave before this step,
+/// line for line and in the order of the worktrees named.
+#[test]
+fn the_lines_of_a_run_are_the_ones_recorded_before_the_step() {
+    let (parent, root) = checkout_with_worktrees("convert-parallel-lines", WORKTREES);
+    let (code, lines) = run_on(&Watched::quiet(), &LARGE_HOST, &all_arguments(), root.as_path());
+    assert_eq!(code, 0, "{lines:#?}");
+    assert_eq!(lines_without_root(&lines, root.as_path()), the_recorded_report(), "the report of a run is no longer the one recorded before this step");
+    remove(parent.as_path());
+}
+
+/// What:
+///  Every conversion runs inside the process's runtime,
+/// as a job of its blocking pool,
+/// and not on a thread of its own.
+/// Why:
+///   This is the whole of the conversion:
+/// the conversions used to run on scoped threads,
+/// where the process's runtime is not entered at all,
+///  and the runtime is what the owner asked every wait to sit on.
+#[test]
+fn the_conversions_run_on_the_processs_runtime() {
+    let (parent, root) = checkout_with_worktrees("convert-parallel-runtime", WORKTREES);
+    let probe: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let inside = Arc::clone(&probe);
+    let platform: Watched<'_> = Watched {
+        on_create: Box::new(move |_path: &Path| {
+            inside.lock().expect("lock").push(tokio::runtime::Handle::try_current().is_ok());
+            return Ok(());
+        }),
+        ..Watched::quiet()
+    };
+    let (code, lines) = run_on(&platform, &LARGE_HOST, &all_arguments(), root.as_path());
+    let seen: Vec<bool> = probe.lock().expect("lock").clone();
+    assert_eq!(code, 0, "{lines:#?}");
+    assert_eq!(seen, vec![true; WORKTREES], "a conversion ran outside the process's runtime");
+    remove(parent.as_path());
 }
