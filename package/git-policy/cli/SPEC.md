@@ -5132,7 +5132,8 @@ now inside these bounds:
   A PID file holding a number this process table does not have is waited for the same way by a commit,
   and its line says which number it read and that a Git of another PID namespace writes one this table has
   never had:
-  the number proves no death, so no commit ends early on it
+  the number proves no death,
+  so no commit ends early on it
   (cross-vendor review of 2026-11-09,
   finding 2).
   A merge is the command that acts on that evidence:
@@ -5749,6 +5750,15 @@ in-process reader can) gives every value of the multi-valued keys.
   which would repeat a push that cannot succeed.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
+  The report reaches the person through a record of the worktree's notice directory,
+  shown once by the next command (`record_push_report` in `push_failure_notice.rs`),
+  because the command that ran the push returned before the push ended:
+  it holds the lines the reconcile wrote,
+  which begin with `monochromatic-git-policy-cli: auto-push: `,
+  and it is written whatever the move came to,
+  so the account of a move the worktree would not allow is read as readily as the account of one that followed.
+  Its name carries the report's own prefix,
+  so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
 - No push without a connection waits without a bound,
   and no push with an open connection is stopped for time.
   The push is stopped on no progress and no open connection,
@@ -8492,6 +8502,54 @@ blocks,
 so a blocked gate keeps the commit local,
 and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
 behind").
+
+A held record is settled when Git proves its commit reached the remote.
+The question is put to the local repository alone,
+because a command asks no remote:
+`<branch>@{upstream}` names the ref the branch's pushes update,
+and `git merge-base --is-ancestor <commit> <that ref>` says whether the commit is in it
+(`held_push_commit_on_the_remote.rs`).
+A `merge-base` that exits other than `0` or `1`,
+a branch with no upstream,
+a branch outside `refs/heads` and a Git that cannot be started all answer "nothing is known",
+and the line stands.
+That record is moved to `done`,
+where the queue keeps a push that was made,
+so it is known to the queue and no round may run it,
+and no command says the commit is held while `git status` shows it on the remote.
+The proof is Git's record and not the remote's:
+a remote-tracking ref can lag the remote
+(a push whose reference update was refused still delivered the commits),
+and a lagging record leaves the held line standing,
+which costs a line that is still true of the record and loses nothing,
+while settling on anything weaker would drop the only word about a commit that is not backed up.
+A `blocked` record is not asked about at all:
+the question of whether a commit the gate refused should ever be pushed is open with the owner.
+
+A push record in `pending` is a push no service has taken yet.
+When the wrapper is killed between promoting its record and waking the service,
+or a service goes away before it looks,
+the command that would have said "the push is queued" is gone,
+so every command says it from the record:
+the oldest such record is named,
+the rest are counted,
+and the words claim only that the push has not been made and that the service makes it the next time it
+looks at the repository,
+which needs no further commit.
+A record younger than `PUSH_QUEUED_AFTER` (15 seconds) is a push in flight and is not named;
+the wait measured on this host at 2026-11-09T16:40-05:00 from a landing to the claim of its push record
+was 15 ms to 3.9 s with the service idle between commits and up to 10.7 s with commits made back to back
+(debug build,
+local bare remote),
+so a record that outlasts the bound has outlasted any service that was merely busy.
+The line is the record's,
+so it goes when a claim moves the record.
+
+The service writes the repository it lands for into the journal's claim watch before it answers
+(`note_for_the_next_service` in `service_claim_watch.rs`),
+so a service that starts looks at it even though no client ever woke it for that repository,
+and a kill is followed by the work being run with no commit needed
+(`service_server_work_loop.rs`).
 
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,

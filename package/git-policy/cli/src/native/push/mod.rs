@@ -223,6 +223,11 @@ pub mod push_failure_notice_claimed_by_one_command;
 /// and of one
 ///  lost with its worktree.
 pub mod push_failure_notice_words;
+
+/// The record of what a push that succeeded did,
+/// and the name it is kept under.
+pub mod push_failure_notice_reports;
+
 /// The words that say how to change the push deadline,
 /// for the terminal and for the resident commit service.
 pub mod push_deadline_advice;

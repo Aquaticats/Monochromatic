@@ -203,3 +203,73 @@ fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     assert!(!state_directory(work.as_path(), crate::work_item::HELD).join(item.id()).exists(), "the blocked verdict stands, so the push is not held again");
     remove(root.as_path());
 }
+
+/// A push record the wrapper promoted and no service has taken says the push is queued,
+/// and one that has just been queued is a push in flight.
+#[test]
+fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
+    let root: std::path::PathBuf = fixture("handoff-queued-push");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let item: WorkItem = push_item(&handoff, OID);
+    crate::work_item::enqueue(work.as_path(), &item).expect("the push record is queued");
+    let now: std::time::SystemTime = std::time::SystemTime::now();
+    assert!(
+        queued_push_notices(handoff.git_dir.as_path(), now).is_empty(),
+        "a record younger than the bound is a push in flight, and nothing is said about it"
+    );
+    let waited: std::time::SystemTime = now + PUSH_QUEUED_AFTER + Duration::from_secs(1);
+    let said: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
+    assert_eq!(said.len(), 1, "one line: {said:?}");
+    assert!(said[0].contains(OID), "the line names the commit: {}", said[0]);
+    assert!(said[0].contains("is queued for its push from refs/heads/main"), "{}", said[0]);
+    assert!(said[0].contains("has not been made yet"), "the line claims only what is known: {}", said[0]);
+    assert!(said[0].contains("needs no further commit"), "{}", said[0]);
+    // A second waiting push is counted rather than named: the list of a container's unserved commits has no end.
+    let second: WorkItem = push_item(&handoff, PARENT);
+    crate::work_item::enqueue(work.as_path(), &second).expect("a second push record is queued");
+    let more: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
+    assert_eq!(more.len(), 2, "the oldest is named and the rest counted: {more:?}");
+    assert_eq!(more[0], said[0], "the oldest keeps its line");
+    assert!(more[1].contains("1 more commit is queued for its push the same way"), "{}", more[1]);
+    // The line is the record's: a service that takes it leaves nothing to name.
+    let claimed: Option<crate::work_item::Claimed> =
+        crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::Push]).expect("a claim");
+    assert!(claimed.is_some(), "the service took the oldest record");
+    let taken: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
+    assert_eq!(taken.len(), 1, "a claimed record is no longer waiting: {taken:?}");
+    assert!(!taken[0].contains(OID), "the claimed record is not named: {}", taken[0]);
+    remove(root.as_path());
+}
+
+/// What a command is told about a held record the repository proves the remote already holds.
+struct TheRemoteHolds(bool);
+
+impl crate::held_push_commit_on_the_remote::RemoteRecord for TheRemoteHolds {
+    fn on_the_remote(&self, _reference: &str, _commit: &str) -> OnTheRemote {
+        return if self.0 { OnTheRemote::There } else { OnTheRemote::NotThere };
+    }
+}
+
+/// A held push whose commit a later push carried is settled as done and no longer said,
+/// and one the remote does not hold keeps its line.
+#[test]
+fn a_held_push_the_remote_already_holds_is_settled_and_not_said() {
+    let root: std::path::PathBuf = fixture("handoff-held-settled");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let item: WorkItem = push_item(&handoff, OID);
+    crate::work_item::hold(work.as_path(), &item).expect("the push is held");
+    let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
+    let done: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
+    // The state the record describes: Git's record of the branch's remote does not hold the commit, so the line stands.
+    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false)).len(), 1);
+    assert!(held.exists(), "a proof that says no settles nothing");
+    // A later push of the branch carried the commit: the record is settled where a finished push goes, and nothing is said.
+    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true)), Vec::<String>::new(), "a commit the remote holds is not held");
+    assert!(!held.exists(), "the record left the held state");
+    assert!(done.exists(), "and is known to the queue as a push that was made");
+    // Settled once, so a second command says nothing either.
+    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true)), Vec::<String>::new());
+    remove(root.as_path());
+}
