@@ -109,8 +109,33 @@ pub const ADD_TABLE: &[OptionSpec] = &[
     row(UNREAD, None, Some("pathspec-file-nul"), Arity::None, true),
 ];
 
-/// Pathspecs that match every changed path under the working directory or repository.
-const BULK_PATHSPECS: &[&[u8]] = &[b".", b"./", b"*", b":/"];
+/// Pathspecs Git resolves to the whole worktree, or to every changed path below the working
+///       directory.
+/// Why:
+///   Pathspec grammar has magic and globs,
+/// so a fixed list cannot be complete;
+///  it names every
+///       spelling Git 2.56.0 resolves to the whole tree that a person is likely to write.
+///  `:(top)/*`
+///       selects the same set but is absent because Git 2.56.0 fails in its own `prep_exclude`
+/// for it,
+/// so it never reaches this list.
+const BULK_PATHSPECS: &[&[u8]] = &[
+    // The working directory, absolute and with a trailing slash.
+    b".",
+    b"./",
+    // A bare star matches across `/`, so it reaches every depth.
+    b"*",
+    // The top of the worktree with no pattern, then with a pattern the default glob reads across `/`.
+    b":/",
+    b":/*",
+    b":/**",
+    // Pathspec magic with no pattern names the place it anchors at; the top is the whole repository.
+    b":(top)",
+    // A bare double star, then the same pattern under explicit glob magic.
+    b"**",
+    b":(glob)**",
+];
 
 /// What:
 ///  Why a token stages in bulk.
@@ -129,9 +154,9 @@ pub enum BulkKind {
     AllFlag,
     /// `-u`/`--update` is on after every option was applied.
     UpdateFlag,
-    /// A positional pathspec equal to `.`,
-    ///  `./`,
-    ///  `*` or `:/`.
+    /// A positional pathspec naming the whole worktree,
+    ///  or every changed path below the working directory:
+    ///  the `BULK_PATHSPECS` spellings.
     Pathspec,
 }
 
