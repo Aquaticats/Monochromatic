@@ -9105,9 +9105,9 @@ because opening a named pipe for reading waits for a writer that may never come,
 and a writer that holds one open without writing moves that wait into the read,
 which no byte limit bounds either.
 
-Two windows remain,
+Two windows are recorded here rather than closed,
 each a few instructions wide,
-and each needs another command to land inside it.
+and each needs another process to land inside it.
 The first is between the pass reading the worktree for the last time and the step that installs:
 a save written to the worktree file then is replaced by `git checkout-index --force`,
 and a resolution another process stages then is replaced by `git update-index --index-info`.
@@ -9340,8 +9340,14 @@ leaves the operation stopped with the files staged and Git's exit status,
 A file that does not resolve keeps the stop of Git for every operation.
 A merge that Git completes costs one in-process read of the index before Git starts and nothing after it;
   the Git starts above happen only after a conflict,
-and they run from the top of the worktree with the invocation's `-c` options only,
-  because `check-attr` and `checkout-index` read paths relative to the directory they run in.
+and they run from the top of the worktree with the invocation's configuration options only
+  (`-c`,
+  `--config-env`,
+  and `--attr-source`,
+  each in the forms Git accepts),
+  because `check-attr` and `checkout-index` read paths relative to the directory they run in,
+  and because every one of those options can name the attribute tree the person chose:
+  a pass that dropped one read attributes from another source and merged a file their rules exclude.
 
 Merges from objects (the isolated merge,
 the auto-push reconcile merge,
