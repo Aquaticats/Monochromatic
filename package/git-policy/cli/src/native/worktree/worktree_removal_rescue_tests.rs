@@ -168,6 +168,78 @@ fn the_checkout_of_a_directory_that_is_not_text_is_found_by_the_bytes_git_wrote(
     remove(root.as_path());
 }
 
+/// What:
+///  A checkout path that holds a line break is read whole from the registration Git wrote.
+/// Why:
+///   Git ends that file with one line break, and a path may hold one of its own;
+/// stopping at the first one examines a prefix of the checkout,
+/// and an existing directory of that name makes an incomplete removal read as refused,
+/// which discards the snapshot that keeps the removed worktree's records.
+#[test]
+fn a_checkout_path_that_holds_a_line_break_is_read_whole() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("rescue-line-break-checkout");
+    let common: PathBuf = root.join("common");
+    let linked: PathBuf = common.join("worktrees").join("w");
+    let checkout: PathBuf = root.join(OsStr::from_bytes(b"keep\nremoved"));
+    std::fs::create_dir_all(linked.as_path()).expect("linked git directory");
+    std::fs::create_dir_all(checkout.join(".git").as_path()).expect("checkout");
+    // A directory of the name the prefix of the path spells, which is no checkout of any worktree.
+    std::fs::create_dir_all(root.join("keep").as_path()).expect("a directory of the prefix's name");
+    let mut registration: Vec<u8> = checkout.join(".git").as_os_str().as_bytes().to_vec();
+    registration.push(b'\n');
+    std::fs::write(linked.join("gitdir"), registration.as_slice()).expect("registration");
+    let repo: Repo = Repo { root: root.clone(), common: common.clone(), linked: linked.clone(), checkout: checkout.clone() };
+    assert_eq!(removal_state::checkout_present(linked.as_path()), Some(true), "the checkout is there");
+    records(&repo);
+    assert!(snapshot_linked_worktrees(repo.common.as_path()).is_empty());
+    end_attempts(&repo);
+    // Git deletes the checkout first and the Git directory last; the removal is interrupted between the two.
+    std::fs::remove_dir_all(checkout.as_path()).expect("Git deleted the checkout");
+    assert_eq!(removal_state::checkout_present(linked.as_path()), Some(false), "the checkout is gone, and so is no directory its prefix names");
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    assert!(snapshot_of(&repo).exists(), "a removal that may still be under way keeps the snapshot");
+    assert!(shown(&repo).is_empty(), "nothing is shown while the removal may go on");
+    remove(root.as_path());
+}
+
+/// What:
+///  A snapshot an earlier release wrote for a worktree whose Git directory ends with a line break keeps its records.
+/// Why:
+///   That release wrote the path verbatim and nothing after it,
+/// so trimming one line break from the record names the sibling worktree `topic`,
+/// whose checkout is intact:
+/// the finished removal reads as refused and the saved records are deleted with the snapshot.
+#[test]
+fn a_snapshot_of_an_earlier_release_whose_path_ends_with_a_line_break_keeps_its_records() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("rescue-line-break-path");
+    let common: PathBuf = root.join("common");
+    let removed: PathBuf = common.join("worktrees").join(OsStr::from_bytes(b"topic\n"));
+    let sibling: PathBuf = common.join("worktrees").join("topic");
+    let sibling_checkout: PathBuf = root.join("sibling-checkout");
+    std::fs::create_dir_all(removed.as_path()).expect("linked git directory");
+    std::fs::create_dir_all(sibling_checkout.join(".git").as_path()).expect("the sibling's checkout");
+    std::fs::create_dir_all(sibling.as_path()).expect("the sibling's git directory");
+    let mut sibling_registration: Vec<u8> = sibling_checkout.join(".git").as_os_str().as_bytes().to_vec();
+    sibling_registration.push(b'\n');
+    std::fs::write(sibling.join("gitdir"), sibling_registration.as_slice()).expect("the sibling's registration");
+    let repo: Repo = Repo { root: root.clone(), common: common.clone(), linked: removed.clone(), checkout: PathBuf::from("/nonexistent-checkout") };
+    records(&repo);
+    assert!(snapshot_linked_worktrees(repo.common.as_path()).is_empty());
+    // The release before this one wrote the directory's text and nothing after it, so the last byte of this path is the path's.
+    std::fs::write(snapshot_of(&repo).join(GIT_DIR_FILE), removed.as_os_str().as_bytes()).expect("an earlier release's name");
+    end_attempts(&repo);
+    std::fs::remove_dir_all(removed.as_path()).expect("Git removed the worktree");
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    let texts: Vec<String> = shown(&repo);
+    assert_eq!(texts.len(), 2, "the records the removed worktree left are shown: {texts:?}");
+    assert!(shown(&repo).is_empty(), "shown once");
+    remove(root.as_path());
+}
+
 /// A removal that did not happen (Git refused,
 /// or a dry run) leaves the worktree,
 /// its records and no notice of loss,

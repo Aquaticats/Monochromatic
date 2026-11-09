@@ -114,6 +114,34 @@ pub fn text_in_one_line(path: &Path) -> Option<&str> {
 }
 
 /// What:
+///  The path a record of lines holds for one name:
+/// its bytes from the field that holds them,
+/// its text from the field that holds that,
+/// and nothing when the record has neither.
+/// Why:
+///   Every reader of these records keeps one rule:
+/// a field of bytes that is absent is a record an earlier release wrote,
+/// which holds the text,
+/// and a field of bytes that is there but does not decode is damage;
+/// a reader that takes damage for absence acts on a different path than the writer recorded.
+/// A record whose bytes field is damaged is therefore an error,
+/// which its reader rejects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathOfTwoFields = (bytes, text) => bytes === undefined ? text : (pathOfHex(bytes) ?? damaged())
+/// ```
+pub fn path_of_the_two_fields(bytes: Option<&str>, text: Option<&str>) -> Result<Option<PathBuf>, String> {
+    if let Some(hexadecimal) = bytes {
+        return match path_of_hex(hexadecimal) {
+            Some(path) => Ok(Some(path)),
+            None => Err(String::from("the field of bytes is not the bytes of a path")),
+        };
+    }
+    return Ok(text.map(PathBuf::from));
+}
+
+/// What:
 ///  Put `path` into the record `fields` under `key` as plain text and under `key` followed by
 /// `HEX_SUFFIX` as its bytes.
 /// Why:

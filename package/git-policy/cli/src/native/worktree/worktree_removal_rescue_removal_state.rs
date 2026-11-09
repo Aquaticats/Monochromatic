@@ -84,18 +84,15 @@ fn attempt_file_may_be_running(path: &Path) -> bool {
     };
 }
 
-/// Whether a byte ends a line of the file Git writes.
-fn is_line_end(byte: &u8) -> bool {
-    return *byte == b'\n';
-}
-
 /// Whether the checkout a registered worktree's Git directory names is still there;
 /// nothing when the Git directory does not say.
 pub(super) fn checkout_present(git_dir: &Path) -> Option<bool> {
     // Git writes this file itself, as the bytes of the checkout's `.git`, so it is read as bytes and never as text.
     let bytes: Vec<u8> = std::fs::read(git_dir.join("gitdir")).ok()?;
-    let end: usize = bytes.iter().position(is_line_end).unwrap_or(bytes.len());
-    let marker: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(&bytes[..end]));
+    // Git ends the file with one line break, and a checkout's path may hold one of its own:
+    //  stopping at the first one examines a directory the path only begins with.
+    let recorded: &[u8] = bytes.strip_suffix(b"\n".as_slice()).unwrap_or(bytes.as_slice());
+    let marker: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(recorded));
     if marker.as_os_str().is_empty() {
         return None;
     }
@@ -105,23 +102,29 @@ pub(super) fn checkout_present(git_dir: &Path) -> Option<bool> {
 /// What:
 ///  The Git directory a snapshot's `gitdir` file names:
 /// its bytes when the file is one this release wrote,
-/// its plain text when it is an earlier release's.
+/// its text when it is an earlier release's.
 /// Why:
 ///   The removal of a worktree is judged by looking at this directory,
 /// and a spelling that lost the path's bytes names nothing,
 /// which reads as a removal that finished and would promote a live worktree's records.
+/// Only the line break this release writes after the bytes is removed:
+/// an earlier release wrote the text of the directory and nothing after it,
+/// so the last byte of that text is the path's even when it is a line break.
+/// A name that does not decode is no name;
+/// the snapshot is then kept, never settled on a guess.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const namedGitDir = (text) => text.trim().startsWith('gitdirHex=') ? pathOfHex(text.trim().slice(10)) : text.trim() || undefined;
+/// const namedGitDir = (text) => text.startsWith('gitdirHex=') ? pathOfHex(text.slice(10).replace(/\n$/, '')) : (text === '' ? undefined : text);
 /// ```
 pub(super) fn named_git_dir(text: &str) -> Option<PathBuf> {
-    let trimmed: &str = text.trim_end_matches('\n');
-    return match trimmed.strip_prefix(GITDIR_HEX_PREFIX) {
-        Some(hexadecimal) => path_bytes::path_of_hex(hexadecimal),
-        None if trimmed.is_empty() => None,
-        None => Some(PathBuf::from(trimmed)),
+    let (bytes, plain): (Option<&str>, Option<&str>) = match text.strip_prefix(GITDIR_HEX_PREFIX) {
+        Some(hexadecimal) => (Some(hexadecimal.strip_suffix('\n').unwrap_or(hexadecimal)), None),
+        None if text.is_empty() => (None, None),
+        None => (None, Some(text)),
     };
+    let named: Option<PathBuf> = path_bytes::path_of_the_two_fields(bytes, plain).ok().flatten();
+    return named.filter(|path| { return !path.as_os_str().is_empty(); });
 }
 
 /// What:
