@@ -4560,8 +4560,8 @@ at the end
 (`native:test:host`,
 with `CLI_GIT_TEST_ROOT` under a short path so a Unix
 socket fits `SUN_LEN`):
-4793 tests run,
-4793 passed (one slow),
+4794 tests run,
+4794 passed (one slow),
 8 skipped.
 The whole binary-level suite,
 once

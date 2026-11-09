@@ -553,8 +553,8 @@
   4. Then T13's removals and lint.
 - Checks,
   the whole suites once at the end:
-  `native:test:host` 4793 run,
-  4793 passed (one slow),
+  `native:test:host` 4794 run,
+  4794 passed (one slow),
   8 skipped;
   `native:test:binary:host` 733 run,
   733 passed (two slow),
