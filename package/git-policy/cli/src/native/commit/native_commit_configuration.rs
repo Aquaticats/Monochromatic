@@ -238,24 +238,29 @@ fn push_quoted_subsection(text: &mut Vec<u8>, subsection: &[u8]) {
 ///  A value in the quoted form Git's file parser reads back byte for byte.
 /// Why:
 ///   A quoted value keeps `#`,
-///  `;` and surrounding spaces,
-///  and `\\`,
+///  `;` and surrounding spaces.
+///  Each of Git's five value escapes is written as the letter it names,
+///  `\\`,
 ///  `\"`,
 ///  `\n`,
-///  `\t` and `\b` are the escapes a value recognizes,
-///  so every byte comes back as it went in.
+///  `\t` and `\b`,
+///  because a backslash before the character itself is not that escape:
+///  a backslash before a raw tab is an invalid escape Git refuses,
+///  and a backslash before a raw newline continues the line,
+///  which drops the newline from the value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// value.replace(/[\\"\n\t\b]/g, (c) => ({ '\b': '\\b' })[c] ?? `\\${c}`);
+/// const escapes = { '\\': '\\\\', '"': '\\"', '\n': '\\n', '\t': '\\t', '\b': '\\b' };
+/// value.replace(/[\\"\n\t\b]/g, (c) => escapes[c]);
 /// ```
 fn push_quoted_value(text: &mut Vec<u8>, value: &[u8]) {
     for byte in value {
         match byte {
-            b'\\' | b'"' | b'\n' | b'\t' => {
-                text.push(b'\\');
-                text.push(*byte);
-            }
+            b'\\' => text.extend_from_slice(b"\\\\"),
+            b'"' => text.extend_from_slice(b"\\\""),
+            b'\n' => text.extend_from_slice(b"\\n"),
+            b'\t' => text.extend_from_slice(b"\\t"),
             b'\x08' => text.extend_from_slice(b"\\b"),
             other => text.push(*other),
         }

@@ -33,6 +33,57 @@ fn snapshot(records: &[(&str, &str, Option<&str>)]) -> ConfigSnapshot {
     return snapshot_records(owned.as_slice());
 }
 
+/// The characters Git's configuration format treats specially in a value,
+/// each paired with the key it travels under:
+/// the tab,
+/// the newline,
+/// the backslash,
+/// the double quote,
+/// spaces at either end,
+/// and several of them together.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cases = [['commit.template', 'unused\ttemplate'], ['commit.cleanup', 'first\nsecond'], ...];
+/// ```
+const SPECIAL_VALUES: [(&str, &[u8]); 6] = [
+    ("commit.template", b"unused\ttemplate"),
+    ("commit.cleanup", b"first\nsecond"),
+    ("core.commentchar", b"back\\slash"),
+    ("user.signingkey", b"dou\"ble"),
+    ("i18n.commitencoding", b" leading and trailing "),
+    ("commit.signoff", b"tab\tand\nnewline\tboth"),
+];
+
+/// Every character the format treats specially reads back from the carried file as it went in,
+/// compared by real Git against the original bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [key, value] of cases) assert.equal(await git(['-c', include, 'config', '-z', '--get', key]), value + '\0');
+/// ```
+#[test]
+fn every_character_the_format_treats_specially_reads_back_from_the_carried_file() {
+    let root: PathBuf = fixture("native-commit-configuration-specials");
+    let records: Vec<(&str, &str, Option<&[u8]>)> = SPECIAL_VALUES
+        .iter()
+        .map(|(key, value)| { return ("local", *key, Some(*value)); })
+        .collect();
+    let found: ConfigSnapshot = snapshot_records(records.as_slice());
+    let mut query: Vec<OsString> = native_commit_configuration(Some(&found), root.as_path()).expect("carried");
+    query.extend([OsString::from("config"), OsString::from("-z"), OsString::from("--get")]);
+    for (key, value) in SPECIAL_VALUES {
+        let mut asked: Vec<OsString> = query.clone();
+        asked.push(OsString::from(key));
+        let output: std::process::Output = git_output(root.as_path(), asked.as_slice());
+        assert!(output.status.success(), "real Git must read {key}: {}", String::from_utf8_lossy(&output.stderr));
+        let mut expected: Vec<u8> = value.to_vec();
+        expected.push(0);
+        assert_eq!(output.stdout, expected, "{key} reads back as it went in");
+    }
+    remove(root.as_path());
+}
+
 /// The key criterion takes the signing and message keys,
 /// every trailer,
 /// and nothing else.
