@@ -660,7 +660,14 @@ Read-only commands,
    empty it:
      no work item names it,
      only the person will remove it,
-     and it gives the `rm --recursive --force` command that does.
+     and it gives the `rm --recursive --force` command that does
+   when that command deletes exactly what the snapshot made.
+     It gives no removal command when the emptying kept something
+   (a directory the snapshot did not make under the recorded name,
+     an entry that changed,
+     or a file somebody put in the trash),
+     and names the path and the reason instead,
+     because removing that path recursively would delete what the emptying left alone.
      Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
    command:

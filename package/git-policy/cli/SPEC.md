@@ -1239,7 +1239,19 @@ so the line says that the trash stays inside the worktree,
 that no work item names it,
 that only the
  person will remove it,
-and gives `rm --recursive --force -- '<path>'` with the path quoted for their shell.
+and gives `rm --recursive --force -- '<path>'` with the path quoted for their shell
+ when that command deletes exactly what the snapshot made.
+It gives no removal command when the emptying kept something:
+ a directory under the
+ recorded name that the snapshot did not make,
+ an entry that is no longer the object the leave-out moved
+ there,
+ or a file somebody put in the trash.
+The line then names the path and says that what is in it
+ is not the snapshot's and that only the person removes it,
+ by name,
+ because a recursive removal of that path
+ would delete what the emptying deliberately left.
 A line that
  promised a later service would promise work nothing records.
 A work item of kind `trash` that an earlier release wrote is still emptied by the service's handler
