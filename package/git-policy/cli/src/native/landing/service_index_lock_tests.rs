@@ -176,7 +176,7 @@ fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
 /// so it is one clock reading,
 /// taken from the wait's own line and not from the
 ///  staging before it,
-/// against a fifth of the interval that repeats that line:
+/// against half of the interval that repeats that line:
 /// over ten runs the wake came 400.35 to 400.51 ms after the line,
 /// and 10.0018 to 10.0090 s after it
 ///  over three runs with the watch blinded to the lock's removal.
@@ -195,14 +195,19 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     ///  repeats the holder's line.
     const HOLD: Duration = Duration::from_millis(400);
     /// The longest the wake may take after the wait's line,
-    /// a fifth of the interval that repeats it.
+    /// half of the interval that repeats it.
     ///
     /// A wake from the removal takes that line's own measure of the hold (400 ms),
-    /// and one from the interval's timer
-    ///  takes the whole interval (10 s),
-    /// so a fifth sits between the two by a factor of five either way.
-    const WAKE_WITHIN: Duration = Duration::from_secs(2);
-    assert_eq!(WAKE_WITHIN * 5, NOTICE_EVERY, "the bound stays a fifth of the interval that repeats the holder's line");
+    /// and one from the interval's timer takes the whole interval (10 s),
+    /// so half of it sits between the two by a factor of two either way,
+    /// and a host that stalls the removal by up to 4.6 s is still read as an event.
+    /// A fifth of it failed once in a run of the thirty-six controls beside this one
+    /// (2026-11-08,
+    /// this host while other agents built),
+    /// and that run's message carried no reading of the interval,
+    /// so the bound is the half and no tighter.
+    const WAKE_WITHIN: Duration = Duration::from_secs(5);
+    assert_eq!(WAKE_WITHIN * 2, NOTICE_EVERY, "the bound stays half of the interval that repeats the holder's line");
     let (root, index) = index_in("index-lock-wait");
     let foreign: PathBuf = lock_path_of(&index);
     std::fs::write(&foreign, "foreign").expect("foreign lock");
@@ -241,8 +246,8 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     assert!(!heard.lock().expect("lock").is_empty(), "the wait said that it waits");
     // The holder let go a hold after the wait's line, so a wait that returned before the foreign lock was gone is caught by the placements and here.
     let since_said: Duration = said.expect("the wait said what it waits for").elapsed();
-    assert!(since_said >= HOLD, "the wait returned before the hold it was told to keep: {since_said:?}");
-    assert!(since_said < WAKE_WITHIN, "the wake came {since_said:?} after the line, so it was the reminder's timer and not the removal");
+    assert!(since_said >= HOLD, "the wait returned before the hold it was told to keep: {since_said:?} against {HOLD:?}, placements {placements:?}");
+    assert!(since_said < WAKE_WITHIN, "the wake came {since_said:?} after the line, against {WAKE_WITHIN:?}, so it was the reminder's timer and not the removal; placements {placements:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(2));
     drop(lock);
     remove(root.as_path());
