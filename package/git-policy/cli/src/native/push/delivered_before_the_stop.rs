@@ -92,14 +92,16 @@ pub struct DeliveryQuestion {
 }
 
 /// What:
-///  The words before the subcommand: Git's global options,
+///  The words before the subcommand:
+/// Git's global options,
 /// or nothing when the arguments name no subcommand.
 /// Why:
 ///   `-C` names another repository and `-c` another configuration,
 /// so a question asked without them reads what the push
 ///  never read:
 /// a mismatched repository answered about references the push did not touch.
-///  Git reads its own prefix, so the wrapper does not approximate it.
+///  Git reads its own prefix,
+/// so the wrapper does not approximate it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,6 +138,21 @@ pub fn after_the_subcommand(arguments: &[OsString]) -> Option<&[OsString]> {
         return None;
     }
     return arguments.get(layout.prefix_len + 1..);
+}
+
+/// What:
+///  Whether a `--recurse-submodules` value asks Git for references of its own.
+/// Why:
+///   Git's `no` is the only value that sends nothing beyond the push's own references,
+/// and `check`,
+/// `on-demand` and `only` all send submodule references.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// value !== 'no'
+/// ```
+fn asks_for_submodule_references(value: &OsString) -> bool {
+    return value != "no";
 }
 
 /// What:
@@ -216,7 +233,7 @@ impl DeliveryQuestion {
         if shape.follow_tags {
             return None;
         }
-        if shape.recurse_submodules.as_ref().is_some_and(|value| value != "no") {
+        if shape.recurse_submodules.as_ref().is_some_and(asks_for_submodule_references) {
             return None;
         }
         let remote: OsString = shape.repository?;
@@ -245,7 +262,8 @@ impl DeliveryQuestion {
 /// its
 ///  configuration and the caller's settings are the ones the push saw.
 /// The push's global options are repeated for the
-///  same reason: `-C` names the repository the push read.
+///  same reason:
+/// `-C` names the repository the push read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -395,7 +413,8 @@ async fn remote_object(
 ///  the repository the push fetched from;
 /// with the two naming different repositories the stop could be called delivered while the
 ///  destination held nothing.
-///  A destination that is not a remote name (a path or a URL, as in `git push ../remote.git`) is a location already,
+///  A destination that is not a remote name (a path or a URL,
+/// as in `git push ../remote.git`) is a location already,
 /// and one that is a remote name with no readable push URL is no place this release can ask.
 ///
 /// In TS you'd write (pseudocode):
@@ -512,7 +531,8 @@ pub async fn sends_more_than_the_command_line_names(
 ///   The push chooses its objects when it starts,
 /// and a reference that moves while the push runs names another object
 ///  afterwards;
-/// recorded now, they are the objects the remote must hold for the delivery to be done.
+/// recorded now,
+/// they are the objects the remote must hold for the delivery to be done.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

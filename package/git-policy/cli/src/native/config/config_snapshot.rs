@@ -54,7 +54,8 @@ const DECIMAL_DIGITS_LIMIT: usize = 9;
 pub const MAINTENANCE_KEYS: [&str; 4] = ["maintenance.auto", "maintenance.autodetach", "gc.auto", "gc.autodetach"];
 
 /// The scope name Git lists for the values that came from a command line or its environment rather than a file:
-/// `-c`, `GIT_CONFIG_COUNT` and `GIT_CONFIG_PARAMETERS`.
+/// `-c`,
+/// `GIT_CONFIG_COUNT` and `GIT_CONFIG_PARAMETERS`.
 const COMMAND_SCOPE: &str = "command";
 
 /// What:
@@ -542,7 +543,8 @@ impl ConfigSnapshot {
     /// What:
     ///  `git config --type=bool --get <key>`.
     /// Why:
-    ///   Every value Git would read is read here, whatever scope it came from.
+    ///   Every value Git would read is read here,
+    /// whatever scope it came from.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

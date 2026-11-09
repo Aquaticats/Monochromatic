@@ -448,7 +448,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   with the caller's global options,
   for the common Git directory
   (`git rev-parse --path-format=absolute --git-common-dir`) and for `core.hooksPath`
-  (`git config --type=path --get-all core.hooksPath`).
+  (`git config --type=path --null --get-all core.hooksPath`).
+  The listing is split on NUL and only its last empty piece,
+  which Git's own terminator leaves,
+  is dropped:
+  a configured directory whose name holds a line break is one value,
+  and splitting the listing on line breaks
+  read it as two and scanned a directory the person never named.
   The configured directory is the last value of the key that is not one of the wrapper's own hooks-off
   directories:
   a run inside a Git the wrapper started carries the wrapper's value last as command-scope configuration,
@@ -2628,6 +2634,43 @@ of the review call and of the whole review).
   and says that pushing again runs no remote hook,
   so that work has to be finished at the remote
   (`src/native/push/delivered_before_the_stop.rs`).
+  That sentence is a claim a person stops pushing on,
+  so it is said only when the answer holds for the destination the push went to,
+  for the objects the push was
+  sending,
+  and for every reference the push tried;
+  in every other case the report is the ordinary stop of a push that was
+  interrupted and nothing is claimed about the remote:
+  - The destination is the URL the push wrote to,
+    which is the remote's `pushurl` when it has one
+    (`git remote get-url --push`),
+    and never the fetch URL a stop inside a repository has to fall back to;
+    a destination that is not a remote name is the location the push named.
+  - The objects are recorded before the push starts,
+    so a local reference that moves while the push runs
+    cannot make the remote's older reference look delivered.
+  - Every question repeats the global options the push carried,
+    `-C` and `-c` included,
+    so the repository and the configuration asked are the ones the push read.
+  - A push Git widens beyond the references on its command line is no proof:
+    `--follow-tags` or `push.followTags`,
+    `--recurse-submodules` other than `no`,
+    or `push.recurseSubmodules` other than `no`,
+    and `--all`,
+    `--branches`,
+    `--tags`,
+    `--mirror` and a deletion,
+    which name references the question does not.
+    The two configuration keys are asked with Git and anything but a proved
+    `no`
+    leaves the report as it was.
+  - A refspec pattern (`*`,
+    `?` or a bracket expression) names a set of references and is no question the proof can ask,
+    and neither is a `^`
+    revision expression,
+    which names objects and not a reference.
+  - Every question is a bounded Git query of the push,
+    so a remote that does not answer leaves the report as it was.
 - The long-lived object reader (`git cat-file --batch`) is judged the same way per request;
   a request that stalls ends
   the
@@ -4002,6 +4045,13 @@ in-process reader can) gives every value of the multi-valued keys.
   says the delivery is done and the remote's own work is what the stop ended,
   instead of a failed push whose commit is only local
   (`src/native/push/delivered_before_the_stop.rs`).
+  That proof is asked of the destination the push went to
+  (its remote's push URL),
+  against the objects recorded before the push started,
+  with the push's own global options,
+  and only for a push whose command line names every reference Git tried;
+  anything else leaves the ordinary stop report,
+  which claims nothing about the remote (see "Commit hooks").
   The same stop (a catchable request,
   five seconds,
   then the kill) ends every Git child the wrapper stops:
@@ -4108,6 +4158,31 @@ in-process reader can) gives every value of the multi-valued keys.
   ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
   A successful push shows only the `remote:` lines and the lines of the reconcile.
+- The record a later command shows carries what the push came to,
+  as the first line of the record file,
+  and the notice is
+  worded from that:
+  a push Git refused delivered nothing,
+  so the note says the commit exists only on this computer;
+  a push
+  that was stopped or failed for a reason that can pass proves nothing about the remote,
+  so the note says it did not
+  finish,
+  that the remote may or may not have taken the commit,
+  and that the service keeps the push in its retry plan.
+  Neither wording is ever chosen from the
+  text of Git's output or a remote hook's,
+  because a remote's hook controls that text:
+  a hook that prints the wrapper's own
+  delivery sentence is shown as what Git said and changes no framing
+  (`src/native/push/push_failure_notice.rs`).
+  The notice claims no delivery at all,
+  even when the stop proved one:
+  that sentence belongs to the stop's own report,
+  which is the process that proved it,
+  and carrying the proof
+  into the notice would add a second claim about the same push
+  (`src/native/push/delivered_before_the_stop.rs`).
 
 ### Manual push
 
@@ -7758,6 +7833,19 @@ and the executable does not read the name it was started under.
   `hook.<event>.enabled=false`,
   which is Git's own switch for the whole event
   (`git hook list` reports such a hook as `event-disabled`).
+  Both switches are read from the configuration files,
+  the `command` scope left out:
+  the wrapper itself supplies `hook.<event>.enabled=false` for every event on every Git it starts,
+  a Git
+  child passes those values on through `GIT_CONFIG_PARAMETERS`,
+  and reading them here let the wrapper's own
+  suppression hide a hook the person configured,
+  from doctor and from the commit warning alike.
+  That goes one way by
+  design:
+  a person who switches a hook off with `-c` on one command is told about it again rather than
+  silently spared,
+  because this process cannot tell their `-c` from the wrapper's.
   A hook that asks for no event,
   or has an event and no command,
   is named:

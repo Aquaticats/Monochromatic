@@ -563,10 +563,13 @@ fn a_hooks_path_that_holds_a_line_break_is_scanned_where_it_points() {
 }
 
 /// What:
-///  A later value still decides, and the value the wrapper supplied is still not the person's.
+///  A later value still decides,
+/// and the value the wrapper supplied is still not the person's.
 /// Why:
-///   The listing is read for its values, not for its line breaks,
-/// so a value holding a line break, one of the wrapper's own
+///   The listing is read for its values,
+/// not for its line breaks,
+/// so a value holding a line break,
+/// one of the wrapper's own
 ///  paths and an empty value all have to be told apart.
 #[cfg(unix)]
 #[test]

@@ -200,6 +200,10 @@ pub mod manual_push_lifecycle;
 /// so that no failure notice is shown to it.
 pub mod push_failure_notice_machine_output;
 
+/// The words a push record's notice is made of,
+/// decided by what the push came to.
+pub mod push_failure_notice_wording;
+
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;
 
