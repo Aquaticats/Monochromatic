@@ -421,3 +421,33 @@ fn a_holder_proven_alive_stays_proven_after_any_later_notice() {
     assert_eq!(holder_kind_after(Some("unproven"), unproven.as_str()), "unproven");
     assert_eq!(holder_kind_after(None, unproven.as_str()), "unproven");
 }
+
+/// The record states what the preparation's own work did,
+/// by name,
+/// with how often it ran,
+/// the whole of its time and its longest run,
+/// so the next slow preparation names the step that spent the milliseconds instead of the phase alone.
+#[test]
+fn the_record_states_the_preparations_own_work_by_name() {
+    use crate::prepare_work_spans::note_span;
+    let root: PathBuf = fixture("timing-prepare-spans");
+    let (timing, _covered) = filled(root.as_path());
+    note_span("index copy", Duration::from_millis(12));
+    note_span("index copy", Duration::from_millis(30));
+    note_span("policy security/forbidden-strings at pre-forward", Duration::from_millis(7));
+    timing.finish(0);
+    let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let value: serde_json::Value = parsed(text.as_str());
+    let expected: serde_json::Value = serde_json::from_str(
+        r#"[{"name":"index copy","calls":2,"totalMs":42,"longestMs":30},{"name":"policy security/forbidden-strings at pre-forward","calls":1,"totalMs":7,"longestMs":7}]"#,
+    )
+    .expect("the split of two names");
+    assert_eq!(value["prepareSpans"], expected, "every named step of the preparation is stated with its count and its time: {value}");
+    // A commit that recorded nothing states an empty list, so a reader never tells a missing field from a commit that ran nothing.
+    let (quiet, _) = filled(root.as_path());
+    quiet.finish(0);
+    let lines: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let last: serde_json::Value = parsed(lines.lines().last().map(|line| { return format!("{line}\n"); }).expect("a line").as_str());
+    assert_eq!(last["prepareSpans"], serde_json::Value::from(Vec::<u64>::new()));
+    remove(root.as_path());
+}

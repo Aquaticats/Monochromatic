@@ -231,7 +231,8 @@ const REFSPEC_CASES: &[RefspecCase] = &[
 /// which took the whole table 83.0 s in one
 ///  control on 2026-11-09 while the host ran at a load average of 76 and the control timed out at the runner's
 ///  five-minute limit inside a suite.
-/// The table itself stays one list, so no case can be forgotten.
+/// The table itself stays one list,
+/// so no case can be forgotten.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,14 +269,17 @@ fn case(name: &str) -> &'static RefspecCase {
 }
 
 
-/// Two sources for one destination: Git sends the last one, and the service sends that one and no other.
+/// Two sources for one destination:
+/// Git sends the last one,
+/// and the service sends that one and no other.
 #[test]
 fn a_refspec_two_sources_one_destination_is_sent_where_git_sends_it() {
     a_refspec_configuration_is_sent_where_git_sends_it(case("two-sources-one-destination"));
 }
 
 
-/// A source that does not exist is refused by Git and sent by nobody, while the source beside it is sent.
+/// A source that does not exist is refused by Git and sent by nobody,
+/// while the source beside it is sent.
 #[test]
 fn a_refspec_a_source_that_does_not_exist_is_sent_where_git_sends_it() {
     a_refspec_configuration_is_sent_where_git_sends_it(case("a-source-that-does-not-exist"));
@@ -289,14 +293,16 @@ fn a_refspec_a_pattern_loses_to_an_explicit_refspec_is_sent_where_git_sends_it()
 }
 
 
-/// An explicit refspec before a pattern decides the destination, whatever the order suggests.
+/// An explicit refspec before a pattern decides the destination,
+/// whatever the order suggests.
 #[test]
 fn a_refspec_an_explicit_refspec_before_a_pattern_is_sent_where_git_sends_it() {
     a_refspec_configuration_is_sent_where_git_sends_it(case("an-explicit-refspec-before-a-pattern"));
 }
 
 
-/// Of two patterns the first decides, as it does for Git.
+/// Of two patterns the first decides,
+/// as it does for Git.
 #[test]
 fn a_refspec_two_patterns_first_wins_is_sent_where_git_sends_it() {
     a_refspec_configuration_is_sent_where_git_sends_it(case("two-patterns-first-wins"));
@@ -324,14 +330,16 @@ fn a_refspec_a_glob_to_another_namespace_is_sent_where_git_sends_it() {
 }
 
 
-/// A refspec without a destination is a configuration Git refuses, so nothing is sent and the person is told why.
+/// A refspec without a destination is a configuration Git refuses,
+/// so nothing is sent and the person is told why.
 #[test]
 fn a_refspec_a_refspec_without_a_destination_is_sent_where_git_sends_it() {
     a_refspec_configuration_is_sent_where_git_sends_it(case("a-refspec-without-a-destination"));
 }
 
 
-/// A pattern without a remote side sends nothing, as Git sends nothing.
+/// A pattern without a remote side sends nothing,
+/// as Git sends nothing.
 #[test]
 fn a_refspec_a_pattern_without_a_remote_side_is_sent_where_git_sends_it() {
     a_refspec_configuration_is_sent_where_git_sends_it(case("a-pattern-without-a-remote-side"));
@@ -359,7 +367,8 @@ fn a_refspec_a_short_source_name_is_sent_where_git_sends_it() {
 }
 
 
-/// The matching refspec sends the branch, as Git's matching push does.
+/// The matching refspec sends the branch,
+/// as Git's matching push does.
 #[test]
 fn a_refspec_matching_refspec_is_sent_where_git_sends_it() {
     a_refspec_configuration_is_sent_where_git_sends_it(case("matching-refspec"));

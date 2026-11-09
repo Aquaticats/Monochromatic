@@ -39,6 +39,26 @@ use std::path::Path;
 /// await copyIndexFile({ sourcePath, destinationPath });
 /// ```
 pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io::Result<()> {
+    // Every private index a preparation makes starts as one of these copies, and an index of a large worktree is megabytes,
+    // so the copies are one of the steps a slow preparation must be able to name.
+    let began: std::time::Instant = std::time::Instant::now();
+    let copied: std::io::Result<()> = copy_index_bytes(source, destination);
+    crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_COPY, began.elapsed());
+    return copied;
+}
+
+/// What:
+///  `copy_index_with_timestamps` without the note of how long it took,
+/// so the note is made once for every way this copy can end.
+/// Why:
+///  A copy that fails is still time the preparation spent,
+/// and a record that leaves it out would blame the step after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const opened = await open(source); const metadata = await opened.stat();
+/// ```
+fn copy_index_bytes(source: &Path, destination: &Path) -> std::io::Result<()> {
     // The times come from the open file, not from its path, so a rename of another index over the path between the
     // read and the stat cannot give this content that file's times.
     let mut opened: std::fs::File = std::fs::File::open(source)?;
@@ -121,6 +141,23 @@ impl PrivateIndexSeed {
 /// readIndexFlags(await readFile(capturedIndex).catch(() => undefined))
 /// ```
 pub fn private_index_seed(captured_index: &Path) -> PrivateIndexSeed {
+    // The whole index is read here to read its marks, and an index of a large worktree is megabytes, so the read is named.
+    let began: std::time::Instant = std::time::Instant::now();
+    let seed: PrivateIndexSeed = marks_of_captured_index(captured_index);
+    crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_READ, began.elapsed());
+    return seed;
+}
+
+/// What:
+///  `private_index_seed` without the note of how long the read took.
+/// Why:
+///   The note covers the read that failed as well as the one that answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytes = await readFile(capturedIndex).catch(() => undefined);
+/// ```
+fn marks_of_captured_index(captured_index: &Path) -> PrivateIndexSeed {
     let Ok(bytes) = std::fs::read(captured_index) else {
         return PrivateIndexSeed::Base;
     };

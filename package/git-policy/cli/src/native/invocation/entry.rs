@@ -18,6 +18,7 @@
 /// Import the sibling modules the decision combines.
 use crate::entry_forward_action_planning::forward_action;
 use crate::entry_push_stacking_and_lfs_upload::stack_if_push;
+use crate::exit_report_written::write_exit;
 use crate::entry_run_forwarded_actions::{finish_forwarded, run_coordinated_action, write_stream};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
 use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
@@ -419,15 +420,11 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             write_stream(&mut std::io::stderr(), stderr.as_str());
             return run_stacked_push(&forward);
         }
-        Action::Exit {
-            code,
-            stdout,
-            stderr,
-        } => {
-            // `&mut` lends each stream for writing.
-            write_stream(&mut std::io::stdout(), stdout.as_str());
-            write_stream(&mut std::io::stderr(), stderr.as_str());
-            return code;
+        Action::Exit { code, stdout, stderr } => {
+            return write_exit(code, stdout.as_bytes(), stderr.as_str());
+        }
+        Action::ExitBytes { code, stdout, stderr } => {
+            return write_exit(code, stdout.as_slice(), stderr.as_str());
         }
     }
 }

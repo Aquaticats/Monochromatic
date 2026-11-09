@@ -195,7 +195,9 @@ pub struct PreparedCandidates {
     pub attributes: CandidateAttributes,
     /// Kept only so the private directory lives as long as the store;
     ///  never read.
-    _private: PrivateIndex,
+    /// A request that only lists the index needs no copy of it,
+    /// and this is then nothing.
+    _private: Option<PrivateIndex>,
 }
 
 /// What:
@@ -440,13 +442,28 @@ pub fn prepare_candidates(
         CandidateRequest::Pushed(_) => "read the pushed commit changes",
     };
     let real_index: PathBuf = real_index_path(real_git, global_prefix, overlay, purpose)?;
-    let private: PrivateIndex = PrivateIndex::create(real_index.as_path())?;
-    // The caller's environment, with every command of the prediction on the private index.
+    // What: A private copy of the index is made only for a request that writes it: predicting `git add` and reading a
+    //       selected worktree stage into it, and everything else only lists it.
+    // Why:  The copy is three megabytes of a large worktree, and a commit makes it after it already has its own private
+    //       index: a traced commit waited 2,288 ms and 4,813 ms in this copy under the host's input and output pressure.
+    //       A request that lists the index reads the one the caller named, which is already private to that command.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const private = request.stages ? PrivateIndex.create(realIndex) : undefined;
+    // ```
+    let private: Option<PrivateIndex> = match request {
+        CandidateRequest::Add(_) | CandidateRequest::Direct(_) => Some(PrivateIndex::create(real_index.as_path())?),
+        CandidateRequest::Staged(_) | CandidateRequest::StagedAtBase { .. } | CandidateRequest::Landed(_) | CandidateRequest::Pushed(_) => None,
+    };
+    // The caller's environment, with every command of the prediction on the private index where there is one.
     let mut private_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
-    private_overlay.push((
-        OsString::from(INDEX_FILE_VARIABLE),
-        private.path().as_os_str().to_os_string(),
-    ));
+    if let Some(copy) = private.as_ref() {
+        private_overlay.push((
+            OsString::from(INDEX_FILE_VARIABLE),
+            copy.path().as_os_str().to_os_string(),
+        ));
+    }
     // A pushed scope lists committed records directly; nothing is staged or predicted for it.
     if let CandidateRequest::Pushed(scope) = request {
         let mut pushed_store: CandidateStore =

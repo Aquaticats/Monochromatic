@@ -498,6 +498,10 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   judged by the identity the file system gives it:
   a symbol link in the way decides what `..` means,
   so a lexical rewrite of the path would scan a directory Git runs no hook in.
+  That identity is decided within the report's ceiling,
+  because pathname resolution waits on a mount whose server has stopped answering;
+  a resolution that gives no answer keeps the configured directory,
+  which is then scanned beside the default one.
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included),
   except names ending in `.sample`.
@@ -522,9 +526,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   a link,
   a file that differs by one byte and a shim under another hook's name do not.
   The comparison reads at most 1024 bytes of those four names and nothing else.
-- It prints one path per line on stdout for every hook that is not a Git LFS shim,
+- It prints one pathname per line on stdout for every hook that is not a Git LFS shim,
   the default directory first and each directory in name order,
   and nothing else on stdout.
+  Each pathname is printed as its own bytes,
+  because a pathname is a byte string:
+  its text spelling with replacement characters names a different directory,
+  so a text report could name a hook the command never inspected.
   When it finds any it also explains on stderr that traditional hooks are unsupported.
 - Git LFS shims are reported on stderr only,
   apart from the other hooks,
@@ -597,7 +605,14 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   is awaited for at most the `REPORT_SCAN_CEILING` of `service/wait_ceilings.rs`,
   so a mount that stops answering cannot hold the command:
   a read that gives no answer makes the command say which read it was and carries on,
-  with status `2` for a hooks directory and one line of standard error for the host facts.
+  with status `2` for a hooks directory and one line of standard error for the host facts and for the folder of saved copies.
+- The saved copies are read under every data folder the repository holds,
+  the current `monochromatic-git-policy-cli` and the earlier `cli-git`,
+  and each folder that holds a copy gets its own block with its size,
+  count and oldest save.
+  A repository can hold both names at once,
+  and the earlier folder can hold the only copy,
+  so a report that named only one folder would hide a person's recoverable data from the person who asked what is there.
   The filesystem section describes the checkout Git reports for where the command runs
   (`git rev-parse --path-format=absolute --show-toplevel`),
   and says nothing about a file system when Git reports none,
@@ -3800,6 +3815,8 @@ a figure is a gap of some step of the service since the previous answer,
 not of one request.
 Every Git step a command or a landing starts is also listed with its duration (`src/native/transaction/transaction_step_durations.rs`):
 `steps` in the commit timing record (`name`,
+and the read-only queries the in-process readers decline count here too,
+because a commit that waits on one must name it (`src/native/repo_read/git_metadata.rs`);
 the program and the subcommand only;
 `offsetMs` from the command's start;
 `durationMs`) and `stepsDropped`,
@@ -3994,17 +4011,21 @@ the children of a number that was reused are not this step's,
 and a status the wait already collected is the answer rather than a ceiling the stop reached
 (the fourth review's findings 1 and 2).
 
-One window is left open there, and this file records it rather than closing it.
+One window is left open there,
+and this file records it rather than closing it.
 The pin answers whether the root has ended (`the_root_is_still_there`),
 and the tree is walked after that answer (`descendants_of_a_root_that_still_runs`,
 `src/native/push/child_watch_clock_marks_and_stopping.rs`).
 For a process that is not the step's to receive a signal there,
-the root would have to end, be reaped, and have its number handed to another process that starts children,
+the root would have to end,
+be reaped,
+and have its number handed to another process that starts children,
 all within the few instructions between that answer and the walk
 (the fifth review's finding 1).
 Everything after the walk closes its own interval:
 a member is signalled through a descriptor opened while its number was proven to still name it,
-so the proof covers the moment of the signal, and the walk itself is what the proof cannot cover.
+so the proof covers the moment of the signal,
+and the walk itself is what the proof cannot cover.
 That window is open in the same way where nothing proved which process the root's number names:
 the walk goes on there (`Pinned::Unproven`),
 so that a bound is never lost to a record that could not be read,
@@ -4147,7 +4168,8 @@ and nothing ends it at its ceiling.
 The refusal is now said once in the command's diagnostics,
 the watch records it,
 and the wait carries the step's own ceiling:
-a step that has one is ended at it, with the whole process tree `StepBound::EndAt` names,
+a step that has one is ended at it,
+with the whole process tree `StepBound::EndAt` names,
 and fails with a sentence naming the refused thread and the limit to check.
 A step with no ceiling is still waited for as long as it lives,
 which the owner decided for a write that cannot be run twice,
@@ -4180,9 +4202,11 @@ which the mount and inode of the pipe find (`src/native/process/process_use.rs`)
 and says to check that program with `ps` and to run the command again.
 An end of file wins over that drain:
 the read is asked first at every poll,
-and where the reactor has not yet heard that the last writer closed, the descriptor itself is asked,
+and where the reactor has not yet heard that the last writer closed,
+the descriptor itself is asked,
 whose non-blocking read answers end of file at once.
-So a step that wrote its whole answer and ended is answered, not reported as one whose output is held open
+So a step that wrote its whole answer and ended is answered,
+not reported as one whose output is held open
 (the fifth review's finding 5).
 What the read got before that moment is not returned as the step's answer:
 a step whose output may be incomplete is reported,
@@ -7735,6 +7759,13 @@ The line is delivered on a thread of its own and awaited for at most the `WARNIN
 `service/wait_ceilings.rs`,
 so a standard error whose reader has stopped draining cannot hold the commit:
 a line still waiting at that ceiling is abandoned and logged.
+It is written to the standard error descriptor itself and not through the standard library's shared handle,
+whose lock every synchronous write to standard error takes,
+so a worker left at the ceiling holds no lock the commit's own writes would wait for.
+The notices a preparation prints (an obligation of the worktree that cannot be read,
+and the entries a landing left out of this commit)
+are given to the same descriptor under the same ceiling,
+and one that cannot be said in time is left unsaid rather than holding the commit.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
@@ -11278,6 +11309,30 @@ the disjoint phases
 `handoffMs` and `otherMs`
 (the remainder,
 never negative),
+`prepareSpans`
+(what the preparation's own work did,
+by name,
+in the order each name was first noted,
+empty for a commit that noted no step:
+`name` is the step,
+`calls` how often it ran,
+`totalMs` the whole of its time and `longestMs` its longest run;
+the names are `index stat check` for the in-process answer of whether the real index still records its worktree's stat data,
+`index read` for reading an index's bytes to decide whether it may seed a private index,
+`index equals base` for the in-process answer of whether the captured index already holds the base's tree,
+`index copy` for a copy of an index into a private one,
+`policy blob write` for storing a correction's bytes,
+`policy entry write` for pointing a private index entry at a corrected blob,
+and `candidates prepared` for the candidate set a pass's content policies share,
+which the first content policy that asks pays for,
+`policy <name> at <lifecycle point>` for every policy a pass evaluated,
+with that policy's registry name and the trigger whose pass ran it,
+summed over the convergence rounds that ran it again,
+so a preparation's own pass is told from the post-commit gate's;
+a step that starts Git is stated here as the work and in `steps` as the child it started),
+`prepareSpansDropped`
+(how many step names came after that list reached its bound of 64,
+so a longer run is counted rather than lost),
 the two costs measured wherever they fell
 (`scratchRemovalMs`,
 `removalsThatDidNotFinish` and
@@ -11345,6 +11400,11 @@ and within `submitMs` the reach (`reachMs`,
 `lockHolderKind`,
 `reconnects`,
 `sends`).
+The record carries two accounts of the preparation,
+and they answer different questions:
+`prepareSpans` names the work a site in the wrapper measured around itself,
+`prepareParts` names the stretches no Git child covered,
+and a Git child that a span started is inside that span and outside every part.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,
