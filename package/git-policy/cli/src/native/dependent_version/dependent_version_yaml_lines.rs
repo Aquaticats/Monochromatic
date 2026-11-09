@@ -205,7 +205,10 @@ fn is_space_or_tab(character: char) -> bool {
 /// reserved character (`@`,
 /// backtick),
 /// flow collection
-///       (`[`, `]`, `{`, `}`,
+///       (`[`,
+/// `]`,
+/// `{`,
+/// `}`,
 /// `,`),
 /// comment (`#`) or quote makes the line mean something other
 ///       than the text this reader would store;
@@ -220,9 +223,7 @@ fn is_space_or_tab(character: char) -> bool {
 /// function refusedIndicator(text: string): string | undefined;
 /// ```
 fn refused_indicator(text: &str) -> Option<char> {
-    let Some(first): Option<char> = text.chars().next() else {
-        return None;
-    };
+    let first: char = text.chars().next()?;
     if matches!(
         first,
         '!' | '&' | '*' | '|' | '>' | '%' | '@' | '`' | '[' | ']' | '{' | '}' | ',' | '#' | '\'' | '"'

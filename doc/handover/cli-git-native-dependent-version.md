@@ -1010,6 +1010,13 @@ These binary-level controls in `binary_dependent_version_tests.rs` show the exec
   and stages the manifest.
 - `a_staged_deletion_does_not_block_the_check`:
   a staged deletion of an unrelated file does not stop `check --all` from reporting both dependents.
+- `a_version_raising_commit_lands_without_a_publish_set`:
+  a real wrapped commit of a raised workspace manifest exits 0 with the
+  raised version in `HEAD`,
+  both with `package/config/pnpr/config.yaml` untracked and with it listing
+  no name.
+  No publish set the reader cannot read can fail a commit,
+  because no commit reaches the reader.
 
 Guard proof:
 a refusal line placed before the `check_dependent_version` call made the three controls present at the time
@@ -1025,16 +1032,24 @@ all three passed again.
   `fix` installs corrections through the engine's atomic install,
   as the other content policies do.
 - `git add` plans nothing.
-  `check_dependent_version` returns no findings for the pre-forward trigger unless the forwarded command is `commit`,
-  the same condition as the incumbent at
-  `package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts:182`.
-- `git commit` cannot reach the planner yet.
-  The native executable refuses it with exit 2 and the message that the commit transaction
-  "is not implemented in this native development executable".
-  `check_dependent_version` also returns early for every pre-forward trigger
-  and passes `forwards_commit: false`.
-  Commit planning changes both together,
-  and belongs to the commit transaction port.
+  `check_dependent_version` returns no findings for every pre-forward trigger,
+  before it reads a candidate,
+  and it passes `forwards_commit: false` in the request it builds.
+- `git commit` plans nothing either.
+  The commit path's own stage request is `Trigger::PreForward`
+  (`commit/commit_command.rs:207-212`),
+  and the convergence passes run under that same request
+  (`commit/commit_convergence.rs`),
+  so the early return reaches them too.
+  The commit lands,
+  and no publish set can fail it:
+  the planner reads the registry configuration only on `direct-check` and
+  `direct-fix`.
+  A commit that raises a version and leaves a dependent stale is therefore
+  reported by `check` and `fix` alone,
+  which is finding 2 of
+  `doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
+  still open and a decision rather than a defect of the reader.
 
 ### Release task differential
 
