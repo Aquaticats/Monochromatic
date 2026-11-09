@@ -74,6 +74,10 @@ fn changed_since(before: &std::fs::Metadata, synced_ms: Option<i64>) -> bool {
 /// so memory
 ///  does not grow with the file and a name swapped for a pipe or a link cannot make the read wait or
 ///  follow it.
+///  The read is bounded by the lengths the two sides have when they are opened,
+/// and a side that ended early or grew
+///  past its own is a difference: a file another program keeps extending would otherwise hold the end of the
+///  comparison away for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,35 +88,41 @@ fn contents_differ(old: &Path, installed: &Path) -> std::io::Result<bool> {
     // must not make this read follow it or wait for a writer, while the conversion holds its claim.
     let mut left: std::fs::File = crate::plain_file::open_plain_file(old)?;
     let mut right: std::fs::File = crate::plain_file::open_plain_file(installed)?;
+    let left_length: u64 = left.metadata()?.len();
+    let right_length: u64 = right.metadata()?.len();
     #[cfg(test)]
     note_contents_opened(old);
+    if left_length != right_length {
+        return Ok(true);
+    }
     let mut left_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
     let mut right_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
-    loop {
-        let left_read: usize = fill_buffer(&mut left, &mut left_buffer)?;
-        let right_read: usize = fill_buffer(&mut right, &mut right_buffer)?;
-        if left_read != right_read || left_buffer[..left_read] != right_buffer[..right_read] {
+    let mut remaining: u64 = left_length;
+    while remaining > 0 {
+        let length: usize = match usize::try_from(remaining) {
+            Ok(size) => size.min(COMPARE_BUFFER_BYTES),
+            Err(_too_large) => COMPARE_BUFFER_BYTES,
+        };
+        let left_chunk: &mut [u8] = &mut left_buffer[..length];
+        let right_chunk: &mut [u8] = &mut right_buffer[..length];
+        // `read_exact` reports a file that ended before the length it had when it was opened as `UnexpectedEof`, which is a
+        // difference: something is writing to one of the two trees.
+        match (std::io::Read::read_exact(&mut left, left_chunk), std::io::Read::read_exact(&mut right, right_chunk)) {
+            (Ok(()), Ok(())) => {}
+            (Err(error), _) | (_, Err(error)) if error.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(true),
+            (Err(error), _) | (_, Err(error)) => return Err(error),
+        }
+        if left_chunk != right_chunk {
             return Ok(true);
         }
-        if left_read == 0 {
-            return Ok(false);
-        }
+        remaining -= u64::try_from(length).unwrap_or(0);
     }
-}
-
-/// Fill `buffer` from `file` as far as the file has bytes,
-/// and answer how many it gave;
-/// nothing means both met their end.
-fn fill_buffer(file: &mut std::fs::File, buffer: &mut [u8]) -> std::io::Result<usize> {
-    let mut filled: usize = 0;
-    while filled < buffer.len() {
-        let read: usize = std::io::Read::read(file, &mut buffer[filled..])?;
-        if read == 0 {
-            break;
-        }
-        filled += read;
+    // A file that grew past the length it had when it was opened is a difference as well: the bytes past that length exist
+    // only in the tree that grew, and the person who wrote them settles which version is wanted.
+    if left.metadata()?.len() != left_length || right.metadata()?.len() != right_length {
+        return Ok(true);
     }
-    return Ok(filled);
+    return Ok(false);
 }
 
 /// What:
