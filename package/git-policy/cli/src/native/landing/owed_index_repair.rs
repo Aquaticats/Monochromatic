@@ -55,7 +55,7 @@
 //! ```
 
 use crate::owed_index_entries::{Entry, head_entries, index_entries, is_unmerged, moved_since_listing, names_in, specs_of, tree_entries};
-use crate::owed_index_update::{Owed, records_of};
+use crate::owed_index_update::Owed;
 use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::collections::BTreeMap;
@@ -213,7 +213,14 @@ pub fn exclude_what_a_landed_commit_left(
     captured: &crate::service_land_start::IndexWitness,
 ) -> Result<Vec<String>, String> {
     let mut left: Vec<String> = Vec::new();
-    let owed_records: Vec<Owed> = records_of(git_dir);
+    let (owed_records, unreadable): (Vec<Owed>, usize) = crate::owed_index_update::records_and_unreadable(git_dir);
+    // A record that exists and cannot be read is still an obligation, and nothing here can tell what it names: the commit says so
+    //  instead of leaving the entries it owes unprotected.
+    if unreadable > 0 {
+        return Err(format!(
+            "{unreadable} record(s) of an owed index update in this worktree cannot be read, so this commit cannot tell which index entries they owe"
+        ));
+    }
     // Nothing at all is done unless this worktree has an owed record: a commit that owes nothing is never compared, so no staging of
     //  its own can be mistaken for a move.
     if owed_records.is_empty() {
@@ -225,6 +232,14 @@ pub fn exclude_what_a_landed_commit_left(
     if let (Some(index), Some(copy), Ok(now)) = (commit_index, captured_index, crate::service_land_start::witness_of(live_index))
         && now != *captured
     {
+        // Only a path a record names may be changed: a move another command made to a path no record names is that command's own
+        //  staging, and the commit keeps what it selected for it.
+        let mut named: Vec<Vec<u8>> = Vec::new();
+        for owed in &owed_records {
+            if let Ok(names) = names_of(git, repository, owed) {
+                named.extend(names);
+            }
+        }
         let moved: Vec<Vec<u8>> = match moved_since(git, repository, live_index, copy) {
             Ok(moved) => moved,
             Err(_unwritable) => match moved_since_listing(git, repository, live_index, copy) {
@@ -232,11 +247,17 @@ pub fn exclude_what_a_landed_commit_left(
                 Err(code) => return Err(format!("the entries the index moved since this commit copied it cannot be read ({code:?})")),
             },
         };
-        if !moved.is_empty() {
-            if let Err(code) = set_to_head_paths(git, repository, index, moved.as_slice()) {
+        let mut owned: Vec<Vec<u8>> = Vec::with_capacity(moved.len());
+        for path in moved {
+            if named.contains(&path) {
+                owned.push(path);
+            }
+        }
+        if !owned.is_empty() {
+            if let Err(code) = set_to_head_paths(git, repository, index, owned.as_slice()) {
                 return Err(format!("the entries the index moved since this commit copied it cannot be set to the head ({code:?})"));
             }
-            for path in &moved {
+            for path in &owned {
                 left.push(crate::path_bytes::path_message_text(path.as_slice()));
             }
         }

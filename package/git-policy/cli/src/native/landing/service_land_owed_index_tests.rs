@@ -710,7 +710,7 @@ fn keep_one_record(world: &World) {
         reference: String::from("refs/heads/main"),
         old: commit.clone(),
         new: commit,
-        paths: vec![b"elsewhere.txt".to_vec()],
+        paths: vec![b"one.txt".to_vec()],
         derived: false,
     };
     crate::owed_index_update::write(&owed).expect("an unrelated record");
@@ -1094,5 +1094,158 @@ fn a_derived_record_of_a_moved_worktree_does_not_fail_the_commit() {
     let commit_index: PathBuf = commit_index_of(&world);
     let left: Vec<String> = exclude(&world, Some(commit_index.as_path()));
     assert_eq!(left, vec![String::from("one.txt")], "the derived path is left out, in the repository that is there");
+    remove(world.root.as_path());
+}
+
+/// A record round-trips a path whose bytes are not text:
+/// the repository,
+/// the Git directory and the index are read back as the bytes they were written from,
+/// and so is a path of the batch.
+#[test]
+fn a_record_keeps_the_bytes_of_every_path_of_a_non_utf8_worktree() {
+    let root: PathBuf = crate::test_support::fixture("service-land-owed-non-utf8-record");
+    // A name whose bytes are not UTF-8: `0xFF` is no start byte of any text.
+    let odd: std::ffi::OsString = <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(b"work\xfftree".to_vec());
+    let worktree: PathBuf = root.join(odd.as_os_str());
+    let git_dir: PathBuf = worktree.join(".git");
+    let index: PathBuf = git_dir.join("index");
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(&index).expect("the index's directory");
+    std::fs::create_dir_all(journal.as_path()).expect("journal");
+    let owed: crate::owed_index_update::Owed = crate::owed_index_update::Owed {
+        seq: 3,
+        repository: worktree.clone(),
+        git_dir: git_dir.clone(),
+        index: index.clone(),
+        reference: String::from("refs/heads/main"),
+        old: String::from("a".repeat(40)),
+        new: String::from("b".repeat(40)),
+        paths: vec![b"caf\xe9.txt".to_vec()],
+        derived: false,
+    };
+    crate::owed_index_update::write(&owed).expect("the record");
+    let records: Vec<crate::owed_index_update::Owed> = crate::owed_index_update::records_of(git_dir.as_path());
+    assert_eq!(records.len(), 1, "the record is read back");
+    assert_eq!(records[0].repository.as_os_str().as_encoded_bytes(), worktree.as_os_str().as_encoded_bytes(), "the repository keeps its bytes");
+    assert_eq!(records[0].git_dir.as_os_str().as_encoded_bytes(), git_dir.as_os_str().as_encoded_bytes(), "the Git directory keeps its bytes");
+    assert_eq!(records[0].index.as_os_str().as_encoded_bytes(), index.as_os_str().as_encoded_bytes(), "the index keeps its bytes");
+    assert_eq!(records[0].paths, vec![b"caf\xe9.txt".to_vec()], "the batch's path keeps its bytes");
+    remove(root.as_path());
+}
+
+/// An unrelated owed record does not let a concurrent staging change what `--all` selected:
+/// the repair changes only a path a record names.
+#[test]
+fn an_unrelated_record_never_changes_what_all_selected() {
+    let world: World = world("service-land-owed-unrelated-all");
+    std::fs::write(world.repo.join("f"), "A\n").expect("write");
+    std::fs::write(world.repo.join("g"), "A\n").expect("write");
+    git(world.repo.as_path(), &["add", "f", "g"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    // A record for a path of no interest, so the repair has work to do at all.
+    let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let owed: crate::owed_index_update::Owed = crate::owed_index_update::Owed {
+        seq: 7,
+        repository: world.repo.clone(),
+        git_dir: world.repo.join(".git"),
+        index: real_index_of(&world),
+        reference: String::from("refs/heads/main"),
+        old: commit.clone(),
+        new: commit,
+        paths: vec![b"h".to_vec()],
+        derived: false,
+    };
+    crate::owed_index_update::write(&owed).expect("an unrelated record");
+    // `git commit --all`: the copy is taken first, then both edits are staged into the command's index.
+    let capture: PathBuf = world.root.join("capture.index");
+    std::fs::copy(real_index_of(&world), capture.as_path()).expect("the copy a commit makes");
+    let commit_index: PathBuf = commit_index_of(&world);
+    std::fs::write(world.repo.join("f"), "C\n").expect("write");
+    std::fs::write(world.repo.join("g"), "D\n").expect("write");
+    index_run(&world, commit_index.as_path(), &["add", "--", "f", "g"]);
+    // Another command stages the same content of f into the live index.
+    git(world.repo.as_path(), &["add", "f"]);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &world.context.git,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(capture.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    )
+    .expect("the repair has nothing to say about a path no record names");
+    assert!(!left.contains(&String::from("f")), "f is not reported as moved: {left:?}");
+    let blob: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"]);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "f"]), format!("100644 {blob} 0\tf"), "the commit keeps what --all selected");
+    remove(world.root.as_path());
+}
+
+/// An obligation whose landing died before its intent on an unborn branch does not stop the initial commit:
+/// there is no head to hold an entry,
+/// so nothing is owed there.
+#[test]
+fn an_unborn_branch_with_an_orphaned_record_still_commits() {
+    let root: PathBuf = crate::test_support::fixture("service-land-owed-unborn");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir_all(repo.as_path()).expect("repo");
+    git(repo.as_path(), &["init", "--quiet", "-b", "main"]);
+    std::fs::write(repo.join("first.txt"), "first\n").expect("write");
+    git(repo.as_path(), &["add", "first.txt"]);
+    let git_dir: PathBuf = repo.join(".git");
+    let index: PathBuf = git_dir.join("index");
+    let owed: crate::owed_index_update::Owed = crate::owed_index_update::Owed {
+        seq: 1,
+        repository: repo.clone(),
+        git_dir: git_dir.clone(),
+        index: index.clone(),
+        reference: String::from("refs/heads/main"),
+        old: "0".repeat(40),
+        new: "0".repeat(40),
+        paths: vec![b"first.txt".to_vec()],
+        derived: false,
+    };
+    crate::owed_index_update::write(&owed).expect("the record a kill left");
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &crate::test_support::git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        index.as_path(),
+        None,
+        None,
+        &crate::service_land_start::IndexWitness::Absent,
+    )
+    .expect("an unborn branch has no head, and the commit is not stopped for it");
+    assert!(left.is_empty(), "nothing is left out on an unborn branch: {left:?}");
+    remove(root.as_path());
+}
+
+/// A record that exists and cannot be read is still an obligation:
+/// the commit says it could not tell,
+/// instead of leaving the entries it owes unprotected.
+#[test]
+fn an_unreadable_record_makes_the_commit_say_it_cannot_tell() {
+    let world: World = world("service-land-owed-unreadable-record");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let record: PathBuf = owed_of(&world, 1);
+    std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("no read");
+    let (found, unreadable): (Vec<crate::owed_index_update::Owed>, usize) = crate::owed_index_update::records_and_unreadable(world.repo.join(".git").as_path());
+    assert!(found.is_empty(), "nothing can be read of it");
+    assert_eq!(unreadable, 1, "and it counts as owed all the same");
+    let commit_index: PathBuf = commit_index_of(&world);
+    let answered: Result<Vec<String>, String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &world.context.git,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(commit_index.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    );
+    std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
+    let reason: String = answered.expect_err("a commit that cannot tell what the index owes stops and says so");
+    assert!(reason.contains("cannot be read"), "{reason}");
+    assert!(record.exists(), "the record is kept for the person");
     remove(world.root.as_path());
 }

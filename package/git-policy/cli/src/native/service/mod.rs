@@ -139,6 +139,10 @@ pub mod service_provision_earlier_service_retirement;
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
 
+/// The record of the unit texts the service manager was last told about,
+/// which tells an installation it runs from files a kill left behind.
+pub mod service_provision_loaded_unit_texts;
+
 /// Checks and writes on the unit files of the commit service.
 pub mod service_provision_unit_file_ownership_and_writes;
 

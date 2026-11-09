@@ -222,6 +222,12 @@ pub(crate) fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -
 /// headEntries(paths) // `ls-tree -z --full-tree HEAD -- :(top,literal)<path>...`
 /// ```
 pub(crate) fn head_entries(git: &GitContext, repository: &Path, paths: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
+    // An unborn branch has no head to hold an entry: nothing is there, and a commit that owes an index update must not stop for it.
+    let unborn: GitRequest = GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"]);
+    match run_git(git, &unborn) {
+        Ok(answer) if answer.succeeded() => {}
+        Ok(_) | Err(_) => return Ok(BTreeMap::new()),
+    }
     let output = with_specs(git, repository, None, &["ls-tree", "-z", "--full-tree", "HEAD"], paths)?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {

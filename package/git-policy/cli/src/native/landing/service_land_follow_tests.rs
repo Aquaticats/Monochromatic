@@ -771,3 +771,40 @@ fn a_read_only_filesystem_is_kept_apart_from_a_permission_error() {
     assert_eq!(said("fatal: Unable to create '/r/.git/index.lock': Permission denied"), FailureCode::PermissionDenied);
     assert_eq!(said("fatal: something else"), FailureCode::Unavailable);
 }
+
+/// A schedule of handoffs does not outlast the ceiling:
+/// a holder that lets go and a new one that takes the lock again and again is waited for once,
+/// under one deadline.
+#[test]
+fn a_repeated_handoff_ends_at_the_ceiling() {
+    let (root, repo, _first, second) = index_behind("service-follow-handoff", &[b"new.txt".to_vec()]);
+    let lock: PathBuf = repo.join(".git/index.lock");
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let holder_stop = std::sync::Arc::clone(&stop);
+    let held: PathBuf = lock.clone();
+    let holder = std::thread::spawn(move || {
+        // Take the lock, let it go, and take it again: every wait the update makes is short, and the run of them is not.
+        while !holder_stop.load(std::sync::atomic::Ordering::SeqCst) {
+            if std::fs::write(&held, b"").is_ok() {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                let _gone = std::fs::remove_file(&held);
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        }
+    });
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let index: PathBuf = repo.join(".git/index");
+    let second_oid: String = second.clone();
+    let waiting = std::thread::spawn(move || {
+        let answered = update_index_within(&git_context(), repo.as_path(), index.as_path(), std::time::Duration::from_millis(300), second_oid.as_str(), IndexPaths::Named(&[b"new.txt".to_vec()]));
+        let _sent = sender.send(answered);
+    });
+    let ended: Result<Result<(), crate::service_protocol::FailureCode>, _> = receiver.recv_timeout(std::time::Duration::from_secs(20));
+    stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    holder.join().expect("the holder ends");
+    let _ = waiting.join();
+    // Whether it took the index between two holds or ended at the ceiling, it ended: one deadline covers the whole run of handoffs.
+    let answered = ended.expect("the update ended rather than waiting through every handoff");
+    assert!(answered.is_ok() || answered == Err(crate::service_protocol::FailureCode::IndexInUse), "{answered:?}");
+    remove(root.as_path());
+}
