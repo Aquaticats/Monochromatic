@@ -1392,10 +1392,31 @@ Before it removes the old tree it reads the process table again for anything hol
 with the installed one without changing either:
 every entry of the old tree must be in the installed tree in the same kind,
 with
-the same size and modification time for a file and the same target for a link,
+the same size and modification time for a file,
+the same target for a link,
+and the same permission bits,
+owner,
+group and carried
+extended attributes (user attributes and POSIX ACLs) for every entry,
 and none may be on another device (a nested
 subvolume or a mount point,
 which is not deleted).
+The last four are compared because a change of one of them leaves the size and the
+modification time alone,
+so nothing else in this comparison can see it,
+and the tree that holds it is the one deleted.
+The permission bits,
+owner and group cost nothing over the walk:
+both sides' metadata is already read.
+The carried extended attributes cost two attribute listings per entry,
+measured on a 24,345-entry tree extracted from this repository's `HEAD` into a disposable
+directory:
+12.60 µs per entry for the walk as it was,
+12.70 with the permission bits,
+owner and group,
+and 38.02 with the attributes as well,
+which is 0.62 s more on that tree,
+paid once per conversion.
 It copies nothing from the old tree to the installed one;
 a holder or a difference keeps the old tree,
 the journal stays,

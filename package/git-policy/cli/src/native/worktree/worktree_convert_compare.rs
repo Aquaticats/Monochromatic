@@ -13,14 +13,62 @@
 //! An entry on another device (a nested subvolume or a mount point) is reported the same way,
 //! because
 //!  deleting it is not this command's to do.
+//! A file's type and size,
+//! a link's target and,
+//!  for every entry,
+//! the permission bits,
+//! the owner,
+//! the group and the carried extended attributes are
+//!  compared,
+//! because a change of any of the last four touches neither the size nor the modification time;
+//! the
+//!  extended attributes are two `llistxattr` calls per entry on most filesystems and the rest comes from
+//!  the metadata already read.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const difference = await firstDifference(oldRoot, installedRoot); // undefined when the installed tree holds all of it
 //! ```
 
+use crate::subvolume_sync_attrs::carried_attributes_equal;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+
+/// What:
+///  The first attribute of the old tree's entry that the installed entry does not carry:
+/// the permission bits,
+///  the owner or the group,
+/// or one of the carried extended attributes (user attributes and POSIX
+///  ACLs).
+/// Why:
+///   A change of one of these changes neither the size nor the modification time,
+/// so nothing else in this comparison can
+///  see it;
+/// a mode,
+/// an owner or an attribute set last in the window before the removal is a person's work,
+/// and deleting the
+///  tree that holds it would discard it.
+/// The extended attributes are judged by the call the copy itself uses,
+/// so the comparison
+///  and the copy agree on what "carried" means;
+/// a security label the policy sets on the copies is not one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function attributeDifference(before, after, oldPath, installedPath): string | undefined;
+/// ```
+fn attribute_difference(before: &std::fs::Metadata, after: &std::fs::Metadata, old: &Path, installed: &Path) -> Option<&'static str> {
+    if before.mode() & 0o7777 != after.mode() & 0o7777 {
+        return Some("the permission bits");
+    }
+    if before.uid() != after.uid() || before.gid() != after.gid() {
+        return Some("the owner or group");
+    }
+    if !carried_attributes_equal(old, installed) {
+        return Some("the extended attributes (user attributes and POSIX ACLs)");
+    }
+    return None;
+}
 
 /// What:
 ///  The first way the old tree at `old` is not held by the installed tree at `installed`,
@@ -28,9 +76,15 @@ use std::path::{Path, PathBuf};
 /// Why:
 ///   See the module description.
 /// A file is the same when its type,
-/// size and modification time are,
-/// a link when its target is;
-///  the installed tree may hold more than the old one,
+/// size,
+/// modification time,
+/// permission bits,
+/// owner,
+/// group and carried
+///  extended attributes are,
+/// a link when its target and those attributes are;
+/// the installed tree may hold more
+///  than the old one,
 /// because it has been in use since the exchange.
 ///
 /// In TS you'd write (pseudocode):
@@ -58,13 +112,24 @@ pub fn first_difference(old: &Path, installed: &Path) -> std::io::Result<Option<
                 return Ok(Some(format!("{} is not the same kind of entry in the installed worktree", inside.display())));
             }
             if before.file_type().is_dir() {
+                if let Some(why) = attribute_difference(&before, &after, &old.join(&inside), &installed.join(&inside)) {
+                    return Ok(Some(format!("{} differs from the installed worktree ({why})", inside.display())));
+                }
                 pending.push(inside);
             } else if before.file_type().is_symlink() {
                 if std::fs::read_link(old.join(&inside))? != std::fs::read_link(installed.join(&inside))? {
                     return Ok(Some(format!("the link {} points elsewhere in the installed worktree", inside.display())));
                 }
-            } else if before.file_type().is_file() && (before.size() != after.size() || before.mtime() != after.mtime() || before.mtime_nsec() != after.mtime_nsec()) {
-                return Ok(Some(format!("{} differs from the installed worktree (size or modification time)", inside.display())));
+                if let Some(why) = attribute_difference(&before, &after, &old.join(&inside), &installed.join(&inside)) {
+                    return Ok(Some(format!("{} differs from the installed worktree ({why})", inside.display())));
+                }
+            } else if before.file_type().is_file() {
+                if before.size() != after.size() || before.mtime() != after.mtime() || before.mtime_nsec() != after.mtime_nsec() {
+                    return Ok(Some(format!("{} differs from the installed worktree (size or modification time)", inside.display())));
+                }
+                if let Some(why) = attribute_difference(&before, &after, &old.join(&inside), &installed.join(&inside)) {
+                    return Ok(Some(format!("{} differs from the installed worktree ({why})", inside.display())));
+                }
             }
         }
     }
