@@ -137,7 +137,16 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `fix/git-policy-cli-push-route-records-and-ceilings`,
   at `5b0393dbf6`:
   its agent reports all eleven audit findings fixed,
-  and a cross-vendor review is running.
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/push-route-round-1-sol.txt`) names nine more.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+- `fix/git-policy-cli-unit-test-watchdog-judges-progress`:
+  362 of 362 tests pass on top of main,
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-1-sol.txt`) names five defects in the watchdog and its controls,
+  all in test code or test builds.
+  It waits for a free agent slot:
+  resume the run `unit-test-watchdog-under-contention` as run 2,
+  with `unit-test-watchdog-round-2-prompt.md` and the session file named in run 1's `summary.json`.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
   at `3509de3e01`:
   the cross-vendor review of its latest round
