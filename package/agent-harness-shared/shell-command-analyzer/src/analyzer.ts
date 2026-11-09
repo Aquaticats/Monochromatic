@@ -148,6 +148,7 @@ function failedAnalysis(
     hasBackground: false,
     hasCommandSubstitution: false,
     hasProcessSubstitution: false,
+    notUnderstoodNodeKinds: [],
     hasHeredoc: false,
     allFiles: [],
     allParamRefs: paramRefs,
@@ -262,6 +263,7 @@ function analyzeShellCommand(command: string,): ShellCommandAnalysis {
       .hasCommandSubstitution,
     hasProcessSubstitution: collection.flags
       .hasProcessSubstitution,
+    notUnderstoodNodeKinds: collection.notUnderstoodNodeKinds,
     hasHeredoc: collection.commands
       .some(function commandHasHeredoc(info,): boolean {
         return info.redirects

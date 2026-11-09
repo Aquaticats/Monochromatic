@@ -238,6 +238,14 @@ type ShellCommandAnalysis = {
    */
   readonly hasProcessSubstitution: boolean;
   /**
+   Parser node kinds the traversal met but has no visitor for.
+
+   Non-empty means the answer is incomplete: a subtree was named instead of
+   walked, so a guard must refuse rather than read the command list as proof
+   that nothing else runs. Empty for every command the analyzer reads whole.
+   */
+  readonly notUnderstoodNodeKinds: readonly string[];
+  /**
    Whether parsed syntax contains heredoc or here-string redirect.
    */
   readonly hasHeredoc: boolean;

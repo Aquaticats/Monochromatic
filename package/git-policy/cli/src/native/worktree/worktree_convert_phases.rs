@@ -57,11 +57,6 @@ impl Job<'_> {
     /// Record a phase durably.
     pub fn reach(&mut self, phase: Phase) -> Result<(), MigrateError> {
         self.journal.phase = phase;
-        if phase == Phase::Synced {
-            // The proving pass just finished, so from this instant on a file that changes is one the removal compares by
-            // contents; on a resume before the swap the pass runs again and the instant moves with it.
-            self.journal.synced_ms = Some(crate::worktree_convert_journal::now_milliseconds());
-        }
         return self.journal.save(self.candidate.admin.as_path());
     }
 
@@ -281,6 +276,9 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     // writer could invalidate the proof, the swap or the index rewrite.
     hold_index_lock(job)?;
     // The proof: a second pass that must find nothing to copy or delete, so the copy equals the original at this instant.
+    // The instant the removal compares change times against is taken before the pass, not after it: an edit made while the
+    // pass runs can land after the pass examined that entry, and it carries a change time before the pass ends.
+    let proof_started_ms: i64 = crate::worktree_convert_journal::now_milliseconds();
     let second: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None }, interrupt)?;
     for text in what_a_pass_could_not_carry("  proving copy", &second) {
         say.say(text.as_str());
@@ -300,6 +298,7 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
         )));
     }
     interrupt.check("verified")?;
+    job.journal.synced_ms = Some(proof_started_ms);
     job.reach(Phase::Synced)?;
     interrupt.check("synced")?;
     return Ok(());

@@ -1,5 +1,10 @@
 # Git 2.56.0 `refs/heads/<branch>@{upstream}` and `@{push}` fail with "no such branch"
 
+Note 2026-11-09T16:50:29-05:00:
+`package/git-policy/cli/src/native/auto_push_reconcile.rs` is now
+`package/git-policy/cli/src/native/push/auto_push_reconcile.rs`,
+moved 2026-11-03 in `d88fd7ab2a`.
+
 ## Symptom
 
 `git rev-parse` dies with exit status 128 when the part before `@{upstream}`,

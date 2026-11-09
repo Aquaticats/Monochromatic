@@ -1,5 +1,8 @@
 # LLM Gateway System One source does not establish model identity, retry count, or payload-free error logs
 
+Note 2026-11-09T16:49:15-05:00:
+`package/pi-plugin/auto-mode/src/assessment-http-failure.ts` left the tree on 2026-10-19 in `7ac15b19b4`.
+
 ## Status and symptom
 
 The auto-mode migration requires narrow axiom estimates,

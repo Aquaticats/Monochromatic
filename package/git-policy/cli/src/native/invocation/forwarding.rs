@@ -208,6 +208,30 @@ pub fn run_real_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<ChildOutcome> {
+    return run_real_git_naming(real_git, arguments, overlay, &mut |_pid: u32| {});
+}
+
+/// What:
+///  `run_real_git`, reporting the child's process number as soon as it has one.
+/// Why:
+///   A caller whose record has to name the Git it started
+/// cannot wait for the child to end to learn its number:
+/// the
+///  record is what a later command reads while this one is gone and its Git still runs.
+/// The child may be reported
+///  only while it is this process's own unreaped child,
+/// which is exactly here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const status = await spawn(realGit, args, { onSpawn: (pid) => onStarted(pid) });
+/// ```
+pub fn run_real_git_naming(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    on_started: &mut dyn FnMut(u32),
+) -> std::io::Result<ChildOutcome> {
     // What: `.status()` starts the child with inherited streams and waits for it;
     //       a trailing `?` returns a start failure to our caller.
     // Why:  Inherited streams are the default for `.status()`, so Git reads the
@@ -217,7 +241,9 @@ pub fn run_real_git(
     // ```ts
     // const status = await spawn(realGit, args, { stdio: 'inherit' });
     // ```
-    let status: std::process::ExitStatus = git_command(real_git, arguments, overlay).status_retrying()?;
+    let mut child: std::process::Child = git_command(real_git, arguments, overlay).spawn_retrying()?;
+    on_started(child.id());
+    let status: std::process::ExitStatus = child.wait()?;
     // `Ok(...)` is the success variant carrying how the child ended.
     return Ok(outcome_of(status));
 }

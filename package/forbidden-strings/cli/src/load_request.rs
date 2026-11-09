@@ -11,6 +11,8 @@
 
 /// Import the existing loader and its established error channel.
 use crate::frx_load::{self, LoadedRules};
+/// Import what a load may write into the shared compiled-rules cache.
+use crate::runtime_cache::CacheAccess;
 /// Imports the shipped baseline's precompiled engine bytes and rule names passed to every load.
 use crate::{BUILTIN_NAMES, BUILTIN_PRECOMPILED};
 /// Imports the loader's error channel and the macro building its fixed redacted messages.
@@ -31,6 +33,8 @@ struct LoadRequest {
     /// Whether the only entry is the implicit default file,
     ///  whose absence is not worth a log line.
     implicit: bool,
+    /// Whether a load that misses may add what it compiled to the shared cache.
+    access: CacheAccess,
 }
 
 // What: thread_local! is the standard-library declaration for one Cell per native thread.
@@ -55,7 +59,7 @@ fn execute_pending() -> Result<LoadedRules> {
         return Err(anyhow!("Forbidden-strings rule loading had no pending request."));
     };
     return frx_load::load_listed(
-        request.entries.as_slice(), request.builtin, request.implicit, BUILTIN_PRECOMPILED, BUILTIN_NAMES,
+        request.entries.as_slice(), request.builtin, request.implicit, request.access, BUILTIN_PRECOMPILED, BUILTIN_NAMES,
     );
 }
 
@@ -77,17 +81,17 @@ fn protected_request(request: LoadRequest, operation: fn() -> Result<LoadedRules
 }
 
 /// Load through the production compiler/cache with owned request arguments and a named callback.
-pub(crate) fn load(path: &Path, builtin: bool, explicit: bool) -> Result<LoadedRules> {
+pub(crate) fn load(path: &Path, builtin: bool, explicit: bool, access: CacheAccess) -> Result<LoadedRules> {
     // The one-path contract is a one-entry list.
     let entry: RulesEntry = frx_load::single_entry(path, builtin, explicit);
-    let request: LoadRequest = LoadRequest { entries: vec![entry], builtin, implicit: !explicit };
+    let request: LoadRequest = LoadRequest { entries: vec![entry], builtin, implicit: !explicit, access };
     return protected_request(request, execute_pending);
 }
 
 /// Load a rules list through the production compiler/cache with owned request arguments and a named callback.
-pub(crate) fn load_entries(entries: &[RulesEntry], builtin: bool) -> Result<LoadedRules> {
+pub(crate) fn load_entries(entries: &[RulesEntry], builtin: bool, access: CacheAccess) -> Result<LoadedRules> {
     // Clone only the entries' ownership; rule source remains under the existing authoritative loader.
-    let request: LoadRequest = LoadRequest { entries: entries.to_vec(), builtin, implicit: false };
+    let request: LoadRequest = LoadRequest { entries: entries.to_vec(), builtin, implicit: false, access };
     return protected_request(request, execute_pending);
 }
 

@@ -6,7 +6,7 @@
 
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -41,7 +41,9 @@ const STORE_VALUES = {
 /**
  Disposable fixture identity and store.
  */
-const fixture = await createIdentityFixture();
+await using disposableFixture = await createIdentityFixture();
+/** Fixture identity and store; `disposableFixture` owns their removal. */
+const fixture = disposableFixture;
 /**
  Encrypted store fixture.
  */
@@ -53,7 +55,9 @@ const encrypted = await writeEncryptedStore({
 /**
  Isolated Pi config home.
  */
-const configHome = await mkdtemp(join(scratchRoot(), 'search-fetch-config-home-',),);
+await using configHomeDirectory = await mkdtempDisposable(join(scratchRoot(), 'search-fetch-config-home-',),);
+/** Isolated Pi config home, removed when this module's scope ends. */
+const configHome = configHomeDirectory.path;
 
 //endregion Fixtures
 
@@ -135,7 +139,8 @@ await describe({
         /**
          Local value for plaintextRoot.
          */
-        const plaintextRoot = await createIdentityFixture();
+        await using disposablePlaintextRoot = await createIdentityFixture();
+        const plaintextRoot = disposablePlaintextRoot;
         await writePlaintextStore({
           root: plaintextRoot.root,
           values: {
@@ -208,7 +213,8 @@ await describe({
         /**
          Local value for repoRoot.
          */
-        const repoRoot = await createIdentityFixture();
+        await using disposableRepoRoot = await createIdentityFixture();
+        const repoRoot = disposableRepoRoot;
         await writeFile(join(repoRoot.root, 'mise.toml',), '[monorepo]\n',);
         await writeEncryptedStore({
           root: repoRoot.root,

@@ -19,6 +19,8 @@
 
 /// Import the adapter under test and shared fixtures.
 use super::{CandidateScanner, RulesSource, ScannerError, ScannerFailure};
+/// Import what a load may write into the shared compiled-rules cache.
+use forbidden_strings::CacheAccess;
 use crate::candidate_object::{CandidateMode, parse_object_id};
 use crate::candidate_record::CandidateChange;
 use crate::candidate_version::{Candidate, CandidateIdentity};
@@ -337,5 +339,172 @@ fn listed_rules_files_load_as_one_scanner() {
         "candidate::scanner_adapter::tests::listed_rules_files_load_as_one_scanner",
         "scanner-listed",
         listed_rules_files_body,
+    );
+}
+
+/// The compiled artifacts of the isolated cache, by path.
+fn artifacts() -> Vec<PathBuf> {
+    let cache: PathBuf = PathBuf::from(
+        std::env::var_os("FORBIDDEN_STRINGS_CACHE_DIR").expect("isolated cache directory"),
+    );
+    let mut found: Vec<PathBuf> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![cache];
+    while let Some(next) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(next) else { continue };
+        for entry in entries.flatten() {
+            let path: PathBuf = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.file_name().is_some_and(|name| return name == "rules.bin") {
+                found.push(path);
+            }
+        }
+    }
+    found.sort();
+    return found;
+}
+
+/// The planted rules as one explicit entry.
+fn planted_rules(directory: &Path) -> RulesSource {
+    return RulesSource {
+        entries: vec![RulesEntry { path: rules_file(directory), optional: false }],
+        explicit: true,
+    };
+}
+
+/// Load `rules` under `access`, naming no control but the fixture.
+fn loaded_with(rules: &RulesSource, access: CacheAccess) -> CandidateScanner {
+    match CandidateScanner::load_writing_cache(rules, false, access) {
+        Ok(scanner) => return scanner,
+        Err(error) => panic!("planted rules must load: {error}"),
+    }
+}
+
+/// The content findings of one scan of a candidate holding `body`.
+fn findings_of(scanner: &CandidateScanner, body: &[u8]) -> Vec<ScanFinding> {
+    return scanner.scan(&candidate(0, b"src/a.txt"), body).expect("scan").findings;
+}
+
+/// Body:
+///  a load that may not write publishes nothing and still scans with the rules it compiled,
+///  and a load that may write publishes exactly one artifact.
+fn a_load_writes_the_cache_only_when_it_may_body(directory: &Path) {
+    let rules: RulesSource = planted_rules(directory);
+    let leak: String = format!("first line\n{}\nthird line\n", needle());
+    let scanner: CandidateScanner = loaded_with(&rules, CacheAccess::ReadOnly);
+    assert!(
+        artifacts().is_empty(),
+        "a load that may not write wrote: {:?}",
+        artifacts()
+    );
+    assert_eq!(
+        findings_of(&scanner, leak.as_bytes()),
+        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+    );
+    // The same rules, loaded by a command that owns the cache: one artifact, and the cache answers the next load.
+    let writing: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
+    assert_eq!(artifacts().len(), 1, "a load that may write writes once");
+    assert_eq!(
+        writing.cache_warnings().first().map(|warning| return warning.reason()),
+        Some("missing"),
+        "a command that publishes compiled from the text: {:?}",
+        writing.cache_warnings()
+    );
+    assert_eq!(
+        findings_of(&writing, leak.as_bytes()),
+        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+    );
+    let again: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
+    assert!(again.cache_warnings().is_empty(), "the published artifact answers the next load: {:?}", again.cache_warnings());
+}
+
+/// A compiled artifact is written only by a load that may write.
+#[test]
+fn a_load_writes_the_cache_only_when_it_may() {
+    run_isolated(
+        "candidate::scanner_adapter::tests::a_load_writes_the_cache_only_when_it_may",
+        "scanner-cache-access",
+        a_load_writes_the_cache_only_when_it_may_body,
+    );
+}
+
+/// Body:
+///  an artifact a crash tore in the middle is refused and the rules file speaks instead.
+fn a_partial_artifact_is_never_used_body(directory: &Path) {
+    let rules: RulesSource = planted_rules(directory);
+    let published: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
+    assert_eq!(
+        published.cache_warnings().first().map(|warning| return warning.reason()),
+        Some("missing"),
+        "the first load of an empty cache compiles from the text"
+    );
+    let artifact: PathBuf = artifacts().into_iter().next().expect("one artifact");
+    let whole: Vec<u8> = std::fs::read(&artifact).expect("read artifact");
+    let torn: usize = whole.len() / 2;
+    std::fs::write(&artifact, &whole[..torn]).expect("tear the artifact");
+    let recovered: CandidateScanner = loaded_with(&rules, CacheAccess::ReadOnly);
+    assert_eq!(
+        recovered.cache_warnings().first().map(|warning| return warning.reason()),
+        Some("invalid"),
+        "a torn artifact is refused as invalid, not read as absent: {:?}",
+        recovered.cache_warnings()
+    );
+    assert_eq!(
+        findings_of(&recovered, format!("first line\n{}\n", needle()).as_bytes()),
+        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+    );
+}
+
+/// A torn artifact is refused, so the scan uses the rules file.
+#[test]
+fn a_partial_artifact_is_never_used() {
+    run_isolated(
+        "candidate::scanner_adapter::tests::a_partial_artifact_is_never_used",
+        "scanner-cache-partial",
+        a_partial_artifact_is_never_used_body,
+    );
+}
+
+/// Body:
+///  an artifact compiled from other rules text is never used for this one:
+///  a candidate holding the old text's token passes,
+///  and one holding the new text's token is reported.
+fn a_cache_of_other_rules_is_never_used_body(directory: &Path) {
+    let before: String = format!("{}_BEFORE", needle());
+    let after: String = format!("{}_AFTER", needle());
+    let rules: RulesSource = planted_rules(directory);
+    std::fs::write(directory.join("rules.txt"), format!("{before}\n")).expect("rules before");
+    let published: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
+    assert_eq!(
+        findings_of(&published, format!("x\n{before}\n").as_bytes()),
+        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+    );
+    std::fs::write(directory.join("rules.txt"), format!("{after}\n")).expect("rules after");
+    // The cache holds the artifact of the old text, and this load must not scan with it.
+    let changed: CandidateScanner = loaded_with(&rules, CacheAccess::ReadOnly);
+    assert_eq!(
+        changed.cache_warnings().first().map(|warning| return warning.reason()),
+        Some("missing"),
+        "the artifact of other rules text is a miss, not a hit: {:?}",
+        changed.cache_warnings()
+    );
+    assert_eq!(
+        findings_of(&changed, format!("x\n{before}\n").as_bytes()),
+        Vec::new(),
+        "an artifact of other rules text answered for this one"
+    );
+    assert_eq!(
+        findings_of(&changed, format!("x\n{after}\n").as_bytes()),
+        vec![ScanFinding::Content { line: 2, rule: String::from("0") }]
+    );
+}
+
+/// A compiled artifact of other rules text is never used.
+#[test]
+fn a_cache_of_other_rules_is_never_used() {
+    run_isolated(
+        "candidate::scanner_adapter::tests::a_cache_of_other_rules_is_never_used",
+        "scanner-cache-other-rules",
+        a_cache_of_other_rules_is_never_used_body,
     );
 }

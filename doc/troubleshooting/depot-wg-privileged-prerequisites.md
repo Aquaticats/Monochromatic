@@ -4,6 +4,10 @@
 > the Depot job named in this record belongs to a research branch,
 > and nothing in this repository runs it.
 
+Note 2026-11-09T16:52:23-05:00:
+`package/dev-script/task-util` is now `package/monorepo-task/core-exec`,
+moved 2026-10-29 in `592d78b143`.
+
 ## Symptom
 
 The frozen WG privileged profile encountered independent prerequisite and isolation failures.

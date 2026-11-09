@@ -143,6 +143,13 @@ fn create_subvolumes(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), M
         if !run.layout.new_path.exists() {
             run.platform.create_subvolume(run.layout.new_path.as_path())?;
         }
+        // The identity of the stage this step made or adopted rides with the step's mark, so one write carries both: a journal
+        // that says the step finished also names the subvolume, and the preflight lets through only an empty subvolume when
+        // the identity is not recorded yet.
+        let Some(identity) = crate::worktree_convert_phases::identity_of_path(run.layout.new_path.as_path()) else {
+            return Err(MigrateError::Journal(format!("{} was not there after it was created", run.layout.new_path.display())));
+        };
+        run.journal.record_stage_identity(identity);
         run.journal.mark("create", "done")?;
     }
     run.checkpoint("after-create")?;
@@ -315,7 +322,13 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
         let mut lines: Vec<String> = Vec::new();
         // The refresh reports each index into the list the lines are collected in; they are said even when the refresh
         //  stops, because each of them is a fact about an index that was looked at.
-        let refreshed: Result<usize, MigrateError> = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str().into()), std::slice::from_ref(&old_path), &mut lines);
+        let refreshed: Result<usize, MigrateError> = refresh_all_indexes(
+            root.as_path(),
+            IndexLock::Held(token.as_str().into()),
+            std::slice::from_ref(&old_path),
+            run.platform.flushes_to_disk(),
+            &mut lines,
+        );
         for text in &lines {
             run.line(text.as_str());
         }

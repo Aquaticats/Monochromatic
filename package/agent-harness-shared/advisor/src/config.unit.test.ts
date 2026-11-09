@@ -11,7 +11,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -40,10 +40,11 @@ await describe({
     it({
       name: 'uses defaults when config files are absent',
       fn: async () => {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-advisor-test-',
         ),);
+        const root = directory.path;
         const config = await loadMergedConfig({
           cwd: join(
             root,
@@ -62,10 +63,11 @@ await describe({
     it({
       name: 'merges project config over global config',
       fn: async () => {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-advisor-test-',
         ),);
+        const root = directory.path;
         const home = join(
           root,
           'home',
@@ -116,10 +118,11 @@ await describe({
     it({
       name: 'reports invalid config path',
       fn: async () => {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-advisor-test-',
         ),);
+        const root = directory.path;
         const home = join(
           root,
           'home',
@@ -161,10 +164,11 @@ await describe({
     it({
       name: 'merges the configured default reviewer with project override and explicit clear',
       fn: async () => {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-advisor-test-',
         ),);
+        const root = directory.path;
         const home = join(
           root,
           'home',
@@ -230,10 +234,11 @@ await describe({
     it({
       name: 'rejects a non-string default reviewer key',
       fn: async () => {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-advisor-test-',
         ),);
+        const root = directory.path;
         const home = join(
           root,
           'home',

@@ -35,6 +35,7 @@
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, open_root, plain_components, rename_at};
 use crate::fs_kind::{is_stand_in, is_subvolume_root};
+use crate::path_bytes::path_bytes_of;
 use crate::random_id::random_uuid;
 use crate::worktree_clean::stored_stats;
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
@@ -394,9 +395,9 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
         }
         // The rules compare names with ASCII names only, so the text of a name that is not UTF-8 (with the replacement
         //  character in it) can never equal one; the bytes alone decide every move and every protection.
-        let mut names: Vec<String> = Vec::new();
+        let mut names: Vec<Vec<u8>> = Vec::new();
         for (name, _is_directory) in &children {
-            names.push(name.to_string_lossy().into_owned());
+            names.push(path_bytes_of(Path::new(name.as_os_str())).to_vec());
         }
         // A directory that is another checkout is set aside whole, its pointer first.
         if !relative.is_empty() && prune.skips_checkout(names.as_slice()) && !tracked.contains(relative.as_slice()) {
@@ -417,7 +418,7 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
             if is_stand_in(directory.join(&name).as_path()) {
                 continue;
             }
-            if !tracked.contains(child_relative.as_slice()) && prune.skips_path(String::from_utf8_lossy(child_relative.as_slice()).as_ref()) {
+            if !tracked.contains(child_relative.as_slice()) && prune.skips_path(child_relative.as_slice()) {
                 aside.put(Path::new(OsStr::from_bytes(child_relative.as_slice())))?;
             } else {
                 pending.push((directory.join(&name), child_relative));

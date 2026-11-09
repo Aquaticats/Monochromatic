@@ -32,6 +32,7 @@ use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
 use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, installed_identity_refusal, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, shown_left_out, uncarried_cause, uncarried_remedy};
+use crate::subvolume_rollback_stage::stage_is_not_a_subvolume;
 use crate::subvolume_rollback_subvolume_removal::{remove_if_present, remove_subvolume_tree};
 use crate::subvolume_remove::remove_tree;
 use crate::subvolume_run::Run;
@@ -127,6 +128,9 @@ pub fn refusals_of_the_mode(run: &Run<'_>, mode: MigrateMode, discard_unreadable
             // no old tree yet, and that state is the one the rollback finishes by deleting the staged subvolume.
             if run.journal.is_done("exchange") && !trees_are_already_swapped_back(run) && !run.layout.old_path.exists() {
                 found.push(old_tree_missing(run));
+            }
+            if let Some(refusal) = stage_is_not_a_subvolume(run) {
+                found.push(refusal);
             }
         }
         MigrateMode::RemoveOld => {
@@ -350,31 +354,31 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
         let mut lines: Vec<String> = Vec::new();
         // The refresh reports each index into the list the lines are collected in; they are said even when the refresh
         //  stops, because each of them is a fact about an index that was looked at.
-        let refreshed: Result<usize, MigrateError> = refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut lines);
+        let refreshed: Result<usize, MigrateError> = refresh_all_indexes(
+            root.as_path(),
+            IndexLock::Acquire,
+            std::slice::from_ref(&new_path),
+            run.platform.flushes_to_disk(),
+            &mut lines,
+        );
         for text in &lines {
             run.line(text.as_str());
         }
         let _count: usize = refreshed?;
         run.journal.mark("rollback-indexes", "done")?;
     }
-    // The stage is the subvolume the migration created; a directory that replaced it is somebody else's, and the removal's
-    // fallback would delete it with whatever it holds.
-    if new_path.exists() && !run.platform.is_subvolume_root(new_path.as_path()).unwrap_or(false) {
-        return Ok(Some(vec![Refusal {
-            cause: format!(
-                "{} is not a subvolume, and this rollback deletes only the subvolume the migration created; nothing was deleted",
-                new_path.display()
-            ),
-            remedy: String::from(
-                "If the directory is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
-            ),
-        }]));
-    }
     // The subvolume this deletes is the one the migration installed, compared at every path that reaches the deletion: a
-    // run resumed after the exchange was recorded skips the swap, and with it the pair check that guards the exchange.
+    // run resumed after the exchange was recorded skips the swap, and with it the pair check that guards the exchange. This
+    // check comes first because a name that holds something other than the installed checkout says so more exactly than a
+    // stage identity that no longer answers.
     if new_path.exists()
         && let Some(refusal) = installed_identity_refusal(run, new_path.as_path())
     {
+        return Ok(Some(vec![refusal]));
+    }
+    // The stage is the subvolume the migration created; a directory that replaced it is somebody else's, and the removal's
+    // fallback would delete it with whatever it holds.
+    if let Some(refusal) = stage_is_not_a_subvolume(run) {
         return Ok(Some(vec![refusal]));
     }
     if new_path.exists() {

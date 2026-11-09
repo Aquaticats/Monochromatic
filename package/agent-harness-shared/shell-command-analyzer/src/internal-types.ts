@@ -196,6 +196,13 @@ type VisitResult = {
    Parse errors emitted by nested parsing.
    */
   readonly parseErrors: readonly ShellParseError[];
+  /**
+   Parser node kinds this traversal has no visitor for.
+
+   A silent empty result would let a guard read "no command here" from a subtree
+   the analyzer never walked, so every unread node kind is named instead.
+   */
+  readonly notUnderstoodNodeKinds: readonly string[];
 };
 
 /**
@@ -214,6 +221,10 @@ type CommandCollection = {
    Parse errors emitted by nested parsing.
    */
   readonly parseErrors: readonly ShellParseError[];
+  /**
+   Parser node kinds the walk had no visitor for, in traversal order.
+   */
+  readonly notUnderstoodNodeKinds: readonly string[];
 };
 
 /**
@@ -253,7 +264,30 @@ const EMPTY_VISIT_RESULT: VisitResult = {
   workItems: [],
   flags: EMPTY_FLAGS,
   parseErrors: [],
+  notUnderstoodNodeKinds: [],
 };
+
+/**
+ Build the result for a parser node kind no visitor covers.
+
+ Failing closed needs the kind named, because an empty result is indistinguishable
+ from a subtree that genuinely holds nothing.
+
+ @param nodeKind - parser `type` of the unread node
+
+ @returns empty visit result naming the unread kind
+
+ @example
+ ```ts
+ visitResultForUnreadNodeKind('HyperGlob');
+ ```
+ */
+function visitResultForUnreadNodeKind(nodeKind: string,): VisitResult {
+  return {
+    ...EMPTY_VISIT_RESULT,
+    notUnderstoodNodeKinds: [nodeKind,],
+  };
+}
 
 export {
   EMPTY_FLAGS,
@@ -261,6 +295,7 @@ export {
   EMPTY_VISIT_RESULT,
   EXECUTED_CONTEXT,
   NO_SCRIPT,
+  visitResultForUnreadNodeKind,
 };
 export type {
   CommandCollection,

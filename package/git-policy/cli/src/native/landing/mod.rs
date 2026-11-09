@@ -240,6 +240,10 @@ pub mod service_commit_tree_ownership;
 /// What the branch shows once the commit service went silent after a commit was prepared.
 pub mod service_branch_shows;
 
+/// The look for the commit a request that was already sent made,
+/// once its answer was lost.
+pub mod service_commit_looking_for_what_landed;
+
 /// What a landed commit leaves the command to do:
 /// its result and the work after it.
 pub mod service_landed_aftermath;
@@ -261,6 +265,10 @@ pub mod service_captures;
 /// the captured change merged onto the branch,
 /// never prepared again from the worktree.
 pub mod service_replay;
+
+/// The capture order of every shared path of a replay,
+/// from one walk over the history.
+pub mod service_replay_capture_order;
 
 /// The small text steps of the replay of captured changes.
 pub mod service_replay_line_text;
@@ -316,6 +324,9 @@ pub mod service_round;
 /// The wrapper's side of after-commit work:
 /// records and the wake.
 pub mod service_handoff;
+
+/// Whether Git's own record of a branch's remote says a held push's commit has reached it.
+pub mod held_push_commit_on_the_remote;
 
 /// Whether a worktree's head still names the branch a commit was prepared on.
 pub mod service_head;

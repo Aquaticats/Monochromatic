@@ -24,6 +24,27 @@ On a host whose load average was 50 or more,
 three `discard::` controls failed with
 `the command hit the 5-second bound` and passed alone in under a second.
 
+Note 2026-11-09T16:55:17-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/native/binary_support.rs` is now
+`package/git-policy/cli/src/native/binary/binary_support.rs`,
+moved 2026-11-03 in `3ec1e1201b`.
+`package/git-policy/cli/src/native/binary_fixture_tests.rs` is now
+`package/git-policy/cli/src/native/binary/binary_fixture_tests.rs`,
+moved 2026-11-03 in `3ec1e1201b`.
+`package/git-policy/cli/src/native/git_version_cache_tests.rs` is now
+`package/git-policy/cli/src/native/invocation/git_version_cache_tests.rs`,
+moved 2026-11-03 in `a0d60dc29a`.
+`package/git-policy/cli/src/native/real_git_candidate.rs` is now
+`package/git-policy/cli/src/native/invocation/real_git_candidate.rs`,
+moved 2026-11-03 in `a0d60dc29a`.
+`package/git-policy/cli/src/native/binary_resolution_tests.rs` is now
+`package/git-policy/cli/src/native/binary/binary_resolution_tests.rs`,
+moved 2026-11-03 in `3ec1e1201b`.
+`package/git-policy/cli/src/native/binary_supervisor.rs` is now
+`package/git-policy/cli/src/native/binary/binary_supervisor.rs`,
+moved 2026-11-03 in `3ec1e1201b`.
+
 ## What was measured
 
 Debug build,

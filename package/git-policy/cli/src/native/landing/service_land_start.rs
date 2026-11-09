@@ -64,22 +64,10 @@ pub enum IndexWitness {
     },
 }
 
-/// What:
-///  A byte as two lowercase hexadecimal digits.
-/// Why:
-///  `hex` writes the bytes of an index checksum.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const hexOfByte = (byte: number) => byte.toString(16).padStart(2, '0');
-/// ```
-fn hex_of_byte(byte: &u8) -> String {
-    return format!("{byte:02x}");
-}
-
-/// The hexadecimal text of `bytes`.
+/// The hexadecimal text of `bytes`,
+/// from the crate's one encoder of bytes as hexadecimal digits (`hexadecimal_of_bytes.rs`).
 fn hex(bytes: &[u8]) -> String {
-    return bytes.iter().map(hex_of_byte).collect();
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes);
 }
 
 /// What:
