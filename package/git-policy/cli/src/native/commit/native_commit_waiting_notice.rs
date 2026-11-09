@@ -413,8 +413,8 @@ impl NativeCommitNotice {
     ///  counted from the moment it starts,
     ///  or nothing when a message may be typed into an editor in it.
     /// Why:
-    ///   The wait that owns the step needs the bound it must enforce itself
-    /// when this notice has no thread,
+    ///   The wait that owns the step enforces this same bound,
+    /// so it needs the number even when no notice thread runs,
     /// and an editor-opening commit has none at all,
     /// because the person is the wait.
     ///
@@ -424,21 +424,6 @@ impl NativeCommitNotice {
     /// ```
     pub fn ceiling_that_applies(&self) -> Option<Duration> {
         return self.unarmed.ceiling;
-    }
-
-    /// What:
-    ///  Whether a notice thread runs,
-    ///  so a step whose start gave it a descriptor is ended by its ceiling.
-    /// Why:
-    ///   A refused thread enforces nothing,
-    /// so the wait that owns the step ends it instead.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// notice.isWatching(); // false when the system refused the thread
-    /// ```
-    pub fn is_watching(&self) -> bool {
-        return self.stop.is_some();
     }
 
     /// What:

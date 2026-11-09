@@ -215,12 +215,11 @@ pub fn run_native_commit_within(
         },
     );
     let began: std::time::Instant = std::time::Instant::now();
-    // Who ends the step at its ceiling: the notice's thread when it runs and its start gave a descriptor, and the wait
-    //  that owns the child otherwise, because a number is safe only while the child is this process's own unreaped child.
+    // Two enforcers of one ceiling: the notice's thread, which prints the lines and ends the step through the descriptor
+    //  taken at its start, and the wait that owns the child, which needs no thread and no number a reuse can reach.
     let duty: crate::signal_relay::CeilingDuty<'_> = crate::signal_relay::CeilingDuty {
         told: notice.step_number(),
         bound: notice.ceiling_that_applies(),
-        another_ends_it: notice.is_watching(),
     };
     let finished = run_guarded_child(&mut command, duty);
     // The step's own figure is the child alone. The notice's own end is reported beside it in `scratchSteps`, and the time
@@ -228,8 +227,7 @@ pub fn run_native_commit_within(
     // line the notice could not hand to a reader that stopped reading.
     crate::transaction_step_durations::note_step(step.as_str(), began, began.elapsed());
     let mut facts: crate::scratch_commit_step::ScratchStepFacts = notice.finish();
-    // One record of a stop, whoever ended the step: the notice's own thread, or the wait that owns the child when the
-    //  notice had no thread, or its start gave no descriptor to name the step by.
+    // One record of a stop, whoever ended the step first: the notice's own thread, or the wait that owns the child.
     if let Ok((_outcome, Some(stop))) = &finished
         && facts.stopped_after.is_none()
     {

@@ -2807,14 +2807,15 @@ a member the kernel refuses a pidfd for is never signalled by its number,
 and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
 
-##### The wait that owns the step ends it when the notice cannot
+##### The wait that owns the step enforces the ceiling
 
-The notice thread ends the step when its start gave it a pidfd to signal through.
-Two states take that away:
-the system refused the notice's thread,
-and the start gave no descriptor to name the step by.
-In both,
-the wait that owns the child ends it
+One ceiling has two enforcers,
+and the second needs no thread and no name a reuse can reach.
+
+The notice thread ends the step through the pidfd its start gave it,
+which names that step for good,
+and that is where the waiting lines come from.
+The wait that owns the child ends it too
 (`src/native/process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`):
 the ceiling is counted from the step's own start,
 which is that wait's own moment,
@@ -2828,13 +2829,16 @@ and ended through descriptors pinned the same way;
 and the child is reaped there,
 a child the kernel holds in an uninterruptible call going to a task of the runtime that collects it,
 so the kernel's release of it never holds the command.
+
+That second enforcer is why the ceiling survives both failures the notice cannot:
+a system that refuses its thread,
+and a start that gave no descriptor to signal through.
 A refused thread leaves no waiting lines,
 so the person sees nothing during the wait and the stop's words after it,
 which name the signer when the commit was signed and say nothing was committed.
-The two sources of a stop are written once:
-the notice's own figure,
-or the wait's,
-which also records `armed` for a step whose notice thread never ran.
+A stop is written once,
+by whichever enforcer ended the step first,
+and the wait's own record sets `armed` for a step whose notice thread never ran.
 There is no state in which a commit under a ceiling waits with nothing to end its step.
 
 ##### The quiet windows are labelled unmeasured

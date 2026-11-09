@@ -529,7 +529,7 @@ impl SignalGuard {
     /// ```
     pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
         let unheeded: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None, another_ends_it: false };
+        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None };
         let (outcome, _no_ceiling): (ChildOutcome, Option<CeilingStop>) = run_relayed(command, self.relaying, duty).await?;
         return Ok(outcome);
     }
@@ -543,15 +543,13 @@ impl SignalGuard {
     /// Why:
     ///   A ceiling that ends a step must name that step and no other child of this process,
     /// and the only moment its number can be had is the moment it starts.
-    ///  When no notice thread ends the step,
-    /// or its start gave no descriptor,
-    /// this wait ends the child it owns,
+    ///  This wait ends the child it owns when the ceiling comes,
     /// whose number cannot be reused before it is reaped,
-    /// so the ceiling does not depend on a name a reuse can reach.
+    /// so the ceiling depends on no thread and on no name a reuse can reach.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const [outcome, ceilingStop] = guard.runChildNaming(command, { told: notice.stepNumber(), bound, anotherEndsIt });
+    /// const [outcome, ceilingStop] = guard.runChildNaming(command, { told: notice.stepNumber(), bound });
     /// ```
     pub fn run_child_telling_its_number(
         &self,
@@ -568,19 +566,18 @@ impl SignalGuard {
 /// What:
 ///  Who ends a Git step that reaches its ceiling.
 /// Why:
-///  The notice thread ends a step through the descriptor taken at its start,
-/// which names that step for good.
-///  When the notice has no thread (the system refused it),
-/// or its step's start gave no descriptor,
-/// nothing it holds names the step,
-/// so the wait that owns the child ends it instead (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
+///  The wait that owns a child is the only place its number cannot be reused,
+/// so it is the enforcement a ceiling always has (`child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`).
+///  The notice thread ends the same step through the descriptor taken at its start,
+/// which names that step for good,
+/// so one bound has two enforcers and its stop is recorded once.
 ///  A commit that may open an editor is under no ceiling at all:
 /// the person is the wait,
 /// and a stop would lose what they typed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CeilingDuty = { told: ChildNumber; bound?: number; anotherEndsIt: boolean };
+/// type CeilingDuty = { told: ChildNumber; bound?: number };
 /// ```
 pub struct CeilingDuty<'a> {
     /// The spot the step's number is published into the moment it starts.
@@ -589,8 +586,6 @@ pub struct CeilingDuty<'a> {
     /// counted from its start;
     /// nothing when a message may be typed into an editor in it.
     pub bound: Option<std::time::Duration>,
-    /// Whether the notice thread ends the step at the ceiling when its start gave a descriptor.
-    pub another_ends_it: bool,
 }
 
 /// Spawns the child,
@@ -610,13 +605,15 @@ async fn run_relayed(command: &mut Command, relaying: bool, duty: CeilingDuty<'_
     duty.told.publish(i32::try_from(started.id()).unwrap_or(0));
     let owned = adopt(started);
     let published: bool = relaying && publish(owned.id());
-    // Who ends the step when its ceiling comes: the notice's thread, when it runs and the start gave it a descriptor, and
-    //  this wait otherwise. A descriptor opened at the start is the only name a reuse cannot be behind.
-    let ends_here: Option<std::time::Duration> = match duty.bound {
-        Some(bound) if !(duty.another_ends_it && duty.told.descriptor().is_some()) => Some(bound),
-        _ => None,
-    };
-    let waited: (ChildOutcome, Option<CeilingStop>) = match ends_here {
+    // What: The wait that owns the child is the one that ends it at the ceiling.
+    // Why:  A ceiling that depends on the notice's thread depends on a thread the system may refuse to make,
+    //       and on one that has not died since it started.
+    //       This wait needs neither:
+    //       the number of an unreaped child cannot be reused, and only this path reaps it,
+    //       so its signal reaches the step and never a successor.
+    //       The notice's own ceiling stays as the second enforcer of the same bound,
+    //       and a stop is recorded once, by whichever of the two ended the step.
+    let waited: (ChildOutcome, Option<CeilingStop>) = match duty.bound {
         Some(ceiling) => crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::wait_until_it_exits_the_stop_or_the_ceiling(
             owned,
             stop,
