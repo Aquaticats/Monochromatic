@@ -1503,8 +1503,9 @@ owner and group,
 and 38.02 with the attributes as well,
 which is 0.62 s more on that tree,
 paid once per conversion.
-A regular file whose size and modification time agree is also compared by contents when its change time
-is at or after the instant the proving pass began,
+A regular file whose size and modification time agree is also compared by contents when the change
+time of either side is at or after the instant the proving pass began,
+both sides being read because either can hold bytes the other does not,
 which the journal records,
 the instant being taken before the pass rather than after it,
 because an edit made while the pass runs carries a change time before the pass ends:

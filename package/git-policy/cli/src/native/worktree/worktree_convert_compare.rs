@@ -229,7 +229,9 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
                 if before.size() != after.size() || before.mtime() != after.mtime() || before.mtime_nsec() != after.mtime_nsec() {
                     return Ok(Some(format!("{} differs from the installed worktree (size or modification time)", inside.display())));
                 }
-                if changed_since(&before, synced_ms) && contents_differ(&old.join(&inside), &installed.join(&inside))? {
+                // Either side can hold bytes the other does not: the old tree a late edit, the installed worktree one made
+                // after the exchange, and neither side's change time sees the other's.
+                if (changed_since(&before, synced_ms) || changed_since(&after, synced_ms)) && contents_differ(&old.join(&inside), &installed.join(&inside))? {
                     return Ok(Some(format!("{} differs from the installed worktree (contents)", inside.display())));
                 }
             }
