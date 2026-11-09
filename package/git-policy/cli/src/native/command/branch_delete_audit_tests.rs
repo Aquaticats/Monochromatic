@@ -162,6 +162,56 @@ fn real_git_records_no_branch_for_a_revision_that_is_no_branch_name() {
 }
 
 /// Real Git:
+///  a remote-tracking deletion expands the upstream mark and nothing else,
+///  so the record names the upstream reference Git took and no other.
+/// Why:
+///  Git expands a deletion operand with `copy_branchname` under the namespace's own kind,
+///  and the remote-tracking kind interprets a branch mark only:
+///  `@{-1}` is a local branch, which that deletion never expands,
+///  and a fully qualified operand is no mark at all.
+#[test]
+fn real_git_records_only_the_remote_tracking_mark_a_deletion_expands() {
+    let root: PathBuf = fixture("branch-delete-remote-mark");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=base"]);
+    let commit: String = String::from_utf8_lossy(git(repo.as_path(), &["rev-parse", "main"]).stdout.as_slice())
+        .trim()
+        .to_owned();
+    // An upstream stored as a remote-tracking reference, which is what a remote-tracking deletion expands `@{u}` to.
+    let place: String = repo.display().to_string();
+    git(repo.as_path(), &["config", "remote.origin.url", place.as_str()]);
+    git(repo.as_path(), &["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"]);
+    git(repo.as_path(), &["config", "branch.main.remote", "origin"]);
+    git(repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    git(repo.as_path(), &["update-ref", "refs/remotes/origin/main", commit.as_str()]);
+    let reading: GitContext = context(repo.as_path());
+    // The control: Git itself expands the mark to the reference the record must name.
+    let resolved: String = String::from_utf8_lossy(
+        git(repo.as_path(), &["rev-parse", "--symbolic-full-name", "@{u}"]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    assert_eq!(resolved, "refs/remotes/origin/main", "the control needs @{{u}} to name the remote-tracking ref");
+    let facts: Vec<AuditFact> = deletion_facts(&reading, Some(repo.as_path()), OsStr::new("@{u}"), true)
+        .expect("the upstream reference exists");
+    assert_eq!(value(&facts, "branch"), "origin/main");
+    assert_eq!(value(&facts, "reference"), "refs/remotes/origin/main");
+    assert_eq!(value(&facts, "commit"), commit);
+    // A branch the worktree visited before is no remote-tracking mark: Git deletes nothing, even when a
+    //  remote-tracking reference of that name is there for a wrong reader to claim.
+    git(repo.as_path(), &["checkout", "--quiet", "-b", "lost"]);
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    git(repo.as_path(), &["update-ref", "refs/remotes/lost", commit.as_str()]);
+    assert_eq!(deletion_facts(&reading, Some(repo.as_path()), OsStr::new("@{-1}"), true), None);
+    // A fully qualified operand is no mark either, and Git prefixes it again and finds nothing.
+    assert_eq!(
+        deletion_facts(&reading, Some(repo.as_path()), OsStr::new("refs/remotes/origin/main"), true),
+        None
+    );
+    remove(root.as_path());
+}
+
+/// Real Git:
 ///  a branch whose name is not UTF-8 keeps its own reference and commit in the record,
 ///  because the
 ///       name reaches Git as bytes.

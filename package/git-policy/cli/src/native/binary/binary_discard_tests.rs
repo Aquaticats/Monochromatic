@@ -1130,6 +1130,73 @@ fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
     remove(&fixture);
 }
 
+/// A remote-tracking deletion of the upstream mark records the reference Git expanded it to,
+/// and a fully
+///  qualified operand, which Git refuses, leaves no line.
+#[test]
+fn a_remote_tracking_deletion_of_the_upstream_mark_records_what_git_deleted() {
+    let fixture: Fixture = fixture("audit-branch-delete-upstream");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let commit: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "main"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    // An upstream stored as a remote-tracking reference, which is what a remote-tracking deletion expands `@{u}` to.
+    let place: String = repo.display().to_string();
+    git(&fixture, repo.as_path(), &["config", "remote.origin.url", place.as_str()]);
+    git(&fixture, repo.as_path(), &["config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.remote", "origin"]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/main", commit.as_str()]);
+    // The control: Git itself expands the mark to the reference the line must name.
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["rev-parse", "--symbolic-full-name", "@{u}"]).stdout.as_slice()
+        )
+        .trim(),
+        "refs/remotes/origin/main",
+        "the control needs @{{u}} to name the remote-tracking ref"
+    );
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-r", "-D", "@{u}"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"branch\":\"origin/main\"",
+        "\"reference\":\"refs/remotes/origin/main\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/remotes"]).stdout.as_slice()
+        )
+        .trim(),
+        "",
+        "Git deleted the remote-tracking ref"
+    );
+    // A fully qualified operand is no mark: Git prefixes it again, deletes nothing, and no line is written.
+    git(&fixture, repo.as_path(), &["update-ref", "refs/remotes/origin/other", commit.as_str()]);
+    let before: usize = audit_lines_of(repo.as_path()).len();
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-r", "-D", "refs/remotes/origin/other"]);
+    assert_ne!(refused.code, Some(0), "Git refuses a fully qualified remote-tracking operand");
+    assert_eq!(
+        String::from_utf8_lossy(
+            git(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/remotes"]).stdout.as_slice()
+        )
+        .trim(),
+        "refs/remotes/origin/other",
+        "the control needs the reference to survive"
+    );
+    assert_eq!(
+        audit_lines_of(repo.as_path()).len(),
+        before,
+        "a deletion that deleted nothing wrote {:?}",
+        audit_lines_of(repo.as_path())
+    );
+    remove(&fixture);
+}
+
 /// A repository whose `tracks` branch holds a file under a directory the ignore rules hide,
 /// and a linked
 ///  worktree that holds the person's file where that directory must go.
