@@ -280,6 +280,28 @@ fn snapshot(world: &World) -> (String, String) {
     );
 }
 
+/// What:
+///  What recovery did for the record at one path,
+///  or nothing when it settled no record there.
+/// Why:
+///  A worktree can hold more than one record,
+/// and recovery reads them in the directory's order,
+/// so a control
+///  names the record it asks about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theActionFor(outcomes, record): MergeRecoveryAction | undefined; // outcomes.find((outcome) => outcome.record === record)?.action
+/// ```
+fn the_action_for(outcomes: &[MergeRecoveryOutcome], record: &Path) -> Option<MergeRecoveryAction> {
+    for outcome in outcomes {
+        if outcome.record.as_path() == record {
+            return Some(outcome.action);
+        }
+    }
+    return None;
+}
+
 /// A merge killed before it touched anything is discarded,
 /// and the checkout is as it was.
 #[test]
@@ -832,16 +854,17 @@ fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
     };
     let place: RecoveryPlace = place(world);
     let changes: Vec<Change> = merge_changes(&place, world.repo.as_path(), &intent).expect("the merge's changes");
+    let records_file_modes: bool = crate::merge_isolation_changes::the_repository_records_file_modes(&place.git, world.repo.as_path());
     let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
     for change in &changes {
         // The identity first, as recovery reads it, then the content: exactly the order of `settle_failed_merge`.
         let identity = file_identity(worktree_path(world.repo.as_path(), change.path.as_slice()).as_path());
         let state: WorktreeState = worktree_state(&place.git, world.repo.as_path(), change.path.as_slice()).expect("the state");
         let content: Option<String> = match &state {
-            WorktreeState::Content(oid) => Some(oid.clone()),
+            WorktreeState::Content { object, .. } => Some(object.clone()),
             WorktreeState::Missing | WorktreeState::Other => None,
         };
-        judgements.push(Judged { standing: standing(change, &state), identity, content });
+        judgements.push(Judged { standing: standing(change, &state, records_file_modes), identity, content });
     }
     return (changes, judgements);
 }
@@ -2601,12 +2624,15 @@ fn a_merge_that_installed_nothing_does_not_stop_a_command_on_another_branch() {
     let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
         .expect("nothing of the merge is in the checkout, so the command goes on");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    let original_action = outcomes.iter().find(|outcome| outcome.record == original).map(|outcome| outcome.action);
-    assert_eq!(original_action, Some(MergeRecoveryAction::Discarded), "the record that names no side ref only goes: {text}");
+    assert_eq!(
+        the_action_for(outcomes.as_slice(), original.as_path()),
+        Some(MergeRecoveryAction::Discarded),
+        "the record that names no side ref only goes: {text}"
+    );
     assert!(!original.exists(), "the record nothing can finish is gone");
     assert!(saved.exists(), "the saved merge's record is kept for the branch it is for");
     assert_eq!(
-        outcomes.iter().find(|outcome| outcome.record == saved).map(|outcome| outcome.action),
+        the_action_for(outcomes.as_slice(), saved.as_path()),
         Some(MergeRecoveryAction::DeferredRefused),
         "the saved merge is named and the command goes on: {text}"
     );

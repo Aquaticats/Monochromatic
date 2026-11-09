@@ -183,19 +183,33 @@ pub enum Standing {
 }
 
 /// What:
-///  Compare a worktree state with the two sides of a change.
+///  Compare a worktree state with the two sides of a change,
+///  content and the mode Git records for it.
 /// Why:
 ///   The old side wins a tie:
 /// a change that does not alter the content is not evidence of a started merge.
+/// A mode is read as part of the file,
+/// because Git records it in the index entry:
+/// a file whose bytes
+///  are the branch's and whose executable bit is not has been changed by someone,
+/// and replacing it would erase
+///  that change
+///  (a cross-vendor review of the ninth round,
+/// its seventh finding).
+/// A repository that records no
+///  executable bit reads no mode difference at all,
+/// as Git does there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function standing(change: Change, state: WorktreeState): Standing;
+/// function standing(change: Change, state: WorktreeState, recordsFileModes: boolean): Standing;
 /// ```
-pub fn standing(change: &Change, state: &WorktreeState) -> Standing {
+pub fn standing(change: &Change, state: &WorktreeState, records_file_modes: bool) -> Standing {
     let old_matches: bool = match state {
         WorktreeState::Missing => !change.existed(),
-        WorktreeState::Content(oid) => change.existed() && *oid == change.old_oid,
+        WorktreeState::Content { object, mode } => {
+            change.existed() && *object == change.old_oid && (!records_file_modes || *mode == change.old_mode)
+        }
         WorktreeState::Other => false,
     };
     if old_matches {
@@ -203,7 +217,9 @@ pub fn standing(change: &Change, state: &WorktreeState) -> Standing {
     }
     let new_matches: bool = match state {
         WorktreeState::Missing => !change.exists_after(),
-        WorktreeState::Content(oid) => change.exists_after() && *oid == change.new_oid,
+        WorktreeState::Content { object, mode } => {
+            change.exists_after() && *object == change.new_oid && (!records_file_modes || *mode == change.new_mode)
+        }
         WorktreeState::Other => false,
     };
     if new_matches {
@@ -231,6 +247,10 @@ pub fn standing(change: &Change, state: &WorktreeState) -> Standing {
 /// function judgeChanges({ place, root, changes }): Judged[]; // standing(...), then explainedDirectory(...) ? 'directory' : one
 /// ```
 pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> Result<Vec<Judged>, RecoveryError> {
+    // Whether a mode is part of the file here is one question for the whole judgement,
+    // and it is the repository's answer, not this
+    //  command's.
+    let records_file_modes: bool = crate::merge_isolation_changes::the_repository_records_file_modes(&place.git, root);
     let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
     for change in changes {
         let location: PathBuf = worktree_path(root, change.path.as_slice());
@@ -239,10 +259,10 @@ pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> 
         let identity: Option<FileIdentity> = file_identity(location.as_path());
         let state: WorktreeState = worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?;
         let content: Option<String> = match &state {
-            WorktreeState::Content(oid) => Some(oid.clone()),
+            WorktreeState::Content { object, .. } => Some(object.clone()),
             WorktreeState::Missing | WorktreeState::Other => None,
         };
-        judgements.push(Judged { standing: standing(change, &state), identity, content });
+        judgements.push(Judged { standing: standing(change, &state, records_file_modes), identity, content });
     }
     for (index, change) in changes.iter().enumerate() {
         if judgements[index].standing != Standing::Foreign || change.existed() || !change.exists_after() {

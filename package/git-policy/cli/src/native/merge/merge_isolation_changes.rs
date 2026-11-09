@@ -107,18 +107,26 @@ pub fn parse_raw_changes(output: &[u8]) -> Result<Vec<Change>, String> {
 }
 
 /// What the worktree holds at a path,
-/// as the object Git would record for it.
+/// as the object Git would record for it and the mode it records for that kind of entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WorktreeState = { kind: 'missing' } | { kind: 'content'; oid: string } | { kind: 'other' };
+/// type WorktreeState = { kind: 'missing' } | { kind: 'content'; oid: string; mode: string } | { kind: 'other' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorktreeState {
     /// Nothing exists at the path.
     Missing,
-    /// A file or a symbolic link whose recorded object is this one.
-    Content(String),
+    /// A file or a symbolic link whose recorded object is this one,
+    /// with the mode Git records for its kind.
+    Content {
+        /// The object the entry's bytes hash to.
+        object: String,
+        /// `100644`,
+        /// `100755` or `120000`,
+        /// as Git records it.
+        mode: String,
+    },
     /// A directory or another kind of entry.
     Other,
 }
@@ -269,7 +277,10 @@ pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &
             Ok(done) => done,
             Err(error) => return Err(error.to_string()),
         };
-        return Ok(WorktreeState::Content(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
+        return Ok(WorktreeState::Content {
+            object: String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+            mode: String::from(SYMBOLIC_LINK_MODE),
+        });
     }
     if !metadata.is_file() {
         return Ok(WorktreeState::Other);
@@ -285,7 +296,74 @@ pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &
         Ok(done) => done,
         Err(error) => return Err(error.to_string()),
     };
-    return Ok(WorktreeState::Content(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
+    return Ok(WorktreeState::Content {
+        object: String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+        mode: String::from(mode_of_file(&metadata)),
+    });
+}
+
+/// The mode Git records for a symbolic link.
+const SYMBOLIC_LINK_MODE: &str = "120000";
+
+/// What:
+///  The mode Git records for a regular file,
+///  from the executable bit the file system holds.
+/// Why:
+///   Git records exactly two modes for a regular file,
+/// and the bit between them is the one a person changes with
+///  `chmod`;
+/// reading it here is what lets a judgement see an executable bit set while a merge waited,
+/// instead of
+///  comparing the bytes alone and erasing the bit
+///  (a cross-vendor review of the ninth round,
+/// its seventh finding).
+///  A platform whose permissions carry no such bit is read as non-executable,
+/// which is the mode Git records there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function modeOfFile(metadata): '100644' | '100755'; // stat.mode & 0o111 ? '100755' : '100644'
+/// ```
+#[cfg(unix)]
+fn mode_of_file(metadata: &std::fs::Metadata) -> &'static str {
+    use std::os::unix::fs::PermissionsExt;
+    if metadata.permissions().mode() & 0o111 != 0 {
+        return "100755";
+    }
+    return "100644";
+}
+
+/// The mode Git records for a regular file,
+/// where the platform's permissions carry no executable bit.
+#[cfg(not(unix))]
+fn mode_of_file(_metadata: &std::fs::Metadata) -> &'static str {
+    return "100644";
+}
+
+/// What:
+///  Whether this repository reads a worktree file's executable bit as part of the file.
+/// Why:
+///   `core.fileMode` is false where the filesystem cannot keep the bit,
+/// and Git then takes no mode difference at
+///  all;
+/// a judgement that refused one there would stop the recovery of every merge touching an executable path on
+///  such a filesystem,
+/// which is the kind of failure this route exists to remove.
+/// A value Git does not answer for,
+/// and a key that is absent,
+/// is read as true,
+/// which is Git's default and the strict answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theRepositoryRecordsFileModes(context, root): boolean; // git config --bool core.filemode !== 'false'
+/// ```
+pub fn the_repository_records_file_modes(context: &GitContext, root: &Path) -> bool {
+    let request: GitRequest = GitRequest::new(root, &["config", "--bool", "core.filemode"]);
+    let Ok(output) = run_git_checked(context, &request) else {
+        return true;
+    };
+    return String::from_utf8_lossy(&output.stdout).trim() != "false";
 }
 
 /// Raw difference reading and worktree states.
@@ -359,12 +437,12 @@ fn every_entry_below_is_one_the_merge_deletes(prefix: &[u8], changes: &[Change],
         let mut child: Vec<u8> = prefix.to_vec();
         child.push(b'/');
         child.extend_from_slice(entry.file_name().as_encoded_bytes());
-        let deleted: bool = changes.iter().any(|other| other.path == child && other.existed() && !other.exists_after());
+        let deleted: bool = changes.iter().any(|other| return other.path == child && other.existed() && !other.exists_after());
         if deleted {
             continue;
         }
         let below: PathBuf = directory.join(entry.file_name());
-        let is_a_directory: bool = std::fs::symlink_metadata(below.as_path()).map(|found| found.is_dir()).unwrap_or(false);
+        let is_a_directory: bool = std::fs::symlink_metadata(below.as_path()).map(|found| return found.is_dir()).unwrap_or(false);
         if !is_a_directory {
             return false;
         }
