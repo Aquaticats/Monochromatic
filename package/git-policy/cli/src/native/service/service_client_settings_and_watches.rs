@@ -13,10 +13,11 @@
 //! ```
 
 use crate::service_messages::Platform;
-use crate::service_instance::service_unit_instance;
+use crate::service_instance::{service_unit_instance, socket_unit_instance};
 use crate::service_provision::ProvisionHost;
 use crate::systemd_dbus::{Bus, EXCHANGE_WAIT};
 use crate::service_server::Bind;
+use std::path::PathBuf;
 use std::time::Duration;
 /// How long a start takes before the client says it is starting the service.
 pub const START_NOTICE_GRACE: Duration = Duration::from_secs(1);
@@ -72,6 +73,20 @@ pub struct ClientConfig {
     pub extra_wait: Duration,
     /// The longest a start is waited for when the service manager can be asked.
     pub start_ceiling: Duration,
+    /// What:
+    ///  The runtime directory whose record of the unit texts the manager was told about is dropped when a service of
+    ///  another release will not retire,
+    /// or nothing where this client did not provision.
+    /// Why:
+    ///   A service of another release that will not stop is proof that the unit the manager loaded and the files on disk
+    ///  disagree,
+    /// whatever a record says;
+    /// dropping the record makes the next commit set the units up again,
+    /// which is
+    ///  the only repair of an interrupted downgrade followed by an interrupted upgrade
+    ///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+    /// finding 2 of the round-2 review).
+    pub units_record_dir: Option<PathBuf>,
 }
 
 /// What:
@@ -107,7 +122,7 @@ pub struct FreshScratch {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ManagerWatch = { bus: string; unit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean };
+/// type ManagerWatch = { bus: string; unit: string; socketUnit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean; reset: (bus, unit) => boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ManagerWatch {
@@ -115,6 +130,11 @@ pub struct ManagerWatch {
     pub bus: std::path::PathBuf,
     /// The service unit of the worktree.
     pub unit: String,
+    /// The socket unit of the worktree,
+    /// which the service unit requires:
+    /// a start of the service starts it too,
+    /// so a failed state is forgotten for both together.
+    pub socket_unit: String,
     /// How often the manager is asked while the greeting has not come.
     pub every: Duration,
     /// The unit's `ActiveState` now (`active`,
@@ -129,6 +149,10 @@ pub struct ManagerWatch {
     /// Asks the manager to start the unit;
     /// whether the manager took the request.
     pub start: fn(&std::path::Path, &str) -> bool,
+    /// Asks the manager to forget that the unit failed,
+    /// so a start is not refused as repeated too quickly;
+    /// whether the manager took the request.
+    pub reset: fn(&std::path::Path, &str) -> bool,
 }
 
 /// How often the service manager is asked whether the service unit failed,
@@ -149,6 +173,15 @@ pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
     return connection.start_unit(unit).is_ok();
 }
 
+/// Asks the manager to forget that `unit` failed;
+/// whether the request was taken.
+/// A unit that failed too often is refused as "repeated too quickly" until this
+/// is asked.
+pub(crate) fn reset_failed_unit(bus: &std::path::Path, unit: &str) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+    return connection.reset_failed(unit).is_ok();
+}
+
 /// What:
 ///  The watch that asks the account's service manager about the worktree's service unit.
 /// Why:
@@ -160,5 +193,13 @@ pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
 /// const watch = managerWatchFor(host)
 /// ```
 pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
-    return ManagerWatch { bus: host.bus.clone(), unit: service_unit_instance(host.instance.as_str()), every: MANAGER_ASK_EVERY, state: unit_state, start: start_unit };
+    return ManagerWatch {
+        bus: host.bus.clone(),
+        unit: service_unit_instance(host.instance.as_str()),
+        socket_unit: socket_unit_instance(host.instance.as_str()),
+        every: MANAGER_ASK_EVERY,
+        state: unit_state,
+        start: start_unit,
+        reset: reset_failed_unit,
+    };
 }

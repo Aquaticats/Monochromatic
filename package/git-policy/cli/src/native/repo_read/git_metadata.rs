@@ -219,6 +219,10 @@ pub fn run_metadata_git_within(
     // const output = await spawnWatched(command, { waitingFor: subject, ceiling });
     // ```
     let mut command: std::process::Command = git_command(real_git, arguments, overlay);
+    // The wrapper reads the repository itself here, with the output captured and the input closed, so nothing of the
+    //  person's runs under this start and a wrapper that arrives as its Git came from the file that Git is
+    //  (`started_as_git.rs`).
+    crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Query);
     command.stdin(Stdio::null());
     let terms: WatchTerms = WatchTerms::for_class(ChildClass::Plumbing);
     let quiet: Duration = terms.limit;

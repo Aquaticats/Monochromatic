@@ -462,6 +462,33 @@ fn a_stale_current_in_the_winning_root_is_repaired_before_another_scope_links_th
     assert!(resolved.ends_with(Path::new("0.4.5").join("bin").join(GIT_BIN)), "the newest copy runs: {}", resolved.display());
 }
 
+/// The link's target is a version this run deletes, so the guard that leaves a newer link alone must not hold:
+/// the link has to end on the finished version that survives, or commands through `current/bin` fail.
+#[test]
+fn prune_points_current_at_the_finished_survivor_when_the_link_named_a_newer_deletion() {
+    let duo = Duo::new();
+    fs::write(&duo.rig.scope.lock_file, "{\"schemaVersion\":1,\"tools\":{}}").expect("a lock that names nothing");
+    for version in ["1.0.0", "1.1.0"] {
+        finish_install(&version_directory(&duo.repository_root(), GIT_CRATE, version), GIT_CRATE, version, &[GIT_BIN]);
+    }
+    // The repository root runs 1.1.0, and the global root forwards to the older 1.0.0, so 1.0.0 is kept and 1.1.0 is not.
+    symlink("1.1.0", current_link(&duo.repository_root(), GIT_CRATE)).expect("current at the newer version");
+    fs::create_dir_all(duo.global_root().join("cargo").join(GIT_CRATE)).expect("make the global crate directory");
+    symlink(
+        version_directory(&duo.repository_root(), GIT_CRATE, "1.0.0"),
+        current_link(&duo.global_root(), GIT_CRATE),
+    )
+    .expect("the global root forwards to the older version");
+    duo.list_own_worktree();
+    prune_toolchain(&duo.rig.scope, &duo.rig.runner, &[], false).expect("pruned");
+
+    let link = current_link(&duo.repository_root(), GIT_CRATE);
+    assert!(!version_directory(&duo.repository_root(), GIT_CRATE, "1.1.0").exists(), "the newer version this run deletes goes");
+    assert!(version_directory(&duo.repository_root(), GIT_CRATE, "1.0.0").is_dir(), "the forwarded version stays");
+    assert_eq!(fs::read_link(&link).expect("a link"), PathBuf::from("1.0.0"), "current names the finished version that survives");
+    assert!(fs::metadata(&link).is_ok(), "and the link resolves");
+}
+
 /// Only an unfinished version survives because the other root forwards to it, and the link names the version this
 /// run deletes: the link must go rather than outlive its target,
 /// since an unfinished install is not something `current` may name.
