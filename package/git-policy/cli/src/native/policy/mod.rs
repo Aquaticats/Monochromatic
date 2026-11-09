@@ -47,6 +47,10 @@ pub mod event_hints;
 /// The shipped policies as checks over rule cores and repository facts.
 pub mod policy_checks;
 
+/// The linked-worktree check,
+/// in its own file so the registry of shipped policies stays readable.
+pub mod policy_linked_worktree;
+
 /// What a lifecycle offers content policies,
 ///  and its candidates once prepared.
 pub mod policy_content;
@@ -64,6 +68,12 @@ pub mod policy_root_context;
 /// The optional catalog-specifier policy over the shared rule crate:
 ///  every dependency in a tracked `package.json` is a catalog or workspace reference.
 pub mod policy_catalog_specifiers;
+
+/// The branch-worktree-only check.
+pub mod policy_branch_worktree;
+
+/// The two commands the wrapper records and never refuses.
+pub mod policy_audited;
 
 /// The optional forbidden-strings policy over the linked scanner,
 ///  with redacted findings.

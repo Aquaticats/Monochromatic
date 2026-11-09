@@ -174,8 +174,34 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
       --provider=neuralwatt --model=deepseek-v4.1-flash \
-      --wall-seconds=2400 --idle-seconds=60 --turn-cap=80
+      --wall-seconds=2400 --idle-seconds=60 --turn-cap=<sized from past runs>
     ```
+
+    Size `--turn-cap` to the task from past runs at every launch.
+    The owner,
+    2026-11-09:
+    "Always Size turn limits to the task based on past data."
+    Read what the finished runs of the same kind used,
+    narrowing by the run folders' names:
+
+    ```sh
+    # run from anywhere; <runs> holds the run folders, and the pattern picks the runs like this one
+    jq --slurp '[.[] | select(.endReason == "idle" and (.turns | type == "number")) | .turns] | sort
+      | {runs: length, median: .[length / 2 | floor], p95: .[length * 0.95 | floor], highest: .[-1]}' \
+      <runs>/*-findings-fixed-*/summary.json
+    ```
+
+    Set the cap a quarter above `highest`,
+    so a run as long as the longest that finished still has room.
+    When too few runs of that kind have finished to say anything,
+    read every run instead.
+    A cap exists to end a run that stopped getting anywhere;
+    one that fires on a working run costs a resume and leaves its work uncommitted.
+    Measured at 2026-11-09T07:42:00-05:00 over 254 runs:
+    finished fix rounds from a review or audit used a median of 126 turns,
+    a 95th percentile of 329 and at most 358,
+    every finished run at most 377,
+    and a fixed cap of 400 ended a run with uncommitted work after 154 of its 180 minutes.
 
 5.  Read progress from `<run>/feed.jsonl` when asked.
     To steer,

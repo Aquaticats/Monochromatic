@@ -125,6 +125,162 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
+#### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
+
+- `421ab69c3e` landed the landing branch,
+  `2522a13f4f` the literal-pathspec branch,
+  `2b309f8f25` the test-coverage branch,
+  `87f5771748` the index offset guard,
+  `cc6ebc3a07` the wording for a refused blocking thread,
+  `dea0f5d24e` the landing branch's follow-up on a failed head probe,
+  `8026d49827` the alias branch,
+  `8d210d933a` the standards-review branch,
+  `b28c5cca6f` the entry-and-service branch,
+  `b3210c70ae` the worktree-copy branch,
+  `147f5badc3` the conversion branch,
+  and `30a87b27fd` the push branch's last round.
+  The first clause of that merge's message names a change it does not contain;
+  commit comment 209008614 on it says so.
+- Finding 1 of `doc/planning/cli-git-push-route-findings-on-main.md` is open on main,
+  though `push-route-findings-fixed` run 1 reported it fixed:
+  a second branch reaching a commit is answered `Known` and never pushed.
+  `landing/work_item.rs:89-91` keys a record by kind and commit alone,
+  and `git log main --first-parent -m -S'branch_digest'` is empty.
+  `c3c6a50098` added the branch key,
+  and `24bb297e9a` on another branch deleted it on the belief that main had gone back to the plain id.
+  Push run 7 restores it and rechecks that agent's other fixes against main.
+- `~/temp/agent/pi-runs/find-functions-lost-in-merges.ts` over commits since 2026-11-05:
+  of the functions and tests added,
+  134 are gone from main,
+  none of them lost in a merge,
+  and each was removed by a named non-merge commit.
+  Of those commits,
+  only `24bb297e9a` gives "main's version" as its reason,
+  by their subjects.
+  It reads names only,
+  so a fix that changed lines inside a function that still exists is not covered.
+  A note warning against this went to the running agents.
+- Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
+  previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
+  and `invocation-route-findings-fixed` has the alias cases by inbox note.
+- Follow-up runs started:
+  landing run 12,
+  worktree-removal run 6,
+  worktree-add run 4,
+  child-process run 5,
+  merge run 8,
+  the wrapper-issue resume (run 2),
+  shadow run 2,
+  push run 6,
+  literal-pathspec run 3,
+  locks run 4
+  and scratch-removal run 3.
+  Worktree-add and child-process open with a merge of main in conflict,
+  which their briefs tell them to resolve first,
+  so neither branch has landed.
+- Deferred until a slot frees,
+  because the practical limit of agents was reached when each was written,
+  in this order,
+  briefs in `~/temp/agent/pi-runs/`:
+  `resume-after-wall-clock-prompt.md` for `shadow-and-replay-findings-fixed` as run 3 from the session of run 2,
+  which reached its time limit while merging main.
+  Start each with `start-pi-run-if-a-slot-is-free.ts`,
+  which counts launchers as well as units and refuses at the limit.
+- The provider ended several runs with `terminated`:
+  `commit-ceiling-and-private-index-follow-ups` run 1,
+  `intent-to-add-keeps-stat-data` runs 3 and 4,
+  `invocation-route-findings-fixed` run 2,
+  `tokio-repair-threads-on-the-runtime` run 1
+  and `worktree-add-findings-fixed` run 4.
+  All have been resumed.
+- `merge-route-round-8-sol.txt` names defects in code new on that branch,
+  among them a clean filter that hides bytes recovery then deletes,
+  so the branch is not to land until its run 9 reports.
+- `discarding-commands-round-3-sol.txt` names a regression:
+  an ignored file inside a directory the target replaces with a file is deleted unguarded,
+  so that branch is not to land until its run 4 reports.
+- Started:
+  discarding-commands run 4,
+  alias run 2,
+  hook run 4,
+  intent-to-add run 3 on two regressions its review named,
+  suite-failures run 3,
+  `kill-sweeps-reach-the-calls-they-name`,
+  `commit-queue-position-reaches-the-person`
+  and `tokio-repair-threads-on-the-runtime`.
+- `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on the intent-to-add branch
+  and passed 6 of 6 on it and on main,
+  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note.
+- The conversion branch passed 397 of 402 on top of main.
+  The three migration timeouts not yet named on main passed alone on it in 12 to 34 s,
+  and its review is running.
+  Those tests failed in seconds when two checkouts ran them at the same moment,
+  which went to `wrapper-tests-that-fail-only-in-a-suite` by inbox note.
+- The conflict-resolution branch's merge of main stopped on three files under `push/`,
+  and its run 4 is resolving them.
+  The push branch is being tested on top of main.
+- `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
+  of which index 57.8 s and journal 20.6 s,
+  and said a real commit makes the same writes and flushes.
+- The locks branch passed 379 of 379 on top of main.
+  `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
+  and a pid file declaring an owner dead while a holder could not be resolved.
+- The scratch-removal branch passed 502 of 502 on top of main.
+  `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
+  an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
+  and stalled removal threads with no cap.
+- `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
+  and is with `wrapper-tests-that-fail-only-in-a-suite`.
+- The shadow branch has passed its tests on top of main and its round 2 is running:
+  `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
+  a subsection holding `=` that loses its value,
+  and a long value that stops the scratch commit from starting.
+- The merge branch passed 320 of 320 on top of main.
+  Under the coordinator's decision to converge,
+  its round 8 fixes what `merge-route-round-7-sol.txt` names that a kill alone can cause,
+  and documents in `SPEC.md` the three findings that need another process to act inside a few instructions.
+- The tokio landing-round agent converted nothing,
+  and measured why:
+  a Git step reads its child through the runtime,
+  so inside a blocking job of the pool every step refuses as nested.
+  Its branch keeps the corrected wording for a refused thread.
+- Open from the test-coverage report,
+  not yet given to an agent:
+  the kill sweeps list calls a flow never makes,
+  so those names add no positions and nothing says so.
+- `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` failed once in a suite and passes alone on the branch and on main.
+- The worktree-copy branch does not land yet.
+  `worktree-copy-path-bytes-round-1-sol.txt` names two regressions of that branch:
+  a `containerHex=` line inside an older release's unescaped path can direct recursive deletion,
+  and a `.git` pointer ending in a carriage return reads as unregistered and loses a pending copy.
+  Run 2 of `worktree-copy-records-keep-path-bytes` is on them.
+- Run 3 of `hook-route-findings-fixed` removes the delivery proof,
+  which exists only on that branch (`ea3f3fd3fd`):
+  `hook-route-round-2-sol.txt` names three more ways it claims a delivery that did not happen.
+  The coordinator's decision is that a stopped push says what is known and its retry settles the question.
+- `858fc0a751` (entry and service) and `0b6f191324` (push) landed with their last reviews' findings open,
+  because each finding is no worse than main.
+  Those reviews read source only,
+  so the follow-ups reproduce each finding first.
+- Fail alone on main,
+  so no branch caused them,
+  and they are with `wrapper-tests-that-fail-only-in-a-suite`:
+  `a_stopped_push_is_still_tried_again_after_the_service_restarts`,
+  `a_landing_waits_for_the_reclaimer_that_holds_a_claim`,
+  and `the_report_keeps_input_order_whichever_worktree_finishes_first`,
+  whose output says a blocking step panicked.
+  Pass alone and fail or time out in a suite:
+  `a_writer_saving_during_a_pass_loses_no_copy` (235 s alone against a 300 s limit),
+  `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
+  and `a_landing_over_an_unheld_lock_removes_it_and_goes_on`.
+- The owner,
+  2026-11-09:
+  "Always Size turn limits to the task based on past data."
+  The skill states it and the launcher sizes the cap from finished runs of the same kind.
+  Agents started before that change keep the cap they started with.
+- The 16 second signed scratch commit ceiling is on main (`e8f75c09e8`) and unreleased.
+  The installed wrapper still stops that step at 3006 ms.
+
 #### Main stopped building, and what landed after it (2026-11-09T06:35:43-05:00)
 
 - Main did not compile from `367c52c390` until `121100623c`.
@@ -227,22 +383,29 @@ The old tree kept for the rollback stays until the owner deletes it.
   path bytes in every field of the owed index record,
   and the landing findings of `merge-route-round-6-sol.txt`),
   `locks-and-transactions-findings-fixed` run 3,
-  and `subvolume-conversion-findings-fixed` run 3.
+  `subvolume-conversion-findings-fixed` run 3,
+  `merge-route-findings-fixed` run 7,
+  `conflict-resolution-findings-fixed` run 3,
+  and the new agents `markdown-route-findings-fixed` and `standards-review-findings-fixed`
+  for the defects in the audits of those routes under `doc/planning/`.
   The lock and conversion branches do not land before those runs:
   their reviews (`locks-and-transactions-round-2-sol.txt`,
   `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
 - Waiting for a free agent slot,
   in this order:
-  `merge-route-findings-fixed` run 7 with `merge-route-round-7-prompt.md`,
-  a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`,
-  `conflict-resolution-findings-fixed` run 3 with `conflict-resolution-round-3-prompt.md`,
-  for the findings of `conflict-resolution-round-2-sol.txt` other than the window between revalidation and install,
-  a new agent `standards-review-findings-fixed` with `standards-review-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-standards-review-route-findings-on-main.md`,
+  `process-and-child-lifetime-findings-fixed` run 4 with `process-and-child-lifetime-merge-of-main-prompt.md`,
+  to finish the merge of main left open in its worktree,
+  whose conflicts come from `e8f75c09e8`;
   a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`,
+  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`;
   and a new agent `commit-ceiling-and-private-index-follow-ups` with `commit-ceiling-and-private-index-follow-ups-prompt.md`.
+- Finished their runs and are being checked on top of main:
+  `worktree-add-findings-fixed` and `discarding-commands-findings-fixed`,
+  whose last runs both ended at the wall clock during a final test run,
+  so those two checks stand in for it.
+  `push-route-findings-fixed` had its merge conflict in the notice code resolved by this session,
+  keeping the branch's rule that a notice leaves its record only once its words were written;
+  its check and the review of `56d3ab1f0f~1..bcd87c1f15` come next.
 - The commit-ceiling branch landed as `e8f75c09e8`,
   with 495 of 495 selected tests on top of main.
   Its last review (`scratch-commit-ceiling-round-5-sol.txt`) was started over a range that crossed a merge of main,

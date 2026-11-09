@@ -1117,7 +1117,7 @@ fn a_creation_leaves_a_live_journal_alone_and_does_not_wait() {
     assert!(started.elapsed() < std::time::Duration::from_secs(30), "the creation must not wait for the live copy");
     assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
     assert!(live.path.exists(), "the live journal is whole");
-    assert!(Path::new(live.journal.stage_container.as_str()).exists(), "its stage is whole");
+    assert!(live.journal.stage_container.as_path().exists(), "its stage is whole");
     assert!(!older.join("cache").exists(), "its copy is not installed by anyone else");
     assert!(!String::from_utf8(stderr).expect("utf8").contains("recovered"));
     remove(root.as_path());
@@ -1605,5 +1605,69 @@ fn the_repair_is_handed_exactly_the_confirmed_destination() {
     )
     .expect("settled");
     assert!(none.created.is_empty());
+    remove(root.as_path());
+}
+
+/// A worktree added from a source whose path is not text,
+/// into a destination whose path is not text,
+/// receives its ignored state exactly as it would on text paths.
+#[cfg(unix)]
+#[test]
+fn a_worktree_add_between_paths_that_are_not_text_copies_the_ignored_state() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("lifecycle-add-bytes");
+    let (main, common) = source(root.as_path());
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let source_parent: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"src\xff"));
+    std::fs::create_dir_all(source_parent.as_path()).expect("source parent");
+    let source_root: PathBuf = source_parent.join("source");
+    let arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "source"]
+        .iter()
+        .map(OsString::from)
+        .chain([source_root.clone().into_os_string()])
+        .collect();
+    git(main.as_path(), arguments.as_slice());
+    let source_canonical: PathBuf = std::fs::canonicalize(source_root).expect("canonical source");
+    std::fs::create_dir_all(source_canonical.join("cache")).expect("cache");
+    std::fs::write(source_canonical.join("cache/data"), b"payload").expect("data");
+    let destination_parent: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"dst\xff"));
+    std::fs::create_dir_all(destination_parent.as_path()).expect("destination parent");
+    let topic: PathBuf = destination_parent.join("topic");
+    let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: common.clone(),
+        git_dir: common.join("worktrees").join("source"),
+        worktree_root: source_canonical.clone(),
+    };
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity,
+            effective_cwd: source_canonical.clone(),
+            creates: true,
+            destination: Some(topic.clone()),
+            opted_out: false,
+            short_circuit: false,
+            context: git_context(),
+            add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
+        },
+        &mut |_step: &GitStep<'_>| {
+            let add_arguments: Vec<OsString> = ["worktree", "add", "--quiet", "-b", "topic"]
+                .iter()
+                .map(OsString::from)
+                .chain([topic.clone().into_os_string()])
+                .collect();
+            let output: Output = git_output(source_canonical.as_path(), add_arguments.as_slice());
+            return Ok(GitStatus { code: output.status.code() });
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{}", String::from_utf8_lossy(stderr.as_slice()));
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("copied"), b"payload");
+    let replacement: PathBuf = PathBuf::from(topic.to_string_lossy().into_owned());
+    assert!(!replacement.exists(), "nothing is written at the replacement spelling");
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
     remove(root.as_path());
 }

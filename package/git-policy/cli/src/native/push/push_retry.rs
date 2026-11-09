@@ -36,7 +36,7 @@
 /// The positive-seconds reading shared by the wait limits.
 use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The plan on disk.
-use crate::push_retry_store::{StoredPlan, load, remove, save};
+use crate::push_retry_store::{StoredPlan, load, name_of, remove_except, save};
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
@@ -290,6 +290,10 @@ pub struct Retrying {
     /// The pushes due again,
     /// each naming the directory it belongs to.
     pub due: Vec<Due>,
+    /// The directory a plan is kept in,
+    /// so that a drain can keep one on disk before it tells the person a retry is coming;
+    /// nothing for a plan kept in memory only.
+    pub plans: Option<PathBuf>,
 }
 
 /// Methods over a request.
@@ -298,7 +302,7 @@ impl Retrying {
     /// a push that could pass is reported as failed,
     /// as it is for handlers that do not retry.
     pub fn none() -> Self {
-        return Self { first: None, due: Vec::new() };
+        return Self { first: None, due: Vec::new(), plans: None };
     }
 }
 
@@ -341,6 +345,87 @@ pub enum RetryChange {
         /// The branch reference.
         branch_ref: String,
     },
+}
+
+// The number of changes a control lets `apply` apply before it stops, as a killed service leaves the round half applied;
+// nothing outside a control.
+#[cfg(test)]
+thread_local! {
+    /// The bound of the control running on this thread.
+    static STOP_AFTER: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+
+/// Stops `apply` after `changes` changes on this thread until the guard drops.
+#[cfg(test)]
+pub(crate) fn stop_after_in_a_control(changes: usize) -> StopAfterGuard {
+    STOP_AFTER.with(|slot| { slot.set(Some(changes)); });
+    return StopAfterGuard;
+}
+
+/// Ends the control's bound when dropped.
+#[cfg(test)]
+pub(crate) struct StopAfterGuard;
+
+#[cfg(test)]
+impl Drop for StopAfterGuard {
+    fn drop(&mut self) {
+        STOP_AFTER.with(|slot| { slot.set(None); });
+    }
+}
+
+/// Whether a control's bound is reached after `applied` changes.
+#[cfg(test)]
+fn stopped_after(applied: usize) -> bool {
+    return STOP_AFTER.with(|slot| { return slot.get().is_some_and(|bound| { return applied >= bound; }); });
+}
+
+/// What:
+///  Whether the round plans the same branch of the same Git directory again after `at`.
+/// Why:
+///   The last plan of a branch is the round's statement about it;
+/// publishing an earlier one would remove the
+///  file the worker of the last one already wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// changes.slice(at + 1).some((c) => c.plan && c.plan.gitDir === gitDir && c.plan.item.branchRef === branchRef)
+/// ```
+fn planned_again_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_ref: &str) -> bool {
+    for change in &changes[at + 1..] {
+        if let RetryChange::Plan { git_dir: planned_dir, item, .. } = change
+            && planned_dir == git_dir
+            && item.branch_ref == branch_ref
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The file name of the last plan the changes after `at` write for one branch of one Git directory,
+/// or nothing.
+/// Why:
+///   A forget replayed before that plan must not remove it,
+/// and the name is known before the plan is written;
+///  only the last plan of a branch is ever published,
+/// so its name is the one to keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// changes.slice(at + 1).filter((c) => c.plan && sameBranch(c.plan)).map(planName).at(-1)
+/// ```
+fn last_plan_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_ref: &str) -> Option<String> {
+    let mut name: Option<String> = None;
+    for change in &changes[at + 1..] {
+        if let RetryChange::Plan { git_dir: planned_dir, item, attempt, .. } = change
+            && planned_dir == git_dir
+            && item.branch_ref == branch_ref
+        {
+            name = Some(name_of(&StoredPlan { git_dir: planned_dir.clone(), item: item.clone(), attempt: *attempt }));
+        }
+    }
+    return name;
 }
 
 /// What:
@@ -418,6 +503,12 @@ impl PushRetries {
         return self.first;
     }
 
+    /// The directory the plan is kept in,
+    /// or nothing for a list kept in memory only.
+    pub fn plans(&self) -> Option<&Path> {
+        return self.store.as_deref();
+    }
+
     /// Plan try number `attempt` of the branch of `item`,
     /// replacing any plan for the same branch;
     /// gives the pause.
@@ -443,19 +534,60 @@ impl PushRetries {
     /// its push landed,
     /// or the person must act.
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.forget_keeping(git_dir, branch_ref, &[]);
+    }
+
+    /// `forget` for a branch whose plan the rest of this round keeps,
+    /// under the file names in `keep`:
+    /// those are newer statements than the forget and stay on disk.
+    pub fn forget_keeping(&mut self, git_dir: &Path, branch_ref: &str, keep: &[String]) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
         if let Some(directory) = self.store.as_deref() {
-            remove(directory, git_dir, branch_ref);
+            remove_except(directory, git_dir, branch_ref, keep);
         }
     }
 
-    /// Apply what the workers of a round asked,
+    /// What:
+    ///  Apply what the workers of a round asked,
     /// in the order they asked it.
+    /// Why:
+    ///   A forget is applied after the round,
+    /// so a plan another worker of the same round kept on disk is already there;
+    /// its
+    ///  file name is known,
+    /// so the forget keeps it and the round's own plan stays.
+    ///  A plan the same round plans again later is not published at all:
+    /// the last plan of a branch is the round's statement,
+    ///  and publishing an earlier one would remove the file the last one's worker already wrote,
+    /// leaving a forget
+    ///  replayed between them nothing to keep
+    /// and a restarted service no plan where a notice promised a retry.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// for (const [at, change] of changes.entries()) {
+    ///   if (change.forget) forgetKeeping(branch, lastPlanName(changes.slice(at + 1)))
+    ///   else if (!plannedAgainAfter(changes, at)) plan(change)
+    /// }
+    /// ```
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
-        for change in changes {
-            match change {
-                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
-                RetryChange::Forget { git_dir, branch_ref } => self.forget(git_dir.as_path(), branch_ref.as_str()),
+        for index in 0..changes.len() {
+            // A service killed here has applied the changes before this one and nothing after it.
+            #[cfg(test)]
+            if stopped_after(index) {
+                return;
+            }
+            match &changes[index] {
+                RetryChange::Plan { git_dir, item, attempt, due } => {
+                    if planned_again_after(changes.as_slice(), index, git_dir, item.branch_ref.as_str()) {
+                        continue;
+                    }
+                    self.plan(git_dir.as_path(), item, *attempt, *due)
+                }
+                RetryChange::Forget { git_dir, branch_ref } => {
+                    let keep: Vec<String> = last_plan_after(changes.as_slice(), index, git_dir, branch_ref).into_iter().collect();
+                    self.forget_keeping(git_dir.as_path(), branch_ref.as_str(), keep.as_slice());
+                }
             }
         }
     }

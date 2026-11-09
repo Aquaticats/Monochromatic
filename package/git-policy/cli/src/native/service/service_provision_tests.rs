@@ -38,6 +38,8 @@ pub(super) struct Recorder {
     /// in order,
     /// kept apart from the calls.
     budgets: Arc<Mutex<Vec<std::time::Duration>>>,
+    /// What a control reads at the moment the manager is asked to start a unit.
+    at_start: Arc<Mutex<Option<Box<dyn FnMut() + Send>>>>,
 }
 
 impl Manager for Recorder {
@@ -56,6 +58,9 @@ impl Manager for Recorder {
     }
 
     fn start(&mut self, unit: &str) -> Result<(), CallError> {
+        if let Some(read) = self.at_start.lock().expect("lock").as_mut() {
+            read();
+        }
         self.calls.lock().expect("lock").push(format!("start {unit}"));
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
     }
@@ -122,6 +127,11 @@ impl Recorder {
 
     pub(super) fn calls(&self) -> Vec<String> {
         return self.calls.lock().expect("lock").clone();
+    }
+
+    /// What a control reads each time the manager is asked to start a unit.
+    pub(super) fn observe_start(&self, read: Box<dyn FnMut() + Send>) {
+        *self.at_start.lock().expect("lock") = Some(read);
     }
 }
 
@@ -234,6 +244,41 @@ fn noted(note: &Path) -> PathBuf {
     let text: String = std::fs::read_to_string(note).expect("the note");
     let hexadecimal: &str = text.strip_prefix(GITDIR_HEX_PREFIX).expect("the note names the bytes of the directory");
     return path_of_hex(hexadecimal.trim_end_matches('\n')).expect("the note holds the bytes of a path");
+}
+
+/// What:
+///  The note that names the worktree is on disk before the manager is asked to start the units.
+/// Why:
+///  The service learns whose units it runs from that note,
+/// and a service that finds none answers `Unmapped`
+///  and never asks whether its worktree is still there,
+/// so the sweep that stops the units of a removed worktree can never name it
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4).
+/// A kill between the
+///  start of the units and the note left exactly that service behind,
+/// for up to the idle exit of three hours.
+/// The note names a directory
+///  that exists and needs no manager,
+/// so nothing is owed to writing it after the start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(noteExistsAtTheMomentOfStart).toBe(true);
+/// ```
+#[test]
+fn the_worktrees_note_is_written_before_the_manager_is_asked_to_start_the_units() {
+    let machine: Machine = machine("provision-note-first-lib");
+    let note: PathBuf = crate::service_units_of_removed_worktrees::note_path(machine.host.runtime_dir.as_path(), INSTANCE);
+    let seen: Arc<Mutex<Vec<bool>>> = Arc::new(Mutex::new(Vec::new()));
+    let mut recorder: Recorder = Recorder::default();
+    let watched: Arc<Mutex<Vec<bool>>> = Arc::clone(&seen);
+    let named: PathBuf = note.clone();
+    recorder.observe_start(Box::new(move || { watched.lock().expect("lock").push(named.exists()); }));
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    assert_eq!(seen.lock().expect("lock").as_slice(), [true], "the note names the worktree before the units are started");
+    assert_eq!(noted(note.as_path()), machine.host.git_dir, "the note names the worktree of the units");
+    remove(machine.root.as_path());
 }
 
 /// A second provisioning changes no file and does not reload;
@@ -405,6 +450,49 @@ fn a_moved_program_rewrites_the_service_unit_and_reloads() {
     assert!(written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()));
     assert_eq!(written(&machine, SOCKET_UNIT_NAME), socket_before);
     assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"));
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  An upgrade whose process wrote the new service template and was killed before the manager was reloaded
+///  repairs itself at the next commit:
+/// the files alone are not taken for an installation the manager was told about.
+/// Why:
+///  The files then hold exactly the text this wrapper would write,
+/// and a fast path that reads only the files takes them for
+///  installed and returns without the reload.
+/// The manager keeps the unit it loaded,
+/// so every later commit reaches the service
+///  of the release that was replaced and ends with `ClientFailure::OtherRelease` however often it is run
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// the sequence of the interrupted
+///  upgrade).
+/// A commit must not fail repeatedly because of a kill it cannot see,
+/// so the next one asks for the reload the killed one
+///  never made,
+/// and only then are the files an installation again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(inPlaceAfterAKilledUpgrade).toBe(false);
+/// expect(reloadAskedAfterRepairingIt).toBe(true);
+/// ```
+#[test]
+fn an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit() {
+    let mut machine: Machine = machine("provision-interrupted-upgrade-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("the replaced release provisioned");
+    add_socket(&machine);
+    assert!(in_place(&machine.host), "the replaced release is installed and the manager was told");
+    // The upgrading release wrote its template and was killed before it asked the manager to reload.
+    machine.host.service_binary = machine.root.join("upgraded/monochromatic-git-policy-cli");
+    let texts: [(&'static str, String); 2] = unit_texts(&machine.host);
+    let (name, text) = &texts[1];
+    std::fs::write(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name), text).expect("the upgrading release's template");
+    assert!(!in_place(&machine.host), "the manager was never told about the template the kill left behind");
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("repaired");
+    assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"), "the reload the killed upgrade never made: {:?}", recorder.calls());
+    assert!(in_place(&machine.host), "and the installation is one the manager was told about");
     remove(machine.root.as_path());
 }
 

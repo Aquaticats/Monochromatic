@@ -103,7 +103,7 @@ pub struct CoordinatedForward {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ForwardOutcome = 'not-coordinated' | { exitCode: number } | { stderr: string; exitCode: number };
+/// type ForwardOutcome = 'not-coordinated' | { exitCode: number } | { signal: number } | { stderr: string; exitCode: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CoordinatedRun {
@@ -112,6 +112,9 @@ pub enum CoordinatedRun {
     NotCoordinated,
     /// Git ran as a child and exited with this status.
     Ran(i32),
+    /// The signal that ended Git,
+    /// whose death the caller repeats after the run has returned.
+    Killed(i32),
     /// The command did not run;
     ///  its standard error and exit status.
     Failed {
@@ -289,6 +292,12 @@ fn from_forwarded(run: ForwardedRun) -> CoordinatedRun {
     // `match` on the ending: a status, or a failure with its own text.
     match run {
         ForwardedRun::Ran(code) => return CoordinatedRun::Ran(code),
+        // What: A Git that a signal ended stays a death by that signal.
+        // Why:  This run kept a process around Git, so it cannot simply be Git's own process; the caller ends itself
+        //       by the same signal once the run has returned (`end_as_git_ended`). Reporting 128 + the signal here made a
+        //       caller see a normal exit with that status, where native Git's caller sees `WIFSIGNALED`
+        //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 4 of the round-1 review).
+        ForwardedRun::Killed(signal) => return CoordinatedRun::Killed(signal),
         ForwardedRun::Failed { stderr, code } => return CoordinatedRun::Failed { stderr, code },
     }
 }
