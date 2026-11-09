@@ -726,8 +726,6 @@ Waits with no ceiling:
   a snapshot call on a busy filesystem is a kernel wait this code cannot
   bound,
   which the owner's outside-our-control list covers.
-- The recovery of a dead owner's journal,
-  never a wait.
 
 ## Kill points, one by one
 
@@ -851,13 +849,11 @@ and the person is told nothing about them until the fallback's line
 
 ## Races between two concurrent commands
 
-- Two adds names the same destination.
+- Two adds name the same destination.
   Measured,
   five runs of each shape,
   the fourth control under "Reproductions":
-  real Git refuses the loser with
-  "fatal:
-  '../dest' already exists",
+  real Git refuses the loser with `fatal: '../dest' already exists`,
   whether or not the destination was created first as an empty subvolume,
   because the winner has written its `.git` file before the loser reads the
   directory.
@@ -896,7 +892,9 @@ and the person is told nothing about them until the fallback's line
   The exchange is between two names inside `a`,
   so the destination becomes the snapshot of the source,
   which is what the command asked for,
-  and `a` keeps everything that is not the destination's name.
+  and nothing of `a` is moved or removed:
+  the only names the rung touches inside it are the stage's and the
+  destination's.
 - An add from the main checkout and a copy into a worktree beside it:
   finding 2.
   The two never contend on a name,
