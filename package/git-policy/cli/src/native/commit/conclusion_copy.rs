@@ -198,7 +198,8 @@ pub fn copy_conclusion_state(
 pub const CONCLUSION_HEAD_NAMES: [&str; 3] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
 
 /// What:
-///  What the merge, cherry-pick or revert state of the owning worktree names,
+///  What the merge,
+/// cherry-pick or revert state of the owning worktree names,
 /// as one text that can be compared with a later reading.
 /// Why:
 ///   A commit whose branch moved is made again over the state as it is now,
@@ -230,6 +231,36 @@ pub fn conclusion_state_text(context: &GitContext, cwd: &Path, git_dir: &Path, r
         text.push('\n');
     }
     return Ok(text);
+}
+
+/// What:
+///  What the conclusion state named when a commit was prepared,
+/// nothing when the commit concluded none.
+/// Why:
+///   A conversion from the kind to the state read happens in one place,
+/// so a preparation and its replay always compare the same three heads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = theStateOfAConclusion({ context, cwd, capture }); // undefined for an ordinary commit and an amend
+/// ```
+///
+/// # Errors
+///
+/// `GitFailure` when an entry that exists cannot be read.
+pub fn the_state_of_a_conclusion(
+    context: &GitContext,
+    cwd: &Path,
+    git_dir: &Path,
+    ref_format: RefFormat,
+    conclusion: crate::transaction_journal::Conclusion,
+) -> Result<Option<String>, GitFailure> {
+    return match conclusion {
+        crate::transaction_journal::Conclusion::Merge | crate::transaction_journal::Conclusion::CherryPick | crate::transaction_journal::Conclusion::Revert => {
+            Ok(Some(conclusion_state_text(context, cwd, git_dir, ref_format)?))
+        }
+        crate::transaction_journal::Conclusion::None | crate::transaction_journal::Conclusion::Amend => Ok(None),
+    };
 }
 
 /// Conclusion copy controls stay out of the release executable.

@@ -101,6 +101,12 @@ pub mod service_server_queue_types_and_send;
 /// Lands one group of queued requests as a batch and answers each client.
 pub mod service_server_land_group;
 
+/// What one batch's answer says about that batch:
+/// the times it shares,
+/// its figures,
+/// and the log line of each answer.
+pub mod service_server_land_group_answer_log;
+
 /// Handles one client connection of the commit service.
 pub mod service_server_connection_handling;
 

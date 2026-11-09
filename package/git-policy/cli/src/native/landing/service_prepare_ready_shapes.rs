@@ -98,7 +98,8 @@ impl Scratch {
     ///  Takes a tree the service handed back to this command,
     ///  and starts its removal beside the command.
     /// Why:
-    ///   A request the service answered without landing (a commit sent back to be prepared again, a branch that moved)
+    ///   A request the service answered without landing (a commit sent back to be prepared again,
+    /// a branch that moved)
     ///  leaves its tree to this process,
     ///  which reads the change it captured from the tree's private index to make the commit again
     ///  (`service_server.rs`,
@@ -128,6 +129,25 @@ impl Drop for Scratch {
             return;
         }
         let _removed: Removal = remove_within(self.0.as_path(), SCRATCH_REMOVAL_CEILING);
+    }
+}
+
+/// A tree the service answered it did not land,
+///  released beside the command when the answer's arm ends.
+/// Why:
+///   The tree is this command's again,
+///  and it is read while the arm runs,
+///  so the release must wait for the arm to end and must not make the command wait for a recursive removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class HandedBackTree { #path; [Symbol.dispose]() { startRemoval(#path); } }
+/// ```
+pub struct HandedBackTree(pub(crate) PathBuf);
+
+impl Drop for HandedBackTree {
+    fn drop(&mut self) {
+        crate::service_scratch_release_removal::start(self.0.clone());
     }
 }
 
@@ -233,7 +253,8 @@ pub struct Ready {
     ///  conclude.
     /// The person is told once the commit has landed.
     pub leaves_open: Option<Conclusion>,
-    /// What the merge, cherry-pick or revert state named when this commit was prepared,
+    /// What the merge,
+    /// cherry-pick or revert state named when this commit was prepared,
     /// so a replay made on a later tip concludes the same operation;
     /// nothing when the commit concluded none.
     /// Why:
@@ -286,7 +307,8 @@ pub(crate) struct ReadyShape {
     pub(crate) fixed_parents: bool,
     /// The stamp of the capture.
     pub(crate) captured_at: u64,
-    /// What the merge, cherry-pick or revert state named,
+    /// What the merge,
+    /// cherry-pick or revert state named,
     /// nothing when the preparation concluded none.
     pub(crate) conclusion_state: Option<String>,
 }

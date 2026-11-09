@@ -45,7 +45,6 @@ use crate::service_commit_requests_and_landing_report::{request_for_embedded, re
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
-use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use crate::diagnostic_log::warn;
 use crate::policy_checks::ShippedChecks;
@@ -67,13 +66,12 @@ use crate::service_messages::{ClientFailure, render};
 /// Which end of the commit's scratch tree a submitted request leaves it to.
 use crate::service_commit_tree_ownership::the_service_never_took;
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
-use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
-use crate::service_replay::{Captured, Retry, captured_tree, conflict_result, retry_of};
-use crate::service_amend_replayed::{AmendedCommit, BuildSite, amended_from_embedded, rebuilt_onto, stored_commit_fields, signing_option};
+use crate::service_prepare::{HandedBackTree, NativeInputs, PrepareInputs, Prepared, Ready, prepare};
+use crate::service_replay::{Captured, Retry, conflict_result, retry_of};
+use crate::service_amend_replayed::{AmendedCommit, AmendsTree, amended_fields, the_amends_tree, the_amendment_lands_as_new};
 use crate::service_protocol::CommitRequest;
 use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use crate::transaction_phase::Phase;
-use crate::transaction_git::{GitRequest, run_git_checked};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -217,31 +215,15 @@ pub fn service_commit<F: RepositoryFacts>(
         //  since, the amend is not made. Its tree is the private index's, and native Git refuses an amend that leaves the
         //  commit empty against its first parent (a merge excepted) unless `--allow-empty` says it is meant, which Git then
         //  says itself.
-        let mut tree: Option<String> = None;
         // An amend whose branch moved is not made as an amend again: its changes become a new commit on the branch as it is
         //  now, and the tree of that commit is the replay the preparation already settled in the private index.
         let lands_as_new: bool = amended.is_some() && retry.is_some();
-        if !lands_as_new
-            && !ready.needs_native
-            && let Some(made) = embedded.as_ref()
-            && let Some(source) = made.source.as_ref()
-        {
-            let written = run_git_checked(
-                invocation.context,
-                &indexed_request(
-                    invocation.cwd,
-                    &["write-tree"],
-                    Some(native_inputs.commit_index.as_path()),
-                    Some(native_inputs.capture.layout.object_directory.as_path()),
-                ),
-            )?;
-            let written_tree: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
-            let against: &str = source.parent_tree.as_deref().unwrap_or(native_inputs.capture.layout.empty_tree_oid.as_str());
-            if source.parents.len() < 2 && !invocation.region.allow_empty && written_tree == against {
-                embedded = None;
-            } else {
-                tree = Some(written_tree);
-            }
+        let mut tree: Option<String> = None;
+        match the_amends_tree(&ready, invocation, native_inputs, embedded.as_ref(), lands_as_new)? {
+            AmendsTree::Tree(written) => tree = Some(written),
+            // Git says itself that an amend which leaves the replaced commit as it was is empty.
+            AmendsTree::EmptyAgainstTheParent => embedded = None,
+            AmendsTree::Nothing => {}
         }
         // A request over the line the service reads is refused as too long, and a commit must not fail for the names it
         //  changes: Git builds one that does not fit, as it did before a changed path carried its bytes.
@@ -250,26 +232,15 @@ pub fn service_commit<F: RepositoryFacts>(
         // The embedded commit is used only when the native path is not taken.
         let embedded_in_use: Option<&Embedded> = if native || lands_as_new { None } else { embedded.as_ref() };
         let mut typed: Option<String> = None;
-        let (sent, first_parent): (CommitRequest, String) = match amended.as_ref().filter(|_| { return lands_as_new; }) {
+        let amendment: Option<&AmendedCommit> = if lands_as_new { amended.as_ref() } else { None };
+        let (sent, first_parent): (CommitRequest, String) = match amendment {
             Some(fields) => {
                 // The amended commit's own fields, on the tree the replay settled, with the branch as it is now as the
                 //  single parent.
-                let settled: String = captured_tree(
-                    invocation.context,
-                    invocation.cwd,
-                    native_inputs.commit_index.as_path(),
-                    native_inputs.capture.layout.object_directory.as_path(),
-                )?;
-                let site: BuildSite<'_> = BuildSite {
-                    context: invocation.context,
-                    cwd: invocation.cwd,
-                    scratch: ready.scratch.0.as_path(),
-                    signing: signing_option(arguments_after_subcommand(invocation.arguments, invocation.subcommand_index)),
-                };
-                let made: String = rebuilt_onto(fields, &site, settled.as_str(), ready.base.as_str())?;
-                typed = Some(fields.subject());
-                // The commit Git built is landed as it is; the amend no longer replaces anything.
-                (request_for_git_built(&ready, native_inputs, id.as_str(), made, false), ready.base.clone())
+                let (sent, parent, subject) =
+                    the_amendment_lands_as_new(fields, &ready, invocation, native_inputs, id.as_str(), arguments_after_subcommand(invocation.arguments, invocation.subcommand_index))?;
+                typed = Some(subject);
+                (sent, parent)
             }
             None => match embedded_in_use {
             None => {
@@ -307,9 +278,7 @@ pub fn service_commit<F: RepositoryFacts>(
             },
         };
         // What an amend carries into the commit a moved branch makes of it, kept once from the attempt that prepared it.
-        if amended.is_none()
-            && sent.amend
-        {
+        if amended.is_none() && sent.amend {
             amended = Some(amended_fields(invocation, &sent, embedded.as_ref())?);
         }
         let mut remembered: Option<String> = typed.clone();
@@ -347,7 +316,7 @@ pub fn service_commit<F: RepositoryFacts>(
                     fixed_message: fixed_message.as_ref(),
                     embedded_in_use,
                     native,
-                    amended_as_new: amended.as_ref().filter(|_| { return lands_as_new; }),
+                    amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                     unlanded: unlanded.as_slice(),
                     config: config.clone(),
                 });
@@ -446,7 +415,7 @@ pub fn service_commit<F: RepositoryFacts>(
                         fixed_message: fixed_message.as_ref(),
                         embedded_in_use,
                         native,
-                        amended_as_new: amended.as_ref().filter(|_| { return lands_as_new; }),
+                        amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                         unlanded: unlanded.as_slice(),
                         config: config.clone(),
                     },
@@ -455,50 +424,6 @@ pub fn service_commit<F: RepositoryFacts>(
         }
     }
     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: timing.attempts })));
-}
-
-/// A tree the service answered it did not land,
-/// released beside the command when the answer's arm ends.
-/// Why:
-///   The tree is this command's again,
-/// and it is read while the arm runs,
-/// so the release must wait for the arm to end and must not make the command wait for a recursive removal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class HandedBackTree { #path; [Symbol.dispose]() { releaseBesideTheCommand(#path); } }
-/// ```
-struct HandedBackTree(PathBuf);
-
-impl Drop for HandedBackTree {
-    fn drop(&mut self) {
-        crate::service_scratch_release_removal::start(self.0.clone());
-    }
-}
-
-/// What:
-///  What the amend of this request carries into the commit a moved branch makes of it.
-/// Why:
-///   A command line the service built the amend from kept the fields already,
-/// and one Git built the amend for wrote them into the commit object,
-/// which is read back here instead of being guessed from the configuration.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const fields = embedded?.source ? amendedFromEmbedded(embedded) : storedCommitFields(await git(['cat-file', 'commit', sent.commit]));
-/// ```
-fn amended_fields(invocation: &CommitInvocation<'_>, sent: &CommitRequest, embedded: Option<&Embedded>) -> Result<AmendedCommit, TransactionStop> {
-    if let Some(made) = embedded.filter(|made| { return made.source.is_some(); }) {
-        return Ok(amended_from_embedded(made));
-    }
-    let Some(commit) = sent.commit.as_deref() else {
-        return Err(failed(String::from("the amend prepared no commit whose message and authorship a later tip could keep")));
-    };
-    let read = run_git_checked(invocation.context, &GitRequest::new(invocation.cwd, &["cat-file", "commit", commit]))?;
-    return match stored_commit_fields(read.stdout.as_slice()) {
-        Some(fields) => Ok(fields),
-        None => Err(failed(String::from("the commit this amend prepared could not be read back, so it cannot be made on the branch as it is now"))),
-    };
 }
 
 /// Service commit controls stay out of the release executable.
