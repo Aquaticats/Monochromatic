@@ -3606,6 +3606,15 @@ What it found, and what each answer was:
   and work repeated on every rebuild.
   The read is bounded in bytes (32 MiB) and the proof costs 2.9 to 3.1 ms for 200 paths,
   three orders of magnitude inside the owner's five-second bound for a filesystem that answers at all.
+  The bound that was declined is measured:
+  a worker thread serving the proof's requests costs 0.047 ms to start and join,
+  and 1.239 ms with one round trip for each of 200 paths,
+  against the proof's own 2.9 to 3.1 ms,
+  so the dispatch is not what declined it:
+  the worker would own the judge and its cached attributes (the decision borrows the landing today),
+  be abandoned on each stall with its thread and file handle,
+  and need its own control for a read that never returns.
+  That is open work for the owner to weigh, not a silent gap.
 
 What the review could not determine, checked here:
 
