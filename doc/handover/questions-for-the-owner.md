@@ -94,6 +94,42 @@ and makes a commit warn loudly that dependents were left behind.
 That is much less code,
 and the person has one more step to remember.
 
+### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
+
+The policy exists so `git add` names the paths it stages
+(`package/git-policy/cli/src/native/command/rule_add_explicit.rs:1-20`).
+It reads the arguments alone and compares each positional pathspec with four
+byte strings,
+`.`,
+`./`,
+`*` and `:/`
+(`package/git-policy/cli/src/native/command/command_add.rs:113`).
+Five spellings that Git resolves to the whole tree pass that list and staged
+every file in a reproduction:
+`:/*`,
+`:/**`,
+`:(top)`,
+`**` and
+`:(glob)**`
+(`doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md`,
+finding 2).
+`:(top)` is the one a person writes expecting a scope rather than a sweep.
+A sixth,
+`:(top)/*`,
+fails inside Git 2.56.0 (`fatal: oops in prep_exclude`) and is reported as
+`content-unavailable`,
+which is Git's own failure and not this choice.
+
+Recommended:
+extend the list with those five and name them in the rejection text,
+because the decision stays argument-only and starts no process before Git
+does,
+and the accidents this policy is about are the common spellings.
+The alternative asks Git what the pathspec selects,
+which catches every form including ones added to Git later,
+at the cost of one Git start per `git add`
+and a decision that no longer follows from the arguments.
+
 ### May a moved-path note be added to records in `doc/decision/`?
 
 Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
