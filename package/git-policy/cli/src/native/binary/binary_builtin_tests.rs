@@ -42,6 +42,23 @@ fn assert_rejected_by(observed: &Observed, policy: &str, context: &str) {
     assert_eq!(stderr.matches('\n').count(), 1, "{context}: {stderr}");
 }
 
+/// Require that a command ran in an exempted repository:
+///  success,
+/// nothing on standard output,
+///  and one line on standard error naming the variable that exempted the repository and the directory it named.
+fn assert_exempted(observed: &Observed, variable: &str, directory: &Path, context: &str) {
+    let stderr: String = stderr_of(observed);
+    assert_eq!(observed.code, Some(0), "{context}: {stderr}");
+    assert_eq!(observed.stdout, Vec::<u8>::new(), "{context}: {stderr}");
+    assert!(stderr.starts_with("monochromatic-git-policy-cli: this repository is exempt from the worktree guard because "), "{context}: {stderr}");
+    assert!(stderr.contains(variable), "{context}: {stderr}");
+    assert!(
+        stderr.contains(directory.display().to_string().as_str()),
+        "{context}: {stderr}"
+    );
+    assert!(stderr.contains("Hint: "), "{context}: {stderr}");
+}
+
 /// Every local branch of a repository,
 ///  one name per line.
 fn branches(fixture: &Fixture, repo: &Path) -> String {
@@ -183,10 +200,13 @@ fn a_tool_cache_checkout_is_exempt_from_the_linked_worktree_rule() {
         );
         std::fs::write(repo.join("tracked.txt"), b"two\n").expect("modify tracked file");
     }
-    // In the cache the main worktree may be reset; Git runs and restores the file.
-    assert_eq!(
-        run_wrapped(&fixture, cached.as_path(), &["reset", "--hard", "--quiet"]),
-        silent_success()
+    // In the cache the main worktree may be reset; Git runs and restores the file, and the wrapper says on standard
+    //  error which variable exempted the repository, because the environment of the command chose that exemption.
+    assert_exempted(
+        &run_wrapped(&fixture, cached.as_path(), &["reset", "--hard", "--quiet"]),
+        "HOME",
+        fixture.root.join("home/.cache/uv").as_path(),
+        "uv cache",
     );
     assert_eq!(
         std::fs::read(cached.join("tracked.txt")).expect("tracked file"),
@@ -250,14 +270,17 @@ fn a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule() {
         );
         std::fs::write(repo.join("tracked.txt"), b"two\n").expect("modify tracked file");
     }
-    // The form mise runs on a plugin: a forced checkout that discards local changes.
-    assert_eq!(
-        run_wrapped(
+    // The form mise runs on a plugin: a forced checkout that discards local changes, and the line that says which
+    //  variable exempted the clone.
+    assert_exempted(
+        &run_wrapped(
             &fixture,
             plugin.as_path(),
             &["checkout", "--force", "--quiet", "HEAD"],
         ),
-        silent_success()
+        "HOME",
+        fixture.root.join("home/.local/share/mise").as_path(),
+        "mise data directory",
     );
     assert_eq!(
         std::fs::read(plugin.join("tracked.txt")).expect("tracked file"),
@@ -411,6 +434,78 @@ fn whole_tree_pathspec_spellings_are_rejected() {
         let_through.is_empty(),
         "add-explicit let these whole-tree spellings through: {let_through:?}"
     );
+    remove(&fixture);
+}
+
+/// The two spellings of literal pathspec mode:
+///  the global option and the variable.
+#[derive(Clone, Copy, Debug)]
+enum LiteralMode {
+    /// `git --literal-pathspecs <command>`.
+    Option,
+    /// `GIT_LITERAL_PATHSPECS=1` in the command's environment.
+    Variable,
+}
+
+/// Run the built executable in a directory under one literal pathspec mode.
+fn run_under(fixture: &Fixture, directory: &Path, mode: LiteralMode, arguments: &[&str]) -> Observed {
+    let mut command: std::process::Command = wrapped(fixture);
+    command.current_dir(directory);
+    match mode {
+        LiteralMode::Option => {
+            // `prefixed` holds the global option the caller wrote before its subcommand.
+            let mut prefixed: Vec<&str> = vec!["--literal-pathspecs"];
+            prefixed.extend_from_slice(arguments);
+            command.args(prefixed);
+        }
+        LiteralMode::Variable => {
+            command.env("GIT_LITERAL_PATHSPECS", "1");
+            command.args(arguments);
+        }
+    }
+    return observe(&mut command, b"");
+}
+
+/// A caller whose own command reads pathspecs literally stages by its own spelling:
+/// `git --literal-pathspecs add -- '**'` stages the one file named `**`,
+/// and `GIT_LITERAL_PATHSPECS=1 git add -- '**'` does the same.
+/// The working directory stays bulk in both modes.
+#[test]
+fn literal_pathspec_mode_stages_the_file_its_pathspec_names() {
+    for mode in [LiteralMode::Option, LiteralMode::Variable] {
+        let fixture: Fixture = fixture("builtin-add-literal-mode");
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        std::fs::write(repo.join("**"), b"star\n").expect("star file");
+        std::fs::write(repo.join("other.txt"), b"other\n").expect("other file");
+        let staged: Observed = run_under(&fixture, repo.as_path(), mode, &["add", "--", "**"]);
+        assert_eq!(staged.code, Some(0), "{mode:?}: {}", stderr_of(&staged));
+        assert_eq!(porcelain(&fixture, repo.as_path()), "A  **\n?? other.txt\n", "{mode:?}");
+        let bulk: Observed = run_under(&fixture, repo.as_path(), mode, &["add", "--", "."]);
+        assert_rejected_by(&bulk, "add-explicit", "a literal-mode caller's . still stages the whole directory");
+        remove(&fixture);
+    }
+}
+
+/// A global option's value is that option's value and no mode of the caller's:
+/// `git -C --literal-pathspecs add -- '**'` changes into the directory of that name,
+/// and Git expands the pattern over the whole worktree,
+/// so the rejection stands and nothing is staged.
+#[test]
+fn a_global_option_value_cannot_disable_the_bulk_rejection() {
+    let fixture: Fixture = fixture("builtin-add-global-value");
+    let repo: PathBuf = repository(&fixture, OsStr::new("--literal-pathspecs"));
+    std::fs::write(repo.join("a.txt"), b"a\n").expect("first file");
+    std::fs::write(repo.join("b.txt"), b"b\n").expect("second file");
+    let arguments: [&str; 5] = ["-C", "--literal-pathspecs", "add", "--", "**"];
+    assert_rejected_by(
+        &run_wrapped(&fixture, fixture.root.as_path(), &arguments),
+        "add-explicit",
+        arguments.join(" ").as_str(),
+    );
+    assert_eq!(porcelain(&fixture, repo.as_path()), "?? a.txt\n?? b.txt\n", "the rejection stages nothing");
+    // Real Git stages both, so the rejection is the policy's and not a refusal of Git's own.
+    assert_eq!(run_direct(&fixture, fixture.root.as_path(), &arguments).code, Some(0));
+    assert_eq!(porcelain(&fixture, repo.as_path()), "A  a.txt\nA  b.txt\n", "Git reads the word as -C's directory");
     remove(&fixture);
 }
 

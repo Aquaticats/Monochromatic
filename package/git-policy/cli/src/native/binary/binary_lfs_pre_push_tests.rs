@@ -8,8 +8,7 @@
 //! The push itself carries no hook.
 //! A stand-in `git-lfs` on the fixture's PATH records what it was given and what the origin's `main` was at that
 //!  moment;
-//! the controls that run the real `git-lfs` against an LFS server written inline live in
-//!  `binary_lfs_server_tests.rs`.
+//! the real `git-lfs` against an LFS server written inline is `binary_lfs_server_tests.rs`.
 
 use super::commit::{git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit, wrapped_commit};
 use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, executable, fixture, git, observe, repository, stderr_of};

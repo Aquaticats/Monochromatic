@@ -253,16 +253,22 @@ fn write_subsumed_base(
 }
 
 /// What:
-///  Whether a shared path's prepared and landed entries are the same entry:
-///       the same mode and object,
+///  Whether the prepared and landed entries of a shared path are the same entry:
+///  the same mode and object,
 /// or both absent.
 /// Why:
-///   An identical pair needs no text check,
-/// so `subsume_landed_changes` leaves it out of the text candidates and subsumes it by identity.
+///   The identity half of the subsumption rules,
+/// and only that half:
+/// a path whose two sides hold the same entry reaches the merge settled,
+///  without the text check.
+///  Capture order is not asked here either;
+/// `subsume_landed_changes` skips the paths it ordered
+///  before calling this,
+/// and asks the text check about the entries this returns `false` for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// sameEntry({ prepared: shared.prepared, landed: shared.landed });
+/// sameEntry({ left: shared.prepared, right: shared.landed })
 /// ```
 pub fn is_identical(shared: &SharedPath) -> bool {
     return same_entry(&shared.prepared, &shared.landed);

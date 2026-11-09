@@ -40,6 +40,13 @@ pub mod conflict_side_guard;
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
 
+/// The named facts one audit record carries.
+pub mod discard_audit_facts;
+
+/// Everything one audit record states,
+/// and its line as JSON.
+pub mod discard_audit_record;
+
 /// The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`.
 pub mod config_discarded;
 

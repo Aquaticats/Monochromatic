@@ -9,11 +9,17 @@
 //! Every block and every divergence from real
 //!  Git's behavior names the likely intent and a way forward,
 //! so a rejected command is a step toward the goal.
-//!  Messages built with their own hint (the root,
-//! linked-worktree and branch-creation rejections) are listed as
-//!  self-hinted in `SELF_HINTED`,
-//! every other finding code's hint is the arm of `finding_hint` that names it,
-//! and a test in `event_hints_tests.rs` fails when a code it lists has both or neither.
+//!  Messages built with their own hint are listed as
+//!  self-hinted,
+//! and a guard test fails when a code has neither.
+//!  The three families in that list are the discard
+//!  (`linked-worktree-only`),
+//! the root (`require-root`) and the branch-worktree
+//!  (`branch-worktree-only`) rejections;
+//! the add rejection's hint is in the table of
+//!  `finding_hint`,
+//! and the commit-only diagnostics carry their own text in
+//!  `rule_commit_only_message.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
