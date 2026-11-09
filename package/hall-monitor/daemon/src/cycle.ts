@@ -13,6 +13,12 @@ import {
   getRecent,
   store,
 } from './analyze/memory.ts';
+import {
+  DECISION_WINDOW_SIZE,
+  initialDecisionWindow,
+  recordVerdict,
+  type DecisionWindow,
+} from './analyze/decision-window.ts';
 import { isBlackFrame, } from './infra/blackdetect.ts';
 import {
   captureScreenshot,
@@ -22,51 +28,17 @@ import { sendNotification, } from './infra/notification.ts';
 import { isScreenLocked, } from './infra/screenlock.ts';
 import { log, } from './infra/syslog.ts';
 
+
 //region Decision tracking
-// Sliding window of last 5 verdicts. A ring buffer would work here, but a
-// fixed-length tuple gives compile-time size enforcement and the shift cost
-// for 5 elements is negligible.
-
-/**
- Possible productivity verdict values.
- */
-type Decision = 'PRODUCTIVE' | 'UNPRODUCTIVE';
-
-/**
- Fixed-size tuple tracking the 5 most recent verdicts.
- */
-type DecisionWindow = [
-  Decision,
-  Decision,
-  Decision,
-  Decision,
-  Decision,
-];
+// The window of recent verdicts and the streak policy live in
+// `analyze/decision-window.ts` as pure functions; this module only keeps the
+// one live window between cycles.
 
 /**
  Module-singleton mutable state for the rolling decision window; wrapped so it satisfies no-module-root-let.
  */
-const state: { decisions: DecisionWindow; } = {
-  decisions: [
-    'PRODUCTIVE',
-    'PRODUCTIVE',
-    'PRODUCTIVE',
-    'PRODUCTIVE',
-    'PRODUCTIVE',
-  ],
-};
+const state: { decisions: DecisionWindow; } = { decisions: initialDecisionWindow(), };
 //endregion
-
-/**
- Checks whether a decision is unproductive.
- 
- @param d - decision to check
- 
- @returns true when the decision is UNPRODUCTIVE
- */
-function isUnproductive(d: Decision,): boolean {
-  return d === 'UNPRODUCTIVE';
-}
 
 /**
  Executes one capture-analyze-notify cycle.
@@ -142,43 +114,28 @@ export async function cycle(): Promise<void> {
     await stopLlama();
 
     /**
-     Verdict extracted from the LLM response and pushed into the sliding decision buffer.
+     Verdict extracted from the LLM response, recorded into the sliding decision window; the rest of the line
+     reports the streak it completed and whether the user is told.
      */
     const verdict = parseVerdict(result,);
-    /* oxlint-disable no-magic-numbers -- sliding window indices 1..4 */
-    state.decisions = [
-      state.decisions[1],
-      state.decisions[2],
-      state.decisions[3],
-      state.decisions[4],
-      verdict,
-    ];
-    /* oxlint-enable no-magic-numbers */
     /**
-     Count of unproductive verdicts in the current 5-cycle window; surfaced in the log line as `streak: N/5`.
+     Window for the next cycle, the streak this cycle completed, and whether the user is told.
      */
-    const streakCount = state
-      .decisions
-      .filter(function checkUnproductive(d,) {
-        return isUnproductive(d,);
-      },)
-      .length;
+    const {
+      window: nextWindow,
+      streakCount,
+      notified,
+    } = recordVerdict({
+      window: state.decisions,
+      verdict,
+    },);
+    state.decisions = nextWindow;
 
     log.info(`[report] ${result}`,);
-    log.info(`[verdict] ${verdict} (streak: ${streakCount}/5)`,);
+    log.info(`[verdict] ${verdict} (streak: ${streakCount}/${DECISION_WINDOW_SIZE})`,);
 
-    if (state.decisions
-      .every(function checkUnproductive(d,) {
-        return isUnproductive(d,);
-      },)) {
+    if (notified) {
       await sendNotification(result,);
-      state.decisions = [
-        'PRODUCTIVE',
-        'PRODUCTIVE',
-        'PRODUCTIVE',
-        'PRODUCTIVE',
-        'PRODUCTIVE',
-      ];
     }
   }
   catch (err: unknown) {

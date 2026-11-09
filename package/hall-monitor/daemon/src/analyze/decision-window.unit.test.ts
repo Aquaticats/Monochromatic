@@ -6,7 +6,7 @@
  all unproductive, then starts a fresh window so the same streak does not
  notify twice. The window shift, the count and the trigger are pure, and an
  off-by-one in either (a window of four, a streak that never resets) changes
- when the user is notified, so each boundary has a case here.
+ when the user is interrupted, so each boundary has a case here.
 
  @module
  */
@@ -22,10 +22,11 @@ import {
   DECISION_WINDOW_SIZE,
   everyDecisionUnproductive,
   initialDecisionWindow,
+  recordVerdict,
   shiftDecisionWindow,
+  type Decision,
+  type DecisionWindow,
 } from './decision-window.ts';
-
-import type { Decision, DecisionWindow, } from './decision-window.ts';
 
 /** The verdict that builds a streak. */
 const UNPRODUCTIVE: Decision = 'UNPRODUCTIVE';
@@ -34,42 +35,64 @@ const UNPRODUCTIVE: Decision = 'UNPRODUCTIVE';
 const PRODUCTIVE: Decision = 'PRODUCTIVE';
 
 /**
- One step of the daemon's policy: shift the verdict into the window, count the
- streak, and treat a full unproductive window as one notification followed by
- a reset.
- 
- @param window - the window before this verdict
- 
- @param verdict - the verdict this step records
- 
- @returns the window after the step, its streak count, and whether it notified
+ What a run of verdicts did, step by step.
  */
-function step(
-  {
-    window,
-    verdict,
-  }: {
-    readonly window: DecisionWindow;
-    readonly verdict: Decision;
-  },
-): {
+type StreakRun = {
+  /**
+   The window after the last verdict.
+   */
   readonly window: DecisionWindow;
-  readonly streakCount: number;
-  readonly notified: boolean;
-} {
-  /** The window with the verdict shifted in. */
-  const shifted = shiftDecisionWindow({
-    window,
-    verdict,
-  },);
-  /** Whether this step is the notification trigger. */
-  const notified = everyDecisionUnproductive(shifted,);
+  /**
+   Unproductive verdicts in the window after each step, before any reset.
+   */
+  readonly streakCounts: readonly number[];
+  /**
+   Whether each step notified.
+   */
+  readonly notifications: readonly boolean[];
+};
 
-  return {
-    window: notified ? initialDecisionWindow() : shifted,
-    streakCount: countUnproductive(shifted,),
-    notified,
-  };
+/**
+ Runs every verdict through the daemon's own per-cycle policy, {@link recordVerdict}.
+ 
+ @param verdicts - verdicts in the order the daemon records them
+ 
+ @returns each step's streak count and notification flag
+ */
+function runStreak(verdicts: readonly Decision[],): StreakRun {
+  return verdicts.reduce<StreakRun>(
+    function recordStep(
+      run,
+      verdict,
+    ) {
+      /** What this verdict did to the window and the streak. */
+      const {
+        window,
+        streakCount,
+        notified,
+      } = recordVerdict({
+        window: run.window,
+        verdict,
+      },);
+
+      return {
+        window,
+        streakCounts: [
+          ...run.streakCounts,
+          streakCount,
+        ],
+        notifications: [
+          ...run.notifications,
+          notified,
+        ],
+      };
+    },
+    {
+      window: initialDecisionWindow(),
+      streakCounts: [],
+      notifications: [],
+    },
+  );
 }
 
 /**
@@ -81,51 +104,53 @@ function step(
  @returns the window
  */
 function windowWithUnproductive(unproductiveCount: number,): DecisionWindow {
-  /** Window being filled, starting from the fresh one. */
-  let window: DecisionWindow = initialDecisionWindow();
-  for (let index = 0; index < unproductiveCount; index += 1) {
-    window = shiftDecisionWindow({
-      window,
-      verdict: UNPRODUCTIVE,
-    },);
-  }
+  /** Placeholder entries, only their count matters. */
+  const placeholders = Array.from(
+    { length: unproductiveCount, },
+    function makePlaceholder(_unused, index,) {
+      return index;
+    },
+  );
 
-  return window;
+  return placeholders.reduce<DecisionWindow>(
+    function shiftIn(window,) {
+      return shiftDecisionWindow({
+        window,
+        verdict: UNPRODUCTIVE,
+      },);
+    },
+    initialDecisionWindow(),
+  );
 }
 
 /**
- Runs every verdict through {@link step} from a fresh window.
- 
- @param verdicts - verdicts in the order the daemon records them
- 
- @returns each step's streak count and notification flag
+ The parameterized streak-count cases: a window with zero up to all of its
+ verdicts unproductive.
  */
-function runStreak(verdicts: readonly Decision[],): {
-  readonly streakCounts: readonly number[];
-  readonly notifications: readonly boolean[];
-} {
-  /** Window threaded through the steps. */
-  let window: DecisionWindow = initialDecisionWindow();
-  /** Streak count after each step. */
-  const streakCounts: number[] = [];
-  /** Notification flag of each step. */
-  const notifications: boolean[] = [];
-  for (const verdict of verdicts) {
-    /** The result of recording this verdict. */
-    const result = step({
-      window,
-      verdict,
-    },);
-    window = result.window;
-    streakCounts.push(result.streakCount,);
-    notifications.push(result.notified,);
-  }
+const countCases = Array.from(
+  { length: DECISION_WINDOW_SIZE + 1, },
+  function makeCountCase(_unused, unproductiveCount,) {
+    return it({
+      name: `counts ${String(unproductiveCount,)} unproductive verdicts`,
+      fn: async () => {
+        /** The window under test. */
+        const window = windowWithUnproductive(unproductiveCount,);
 
-  return {
-    streakCounts,
-    notifications,
-  };
-}
+        expect(countUnproductive(window,),).toBe(unproductiveCount,);
+      },
+    },);
+  },
+);
+
+/**
+ A run of verdicts that is exactly one full streak.
+ */
+const ONE_STREAK: readonly Decision[] = Array.from(
+  { length: DECISION_WINDOW_SIZE, },
+  function makeVerdict() {
+    return UNPRODUCTIVE;
+  },
+);
 
 await describe({
   name: '',
@@ -186,7 +211,6 @@ await describe({
               PRODUCTIVE,
               PRODUCTIVE,
             ];
-
             /** The window after one productive verdict. */
             const shifted = shiftDecisionWindow({
               window,
@@ -194,13 +218,14 @@ await describe({
             },);
 
             // The unproductive verdict left through the oldest position.
-            expect(shifted,).toEqual([
-              PRODUCTIVE,
-              PRODUCTIVE,
-              PRODUCTIVE,
-              PRODUCTIVE,
-              PRODUCTIVE,
-            ],);
+            expect(shifted,)
+              .toEqual([
+                PRODUCTIVE,
+                PRODUCTIVE,
+                PRODUCTIVE,
+                PRODUCTIVE,
+                PRODUCTIVE,
+              ],);
           },
         },),
 
@@ -215,17 +240,20 @@ await describe({
               UNPRODUCTIVE,
               PRODUCTIVE,
             ];
-
-            expect(shiftDecisionWindow({
+            /** The window after one more unproductive verdict. */
+            const shifted = shiftDecisionWindow({
               window,
               verdict: UNPRODUCTIVE,
-            },),).toEqual([
-              UNPRODUCTIVE,
-              PRODUCTIVE,
-              UNPRODUCTIVE,
-              PRODUCTIVE,
-              UNPRODUCTIVE,
-            ],);
+            },);
+
+            expect(shifted,)
+              .toEqual([
+                UNPRODUCTIVE,
+                PRODUCTIVE,
+                UNPRODUCTIVE,
+                PRODUCTIVE,
+                UNPRODUCTIVE,
+              ],);
           },
         },),
       ],
@@ -233,19 +261,7 @@ await describe({
 
     describe({
       name: countUnproductive.name,
-      children: [
-        ...Array.from(
-          { length: DECISION_WINDOW_SIZE + 1, },
-          function makeCountCase(_unused, unproductiveCount,) {
-            return it({
-              name: `counts ${String(unproductiveCount,)} unproductive verdicts`,
-              fn: async () => {
-                expect(countUnproductive(windowWithUnproductive(unproductiveCount,),),).toBe(unproductiveCount,);
-              },
-            },);
-          },
-        ),
-      ],
+      children: countCases,
     },),
 
     describe({
@@ -254,15 +270,23 @@ await describe({
         it({
           name: 'needs every verdict, not only a majority',
           fn: async () => {
-            expect(everyDecisionUnproductive(windowWithUnproductive(DECISION_WINDOW_SIZE - 1,),),).toBe(false,);
-            expect(everyDecisionUnproductive(initialDecisionWindow(),),).toBe(false,);
+            /** A window one verdict short of a full streak. */
+            const almost = windowWithUnproductive(DECISION_WINDOW_SIZE - 1,);
+            /** A window with no unproductive verdict at all. */
+            const none = windowWithUnproductive(0,);
+
+            expect(everyDecisionUnproductive(almost,),).toBe(false,);
+            expect(everyDecisionUnproductive(none,),).toBe(false,);
           },
         },),
 
         it({
           name: 'triggers on a window of unproductive verdicts',
           fn: async () => {
-            expect(everyDecisionUnproductive(windowWithUnproductive(DECISION_WINDOW_SIZE,),),).toBe(true,);
+            /** A full unproductive window. */
+            const streak = windowWithUnproductive(DECISION_WINDOW_SIZE,);
+
+            expect(everyDecisionUnproductive(streak,),).toBe(true,);
           },
         },),
       ],
@@ -270,30 +294,29 @@ await describe({
 
     describe({
       name: 'the notification streak',
-      concurrency: 1,
       children: [
         it({
           name: `notifies on the ${String(DECISION_WINDOW_SIZE,)}th consecutive unproductive verdict, not before`,
           fn: async () => {
-            /** Verdicts that complete exactly one streak. */
-            const verdicts = Array.from(
-              { length: DECISION_WINDOW_SIZE, },
-              function makeVerdict() {
-                return UNPRODUCTIVE;
-              },
-            );
+            /** The streak counts and notifications of one full streak. */
+            const run = runStreak(ONE_STREAK,);
 
-            /** The streak counts and notifications of the run. */
-            const run = runStreak(verdicts,);
-
-            expect(run.streakCounts,).toEqual([1, 2, 3, 4, 5],);
-            expect(run.notifications,).toEqual([
-              false,
-              false,
-              false,
-              false,
-              true,
-            ],);
+            expect(run.streakCounts,)
+              .toEqual([
+                1,
+                2,
+                3,
+                4,
+                5,
+              ],);
+            expect(run.notifications,)
+              .toEqual([
+                false,
+                false,
+                false,
+                false,
+                true,
+              ],);
           },
         },),
 
@@ -312,26 +335,30 @@ await describe({
               UNPRODUCTIVE,
               UNPRODUCTIVE,
             ];
-
             /** The streak counts and notifications of the run. */
             const run = runStreak(verdicts,);
+            /** Whether any step notified. */
+            const notifiedAny = run
+              .notifications
+              .some(function notified(flag,) {
+                return flag;
+              },);
 
-            expect(run.notifications.every(function neverNotified(notified,) {
-              return !notified;
-            },),).toBe(true,);
-            // The productive verdict leaves four unproductive verdicts in the window, so every later step
-            // counts four and none of them completes a streak.
-            expect(run.streakCounts,).toEqual([
-              1,
-              2,
-              3,
-              4,
-              4,
-              4,
-              4,
-              4,
-              4,
-            ],);
+            // The productive verdict leaves four unproductive verdicts in the window, so no later step
+            // completes a streak.
+            expect(notifiedAny,).toBe(false,);
+            expect(run.streakCounts,)
+              .toEqual([
+                1,
+                2,
+                3,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+              ],);
           },
         },),
 
@@ -339,26 +366,32 @@ await describe({
           name: 'starts a fresh window after notifying, so one streak notifies once',
           fn: async () => {
             /** One full streak, then one more unproductive verdict. */
-            const verdicts = Array.from(
-              { length: DECISION_WINDOW_SIZE + 1, },
-              function makeVerdict() {
-                return UNPRODUCTIVE;
-              },
-            );
-
+            const verdicts: readonly Decision[] = [
+              ...ONE_STREAK,
+              UNPRODUCTIVE,
+            ];
             /** The streak counts and notifications of the run. */
             const run = runStreak(verdicts,);
 
             // The fifth verdict notified and reset; the sixth is a streak of one, not a second notification.
-            expect(run.streakCounts,).toEqual([1, 2, 3, 4, 5, 1],);
-            expect(run.notifications,).toEqual([
-              false,
-              false,
-              false,
-              false,
-              true,
-              false,
-            ],);
+            expect(run.streakCounts,)
+              .toEqual([
+                1,
+                2,
+                3,
+                4,
+                5,
+                1,
+              ],);
+            expect(run.notifications,)
+              .toEqual([
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+              ],);
           },
         },),
 
@@ -366,19 +399,20 @@ await describe({
           name: 'notifies again once a second full streak completes',
           fn: async () => {
             /** Two full streaks back to back. */
-            const verdicts = Array.from(
-              { length: DECISION_WINDOW_SIZE * 2, },
-              function makeVerdict() {
-                return UNPRODUCTIVE;
-              },
-            );
-
+            const verdicts: readonly Decision[] = [
+              ...ONE_STREAK,
+              ...ONE_STREAK,
+            ];
             /** The streak counts and notifications of the run. */
             const run = runStreak(verdicts,);
+            /** The steps that notified. */
+            const notifyingSteps = run
+              .notifications
+              .filter(function notified(flag,) {
+                return flag;
+              },);
 
-            expect(run.notifications.filter(function notified(flag,) {
-              return flag;
-            },),).toHaveLength(2,);
+            expect(notifyingSteps,).toHaveLength(2,);
           },
         },),
       ],

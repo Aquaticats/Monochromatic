@@ -29,9 +29,9 @@ import {
   retainedCaptureBuffer,
   RETENTION_MS,
   store,
+  type CaptureBuffer,
+  type CaptureSet,
 } from './memory.ts';
-
-import type { CaptureBuffer, CaptureSet, } from './memory.ts';
 
 /**
  An arbitrary fixed clock reading.
@@ -77,13 +77,49 @@ function timestampsOf(buffer: CaptureBuffer,): number[] {
  @returns the capture sets, oldest first
  */
 function bufferOfLength(length: number,): CaptureBuffer {
+  /** Timestamp of the oldest set the buffer holds. */
+  const oldest = NOW - length;
+
   return Array.from(
     { length, },
     function makeSet(_unused, index,) {
-      return captureSet(NOW - length + index,);
+      return captureSet(oldest + index,);
     },
   );
 }
+
+/**
+ Spare-room cases: a buffer holding one entry up to one short of the capacity,
+ which gains the new set without losing anything.
+ */
+const underCapacityCases = Array.from(
+  { length: MAX_ENTRIES - 1, },
+  function makeUnderCapacityCase(_unused, index,) {
+    /** Entry count this case starts from. */
+    const length = index + 1;
+    return it({
+      name: `keeps all ${String(length,)} buffered entries while under capacity`,
+      fn: async () => {
+        /** Buffer holding fewer entries than {@link MAX_ENTRIES}. */
+        const buffer = bufferOfLength(length,);
+        /** The buffer after one more set arrives. */
+        const appended = appendedCaptureBuffer({
+          buffer,
+          set: captureSet(NOW,),
+        },);
+        /** Timestamps of the result. */
+        const timestamps = timestampsOf(appended,);
+
+        expect(appended,).toHaveLength(length + 1,);
+        expect(timestamps,)
+          .toEqual([
+            ...timestampsOf(buffer,),
+            NOW,
+          ],);
+      },
+    },);
+  },
+);
 
 await describe({
   name: '',
@@ -107,44 +143,23 @@ await describe({
         it({
           name: 'appends the new set after the ones already buffered',
           fn: async () => {
-            /** The buffer after the append, read by timestamp. */
+            /** The buffer after the append. */
             const appended = appendedCaptureBuffer({
               buffer: [captureSet(NOW - 1,)],
               set: captureSet(NOW,),
             },);
+            /** Timestamps of the result. */
+            const timestamps = timestampsOf(appended,);
 
-            expect(timestampsOf(appended,),).toEqual([
-              NOW - 1,
-              NOW,
-            ],);
+            expect(timestamps,)
+              .toEqual([
+                NOW - 1,
+                NOW,
+              ],);
           },
         },),
 
-        ...Array.from(
-          { length: MAX_ENTRIES, },
-          function makeUnderCapacityCase(_unused, index,) {
-            /** Entry count this case starts from; the array covers one entry up to the capacity. */
-            const length = index + 1;
-            return it({
-              name: `keeps all ${String(length,)} buffered entries while under capacity`,
-              fn: async () => {
-                /** Buffer holding fewer entries than {@link MAX_ENTRIES}. */
-                const buffer = bufferOfLength(length,);
-                /** The buffer after one more set arrives. */
-                const appended = appendedCaptureBuffer({
-                  buffer,
-                  set: captureSet(NOW,),
-                },);
-
-                expect(appended,).toHaveLength(length + 1,);
-                expect(timestampsOf(appended,),).toEqual([
-                  ...timestampsOf(buffer,),
-                  NOW,
-                ],);
-              },
-            },);
-          },
-        ),
+        ...underCapacityCases,
 
         it({
           name: 'evicts the oldest entry once the buffer is at capacity',
@@ -156,30 +171,35 @@ await describe({
               buffer,
               set: captureSet(NOW,),
             },);
+            /** Timestamps of the result. */
+            const timestamps = timestampsOf(appended,);
 
             expect(appended,).toHaveLength(MAX_ENTRIES,);
-            expect(timestampsOf(appended,),).toEqual([
-              ...timestampsOf(buffer,)
-                .slice(1,),
-              NOW,
-            ],);
+            expect(timestamps,)
+              .toEqual([
+                ...timestampsOf(buffer,)
+                  .slice(1,),
+                NOW,
+              ],);
           },
         },),
 
         it({
           name: 'never grows past the capacity, however many sets arrive',
           fn: async () => {
-            /** Buffer threaded through two appends at capacity. */
-            let buffer: CaptureBuffer = bufferOfLength(MAX_ENTRIES,);
-            for (const set of [captureSet(NOW,), captureSet(NOW + 1,)]) {
-              buffer = appendedCaptureBuffer({
-                buffer,
-                set,
-              },);
-            }
+            /** Buffer after one set arrives at capacity. */
+            const onceAppended = appendedCaptureBuffer({
+              buffer: bufferOfLength(MAX_ENTRIES,),
+              set: captureSet(NOW,),
+            },);
+            /** Buffer after a second set arrives at capacity. */
+            const twiceAppended = appendedCaptureBuffer({
+              buffer: onceAppended,
+              set: captureSet(NOW + 1,),
+            },);
 
-            expect(buffer,).toHaveLength(MAX_ENTRIES,);
-            expect(timestampsOf(buffer,)
+            expect(twiceAppended,).toHaveLength(MAX_ENTRIES,);
+            expect(timestampsOf(twiceAppended,)
               .at(-1,),).toBe(NOW + 1,);
           },
         },),
@@ -192,10 +212,13 @@ await describe({
         it({
           name: 'keeps a set captured now',
           fn: async () => {
-            expect(retainedCaptureBuffer({
+            /** Buffer trimmed at its own capture time. */
+            const retained = retainedCaptureBuffer({
               buffer: [captureSet(NOW,)],
               now: NOW,
-            },),).toHaveLength(1,);
+            },);
+
+            expect(retained,).toHaveLength(1,);
           },
         },),
 
@@ -204,21 +227,28 @@ await describe({
           fn: async () => {
             /** The oldest timestamp the window still keeps: the cutoff itself. */
             const cutoff = NOW - RETENTION_MS;
-
-            expect(timestampsOf(retainedCaptureBuffer({
+            /** Buffer trimmed at {@link NOW}. */
+            const retained = retainedCaptureBuffer({
               buffer: [captureSet(cutoff,)],
               now: NOW,
-            },),),).toEqual([cutoff,],);
+            },);
+            /** Timestamps of the result. */
+            const timestamps = timestampsOf(retained,);
+
+            expect(timestamps,).toEqual([cutoff,],);
           },
         },),
 
         it({
           name: 'drops a set one millisecond older than the retention window',
           fn: async () => {
-            expect(retainedCaptureBuffer({
+            /** Buffer trimmed at {@link NOW}. */
+            const retained = retainedCaptureBuffer({
               buffer: [captureSet(NOW - RETENTION_MS - 1,)],
               now: NOW,
-            },),).toHaveLength(0,);
+            },);
+
+            expect(retained,).toHaveLength(0,);
           },
         },),
 
@@ -231,14 +261,19 @@ await describe({
               captureSet(NOW - RETENTION_MS,),
               captureSet(NOW,),
             ];
-
-            expect(timestampsOf(retainedCaptureBuffer({
+            /** Buffer trimmed at {@link NOW}. */
+            const retained = retainedCaptureBuffer({
               buffer,
               now: NOW,
-            },),),).toEqual([
-              NOW - RETENTION_MS,
-              NOW,
-            ],);
+            },);
+            /** Timestamps of the result. */
+            const timestamps = timestampsOf(retained,);
+
+            expect(timestamps,)
+              .toEqual([
+                NOW - RETENTION_MS,
+                NOW,
+              ],);
           },
         },),
 
@@ -264,11 +299,12 @@ await describe({
           fn: async () => {
             /** A set captured during this case. */
             const set = captureSet(Date.now(),);
-
             store(set,);
+            /** The newest buffered entry. */
+            const newest = getRecent()
+              .at(-1,);
 
-            expect(getRecent()
-              .at(-1,),).toEqual(set,);
+            expect(newest,).toEqual(set,);
           },
         },),
 
@@ -279,26 +315,33 @@ await describe({
             const timestamps = Array.from(
               { length: MAX_ENTRIES + 1, },
               function makeTimestamp(_unused, index,) {
-                return Date.now() - MAX_ENTRIES + index;
+                /** Timestamp of the oldest set the case stores. */
+                const oldest = Date.now() - MAX_ENTRIES;
+                return oldest + index;
               },
             );
             for (const timestamp of timestamps) {
               store(captureSet(timestamp,),);
             }
+            /** Timestamps left in the buffer. */
+            const buffered = timestampsOf(getRecent(),);
 
-            expect(timestampsOf(getRecent(),),).toEqual(timestamps.slice(1,),);
+            expect(buffered,).toEqual(timestamps.slice(1,),);
           },
         },),
 
         it({
           name: 'drops a set that is already outside the retention window',
           fn: async () => {
-            /** A set captured long before the window. */
-            const expired = captureSet(Date.now() - RETENTION_MS - 1,);
-
+            /** The oldest timestamp the window still keeps. */
+            const cutoff = Date.now() - RETENTION_MS;
+            /** A set captured one millisecond before the cutoff. */
+            const expired = captureSet(cutoff - 1,);
             store(expired,);
+            /** Timestamps left in the buffer. */
+            const buffered = timestampsOf(getRecent(),);
 
-            expect(timestampsOf(getRecent(),),).not.toContain(expired.timestamp,);
+            expect(buffered,).not.toContain(expired.timestamp,);
           },
         },),
 
@@ -307,11 +350,15 @@ await describe({
           fn: async () => {
             /** Snapshot the case starts from. */
             const before = timestampsOf(getRecent(),);
-            /** The snapshot with one set a caller added for itself. */
+            /** The snapshot the case adds one set to. */
             const callerOwned = getRecent();
-            callerOwned.push(captureSet(Date.now(),),);
+            /** A set that exists only in the caller's copy. */
+            const extra = captureSet(Date.now(),);
+            callerOwned.push(extra,);
+            /** Snapshot taken after the caller changed its own copy. */
+            const after = timestampsOf(getRecent(),);
 
-            expect(timestampsOf(getRecent(),),).toEqual(before,);
+            expect(after,).toEqual(before,);
           },
         },),
       ],
