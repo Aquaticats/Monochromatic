@@ -1501,7 +1501,18 @@ or,
 when only the index file was gone,
 wrote the empty tree and reported `concurrent-commit/replay-conflict` against paths the commit never changed
 (`dee00ebb43`,
-`725a0c4996`);
+`725a0c4996`,
+and the tree's ownership moved to main's mechanism when
+`fix/git-policy-cli-merge-commit-lands-on-a-moved-branch` landed as `1fc10f5026`:
+the service records the identities it did not land
+(`handed_back`,
+`src/native/service/service_server_land_group.rs`)
+and leaves those trees to their commands,
+which release them beside themselves
+(`release_beside_the_command` and `HandedBackTree`,
+`src/native/landing/service_prepare_ready_shapes.rs`);
+this branch's own return value and client-side guard were removed in the merge,
+and its guard against reading an empty tree for a missing private index stayed);
 and a branch write refused by a reference lock was read as a branch that moved,
 so three refusals later the commit ended with "the branch changed 3 times" while the branch had not changed,
 and the lock that refused it was never named
