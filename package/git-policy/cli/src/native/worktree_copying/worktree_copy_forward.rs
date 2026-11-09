@@ -20,7 +20,7 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::forwarding::{ChildOutcome, run_real_git, run_real_git_until};
+use crate::forwarding::{ChildOutcome, run_real_git, run_real_git_naming, run_real_git_until};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
@@ -484,7 +484,7 @@ fn run_settled(
     }
 
     impl GitRunner for ForwardedGit<'_> {
-        fn run(&mut self, step: &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> {
+        fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn FnMut(u32)) -> Result<GitStatus, WorktreeCopyError> {
             let mut child_overlay: Vec<(OsString, OsString)> = self.overlay.to_vec();
             let mut child_arguments: Vec<OsString> = self.arguments.to_vec();
             match step {
@@ -517,7 +517,7 @@ fn run_settled(
             let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
             let ran: std::io::Result<ChildOutcome> = match ceiling {
                 Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest),
-                None => run_real_git(self.real_git, child_arguments.as_slice(), child_overlay.as_slice()),
+                None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started),
             };
             match ran {
                 Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
