@@ -79,6 +79,14 @@ const PASS_COST_LIMIT_BYTES: usize = 8 * 1024 * 1024;
 /// the smaller of Git's own limit and the one measured above.
 const LARGEST_BLOB_BYTES: usize = if PASS_COST_LIMIT_BYTES < GIT_MAX_XDIFF_SIZE { PASS_COST_LIMIT_BYTES } else { GIT_MAX_XDIFF_SIZE };
 
+/// The largest stage the pass reads,
+/// in the bytes a caller's answer ceiling counts.
+/// Why:
+///   The pass asks `git cat-file --batch` for the three stages of every candidate and refuses a file past this size,
+/// so an answer larger than one
+///  of these per name asked for is one the pass would refuse after reading it.
+pub const LARGEST_STAGE_BYTES: u64 = LARGEST_BLOB_BYTES as u64;
+
 /// The modes of a plain file,
 /// with and without the executable bit.
 const PLAIN_FILE_MODES: [u32; 2] = [0o100_644, 0o100_755];

@@ -789,6 +789,47 @@ fn unrelated_histories_are_merged() {
     remove(&s.root);
 }
 
+/// What:
+///  A merge driver that never returns ends the reconcile merge,
+/// and the failure names the wait that stopped it.
+/// Why:
+///   The commands of the word-level second pass were started with no bound at all,
+/// so a driver blocked on a read that never comes held the push
+///  worker,
+/// its claim and the drain of that repository for good
+/// (cross-vendor review of this branch, finding 4).
+/// The window is the push's own,
+/// so it is set to one second here and the grace is the one a stopped query gets.
+#[test]
+fn a_merge_driver_that_never_returns_stops_the_reconcile_merge() {
+    let s = scenario("ar-driver-stall");
+    std::fs::write(s.local.join(".gitattributes"), "driver.txt merge=stall\n").expect("the rule");
+    std::fs::write(s.local.join("driver.txt"), "base\n").expect("the file");
+    git(&s.local, &["add", "--", ".gitattributes", "driver.txt"]);
+    git(&s.local, &["commit", "--quiet", "-m", "a rule that names a driver and the file it owns"]);
+    git(&s.local, &["push", "--quiet", "origin", "main"]);
+    // The driver waits for input that never arrives.
+    git(&s.local, &["config", "merge.stall.driver", "sh -c 'sleep 300'"]);
+    advance_remote(&s, "driver.txt", "remote\n");
+    let island: String = commit_local(&s, "driver.txt", "local\n");
+    git(&s.local, &["fetch", "--quiet", "origin"]);
+    let main: String = text_of(&s.local, &["rev-parse", "origin/main"]);
+    let mut git_under_test: PushGit = push_git(&s.local);
+    git_under_test.environment.push((OsString::from(crate::push_deadline_and_patience_settings::PUSH_DEADLINE_VARIABLE), OsString::from("1")));
+    let started: std::time::Instant = std::time::Instant::now();
+    let answer = commit_merge(&git_under_test, &island, &main, "message");
+    let waited: std::time::Duration = started.elapsed();
+    let said: String = match &answer {
+        Err(error) => format!("{error}"),
+        Ok(_) => String::from("the merge was committed"),
+    };
+    assert!(said.contains("could not be run"), "the stopped command is named with its reason: {said}");
+    assert!(said.contains("showed no sign of work"), "the wait that stopped it is the meter's: {said}");
+    assert!(waited < std::time::Duration::from_secs(60), "the wait ends within the window and its grace, not never: {waited:?}");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no merge ref is left");
+    remove(&s.root);
+}
+
 /// Make the repository under test sign commits with a stand-in `gpg` that exits `status`:
 /// it reads the payload,
 /// answers the status line Git waits for and prints a placeholder signature,

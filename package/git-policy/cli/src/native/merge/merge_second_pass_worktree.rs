@@ -491,19 +491,19 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         }
         return None;
     }
-    let merged: Vec<Merged> = kept.files;
-    let oids: Vec<String> = kept.oids;
-    if let Err(reason) = install(&runner, merged.as_slice(), oids.as_slice()) {
+    let installed: Vec<Merged> = kept.files;
+    let installed_oids: Vec<String> = kept.oids;
+    if let Err(reason) = install(&runner, installed.as_slice(), installed_oids.as_slice()) {
         warn(TAG, format!("the merged files could not be installed, so the conflicts stay as Git left them: {reason}").as_str());
         return None;
     }
     let operation: String = String::from_utf8_lossy(forward.command.word()).into_owned();
     let mut text: String = String::new();
-    for line in announce(LINE_PREFIX, (CLIENT_IDENTIFIER, operation.as_str()), merged.as_slice()) {
+    for line in announce(LINE_PREFIX, (CLIENT_IDENTIFIER, operation.as_str()), installed.as_slice()) {
         text.push_str(line.as_str());
         text.push('\n');
     }
-    let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(merged.len());
+    let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(installed.len());
     // Every conflicted file resolved: end the operation the way a clean run does, if the options say how.
     let planned = if remaining == 0 {
         match branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command) {
@@ -514,7 +514,7 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         None
     };
     let mut names: Vec<String> = Vec::new();
-    for file in &merged {
+    for file in &installed {
         names.push(path_message_text(file.path.as_slice()));
     }
     let listed: String = names.join(", ");

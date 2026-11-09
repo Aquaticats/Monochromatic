@@ -7690,6 +7690,20 @@ including one only the second side carries:
 a path its settings exclude (a driver,
 `-merge`,
 `merge=binary`) is left exactly as Git left it.
+Every Git command of the reconcile merge's second pass (`merge-tree`,
+`cat-file --batch`,
+`check-attr`,
+`hash-object`,
+the scratch index's `read-tree`,
+`update-index` and `write-tree`)
+runs under the bound a push query has:
+the push's stall window,
+the service's stop and the grace a stopped query gets,
+with its request on the standard input and an answer ceiling of one stage per name it asks for
+(`src/native/push/auto_push_reconcile_merge_commit.rs`),
+so a merge driver that never returns ends the merge and is named as a stopped query,
+and the push worker,
+its claim and the drain of that repository are not held for good.
 The isolated merge prints the part lines before Git's own words and sends the journal entries after the merge is in the checkout;
 the reconcile merge appends the part lines to the merge commit's message,
 prints them with the push report and sends the entries after the push succeeded,

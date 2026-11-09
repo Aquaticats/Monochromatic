@@ -114,10 +114,10 @@ pub const WAIT_NOTE_PHRASE: &str = "is waiting for the server";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// size > MAX_PUSH_OUTPUT
+/// size > cap
 /// ```
-fn is_flood(size: u64) -> bool {
-    return size > MAX_PUSH_OUTPUT;
+fn is_flood(size: u64, cap: u64) -> bool {
+    return size > cap;
 }
 
 /// What a clock keeps as the longest quiet gap:
@@ -208,9 +208,35 @@ pub async fn wait_until_done(
     quiet: &mut Option<Duration>,
     stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
+    return wait_until_done_up_to(child, outputs, patience, MAX_PUSH_OUTPUT, quiet, stop).await;
+}
+
+/// What:
+///  The same wait as `wait_until_done`,
+/// with the output ceiling it stops past given by the caller.
+/// Why:
+///   A read-only query's answer is a report;
+/// the second pass of a merge reads the three stages of the files it may merge,
+/// up to the
+///  pass's own blob limit for each name it asks for,
+/// so its ceiling is that sum and not the push report's cap.
+/// Nothing else may pass a ceiling above `MAX_PUSH_OUTPUT`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.race([exited, stalled, flood]); // flood: any watched file past `cap`
+/// ```
+pub async fn wait_until_done_up_to(
+    child: &mut OwnedChild,
+    outputs: &[&File],
+    patience: Patience,
+    cap: u64,
+    quiet: &mut Option<Duration>,
+    stop: Option<&StopArm>,
+) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
     let clock: Clock = Clock::start(child.id(), patience).without_wall_fallback();
-    return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet, stop).await;
+    return wait_with_clock(child, outputs, clock, cap, "git", &mut waits, quiet, stop).await;
 }
 
 /// What:
@@ -237,7 +263,7 @@ pub async fn wait_until_done_noting(
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let clock: Clock = Clock::start(child.id(), patience);
     let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, label, waits, &mut unused, stop).await;
+    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
 }
 
 /// The loop of both waits,
@@ -246,6 +272,7 @@ async fn wait_with_clock(
     child: &mut OwnedChild,
     outputs: &[&File],
     mut clock: Clock,
+    cap: u64,
     label: &str,
     waits: &mut Vec<WaitReport>,
     quiet: &mut Option<Duration>,
@@ -269,7 +296,7 @@ async fn wait_with_clock(
                 Ok(metadata) => metadata.len(),
                 Err(_) => u64::MAX,
             };
-            if is_flood(size) {
+            if is_flood(size, cap) {
                 *quiet = quiet_gap_kept(&clock);
                 return Ok(Err(StopCause::Flood));
             }

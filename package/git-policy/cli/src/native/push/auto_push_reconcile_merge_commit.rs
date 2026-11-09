@@ -14,16 +14,15 @@
 //! ```
 
 use crate::auto_push_single_flight::{
-    PushGit, SingleFlightError, git_command, git_output, run_query,
+    PushGit, SingleFlightError, git_output, run_query, run_query_with_input,
 };
-use crate::diagnostic_log::debug;
-use crate::merge_second_pass::{GitReply, GitRunner, Merged, conflicts_of_merge_tree};
+use crate::bounded_push::MAX_PUSH_OUTPUT;
+use crate::bounded_query::QueryOutput;
+use crate::merge_second_pass::{GitReply, GitRunner, LARGEST_STAGE_BYTES, Merged, conflicts_of_merge_tree};
 use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables, report, resolve_tree};
 use crate::path_bytes::path_message_text;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
-use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
+use crate::auto_push_reconcile_basics_and_limits::argv;
 /// The coordinator's Git as a runner for the second pass:
 /// its commands,
 /// its environment,
@@ -33,45 +32,57 @@ pub(crate) struct PushRunner<'a> {
     pub(crate) git: &'a PushGit,
 }
 
-/// Starting Git the way the coordinator's queries do,
-/// with the input a second-pass command needs.
+/// The bytes one `git cat-file --batch` header may take: the object name, its kind, the size and the line feed.
+const CAT_FILE_HEADER_BYTES: u64 = 128;
+
+/// What:
+///  The largest answer one command of the second pass may print.
+/// Why:
+///   `cat-file --batch` prints one blob per name it was given and a header for each,
+/// and no stage the pass merges is larger than its own limit,
+/// so the
+///  answer for the names it asks for is bounded and a larger one would be refused after being read:
+/// the ceiling stops the command
+///  instead of holding a blob the pass would not take.
+/// Every other command of the pass prints a line or nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cap = (args, input) => args[0] !== 'cat-file' ? MAX_PUSH_OUTPUT : Math.max(MAX_PUSH_OUTPUT, names * (LARGEST_STAGE_BYTES + 128));
+/// ```
+fn answer_cap(arguments: &[&str], input: Option<&[u8]>) -> u64 {
+    if arguments.first() != Some(&"cat-file") {
+        return MAX_PUSH_OUTPUT;
+    }
+    let asked: u64 = input.unwrap_or_default().iter().filter(|byte| { return **byte == b'\n'; }).count() as u64;
+    return asked.saturating_mul(LARGEST_STAGE_BYTES.saturating_add(CAT_FILE_HEADER_BYTES)).max(MAX_PUSH_OUTPUT);
+}
+
+/// What:
+///  Run a command of the second pass through the same bounded wait as a query,
+/// with its input on the standard input.
+/// Why:
+///   These children are not a person's:
+/// the reconcile runs them in the object store of a repository that another program may have wedged,
+///  and a `merge-tree` or a merge driver that never returns holds the push worker,
+/// its claim and the drain of that repository for good.
+/// The meter,
+/// the stop of the service and `STOP_GRACE` are the ones the push and its queries use,
+/// so a stuck command ends and is named like a stopped query.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { code, stdout, stderr } = await runQueryWithInput(git, args, input, indexFile, cap);
+/// ```
 impl GitRunner for PushRunner<'_> {
     fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String> {
-        let mut command = git_command(self.git, &argv(arguments));
-        if let Some(index) = index_file {
-            command.env("GIT_INDEX_FILE", index);
-        }
-        command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        let mut child = match command.spawn() {
-            Ok(started) => started,
-            Err(error) => return Err(format!("git {} could not start: {error}", arguments.join(" "))),
+        let shown: String = arguments.join(" ");
+        let cap: u64 = answer_cap(arguments, input);
+        let output: QueryOutput = match run_query_with_input(self.git, &argv(arguments), input.map(<[u8]>::to_vec), index_file, cap) {
+            Ok(output) => output,
+            Err(refusal) => return Err(format!("git {shown} could not be run: {refusal}")),
         };
-        // The input goes in from a thread of its own, so a command that answers while it reads cannot block on a full pipe.
-        let pipe = child.stdin.take();
-        let bytes: Vec<u8> = input.map(<[u8]>::to_vec).unwrap_or_default();
-        let writer = match crate::scoped_start::spawn_named("cli-git-second-pass-input", move || {
-            if let Some(mut open) = pipe
-                && let Err(error) = open.write_all(bytes.as_slice())
-            {
-                debug(TAG, &format!("the input of a second-pass command was not taken: {error}"));
-            }
-        }) {
-            Ok(started) => started,
-            // Writing the input here could block on a full pipe while Git waits for its output to be read; the command is stopped instead.
-            Err(error) => {
-                let _stopped = child.kill();
-                let _reaped = child.wait();
-                return Err(format!("no thread could be started to give git {} its input: {error}", arguments.join(" ")));
-            }
-        };
-        let output = match child.wait_with_output() {
-            Ok(finished) => finished,
-            Err(error) => return Err(format!("git {} did not finish: {error}", arguments.join(" "))),
-        };
-        if writer.join().is_err() {
-            return Err(format!("the input thread of git {} ended abnormally", arguments.join(" ")));
-        }
-        return Ok(GitReply { code: output.status.code(), stdout: output.stdout, stderr: output.stderr });
+        return Ok(GitReply { code: output.code, stdout: output.stdout, stderr: output.stderr });
     }
 }
 
