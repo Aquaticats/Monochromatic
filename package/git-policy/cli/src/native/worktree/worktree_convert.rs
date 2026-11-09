@@ -154,6 +154,35 @@ fn processes_inside(directory: &Path) -> Vec<String> {
 /// const verdict = await abandonLeftoverStage(platform, path, reason, say); // undefined when there is no stage
 /// ```
 fn abandon_leftover_stage(platform: &dyn Platform, path: &Path, reason: &str, say: &mut dyn LineSink) -> Result<Option<Verdict>, MigrateError> {
+    return abandon_leftover_stage_seamed(platform, path, reason, say, &mut nothing_at_all);
+}
+
+/// What:
+///  `abandon_leftover_stage`,
+/// with a call after the process scan and before the last look at the identity,
+/// where a control
+///  renames the recorded stage aside and puts another directory at its name.
+/// Why:
+///   The identity check and the destroy are not one step,
+/// and binding them needs a destroy that takes a descriptor,
+/// which
+///  the platform does not offer;
+/// the last look is placed immediately before the destroy,
+/// so the window is one check wide,
+/// and
+///  a test can only enter it through a seam.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// abandonLeftoverStageSeamed(platform, path, reason, say, afterScan);
+/// ```
+fn abandon_leftover_stage_seamed(
+    platform: &dyn Platform,
+    path: &Path,
+    reason: &str,
+    say: &mut dyn LineSink,
+    after_scan: &mut dyn FnMut(),
+) -> Result<Option<Verdict>, MigrateError> {
     let converting: PathBuf = converting_path(path);
     match std::fs::symlink_metadata(&converting) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -189,6 +218,21 @@ fn abandon_leftover_stage(platform: &dyn Platform, path: &Path, reason: &str, sa
             "the leftover stage {} is kept because {}; stop that and run the command again",
             converting.display(),
             holders.join("; ")
+        )])));
+    }
+    after_scan();
+    // The last look at which object the name holds, immediately before the destroy: a directory renamed in and put there by
+    // another process is not one this conversion recorded, and it is kept.
+    let now: Option<crate::fs_beneath::ObjectId> = identity_of_path(&converting);
+    if now != Some(found) {
+        return Ok(Some(Verdict::Skipped(vec![format!(
+            "{} changed while the command was about to destroy it (it is {}, and the record names {}), so it is left alone: look at it, and remove it yourself if it is a copy you do not want",
+            converting.display(),
+            match now {
+                Some(seen) => seen.encode(),
+                None => String::from("a name that leads nowhere"),
+            },
+            found.encode()
         )])));
     }
     say.say(format!("  {reason}; what is left of that conversion is the copy at {}", converting.display()).as_str());

@@ -577,6 +577,41 @@ fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
 }
 
 /// What:
+///  A directory put at the checkout's path after the carry-back,
+/// before the exchange,
+///  is refused and exchanged back,
+///  and the original tree is kept.
+/// Why:
+///   The exchange takes two names,
+/// so nothing binds it to the directories that were checked;
+/// the last look before it
+///  and the read after it keep a replacement from being exchanged and deleted.
+#[test]
+fn a_replacement_that_arrives_before_the_exchange_is_not_exchanged_and_deleted() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-swap-replaced", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let installed: PathBuf = parent.join("checkout.kept");
+    let (at, kept) = (root.clone(), installed.clone());
+    let mut say: Vec<String> = Vec::new();
+    let never: Interrupt = Interrupt::never();
+    let mut sink = |text: &str| { say.push(String::from(text)); };
+    let mut run = crate::subvolume_run::Run::open(&platform, &layout, &never, &mut sink).expect("run");
+    let replace = &mut || {
+        std::fs::rename(at.as_path(), kept.as_path()).expect("move the installed checkout aside");
+        std::fs::create_dir_all(at.join("ignored")).expect("a directory at the checkout's path");
+        std::fs::write(at.join("ignored/precious.txt"), b"somebody else's file\n").expect("a file of theirs");
+    };
+    let refused = swap_back_seamed(&mut run, false, replace).expect("no failure");
+    let Some(reasons) = refused else { panic!("the rollback is refused, and nothing is exchanged: {say:?}") };
+    assert!(reasons.iter().any(|reason: &Refusal| { return reason.cause.contains("installed checkout") || reason.cause.contains("not two directories") || reason.cause.contains("did not exchange"); }), "{reasons:?}");
+    assert_eq!(std::fs::read(root.join("ignored/precious.txt")).expect("the replacement is kept"), b"somebody else's file\n");
+    assert!(installed.join("README.md").is_file(), "the installed checkout is where the other process moved it");
+    assert!(layout.old_path.exists(), "the original tree is kept");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A checkout moved aside between the identity check and the carry receives nothing:
 ///  the carry goes through the descriptor of the directory that was checked,
 ///  and the old tree is kept when the name no longer leads to it.

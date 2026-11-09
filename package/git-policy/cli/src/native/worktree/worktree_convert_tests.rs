@@ -302,6 +302,43 @@ fn a_process_that_enters_the_stage_after_the_scan_keeps_it() {
 }
 
 /// What:
+///  A stage renamed aside after the process scan and replaced keeps its replacement:
+///  the last look at the identity,
+/// immediately
+///  before the destroy,
+/// refuses it.
+/// Why:
+///   Binding the destroy to the checked object needs a destroy that takes a descriptor,
+/// which the platform does not
+///  offer,
+/// so the look is placed as late as it can be and the replacement is kept.
+#[test]
+fn a_replacement_that_arrives_after_the_scan_of_a_leftover_stage_is_kept() {
+    let (parent, _root, worktree) = quiet_worktree("convert-leftover-late-replacement");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let admin: PathBuf = admin_of(worktree.as_path());
+    remove(worktree.as_path());
+    remove(admin.as_path());
+    let moved: PathBuf = parent.join("stage.kept");
+    let (at, kept) = (converting.clone(), moved.clone());
+    let mut say: Vec<String> = Vec::new();
+    let replace = &mut || {
+        std::fs::rename(at.as_path(), kept.as_path()).expect("move the recorded stage aside");
+        std::fs::create_dir_all(at.join("d")).expect("a directory at the stage's name");
+        std::fs::write(at.join("d/precious"), b"somebody else's file\n").expect("a file of theirs");
+    };
+    let reason: &str = "the worktree is gone";
+    let verdict = abandon_leftover_stage_seamed(&platform, worktree.as_path(), reason, &mut |text: &str| { say.push(String::from(text)); }, replace);
+    let Some(Verdict::Skipped(reasons)) = verdict.expect("no failure") else { panic!("the replacement is kept: {say:?}") };
+    assert!(reasons.join("; ").contains("changed while the command was about to destroy it"), "{reasons:?}");
+    assert_eq!(std::fs::read(converting.join("d/precious")).expect("the replacement is kept"), b"somebody else's file\n");
+    assert!(moved.exists(), "the recorded stage is still where the other process moved it");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  `--abandon` destroys a leftover stage only while the object at that name is the one this conversion recorded,
 ///  so a directory someone put there instead is kept and the reason is said.
 /// Why:

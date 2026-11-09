@@ -24,13 +24,14 @@
 //! await rollback(run); await removeOldTree(run, { discardUnreadable });
 //! ```
 
-use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, open_root};
+use crate::fs_beneath::handle_path;
 use crate::subvolume_arguments::MIGRATE_RISK_NOTICE;
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
+use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, object_form, pair_refusal, pin_root, pinned_root_moved};
 use crate::subvolume_remove::remove_tree;
 use crate::subvolume_run::Run;
 use crate::subvolume_sync::SyncStats;
@@ -177,6 +178,27 @@ pub fn remove_subvolume_tree(run: &mut Run<'_>, path: &Path) -> Result<(), Migra
 /// const refused = await swapBack(run);
 /// ```
 fn swap_back(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
+    return swap_back_seamed(run, discard_unreadable, &mut nothing_at_all);
+}
+
+/// What:
+///  `swap_back`,
+/// with a call after the carry-back and before the last look at the two directories,
+/// where a control
+///  moves the checkout aside and puts another directory at its path.
+/// Why:
+///   The exchange takes two names,
+/// so nothing binds it to the directories that were checked;
+/// the last look
+///  immediately before it keeps a replacement from being exchanged and deleted,
+/// and a test can only enter that window
+///  through a seam.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// swapBackSeamed(run, discardUnreadable, beforeExchange);
+/// ```
+fn swap_back_seamed(run: &mut Run<'_>, discard_unreadable: bool, before_exchange: &mut dyn FnMut()) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let root: PathBuf = run.layout.root.clone();
     let new_path: PathBuf = run.layout.new_path.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
@@ -200,9 +222,42 @@ fn swap_back(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<R
             }]));
         }
         run.checkpoint("rollback-before-exchange")?;
+        before_exchange();
+        // The last look before the exchange, and the identities it reads are what the exchange must produce.
+        let before: (Option<String>, Option<String>) = (object_form(root.as_path()), object_form(old_path.as_path()));
+        let installed: Option<&str> = run.journal.value(INSTALLED_ROOT);
+        if let Some(refusal) = pair_refusal(PairLook {
+            root: root.as_path(),
+            old_path: old_path.as_path(),
+            at_root: before.0.clone(),
+            at_old: before.1.clone(),
+            installed,
+            what: "before",
+        }) {
+            return Ok(Some(vec![refusal]));
+        }
         run.journal.mark("rollback-swap", "started")?;
         run.platform.exchange(root.as_path(), old_path.as_path())?;
         run.checkpoint("rollback-after-swap")?;
+        // An exchange of names can take a directory put there in the moment before it, so what went where is read back: a
+        // wrong one is exchanged back and nothing is deleted.
+        let after: (Option<String>, Option<String>) = (object_form(root.as_path()), object_form(old_path.as_path()));
+        if after.0 != before.1 || after.1 != before.0 {
+            let undone: Result<(), crate::fs_primitive_error::PrimitiveError> = run.platform.exchange(root.as_path(), old_path.as_path());
+            let note: &str = if undone.is_ok() { "The exchange was undone" } else { "The exchange could not be undone, so read the paths named here before you run anything else" };
+            return Ok(Some(vec![Refusal {
+                cause: format!(
+                    "{} and {} did not exchange their directories: they held {} and {}, and after the exchange they hold {} and {}. {note}.",
+                    root.display(),
+                    old_path.display(),
+                    before.0.as_deref().unwrap_or("a name that leads nowhere"),
+                    before.1.as_deref().unwrap_or("a name that leads nowhere"),
+                    after.0.as_deref().unwrap_or("a name that leads nowhere"),
+                    after.1.as_deref().unwrap_or("a name that leads nowhere")
+                ),
+                remedy: String::from("Check both paths, move the directory the migration installed back to the checkout's path, and run the command again. Nothing was deleted."),
+            }]));
+        }
     }
     if old_path.exists() && !new_path.exists() {
         MigrateError::from_io_result(std::fs::rename(&old_path, &new_path), "rename", old_path.as_path())?;
@@ -301,106 +356,6 @@ fn carry_late_writes(run: &mut Run<'_>, destination: &Path, shown: &Path) -> Res
         run.line(format!("{} file(s) written to the old tree after the catch-up were carried into {}", stats.files_copied, shown.display()).as_str());
     }
     return Ok(());
-}
-
-/// The journal's form of an identity:
-/// device and inode,
-/// without the birth time the descriptor's identity also carries.
-fn recorded_form(identity: &ObjectId) -> String {
-    return format!("{}:{}", identity.device, identity.inode);
-}
-
-/// What:
-///  The checkout the carry writes into,
-/// held open,
-/// with the identity it had when it was opened.
-/// Why:
-///   A path is resolved again by every call inside the carry,
-/// so a checkout moved aside and another put at the same
-///  path between the check and the carry would receive the old tree's newer files.
-/// The directory is opened below its parent without
-///  following a link,
-/// its identity is read from that descriptor,
-/// and every write of the carry goes through the descriptor,
-/// so
-///  the files land in the directory that was checked whatever happens to its path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type PinnedRoot = { parent: FileHandle; name: string; directory: FileHandle; identity: ObjectId };
-/// ```
-struct PinnedRoot {
-    /// The directory that holds the checkout.
-    parent: std::fs::File,
-    /// The checkout's name in `parent`.
-    name: std::ffi::OsString,
-    /// The checkout itself,
-    /// held open.
-    directory: std::fs::File,
-    /// The identity of the held directory.
-    identity: ObjectId,
-}
-
-/// What:
-///  Open the checkout and prove it is the directory the migration installed,
-/// or say why it is not.
-///  `Ok(Err(refusal))` means nothing was written and nothing was deleted.
-/// Why:
-///   See `PinnedRoot`.
-/// The recorded identity is compared on the descriptor,
-/// so the check and the use are the same
-///  object,
-/// and a journal of an earlier release that records no identity still gets a pinned directory,
-/// its
-///  identity being the one the check after the carry compares against.
-/// A checkout moved aside after this moment receives the files at
-///  the directory it became,
-/// which is the directory the migration installed,
-/// and the old tree is kept because its name no
-///  longer leads there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const pinned = await pinRoot(run, layout);
-/// ```
-fn pin_root(run: &Run<'_>, after_pinned: &mut dyn FnMut()) -> Result<Result<PinnedRoot, Refusal>, MigrateError> {
-    let root: &Path = run.layout.root.as_path();
-    let Some(parent_path) = root.parent() else {
-        return Ok(Err(Refusal { cause: format!("{} has no parent directory", root.display()), remedy: String::from("Run the command for a checkout that is a directory.") }));
-    };
-    let name: std::ffi::OsString = root.file_name().unwrap_or_default().to_os_string();
-    let parent: std::fs::File = MigrateError::from_io_result(open_root(parent_path), "hold the directory of the checkout", parent_path)?;
-    let directory: std::fs::File = MigrateError::from_io_result(open_directory_at(&parent, name.as_os_str()), "hold the checkout", root)?;
-    let identity: ObjectId = MigrateError::from_io_result(identity_of(&directory), "examine", root)?;
-    let now: String = recorded_form(&identity);
-    if let Some(recorded) = run.journal.value(INSTALLED_ROOT)
-        && now != recorded
-    {
-        return Ok(Err(Refusal {
-            cause: format!("{} is not the directory installed by the migration there: it is {now} and the journal records {recorded}", root.display()),
-            remedy: String::from("If the checkout was moved or replaced, move the directory the migration installed back to that path and run the command again. Nothing was changed."),
-        }));
-    }
-    after_pinned();
-    return Ok(Ok(PinnedRoot { parent, name, directory, identity }));
-}
-
-/// Whether the name of the pinned checkout still leads to it;
-/// a refusal naming both identities when it does not.
-fn pinned_root_moved(run: &Run<'_>, pinned: &PinnedRoot) -> Option<Refusal> {
-    let root: &Path = run.layout.root.as_path();
-    let held: String = recorded_form(&pinned.identity);
-    let now: String = match identity_at(&pinned.parent, pinned.name.as_os_str()) {
-        Ok(found) => recorded_form(&found),
-        Err(_gone) => String::from("a name that leads nowhere"),
-    };
-    if now == held {
-        return None;
-    }
-    return Some(Refusal {
-        cause: format!("{} was the directory {held} while the old tree's newer files were carried into it, and it is {now} now", root.display()),
-        remedy: String::from("Nothing was deleted. Check what is at that path, move the directory the migration installed back, and run the command again."),
-    });
 }
 
 /// What:

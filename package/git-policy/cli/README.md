@@ -1446,6 +1446,14 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   so the window is one check wide;
   it is not closed,
   and a shell that enters the copy in that window is left in a `(deleted)` directory whose writes fail.
+  The identity of a leftover stage,
+  and the two directories a rollback exchanges,
+  are read again in the step before the call
+  that uses them,
+  so a directory another program renames into the name inside that interval is destroyed or exchanged:
+  neither call
+  takes a descriptor,
+  and binding them would need one.
   It also reaches the copy a conversion left behind when its worktree was removed before the
   conversion was finished (a worktree path without a `.git` that still has `<path>.cli-git-converting`
   beside it):
