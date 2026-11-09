@@ -15,6 +15,10 @@
 //! const workspaces = distinctWorkspaces(await Promise.all(manifestDirectories(request).map(readWorkspace)));
 //! ```
 
+/// The blocking budget and its refusal of a step,
+/// for the reading that must never run on a task.
+use crate::blocking_job::BlockingJobError;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 /// The tool runner and its result words,
 /// for the face that awaits and the one that enters the runtime.
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, run_tool_awaiting};
@@ -175,6 +179,38 @@ fn directories_of_the_listing(listing: &[u8], destination: &Path) -> Vec<PathBuf
 }
 
 /// What:
+///  `directories_of_the_listing` for the state a job of the blocking pool owns.
+/// Why:
+///  A job reads only what it was handed,
+/// so the listing and the worktree travel together as owned values.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function directoriesInAJob([listing, destination]: [Uint8Array, string]): string[];
+/// ```
+fn directories_in_a_job((listing, destination): (Vec<u8>, PathBuf)) -> Vec<PathBuf> {
+    return directories_of_the_listing(listing.as_slice(), destination.as_path());
+}
+
+/// What:
+///  The directories of the tracked manifests,
+/// as a job of the process's blocking pool.
+/// Why:
+///  Whether a listed path is a regular file is a storage question,
+/// and the task that polls the three repairs must never ask it:
+/// a filesystem that stopped answering would then stop the pnpm repair's quiet window and its ceiling with it.
+/// A refusal from the system runs the same reading in turn,
+/// under a place of the process's bound on blocking jobs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const directories = await directoriesOfTheListingWithinTheBudget(listing, destination);
+/// ```
+async fn directories_of_the_listing_within_the_budget(listing: Vec<u8>, destination: &Path) -> Result<Vec<PathBuf>, BlockingJobError> {
+    return run_a_job_or_in_turn((listing, destination.to_path_buf()), directories_in_a_job).await;
+}
+
+/// What:
 ///  The directories of the worktree's tracked `Cargo.toml` files,
 /// with the Git child awaited on the runtime.
 /// Why:
@@ -182,6 +218,9 @@ fn directories_of_the_listing(listing: &[u8], destination: &Path) -> Vec<PathBuf
 /// so no walk reads `node_modules` or build output,
 /// and a task of the
 ///  runtime cannot enter that runtime to run one (`RuntimeError::Nested`).
+/// The question each listed path answers (is it a regular file)
+///  is asked as a job of the blocking pool,
+/// so no filesystem of the worktree can hold the task's other waits open.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -196,7 +235,11 @@ pub async fn manifest_directories_awaiting(git: &GitContext, destination: &Path)
     if !output.succeeded() {
         return Err(format!("git could not list the tracked manifests: {}", output.error_text()));
     }
-    return Ok(directories_of_the_listing(output.stdout.as_slice(), destination));
+    return match directories_of_the_listing_within_the_budget(output.stdout, destination).await {
+        Ok(directories) => Ok(directories),
+        // No directory was learned, and the reason is the person's to read.
+        Err(refusal) => Err(format!("the tracked manifests could not be read ({refusal})")),
+    };
 }
 
 /// What:
