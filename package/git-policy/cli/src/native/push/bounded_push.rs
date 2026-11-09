@@ -342,6 +342,27 @@ pub fn command_label(command: &Command) -> String {
 }
 
 /// What:
+///  The line a push's output gains when more of it was printed than is kept.
+/// Why:
+///   The cap bounds what is held in memory,
+/// and a person reading an attempt's output must know that what they see is the
+///  head of it.
+/// The push itself was not stopped,
+/// so the line says what was kept and points at the program that printed it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: git push wrote more than ${MAX} bytes of output, so only the first ${MAX} bytes are kept here; the push itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output by running it directly.`
+/// ```
+fn shortened_output_line() -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output, so only the first {MAX_PUSH_OUTPUT} bytes \
+         are kept here; the push itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output \
+         by running it directly."
+    );
+}
+
+/// What:
 ///  The line that names a run's wait for its remote.
 /// Why:
 ///   The person or the journal reads that the run is not stuck:
@@ -459,8 +480,18 @@ pub async fn run_bounded_push_awaiting(
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
+    // A push that ends in the pause between two looks can still have printed past the cap. Its output is the log a person
+    //  reads, not Git's answer, so the attempt keeps the push's own status; but the text kept is the head of it, and passing
+    //  that for all of it would be the same silence a shortened answer is.
+    let shortened: bool = ended.is_ok() && flooded(&[&output]);
     let captured: String = read_output(&mut output)?;
     let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
+    if shortened {
+        if !shown_text.is_empty() {
+            shown_text.push('\n');
+        }
+        shown_text.push_str(shortened_output_line().as_str());
+    }
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
     for report in &waits {
         let line: String = wait_line(label.as_str(), report);
