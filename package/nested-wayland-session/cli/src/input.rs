@@ -10,6 +10,20 @@
 //!  Coordinates are logical;
 //!  keys are evdev codes
 //! (translated to the xkb keycode system by adding the 8-offset winit also applies).
+//!
+//! Every click writes one `info` line naming the surface the hit test found,
+//!  the number of windows on
+//! screen and the cursor the hosted client last asked for,
+//!  then a second one naming the surface the seat
+//! kept the pointer focus on.
+//!  A click that changes nothing in the client can then be read from this side of the
+//! boundary:
+//!  no surface under the point,
+//!  a point over a client-drawn popup that takes no input,
+//!  and a
+//! press the seat had a target for are three different stories.
+//!  Which side dropped a press is decided with the client's own log,
+//! not from these lines alone.
 
 /// What:
 ///      Grouped `use` of the input state enums,
@@ -29,6 +43,10 @@ use smithay::{
     input::{
         keyboard::{FilterResult, Keycode, KeysymHandle, ModifiersState},
         pointer::{ButtonEvent, MotionEvent},
+    },
+    reexports::wayland_server::{
+        protocol::wl_surface::WlSurface,
+        Resource,
     },
     utils::{Logical, Point, SERIAL_COUNTER},
 };
@@ -107,6 +125,26 @@ pub fn click(state: &mut Compositor, x: f64, y: f64, button: PointerButton) {
     // Why:      Motion sets the pointer focus to whatever is under the cursor.
     let under = state.surface_under(location);
 
+    // What:     `let hit = under.as_ref().map(hit_note);`. The protocol id of the hit surface
+    //           with its origin.
+    // Why:      `WlSurface` prints no useful identity, and the protocol id matches the ids the
+    //           hosted client's own `WAYLAND_DEBUG` lines carry.
+    let hit = under.as_ref().map(hit_note);
+
+    // What:     `tracing::info!` with the point, the hit, the window count, and the cursor the
+    //           hosted client last asked for.
+    // Why:      The end-to-end failure file keeps this line beside the app's own log, so a click
+    //           that changed nothing says whether the seat had a target at all and whether the app
+    //           had already taken the pointer there.
+    tracing::info!(
+        x,
+        y,
+        hit = ?hit,
+        windows = state.space.elements().count(),
+        cursor = %crate::control_session::describe_cursor(&state.cursor_image),
+        "sending a click: motion, press and release",
+    );
+
     // What:     `let time = event_time(state);`. Timestamp for all three events.
     // Why:      Consistent timing across the click.
     let time = event_time(state);
@@ -172,6 +210,38 @@ pub fn click(state: &mut Compositor, x: f64, y: f64, button: PointerButton) {
     // Why:      The record must match what the seat delivered, or a later `button up` would
     //           answer `ok` for a button the seat no longer holds.
     state.held_pointer_buttons.release(code);
+
+    // What:     `tracing::info!` with the surface the pointer focus was on once the release had
+    //           gone out.
+    // Why:      A button event reaches a client only through the pointer's focus, so this snapshot
+    //           says which surface the seat had at the end of the click: paired with the hit test
+    //           above, it separates a click aimed at a window from one aimed at nothing. It is a
+    //           snapshot only; a grab or a focus change after an event was sent does not show here.
+    tracing::info!(
+        focus = ?pointer.current_focus().as_ref().map(protocol_id_of),
+        "the click left the seat's pointer focus",
+    );
+}
+
+/// What:
+///      `fn hit_note((surface, point): &(WlSurface, Point<f64, Logical>)) -> (u32, f64, f64)`.
+///  The protocol id of a hit surface with the point the hit test returned for it.
+/// Why:
+///       A click line names its target by protocol id,
+///  the only name that matches the hosted client's own
+/// `WAYLAND_DEBUG` lines.
+fn hit_note((surface, point): &(WlSurface, Point<f64, Logical>)) -> (u32, f64, f64) {
+    return (surface.id().protocol_id(), point.x, point.y);
+}
+
+/// What:
+///      `fn protocol_id_of(surface: &WlSurface) -> u32`.
+///  The protocol id of one surface.
+/// Why:
+///       The pointer focus is logged by id,
+///  so a reader can match it against the target the same click named.
+fn protocol_id_of(surface: &WlSurface) -> u32 {
+    return surface.id().protocol_id();
 }
 
 /// Send one keyboard key event (press or release) through the seat's keyboard.
