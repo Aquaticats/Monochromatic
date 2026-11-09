@@ -8389,11 +8389,11 @@ Every Git command of the reconcile merge's second pass (`merge-tree`,
 `hash-object`,
 the scratch index's `read-tree`,
 `update-index` and `write-tree`)
-runs under a total ceiling,
-300 seconds by default and settable with `CLI_GIT_PUSH_MERGE_CEILING_SECONDS`,
-and not under the push's stall window:
-a merge driver that rewrites a scratch file for ever shows progress in every sample,
-so only a ceiling on the whole command ends it.
+runs under the push's stall window and, beside it, under a total ceiling,
+300 seconds by default and settable with `CLI_GIT_PUSH_MERGE_CEILING_SECONDS`:
+the window ends a command that shows no sign of work,
+and only the ceiling ends one that keeps working without ever returning,
+because a merge driver that rewrites a scratch file for ever shows progress in every sample.
 The measured cost of the step is 396 ms and 403 ms for a merge of one 7 MiB file the pass resolves
 (load average 66 to 75 on 8 CPUs),
 and the pass takes no file past 8 MiB,

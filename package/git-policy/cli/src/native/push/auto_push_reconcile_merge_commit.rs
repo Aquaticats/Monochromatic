@@ -87,9 +87,10 @@ impl GitRunner for PushRunner<'_> {
     fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String> {
         let shown: String = arguments.join(" ");
         let cap: u64 = answer_cap(arguments, input);
-        // A merge step gets a total ceiling: a driver that keeps rewriting a file shows progress for ever, so the stall window can never end it.
-        let patience: Patience = Patience::Fixed(merge_ceiling(self.git.environment.as_slice()));
-        let output: QueryOutput = match run_query_with_input(self.git, &argv(arguments), input.map(<[u8]>::to_vec), index_file, patience, cap) {
+        // A merge step keeps the stall window a query has and adds a total ceiling: a driver that keeps rewriting a file shows progress for ever, so only the ceiling ends it.
+        let patience: Patience = Patience::Progress { stall: crate::bounded_query::query_window(self.git.environment.as_slice()) };
+        let ceiling: Option<std::time::Duration> = Some(merge_ceiling(self.git.environment.as_slice()));
+        let output: QueryOutput = match run_query_with_input(self.git, &argv(arguments), input.map(<[u8]>::to_vec), index_file, patience, ceiling, cap) {
             Ok(output) => output,
             Err(refusal) => return Err(format!("git {shown} could not be run: {refusal}")),
         };

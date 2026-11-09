@@ -136,7 +136,7 @@ pub fn run_bounded_query(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git(command, arguments, Patience::Progress { stall: window }, grace, environment, None, MAX_PUSH_OUTPUT);
+    return run_bounded_git(command, arguments, Patience::Progress { stall: window }, None, grace, environment, None, MAX_PUSH_OUTPUT);
 }
 
 /// What:
@@ -153,12 +153,13 @@ pub fn run_bounded_git(
     command: Command,
     arguments: &str,
     patience: Patience,
+    ceiling: Option<Duration>,
     grace: Duration,
     environment: &[(OsString, OsString)],
     input: Option<Vec<u8>>,
     cap: u64,
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, patience, grace, environment, input, cap)) {
+    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, patience, ceiling, grace, environment, input, cap)) {
         Ok(output) => output,
         Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
     };
@@ -185,7 +186,7 @@ pub async fn run_bounded_query_awaiting(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git_awaiting(command, arguments, Patience::Progress { stall: window }, grace, environment, None, MAX_PUSH_OUTPUT).await;
+    return run_bounded_git_awaiting(command, arguments, Patience::Progress { stall: window }, None, grace, environment, None, MAX_PUSH_OUTPUT).await;
 }
 
 /// What:
@@ -213,6 +214,7 @@ pub async fn run_bounded_git_awaiting(
     mut command: Command,
     arguments: &str,
     patience: Patience,
+    ceiling: Option<Duration>,
     grace: Duration,
     environment: &[(OsString, OsString)],
     input: Option<Vec<u8>>,
@@ -245,8 +247,18 @@ pub async fn run_bounded_git_awaiting(
     }
     let mut child: OwnedChild = adopt(started);
     let mut quiet: Option<Duration> = None;
-    let ended: Result<ExitStatus, StopCause> =
-        wait_until_done_up_to(&mut child, &[&stdout, &stderr], patience, cap, &mut quiet, stop.as_ref()).await?;
+    // The progress window and the total ceiling are two bounds: a silent command is stopped by the first, and one that keeps working without returning only by the second.
+    let watched: [&File; 2] = [&stdout, &stderr];
+    let ended: Result<ExitStatus, StopCause> = match ceiling {
+        Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, watched.as_slice(), patience, cap, &mut quiet, stop.as_ref())).await {
+            Ok(outcome) => outcome?,
+            Err(_passed) => {
+                stop_push(child, grace, locks).await;
+                return Err(SingleFlightError::Ceiling { arguments: arguments.to_owned(), seconds: total.as_secs() });
+            }
+        },
+        None => wait_until_done_up_to(&mut child, watched.as_slice(), patience, cap, &mut quiet, stop.as_ref()).await?,
+    };
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
     if let Some(gap) = quiet {
         quiet_ledger::note(step.as_str(), gap, ended.is_err());
@@ -261,15 +273,11 @@ pub async fn run_bounded_git_awaiting(
             stop_push(child, grace, locks).await;
             Err(match cause {
                 // A query waits on its signs of work, so only a stall reaches here; a deadline is the same wait.
-                StopCause::Deadline | StopCause::Stalled(_) => match patience {
-                    // A ceiling is a limit on how long the command may run in all, not a claim that it was idle.
-                    Patience::Fixed(ceiling) => SingleFlightError::Ceiling {
-                        arguments: arguments.to_owned(),
-                        seconds: ceiling.as_secs(),
-                    },
-                    Patience::Progress { stall } => SingleFlightError::TimedOut {
-                        arguments: arguments.to_owned(),
-                        seconds: stall.as_secs(),
+                StopCause::Deadline | StopCause::Stalled(_) => SingleFlightError::TimedOut {
+                    arguments: arguments.to_owned(),
+                    seconds: match patience {
+                        Patience::Fixed(bound) => bound.as_secs(),
+                        Patience::Progress { stall } => stall.as_secs(),
                     },
                 },
                 StopCause::ServiceStopped => SingleFlightError::Start(ended_by_the_stop(step.as_str())),

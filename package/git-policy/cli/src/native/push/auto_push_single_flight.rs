@@ -285,13 +285,14 @@ pub fn run_query_with_input(
     input: Option<Vec<u8>>,
     index_file: Option<&Path>,
     patience: Patience,
+    ceiling: Option<std::time::Duration>,
     cap: u64,
 ) -> Result<QueryOutput, SingleFlightError> {
     let mut command: Command = git_command(git, arguments);
     if let Some(index) = index_file {
         command.env("GIT_INDEX_FILE", index);
     }
-    return run_bounded_git(command, describe_arguments(arguments).as_str(), patience, STOP_GRACE, git.environment.as_slice(), input, cap);
+    return run_bounded_git(command, describe_arguments(arguments).as_str(), patience, ceiling, STOP_GRACE, git.environment.as_slice(), input, cap);
 }
 
 /// Query behavior is controlled in the test module.

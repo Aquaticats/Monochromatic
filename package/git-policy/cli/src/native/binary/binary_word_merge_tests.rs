@@ -569,14 +569,22 @@ fn children_of(pid: u32) -> Vec<u32> {
     return found;
 }
 
-/// Whether a process is the word pass's own attribute query.
+/// Whether a process is one the word pass itself starts,
+/// which it does before it computes a merge and before it looks at the index again.
+/// Why:
+///   The pass's own `check-attr` and its `cat-file --batch` both run inside it,
+/// and a commit's content policy starts a `check-attr` too,
+/// which the `--stdin` of the pass's invocation tells apart.
 fn is_the_pass_query(pid: u32) -> bool {
     let arguments: Vec<u8> = match std::fs::read(format!("/proc/{pid}/cmdline")) {
         Ok(bytes) => bytes,
         Err(_) => return false,
     };
-    // The pass's own query, not the one a commit's content policy runs.
-    return arguments.windows(10).any(|part| { return part == b"check-attr"; }) && arguments.windows(8).any(|part| { return part == b"--stdin\0"; });
+    let has = |word: &[u8]| -> bool { return arguments.windows(word.len()).any(|part| { return part == word; }); };
+    if has(b"cat-file") && has(b"--batch") {
+        return true;
+    }
+    return has(b"check-attr") && has(b"--stdin\0");
 }
 
 /// What:
@@ -592,7 +600,7 @@ fn is_the_pass_query(pid: u32) -> bool {
 /// so a control never waits for ever.
 fn during_the_pass(root: u32, when: impl FnOnce() + Send + 'static) -> std::thread::JoinHandle<bool> {
     return std::thread::spawn(move || {
-        let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(15);
         while std::time::Instant::now() < deadline {
             let mut waiting: Vec<u32> = vec![root];
             for _depth in 0..4 {
