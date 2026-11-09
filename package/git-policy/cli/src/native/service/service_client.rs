@@ -32,7 +32,7 @@ pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, F
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
-use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice};
+use crate::service_messages::{ClientFailure, NOT_STARTED_NOTICE, SILENT_NOTICE, position_notice};
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
 };
@@ -163,6 +163,42 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
     }
 }
 
+/// What:
+///  Says where a waiting commit stands once it has waited long enough to matter:
+/// how many commits the service put before it,
+/// or that the service has not started on it.
+/// Why:
+///   Two commits waited 62 and 32 seconds and said nothing about themselves,
+/// and a person cannot tell a commit the service has not
+///  reached from one it has lost.
+/// The telling costs one clock read of the loop the client already runs and one line;
+/// it waits for nothing,
+///  takes no lock and writes no file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sayWhereItStands(notices, config, parked, place, told)
+/// ```
+fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, place: Option<(usize, usize)>, told: &mut Option<Option<usize>>) {
+    let Some(since) = parked else {
+        return;
+    };
+    if since.elapsed() < config.waiting_notice_after {
+        return;
+    }
+    // What the person was last told: the place the service named, or nothing when it named none.
+    let named: Option<usize> = place.map(|(number, _of)| number);
+    if *told == Some(named) {
+        return;
+    }
+    *told = Some(named);
+    let words: String = match place {
+        Some((number, of)) => position_notice(number, of),
+        None => String::from(NOT_STARTED_NOTICE),
+    };
+    let _written = writeln!(notices, "{words}");
+}
+
 /// The sends and the waits of `submit_traced`.
 ///
 /// The wait for the answer lasts as long as the service keeps sending,
@@ -178,7 +214,11 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
     let mut announced: bool = false;
     let mut breaks: usize = 0;
-    let mut last_position: Option<usize> = None;
+    // The place the service named for this commit, as it named it, and the place the person was last told.
+    let mut last_place: Option<(usize, usize)> = None;
+    let mut told_place: Option<Option<usize>> = None;
+    // When the request line first reached the service, which is where the wait the telling answers begins.
+    let mut parked: Option<Instant> = None;
     let mut holder: Option<String> = None;
     let mut service_seen: bool = false;
     let mut last_break_was_silence: bool = false;
@@ -206,9 +246,15 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             continue;
         }
         trace.sends += 1;
+        if parked.is_none() {
+            parked = Some(Instant::now());
+        }
         renew_scratch(config, &mut last_renewed);
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
+            // Where the commit stands is said here, before each wait, so a service that sends nothing at all is answered
+            //  in the same words as one that only beats: neither has started on this commit.
+            say_where_it_stands(notices, config, parked, last_place, &mut told_place);
             let heard: Heard = listen(&mut reader);
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config, &mut last_renewed);
@@ -234,10 +280,11 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             }
             match heard {
                 Heard::Message(ServiceMessage::Position { number, of }) => {
-                    if last_position != Some(number) {
-                        last_position = Some(number);
+                    // Every place the service names is recorded, printed or not; the person is told it once the wait has
+                    //  mattered, so a commit that lands at once says nothing new.
+                    if last_place.map(|(named, _of)| named) != Some(number) {
+                        last_place = Some((number, of));
                         trace.positions.push(number);
-                        let _written = writeln!(notices, "{}", position_notice(number, of));
                     }
                 }
                 Heard::Message(ServiceMessage::Landed { commit, already, .. }) => break Some(Ok(Submitted::Landed { commit, already })),
