@@ -7110,6 +7110,15 @@ the btrfs ladder replaced the copy on btrfs hosts,
 but main still has the older lock-based copy modules,
 which no review covers.
 No later decision to merge or drop it is recorded.
+The audit of those modules on main,
+with a verdict per finding and the branch's options,
+is `doc/planning/cli-git-copy-route-findings-on-main.md`
+(2026-11-09;
+main at `64596b62f4`),
+and it records two reachable defects there
+(a lost copy with no notice,
+and a copy into a registration the command did not create),
+so "may be moot" does not extend to the copy route itself.
 The v3 decision "do not fix these on the current
 repository-wide layout" (2026-11-01) stands until then.
 
