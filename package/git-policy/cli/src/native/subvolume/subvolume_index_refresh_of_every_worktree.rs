@@ -276,30 +276,49 @@ pub fn refresh_all_indexes_with(request: &AllIndexes, say: &mut dyn LineSink) ->
 }
 
 /// What:
-///  `refresh_all_indexes` on the runtime:
-/// every index is a task of the awaited ordered runner,
-/// and each rewrite is one job of the blocking pool inside its task.
+///  Everything one run reads before its rewrites start:
+/// the indexes with the trees they describe,
+/// the length of the repository's object hashes,
+/// and the size of the largest index.
 /// Why:
-///   A caller that is itself asynchronous cannot enter the runtime,
-/// so it awaits this face;
-/// the lines and the count are the synchronous face's.
-/// One limit,
-/// said rather than hidden:
-/// the storage reads this face makes before the run (the hash length,
-/// the linked worktrees and the size of each index) run on the task that awaits it,
-/// not on the blocking pool,
-/// because a job of the pool must own what it reads.
-/// They are a handful of short reads once per migration.
+///  The preparation runs as one job of the blocking pool
+/// (`prepare_the_run`),
+///  so it owns what it reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function refreshAllIndexesAwaiting({ root, lock, references, host, rewrite }, say): Promise<number>;
+/// type PreparedRun = { targets: IndexTarget[]; hashLength?: number; largest: number };
 /// ```
-pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn LineSink) -> Result<usize, MigrateError> {
-    let AllIndexes { root, lock, references, host, rewrite } = request;
+struct PreparedRun {
+    /// The indexes and the trees they describe,
+    /// in the order they are reported.
+    targets: Vec<IndexTarget>,
+    /// The length of the repository's object hashes,
+    /// when it could be read.
+    hash_length: Option<usize>,
+    /// The largest index of the run,
+    /// in bytes,
+    /// which the budget divides the free memory by.
+    largest: u64,
+}
+
+/// What:
+///  Reads what one run needs before its rewrites start.
+/// Why:
+///  These are the only storage reads of a run that do not happen in an item's job,
+/// and the first of them is the repository's configuration:
+/// a named pipe there blocks the open until a writer comes,
+/// which must happen on the blocking pool and never on the thread that polls the runtime
+/// (`refresh_all_indexes_awaiting`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function prepareTheRun(root: string, references: string[]): PreparedRun;
+/// ```
+fn prepare_the_run(root: &Path, references: &[PathBuf]) -> PreparedRun {
     let hash_length: Option<usize> = repository_hash_length(root.join(".git").as_path());
-    let mut targets: Vec<IndexTarget> = vec![IndexTarget { index: root.join(".git").join("index"), tree: root.clone(), references: references.clone() }];
-    for linked in linked_worktrees_inside(root.as_path()) {
+    let mut targets: Vec<IndexTarget> = vec![IndexTarget { index: root.join(".git").join("index"), tree: root.to_path_buf(), references: references.to_vec() }];
+    for linked in linked_worktrees_inside(root) {
         let relative: &Path = linked.worktree.strip_prefix(root).unwrap_or(Path::new(""));
         targets.push(IndexTarget {
             index: linked.admin_directory.join("index"),
@@ -315,6 +334,41 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
         };
         largest = largest.max(size);
     }
+    return PreparedRun { targets, hash_length, largest };
+}
+
+/// What:
+///  `refresh_all_indexes` on the runtime:
+/// the storage reads that come first are one job of the blocking pool,
+/// every index is a task of the awaited ordered runner,
+/// and each rewrite is one job of the blocking pool inside its task.
+/// Why:
+///   A caller that is itself asynchronous cannot enter the runtime,
+/// so it awaits this face;
+/// the lines and the count are the synchronous face's.
+/// The preparation is a job of the pool rather than a read on the awaiting task,
+/// because the first of those reads is the repository's configuration with a synchronous `std::fs::read`
+/// (`repository_hash_length`),
+/// and a named pipe where that file is blocks the open until a writer comes:
+/// on the runtime's own thread the future would never reach an await,
+/// no timeout could expire,
+/// and every other task of that runtime would stop with it
+/// ("nothing should ever wait forever").
+/// On the pool a thread waits there instead, and the caller's timeout expires.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function refreshAllIndexesAwaiting({ root, lock, references, host, rewrite }, say): Promise<number>;
+/// ```
+pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn LineSink) -> Result<usize, MigrateError> {
+    let AllIndexes { root, lock, references, host, rewrite } = request;
+    let (root_owned, references_owned): (PathBuf, Vec<PathBuf>) = (root.clone(), references.clone());
+    let prepared: PreparedRun = match run_blocking_job_within_the_budget(move || { return prepare_the_run(root_owned.as_path(), references_owned.as_slice()); }).await {
+        Ok(prepared) => prepared,
+        // Nothing was read and nothing was rewritten, and the runtime's own reason is why.
+        Err(refused) => return Err(MigrateError::Runtime(refused.to_string())),
+    };
+    let PreparedRun { targets, hash_length, largest } = prepared;
     let workers: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
     let mut lanes: Vec<Vec<usize>> = Vec::new();
     for index in 0..targets.len() {
@@ -353,6 +407,11 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
     }
     return Err(MigrateError::Runtime(format!("{}.", why.join(". "))));
 }
+
+/// Controls for the claim a rewrite takes stay out of the release executable.
+#[cfg(test)]
+#[path = "subvolume_index_refresh_of_every_worktree_tests.rs"]
+mod tests;
 
 /// Each reference tree path joined with `relative`,
 /// in order.

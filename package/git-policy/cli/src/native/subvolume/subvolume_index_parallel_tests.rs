@@ -269,6 +269,11 @@ fn an_index_whose_rewrite_ended_without_a_result_is_not_promised_to_be_as_it_was
 
 /// What:
 ///  A report that says an index rewrite could not be started leaves no job that can rewrite that index later.
+///  With the preparation itself a job of the blocking pool (`prepare_the_run`),
+/// a process with no thread to start now fails at the preparation,
+///  so the rewrites are never even queued:
+/// the control pins that no rewrite runs after the report either way,
+///  and its message keeps the uncertainty.
 /// Why:
 ///  The pool queues a job before it asks for a thread (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
 /// `spawn_task`),
@@ -311,8 +316,8 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
         "the report said the work of each index was given up on before it could start, and {ran_afterwards} of them ran afterwards, so the indexes are not as they were: {said}"
     );
     assert!(
-        promised_unchanged || said.contains("not known"),
-        "the report must say either that no rewrite could start or that its result is not known: {said}"
+        promised_unchanged || said.contains("not known") || said.contains("had not started when that was reported"),
+        "the report must say either that no rewrite could start or that the work it lost had not started: {said}"
     );
     remove(parent.as_path());
 }
