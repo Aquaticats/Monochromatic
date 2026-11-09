@@ -53,6 +53,48 @@ fn starts_without_a_main_checkout_are_refused_with_the_reason() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A `.git` that is a named pipe with no writer ends discovery at once with a reason.
+/// Why:
+///   Discovery used a blocking read,
+/// so a FIFO at `.git` waited for a writer that never comes,
+/// with
+///  nothing said and no end.
+#[test]
+fn a_named_pipe_where_the_gitfile_belongs_is_refused_at_once() {
+    let parent: PathBuf = fixture("command-gitfile-pipe");
+    let start: PathBuf = parent.join("checkout");
+    std::fs::create_dir_all(start.as_path()).expect("directory");
+    crate::subvolume_sync_attrs::make_fifo(start.join(".git").as_path(), 0o600).expect("named pipe");
+    let discovery = crate::test_support::finished_within(move || { return main_checkout_root(start.as_path()); });
+    let Some(outcome) = discovery else { panic!("discovery did not finish within five seconds") };
+    let reason: String = outcome.expect_err("refused");
+    assert!(reason.contains("not a plain file") && reason.contains(".git"), "{reason}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A `commondir` that is a named pipe with no writer ends discovery at once with a reason.
+/// Why:
+///   A linked worktree's discovery reads its administrative directory's `commondir`,
+/// and a blocking read there
+///  waits with nothing said and no end.
+#[test]
+fn a_named_pipe_where_the_commondir_belongs_is_refused_at_once() {
+    let parent: PathBuf = fixture("command-commondir-pipe");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "../linked"]);
+    let common: PathBuf = root.join(".git/worktrees/linked/commondir");
+    std::fs::remove_file(common.as_path()).expect("remove the commondir file");
+    crate::subvolume_sync_attrs::make_fifo(common.as_path(), 0o600).expect("named pipe");
+    let start: PathBuf = parent.join("linked");
+    let discovery = crate::test_support::finished_within(move || { return main_checkout_root(start.as_path()); });
+    let Some(outcome) = discovery else { panic!("discovery did not finish within five seconds") };
+    let reason: String = outcome.expect_err("refused");
+    assert!(reason.contains("not a plain file") && reason.contains("commondir"), "{reason}");
+    remove(parent.as_path());
+}
+
 /// A `.git` file that is not a gitfile,
 /// one whose administrative directory has no `commondir`,
 /// and one that cannot be
