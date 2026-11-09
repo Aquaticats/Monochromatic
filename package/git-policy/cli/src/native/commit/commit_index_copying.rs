@@ -74,8 +74,10 @@ pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io:
 pub enum PrivateIndexSeed {
     /// Copy the real index as it is.
     Copy,
-    /// Copy the real index as it is, marks included:
-    /// its intent-to-add entries are selections a later step stages, so no early return may skip them.
+    /// Copy the real index as it is,
+    /// marks included:
+    /// its intent-to-add entries are selections a later step stages,
+    /// so no early return may skip them.
     CopyWithIntentToAdd,
     /// Build the private index from the base alone.
     Base,

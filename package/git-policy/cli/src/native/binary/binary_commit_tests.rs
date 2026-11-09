@@ -754,11 +754,15 @@ fn intent_empty_with_subdirectory(fixture: &Fixture, name: &str) -> PathBuf {
 }
 
 /// A commit run from a subdirectory keeps a tracked empty file the real index holds as intent-to-add with the entry's
-/// mode and object name equal to the base's, where native Git leaves that path out of its tree.
+/// mode and object name equal to the base's,
+/// where native Git leaves that path out of its tree.
 /// Why the wrapper keeps it:
-/// the file's removal is not the person's work, and the scratch `git commit` builds its tree from the base for every
-/// path the command does not name (`SPEC.md`, "Explicit-path commit").
-/// The repository turns `require-root` off, because the shipped default refuses every command run below the root.
+/// the file's removal is not the person's work,
+/// and the scratch `git commit` builds its tree from the base for every
+/// path the command does not name (`SPEC.md`,
+/// "Explicit-path commit").
+/// The repository turns `require-root` off,
+/// because the shipped default refuses every command run below the root.
 #[test]
 fn an_intent_to_add_entry_equal_to_the_base_stays_in_the_commit_where_native_git_drops_it() {
     let fixture: Fixture = fixture("commit-intent-subdirectory");

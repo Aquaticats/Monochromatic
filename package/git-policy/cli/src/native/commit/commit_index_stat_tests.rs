@@ -201,10 +201,12 @@ fn a_named_skip_worktree_file_does_not_fail_the_commit() {
 
 /// A tracked empty file that the real index holds as intent-to-add leaves the tree the private index produces when the
 /// commit names another path:
-/// the entry's mode and object name equal the base's, so the reset leaves the mark as Git's own reset does,
+/// the entry's mode and object name equal the base's,
+/// so the reset leaves the mark as Git's own reset does,
 /// and a tree built from an index that holds it leaves that path out.
 /// Native Git commits the same tree for the same fixture
-/// (`an_explicit_path_commit_from_a_subdirectory_matches_gits_tree_for_a_root_mark`, `binary_commit_tests.rs`).
+/// (`an_explicit_path_commit_from_a_subdirectory_matches_gits_tree_for_a_root_mark`,
+/// `binary_commit_tests.rs`).
 #[test]
 fn an_intent_to_add_entry_equal_to_the_base_leaves_its_path_out_of_the_commit() {
     let root: PathBuf = fixture("commit-index-intent-empty");
@@ -232,7 +234,8 @@ fn an_intent_to_add_entry_equal_to_the_base_leaves_its_path_out_of_the_commit() 
 
 /// An index no mark touches seeds the private index as a plain copy,
 /// so the safeguard costs nothing for it;
-/// an index whose only marks are intent-to-add entries seeds it too, copied as it is;
+/// an index whose only marks are intent-to-add entries seeds it too,
+/// copied as it is;
 /// an assume-unchanged entry sends the build to the base,
 /// and an absent file seeds nothing.
 #[test]
