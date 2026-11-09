@@ -56,6 +56,11 @@ impl Job<'_> {
     /// Record a phase durably.
     pub fn reach(&mut self, phase: Phase) -> Result<(), MigrateError> {
         self.journal.phase = phase;
+        if phase == Phase::Synced {
+            // The proving pass just finished, so from this instant on a file that changes is one the removal compares by
+            // contents; on a resume before the swap the pass runs again and the instant moves with it.
+            self.journal.synced_ms = Some(crate::worktree_convert_journal::now_milliseconds());
+        }
         return self.journal.save(self.candidate.admin.as_path());
     }
 
@@ -470,7 +475,7 @@ pub fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Int
     if !holders.is_empty() {
         return Err(MigrateError::Journal(format!("the old tree at {} is kept because {}; stop that and run the command again", job.converting.display(), holders.join("; "))));
     }
-    match remove_recorded_old_tree(platform, &parent, job.converting_name(), job.journal.old_identity, job.candidate.path.as_path())? {
+    match remove_recorded_old_tree(platform, &parent, job.converting_name(), job.journal.old_identity, job.candidate.path.as_path(), job.journal.synced_ms)? {
         Removal::Removed | Removal::Absent => {}
         Removal::Kept(why) => {
             return Err(MigrateError::Journal(format!("the old tree was not removed: {why}; the journal is kept, so put things right and run the command again")));

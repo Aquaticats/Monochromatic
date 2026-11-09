@@ -116,7 +116,7 @@ impl Phase {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConvertJournal = { phase: Phase; token: string; path: string; oldIdentity: ObjectId; gitFile: Uint8Array; newIdentity?: ObjectId };
+/// type ConvertJournal = { phase: Phase; token: string; path: string; oldIdentity: ObjectId; gitFile: Uint8Array; newIdentity?: ObjectId; syncedMs?: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Journal {
@@ -142,6 +142,14 @@ pub struct Journal {
     /// so a
     ///  directory at the converting name that the journal has no identity for is foreign.
     pub new_identity: Option<ObjectId>,
+    /// When the proving pass that made the copy equal to the original finished,
+    /// in milliseconds after the epoch;
+    /// absent in
+    ///  a journal written by an earlier release.
+    /// The removal compares the contents of a file whose change time is at or
+    ///  after this instant,
+    /// because no other compared field can see such a change.
+    pub synced_ms: Option<i64>,
 }
 
 /// What:
@@ -205,6 +213,16 @@ fn number_from_digits<Number: std::str::FromStr>(digits: String) -> Option<Numbe
 /// ```
 fn sync_directory_of(admin: &Path) -> std::io::Result<()> {
     return crate::subvolume_file_write_steps::sync_directory_to_disk(admin);
+}
+
+/// The clock reading the journal records:
+/// milliseconds after the epoch,
+/// and nothing before it.
+pub fn now_milliseconds() -> i64 {
+    return match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+        Err(_before_epoch) => 0,
+    };
 }
 
 /// What:
@@ -345,7 +363,7 @@ impl Journal {
     /// The journal text.
     fn encode(&self) -> String {
         return format!(
-            "{JOURNAL_HEADER}\nphase={}\ntoken={}\npath={}\nold_identity={}\ngit_file={}\nnew_identity={}\n",
+            "{JOURNAL_HEADER}\nphase={}\ntoken={}\npath={}\nold_identity={}\ngit_file={}\nnew_identity={}\nsynced_ms={}\n",
             self.phase.name(),
             self.token,
             hex(self.path.as_slice()),
@@ -353,6 +371,10 @@ impl Journal {
             hex(self.git_file.as_slice()),
             match self.new_identity {
                 Some(identity) => identity.encode(),
+                None => String::from("-"),
+            },
+            match self.synced_ms {
+                Some(milliseconds) => milliseconds.to_string(),
                 None => String::from("-"),
             }
         );
@@ -384,6 +406,8 @@ impl Journal {
             old_identity,
             git_file: unhex(field_of(text, "git_file").ok_or_else(unknown_shape)?.as_str()).ok_or_else(unknown_shape)?,
             new_identity,
+            // A journal written by an earlier release has no proof time; the removal then compares every file's contents.
+            synced_ms: field_of(text, "synced_ms").and_then(number_from_digits),
         });
     }
 

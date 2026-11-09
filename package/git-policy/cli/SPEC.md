@@ -1492,6 +1492,22 @@ owner and group,
 and 38.02 with the attributes as well,
 which is 0.62 s more on that tree,
 paid once per conversion.
+A regular file whose size and modification time agree is also compared by contents when its change time
+is at or after the instant the proving pass finished,
+which the journal records:
+an edit can keep the length and put the modification time back,
+and the change time cannot be put back by an ordinary user.
+A journal written by an earlier release records no such instant,
+and then every regular file's contents are compared.
+Only the files the change time flags are read,
+so a conversion nothing was changed in reads no contents at all.
+The measurement behind that choice,
+on this repository's largest worktree (28,569,216,018 bytes in 115,067 files,
+144,633 entries,
+2026-11-09 under the host's build load):
+reading one side's contents took 125.7 s for 2.0 GiB at 5.46 ms a file,
+so reading both sides of that whole tree would take about 56 minutes,
+while the walk that reads no contents took 43.0 s.
 It copies nothing from the old tree to the installed one;
 a holder or a difference keeps the old tree,
 the journal stays,
@@ -1585,6 +1601,10 @@ the plain files beside the journal under the writer's own names (that fixed name
 which is safe because the numbered claim file `.cli-git-migrate-<name>.owner.<generation>` leaves one writer per checkout;
 a link,
 a directory or any other name stays.
+The conversion's journal also records when its proving pass finished,
+in milliseconds after the epoch,
+so the removal can tell a file changed after the proof from one the copy already carried;
+a journal written by an earlier release has no such field.
 The migration's list of files this user may not read is published the same way:
 staged in a sibling created exclusively and mode owner-only,
 synchronized,
