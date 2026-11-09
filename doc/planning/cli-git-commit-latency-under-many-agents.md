@@ -356,6 +356,7 @@ What the `otherMs` share holds is what a command does outside those phases:
 the removal of the scratch tree when the command ends
 (one `unlinkat` of 2.5 s in a shaped fixture),
 the wrapper writing what the person reads on standard error,
+whose write waits for its reader,
 and the start of the command before its first phase.
 
 Which side each comes from:
