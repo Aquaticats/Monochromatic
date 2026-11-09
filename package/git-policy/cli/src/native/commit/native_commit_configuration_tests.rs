@@ -89,10 +89,31 @@ fn every_character_the_format_treats_specially_reads_back_from_the_carried_file(
 /// and nothing else.
 #[test]
 fn the_keys_are_the_signing_and_message_keys_and_trailers() {
-    for key in ["commit.gpgsign", "user.signingkey", "gpg.format", "gpg.openpgp.program", "commit.template", "core.commentchar", "trailer.reviewed-by.value"] {
+    for key in [
+        "commit.gpgsign",
+        "user.signingkey",
+        "commit.template",
+        "core.commentchar",
+        "trailer.reviewed-by.value",
+    ] {
         assert!(is_native_commit_key(key), "{key}");
     }
-    for key in ["core.filemode", "user.name", "commit.gpgsign2", "gpg.ssh.allowedsignersfile.bak"] {
+    // Every key `git_gpg_config` in Git 2.56.0's `gpg-interface.c` reads,
+    // because a format whose program is missing signs with the default program instead.
+    for key in [
+        "gpg.format",
+        "gpg.program",
+        "gpg.openpgp.program",
+        "gpg.x509.program",
+        "gpg.ssh.program",
+        "gpg.mintrustlevel",
+        "gpg.ssh.defaultkeycommand",
+        "gpg.ssh.allowedsignersfile",
+        "gpg.ssh.revocationfile",
+    ] {
+        assert!(is_native_commit_key(key), "{key}");
+    }
+    for key in ["core.filemode", "user.name", "commit.gpgsign2", "gpg", "gpgx.format"] {
         assert!(!is_native_commit_key(key), "{key}");
     }
 }

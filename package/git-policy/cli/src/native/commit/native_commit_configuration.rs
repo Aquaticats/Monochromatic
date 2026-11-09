@@ -49,28 +49,33 @@ pub const NATIVE_COMMIT_CONFIGURATION_NAME: &str = "native-commit.config";
 ///  signing,
 ///  its format and programs,
 ///  and the message-shaping keys.
-///  `trailer.*` keys are of this kind too and are matched by prefix.
-///  `gpg.program` is the legacy name of `gpg.openpgp.program`,
-///  so both are carried:
-///  the listing keeps the order Git resolved them in,
-///  and the later entry is the program Git signs with.
+///  `trailer.*` keys are of this kind too and are matched by prefix,
+///  and so is every `gpg.*` key,
+///  which is the whole set `git_gpg_config` in Git 2.56.0's `gpg-interface.c` reads:
+///  `gpg.format`,
+///  the program of each format (`gpg.program`,
+///  the legacy name of `gpg.openpgp.program`,
+///  `gpg.openpgp.program`,
+///  `gpg.x509.program` and `gpg.ssh.program`),
+///  `gpg.mintrustlevel`,
+///  `gpg.ssh.defaultkeycommand`,
+///  `gpg.ssh.allowedsignersfile` and
+///  `gpg.ssh.revocationfile`.
+///  A prefix is what carries a program a format needs,
+///  rather than one key named now and the next one missed:
+///  a format whose program was missing signed with the default program instead,
+///  which is a commit real Git makes and the shadow does not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const NATIVE_COMMIT_KEYS = ['commit.gpgsign', 'gpg.format', ...];
+/// const NATIVE_COMMIT_KEYS = ['commit.gpgsign', 'user.signingkey', ...]; // plus 'gpg.*' and 'trailer.*'
 /// ```
-const NATIVE_COMMIT_KEYS: [&str; 15] = [
+const NATIVE_COMMIT_KEYS: [&str; 9] = [
     "commit.gpgsign",
     "commit.signoff",
     "commit.template",
     "commit.cleanup",
     "commit.verbose",
-    "gpg.format",
-    "gpg.program",
-    "gpg.openpgp.program",
-    "gpg.ssh.program",
-    "gpg.ssh.defaultkeycommand",
-    "gpg.ssh.allowedsignersfile",
     "user.signingkey",
     "i18n.commitencoding",
     "core.commentchar",
@@ -85,10 +90,11 @@ const NATIVE_COMMIT_KEYS: [&str; 15] = [
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isNativeCommitKey = (key: string) => NATIVE_COMMIT_KEYS.includes(key) || key.startsWith('trailer.');
+/// const isNativeCommitKey = (key: string) =>
+///   NATIVE_COMMIT_KEYS.includes(key) || key.startsWith('trailer.') || key.startsWith('gpg.');
 /// ```
 pub fn is_native_commit_key(key: &str) -> bool {
-    return NATIVE_COMMIT_KEYS.contains(&key) || key.starts_with("trailer.");
+    return NATIVE_COMMIT_KEYS.contains(&key) || key.starts_with("trailer.") || key.starts_with("gpg.");
 }
 
 /// What:

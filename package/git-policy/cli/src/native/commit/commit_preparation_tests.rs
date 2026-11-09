@@ -652,6 +652,47 @@ fn signing_from_an_exact_gitdir_include_reaches_the_shadow() {
     remove(root.as_path());
 }
 
+/// An `x509` signing program named in the exact `gitdir` include is the one the shadow's native commit runs:
+/// a person who configured a signer does not get the default program,
+/// which on this host does not exist at all.
+#[test]
+fn an_x509_program_from_an_exact_gitdir_include_reaches_the_shadow() {
+    let root: PathBuf = fixture("commit-preparation-x509-signing");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    let calls: PathBuf = root.join("signer-calls");
+    let signer: PathBuf = root.join("stand-in-gpgsm");
+    let script: String = format!(
+        "#!/bin/sh\ncat > /dev/null\necho call >> '{}'\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN SIGNED MESSAGE-----\\n\\nstand-in\\n-----END SIGNED MESSAGE-----\\n'\n",
+        calls.display()
+    );
+    crate::test_support::executable(signer.as_path(), script.as_bytes());
+    let included: PathBuf = root.join("signing.config");
+    std::fs::write(
+        included.as_path(),
+        format!(
+            "[commit]\n\tgpgSign = true\n[gpg]\n\tformat = x509\n[gpg \"x509\"]\n\tprogram = {}\n[user]\n\tsigningKey = fixture\n",
+            signer.display()
+        ),
+    )
+    .expect("signing configuration");
+    // Only this exact Git directory selects the file, which is what no longer matches in the shadow.
+    let condition: String = format!("includeIf.gitdir:{}/.git.path", repo.display());
+    git(repo.as_path(), &["config", condition.as_str(), included.to_str().expect("UTF-8")]);
+    // The positive control: real Git signs this repository's commit with the configured program.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control"]);
+    assert!(
+        git_text(repo.as_path(), &["cat-file", "commit", "HEAD"]).contains("\ngpgsig "),
+        "the configured x509 program must sign the control, or this control proves nothing"
+    );
+    let after_control: usize = signer_calls(calls.as_path());
+    assert_eq!(after_control, 1, "real Git ran the configured x509 program once");
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    let prepared: PreparedCommit = prepare(&fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
+    assert!(prepared.signed, "the shadow must sign with the configured x509 program too");
+    assert_eq!(signer_calls(calls.as_path()), after_control + 1, "the shadow ran the configured x509 program, not the default one");
+    remove(root.as_path());
+}
+
 /// What:
 ///  A commit whose notice thread the system refused still has a ceiling,
 ///  because the wait that owns the step ends it.
