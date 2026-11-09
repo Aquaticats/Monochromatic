@@ -227,3 +227,26 @@ fn a_restart_says_each_batch_it_settled() {
 fn the_batch_cap_is_the_measured_cost_knee() {
     assert_eq!(MAX_BATCH, BATCH_COST_KNEE);
 }
+
+/// A batch lands everything it carries before it removes a scratch directory it released:
+/// the tree a queued landing still reads is there while the landings run,
+/// and gone only after them.
+#[test]
+fn a_batch_lands_before_it_removes_a_released_tree() {
+    let root: std::path::PathBuf = short_directory("released");
+    let tree: std::path::PathBuf = root.join("monochromatic-git-policy-cli-service-0a1b2c3d");
+    std::fs::create_dir_all(&tree).expect("the tree a queued landing reads");
+    std::fs::write(tree.join("conclusion"), b"copies the cleanup reads").expect("a conclusion copy");
+    let mut seen_by_the_landing: Option<bool> = None;
+    land_then_release(
+        || {
+            seen_by_the_landing = Some(tree.exists());
+        },
+        || {
+            let _removed = std::fs::remove_dir_all(&tree);
+        },
+    );
+    assert_eq!(seen_by_the_landing, Some(true), "a released tree is still there while the batch lands");
+    assert!(!tree.exists(), "the released tree goes once the batch has landed");
+    remove_short(root.as_path());
+}
