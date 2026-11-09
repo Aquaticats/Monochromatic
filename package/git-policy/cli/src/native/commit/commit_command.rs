@@ -20,6 +20,7 @@
 //! const post = await runPostCommitLifecycle({ ... }); await handOverPush({ ... });
 //! ```
 use crate::commit_timing::CommitTiming;
+use crate::commit_timing_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, hand_over};
 use crate::service_messages::render;
@@ -85,16 +86,19 @@ pub struct CommitEnding {
 
 /// What:
 ///  Write text to standard error,
-/// ignoring a closed stream.
+/// ignoring a closed stream,
+///  and counting the wait for its reader.
 /// Why:
 ///   The exit status already carries the result.
+///  The write is the one place a slow reader becomes time the commit spends,
+///  which the timing record states as `stderrMs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// process.stderr.write(text);
 /// ```
 fn write_stderr(text: &str) {
-    let mut stream = std::io::stderr();
+    let mut stream: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
     let _ = stream.write_all(text.as_bytes());
     let _ = stream.flush();
 }
@@ -251,7 +255,7 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         config: command.config.policies.clone(),
         controls: command.controls.clone(),
     };
-    let mut stderr = std::io::stderr();
+    let mut stderr: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
     let gating: Instant = Instant::now();
     let gate = run_post_commit_gate(&request);
     timing.gate += gating.elapsed();

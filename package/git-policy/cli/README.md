@@ -4666,6 +4666,16 @@ all durations in whole milliseconds taken from the monotonic clock:
   leaving the work records and waking the service,
   which reaches the service a second time.
   It is not split into a reach and a wait.
+- `scratchRemovalMs`,
+  `removalsThatDidNotFinish` and `stderrMs`
+  are the two costs measured wherever they fell,
+  so a reading can say which of them a slow `otherMs` was:
+  the time spent removing scratch trees,
+  how many of those removals ended without finishing within their ceiling,
+  and the time spent writing to standard error,
+  which waits for whoever reads it.
+  They were added for the reading in
+  `doc/planning/cli-git-commit-latency-under-many-agents.md`.
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:

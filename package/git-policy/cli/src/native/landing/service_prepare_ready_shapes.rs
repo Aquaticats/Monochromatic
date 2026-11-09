@@ -25,6 +25,7 @@ use crate::commit_transaction::TransactionResult;
 use crate::lfs_pre_push::uses_lfs;
 use crate::policy_events::PolicyEvent;
 use crate::private_storage::remove_tree;
+use crate::commit_timing_outside_the_phases::note_scratch_removal;
 use crate::service_protocol::{Change, Cleanup};
 use crate::transaction_journal::{AddedPath, Conclusion, TransactionMode};
 use std::ffi::OsString;
@@ -35,7 +36,11 @@ pub struct Scratch(pub PathBuf);
 
 impl Drop for Scratch {
     fn drop(&mut self) {
-        let _removed = remove_tree(self.0.as_path());
+        // The removal is timed for the timing record: it is one of the two costs a commit pays outside its phases, and a fixture
+        //  measured one `unlinkat` of it at 2.5 s.
+        let began: std::time::Instant = std::time::Instant::now();
+        let removed: std::io::Result<()> = remove_tree(self.0.as_path());
+        note_scratch_removal(began.elapsed(), removed.is_ok());
     }
 }
 

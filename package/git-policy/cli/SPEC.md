@@ -7963,6 +7963,16 @@ the disjoint phases
 `handoffMs` and `otherMs`
 (the remainder,
 never negative),
+the two costs measured wherever they fell
+(`scratchRemovalMs`,
+`removalsThatDidNotFinish` and
+`stderrMs`:
+time spent removing scratch trees,
+how many of those removals ended without finishing within their ceiling,
+and time spent writing to standard error,
+which waits for whoever reads it;
+each of them lies inside whichever phase it fell in,
+and inside `otherMs` when no phase covers it),
 `indexBuilds`
 (one entry per build of the private commit index,
 in the order built:
