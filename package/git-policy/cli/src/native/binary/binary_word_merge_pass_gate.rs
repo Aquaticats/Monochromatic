@@ -198,7 +198,7 @@ fn both_ends(path: &Path) -> std::fs::File {
         .read(true)
         .write(true)
         .open(path)
-        .unwrap_or_else(|error| { return panic!("the pipe at {} ({error})", path.display()); });
+        .unwrap_or_else(|error| panic!("the pipe at {} ({error})", path.display()));
 }
 
 /// What:
