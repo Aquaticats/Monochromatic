@@ -172,7 +172,8 @@ impl Marks {
     /// as the waiting thread's end mark does,
     /// and keeps the quiet gap it measured.
     /// Why:
-    ///   A wait can end without a mark: the pin of the child reports it gone,
+    ///   A wait can end without a mark:
+    /// the pin of the child reports it gone,
     /// a stop of the service ends it,
     ///  and the watcher itself ends it after a quiet window or a ceiling.
     /// Every one of those ends the same way,

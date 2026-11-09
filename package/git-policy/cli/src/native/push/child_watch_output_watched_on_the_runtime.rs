@@ -41,7 +41,8 @@ use crate::child_watch_step_bounds_and_errors::{NotKnown, Outlived, StepBound, e
 use crate::output_capture::Capture;
 /// The child the wrapper adopted and the pidfd its end is awaited through.
 use crate::child_awaited_through_a_pidfd::adopt;
-/// Whether a task can run on this process's runtime at all, which is the question the rest of this run asks.
+/// Whether a task can run on this process's runtime at all,
+/// which is the question the rest of this run asks.
 use crate::lazy_runtime::tasks_can_run;
 /// Starts that ride out a short shortage of processes,
 /// without holding the worker.
