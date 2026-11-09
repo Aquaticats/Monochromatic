@@ -81,15 +81,34 @@ pub(crate) const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
 /// for example onto a tmpfs for speed.
 pub(crate) const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 
-/// The directory fixtures are created in:
-/// `test-fixtures` beside the build output of the running test executable
-///  (`<target>/debug/deps/<test>` has the target directory three levels up),
+/// What:
+///  The directory this process's fixtures are created in:
+///  `test-fixtures/process-<pid>` beside the build output of the running test executable
+/// (`<target>/debug/deps/<test>` has the target directory three levels up),
 /// never `/tmp`.
-/// A shared tmpfs with a per-user quota fills up when failing tests leave fixtures behind (issue 1809),
-/// and then
-/// every command of every session fails.
+/// Why:
+///   The build output is shared by every checkout that builds into the same target directory,
+/// so `test-fixtures` itself is
+///  shared by every checkout and every test process of this host.
+/// The names under it that are not the fixtures' own (the scratch home the product keeps
+///  its per-user state in,
+/// the marker `refused-push-ran`,
+/// the repositories `repository(root, name)` makes beside the fixtures)
+///  were one fixed
+///  name for all of them,
+/// so two runs at once shared them:
+/// two checkouts started at the same moment reported three subvolume controls failing in
+///  ten to twenty seconds while the same three passed alone.
+/// A directory of the process's own makes every fixed name below it the process's,
+/// and nothing else changes:
+///  fixtures are still removed by their own test and kept for inspection on request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const root = join(target, 'test-fixtures', `process-${process.pid}`);
+/// ```
 pub(crate) fn fixture_root() -> PathBuf {
-    let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
+    let base: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
         || {
             let target: Option<PathBuf> = this_test_binary()
                 .ok()
@@ -100,6 +119,7 @@ pub(crate) fn fixture_root() -> PathBuf {
         },
         PathBuf::from,
     );
+    let root: PathBuf = base.join(format!("process-{}", std::process::id()));
     std::fs::create_dir_all(&root).expect("fixture root");
     return root;
 }

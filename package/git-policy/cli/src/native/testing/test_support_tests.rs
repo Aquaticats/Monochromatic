@@ -61,7 +61,10 @@ fn the_fixture_root_is_not_the_system_temporary_directory() {
         return;
     }
     let root: PathBuf = fixture_root();
-    assert!(root.ends_with("test-fixtures"), "{}", root.display());
+    // The last component is this process's own directory, so the names under it that are not fixtures' own are the
+    //  process's: the build output above `test-fixtures` is shared by every checkout that builds here.
+    assert!(root.parent().is_some_and(|above| { return above.ends_with("test-fixtures"); }), "{}", root.display());
+    assert!(root.ends_with(format!("process-{}", std::process::id()).as_str()), "{}", root.display());
     // The system temporary directory is `TMPDIR` when set and `/tmp` otherwise; reading the variable compares against it
     // without calling the temporary-directory function that the lint configuration bans.
     let mut system: Vec<PathBuf> = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
