@@ -4642,6 +4642,16 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   before it says the
   result is not known (twice the longest branch write measured,
   3.4 s).
+- `LOOKING_FOR_A_LANDED_COMMIT` 10 seconds:
+  how long a client looks for the commit a request it already sent made,
+  after its answer was lost,
+  before it says the result is not known.
+  Twice the owner's 5 s bound on what a commit may add to native Git,
+  the derivation `WAITING_NOTICE_AFTER` uses;
+  it covers the 5 to 9 s inside which the audit of service restarts and version skew (2026-11-09) saw the client give up
+  while the commit landed seconds later.
+  The look waits only while an open batch of the journal names the request,
+  so a request nothing is landing costs one look and no wait.
 - `FOREIGN_OWNER_PATIENCE` 20 minutes:
   twice `LOCK_CEILING`,
   derived in code (`src/native/process/pid_namespace.rs`),
@@ -5140,12 +5150,29 @@ now inside these bounds:
   though the service may still land it;
   or that the branch could not be read,
   which keeps the words "not known whether the commit was made".
-  The read waits for nothing,
-  and a commit the service builds itself from the request leaves the third answer,
-  because the wrapper has no commit to compare the branch with (2026-11-09T07:44:20Z:
-  a message said the commit was
-  not known to have been made,
-  and the service landed it 73 seconds later).
+  Before that read,
+  and for every failure that means an answer was lost after the request was sent,
+  the client looks in the service's own journal for the commit the request made,
+  for at most `LOOKING_FOR_A_LANDED_COMMIT` (10 seconds):
+  a finished batch (`<seq>.done`) names the commit each of its requests became,
+  and an open batch (`<seq>.intent`) names the commit it is making,
+  which the branch then says is made or not yet;
+  a commit either of them shows is a landed commit and the command returns it with exit 0 through the same function.
+  The look waits only while an open batch names the request,
+  so a request nothing is landing costs one look and no wait.
+  A failure to reach a service again after a request was sent is never the "this commit was not made" text,
+  whatever it was (a start that failed,
+  a service of another release that would not stop,
+  a service of another protocol):
+  a request that was sent may have landed,
+  so that failure is the "stopped answering" one,
+  which says the result is not known and names the branch reads and the restart
+  (the audit of service restarts and version skew,
+  2026-11-09,
+  printed "this commit was not made ... Nothing in the repository changed" while the commit was on the branch).
+  A commit the service builds itself from the request is the case the journal answers where the branch alone could not:
+  the open batch names the commit it is making,
+  and the finished one names the commit it made.
 - A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
   so the sweep never
   removes the directory of a command that is still waiting;

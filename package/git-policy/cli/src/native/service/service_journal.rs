@@ -573,6 +573,39 @@ pub fn prune_done(dir: &Path, retained: usize) -> usize {
     return removed;
 }
 
+/// What:
+///  The records of the newest finished batches in the journal,
+/// newest first,
+/// read without removing anything.
+/// Why:
+///   A client whose answer was lost looks for the commit its own request made,
+/// and that batch is one of the
+///  newest: the request was sent seconds ago.
+/// Reading only those keeps a look that repeats until its bound cheap,
+///  where reading the journal's
+/// `DONE_RETAINED` records would re-read every one of them at each look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// newestFinishedBatchesReadOnly(dir, 16)
+/// ```
+pub fn newest_finished_batches_read_only(dir: &Path, newest: usize) -> Vec<(PathBuf, Option<Intent>)> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut finished: Vec<(u64, PathBuf)> = entries.flatten().filter_map(finished_batch_of_entry).collect();
+    finished.sort_by_key(newest_first_key);
+    return finished
+        .into_iter()
+        .take(newest)
+        .map(|(_seq, path)| {
+            // A record that cannot be read or parsed is listed with no intent, as the other listings do.
+            let parsed: Option<Intent> = fs::read_to_string(&path).ok().and_then(|text| { return parse_intent(text.as_str()); });
+            return (path, parsed);
+        })
+        .collect();
+}
+
 /// The request identities of every finished batch,
 /// each with the commit it became.
 pub fn landed_commits(dir: &Path) -> HashMap<String, String> {

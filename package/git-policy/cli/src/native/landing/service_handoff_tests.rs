@@ -39,7 +39,8 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     let mut sink: Vec<u8> = Vec::new();
     let failure = hand_over(&handoff, OID, &mut sink).expect_err("no service can be started");
-    assert_eq!(failure, ClientFailure::NoActivation(Platform::LinuxWithoutUserServices));
+    // The commit landed, so the failure says the work was not handed over, never that the commit was not made.
+    assert_eq!(failure, ClientFailure::WorkNotHandedOver(String::from("this account cannot start the commit service on demand")));
     let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
     let mut found: Vec<String> = std::fs::read_dir(pending).expect("pending").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
     found.sort();

@@ -58,6 +58,26 @@ pub struct UnitFolders<'a> {
     pub state_dir: Option<&'a Path>,
 }
 
+/// The folder below the wrapper's state folder that holds the journals of every instance.
+pub const JOURNAL_FOLDER: &str = "service";
+
+/// What:
+///  The journal folder the unit gives an instance:
+///  `<state>/monochromatic-git-policy-cli/service/<instance>`.
+/// Why:
+///   The unit's `--journal` names it,
+/// the sweep reads it back,
+/// and a client whose answer was lost looks in it for its commit,
+///  so its shape lives in one function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// journalOf('/s/monochromatic-git-policy-cli', '3f9a') // '/s/monochromatic-git-policy-cli/service/3f9a'
+/// ```
+pub fn journal_of(wrapper_state: &Path, instance: &str) -> PathBuf {
+    return wrapper_state.join(JOURNAL_FOLDER).join(instance);
+}
+
 /// What:
 ///  The state directory whose service folder holds `journal`,
 /// and nothing when the path has not the shape the unit passes.
@@ -74,7 +94,7 @@ pub struct UnitFolders<'a> {
 /// ```
 pub fn state_dir_of_journal(journal: &Path, instance: &str) -> Option<PathBuf> {
     let state: &Path = journal.parent()?.parent()?.parent()?;
-    let expected: PathBuf = state.join(SERVICE_UNIT.current).join("service").join(instance);
+    let expected: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
     if journal != expected {
         return None;
     }
