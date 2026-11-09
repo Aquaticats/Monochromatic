@@ -254,7 +254,7 @@ fn write_private(directory: &Path, record: &ClaimRecord) -> std::io::Result<Path
     // `subvolume_file_write_steps::WritesKeptInMemory`,
     // which a stand-in platform installs for a control that simulates a kill in the process) keeps this one too,
     // and a release build always flushes.
-    let mut written: std::io::Result<()> = write_all_then_sync(&mut file, encode(record).as_bytes());
+    let written: std::io::Result<()> = write_all_then_sync(&mut file, encode(record).as_bytes());
     if let Err(error) = written {
         let _removed: std::io::Result<()> = std::fs::remove_file(&path);
         return Err(error);
