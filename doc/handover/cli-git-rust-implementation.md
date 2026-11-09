@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:18:20-05:00)
+#### Reviews and landings in progress (2026-11-09T03:33:37-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -140,51 +140,34 @@ The old tree kept for the rollback stays until the owner deletes it.
   Not ready to merge.
   Some overlap controls pass without running on a host with too few CPUs for them,
   and the next brief asks for a seam so they run at any quota.
-  Waits for a free agent slot,
-  since all twenty are taken,
-  after the merge round:
-  resume the run `tokio-pure-file-sites-on-the-awaited-runner` as run 5,
-  with `tokio-pure-file-sites-round-5-prompt.md` and the session file named in run 4's `summary.json`.
-- `fix/git-policy-cli-push-route-records-and-ceilings`,
-  at `5b0393dbf6`:
-  its agent reports all eleven audit findings fixed,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/push-route-round-1-sol.txt`) names nine more.
-  Not ready to merge.
-  Run 2 of its agent is on them.
-- `fix/git-policy-cli-unit-test-watchdog-judges-progress`:
-  landed on main as `8dc110a1fd`,
-  with 30 of 30 selected tests passing on top of main,
-  among them tests that had aborted near 120 seconds.
-  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-3-sol.txt`) names two more defects,
-  both in test code:
-  a failing stderr can end the watchdog without ending the test,
-  and one control passes with its guard removed.
-  Run 4 of its agent is on them.
+  Run 5 of its agent is on them.
+- `fix/git-policy-cli-push-route-records-and-ceilings`:
+  its agent reports the nine findings of the first review fixed.
+  Its tests on top of main and the review `push-route-round-2` are running.
+- `fix/git-policy-cli-unit-test-watchdog-judges-progress` landed on main as `904f005a34`,
+  with 22 of 22 selected tests passing on top of main.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
-  its agent fixed the seven findings of the fourth review
-  (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`),
-  among them a tab in a file name that made the next commit revert another file,
-  and a promotion that published a commit whose gate then blocked it.
-  Not ready to merge:
-  the package lint fails on file length in three files,
-  two tests fail,
-  and one fix has no failing-output control and another no test.
-  Run 6 of its agent is on those.
-- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
-  at `6f11d10f45`:
-  the cross-vendor review of its sixth round (`${HOME}/temp/agent/reviews/copy-records-round-6-sol.txt`)
-  names two realistic record defects and three races that need another program to move a worktree inside a small window.
-  Run 7 of its agent is on the two record defects and judges the races.
-  After that round it lands.
-  The fix for a ladder rung that already made its destination has no test of its own,
-  and the two-process race has no failing test,
-  because nothing can hold a wrapper at a named step.
+  its agent reports the lint,
+  the two failing tests and the two missing controls settled.
+  Its tests on top of main and the review `landing-route-round-5` are running.
+  Three tests fail in a suite and pass alone,
+  and `a_landing_over_an_unheld_lock_removes_it_and_goes_on` fails alone against a wall-clock bound of 8 seconds,
+  on plain main as well.
 - `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
-  the cross-vendor review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-1-sol.txt`)
-  names defects in the stop,
-  among them a blocked notice write that keeps the command from returning and a signal that can reach a reused process id.
+  its agent reports the first review's findings fixed,
+  317 of 317 selected tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-2-sol.txt`) names a reused step number that can get an unrelated process killed,
+  and a failed read taken for the step having ended.
   Not ready to merge.
-  Run 2 of its agent is on them.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 3,
+  with `scratch-commit-ceiling-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  One wait stays open for the owner in `questions-for-the-owner.md`:
+  a step the kernel holds in uninterruptible sleep.
+  Two improvements are proposed and not built:
+  reading the branch once before the message that says it is not known whether the commit was made,
+  and making the queue position visible.
   The branch raises the ceiling to 16,332 ms,
   makes the stop keep looking for a step that starts late,
   and logs what ran below each step.
@@ -209,14 +192,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `doc/planning/cli-git-worktree-add-route-findings-on-main.md`.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
-  Its tests on top of main and the review `locks-and-transactions-round-1` are running;
-  the first attempt at that review crashed on `ELOCKED` for `/home/user/.pi/agent` and reviewed nothing.
+  437 of 437 selected tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/locks-and-transactions-round-1-sol.txt`) names a live lock removed on a clock step,
+  a live holder in another namespace taken for a stopped child,
+  and a descriptor lookup that can block past every deadline.
+  Not ready to merge.
+  Run 2 of its agent is on them.
   The audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
   ("cli-git never deletes a lock") waits for the owner.
-  The agent left one proof alone for the owner:
-  `stale_ref_lock_judge::judge_listed_pid` still compares a start with a change time for `Proof::PidReused`,
-  and that proof removes a lock,
-  so a forward clock step can remove a live reference lock.
 
 - `fix/git-policy-cli-service-work-items-keep-path-bytes`:
   it breaks `provisioning_notes_which_worktree_the_units_are_for`,
@@ -256,11 +239,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   which main has worse because it always deletes,
   and rustup observation and reconciliation looking at different toolchains,
   which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
-  Waits for a free agent slot,
-  since all twenty are taken,
-  after the merge and tokio rounds:
-  resume the run `mpm-shadow-open-issues` as run 2,
-  with `mpm-shadow-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Run 2 of its agent is on them.
   That round also checks the fixes resting on claims about real tools against those tools.
   `review-branch-with-sol.ts` now takes `--source` and `--about` and stops when it finds no file to attach;
   before that,
@@ -283,11 +262,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the cross-vendor review (`${HOME}/temp/agent/reviews/merge-route-round-3-sol.txt`) names further losses of staged or saved work,
   among them a read-only command installing a saved merge into a different checked-out branch.
   Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken,
-  and goes first:
-  resume the run `merge-route-findings-fixed` as run 4,
-  with `merge-route-round-4-prompt.md` and the session file named in run 3's `summary.json`.
+  Run 4 of its agent is on them.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   654 of 654 selected tests pass on top of main,
   and the cross-vendor review (`${HOME}/temp/agent/reviews/commit-checks-round-2-sol.txt`) names further ways a saved file is lost,
