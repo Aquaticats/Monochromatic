@@ -7855,7 +7855,9 @@ so a file such a process holds open is removed with its private name.
 A scan that was cut at its bound,
 or could not list the processes,
 proves nothing and the file is kept.
-A take or a write that fails puts every file it already took back,
+A take whose read of the bytes fails after the rename puts that file back before it reports anything,
+and a file that cannot go back is named and counted as installed;
+a take or a write that fails puts every file it already took back,
 and a path the merge deletes is never removed again after its take,
 so a file that appeared in that instant stays.
 The settling of a branch that moved reads the checkout and the index the same way the completion does,

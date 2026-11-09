@@ -215,6 +215,29 @@ pub fn put_back_stranded_takes(root: &Path, changes: &[Change], out: &mut dyn Wr
 }
 
 
+/// What:
+///  Why a take stopped,
+///  and the file it left under its private name when it could not put it back.
+/// Why:
+///   The rename happens before the bytes are read,
+/// so a read that fails has already changed the worktree;
+/// the
+///  caller must add that file to its rollback and say the merge began when the file cannot go back
+///  (a cross-vendor review of the fourth round,
+/// the brief's item 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TakeFailure = { error: RecoveryError; stranded?: Path };
+/// ```
+pub struct TakeFailure {
+    /// What stopped the take.
+    pub error: RecoveryError,
+    /// The file that stayed at its private name,
+    /// when it could not be put back.
+    pub stranded: Option<PathBuf>,
+}
+
 /// What a take of one worktree path found.
 ///
 /// In TS you'd write (pseudocode):
@@ -270,7 +293,7 @@ pub fn take_aside(
     path: &[u8],
     location: &Path,
     judged: &Judged,
-) -> Result<Take, RecoveryError> {
+) -> Result<Take, TakeFailure> {
     let aside: PathBuf = aside_name(location);
     match rename_noreplace(location, aside.as_path()) {
         Ok(()) => {}
@@ -279,7 +302,7 @@ pub fn take_aside(
             //  merge's to replace.
             return Ok(if judged.content.is_some() { Take::Changed } else { Take::Nothing });
         }
-        Err(error) => return Err(io_failure("setting aside", location, &error)),
+        Err(error) => return Err(TakeFailure { error: io_failure("setting aside", location, &error), stranded: None }),
     }
     let taken: Option<FileIdentity> = file_identity(aside.as_path());
     let Some(expected) = judged.content.as_deref() else {
@@ -294,7 +317,8 @@ pub fn take_aside(
     }
     let bytes: WorktreeState = match state_of_file(&place.git, root, path, aside.as_path()) {
         Ok(found) => found,
-        Err(error) => return Err(RecoveryError(error)),
+        // The rename has already happened, so a read that fails must put the file back before the take reports anything.
+        Err(error) => return Err(put_back_after_a_failed_read(location, aside, RecoveryError(error))),
     };
     if bytes != WorktreeState::Content(String::from(expected)) {
         return put_back_and_report(location, aside);
@@ -317,15 +341,47 @@ pub fn take_aside(
 /// ```ts
 /// putBack(location, aside): Take; // renameNoReplace(aside, location) ? 'changed' : throw
 /// ```
-fn put_back_and_report(location: &Path, aside: PathBuf) -> Result<Take, RecoveryError> {
+fn put_back_and_report(location: &Path, aside: PathBuf) -> Result<Take, TakeFailure> {
     return match rename_noreplace(aside.as_path(), location) {
         Ok(()) => Ok(Take::Changed),
-        Err(error) => Err(RecoveryError(format!(
-            "{} changed after this command judged it and it could not be put back ({error}); it is at {} and nothing was \
-             replaced by the merge.",
-            location.display(),
-            aside.display()
-        ))),
+        Err(error) => Err(TakeFailure {
+            error: RecoveryError(format!(
+                "{} changed after this command judged it and it could not be put back ({error}); it is at {} and nothing was \
+                 replaced by the merge.",
+                location.display(),
+                aside.display()
+            )),
+            stranded: Some(aside),
+        }),
+    };
+}
+
+/// What:
+///  Put back a file the take moved aside when the read of its bytes failed,
+///  and say whether it went back.
+/// Why:
+///   A read that fails after the rename still changed the worktree,
+/// so the caller's rollback must know about this
+///  file,
+/// and a file that cannot go back is named and counted as installed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// putBackAfterAFailedRead(location, aside, error): TakeFailure; // renameNoReplace(aside, location) ? { error } : { error, stranded: aside }
+/// ```
+fn put_back_after_a_failed_read(location: &Path, aside: PathBuf, error: RecoveryError) -> TakeFailure {
+    return match rename_noreplace(aside.as_path(), location) {
+        Ok(()) => TakeFailure { error, stranded: None },
+        Err(back) => TakeFailure {
+            error: RecoveryError(format!(
+                "{} could not be read for the merge ({}) and could not be put back either ({back}); it is at {} and nothing was \
+                 replaced by the merge.",
+                location.display(),
+                error.0,
+                aside.display()
+            )),
+            stranded: Some(aside),
+        },
     };
 }
 

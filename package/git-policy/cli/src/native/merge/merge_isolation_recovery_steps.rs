@@ -504,14 +504,16 @@ pub fn install_entries(
                     taken_deletions.push(entry);
                 }
             }
-            Err(error) => {
-                // A take that stops must not leave the files it already took under their private names.
+            Err(failure) => {
+                // A take that stops must not leave the files it already took under their private names; the one it stopped on is
+                //  in the failure, because the rename came before the read that failed.
                 let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
-                let mut refusal: String = error.0;
+                let mut refusal: String = failure.error.0;
                 if !left.is_empty() {
                     refusal.push_str(format!(" Files that could not be put back: {}", left.join(", ")).as_str());
                 }
-                return Err(MergeRefusal { error: RecoveryError(refusal), began: !left.is_empty() });
+                let began: bool = failure.stranded.is_some() || !left.is_empty();
+                return Err(MergeRefusal { error: RecoveryError(refusal), began });
             }
         }
     }
