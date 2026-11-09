@@ -2882,6 +2882,20 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   a push whose connection is open and that shows no sign of work for this long is ended as a stall.
 - `PHASE_PATIENCE` 5 minutes:
   the test marker compiled into the executable ends its pause at the limit of any test.
+- `READ_CEILING` 120 seconds:
+  every read-only Git query of the check path ends at this bound:
+  the candidate listings,
+  the `git add` replay,
+  the real-index query and the rule facts run through the same watch as the service's steps
+  (`repo_read/git_metadata.rs`).
+  It is `PLUMBING_STEP_CEILING`:
+  the longest read step of the service's landings over 1,651 landings was
+  9,663 ms,
+  so two minutes is twelve times it,
+  and the longest client preparation of the commit timing log was 250,280 ms,
+  which is the whole of every read inside it.
+  It is below `ANSWER_CEILING`,
+  so the person hears what blocked the check before the service's own bound.
 - `PLUMBING_STEP_CEILING` 120 seconds and `OBJECT_STEP_CEILING` 10 minutes:
   the longest one Git
   step runs,
@@ -2942,6 +2956,19 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 
 What happens at the bound,
 on the commit path:
+
+- A check-path Git read that reaches `READ_CEILING` is ended,
+  and the check that needed it fails with `content-unavailable`,
+  naming the read (the Git program and its subcommand,
+  never a pathname),
+  the ceiling it reached and that the index,
+  the worktree and the staged changes are as they were:
+  the bound's "Return with an error",
+  not a rejected commit,
+  and the person runs the command again.
+  A read that answers is untouched:
+  the watch ends nothing that shows work,
+  and it ends nothing before the ceiling.
 
 - The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`.
   At the bound the batch is withdrawn before the branch
@@ -5135,6 +5162,27 @@ the input and the origin's branch at the moment it ran)
 and `src/native/binary/binary_lfs_server_tests.rs`
 (the real `git-lfs` against an LFS server written inline in the test).
 
+### Candidate content
+
+A policy reads a candidate's bytes from the object the index names,
+never from the worktree,
+so an edit after staging cannot change what it checks.
+One object is read whole only up to 32 MiB (`CONTENT_CEILING`,
+with its measurement beside it in
+`candidate/candidate_batch.rs`):
+above that the reply is consumed through a 64 KiB buffer and thrown away,
+the object is never held,
+and the reader stays in step for the next request.
+The check then reports `policy-incomplete`,
+an engine failure naming the file,
+the object and both sizes,
+and the pass goes on:
+such a finding never blocks the command,
+so a large asset costs a skipped check that names itself,
+never a commit that fails.
+The ceiling is 1.57 times the largest file this repository tracks (20,453,084 bytes),
+so no content committed here is skipped.
+
 ### Direct check
 
 Use worktree bytes selected by explicit pathspecs or `--all`.
@@ -5155,6 +5203,57 @@ Run the fix again.
 Emit final findings and one fix summary to stdout.
 A patch targeting an unselected tracked file adds it under the "Added paths" precondition;
 its original worktree bytes for the concurrent-change check are the verified `HEAD` blob.
+
+#### What an install keeps
+
+Each corrected file is prepared beside itself and then swapped with
+`renameat2(RENAME_EXCHANGE)`,
+so the corrected bytes go in while the file they displaced stays readable:
+
+- the prepared file is created with the destination's own permission bits and owner,
+  so a file kept at `0600` stays private and the set-user-id,
+  set-group-id and sticky bits survive;
+- the bytes the swap displaced are read after the swap,
+  when nothing can overwrite them any more,
+  and a file that no longer holds what the fix read swaps them back and fails the fix:
+  a write that arrived while the fix ran is kept rather than replaced;
+- a selected path that is a symbolic link is refused instead of replaced,
+  because reading it reads another file and the swap would remove the link;
+- rollback is the same swap,
+  so a failed install returns every file it replaced to the very inode it displaced.
+
+What a replacement does not carry is its extended attributes and access-control list,
+its inode number and birth time,
+and its share of a hard link,
+whose other name keeps the bytes it had.
+
+The window that remains is two file system calls wide,
+not the length of a pass:
+a write through a descriptor opened before the swap lands in the displaced file after
+the comparison and before the prepared file is removed,
+and a write to the path after the swap replaces the corrected bytes,
+which is the newest state the person asked for.
+
+#### The files an install leaves
+
+A fix keeps one prepared file per corrected file while it installs,
+named with the prefix `.cli-git-direct-fix-`,
+and removes it when every file is in place.
+A fix that is killed leaves it behind,
+so before it prepares anything a fix writes `.cli-git-direct-fix-*` into the repository's own
+`info/exclude`:
+Git then never lists a leftover as untracked,
+`git add --all` never stages one,
+and a later fix never reads one as candidate content.
+A rule that cannot be written does not fail the fix;
+it adds a notice naming the file and the prefix to remove by hand.
+
+No lock stands in this route:
+the lock inventory guard covers `candidate/`,
+`policy/`,
+`markdown/`,
+`standards_review/` and `commit/`,
+and a lock there must be listed with its reason beside it.
 
 ## Policy order and stopping
 
@@ -6583,6 +6682,25 @@ It uses:
   the service then answers that the content is unavailable,
   the wrapper prepares once more,
   and a second loss ends the commit with a plain message that says what happened.
+
+The `git add` prediction copies the real index into
+`<git-dir>/cli-git-add-policy-<pid>-<nanoseconds>-<count>`,
+`0700`,
+on the same file system as the real index,
+with the real index's access and modification times,
+and names that process in the directory's `owner` record:
+its process id,
+the platform's identity of its birth and its PID namespace.
+The command removes the directory on every path it ends by;
+every copy made later sweeps the directory it is created in and removes a copy only when its owner
+is proven gone
+(a dead process id in this PID namespace,
+a reused id kept,
+an owner of another namespace alive until its record outlives the foreign-owner patience),
+and keeps every other one,
+including a copy whose record cannot be read.
+No lock protects the sweep:
+a copy has one owner and only a proven-dead owner's copy is removed.
 
 #### Maintenance that may run while a commit is made
 
