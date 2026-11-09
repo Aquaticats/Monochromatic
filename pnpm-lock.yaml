@@ -4340,6 +4340,9 @@ importers:
 
   package/rolldown-plugin/import-attributes:
     dependencies:
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed

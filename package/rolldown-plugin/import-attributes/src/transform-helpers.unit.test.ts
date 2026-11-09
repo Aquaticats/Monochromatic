@@ -23,7 +23,15 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { skipWithClauseWhitespace, } from './transform-helpers.ts';
+import {
+  importAttributesOf,
+  stringLiteralSourceOf,
+} from './test-support.ts';
+import {
+  ATTR_QUERY_KEY,
+  collectStaticReplacements,
+  skipWithClauseWhitespace,
+} from '../dist/final/node/index.mjs';
 
 /** Whitespace-run length for the long-run case; large enough to overflow the prior recursive scan, fast to compare. */
 const LONG_RUN = 100_000;
@@ -138,6 +146,116 @@ await describe({
             expect(
               skipWithClauseWhitespace({ s: `${' '.repeat(LONG_RUN,)}with`, idx: 0, },),
             ).toBe(LONG_RUN,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: collectStaticReplacements.name,
+      children: [
+        it({
+          name: 'rewrites the specifier and elides the clause it found',
+          fn: async () => {
+            /**
+             Source with one static import carrying an attribute clause.
+             */
+            const code = "import query from './schema.sql' with { type: 'text' };";
+            /**
+             Offset of the clause keyword, which is where the elision starts.
+             */
+            const clauseStart = code.indexOf(' with',);
+            /**
+             Offset just past the clause's closing brace, which is where the elision ends.
+             */
+            const clauseEnd = code.indexOf('};',) + '}'.length;
+
+            expect(collectStaticReplacements({
+              source: stringLiteralSourceOf(code,),
+              attributes: importAttributesOf(code,),
+              attrType: 'text',
+              code,
+            },),).toEqual([
+              {
+                start: stringLiteralSourceOf(code,).start,
+                end: stringLiteralSourceOf(code,).end,
+                text: `'./schema.sql?${ATTR_QUERY_KEY}=text'`,
+              },
+              {
+                start: clauseStart,
+                end: clauseEnd,
+                text: '',
+              },
+            ],);
+          },
+        },),
+        it({
+          name: 'keeps an escaped specifier escaped while tagging it',
+          fn: async () => {
+            /**
+             Source whose specifier spells a backslash as an escape.
+             */
+            const code = String.raw`import query from '.\schema.sql' with { type: 'text' };`;
+            expect(collectStaticReplacements({
+              source: stringLiteralSourceOf(code,),
+              attributes: importAttributesOf(code,),
+              attrType: 'text',
+              code,
+            },)[0]?.text,).toBe(String.raw`'.\schema.sql?${ATTR_QUERY_KEY}=text'`,);
+          },
+        },),
+        it({
+          name: 'elides a clause whose keyword follows a comment',
+          fn: async () => {
+            /**
+             Source whose comment sits between the specifier and the keyword.
+             */
+            const code = "import query from './schema.sql' /* note */ with { type: 'text' };";
+            /**
+             Clause elision replacement, the second the helper returns.
+             */
+            const [, elision,] = collectStaticReplacements({
+              source: stringLiteralSourceOf(code,),
+              attributes: importAttributesOf(code,),
+              attrType: 'text',
+              code,
+            },);
+
+            expect(elision?.start,).toBe(code.indexOf(' /* note',),);
+            expect(code.slice(elision?.start, elision?.end,),).toBe(' /* note */ with { type: \'text\' }',);
+          },
+        },),
+        it({
+          name: 'elides a clause spelled with the deprecated assert keyword',
+          fn: async () => {
+            /**
+             Source whose clause uses the keyword rolldown still accepts in place of `with`.
+             */
+            const code = "import query from './schema.sql' assert { type: 'text' };";
+            expect(collectStaticReplacements({
+              source: stringLiteralSourceOf(code,),
+              attributes: importAttributesOf(code,),
+              attrType: 'text',
+              code,
+            },),).toHaveLength(2,);
+          },
+        },),
+        it({
+          name: 'returns only the specifier replacement when the declaration carries no attributes',
+          fn: async () => {
+            /**
+             Source with a clause but an empty attribute list, the shape a caller reaches by passing the list it read.
+             */
+            const code = "import query from './schema.sql' with { type: 'text' };";
+            /**
+             Replacements for a declaration whose attribute list is empty.
+             */
+            const replacements = collectStaticReplacements({
+              source: stringLiteralSourceOf(code,),
+              attributes: [],
+              attrType: 'text',
+              code,
+            },);
+            expect(replacements,).toHaveLength(1,);
           },
         },),
       ],
