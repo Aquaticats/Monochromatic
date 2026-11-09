@@ -505,11 +505,13 @@ fn go_install_builds_the_locked_module_into_a_scoped_gobin() {
     go.declaration.bins = vec!["go".to_string()];
     rig.lock.tools.push(go);
     rig.install_binary("go", "go");
+    rig.runner.on("go install", go_writes_executable("fd"));
     install_tool(&rig.context(), &rig.tool("cargo:fd-find")).expect("installed");
     assert_eq!(rig.runner.lines(), vec!["go install example.com/tool/cmd@v1.2.3".to_string()]);
     let env = rig.runner.calls()[0].env.clone().expect("environment");
     let gobin = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "1.2.3").expect("a plain name").join("bin");
     assert_eq!(env.get("GOBIN").map(String::as_str), Some(gobin.to_str().expect("utf-8")));
+    assert!(gobin.join("fd").is_file(), "the install reads back the executable go wrote");
 }
 
 /// What:
