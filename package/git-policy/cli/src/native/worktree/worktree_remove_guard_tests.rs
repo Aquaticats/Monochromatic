@@ -12,7 +12,7 @@ use super::*;
 use crate::fs_beneath::handle_path;
 use crate::push_failure_notice::{orphaned_push_failures, record_push_failure};
 use crate::test_support::{age, fixture, git, git_context, git_output, remove, repository};
-use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy, record_destroyed};
+use crate::worktree_removal_interrupted_destroy::{finish_interrupted_destroys, record_destroy_with_owner, record_destroyed};
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
@@ -307,7 +307,7 @@ fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_
     // A push failure nobody has seen yet lives in that registration and would go with it.
     record_push_failure(admin.as_path(), "refs/heads/topic", "0123456789abcdef0123456789abcdef01234567", "refused by test policy").expect("notice");
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
     remove(worktree.as_path());
     let refused = git_output(repo.as_path(), &["worktree", "add", "--quiet", "--detach", worktree.to_str().expect("UTF-8")]);
@@ -352,7 +352,7 @@ fn a_pathname_that_ends_with_the_finished_mark_is_not_proof_of_destruction() {
     let id: std::ffi::OsString = only_registration_id(common.as_path());
     let admin: PathBuf = common.join("worktrees").join(&id);
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy(common.as_path(), id.as_os_str(), &identity, worktree.as_path()).expect("record");
+    record_destroy_with_owner(common.as_path(), id.as_os_str(), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
     // The worktree is where the record names it, so nothing was destroyed and the record is dropped without a word, as for
     // every removal that did not happen.
@@ -379,7 +379,7 @@ fn a_link_at_the_mark_writers_temporary_name_is_not_written_through() {
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
     let record: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
     let notes: PathBuf = root.join("notes.txt");
     std::fs::write(notes.as_path(), b"a person's notes\n").expect("their file");
@@ -393,6 +393,10 @@ fn a_link_at_the_mark_writers_temporary_name_is_not_written_through() {
     assert!(!admin.exists(), "the marked record still finished the removal");
     remove(root.as_path());
 }
+
+/// A record's owner that no process has:
+/// a process number whose birth identity is not the one written.
+const ENDED_OWNER: &str = "1:ended:0";
 
 /// A named pipe at `path`,
 /// created with the platform's own call.
@@ -420,7 +424,7 @@ fn a_named_pipe_among_the_destroy_records_does_not_hold_the_command() {
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
     remove(worktree.as_path());
     let folder: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER);
@@ -581,6 +585,39 @@ fn a_removal_records_a_destroy_it_could_not_finish_and_no_other() {
 }
 
 /// What:
+///  Recovery leaves the record of a removal whose owner may still be running,
+///  so that owner can still mark its
+///  success,
+///  and drops the record of one whose owner has ended.
+/// Why:
+///   A removal writes its record,
+/// destroys the tree and marks it;
+/// a second command that read the record in that time
+///  and forgot it took away the only place the first could mark its success,
+/// so a kill after the destroy left nothing for
+///  the next command to finish.
+#[test]
+fn another_commands_recovery_leaves_the_record_of_a_running_removal() {
+    let root: PathBuf = fixture("remove-record-running-owner");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    let record: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
+    // A removal that is running: the record is this process's, and the worktree is still there until its kernel call.
+    crate::worktree_removal_interrupted_destroy::record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    assert!(finish_interrupted_destroys(common.as_path()).is_empty(), "a removal that is running is not a problem to report");
+    assert!(record.is_file(), "the record of a running removal stays, so its owner can mark it");
+    // The same record with an owner that has ended is dropped, as before.
+    std::fs::remove_file(record.as_path()).expect("drop the running record this control wrote");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
+    assert!(finish_interrupted_destroys(common.as_path()).is_empty());
+    assert!(!record.exists(), "a record whose owner has ended is dropped");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A registration a repair has pointed at a restored checkout is kept,
 ///  even though the destroy record names a path that is gone.
 /// Why:
@@ -599,7 +636,7 @@ fn a_registration_a_repair_pointed_at_a_restored_checkout_is_kept() {
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
     record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
     // The checkout is destroyed, and a backup of it is restored at another path, which real Git then repairs the
     // registration to name.
@@ -635,7 +672,7 @@ fn a_worktree_moved_away_after_the_record_keeps_its_registration() {
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
     let moved: PathBuf = root.join("wt.moved");
     std::fs::rename(worktree.as_path(), moved.as_path()).expect("the worktree is moved, not destroyed");
     let problems: Vec<String> = finish_interrupted_destroys(common.as_path());
@@ -662,7 +699,7 @@ fn a_recorded_destroy_whose_worktree_is_still_there_changes_nothing() {
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
     let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
-    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroy_with_owner(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path(), Some(ENDED_OWNER)).expect("record");
     assert!(finish_interrupted_destroys(common.as_path()).is_empty());
     assert!(admin.join("gitdir").is_file() && worktree.join("tracked.txt").is_file(), "nothing was removed");
     assert!(finish_interrupted_destroys(common.as_path()).is_empty(), "the record is gone, so the next command looks at nothing");

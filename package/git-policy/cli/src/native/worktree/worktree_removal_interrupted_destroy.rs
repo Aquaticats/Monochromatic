@@ -35,6 +35,7 @@ use crate::fs_beneath::{ObjectId, identity_of, open_directory_at, open_root, rem
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::subvolume_file_write_steps::write_beside_then_rename;
+use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::worktree_convert_journal::read_plain_file;
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
 use crate::worktree_removal_snapshot_promotion::promote_snapshot;
@@ -54,6 +55,14 @@ pub const RECORD_FOLDER: &str = "monochromatic-git-policy-cli/recorded-destroys"
 /// three short lines,
 /// and a worktree path far under any limit.
 const RECORD_LIMIT: u64 = 4096;
+
+/// The prefix of the record's first line:
+/// the process that wrote it,
+/// and the identity that tells it from a later process of the same number.
+const OWNER_PREFIX: &str = "owner=";
+
+/// The prefix of the record's identity line.
+const IDENTITY_PREFIX: &str = "identity=";
 
 /// The first line of a record whose kernel call returned,
 /// which is the only proof that the files of the worktree are gone.
@@ -92,16 +101,43 @@ fn record_path(common_dir: &Path, id: &OsStr) -> PathBuf {
 /// await recordDestroy(commonDir, id, identity, target);
 /// ```
 pub fn record_destroy(common_dir: &Path, id: &OsStr, admin: &ObjectId, target: &Path) -> Result<(), String> {
+    return record_destroy_with_owner(common_dir, id, admin, target, None);
+}
+
+/// What:
+///  `record_destroy`,
+/// with the owner the record names instead of this process,
+/// so a control can write the record of a removal that
+///  has ended.
+///  `None` writes this process.
+/// Why:
+///   Recovery leaves a record alone while its owner may still be running,
+/// and a control that simulates a killed removal has to
+///  write one whose owner is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordDestroyWithOwner(commonDir, id, identity, target, '1:ended');
+/// ```
+pub fn record_destroy_with_owner(common_dir: &Path, id: &OsStr, admin: &ObjectId, target: &Path, owner: Option<&str>) -> Result<(), String> {
     let path: PathBuf = record_path(common_dir, id);
     if let Some(parent) = path.parent()
         && let Err(error) = create_private_directory_all(parent)
     {
         return Err(format!("{} cannot be made ({error})", parent.display()));
     }
-    // The identity first, so the registration a later command empties is the one this destroy was proven against, then the
-    // target's own bytes, which need not be text.
-    let mut bytes: Vec<u8> = admin.encode().into_bytes();
-    bytes.push(b'\n');
+    // The owner first, so another command can tell a removal that is still running from an abandoned one, then the identity
+    // the registration was proven with, then the target's own bytes, which need not be text.
+    let owner: String = match owner {
+        Some(spelled) => format!("{OWNER_PREFIX}{spelled}\n"),
+        None => match current_birth_identity() {
+            Ok(identity) => format!("{OWNER_PREFIX}{}:{identity}\n", std::process::id()),
+            // A record without an owner is read as one an earlier build wrote, which is what the recovery then assumes.
+            Err(_unknown) => String::new(),
+        },
+    };
+    let mut bytes: Vec<u8> = owner.into_bytes();
+    bytes.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", admin.encode()).as_bytes());
     bytes.extend_from_slice(target.as_os_str().as_bytes());
     return match write_private_file_unsynced(path.as_path(), bytes.as_slice()) {
         Ok(()) => Ok(()),
@@ -146,8 +182,10 @@ pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
     // The record is rewritten whole with the mark first, through the replacing write: a sibling created exclusively under a
     // name of its own, then one rename, so a kill leaves the intent or the proof and nothing is ever written through a link.
     let mut marked: Vec<u8> = DESTROYED_MARK.to_vec();
-    marked.extend_from_slice(read.admin.encode().as_bytes());
-    marked.push(b'\n');
+    if let Some(owner) = read.owner.as_ref() {
+        marked.extend_from_slice(format!("{OWNER_PREFIX}{owner}\n").as_bytes());
+    }
+    marked.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", read.admin.encode()).as_bytes());
     marked.extend_from_slice(read.target.as_os_str().as_bytes());
     if let Err(error) = write_beside_then_rename(path.as_path(), marked.as_slice()) {
         warn(TAG, format!("{} cannot be marked ({error}), so a later command cannot finish the removal of {id:?}", path.display()).as_str());
@@ -191,6 +229,10 @@ pub fn forget_destroy(common_dir: &Path, id: &OsStr) {
 /// type DestroyRecord = { admin: ObjectId; target: PathBuf };
 /// ```
 struct DestroyRecord {
+    /// The process that wrote the record,
+    /// and the identity that tells it from a later process with the same number;
+    /// nothing for a record an earlier build wrote.
+    owner: Option<String>,
     /// The identity of the registration when the destroy was proven.
     admin: ObjectId,
     /// The worktree directory the destroy was aimed at.
@@ -213,13 +255,30 @@ fn is_newline(byte: &u8) -> bool {
 /// type DestroyRecord = { admin: ObjectId; target: string; destroyed: boolean };
 /// ```
 fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
-    // The mark is the first line, so nothing a pathname holds can be taken for it. A record of an earlier build starts
-    // with the identity instead, and its mark, which came last, is not read: such a record counts as one whose kernel call
-    // is not proven, and recovery then leaves the registration alone and says so.
-    let (rest, destroyed): (&[u8], bool) = match bytes.strip_prefix(DESTROYED_MARK) {
-        Some(after_mark) => (after_mark, true),
-        None => (bytes, false),
-    };
+    // The owner and the mark come first, one line each, so nothing a pathname holds can be taken for them; a record of an
+    // earlier build has neither, or the mark alone at the front, and is read the same way. The mark that build wrote last is
+    // not read: such a record counts as one whose kernel call is not proven, and recovery then leaves the registration alone
+    // and says so.
+    let mut rest: &[u8] = bytes;
+    let mut owner: Option<String> = None;
+    let mut destroyed: bool = false;
+    loop {
+        let Some(split_at) = rest.iter().position(is_newline) else { break };
+        let (line, after): (&[u8], &[u8]) = rest.split_at(split_at);
+        if line == DESTROYED_MARK.strip_suffix(b"\n").unwrap_or(DESTROYED_MARK) {
+            destroyed = true;
+            rest = after.strip_prefix(b"\n").unwrap_or(after);
+            continue;
+        }
+        let Ok(text) = std::str::from_utf8(line) else { break };
+        match text.strip_prefix(OWNER_PREFIX) {
+            Some(owner_text) => {
+                owner = Some(owner_text.to_string());
+                rest = after.strip_prefix(b"\n").unwrap_or(after);
+            }
+            None => break,
+        }
+    }
     let Some(split_at) = rest.iter().position(is_newline) else {
         return Err(String::from("it has no identity line"));
     };
@@ -227,12 +286,48 @@ fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
     let Ok(identity_text) = std::str::from_utf8(identity_bytes) else {
         return Err(String::from("its identity line is not text"));
     };
+    // A record of this build spells the field; an earlier one wrote the identity alone.
+    let identity_text: &str = identity_text.strip_prefix(IDENTITY_PREFIX).unwrap_or(identity_text);
     let Some(admin) = ObjectId::decode(identity_text) else {
         return Err(format!("its identity line {identity_text} cannot be read"));
     };
     // Everything after the identity's newline is the target, byte for byte.
     let target: &[u8] = after_identity.strip_prefix(b"\n").unwrap_or(after_identity);
-    return Ok(DestroyRecord { admin, target: PathBuf::from(OsStr::from_bytes(target)), destroyed });
+    return Ok(DestroyRecord { owner, admin, target: PathBuf::from(OsStr::from_bytes(target)), destroyed });
+}
+
+/// What:
+///  Whether the command that wrote a record may still be running,
+/// which a record without an owner,
+/// or one whose process
+///  cannot be inspected,
+/// counts as.
+/// Why:
+///   A removal writes its record,
+/// destroys the tree and marks the record;
+/// a second command that reads the record in that
+///  time and forgets it takes away the only place the first can mark its success,
+/// so the next command has nothing to
+///  finish.
+/// A process number alone can be reused,
+/// so the birth identity written beside it decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const running = recordOwnerMayBeRunning(record.owner); // true when nothing proves the owner left
+/// ```
+fn record_owner_may_be_running(owner: Option<&String>) -> bool {
+    let Some(owner) = owner else { return true };
+    let Some((pid, identity)) = owner.split_once(':') else { return true };
+    let Ok(pid) = pid.parse::<i64>() else { return true };
+    return match process_birth_identity(pid) {
+        Ok(Some(now)) => now == identity,
+        Ok(None) => false,
+        Err(error) => {
+            warn(TAG, format!("the process {pid} of a recorded destroy cannot be inspected: {error}").as_str());
+            true
+        }
+    };
 }
 
 /// What:
@@ -369,6 +464,13 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
             return;
         }
     };
+    if !read.destroyed && record_owner_may_be_running(read.owner.as_ref()) {
+        // Another command is removing that worktree now, and its record is what it marks when the kernel call returns, so
+        // nothing here reads, decides or forgets anything yet. A marked record is finished even while its owner lives: the
+        // call it names has returned, and the owner's own removal of the registration is what finishing completes.
+        debug(TAG, format!("the record {} was written by a command that may still be running, so it is left alone", record.display()).as_str());
+        return;
+    }
     let worktrees_path: PathBuf = common_dir.join("worktrees");
     let admin: PathBuf = worktrees_path.join(id);
     if !admin.exists() {
