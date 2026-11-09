@@ -62,8 +62,12 @@ fn overwrite_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// What:
 ///  Gives a file the private file mode on Unix.
 /// Why:
-///   The shadow config names the real hooks directory and worktree;
+///   The shadow config names the worktree root,
+/// includes the real common config and switches
+///  every hook off;
 /// it stays private to the account.
+///  It names no hooks directory:
+/// every shadow command passes its own `core.hooksPath`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
