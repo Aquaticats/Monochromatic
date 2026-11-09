@@ -45,15 +45,16 @@ const MILLISECONDS_PER_SECOND = 1_000;
 const RUN_MILLISECONDS = 2 * POLL_MILLISECONDS;
 
 /**
+ Milliseconds a run here may last when the watch must take a further look: one look to see the failure, one to answer it, and
+ one to look again. Derived from the poll so no part of it is a sleep a test guessed.
+ */
+const HOLD_MILLISECONDS = 3 * POLL_MILLISECONDS;
+
+/**
  Seconds of silence after which a settled run would end. Every run here is one Pi is at work on, so this never decides anything;
  the wall clock, which each test sets, is what ends them.
  */
 const IDLE_SECONDS = 0;
-
-/**
- Seconds of wall clock the options name, derived from the deadline a test passes, so the two never disagree.
- */
-const RUN_WALL_SECONDS = RUN_MILLISECONDS / MILLISECONDS_PER_SECOND;
 
 /**
  Text of the message a test drops in the inbox.
@@ -64,6 +65,28 @@ const MESSAGE_TEXT = 'a message nothing answers';
  Name the message is published under.
  */
 const MESSAGE_NAME = 'message.txt';
+
+/**
+ The failure a test's attempt ended on: the timeout one real run recorded, which another attempt may fix, so the watch has a
+ retry to schedule for it.
+ */
+const FAILURE_TEXT = 'Request timed out.';
+
+/**
+ Seconds before the first attempt at a failure, for a test that wants the wait over on the very next look.
+ */
+const NO_WAIT_SECONDS = 0;
+
+/**
+ Seconds before the first attempt at a failure, chosen to outlast every run here, so no attempt is ever reached.
+ */
+const WAIT_PAST_THE_RUN_SECONDS = 600;
+
+/**
+ Seconds of silence after which a run that rests with nothing answering its prompt ends: shorter than one look, so the look
+ after the one that sent the prompt is the one that sees the silence.
+ */
+const RESTING_IDLE_SECONDS = (POLL_MILLISECONDS / 2) / MILLISECONDS_PER_SECOND;
 
 type DisposableFolder = {
   readonly path: string;
@@ -91,14 +114,34 @@ async function makeFolder(): Promise<DisposableFolder> {
 }
 
 /**
- The options of a run, which the watch reads for its turn cap and its idle limit; the wall clock a test passes is the deadline
- the watch keeps, and these carry the same number so a reader cannot find two answers to one question.
+ The options of a run, which the watch reads for its turn cap, its retry bounds and its idle limit; the wall clock a test
+ passes is the deadline the watch keeps, and these carry the same number so a reader cannot find two answers to one question.
 
  @param runFolder - folder of the run
 
+ @param milliseconds - how long the run may last, in milliseconds
+
+ @param retryCap - how many attempts may follow a model error
+
+ @param retryBaseSeconds - seconds before the first attempt at a model error
+
+ @param idleSeconds - seconds of silence after which a settled run ends
+
  @returns options of this run
  */
-function optionsOf({ runFolder, }: { readonly runFolder: string; },): DriverOptions {
+function optionsOf({
+  runFolder,
+  milliseconds = RUN_MILLISECONDS,
+  retryCap = 0,
+  retryBaseSeconds = 1,
+  idleSeconds = IDLE_SECONDS,
+}: {
+  readonly runFolder: string;
+  readonly milliseconds?: number;
+  readonly retryCap?: number;
+  readonly retryBaseSeconds?: number;
+  readonly idleSeconds?: number
+},): DriverOptions {
   return {
     runFolder,
     workingFolder: runFolder,
@@ -106,32 +149,25 @@ function optionsOf({ runFolder, }: { readonly runFolder: string; },): DriverOpti
     provider: 'stand-in',
     model: 'stand-in-model',
     piArguments: [],
-    wallSeconds: RUN_WALL_SECONDS,
-    idleSeconds: IDLE_SECONDS,
+    wallSeconds: milliseconds / MILLISECONDS_PER_SECOND,
+    idleSeconds,
     turnCap: Number.MAX_SAFE_INTEGER,
-    retryCap: 0,
-    retryBaseSeconds: 1,
+    retryCap,
+    retryBaseSeconds,
   };
 }
 
 /**
- Starts a run whose Pi is at work, with a message waiting in the inbox.
+ Starts a run's record, and a folder to hold its feed and its inbox.
 
  @returns the run, and the folder that goes with it
  */
-async function startRunWithAMessage(): Promise<RunUnderTest> {
+async function startRun(): Promise<RunUnderTest> {
   const folder = await makeFolder();
   const runFolder = folder.path;
   const inbox = join(runFolder, 'inbox',);
   await mkdir(inbox,);
-  await writeFile(join(inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
   const record = startRecordOfPiRun({ feedFile: join(runFolder, 'feed.jsonl',), },);
-  record.observe({
-    event: { type: 'agent_start', },
-    declineDialog: function refuseDialog() {
-      throw new Error('no dialog was expected',);
-    },
-  },);
   return {
     runFolder,
     inbox,
@@ -141,6 +177,73 @@ async function startRunWithAMessage(): Promise<RunUnderTest> {
       await folder[Symbol.asyncDispose]();
     },
   };
+}
+
+/**
+ Starts a run whose Pi is at work on the prompt the driver sent.
+
+ @returns the run, and the folder that goes with it
+ */
+async function startRunAtWork(): Promise<RunUnderTest> {
+  const run = await startRun();
+  run.record.observe({
+    event: { type: 'agent_start', },
+    declineDialog: refuseDialog,
+  },);
+  return run;
+}
+
+/**
+ Starts a run whose Pi is at work, with a message waiting in the inbox.
+
+ @returns the run, and the folder that goes with it
+ */
+async function startRunWithAMessage(): Promise<RunUnderTest> {
+  const run = await startRunAtWork();
+  await writeFile(join(run.inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
+  return run;
+}
+
+/**
+ Starts a run whose Pi settled on a failure another attempt may fix, and then is at work again, which is what a message it took
+ from the inbox starts.
+
+ @param atWork - whether Pi is at work on a run that did not produce an assistant message
+
+ @returns the run, and the folder that goes with it
+ */
+async function startRunThatFailed({ atWork }: { readonly atWork: boolean },): Promise<RunUnderTest> {
+  const run = await startRunAtWork();
+  run.record.observe({
+    event: {
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [],
+        stopReason: 'error',
+        errorMessage: FAILURE_TEXT,
+      },
+    },
+    declineDialog: refuseDialog,
+  },);
+  run.record.observe({
+    event: { type: 'agent_settled', },
+    declineDialog: refuseDialog,
+  },);
+  if (atWork) {
+    run.record.observe({
+      event: { type: 'agent_start', },
+      declineDialog: refuseDialog,
+    },);
+  }
+  return run;
+}
+
+/**
+ Declines a dialog a test's events never ask, so a fixture mistake fails the test instead of passing quietly.
+ */
+function refuseDialog(): void {
+  throw new Error('no dialog was expected',);
 }
 
 /**
@@ -176,18 +279,35 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
 }
 
 /**
- A connection whose commands are all answered at once.
+ A connection whose commands are all answered at once, which records the messages it was asked to send.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param disposition - what Pi says it did with each prompt, or nothing when it says nothing about it
 
  @returns the connection a watch reads
  */
-function answeringConnection(): ConnectionToPi {
+function answeringConnection({
+  sent = [],
+  disposition,
+}: {
+  readonly sent?: string[];
+  readonly disposition?: string
+} = {},): ConnectionToPi {
   return {
     hasExited: () => false,
     exitDetails: () => ({}),
     write: function write() {
       throw new Error('the watch was not expected to write without waiting for an answer',);
     },
-    send: async () => ({ success: true, }),
+    send: async function send({ command, }: { readonly command?: PiRecord },) {
+      const message = command?.message;
+      sent.push((typeof message) === 'string' ? message : '',);
+      return {
+        success: true,
+        data: disposition === undefined ? {} : { disposition, },
+      };
+    },
     shutDown: async () => ({ stopped: true, }),
   };
 }
@@ -284,6 +404,112 @@ await describe({
         const delivered = (await feedOf(run.runFolder,)).find((entry,) => entry.kind === 'inbox',);
         expect(delivered?.success,).toBe(true,);
         expect(await readdir(run.inbox,),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'holds a retry back while Pi is at work on a run the retry did not start',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: true, },);
+        /**
+         The messages the watch sent, which a retry sent into the run Pi is at work on would join.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over.
+         */
+        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        // A prompt sent to a Pi that is at work is refused or queued behind the run it interrupts, and either way the attempt
+        // answers an error that run may yet recover.
+        expect(sent,).toEqual([],);
+        expect(run.record.retriesTaken(),).toBe(0,);
+        expect((await feedOf(run.runFolder,)).some((entry,) => entry.kind === 'retry'),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'keeps the failure standing when the retry Pi was sent only handles the prompt',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         When the run must be over: after the looks that send the prompt and see Pi resting with nothing answering it.
+         */
+        const deadline = Date.now() + (2 * HOLD_MILLISECONDS);
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ disposition: 'handled', },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: 2 * HOLD_MILLISECONDS,
+            retryCap: 1,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+            idleSeconds: RESTING_IDLE_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        // No run started for the prompt and no reply came, so nothing recovered the failure: the run ends on it, not idle.
+        expect(endReason,).toBe('model-error',);
+        const summary = run.record.summarize({
+          endReason: 'model-error',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.modelError,).toBe(FAILURE_TEXT,);
+        expect(summary.retries,).toBe(1,);
+        expect(summary.modelErrorAttempts,).toBe(2,);
+      },
+    },),
+    it({
+      name: 'a wait the run ends before leaves the failure standing and counts no retry',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which a wait cut off before its end never puts one in.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over, before the wait it scheduled is.
+         */
+        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: WAIT_PAST_THE_RUN_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        expect(sent,).toEqual([],);
+        // A retry the run never reached is not an attempt it made.
+        expect(run.record.retriesTaken(),).toBe(0,);
+        expect((await feedOf(run.runFolder,)).some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        const summary = run.record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.retries,).toBe(0,);
+        expect(summary.modelError,).toBe(FAILURE_TEXT,);
+        expect(summary.modelErrorAttempts,).toBe(1,);
       },
     },),
   ],
