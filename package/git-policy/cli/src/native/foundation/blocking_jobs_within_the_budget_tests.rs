@@ -114,8 +114,8 @@ fn a_job_that_panics_gives_its_place_back() {
 }
 
 /// Where the system refuses every thread,
-/// the jobs do not run,
-/// each one says plainly that it did not run,
+/// the jobs have not run when the refusal is reported,
+/// each one says plainly that it had not started,
 /// and the place of a refused job is given back so the next job is refused too instead of waiting for it.
 /// A place held inside the job would be lost with it:
 /// the pool queues the job before it asks for a thread,
@@ -135,11 +135,11 @@ fn where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back() 
         return (first, second);
     })
     .expect("a current-thread runtime stands in where no thread can start");
-    assert_eq!(outcomes.0, Err(BlockingJobError::NoThreadToStart), "the first job did not run");
+    assert_eq!(outcomes.0, Err(BlockingJobError::NoThreadToStart), "the first job had not run when the refusal was reported");
     assert_eq!(
         outcomes.1.expect("the place of a job refused a thread was never given back"),
         Err(BlockingJobError::NoThreadToStart),
-        "the second job ran although no thread can start"
+        "the second job had not run either, so the first job's place was given back"
     );
     assert!(!ran.load(Ordering::SeqCst), "a job ran inline");
 }

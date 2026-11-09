@@ -5,7 +5,8 @@
 
 use super::*;
 
-/// A job that takes the claim first does its work, and the reporter may not promise it never started.
+/// A job that takes the claim first does its work,
+/// and the reporter may not promise it never started.
 #[test]
 fn the_job_that_takes_the_claim_first_runs_and_the_report_says_the_result_is_not_known() {
     let claim: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
@@ -15,7 +16,8 @@ fn the_job_that_takes_the_claim_first_runs_and_the_report_says_the_result_is_not
     assert!(!claim.the_reporter_takes_it(), "the claim is taken once, so a second take by the reporter is refused");
 }
 
-/// A reporter that takes the claim first can promise the work did not run, and the job does nothing.
+/// A reporter that takes the claim first can promise the work did not run,
+/// and the job does nothing.
 #[test]
 fn the_reporter_that_takes_the_claim_first_stops_the_job() {
     let claim: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();

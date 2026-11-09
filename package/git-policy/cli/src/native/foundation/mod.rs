@@ -68,7 +68,9 @@ pub mod parallel_runner_on_the_runtime;
 /// reported in the same input order.
 pub mod parallel_runner_on_the_runtime_awaiting;
 
-/// A claim that decides, once, whether the work of a job runs or its reporter may say it never did.
+/// A claim that decides,
+/// once,
+/// whether the work of a job runs or its reporter may say it never did.
 pub mod the_claim_a_job_takes_before_running_it;
 
 /// A call turned into a value when it panics,

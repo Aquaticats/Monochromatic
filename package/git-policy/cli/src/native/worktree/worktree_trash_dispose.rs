@@ -168,7 +168,8 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
             Some(path) => format!("the work item {} stays, so the commit service empties it when it next runs for this worktree", path.display()),
             None => String::from("no work item could be written for it, so it stays until it is removed by hand"),
         };
-        return Err(format!("the directories left out of the new worktree {} could not be emptied ({reason}); {stays}", destination.display()));
+        // "Not emptied now": a removal the pool queued may still run later (`no_threads_child_test_support`).
+        return Err(format!("the directories left out of the new worktree {} were not emptied now ({reason}); {stays}", destination.display()));
     }
     // The trash is gone, so the record must not outlive it as work for a service to find.
     if let Some(path) = record

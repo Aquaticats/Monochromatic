@@ -267,7 +267,7 @@ impl OrderedEvents<u64> for Nothing {
 }
 
 /// Where the system refuses every thread,
-/// the run says plainly that the items were not run.
+/// the run says plainly that the items had not run when it answered.
 #[test]
 fn where_no_thread_can_start_the_run_is_a_plain_error() {
     if ran_in_child(module_path!(), "where_no_thread_can_start_the_run_is_a_plain_error") {
@@ -276,7 +276,7 @@ fn where_no_thread_can_start_the_run_is_a_plain_error() {
     let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let outcome = run_ending(vec![1_u64, 2, 3], 3, Arc::new(CountRuns { ran: Arc::clone(&ran) }), &mut Nothing);
     assert!(matches!(outcome, Err(OrderedRunError::NoThreadToStart)), "the run answered {outcome:?}");
-    assert_eq!(ran.load(Ordering::SeqCst), 0, "a job ran although no thread could start");
+    assert_eq!(ran.load(Ordering::SeqCst), 0, "an item had run by the time the run answered, although no thread could start");
 }
 
 /// An item that does nothing.

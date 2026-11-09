@@ -9,7 +9,8 @@
 //! the task is pushed at line 624 and a thread is asked for only at line 628),
 //!  so a caller told "the system refused a thread" cannot conclude that the job will never run:
 //! the pool's next thread runs what it queued.
-//! A report that says "the work could not be started, so the file is as it was" is therefore a promise
+//! A report that says "the work could not be started,
+//! so the file is as it was" is therefore a promise
 //! about the person's data,
 //! and only a claim can keep it:
 //! whichever of the two takes the claim first decides,
@@ -29,10 +30,12 @@ use std::sync::atomic::{AtomicU8, Ordering};
 /// Nothing has taken the claim yet.
 const FREE: u8 = 0;
 
-/// The job took the claim, so it runs or has run.
+/// The job took the claim,
+/// so it runs or has run.
 const THE_JOB: u8 = 1;
 
-/// The reporter took the claim, so the job must not run.
+/// The reporter took the claim,
+/// so the job must not run.
 const THE_REPORTER: u8 = 2;
 
 /// What:

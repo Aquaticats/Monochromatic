@@ -33,7 +33,8 @@ fn apply_limit() -> std::io::Result<()> {
 }
 
 /// What:
-///  Give this process room for threads again, up to the hard limit it inherited.
+///  Give this process room for threads again,
+/// up to the hard limit it inherited.
 /// Why:
 ///  A control can then show what happens to the work the pool queued while every thread was refused:
 ///  the pool's first new thread runs it,
@@ -48,7 +49,8 @@ pub(crate) fn let_threads_start_again() -> std::io::Result<()> {
 }
 
 /// What:
-///  Refuse every thread this process starts, as the child of `ran_in_child` is refused.
+///  Refuse every thread this process starts,
+/// as the child of `ran_in_child` is refused.
 /// Why:
 ///  A control that first needs processes of its own (a Git fixture) can then put the refusal back
 /// for the part it measures.
@@ -61,7 +63,8 @@ pub(crate) fn refuse_threads_again() -> std::io::Result<()> {
     return set_process_limit(Some(1));
 }
 
-/// The soft process limit, or the hard one when `allowed` is nothing.
+/// The soft process limit,
+/// or the hard one when `allowed` is nothing.
 fn set_process_limit(allowed: Option<u64>) -> std::io::Result<()> {
     let mut found = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
     // SAFETY: `getrlimit` and `setrlimit` are async-signal-safe and read and write only this local value.
