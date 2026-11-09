@@ -267,7 +267,7 @@ impl OrderedEvents<u64> for Nothing {
 }
 
 /// Where the system refuses every thread,
-/// the run says plainly that the items were not run.
+/// the run says plainly that the items had not run when it answered.
 #[test]
 fn where_no_thread_can_start_the_run_is_a_plain_error() {
     if ran_in_child(module_path!(), "where_no_thread_can_start_the_run_is_a_plain_error") {
@@ -276,7 +276,7 @@ fn where_no_thread_can_start_the_run_is_a_plain_error() {
     let ran: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let outcome = run_ending(vec![1_u64, 2, 3], 3, Arc::new(CountRuns { ran: Arc::clone(&ran) }), &mut Nothing);
     assert!(matches!(outcome, Err(OrderedRunError::NoThreadToStart)), "the run answered {outcome:?}");
-    assert_eq!(ran.load(Ordering::SeqCst), 0, "a job ran although no thread could start");
+    assert_eq!(ran.load(Ordering::SeqCst), 0, "an item had run by the time the run answered, although no thread could start");
 }
 
 /// An item that does nothing.
@@ -295,4 +295,89 @@ fn a_lane_set_that_leaves_an_item_out_is_refused() {
     let run: OrderedRunOfOwned<'_, u64, u64> =
         OrderedRunOfOwned { items: Arc::from(vec![1_u64, 2]), lanes: Arc::from(vec![vec![0_usize]]), workers: 1, work: Arc::new(Quiet), on_event: &mut Nothing };
     run_ordered_and_wait_here(run).expect("the run finished");
+}
+
+/// How long the control of the consumer's ending waits before it reports that the consumer never ended.
+/// A refused job keeps its sending end for the life of the process,
+/// so a consumer that waits for the channel
+/// to close waits for ever;
+/// two seconds is long past the time a report of one item needs.
+const CONSUMER_STOP_BY: Duration = Duration::from_secs(2);
+
+/// What:
+///  The consumer stops once every job has returned,
+///  though a refused job keeps its sending end for the life of the process,
+/// and a wake that arrives between the count and the select is not lost.
+/// Why:
+///  The pool queues a refused job with everything it holds,
+/// its sending end included (`tests::a_refused_job_keeps_its_place.rs`),
+///  so the channel never closes and the count is the only thing that ends the consumer.
+/// A consumer that disables its wake branch when the count reaches zero can then wait for ever
+/// ("nothing should ever wait forever").
+#[test]
+fn the_consumer_stops_when_the_last_job_returned_although_a_refused_job_holds_a_sending_end() {
+    run_on_runtime(async {
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel::<Message<u64>>();
+        let still_running: Arc<SlotsStillRunning> = SlotsStillRunning::counting(ONE_PLACE);
+        // The one job answered, and then returned: the count falls to zero and one wake is stored, before the
+        //  consumer looks at the count.
+        let _answered = sender.send(Message::Done(0, 42));
+        drop(CountedOut(Arc::clone(&still_running)));
+        // The sending end a refused job holds for the life of the process, so the channel stays open.
+        let _refused = sender;
+        let mut slots: tokio::task::JoinSet<Result<(), BlockingJobError>> = tokio::task::JoinSet::new();
+        let mut seen: SeenEnds = SeenEnds::default();
+        let ended = tokio::time::timeout(CONSUMER_STOP_BY, finish_the_run(receiver, still_running.as_ref(), 1, &mut seen, &mut slots)).await;
+        assert!(ended.is_ok(), "the consumer waited for a sending end that a refused job keeps open, although every job had returned");
+        let outcome: Result<(), OrderedRunError> = ended.expect("the consumer ended");
+        assert!(outcome.is_ok(), "the one item ended with its answer: {outcome:?}");
+        assert_eq!(seen.ends, vec![(0, 42)], "the item that answered was reported");
+    })
+    .expect("the runtime");
+}
+
+/// The items that ended,
+/// as their index and their answer.
+#[derive(Default)]
+struct SeenEnds {
+    /// One entry per item that ended.
+    ends: Vec<(usize, u64)>,
+}
+
+impl OrderedEvents<u64> for SeenEnds {
+    fn on_event(&mut self, event: Event<'_, u64>) {
+        if let Event::End(index, answer) = event {
+            self.ends.push((index, answer));
+        }
+    }
+}
+
+/// What:
+///  A wait that has already missed its wake does not wait for ever,
+///  although a sending end a refused job keeps open leaves the channel open.
+/// Why:
+///  This is the state the consumer of a run reaches when a lane returns between the count it read and the
+/// wait it builds:
+/// the count is zero,
+/// one wake is stored,
+/// the channel is empty and open.
+/// The stuck state is what the review of this branch named:
+/// a disabled notification branch cannot use the stored wake,
+/// and a channel kept open by a refused job
+/// never says the jobs are gone.
+/// So the run would wait for ever ("nothing should ever wait forever").
+#[test]
+fn a_wake_that_arrived_before_the_wait_still_ends_it_although_the_channel_stays_open() {
+    run_on_runtime(async {
+        let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<Message<u64>>();
+        let still_running: Arc<SlotsStillRunning> = SlotsStillRunning::counting(ONE_PLACE);
+        // The lane returned: the count falls to zero and one wake is stored, before the wait is built.
+        drop(CountedOut(Arc::clone(&still_running)));
+        // The sending end a refused job holds for the life of the process, so the channel stays open.
+        let _refused = sender;
+        let waited = tokio::time::timeout(CONSUMER_STOP_BY, wait_for_a_message_or_a_return(&mut receiver, still_running.as_ref())).await;
+        assert!(waited.is_ok(), "the wait was not ended by a wake that had already arrived, because the branch that reads wakes was switched off while the channel stayed open");
+        assert!(waited.expect("the wait ended").is_none(), "the wait reports no message, because the wake is what ended it");
+    })
+    .expect("the runtime");
 }

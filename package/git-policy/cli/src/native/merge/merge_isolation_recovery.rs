@@ -215,7 +215,7 @@ pub fn settle_failed_merge(
     record: &Path,
     intent: &MergeIntent,
 ) -> Result<MergeRecoveryAction, RecoveryError> {
-    let root: &Path = Path::new(intent.repository_root.as_str());
+    let root: &Path = intent.repository_root.as_path();
     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
     let current: Option<String> = resolve_commit(place, root, target)?;
     if current.as_deref() == Some(intent.new_oid.as_str()) {

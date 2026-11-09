@@ -41,6 +41,10 @@ pub mod iso_time;
 /// Lexical path normalization.
 pub mod lexical_path;
 
+/// A path kept as text in a record,
+/// with its bytes in hexadecimal beside the plain text.
+pub mod path_bytes_in_records;
+
 /// How many workers independent items may use together,
 /// from the CPUs allowed,
 /// the memory free and a measured ceiling.
@@ -67,6 +71,15 @@ pub mod parallel_runner_on_the_runtime;
 /// for work that awaits a Git child rather than blocking on it,
 /// reported in the same input order.
 pub mod parallel_runner_on_the_runtime_awaiting;
+
+/// A claim that decides,
+/// once,
+/// whether the work of a job runs or its reporter may say it never did.
+pub mod the_claim_a_job_takes_before_running_it;
+
+/// The place one blocking job holds of the process's bound,
+/// shared between the frame that waits for it and the job itself.
+pub mod the_place_of_one_blocking_job;
 
 /// A call turned into a value when it panics,
 /// for the places that guard a function and its state.

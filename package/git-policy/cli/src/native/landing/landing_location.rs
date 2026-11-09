@@ -8,7 +8,7 @@
 //!  A command outside a repository,
 //!  or one writing another index,
 //!  waits for
-//!      nothing (`src/index-lock/landing-location.ts`).
+//!      nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

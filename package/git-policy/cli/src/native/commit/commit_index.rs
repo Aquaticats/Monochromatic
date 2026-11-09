@@ -14,8 +14,7 @@
 //!  and only an index that no longer describes the worktree is refreshed at all.
 //!  A copy keeps the real index's timestamps,
 //! because Git re-reads a stat entry
-//!  whose time is not older than the index file (`index-file-timestamps.ts`,
-//! issue #544).
+//!  whose time is not older than the index file (issue #544).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -214,13 +213,21 @@ fn stage_into_the_private_index(
         // The commit's index is a copy of the real one, so its entries carry the stat data a real index had to keep.
         note_index_build(IndexBuildKind::First, real_index_present);
         if selection.stage_tracked_changes {
-            // Whole-tree update of tracked paths, exactly what `commit -a` stages, captured once at invocation.
+            // Whole-tree update of tracked paths, exactly what `commit -a` stages, captured once at invocation. The
+            // pathspec is `:/`, which literal pathspec mode, from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`,
+            // would read as a file name and stage nothing, so the mode is switched off for this start.
             private_git(
                 context,
                 cwd,
                 indexes.commit_index.as_path(),
                 indexes.object_directory.as_path(),
-                &["add".to_string(), "--update".to_string(), "--".to_string(), ":/".to_string()],
+                &[
+                    "--no-literal-pathspecs".to_string(),
+                    "add".to_string(),
+                    "--update".to_string(),
+                    "--".to_string(),
+                    ":/".to_string(),
+                ],
             )?;
         }
         if !selection.stage_into_index {

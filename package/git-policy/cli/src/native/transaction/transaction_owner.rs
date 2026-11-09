@@ -6,8 +6,9 @@
 //!  The owner record is written before the directory is published,
 //!  so recovery can skip a
 //!      live owner's transaction at every phase.
-//!  Both wrappers write and judge the same record
-//!      (`src/policy-engine/commit-transaction-owner.ts`).
+//!  The record is read by a later run of this wrapper,
+//!  so its schema version is exact:
+//!  a record of another version is refused rather than misread.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -142,7 +142,10 @@ Read by `repo_read/repo_read_refs.rs`.
   `lookup`):
   the same two spellings,
   read only for a name of the plain alphabet (`:102`,
-  `is_plain_ref_name`):
+  `is_plain_ref_name`,
+  since 2026-11-09 named `is_listable_ref_name` and widened to Git's own rule by
+  `fix(git-policy/cli): the ref naming alphabet is Git's own refname rule`,
+  commit `64e8bd5102`):
   `refs/` followed by components of ASCII letters,
   digits,
   `.`,
@@ -383,6 +386,14 @@ Under reftable it answers "maybe" for every name (`:153`).
 
 ### 1. An answer's standard error is not Git's, and an unknown optional index extension shows where
 
+Fixed on 2026-11-09 (commit `421b692b9a`,
+its control in `7ec3cca27c`):
+the reader declines on every signature whose silence Git does not keep,
+and still answers `TREE`,
+`UNTR`,
+`EOIE`,
+`IEOT` and the `REUC` and `FSMN` bodies that read as Git reads them.
+
 `repo_read/repo_read_query.rs:324` returns an `Answer`
 whose `stderr` is empty for every query except the two the readers word
 themselves
@@ -438,6 +449,14 @@ The cost is one Git start for a repository with a future optional extension,
 which is the cost the readers already pay for a required one.
 
 ### 2. One scoped tag removes the ref listing, and this repository carries them
+
+Fixed on 2026-11-09 (commit `64e8bd5102`,
+its controls in `16c6a1fab1`):
+the predicate is `is_listable_ref_name` and follows Git's own rule.
+Measured on this repository in the release profile,
+the answer costs more than the Git start it replaces,
+so the widening fixes what the reader can answer,
+not what it saves.
 
 `repo_read/repo_read_refs.rs:102` accepts a ref name only when every component is
 made of ASCII letters,
@@ -523,6 +542,11 @@ widen `is_plain_ref_name` to Git's `refname_disposition` rules
 which keeps the property the reader needs,
 namely that it can prove the name is a valid ref name Git would also list,
 and lets the listing answer in the repositories that carry scoped tags.
+Adopted on 2026-11-09 as `is_listable_ref_name`
+(commit `64e8bd5102`),
+which declines on the bytes above ASCII and on the control bytes as well;
+the measurement that came with it is in the report of that branch and shows the
+answer is slower than the Git start on this repository.
 The smaller change is to teach `list()` to skip a packed name that is not plain
 the way `packed_named(true)` already does,
 but that would answer with a listing Git does not print,

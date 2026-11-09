@@ -60,7 +60,7 @@ fn status_reports_drift_for_tools_a_fake_machine_lacks() {
     assert!(report.text.contains("ok      cargo:fd-find  1.2.3\n"), "{}", report.text);
     assert!(report.text.contains("drift   node  locked=1.2.3  observed=(absent)\n"), "{}", report.text);
     assert!(
-        runner.lines().iter().all(|line| return line.starts_with("rustup toolchain list")),
+        runner.lines().iter().all(|line| return line.starts_with("rustup which --toolchain")),
         "only read-only queries run: {:?}",
         runner.lines()
     );

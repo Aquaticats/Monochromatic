@@ -15,9 +15,8 @@
 //!  which the mount number the kernel writes for a descriptor cannot do (audit of 2026-11-09,
 //!  finding 4).
 //!  Processes the scan
-//!      cannot read are partial evidence (`src/index-lock/index-lock-holders-linux.ts`,
-//!      `-darwin.ts`,
-//!  `-win32.ts`).
+//!      cannot read are partial evidence,
+//!  and they are reported as such rather than counted as absent.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

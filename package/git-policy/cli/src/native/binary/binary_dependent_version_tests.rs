@@ -17,7 +17,11 @@
 //! // expect(run(wrappedGit, ['monochromatic-git-policy-cli', 'fix', '--all']).stdout).toContain('fix-summary');
 //! ```
 
+/// The deepest indentation the generated configuration writes,
+/// which the chain below must pass.
+use git_policy_cli::dependent_version_yaml_lines::GENERATED_MAX_INDENT;
 /// Import the shared fixtures and bounded process helpers.
+use super::commit::{git_text, run_commit};
 use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
 /// Operating-system text for the repository name.
 use std::ffi::OsStr;
@@ -52,6 +56,20 @@ fn write(repo: &Path, path: &str, text: &str) {
     std::fs::write(file, text).expect("file");
 }
 
+/// The registry configuration the generator writes around one publish set,
+/// four levels down at `auth.oidc[].workloads[].packages`;
+/// an empty slice writes the list with no item.
+fn publish_set(names: &[&str]) -> String {
+    let items: Vec<String> = names
+        .iter()
+        .map(|name: &&str| return format!("            - '{name}'"))
+        .collect();
+    return format!(
+        "auth:\n  oidc:\n    - name: github\n      workloads:\n        - identity:\n            subject: 'repo:example/main'\n          registry: r\n          packages:\n{}\n\nweb:\n  enable: false\n",
+        items.join("\n")
+    );
+}
+
 /// A committed workspace of `@s/a` and its dependents `@s/b` and `@s/c`,
 /// configured for
 /// the policy,
@@ -76,7 +94,7 @@ fn workspace(fixture: &Fixture) -> PathBuf {
     write(
         repo.as_path(),
         "package/config/pnpr/config.yaml",
-        "packages:\n  - '@s/a'\n  - '@s/b'\n  - '@s/c'\n",
+        &publish_set(&["@s/a", "@s/b", "@s/c"]),
     );
     write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
     git(fixture, repo.as_path(), &["add", "--all"]);
@@ -108,6 +126,186 @@ fn stale(sequence: u64, name: &str, from: &str, to: &str) -> String {
 fn read(repo: &Path, name: &str) -> String {
     return std::fs::read_to_string(repo.join(format!("package/module/{name}/package.json")))
         .expect("manifest");
+}
+
+/// A committed workspace of `@s/base` and its runtime dependent `app`,
+/// configured for the policy,
+/// with `@s/base` raised to `1.1.0` in the worktree and no registry configuration yet.
+fn app_workspace(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    write(
+        repo.as_path(),
+        "package/module/base/package.json",
+        &manifest("@s/base", "1.0.0", None),
+    );
+    write(
+        repo.as_path(),
+        "package/module/app/package.json",
+        &manifest("app", "2.0.0", Some("@s/base")),
+    );
+    write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=workspace"],
+    );
+    write(
+        repo.as_path(),
+        "package/module/base/package.json",
+        &manifest("@s/base", "1.1.0", None),
+    );
+    return repo;
+}
+
+/// A tagged workload key ends the check with the line that holds it,
+/// instead of hiding the
+///       publishable package the other workload already listed a name beside.
+#[test]
+fn a_tagged_key_stops_the_check_by_line() {
+    let fixture: Fixture = fixture("dependent-version-tagged-key");
+    let repo: PathBuf = app_workspace(&fixture);
+    write(
+        repo.as_path(),
+        "package/config/pnpr/config.yaml",
+        concat!(
+            "auth:\n",
+            "  oidc:\n",
+            "    - name: github\n",
+            "      workloads:\n",
+            "        - registry: r\n",
+            "          packages:\n",
+            "            - '@s/base'\n",
+            "        - registry: monochromatic-dev\n",
+            "          !!str packages:\n",
+            "            - 'app'\n",
+        ),
+    );
+    let refused: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["monochromatic-git-policy-cli", "check", "--all"],
+    );
+    assert_eq!(refused.code, Some(2), "{}", String::from_utf8_lossy(&refused.stdout));
+    let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
+    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains("begins with '!', which opens a key this reader does not read on line 9"),
+        "{events}"
+    );
+    remove(&fixture);
+}
+
+/// A '#' on a list item stops the check with the line that holds it,
+/// instead of reading the item
+///       as a mapping or as another name:
+/// the generator writes no '#' on an item.
+#[test]
+fn a_hash_on_a_list_item_stops_the_check() {
+    let fixture: Fixture = fixture("dependent-version-item-hash");
+    let repo: PathBuf = app_workspace(&fixture);
+    let text: String = concat!(
+        "auth:\n",
+        "  oidc:\n",
+        "    - name: github\n",
+        "      workloads:\n",
+        "        - registry: r\n",
+        "          packages:\n",
+        "            - '@s/base'\n",
+        "            - app # publication: enabled\n",
+    )
+    .to_string();
+    let hashed: usize = text.lines().count();
+    write(repo.as_path(), "package/config/pnpr/config.yaml", &text);
+    let refused: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["monochromatic-git-policy-cli", "check", "--all"],
+    );
+    assert_eq!(
+        refused.code,
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+    let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
+    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains(
+            format!(
+                "holds a '#' on a list item, where the generated configuration writes none on line {hashed}"
+            )
+            .as_str()
+        ),
+        "{events}"
+    );
+    remove(&fixture);
+}
+
+/// A commit that raises a version lands whether the publish set is absent or empty:
+/// the pre-forward lifecycle plans no dependent bump,
+/// so a publish set it cannot read never fails a commit.
+#[test]
+fn a_version_raising_commit_lands_without_a_publish_set() {
+    for (name, configuration) in [
+        ("dependent-version-commit-untracked", None),
+        ("dependent-version-commit-empty", Some(publish_set(&[]))),
+    ] {
+        let fixture: Fixture = fixture(name);
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        write(
+            repo.as_path(),
+            "package/module/base/package.json",
+            &manifest("@s/base", "1.0.0", None),
+        );
+        write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+        if let Some(text) = configuration {
+            write(repo.as_path(), "package/config/pnpr/config.yaml", &text);
+        }
+        git(&fixture, repo.as_path(), &["add", "--all"]);
+        git(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--quiet", "--message=initial"],
+        );
+        write(
+            repo.as_path(),
+            "package/module/base/package.json",
+            &manifest("@s/base", "1.1.0", None),
+        );
+        git(
+            &fixture,
+            repo.as_path(),
+            &["add", "--", "package/module/base/package.json"],
+        );
+        let landed: Observed = run_commit(
+            &fixture,
+            repo.as_path(),
+            &[
+                "commit",
+                "--message=bump",
+                "--",
+                "package/module/base/package.json",
+            ],
+        );
+        assert_eq!(
+            landed.code,
+            Some(0),
+            "{name}: {}{}",
+            String::from_utf8_lossy(&landed.stdout),
+            String::from_utf8_lossy(&landed.stderr)
+        );
+        assert_eq!(
+            git_text(
+                &fixture,
+                repo.as_path(),
+                &["show", "HEAD:package/module/base/package.json"],
+            ),
+            manifest("@s/base", "1.1.0", None),
+            "{name}"
+        );
+        remove(&fixture);
+    }
 }
 
 /// A check reports both dependents with a fix available and exits 1;
@@ -341,5 +539,48 @@ fn literal_pathspecs_check_all_like_plain_mode() {
     );
     assert_eq!(plain.code, Some(1));
     assert_eq!(literal, plain);
+    remove(&fixture);
+}
+
+/// A configuration nested deeper than the generated one stops the policy with a
+/// diagnostic naming the first line past its deepest key,
+/// instead of reading it and judging:
+/// the reader's block recursion is bounded by that
+///       indentation,
+/// so no input can grow the stack.
+#[test]
+fn a_configuration_deeper_than_the_generated_one_stops_the_check() {
+    let fixture: Fixture = fixture("dependent-version-too-deep");
+    let repo: PathBuf = app_workspace(&fixture);
+    let mut text: String = publish_set(&["@s/base", "app"]);
+    text.push_str("deeper:\n");
+    for level in 1..=GENERATED_MAX_INDENT + 1 {
+        text.push_str(&" ".repeat(level));
+        text.push_str("a:\n");
+    }
+    let deepest: usize = text.lines().count();
+    write(repo.as_path(), "package/config/pnpr/config.yaml", &text);
+    let refused: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["monochromatic-git-policy-cli", "check", "--all"],
+    );
+    assert_eq!(
+        refused.code,
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+    let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
+    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains(
+            format!(
+                "is indented deeper than the generated configuration's deepest key, which sits {GENERATED_MAX_INDENT} spaces in on line {deepest}"
+            )
+            .as_str()
+        ),
+        "{events}"
+    );
     remove(&fixture);
 }

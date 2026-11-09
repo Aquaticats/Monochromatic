@@ -71,6 +71,7 @@ use crate::traditional_hook_warning::warn_traditional_hooks;
 use crate::transaction_git::{GitContext, run_git_checked};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 /// What the preparation reads that does not change between two preparations of one command.
@@ -192,6 +193,9 @@ pub fn prepare<F: RepositoryFacts>(
     };
     // The parts the word-level second pass merged when a retry combined the change with the branch, told with the commit.
     let mut word_merge_events: Option<PolicyEvent> = None;
+    // The file the commit copies its index from, as it was before the copy: a live index that is another file later has entries
+    //  the copy does not, and those are what the commit must not record.
+    let index_witness: crate::service_land_start::IndexWitness = crate::service_land_start::witness_of(capture.layout.real_index_path.as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
     if let Some(again) = retry {
         // The change this command captured when it started, on the branch as it is now; the worktree is not read.
         let site: MergeSite<'_> = MergeSite {
@@ -218,6 +222,18 @@ pub fn prepare<F: RepositoryFacts>(
         if let Err(error) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
             return Err(failed(error.0));
         }
+    }
+    // A commit that landed but did not finish its index update leaves this worktree's index describing the branch before that
+    //  landing, so a plain commit of this index would record the landed commit's own paths as their old content, and a path it added
+    //  as a staged deletion. Which entries are the landing's own cannot be decided from what they hold, so nothing here writes the
+    //  live index: this commit's own index is set to the head for the paths whose entry disagrees with it, and the person is told
+    //  (`owed_index_repair.rs`, `doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`). An explicit-path commit names
+    //  its own selection, so only the notice is given for it.
+    let excluded: Vec<String> = crate::owed_index_update::exclude_or_stop(context, &capture, &indexes, selection.mode, &index_witness)?;
+    if inputs.first
+        && let Some(notice) = crate::owed_index_update::excluded_notice(excluded.as_slice())
+    {
+        let _written = std::io::stderr().write_all(notice.as_bytes());
     }
     // The bytes are captured now; a retry keeps the stamp of the capture it replays.
     let captured_at: u64 = match retry {
@@ -268,7 +284,14 @@ pub fn prepare<F: RepositoryFacts>(
     //  it, and the commit that follows is the one Git would have built for a resolved merge. The files are named in the warning.
     let unmerged_files: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
     if !unmerged_files.is_empty() {
-        let mut staging: Vec<OsString> = vec![OsString::from("add"), OsString::from("--all"), OsString::from("--")];
+        // Each path is named with `:(top,literal)` magic, and this start skips the caller's prefix, so literal
+        // pathspec mode is switched off here: under it the names would match nothing and the commit would fail.
+        let mut staging: Vec<OsString> = vec![
+            OsString::from("--no-literal-pathspecs"),
+            OsString::from("add"),
+            OsString::from("--all"),
+            OsString::from("--"),
+        ];
         for path in &unmerged_files {
             let mut spec: Vec<u8> = b":(top,literal)".to_vec();
             spec.extend_from_slice(path.as_slice());
@@ -341,4 +364,17 @@ pub fn prepare<F: RepositoryFacts>(
     ready.committed_conflicted.extend(unmerged_files);
     ready.leaves_open = leaves_open;
     return Ok(Prepared::Ready(ready));
+}
+
+/// The step above,
+/// for a control that asks it directly.
+#[cfg(test)]
+pub(crate) fn exclude_or_stop_for_test(
+    context: &GitContext,
+    capture: &InvocationCapture,
+    indexes: &CaptureIndexes,
+    mode: TransactionMode,
+    captured: &crate::service_land_start::IndexWitness,
+) -> Result<Vec<String>, TransactionStop> {
+    return crate::owed_index_update::exclude_or_stop(context, capture, indexes, mode, captured);
 }

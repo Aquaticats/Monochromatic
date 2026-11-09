@@ -64,6 +64,10 @@
 //!  not block (a fifo renamed over the path is opened without waiting for a writer and refused by its type),
 //! and the bytes are
 //!  read at most up to what is left of `CONTENT_LIMIT` for the whole landing.
+//! A read the system interrupts is retried at most `INTERRUPTED_TRIES` times,
+//! so a source that interrupts every read cannot hold the landing's index lock:
+//!  the path then keeps the zero stat data,
+//! and the next command that needs it hashes the file through Git.
 //! Every byte that reaches the disk is charged,
 //! including a
 //!  read the stability checks later refuse,
@@ -127,6 +131,21 @@ fn read_some(file: &std::fs::File, buffer: &mut [u8]) -> std::io::Result<usize> 
 
 /// The bytes one read takes at most.
 const READ_CHUNK: usize = 64 * 1024;
+
+/// How many times one file-content read is tried again after the system interrupts it.
+/// Why:
+///  An interruption is not a fact about the file,
+/// so one is retried;
+/// a source that interrupts every attempt for ever would otherwise hold the landing's index lock
+///  without a bound,
+/// which the owner's rule forbids ("nothing should ever wait forever or indefinitely").
+/// Three tries is the same count the attributes reader takes
+/// (`worktree_clean_content_attributes.rs`,
+/// `INTERRUPTED_TRIES`):
+/// a single
+///  signal is the interruption the retry exists for,
+/// and a source that interrupts three reads in a row is one this reader refuses rather than waits on.
+const INTERRUPTED_TRIES: usize = 3;
 
 /// What:
 ///  Do nothing;
@@ -268,16 +287,22 @@ fn stat_of(metadata: &std::fs::Metadata) -> StatData {
 /// including
 ///  what a read that then fails took:
 /// a refused read still consumed it.
+/// A read the system interrupts is tried again,
+/// because an interruption is not a fact about the file;
+/// the tries are counted (`INTERRUPTED_TRIES`),
+/// and a source that interrupts every one of them ends in the same refusal a hard read error does,
+///  so nothing waits for an interruption to stop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function readByChunks(file, room, spent, seams) {
-///   const data = []; while (data.length < room) { const taken = seams.read(file, new Uint8Array(Math.min(64 << 10, room - data.length)));
-///     if (taken === 0) break; data.push(...taken); spent += taken; } return data;
+///   const data = []; let interrupted = 0; while (data.length < room) { let taken; try { taken = seams.read(file, new Uint8Array(Math.min(64 << 10, room - data.length))); }
+///     catch (error) { if (error.kind === 'Interrupted' && interrupted < INTERRUPTED_TRIES) { interrupted += 1; continue; } return undefined; } if (taken === 0) break; data.push(...taken); spent += taken; } return data;
 /// }
 /// ```
 fn read_by_chunks(file: &std::fs::File, room: u64, spent: &Cell<u64>, seams: &mut ProofSeams<'_>) -> Option<Vec<u8>> {
     let mut data: Vec<u8> = Vec::new();
+    let mut interrupted: usize = 0;
     let mut buffer: Vec<u8> = vec![0; READ_CHUNK];
     while (data.len() as u64) < room {
         let want: usize = usize::try_from(room - data.len() as u64).unwrap_or(usize::MAX).min(READ_CHUNK);
@@ -288,7 +313,12 @@ fn read_by_chunks(file: &std::fs::File, room: u64, spent: &Cell<u64>, seams: &mu
                 data.extend_from_slice(&buffer[..took]);
                 spent.set(spent.get() + took as u64);
             }
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            // An interruption is not a fact about the file, so it is tried again;
+            // a source that interrupts every try is refused rather than waited on.
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted && interrupted < INTERRUPTED_TRIES => {
+                interrupted += 1;
+                continue;
+            }
             // The bytes taken before the failure are charged already, and the read proves nothing.
             Err(_) => return None,
         }

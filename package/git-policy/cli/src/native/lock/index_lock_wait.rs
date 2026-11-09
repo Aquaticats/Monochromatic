@@ -11,7 +11,7 @@
 //! a command
 //!  that cannot take Git's `index.lock` ends as native Git ends it,
 //! and the commit service's landing retries it a bounded
-//!  number of times itself (`src/index-lock/index-lock-wait.ts` is the incumbent of the schedule).
+//!  number of times itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

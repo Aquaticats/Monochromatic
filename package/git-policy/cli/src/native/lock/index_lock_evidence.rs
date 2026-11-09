@@ -12,8 +12,7 @@
 //!      evidence-free;
 //!  an absent open holder never proves abandonment,
 //!  because native
-//!      `git commit` keeps `index.lock` without a descriptor through its hooks and editor
-//!      (`src/index-lock/index-lock-evidence.ts`).
+//!      `git commit` keeps `index.lock` without a descriptor through its hooks and editor.
 //!  No verdict rests on the wall clock (audit of 2026-11-09,
 //! finding 3):
 //!  a process's start is derived from the wall clock while the lock's change time is stored,
