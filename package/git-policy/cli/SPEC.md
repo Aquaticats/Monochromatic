@@ -1585,6 +1585,12 @@ the plain files beside the journal under the writer's own names (that fixed name
 which is safe because the numbered claim file `.cli-git-migrate-<name>.owner.<generation>` leaves one writer per checkout;
 a link,
 a directory or any other name stays.
+The migration's list of files this user may not read is published the same way:
+staged in a sibling created exclusively and mode owner-only,
+synchronized,
+renamed over the list and the directory synchronized,
+so a kill leaves either the earlier list or the complete new one,
+never an empty record that the next run would read as nothing recorded.
 
 Migrating the main checkout (`git monochromatic-git-policy-cli migrate-to-subvolume`) is owned the same way,
 in every mode (migrate,
