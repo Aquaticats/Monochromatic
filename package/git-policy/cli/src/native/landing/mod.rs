@@ -262,6 +262,10 @@ pub mod service_captures;
 /// never prepared again from the worktree.
 pub mod service_replay;
 
+/// The capture order of every shared path of a replay,
+/// from one walk over the history.
+pub mod service_replay_capture_order;
+
 /// The small text steps of the replay of captured changes.
 pub mod service_replay_line_text;
 

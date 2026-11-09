@@ -807,7 +807,7 @@ fn incumbent_written_journal_is_recovered_natively() {
         vec![InstalledPath {
             device: 7,
             inode: 42,
-            relative_path: String::from("cache"),
+            relative_path: b"cache".to_vec(),
             selected: true,
         }]
     );

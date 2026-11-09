@@ -145,19 +145,6 @@ impl Drop for ClaimHold {
 }
 
 /// What:
-///  A byte as two lowercase hexadecimal digits.
-/// Why:
-///  `claim_path` names a claim by the first bytes of a digest.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const hexOfByte = (byte: number) => byte.toString(16).padStart(2, '0');
-/// ```
-fn hex_of_byte(byte: &u8) -> String {
-    return format!("{byte:02x}");
-}
-
-/// What:
 ///  A byte of a process identity as it is written in a claim's name:
 /// the bytes a file name cannot hold and the escape itself as
 ///  `%` and two hexadecimal digits,
@@ -171,7 +158,7 @@ fn hex_of_byte(byte: &u8) -> String {
 /// const escapedByte = (byte: number) => [0x2f, 0, 0x25].includes(byte) ? '%' + byte.toString(16).padStart(2, '0') : String.fromCharCode(byte);
 /// ```
 fn escaped_byte(byte: u8) -> String {
-    return if matches!(byte, b'/' | 0 | b'%') { format!("%{byte:02x}") } else { String::from(char::from(byte)) };
+    return if matches!(byte, b'/' | 0 | b'%') { format!("%{}", crate::hexadecimal_of_bytes::hexadecimal_of_byte(byte)) } else { String::from(char::from(byte)) };
 }
 
 /// What:
@@ -215,7 +202,7 @@ pub fn claim_path(lock: &Path, key: &str, slot: usize) -> PathBuf {
     input.push(0);
     input.extend_from_slice(key.as_bytes());
     let digest: [u8; 32] = crate::subvolume_sha::sha256(input.as_slice());
-    let hex: String = digest.iter().take(CLAIM_DIGEST_BYTES).map(hex_of_byte).collect();
+    let hex: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(&digest[..CLAIM_DIGEST_BYTES]);
     return lock.with_file_name(format!("{CLAIM_INFIX}{hex}-{slot}"));
 }
 

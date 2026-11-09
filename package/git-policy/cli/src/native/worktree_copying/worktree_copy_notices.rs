@@ -28,6 +28,7 @@
 
 use crate::json_record::quote;
 use crate::worktree_copy_error::WorktreeCopyError;
+use crate::worktree_copy_selection::shown_repository_path;
 use crate::worktree_subvolume::Reservation;
 use std::path::Path;
 
@@ -203,8 +204,11 @@ const NOTICE_PATHS: usize = 3;
 /// ```ts
 /// `monochromatic-git-policy-cli: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
 /// ```
-pub(crate) fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
-    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
+pub(crate) fn unreadable_notice(source_root: &Path, unreadable: &[Vec<u8>]) -> String {
+    let mut named: Vec<String> = Vec::new();
+    for path in unreadable.iter().take(NOTICE_PATHS) {
+        named.push(quote(shown_repository_path(path.as_slice()).as_str()));
+    }
     let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
     let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
     let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
@@ -230,8 +234,11 @@ pub(crate) fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> St
 /// ```ts
 /// `monochromatic-git-policy-cli: left out ${count} ignored ${noun} that kept changing while they were copied, from ${source}: ${first.join(', ')}${more}. They stay in the source worktree, unchanged.\n`
 /// ```
-pub(crate) fn unsettled_notice(source_root: &Path, unsettled: &[String]) -> String {
-    let named: Vec<String> = unsettled.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
+pub(crate) fn unsettled_notice(source_root: &Path, unsettled: &[Vec<u8>]) -> String {
+    let mut named: Vec<String> = Vec::new();
+    for path in unsettled.iter().take(NOTICE_PATHS) {
+        named.push(quote(shown_repository_path(path.as_slice()).as_str()));
+    }
     let rest: usize = unsettled.len().saturating_sub(NOTICE_PATHS);
     let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
     let noun: &str = if unsettled.len() == 1 { "entry" } else { "entries" };

@@ -1,5 +1,13 @@
 # Hard links across mounts of the same filesystem
 
+Note 2026-11-09T16:46:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/native/build-reuse.ts` left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/build-reuse.platform.test.ts` left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+
 ## Owned build failure
 
 Auto-mode's immutable release optimization compares file metadata and complete content hashes,

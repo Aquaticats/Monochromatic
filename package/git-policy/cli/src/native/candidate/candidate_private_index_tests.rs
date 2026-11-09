@@ -339,7 +339,8 @@ fn an_owner_record_that_is_a_fifo_does_not_hold_up_a_new_copy() {
     );
     assert!(blocked.exists(), "a record that proves nothing keeps its copy");
     std::fs::remove_dir_all(&blocked).expect("the unproven copy");
-    drop(made_on_a_thread);
+    // The thread answers before it drops its copy, so the listing waits for that thread.
+    made_on_a_thread.join().expect("the thread that made the copy");
     assert_eq!(entries(root.as_path()), vec!["index"]);
     remove(root.as_path());
 }

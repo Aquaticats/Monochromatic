@@ -87,11 +87,7 @@ fn field_of<'a>(text: &'a str, key: &str) -> Option<&'a str> {
 
 /// Lower-case hexadecimal of bytes.
 fn hex(bytes: &[u8]) -> String {
-    let mut spelled: String = String::new();
-    for byte in bytes {
-        spelled.push_str(format!("{byte:02x}").as_str());
-    }
-    return spelled;
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes);
 }
 
 /// The bytes of lower-case hexadecimal text.

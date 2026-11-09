@@ -17,7 +17,8 @@ use crate::private_storage::sync_directory;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal::{Role, assert_private_path};
-use crate::worktree_copy_journal_encoding_and_validation::{encode_installed_entry, installed_entry, string_array};
+use crate::path_bytes_in_records::{list_fragment, read_path_list};
+use crate::worktree_copy_journal_encoding_and_validation::{encode_installed_entry, installed_entry};
 use crate::worktree_copy_selection::assert_safe_repository_path;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
@@ -48,7 +49,7 @@ pub const INSTALL_LOG_NAME: &str = "install-log.jsonl";
 pub struct InstallLogRecords {
     /// Selected paths claimed before destination mutation,
     /// in claim order.
-    pub intended: Vec<String>,
+    pub intended: Vec<Vec<u8>>,
     /// Paths proven created,
     /// in creation order.
     pub created: Vec<InstalledPath>,
@@ -109,20 +110,6 @@ fn corrupt_install_log(path: &Path) -> WorktreeCopyError {
 }
 
 /// What:
-///  A JSON value as text,
-/// when it is a string.
-/// Why:
-///   Every path in an install log must be a string.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// typeof value === 'string' ? value : undefined
-/// ```
-fn text_of(item: &serde_json::Value) -> Option<String> {
-    return item.as_str().map(str::to_string);
-}
-
-/// What:
 ///  Whether a byte is a line feed.
 /// Why:
 ///   A line of the log counts only once its line feed was written.
@@ -152,12 +139,12 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
     let Some(object) = value.as_object() else {
         return Err(corrupt_install_log(path));
     };
-    if let Some(intended) = object.get("intended").and_then(serde_json::Value::as_array) {
-        let Some(names) = intended.iter().map(text_of).collect::<Option<Vec<String>>>() else {
+    if object.contains_key("intended") || object.contains_key("intendedHex") {
+        let Some(names) = read_path_list(&value, "intended") else {
             return Err(corrupt_install_log(path));
         };
         for name in &names {
-            assert_safe_repository_path(name.as_str())?;
+            assert_safe_repository_path(name.as_slice())?;
         }
         return Ok(InstallLogRecords {
             intended: names,
@@ -169,7 +156,7 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
             return Err(corrupt_install_log(path));
         };
         for entry in &entries {
-            assert_safe_repository_path(entry.relative_path.as_str())?;
+            assert_safe_repository_path(entry.relative_path.as_slice())?;
         }
         return Ok(InstallLogRecords {
             intended: Vec::new(),
@@ -282,11 +269,11 @@ impl InstallLog {
     }
 
     /// Durably appends the selected paths one batch is about to create.
-    pub fn append_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError> {
+    pub fn append_intents(&mut self, relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError> {
         if relative_paths.is_empty() {
             return Ok(());
         }
-        let line: String = format!("{{\"intended\":{}}}\n", string_array(relative_paths));
+        let line: String = format!("{{{}}}\n", list_fragment("intended", relative_paths));
         return self.append_line(line.as_str());
     }
 

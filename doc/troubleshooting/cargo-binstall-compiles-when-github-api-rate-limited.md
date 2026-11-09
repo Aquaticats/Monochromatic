@@ -7,6 +7,9 @@ which runs `cargo binstall --no-confirm --version 0.1.0 monochromatic-mpm-shadow
 The release `monochromatic-mpm-shadow-v0.1.0` existed with both archives,
 and the same command had installed the archive's binary minutes earlier.
 
+Note 2026-11-09T16:38:44-05:00:
+`package/file-enforcer/core/src/toolchain/mpm-manifest.ts` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 The install finished with `Installed 1/1 packages` after 2 minutes 10 seconds,

@@ -1,6 +1,6 @@
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -66,11 +66,13 @@ async function writeEntry({
  
  @param cpuPressure - `avg10` written to the CPU pressure file
 
- @returns the fixture paths and the root directory
+ @returns the fixture paths and the root directory, which removes itself when the
+   caller's scope ends
 
  @example
  ```ts
- const { paths, } = await makeHost({ threads: '28', cpuPressure: 1, },);
+ await using host = await makeHost({ threads: '28', cpuPressure: 1, },);
+ const { paths, } = host;
  ```
  */
 export async function makeHost({
@@ -82,14 +84,19 @@ export async function makeHost({
 }>,): Promise<Readonly<{
   root: string;
   paths: Paths
+  [Symbol.asyncDispose]: () => Promise<void>;
 }>> {
   /**
    Root of the disposable host.
    */
-  const root = await mkdtemp(join(
+  const directory = await mkdtempDisposable(join(
     scratchRoot(),
     'cpu-cap-host-',
   ),);
+  /**
+   Fixture paths are built from a plain path, so cases pass them on unchanged.
+   */
+  const root = directory.path;
   /**
    Per-core energy counter files, one label and one input each.
    */
@@ -331,6 +338,9 @@ export async function makeHost({
         root,
         'samples',
       ),
+    },
+    [Symbol.asyncDispose]: async function removeHostFixture(): Promise<void> {
+      await directory.remove();
     },
   };
 }

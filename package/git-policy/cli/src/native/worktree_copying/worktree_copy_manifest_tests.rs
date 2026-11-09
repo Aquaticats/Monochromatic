@@ -4,11 +4,11 @@ use super::*;
 use crate::test_support::{fixture, remove};
 
 /// A manifest entry shorthand for expected values.
-fn entry(kind: EntryKind, mode: u32, relative_path: &str) -> WorktreeCopyEntry {
+fn entry(kind: EntryKind, mode: u32, relative_path: &[u8]) -> WorktreeCopyEntry {
     return WorktreeCopyEntry {
         kind,
         mode,
-        relative_path: String::from(relative_path),
+        relative_path: relative_path.to_vec(),
     };
 }
 
@@ -33,20 +33,20 @@ fn manifest_is_parent_first_in_javascript_order_without_following_links() {
     let root: PathBuf = fixture("manifest-order");
     tree(root.as_path());
     let entries: Vec<WorktreeCopyEntry> =
-        collect_entry_manifest(root.as_path(), &[String::from("cache")], &[]).expect("manifest");
-    let paths: Vec<&str> = entries
+        collect_entry_manifest(root.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
+    let paths: Vec<&[u8]> = entries
         .iter()
-        .map(|entry| return entry.relative_path.as_str())
+        .map(|entry| return entry.relative_path.as_slice())
         .collect();
     assert_eq!(
         paths,
         vec![
-            "cache",
-            "cache/B",
-            "cache/a",
-            "cache/deep",
-            "cache/deep/file",
-            "cache/link",
+            b"cache".as_slice(),
+            b"cache/B",
+            b"cache/a",
+            b"cache/deep",
+            b"cache/deep/file",
+            b"cache/link",
         ]
     );
     assert_eq!(entries[5].kind, EntryKind::Symlink);
@@ -63,19 +63,19 @@ fn excluded_roots_are_omitted_with_descendants() {
     let excluded: Vec<PathBuf> = vec![root.join("cache/deep")];
     let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(
         root.as_path(),
-        &[String::from("cache")],
+        &[b"cache".to_vec()],
         excluded.as_slice(),
     )
     .expect("manifest");
     assert!(
         entries
             .iter()
-            .all(|entry| return !entry.relative_path.starts_with("cache/deep"))
+            .all(|entry| return !entry.relative_path.starts_with(b"cache/deep"))
     );
     assert!(
         entries
             .iter()
-            .any(|entry| return entry.relative_path == "cache/a")
+            .any(|entry| return entry.relative_path == b"cache/a")
     );
     remove(root.as_path());
 }
@@ -87,17 +87,17 @@ fn single_file_and_missing_selection() {
     let root: PathBuf = fixture("manifest-single");
     std::fs::write(root.join("only"), b"x").expect("only");
     let entries: Vec<WorktreeCopyEntry> =
-        collect_entry_manifest(root.as_path(), &[String::from("only")], &[]).expect("manifest");
+        collect_entry_manifest(root.as_path(), &[b"only".to_vec()], &[]).expect("manifest");
     assert_eq!(
         entries,
         vec![entry(
             EntryKind::File,
             retained_mode_of(root.join("only").as_path()),
-            "only"
+            b"only"
         )]
     );
     let failure: WorktreeCopyError =
-        collect_entry_manifest(root.as_path(), &[String::from("missing")], &[])
+        collect_entry_manifest(root.as_path(), &[b"missing".to_vec()], &[])
             .expect_err("missing");
     assert!(failure.0.contains("No such file or directory"));
     remove(root.as_path());
@@ -115,7 +115,7 @@ fn fifo_is_refused_without_being_opened() {
         .expect("mkfifo");
     assert!(status.success());
     let failure: WorktreeCopyError =
-        collect_entry_manifest(root.as_path(), &[String::from("pipe")], &[]).expect_err("fifo");
+        collect_entry_manifest(root.as_path(), &[b"pipe".to_vec()], &[]).expect_err("fifo");
     assert!(failure.0.starts_with("monochromatic-git-policy-cli: ignored path "));
     assert!(failure.0.ends_with(" has unsupported filesystem type."));
     remove(root.as_path());
@@ -146,9 +146,9 @@ fn applied_modes_match_the_manifest() {
     std::fs::create_dir_all(root.join("dir/inner")).expect("dirs");
     std::fs::write(root.join("dir/inner/file"), b"x").expect("file");
     let entries: Vec<WorktreeCopyEntry> = vec![
-        entry(EntryKind::Directory, 0o700, "dir"),
-        entry(EntryKind::Directory, 0o500, "dir/inner"),
-        entry(EntryKind::File, 0o640, "dir/inner/file"),
+        entry(EntryKind::Directory, 0o700, b"dir"),
+        entry(EntryKind::Directory, 0o500, b"dir/inner"),
+        entry(EntryKind::File, 0o640, b"dir/inner/file"),
     ];
     apply_entry_modes(root.as_path(), entries.as_slice()).expect("apply");
     assert_eq!(
@@ -170,4 +170,34 @@ fn applied_modes_match_the_manifest() {
 fn retained_mode_of(path: &Path) -> u32 {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).expect("metadata");
     return retained_mode(&metadata);
+}
+
+/// A name that is not text is one entry whose path is exactly the bytes on disk,
+/// and the entry beside it keeps its own bytes too.
+/// Why:
+///  A name is bytes;
+/// a conversion that replaces the byte it cannot read would name another file,
+/// and a resumed copy would then install nothing or the wrong entry.
+#[cfg(unix)]
+#[test]
+fn a_name_that_is_not_text_is_one_entry_with_its_own_bytes() {
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("manifest-non-text-name");
+    std::fs::create_dir_all(root.join("cache")).expect("cache");
+    let mut awkward: PathBuf = root.join("cache");
+    awkward.push(std::ffi::OsStr::from_bytes(b"bad\xff.bin"));
+    std::fs::write(awkward.as_path(), b"payload").expect("file with a name that is not text");
+    std::fs::write(root.join("cache/plain.bin"), b"plain").expect("plain file");
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_entry_manifest(root.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
+    let paths: Vec<&[u8]> = entries
+        .iter()
+        .map(|entry| return entry.relative_path.as_slice())
+        .collect();
+    assert_eq!(
+        paths,
+        vec![b"cache".as_slice(), b"cache/bad\xff.bin", b"cache/plain.bin"],
+        "the walk keeps the bytes of every name"
+    );
+    remove(root.as_path());
 }

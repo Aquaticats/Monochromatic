@@ -5,9 +5,8 @@
  */
 
 import {
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
-  rm,
   stat,
   writeFile,
 } from 'node:fs/promises';
@@ -47,7 +46,8 @@ await describe({
     it({
       name: 'writes an executable xdg-open that records its arguments',
       fn: async ({ expect, }) => {
-        const dir = await mkdtemp(join(scratchRoot(), 'e2e-stub-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-stub-',),);
+        const dir = scratchDirectory.path;
         const record = join(dir, 'record.txt',);
         await writeFile(record, '',);
         await writeFileManagerStub({ binDir: join(dir, 'bin',), record, },);
@@ -56,7 +56,6 @@ await describe({
         const ran = await runCommand({ command: stub, args: ['/music/Zzz Tones',], },);
         expect(ran.status,).toBe(0,);
         expect(await readFile(record, 'utf8',),).toBe('/music/Zzz Tones\n',);
-        await rm(dir, { recursive: true, force: true, },);
       },
       timeout: 30_000,
     },),

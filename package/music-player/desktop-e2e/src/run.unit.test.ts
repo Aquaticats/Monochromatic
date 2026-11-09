@@ -8,8 +8,7 @@
 import {
   chmod,
   mkdir,
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -34,12 +33,8 @@ import { checkPreconditions, } from './run.ts';
 async function preconditionMessage(
   { versionOutput, visible = false, }: { readonly versionOutput: string; readonly visible?: boolean; },
 ): Promise<{ readonly compositor: string; readonly message: string; }> {
-  const appDir = await mkdtemp(join(scratchRoot(), 'e2e-pre-',),);
-  await using _scratch = {
-    async [Symbol.asyncDispose](): Promise<void> {
-      await rm(appDir, { recursive: true, force: true, },);
-    },
-  };
+  await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-pre-',),);
+  const appDir = scratchDirectory.path;
   await mkdir(join(appDir, 'target', 'release',), { recursive: true, },);
   await writeFile(join(appDir, 'target', 'release', 'music-player',), '',);
   const compositor = join(appDir, 'fake-compositor',);
@@ -86,7 +81,8 @@ await describe({
     it({
       name: 'refuses a compositor that does not exist, before asking PipeWire',
       fn: async ({ expect, }) => {
-        const appDir = await mkdtemp(join(scratchRoot(), 'e2e-pre-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-pre-',),);
+        const appDir = scratchDirectory.path;
         await mkdir(join(appDir, 'target', 'release',), { recursive: true, },);
         await writeFile(join(appDir, 'target', 'release', 'music-player',), '',);
         const compositor = join(appDir, 'no-such-compositor',);
@@ -102,7 +98,6 @@ await describe({
         catch (error: unknown) {
           caught = error;
         }
-        await rm(appDir, { recursive: true, force: true, },);
         expect((caught as Error).message,).toBe(
           `the compositor ${compositor} does not exist; install it or set E2E_COMPOSITOR`,
         );

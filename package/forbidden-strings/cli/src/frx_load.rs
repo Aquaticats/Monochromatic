@@ -43,9 +43,10 @@ use std::path::{Path, PathBuf};
 use crate::{rules_list::RulesEntry, rules_snapshot::RulesSnapshot};
 
 /// Imports runtime cache module,
+///  what a load may write there,
 ///  hybrid matcher,
 ///  and precompiled builtin path.
-use crate::{load_precompiled, runtime_cache, runtime_matcher::RuntimeRules};
+use crate::{load_precompiled, runtime_cache, runtime_cache::CacheAccess, runtime_matcher::RuntimeRules};
 
 /// Imports text compiler used only by in-memory fuzzing loader.
 #[cfg(feature = "fuzzing")]
@@ -214,7 +215,7 @@ pub fn load(
     builtin_names: &str,
 ) -> Result<LoadedRules> {
     let entries: [RulesEntry; 1] = [single_entry(rules_path.as_ref(), builtin_rules, explicit)];
-    return load_listed(&entries, builtin_rules, !explicit, precompiled, builtin_names);
+    return load_listed(&entries, builtin_rules, !explicit, CacheAccess::ReadWrite, precompiled, builtin_names);
 }
 
 /// Builds the one-entry list the one-path contract means.
@@ -245,6 +246,7 @@ pub(crate) fn load_listed(
     entries: &[RulesEntry],
     builtin_rules: bool,
     quiet_absence: bool,
+    cache_access: CacheAccess,
     precompiled: &[u8],
     builtin_names: &str,
 ) -> Result<LoadedRules> {
@@ -270,7 +272,7 @@ pub(crate) fn load_listed(
         }
         None
     } else {
-        let cache_load = runtime_cache::load_or_compile(&snapshot)?;
+        let cache_load = runtime_cache::load_or_compile(&snapshot, cache_access)?;
         cache_warnings = cache_load.warnings;
         Some(cache_load.compiled)
     };

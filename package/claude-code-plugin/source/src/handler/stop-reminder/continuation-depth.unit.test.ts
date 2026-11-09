@@ -3,10 +3,19 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { readFileSync, } from 'node:fs';
-import { resolve, } from 'node:path';
+import {
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  mkdtemp,
+  rm,
+} from 'node:fs/promises';
+import { join, resolve, } from 'node:path';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
+  buildTranscriptTail,
   continuationDepth,
   CONTINUATION_MARKER,
   continuationDepthAt,
@@ -15,6 +24,9 @@ import {
   MAX_DEPTH_ENV,
   maxContinuationDepth,
   readTranscriptTail,
+  SCAN_FINISHED,
+  scanTranscriptNewestFirst,
+  TAIL_BYTES,
 } from './continuation-depth.ts';
 
 /**
@@ -61,6 +73,62 @@ const HUMAN_LINE = '{"type":"user","origin":{"kind":"human"},"message":{"content
  Transcript line standing for an assistant turn, which neither counts nor closes.
  */
 const ASSISTANT_LINE = '{"type":"assistant","message":{"content":[{"type":"text","text":"working"}]}}';
+
+/**
+ Scratch directory holding this suite's transcript fixtures.
+ */
+const SCRATCH = await mkdtemp(join(scratchRoot(), 'continuation-depth-tail-',),);
+
+/**
+ One transcript record whose text can be found again after a tail read.
+ */
+const TAIL_RECORD = '{"type":"user","origin":{"kind":"human"}}';
+
+/**
+ Writes a transcript fixture under {@link SCRATCH}.
+ 
+ @param name - fixture file name
+ 
+ @param content - bytes to write
+ 
+ @returns absolute path of the written fixture
+ */
+async function writeTranscriptFixture(
+  {
+    name,
+    content,
+  }: {
+    readonly name: string;
+    readonly content: string;
+  },
+): Promise<string> {
+  /**
+   Absolute path of this fixture inside the scratch directory.
+   */
+  const path = join(
+    SCRATCH,
+    name,
+  );
+  writeFileSync(
+    path,
+    content,
+  );
+  return path;
+}
+
+/**
+ Whether any line carries a NUL character. A tail read that decodes unfilled
+ buffer space produces these; transcript text never contains one.
+ 
+ @param lines - lines the tail reader returned
+ 
+ @returns whether a NUL byte reached the lines
+ */
+function anyLineCarriesNul(lines: readonly string[],): boolean {
+  return lines.some(function hasNul(line,): boolean {
+    return line.includes('\u0000',);
+  },);
+}
 
 await describe({
   name: 'forced-continuation depth guard',
@@ -240,5 +308,260 @@ await describe({
         },),
       ],
     },),
+
+
+    describe({
+      name: buildTranscriptTail.name,
+      children: [
+        it({
+          name: 'splits whole-file bytes into lines and reports no truncation',
+          fn: async () => {
+            /**
+             Bytes the stream would deliver for a whole small transcript.
+             */
+            const delivered = Buffer.from(`${TAIL_RECORD}\n`,);
+            /**
+             Tail built from those bytes with nothing skipped.
+             */
+            const tail = buildTranscriptTail({
+              tailBytes: delivered,
+              expectedBytes: delivered.length,
+              skippedEarlierBytes: false,
+            },);
+            expect(tail.lines,)
+              .toEqual([TAIL_RECORD, '',],);
+            expect(tail.truncated,)
+              .toBe(false,);
+          },
+        },),
+        it({
+          name: 'decodes only the bytes delivered when the file shrank after the size lookup',
+          fn: async () => {
+            /**
+             Bytes the shrunk file still delivered, fewer than the size promised.
+             */
+            const delivered = Buffer.from('{"type":',);
+            /**
+             Tail built from a delivery short of the promised size.
+             */
+            const tail = buildTranscriptTail({
+              tailBytes: delivered,
+              expectedBytes: delivered.length + 1,
+              skippedEarlierBytes: false,
+            },);
+            expect(tail.truncated,)
+              .toBe(true,);
+            expect(tail.lines,)
+              .toEqual(['{"type":',],);
+            expect(anyLineCarriesNul(tail.lines,),)
+              .toBe(false,);
+          },
+        },),
+        it({
+          name: 'reports truncation when the read began past the start of the file',
+          fn: async () => {
+            /**
+             Bytes the stream would deliver from a tail window.
+             */
+            const delivered = Buffer.from(`${TAIL_RECORD}\n`,);
+            /**
+             Tail built from a window that skipped earlier bytes.
+             */
+            const tail = buildTranscriptTail({
+              tailBytes: delivered,
+              expectedBytes: delivered.length,
+              skippedEarlierBytes: true,
+            },);
+            expect(tail.truncated,)
+              .toBe(true,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'readTranscriptTail over a transcript fixture',
+      children: [
+        it({
+          name: 'reads a small transcript whole without NUL padding',
+          fn: async () => {
+            /**
+             Transcript content written for this case.
+             */
+            const content = `${TAIL_RECORD}\n${TAIL_RECORD}\n`;
+            /**
+             Fixture path holding that content.
+             */
+            const path = await writeTranscriptFixture({
+              name: 'small.jsonl',
+              content,
+            },);
+            /**
+             Tail read back from the fixture.
+             */
+            const tail = await readTranscriptTail(path,);
+            expect(tail.lines,)
+              .toEqual(content.split('\n',),);
+            expect(tail.truncated,)
+              .toBe(false,);
+            expect(anyLineCarriesNul(tail.lines,),)
+              .toBe(false,);
+          },
+        },),
+        it({
+          name: 'keeps the final records of a transcript larger than the tail window',
+          fn: async () => {
+            /**
+             Filler one byte past the tail window, so the window must skip at
+             least one byte of it.
+             */
+            const filler = 'A'.repeat(
+              TAIL_BYTES + 1,
+            );
+            /**
+             Transcript whose tail window starts inside the filler run.
+             */
+            const content = `${filler}\n${TAIL_RECORD}\n`;
+            /**
+             Fixture path holding that content.
+             */
+            const path = await writeTranscriptFixture({
+              name: 'oversized.jsonl',
+              content,
+            },);
+            /**
+             Tail read back from the fixture.
+             */
+            const tail = await readTranscriptTail(path,);
+            expect(tail.truncated,)
+              .toBe(true,);
+            expect(tail.lines,)
+              .toContain(TAIL_RECORD,);
+            expect(anyLineCarriesNul(tail.lines,),)
+              .toBe(false,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: scanTranscriptNewestFirst.name,
+      children: [
+        it({
+          name: 'returns the verdict of the newest record that produces one',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, ASSISTANT_LINE,],
+                classifyRecord: function classify(record,) {
+                  return record.type === 'assistant'
+                    ? 'newest assistant'
+                    : SCAN_FINISHED;
+                },
+              },),
+            ).toBe('newest assistant',);
+          },
+        },),
+        it({
+          name: 'keeps scanning past records that produce no verdict',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, ASSISTANT_LINE,],
+                classifyRecord: function classify(record,) {
+                  return record.type === 'user' ? 'older user' : SCAN_FINISHED;
+                },
+              },),
+            ).toBe('older user',);
+          },
+        },),
+        it({
+          name: 'skips blank lines without classifying them',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, '',],
+                classifyRecord: function classify(record,) {
+                  return record.type === 'user' ? 'human turn' : SCAN_FINISHED;
+                },
+              },),
+            ).toBe('human turn',);
+          },
+        },),
+        it({
+          name: 'skips an unparsable line instead of throwing',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, '{"type":"user","mess',],
+                classifyRecord: function classify(record,) {
+                  return record.type === 'user' ? 'human turn' : SCAN_FINISHED;
+                },
+              },),
+            ).toBe('human turn',);
+          },
+        },),
+        it({
+          name: 'never classifies a line the pre-filter rejects',
+          fn: async () => {
+            /**
+             Record types the classifier saw, so a rejected line shows up as an absence.
+             */
+            const classified: string[] = [];
+            /**
+             Verdict of a scan whose pre-filter keeps every fixture line out.
+             */
+            const verdict = scanTranscriptNewestFirst<string>({
+              lines: [HUMAN_LINE, ASSISTANT_LINE,],
+              acceptLine: function mentionsToolUse(line,) {
+                return line.includes('tool_use',);
+              },
+              classifyRecord: function classify(record,) {
+                classified.push(String(record.type,),);
+                return 'classified';
+              },
+            },);
+            expect(verdict,)
+              .toBe(SCAN_FINISHED,);
+            expect(classified,)
+              .toEqual([],);
+          },
+        },),
+        it({
+          name: 'returns SCAN_FINISHED when no record produces a verdict',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<string>({
+                lines: [HUMAN_LINE, ASSISTANT_LINE,],
+                classifyRecord: function classify() {
+                  return SCAN_FINISHED;
+                },
+              },),
+            ).toBe(SCAN_FINISHED,);
+          },
+        },),
+        it({
+          name: 'returns a falsy verdict rather than treating it as no verdict',
+          fn: async () => {
+            expect(
+              scanTranscriptNewestFirst<false>({
+                lines: [HUMAN_LINE,],
+                classifyRecord: function classify() {
+                  return false;
+                },
+              },),
+            ).toBe(false,);
+          },
+        },),
+      ],
+    },),
   ],
 },);
+
+await rm(
+  SCRATCH,
+  {
+    recursive: true,
+    force: true,
+  },
+);

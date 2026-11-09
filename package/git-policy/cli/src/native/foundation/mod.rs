@@ -37,6 +37,11 @@ pub mod json_record;
 /// Random identifiers in the layout of the incumbent's `randomUUID`.
 pub mod random_id;
 
+/// Bytes as lowercase hexadecimal digits,
+/// the one encoder every record,
+/// claim name and audit line spells bytes with.
+pub mod hexadecimal_of_bytes;
+
 /// Text operations with the exact semantics of JavaScript's built-ins.
 pub mod js_text;
 
