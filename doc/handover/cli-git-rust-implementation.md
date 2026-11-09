@@ -519,11 +519,25 @@ The old tree kept for the rollback stays until the owner deletes it.
   stays as it is under the owner's instruction,
   and `8beb0b8529` says so beside the prune's rules in the package README,
   with the fact that a version arriving after the scan is never in the plan.
-  715 of 715 tests and Clippy pass on top of main (`0d77dbaa99`),
+  715 of 715 tests and Clippy passed on top of main (`0d77dbaa99`),
   and every cargo command ran inside `systemd-run --user --scope`.
   One suite run under load average 86 failed two `never_start_another_shadow` tests on their five-second
   bound;
   both pass alone in under a quarter of a second.
+  Run 5 fixed the three findings of the fourth review
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-4-sol.txt`):
+  `fa494ec0e3` makes `current` name the newest version the prune keeps,
+  not the newest installed one,
+  which could be a version the same run deleted because the other root
+  forwards to an older one;
+  `aab379b2b7` reports a failed recursive removal as `part of it may be gone`,
+  naming the directory,
+  since `remove_dir_all` can unlink part of a tree before it fails;
+  `c08960322b` reads what `current` names before unlinking it and leaves a link that names a version
+  which still exists and is not being deleted,
+  which closes the concurrent install's link with one
+  `read_link` and one `metadata` and leaves only the instant between them.
+  718 of 718 tests and Clippy pass on top of main (`b38de34bb2`).
   Open:
   a row naming a bare `nightly` with a dated version text still reads `ok`,
   the tag characters `+`,
