@@ -143,8 +143,9 @@ Some files contain consumer-specific adapters that become thinner rather than di
 
 ## Package placement
 
-`pi-shared` is a new top-level category for reusable pi extension infrastructure that is not itself a pi extension.
-A package belongs there when it is intended for two or more pi packages and its public API is reusable outside
+`agent-harness-shared` is a top-level category for reusable harness and extension infrastructure
+ that is not itself an extension.
+A package belongs there when two or more harnesses or packages consume it and its public API is reusable outside
 one extension's command,
  rendering,
  or config surface.
@@ -153,7 +154,7 @@ Actual pi extensions stay under `package/pi-plugin/`.
 The repository has a nested-category precedent in `package/claude-code-plugin/hook-type/`,
  consumed by
 `package/claude-code-plugin/source/`.
-This plan intentionally chooses a top-level `pi-shared` category instead,
+This plan intentionally chooses a top-level shared category instead,
  so the category rule above is part of
 the extraction and should be kept with the package README.
 
@@ -359,8 +360,9 @@ Use optional object fields for optional metadata,
    version-vector comparison,
    and major-version filtering.
 
-Core extraction must also fix existing linear recursion in `scope-match.ts`.
-`parseModelPattern` and `isAsciiDigitString` should use iterative scans rather than recursion over strings.
+Core extraction also replaced the linear string recursion in the advisor's `scope-match.ts`,
+ which the shared `pattern-match.ts` now holds:
+`parseModelPattern` and `isAsciiDigitString` scan iteratively rather than recurse over flat strings.
 
 Promote these currently private helpers to public exports because consumers and tests need them after extraction:
 
@@ -570,7 +572,7 @@ Add characterization tests before rewiring imports:
 
 1.  Scaffold `package/agent-harness-shared/model-selection/` with `package.json`,
      `mise.toml`,
-    `tsdown.node.config.ts`,
+    `rolldown.node.config.ts`,
      `README.md`,
      and its export map.
 2.  Add `@monochromatic-dev/agent-harness-shared-model-selection: workspace:*` to advisor,
@@ -606,9 +608,10 @@ Add characterization tests before rewiring imports:
     registry-auth adapter.
 15. Move or rewrite unit tests for every shared module.
 16. Run `mise run //package/agent-harness-shared/model-selection:buildAndTest`.
-17. Run `mise run //package/pi-plugin/advisor:buildAndTest`.
-18. Run `mise run //package/pi-plugin/auto-mode:buildAndTest`.
-19. Run `mise run //package/pi-plugin/thinking-default:buildAndTest`.
+17. Run `mise run //package/agent-harness-shared/advisor:buildAndTest`.
+18. Run `mise run //package/pi-plugin/auto-mode:build` and `mise run //package/pi-plugin/auto-mode:test:unit`.
+19. Run `mise run //package/pi-plugin/thinking-default:build` and
+    `mise run //package/pi-plugin/thinking-default:test:unit`.
 20. Run type checks for the shared package and three consumers.
 21. Run advisor and thinking-defaults extension verification tasks.
 22. Remove local files that became empty wrappers only after import rewiring and tests pass.
@@ -616,7 +619,7 @@ Add characterization tests before rewiring imports:
 ## Risks and mitigations
 
 - New top-level category:
-   `pi-shared` differs from the nested `hook-types` precedent.
+   a shared category differs from the nested `hook-types` precedent.
   Mitigation:
    document the category rule in the package README and keep actual extensions in `package/pi-plugin/`.
 - Single package with a broad root entry:
