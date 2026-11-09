@@ -1168,7 +1168,8 @@ Every path below is relative to `package/git-policy/cli/src/native/`.
   its list of unreadable files (`subvolume_run.rs`),
   an index and the repository's configuration (`subvolume_index_files.rs`),
   and every registration's `gitdir` (`subvolume_registered_worktrees.rs`).
-  Each opens with `O_NONBLOCK`, `O_NOFOLLOW` and `O_CLOEXEC`,
+  Each opens with `O_NONBLOCK`,
+  `O_NOFOLLOW` and `O_CLOEXEC`,
   takes the type from the open handle,
   so a name swapped for a link or a pipe cannot redirect the read,
   and reads no more than its limit.
@@ -1223,4 +1224,5 @@ Still open after this work:
   `.git/config` at 74,878 bytes and a registration's `gitdir` at 122.
 - The installed release,
   Windows and macOS,
-  unchanged: every run above used the test binary built from these revisions.
+  unchanged:
+  every run above used the test binary built from these revisions.
