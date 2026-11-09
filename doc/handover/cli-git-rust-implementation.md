@@ -243,7 +243,9 @@ The old tree kept for the rollback stays until the owner deletes it.
   and a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
   for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`.
 - mpm-shadow landed as `9406b6e5b0` with 725 of 725 tests on top of main,
-  and 0.2.7-alpha.10 is being released from it.
+  and 0.2.7-alpha.10 was released from it,
+  locked and installed (`mise exec -- mpm-shadow --version` reads that version;
+  the install reported no failures).
   Its last review (`mpm-shadow-open-issues-round-7-sol.txt`) names limits left in `cargo_installs.rs`:
   a prune that read `current` just before a concurrent install finished a newer version can move `current` back,
   and two roots holding the same version name can make a prune repoint a link it need not touch.
