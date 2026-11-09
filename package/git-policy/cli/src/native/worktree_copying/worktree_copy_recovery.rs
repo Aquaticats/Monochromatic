@@ -63,7 +63,9 @@ pub enum Registration {
     /// but the destination's pointer does not name it,
     /// so whether the copy may go on cannot be told.
     Unconfirmed,
-    /// The repository's registrations, or the destination's own path, could not be examined,
+    /// The repository's registrations,
+    /// or the destination's own path,
+    /// could not be examined,
     /// so whether a registration names the destination cannot be told.
     Unproven,
 }

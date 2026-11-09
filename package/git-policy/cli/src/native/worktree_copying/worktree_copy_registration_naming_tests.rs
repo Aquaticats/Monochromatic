@@ -101,7 +101,8 @@ fn an_empty_gitdir_proves_nothing_about_a_registration() {
 
 /// A registration whose recorded worktree cannot be resolved proves nothing:
 /// a directory another command makes unsearchable for a moment leaves every path through it unresolved,
-/// while the registration, the destination and its pointer stay unchanged.
+/// while the registration,
+/// the destination and its pointer stay unchanged.
 #[cfg(unix)]
 #[test]
 fn a_gitdir_that_cannot_be_resolved_proves_nothing_about_a_registration() {
@@ -122,7 +123,8 @@ fn a_gitdir_that_cannot_be_resolved_proves_nothing_about_a_registration() {
     remove(root.as_path());
 }
 
-/// A recorded path is bytes, and the first of them can be a space:
+/// A recorded path is bytes,
+/// and the first of them can be a space:
 /// `bind_registration` removes the terminating line feed alone,
 /// so a registration whose `gitdir` begins with a space names the worktree inside the registration,
 /// not the sibling those bytes name once the space is trimmed away.

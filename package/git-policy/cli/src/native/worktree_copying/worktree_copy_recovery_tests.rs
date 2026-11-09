@@ -281,7 +281,8 @@ fn registration_of(common: &Path, destination: &Path) -> PathBuf {
 }
 
 /// A command that truncates a registration's `gitdir` file and pauses before rewriting it leaves the file empty,
-/// while the administrative directory, the destination and its pointer stay as they were:
+/// while the administrative directory,
+/// the destination and its pointer stay as they were:
 /// nothing was read that could prove no registration names the destination,
 /// so recovery keeps the journal and the stage and says so.
 #[test]
@@ -304,7 +305,8 @@ fn a_gitdir_left_empty_keeps_the_pending_copy() {
 }
 
 /// A command that unlinks a registration's `gitdir` file before writing it again leaves it gone for a moment,
-/// while the administrative directory, the destination and its pointer stay as they were:
+/// while the administrative directory,
+/// the destination and its pointer stay as they were:
 /// a file that was not there to read proves nothing,
 /// so recovery keeps the journal and the stage and says so.
 #[test]
@@ -327,7 +329,8 @@ fn a_gitdir_unlinked_while_it_is_written_again_keeps_the_pending_copy() {
 }
 
 /// A command that makes a directory unsearchable for a moment leaves every path through it unresolved,
-/// while the registration, the destination and its pointer stay unchanged:
+/// while the registration,
+/// the destination and its pointer stay unchanged:
 /// resolution failing for a reason other than absence proves nothing,
 /// so recovery keeps the journal and the stage and says so.
 #[cfg(unix)]

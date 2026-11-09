@@ -10,7 +10,8 @@
 //! cut short or naming something else while the worktree stays registered;
 //! the registrations answer the same question without reading the pointer at all.
 //!  Nothing here waits or fails:
-//! a `gitdir` that cannot be read, or holds nothing that could be read,
+//! a `gitdir` that cannot be read,
+//! or holds nothing that could be read,
 //! is an answer that proves nothing rather than an absence,
 //! and a directory that cannot be listed is reported as unknown rather than as an absence.
 //!
@@ -64,7 +65,8 @@ enum Naming {
     Names,
     /// The registration names a worktree that is gone or is another place.
     NamesNothing,
-    /// The registration's `gitdir` was not read whole, or could not be resolved,
+    /// The registration's `gitdir` was not read whole,
+    /// or could not be resolved,
     /// so it proves nothing.
     Unproven,
 }
@@ -76,9 +78,12 @@ enum Naming {
 /// a command that rewrites it leaves it empty,
 /// half written or naming another directory,
 /// and the registration stays.
-/// A registration that was read whole and names no worktree, or one whose worktree is gone, is one Git would prune,
+/// A registration that was read whole and names no worktree,
+/// or one whose worktree is gone,
+/// is one Git would prune,
 /// so it names nothing,
-/// while a `gitdir` that is gone, empty or unreadable proves nothing.
+/// while a `gitdir` that is gone,
+/// empty or unreadable proves nothing.
 ///  The destination is compared by the one canonical spelling both exist under,
 /// because a registration written before the repository moved behind a link names the worktree all the same.
 ///
@@ -125,7 +130,7 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
 /// and its last component is always `.git`;
 /// the directory that holds it is the worktree.
 /// A registration whose recorded worktree is gone names nothing this copy could fill,
-/// while one that could not be resolved for another reason names nothing either way.
+/// while one that could not be resolved for another reason proves nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
