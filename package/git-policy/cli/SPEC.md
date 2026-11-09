@@ -6360,6 +6360,26 @@ with the attribute's name,
 leaving the original file in place:
 that data exists in no commit,
 so a replacement that dropped it would delete its only copy.
+An attribute the replacement carries and the file never had is taken off for the
+other half of the same rule:
+the corrected file would otherwise grant an account access the original never gave,
+and comparing the displaced file cannot see it,
+because the unexpected attribute belongs to the replacement.
+A security label is the one exception on both sides:
+the kernel and its policy assign it,
+a person does not write it,
+and a container without the label's module answers "operation not supported" for
+every one of them,
+so a label the replacement cannot be given or cannot be rid of is a warning that
+names it,
+and the correction goes ahead.
+The labels are `security.selinux`,
+`security.apparmor` and Smack's `security.smack64` names;
+`security.capability` and `security.ima` decide what the file may do or are a
+signer's data,
+so they are carried or refused like any other attribute,
+and a substituted label is never counted as a difference when a journal's bytes
+are judged.
 A namespace the system does not let this process list,
 such as another user's `trusted.*`,
 is invisible to the fix and is neither carried nor counted.

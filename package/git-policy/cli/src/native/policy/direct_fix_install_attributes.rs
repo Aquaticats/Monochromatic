@@ -35,13 +35,10 @@
 //! // for (const { name, value } of attributes) await fsetxattr(file, name, value);
 //! ```
 
-/// `CStr` is a NUL-terminated name for the system calls;
-///  `CString` is one this code builds.
-use std::ffi::{CStr, CString};
+/// `CString` is a NUL-terminated name this code builds.
+use std::ffi::CString;
 /// `File` is the open replacement the attributes are given to.
 use std::fs::File;
-/// `OsStrExt` lends a path's bytes.
-use std::os::unix::ffi::OsStrExt;
 /// `AsRawFd` lends the descriptor the system calls take.
 use std::os::unix::io::AsRawFd;
 /// `Path` is a borrowed filesystem path.
@@ -151,340 +148,77 @@ pub(crate) enum AttributeRefusal {
     },
 }
 
-/// What:
-///  A pathname as the system calls want it.
-/// Why:
-///   They take NUL-terminated bytes,
-///  and a pathname holding a NUL byte cannot name a file at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const name = (path) => Buffer.concat([path, Buffer.from([0])]);
-/// ```
-#[cfg(unix)]
-fn name_of(path: &Path) -> Result<CString, std::io::Error> {
-    let text: Result<CString, std::ffi::NulError> = CString::new(path.as_os_str().as_bytes());
-    return match text {
-        Ok(built) => Ok(built),
-        Err(_invalid) => Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
-    };
-}
-
-/// Whether `byte` is the zero that separates two attribute names in a list.
-/// Why:
-///   The list is one buffer of names,
-///  each one NUL-terminated,
-///  so the separator is what splits them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isZero = (byte) => byte === 0;
-/// ```
-#[cfg(unix)]
-fn is_zero(byte: &u8) -> bool {
-    return *byte == 0;
-}
-
-/// Whether a listed name is one,
-///  rather than the empty rest after a final separator.
-/// Why:
-///   The list ends with a zero,
-///  which would otherwise read as an attribute with an empty name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const named = (name) => name.length > 0;
-/// ```
-#[cfg(unix)]
-fn named(name: &&[u8]) -> bool {
-    return !name.is_empty();
-}
+/// The calls that read the names and the values,
+///  and the retry that survives a file changing under them.
+#[path = "direct_fix_install_attributes_reading.rs"]
+mod reading;
 
 /// What:
-///  A system call's answer as a length,
-///  or the system's own error.
+///  Whether `name` is a security label:
+///  the identity the kernel and its policy give a file,
+///  rather than data a person wrote.
 /// Why:
-///  Every call here answers a byte count and a negative number as a failure,
-///  so the length question and
-///       the reading are read the same way.
+///   A container without the label's module answers "operation not supported" for every one of them,
+///  and a
+///       process may not set or take off a label at all;
+///  a correction that refused there would install nothing,
+///  and a
+///       label is not something a person typed,
+///  so a correction carries one when the system allows it and never
+///       counts it as a difference.
+///  Smack names its labels after the LSM (`security.smack64`,
+///  `security.smack64exec`
+///       and the rest),
+///  so the prefix is what matches them.
+///  Every other attribute,
+///  `security.capability` and
+///       `security.ima` included,
+///  decides what the file may do or is data of the person's,
+///  and a refusal to
+///       carry one still stops the write.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const answerOf = (count) => count < 0 ? { error: lastError() } : { bytes: count };
+/// const isALabel = (name) => name === 'security.selinux' || name === 'security.apparmor' || name.startsWith('security.smack64');
 /// ```
-#[cfg(unix)]
-fn answer_of(count: libc::ssize_t) -> std::io::Result<usize> {
-    if count < 0 {
-        return Err(std::io::Error::last_os_error());
+pub(crate) fn is_a_label(name: &[u8]) -> bool {
+    if name == b"security.selinux" || name == b"security.apparmor" {
+        return true;
     }
-    return Ok(usize::try_from(count).unwrap_or(usize::MAX));
+    return name.starts_with(b"security.smack64");
 }
 
-/// What:
-///  One two-call reading:
-/// how many bytes the answer needs,
-///  then the answer itself.
-///  `length` asks,
-///  `read` copies at most `buffer.len()` bytes and reports how many the answer needs.
+/// Whether an attribute is not a security label,
+///  which is what a judgement compares.
 /// Why:
-///   The values,
-/// the names and the descriptor's list are all read this way,
-///  so the retry is written once;
-///  the state travels as one argument because the calls are plain functions,
-///  which keeps them out of a closure.
+///  A label is the identity this system gives a file,
+///  so two descriptions that differ only there are the same
+///  state of the same file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readUntilItFits(state, length, read) { for (let attempt = 0; attempt < ATTEMPTS; attempt++) { const buffer = Buffer.alloc(length(state)); const reported = read(state, buffer); if (reported > buffer.length) continue; return buffer.subarray(0, reported) } throw new Error('kept changing') }
+/// const isNotALabel = (attribute) => !isALabel(attribute.name);
 /// ```
-#[cfg(unix)]
-fn read_until_it_fits<State>(
-    state: &mut State,
-    changing: &str,
-    length: fn(&mut State) -> std::io::Result<usize>,
-    read: fn(&mut State, &mut [u8]) -> std::io::Result<usize>,
-) -> std::io::Result<Vec<u8>> {
-    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
-        let wanted: usize = length(state)?;
-        let mut buffer: Vec<u8> = vec![0; wanted];
-        let reported: usize = match read(state, buffer.as_mut_slice()) {
-            Ok(count) => count,
-            Err(error) if error.raw_os_error() == Some(libc::ERANGE) => continue,
-            Err(error) => return Err(error),
-        };
-        // What: The kernel reads a zero-sized buffer as another length question, so an answer above the buffer means
-        //       nothing was copied and the value or list has grown since the question was asked.
-        // Why:  Truncating the empty buffer to that length cannot grow it, and the person's nonempty value would then be
-        //       read as empty, which a displaced file compares equal on.
-        //
-        // In TS you'd write (pseudocode):
-        // if (reported > buffer.length) continue;
-        if reported > buffer.len() {
-            continue;
-        }
-        buffer.truncate(reported);
-        return Ok(buffer);
-    }
-    return Err(std::io::Error::other(changing));
+fn is_not_a_label(attribute: &&Attribute) -> bool {
+    return !is_a_label(attribute.name.as_slice());
 }
 
 /// What:
-///  How many bytes the list of the file at `path` needs.
+///  Whether two attribute lists carry the same data,
+///  apart from the security labels each system gives.
 /// Why:
-///  This is the length question of the two-call reading of a pathname's list.
+///  A fix carries a label when the system lets it and says so when it cannot,
+///  so a replacement that
+///       lacks the label the file had is still this fix's own file;
+///  comparing labels would keep a journal the fix
+///       wrote and would report a correction as the person's save.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const lengthOfList = (path) => llistxattr(path, null, 0);
+/// const sameData = (left, right) => left.filter(isNotALabel).equals(right.filter(isNotALabel));
 /// ```
-#[cfg(unix)]
-fn length_of_list_on_path(path: &mut CString) -> std::io::Result<usize> {
-    // SAFETY: a null buffer with size 0 asks the system for the length of the list.
-    let length: libc::ssize_t = unsafe { libc::llistxattr(path.as_ptr(), std::ptr::null_mut(), 0) };
-    return answer_of(length);
-}
-
-/// What:
-///  Fill `buffer` with the list of the file at `path`,
-///  and report how many bytes the list needs.
-/// Why:
-///  This is the reading itself;
-///  a buffer too small for a list that grew answers `ERANGE`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const fillList = (path, buffer) => llistxattr(path, buffer, buffer.length);
-/// ```
-#[cfg(unix)]
-fn fill_list_on_path(path: &mut CString, buffer: &mut [u8]) -> std::io::Result<usize> {
-    // SAFETY: `buffer` holds `buffer.len()` writable bytes, and the pathname outlives the call.
-    let filled: libc::ssize_t =
-        unsafe { libc::llistxattr(path.as_ptr(), buffer.as_mut_ptr().cast(), buffer.len()) };
-    return answer_of(filled);
-}
-
-/// What:
-///  How many bytes the list of the open file at `descriptor` needs.
-/// Why:
-///  This is the length question of the two-call reading of the replacement's own list.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lengthOfList = (fd) => flistxattr(fd, null, 0);
-/// ```
-#[cfg(unix)]
-fn length_of_list_on_descriptor(descriptor: &mut libc::c_int) -> std::io::Result<usize> {
-    // SAFETY: a null buffer with size 0 asks the system for the length of the list.
-    let length: libc::ssize_t = unsafe { libc::flistxattr(*descriptor, std::ptr::null_mut(), 0) };
-    return answer_of(length);
-}
-
-/// What:
-///  Fill `buffer` with the list of the open file at `descriptor`,
-///  and report how many bytes the list needs.
-/// Why:
-///  The descriptor cannot be redirected by a swap of the name,
-///  so this is the replacement's own list.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const fillList = (fd, buffer) => flistxattr(fd, buffer, buffer.length);
-/// ```
-#[cfg(unix)]
-fn fill_list_on_descriptor(descriptor: &mut libc::c_int, buffer: &mut [u8]) -> std::io::Result<usize> {
-    // SAFETY: `buffer` holds `buffer.len()` writable bytes, and the descriptor is this file's.
-    let filled: libc::ssize_t =
-        unsafe { libc::flistxattr(*descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
-    return answer_of(filled);
-}
-
-/// What:
-///  The pathname and the name of one extended attribute,
-///  as the two calls that read its bytes want them.
-/// Why:
-///  One reading takes its state as one value,
-///  so the pathname and the attribute's name travel together.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ValueOnDisk = { path: Buffer; name: Buffer };
-/// ```
-#[cfg(unix)]
-struct ValueOnDisk {
-    /// The pathname,
-    ///  NUL-terminated.
-    path: CString,
-    /// The attribute's name,
-    ///  NUL-terminated.
-    name: CString,
-}
-
-/// What:
-///  How many bytes the value of `asked`'s attribute needs.
-/// Why:
-///  This is the length question of the two-call reading of one value.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lengthOfValue = ({ path, name }) => lgetxattr(path, name, null, 0);
-/// ```
-#[cfg(unix)]
-fn length_of_value(asked: &mut ValueOnDisk) -> std::io::Result<usize> {
-    // SAFETY: a null buffer with size 0 asks the system for the length of the value.
-    let length: libc::ssize_t = unsafe {
-        libc::lgetxattr(asked.path.as_ptr(), asked.name.as_ptr(), std::ptr::null_mut(), 0)
-    };
-    return answer_of(length);
-}
-
-/// What:
-///  Fill `buffer` with the value of `asked`'s attribute,
-///  and report how many bytes it needs.
-/// Why:
-///  A buffer too small for a value that grew answers `ERANGE`,
-///  and a zero-sized buffer makes
-///       the call a length question again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const fillValue = ({ path, name }, buffer) => lgetxattr(path, name, buffer, buffer.length);
-/// ```
-#[cfg(unix)]
-fn fill_value(asked: &mut ValueOnDisk, buffer: &mut [u8]) -> std::io::Result<usize> {
-    // SAFETY: `buffer` holds `buffer.len()` writable bytes, and both names outlive the call.
-    let read: libc::ssize_t = unsafe {
-        libc::lgetxattr(
-            asked.path.as_ptr(),
-            asked.name.as_ptr(),
-            buffer.as_mut_ptr().cast(),
-            buffer.len(),
-        )
-    };
-    return answer_of(read);
-}
-
-/// What:
-///  The names of every extended attribute of the regular file at `path`,
-///  in the order the kernel
-///       lists them.
-/// Why:
-///   The list is what the replacement must carry;
-///  a namespace the kernel does not report here is one this
-///       process cannot see,
-///  and `SPEC.md` records that limit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const names = (path) => llistxattr(path).split('\0').filter(Boolean);
-/// ```
-#[cfg(unix)]
-fn names_of_attributes(path: &Path) -> std::io::Result<Vec<Vec<u8>>> {
-    let mut text: CString = name_of(path)?;
-    let listed: Vec<u8> = read_until_it_fits(
-        &mut text,
-        "the list of its extended attributes kept changing while it was read",
-        length_of_list_on_path,
-        fill_list_on_path,
-    )?;
-    return Ok(listed
-        .split(is_zero)
-        .filter(named)
-        .map(<[u8]>::to_vec)
-        .collect());
-}
-
-/// What:
-///  The names of every extended attribute of the open file at `descriptor`,
-///  in the order the kernel
-///       lists them.
-/// Why:
-///  The descriptor cannot be redirected by a swap of the name,
-///  so the list is the replacement's own,
-///  and the names are what a removal addresses.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const names = (fd) => flistxattr(fd).split('\0').filter(Boolean);
-/// ```
-#[cfg(unix)]
-fn names_on_descriptor(descriptor: libc::c_int) -> std::io::Result<Vec<Vec<u8>>> {
-    let mut asked: libc::c_int = descriptor;
-    let listed: Vec<u8> = read_until_it_fits(
-        &mut asked,
-        "the list of its extended attributes kept changing while it was read",
-        length_of_list_on_descriptor,
-        fill_list_on_descriptor,
-    )?;
-    return Ok(listed
-        .split(is_zero)
-        .filter(named)
-        .map(<[u8]>::to_vec)
-        .collect());
-}
-
-/// What:
-///  The bytes the extended attribute `attribute` holds on the file at `path`.
-/// Why:
-///   The value is the person's data,
-///  and a name whose value cannot be read is a refusal rather than an
-///       attribute left behind on the replacement.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const value = (path, attribute) => lgetxattr(path, attribute);
-/// ```
-#[cfg(unix)]
-fn value_of_attribute(path: &Path, name: &CStr) -> std::io::Result<Vec<u8>> {
-    let mut asked: ValueOnDisk = ValueOnDisk {
-        path: name_of(path)?,
-        name: CString::from(name),
-    };
-    return read_until_it_fits(
-        &mut asked,
-        "its value kept changing while it was read",
-        length_of_value,
-        fill_value,
-    );
+pub(crate) fn same_data(left: &[Attribute], right: &[Attribute]) -> bool {
+    return left.iter().filter(is_not_a_label).eq(right.iter().filter(is_not_a_label));
 }
 
 /// What:
@@ -507,7 +241,7 @@ fn value_of_attribute(path: &Path, name: &CStr) -> std::io::Result<Vec<u8>> {
 /// ```
 #[cfg(unix)]
 pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, String> {
-    let names: Vec<Vec<u8>> = match names_of_attributes(path) {
+    let names: Vec<Vec<u8>> = match reading::names_of_attributes(path) {
         Ok(listed) => listed,
         Err(error) => return Err(unreadable_list(step, &error)),
     };
@@ -516,7 +250,7 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
         let Ok(text) = CString::new(name.as_slice()) else {
             return Err(unaddressable_name(step));
         };
-        let value: Vec<u8> = match value_of_attribute(path, text.as_c_str()) {
+        let value: Vec<u8> = match reading::value_of_attribute(path, text.as_c_str()) {
             Ok(read) => read,
             Err(error) => return Err(unreadable_value(step, name.as_slice(), &error)),
         };
@@ -649,9 +383,20 @@ pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), Attri
             )
         };
         if result != 0 {
+            let reason: std::io::Error = std::io::Error::last_os_error();
+            // What: A security label is the system's identity for the file, so a system that will not let this
+            //       process set one gets a warning and the correction goes ahead.
+            // Why:  A container without the label's module answers "operation not supported" for every label, and a
+            //       correction that refused there would install nothing at all.
+            //
+            // In TS you'd write (pseudocode):
+            // if (isALabel(attribute.name)) { l.warn(labelKeptSentence(attribute, reason)); continue; }
+            if is_a_label(attribute.name.as_slice()) {
+                continue;
+            }
             return Err(AttributeRefusal::NotGiven {
                 attribute: attribute.clone(),
-                reason: std::io::Error::last_os_error(),
+                reason,
             });
         }
     }
@@ -706,7 +451,7 @@ fn names_it(kept: &[Attribute], name: &[u8]) -> bool {
 #[cfg(unix)]
 fn take_off_every_extra(file: &File, kept: &[Attribute]) -> Result<(), AttributeRefusal> {
     let descriptor: libc::c_int = file.as_raw_fd();
-    let names: Vec<Vec<u8>> = match names_on_descriptor(descriptor) {
+    let names: Vec<Vec<u8>> = match reading::names_on_descriptor(descriptor) {
         Ok(listed) => listed,
         Err(reason) => return Err(AttributeRefusal::ListFailed { reason }),
     };
@@ -727,9 +472,19 @@ fn take_off_every_extra(file: &File, kept: &[Attribute]) -> Result<(), Attribute
         // SAFETY: the name is a NUL-terminated string the kernel listed, and the descriptor is this file's.
         let result: libc::c_int = unsafe { libc::fremovexattr(descriptor, text.as_ptr()) };
         if result != 0 {
+            let reason: std::io::Error = std::io::Error::last_os_error();
+            // What: A label this process may not take off stays, with a warning, and the correction goes ahead.
+            // Why:  The label is the identity this system gave the new file rather than data a person wrote, and a
+            //       process may not be allowed to remove one at all.
+            //
+            // In TS you'd write (pseudocode):
+            // if (isALabel(extra.name)) { l.warn(labelKeptSentence(extra, reason)); continue; }
+            if is_a_label(extra.name.as_slice()) {
+                continue;
+            }
             return Err(AttributeRefusal::NotRemoved {
                 attribute: extra,
-                reason: std::io::Error::last_os_error(),
+                reason,
             });
         }
     }

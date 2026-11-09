@@ -223,6 +223,36 @@ impl Kept {
     }
 }
 
+impl Kept {
+    /// What:
+    ///  Whether what a file carries now is the state `kept` names,
+    ///  apart from the security labels the
+    ///       kernel and its policy assign.
+    /// Why:
+    ///  A label is assigned by the system,
+    /// not written by a person:
+    ///  a fix carries it when the system lets it
+    ///  and warns when it cannot,
+    ///  so a replacement that lacks the label the file had is still this fix's own file.
+    ///  Comparing
+    ///       labels would keep a journal holding the fix's own bytes and would report a correction as the
+    ///       person's save.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const sameState = (now, kept) => now.mode === kept.mode && now.uid === kept.uid && now.gid === kept.gid && sameData(now.attributes, kept.attributes);
+    /// ```
+    pub(crate) fn same_as(&self, kept: &Kept) -> bool {
+        return self.mode == kept.mode
+            && self.uid == kept.uid
+            && self.gid == kept.gid
+            && direct_fix_install_attributes::same_data(
+                self.attributes.as_slice(),
+                kept.attributes.as_slice(),
+            );
+    }
+}
+
 /// What:
 ///  Give the open replacement the permission bits,
 ///  the owner and the extended attributes it keeps.

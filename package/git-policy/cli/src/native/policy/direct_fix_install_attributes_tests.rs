@@ -13,7 +13,10 @@
 //! ```
 
 /// The module under test.
-use super::{ATTRIBUTE_ATTEMPTS, Attribute, AttributeRefusal, attributes_of, give_to, read_until_it_fits};
+use super::reading::read_until_it_fits;
+use super::{
+    ATTRIBUTE_ATTEMPTS, Attribute, AttributeRefusal, attributes_of, give_to, is_a_label,
+};
 /// A disposable fixture and its removal.
 use crate::test_support::{fixture, remove};
 /// `CString` names the attribute the control plants.
@@ -419,4 +422,95 @@ fn an_answer_that_never_fits_is_refused_after_the_attempts_it_allows() {
     .expect_err("an answer that never fits is refused");
     assert_eq!(refusal.to_string(), "its value kept changing while it was read");
     assert_eq!(answer.asked, ATTRIBUTE_ATTEMPTS, "the reading stops at its own bound");
+}
+
+/// What:
+///  A security label the system will not let this process set does not stop the write.
+/// Why:
+///  A label is the identity the kernel and its policy give a file,
+///  never something a person typed,
+///  and a
+///       container without the label's module answers "operation not supported" for every one of them;
+///  refusing
+///       there would install no correction at all,
+///  which is the failure the container gate showed
+///       (`security.selinux`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(giveTo(file, [{ name: 'security.apparmor', value: 'x' }])).toBeUndefined()
+/// ```
+#[test]
+fn a_label_the_system_will_not_set_does_not_stop_the_write() {
+    const LABEL: &[u8] = b"security.apparmor";
+    const VALUE: &[u8] = b"a label this control plants";
+    let root: PathBuf = fixture("xattr-label-unsettable");
+    let path: PathBuf = root.join("kept.txt");
+    std::fs::write(&path, b"x\n").expect("a file");
+    // A label this process may not set; a system that lets it set one reports a control that did not run.
+    if set_attribute(path.as_path(), LABEL, VALUE) {
+        eprintln!(
+            "LABEL CONTROL NOT RUN: this system lets this process set {}",
+            String::from_utf8_lossy(LABEL)
+        );
+        remove(root.as_path());
+        return;
+    }
+    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    let mut asked: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
+    asked.push(Attribute {
+        name: LABEL.to_vec(),
+        value: VALUE.to_vec(),
+    });
+    give_to(&file, asked.as_slice())
+        .expect("a label the system will not set does not stop the write");
+    remove(root.as_path());
+}
+
+/// What:
+///  A security label the original never had is not taken off the replacement,
+///  and a system that will not take one off does not stop the write.
+/// Why:
+///  The label a new file carries is the identity this system gives it,
+///  and a process may not be allowed
+///       to remove or set one at all,
+///  so counting it against the original would refuse a correction the
+///       person asked for;
+///  what the person wrote,
+///  and who may read the file,
+///  is still refused when it cannot be
+///       kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const kept = carried.filter((attribute) => !isALabel(attribute.name)); expect(giveTo(file, kept)).toBeUndefined()
+/// ```
+#[test]
+fn a_label_this_process_may_not_take_off_does_not_stop_the_write() {
+    let root: PathBuf = fixture("xattr-label-unremovable");
+    let path: PathBuf = root.join("replacement.txt");
+    std::fs::write(&path, b"x\n").expect("a file");
+    let carried: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
+    let labels: Vec<&Attribute> = carried.iter().filter(is_a_label_attribute).collect();
+    if labels.is_empty() {
+        eprintln!("LABEL CONTROL NOT RUN: this system gives a new file no security label");
+        remove(root.as_path());
+        return;
+    }
+    // The original carried none of them, so the replacement ends without them where this process may take one off.
+    let kept: Vec<Attribute> = carried.into_iter().filter(is_not_a_label_attribute).collect();
+    let file: std::fs::File = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+    give_to(&file, kept.as_slice())
+        .expect("a label this process may not take off does not stop the write");
+    remove(root.as_path());
+}
+
+/// Whether a listed attribute is a security label.
+fn is_a_label_attribute(attribute: &&Attribute) -> bool {
+    return is_a_label(attribute.name.as_slice());
+}
+
+/// Whether a listed attribute is not one.
+fn is_not_a_label_attribute(attribute: &Attribute) -> bool {
+    return !is_a_label(attribute.name.as_slice());
 }
