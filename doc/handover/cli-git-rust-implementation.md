@@ -156,11 +156,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `resume-after-wall-clock-prompt.md` for `worktree-copy-records-keep-path-bytes`,
-  which reached its time limit with four files of its worktree holding older versions for a comparison run,
-  so its worktree is not to be merged or landed until that run restores them,
-  and `invocation-route-round-2-prompt.md` for the alias branch's review,
-  whose five findings are cases the guard on main also misses.
+  `invocation-route-round-2-prompt.md` for the alias branch's review,
+  whose five findings are cases the guard on main also misses,
+  and `resume-after-wall-clock-prompt.md` for `hook-route-findings-fixed`,
+  whose run 3 reached its time limit while writing wording tests,
+  so that branch has no finished report.
+- `worktree-copy-records-keep-path-bytes` run 3 restores four files that its run 2 swapped for a comparison.
+  The branch is not to be merged or landed until that run reports,
+  because a check of mine merged main into it as `d5a2481e7e` while the files were swapped.
+  That merge left the four files alone.
 - The locks branch passed 379 of 379 on top of main.
   `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
   and a pid file declaring an owner dead while a holder could not be resolved.
