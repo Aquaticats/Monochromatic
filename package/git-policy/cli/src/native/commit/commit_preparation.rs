@@ -263,14 +263,17 @@ pub fn run_native_commit_within(
         facts.armed = true;
         facts.stopped_after = Some(stop.waited);
         facts.below_unlisted = !stop.below_listed;
+        facts.below_unended = stop.below_unended;
     }
     let stopped_after: Option<std::time::Duration> = facts.stopped_after;
     let below_unlisted: bool = facts.below_unlisted;
+    let below_unended: u32 = facts.below_unended;
     crate::scratch_commit_step::note_scratch_step(facts);
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
-        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(waited, ceiling, signs, below_unlisted))));
+        let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling, signs, below_unlisted, below_unended };
+        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop))));
     }
     let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = finished?;
     return Ok(crate::forwarding::exit_code(outcome));

@@ -3432,6 +3432,9 @@ so a walk taken while the step was alive is discarded when it ended in the meant
 and signals the step whatever that walk came to,
 recording `belowUnlisted` and saying in the stop's words that the programs the step started could not be listed,
 so one of them may still be running),
+and a signal the kernel refused is recorded as `belowUnended` and said in the same words,
+because a program that was listed and could not be ended may still be running too,
+and the person is the one who can end it
 a stop recorded only when a signal was really taken for the step,
 only `ESRCH` from the descriptor's signal read as the step being gone,
 with every other refusal,
@@ -3476,10 +3479,16 @@ whose number the kernel keeps until it is reaped,
 so no process that took the number can be reached;
 the programs below it are read before the signal,
 while the step still holds its number,
-and ended through descriptors pinned the same way;
+and ended through descriptors pinned the same way,
+with every program it could not pin or not signal counted as `belowUnended`,
+so the stop says what it could not end instead of reporting a walk that ended everything it listed;
 and the child is reaped there,
 a child the kernel holds in an uninterruptible call going to a task of the runtime that collects it,
-so the kernel's release of it never holds the command.
+so the kernel's release of it never holds the command,
+and the status that reap collects decides what ended the step:
+a step that finished by itself between the ceiling and the signal is answered with its own exit and no stop,
+because a kill cannot turn an exit into a signal,
+and only a status that is the `SIGKILL` this wait sent is a ceiling stop.
 
 That second enforcer is why the ceiling survives both failures the notice cannot:
 a system that refuses its thread,
@@ -9863,6 +9872,9 @@ kept with a zero bound when a look saw it only once,
 `belowCpuMs` the processor time everything below the step had used at the last look,
 `belowUnlisted` whether the programs below the step could not be listed when it was ended,
 so one of them may still be running,
+`belowUnended` how many programs below the step were not ended because the kernel refused a descriptor for one of them
+or refused the signal to it,
+so each of those may still be running and the stop's words say so,
 `blindLooks` how many looks could not be made at all because `/proc` refused the read,
 and `blockedLooks` how many looks found one of them in uninterruptible sleep;
 an entry whose `armed` is true and whose `looks` is zero is a notice thread that did not answer within its bound;
