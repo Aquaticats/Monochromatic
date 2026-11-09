@@ -127,7 +127,8 @@ fn the_one_shot_git_questions_no_longer_block_a_thread_on_command_output() {
 ///  a query reaps it as soon as it ends,
 /// so the number read at the start may name another process by the time a ceiling
 ///  is reached.
-/// Nothing on these paths signals a number at all: the one-shot query is waited for,
+/// Nothing on these paths signals a number at all:
+/// the one-shot query is waited for,
 /// and ended,
 /// by the thread that
 ///  owns it (`wait_within`),

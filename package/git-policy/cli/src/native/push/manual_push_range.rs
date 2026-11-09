@@ -185,12 +185,12 @@ fn run_git_bytes_starting_with(
             None
         }
     };
-    let started = command.spawn_retrying();
+    let spawned = command.spawn_retrying();
     // The write ends of the answers are this process's until the command lets them go, and a pipe whose write end this process
     //  holds never reaches its end: the readers are given them back whether or not the start worked.
     crate::step_output_read_whole_through_pipes::release_write_ends(&mut command);
-    let child: Child = match started {
-        Ok(started) => started,
+    let child: Child = match spawned {
+        Ok(running) => running,
         Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be started: {error}"))),
     };
     // The runtime reads both streams and waits for the child, and this wait carries the ceiling: one place holds the read, the
@@ -233,13 +233,13 @@ fn run_git_bytes_starting_with(
         )));
     }
     if !answered.status.success() {
-        let mut shown: Vec<String> = Vec::new();
+        let mut words: Vec<String> = Vec::new();
         for argument in arguments {
-            shown.push(argument.to_string_lossy().into_owned());
+            words.push(argument.to_string_lossy().into_owned());
         }
         return Err(range_error(ManualPushCause::ContentMissing, format!(
             "git {} failed: {}",
-            shown.join(" "),
+            words.join(" "),
             String::from_utf8_lossy(&answered.stderr).trim_end()
         )));
     }

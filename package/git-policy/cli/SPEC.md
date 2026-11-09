@@ -3195,17 +3195,19 @@ stop's ceiling,
 so a root whose record cannot be read is waited for no longer than that rather than for
 as long as the process lives
 (`the_wait_after_the_kill`).
-The stop pins its root once,
-from the record it read
-before any wait,
-and both of its signals go through that pin (`pin_of_the_root`,
+The watch pins its root once,
+when the child starts and is still this process's own unreaped child,
+and both signals of the stop go through that pin (`pin_at_start`,
 `send_to_the_root`).
-Reading the record again at the signal would establish only which process holds the number
-*then*:
+Reading the record again at the signal would establish only which process holds the number *then*:
 the root can have ended and been reaped during the grace,
-and an unrelated process that received
-its number would be the one signalled
+and an unrelated process that received its number would be the one signalled
 (the third review's finding 1).
+That pin also answers whether the root is still there (`has_ended`),
+and the stop reads no tree and arms no ceiling for a root that has ended:
+the children of a number that was reused are not this step's,
+and a status the wait already collected is the answer rather than a ceiling the stop reached
+(the fourth review's findings 1 and 2).
 
 A signal is sent through a descriptor that names the process,
 never to a number read a moment earlier.
@@ -3242,26 +3244,48 @@ and the number can name an unrelated process,
 which the descriptor then names
 (the third review's finding 2).
 
-A read-only query's ceiling is a deadline kept by the thread that owns the child.
-`output_of_within_bound` (`src/native/process/captured_child_run_to_its_end.rs`) and the batch query
-of the manual push (`src/native/push/manual_push_range.rs`) wait for their child with
-`wait_within` and read its streams with `output_within`
-(`src/native/process/child_waited_for_within_a_ceiling.rs`).
+A one-shot query's ceiling is a deadline kept by the thread that owns the child.
+`output_of_within_bound` (`src/native/process/captured_child_run_to_its_end.rs`) waits for its child
+with `wait_within` (`src/native/process/child_waited_for_within_a_ceiling.rs`),
+and its output goes to anonymous files,
+so it needs no reader at all.
 While that thread waits it has not reaped the child,
-so the kill at the ceiling reaches the child and nothing else,
-and there is no state in which a child or its waiter outlives the caller:
+so the kill at the ceiling reaches the child and nothing else:
 the pin a caller used to signal at its ceiling,
 and the fallbacks that went with it,
 are deleted rather than patched again
 (the second and third reviews' findings about signalling by a reused number).
 The caller no longer signals anything.
 
-A standard output a program the query started still holds open one drain after the query ended is
-not an answer,
-and the read fails with a sentence that names the stream;
-a standard error held that way comes back as what was read of it,
-with a line saying the read stopped there,
-because the answer itself was read whole.
+A child the kernel will not release is not waited for past the stop's grace.
+Past the grace `wait_within` hands it to
+`src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs`,
+which gives it to a thread that collects it when the kernel lets go,
+and keeps it in a list the next reaper drains when the system refuses that thread,
+so the child is never lost and never a zombie for this process's life.
+The command stops waiting and says the query was left running,
+not that it was ended
+(the fourth review's findings 4,
+5 and 9).
+`OwnedChild::end_and_reap` takes the same grace before it hands a leader on,
+so the step route has the bound this file states for a leader that does not end in `STOP_GRACE`.
+
+A batch query of the manual push is read by the runtime,
+not by threads of its own.
+The two pipes are made and registered before the start
+(`src/native/process/step_output_read_whole_through_pipes.rs`),
+both streams are read in one select that also holds the end of the wait,
+and the request list goes in from one thread whose write carries the query's own ceiling:
+there is no queue between the query and its answer,
+no reader thread that a dropped receiver cannot end,
+and one drain deadline after the query's end rather than one per chunk
+(the fourth review's findings 3,
+6 and 8).
+Its answer is bounded by the request list this command wrote,
+and a list that was cut short is not an
+answer:
+the query fails and says the list was cut short
+(finding 7).
 The thread that writes a batch query's request list writes with the query's own ceiling as its
 deadline (`write_within`),
 one pipe buffer at a time,
@@ -3384,9 +3408,12 @@ so a reply pipe that filled stopped Git reading the list and the write waited fo
 (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
 finding 9).
 The list goes in from a thread of its own,
-the answers are read on another,
+the answers are read by the runtime,
 and the wait carries `PLUMBING_STEP_CEILING`,
 so a query that never answers is ended and reported with the command line and the ceiling.
+A list that was cut short at that ceiling is reported rather than answered,
+because what Git answered
+covers only the part of the list that went in.
 
 LFS is paused by the owner,
 so the two LFS waits are recorded and not changed:

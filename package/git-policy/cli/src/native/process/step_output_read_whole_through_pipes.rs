@@ -527,7 +527,8 @@ pub enum CeilingWhy {
 ///   A step with a ceiling may have no watch (a refused thread),
 /// a watch that could not end it,
 /// or no watch of
-///  its own at all (a read-only query, whose ceiling is the longest one of those waits).
+///  its own at all (a read-only query,
+/// whose ceiling is the longest one of those waits).
 /// Why:
 ///   The reason is the watch's to tell:
 /// a watch that could not run at all,

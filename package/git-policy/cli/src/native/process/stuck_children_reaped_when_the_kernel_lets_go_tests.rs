@@ -34,7 +34,8 @@ fn a_child_kept_for_a_reaper_is_collected_when_it_ends() {
 }
 
 /// What:
-///  A child whose reaper could not start is kept, not lost,
+///  A child whose reaper could not start is kept,
+/// not lost,
 /// and the next reaper that runs collects it.
 /// Why:
 ///  The standard library's spawn consumes the closure,

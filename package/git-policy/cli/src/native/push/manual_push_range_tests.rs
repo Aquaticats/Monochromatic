@@ -341,7 +341,8 @@ fn a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read() {
 /// so the query fails and
 ///  says the list was cut short (the fourth review's finding 7),
 /// rather than answering with the replies to part of it.
-/// The helper ends by itself (`sleep 8`), so the control kills nothing.
+/// The helper ends by itself (`sleep 8`),
+/// so the control kills nothing.
 #[test]
 fn a_query_whose_request_list_a_program_holds_is_not_answered() {
     let root: PathBuf = fixture("manual-push-range-held-input");

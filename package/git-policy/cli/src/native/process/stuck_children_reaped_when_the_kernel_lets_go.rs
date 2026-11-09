@@ -3,7 +3,8 @@
 //!  gathered by a thread of their own,
 //!  and what happens when the system refuses that thread.
 //! Why:
-//!  A child in an uninterruptible call (a stalled disk, a stopped network file system) ends only when the
+//!  A child in an uninterruptible call (a stalled disk,
+//! a stopped network file system) ends only when the
 //!  kernel lets it go,
 //! which can be long after the ceiling that ended the wait for it.
 //! The command must not
