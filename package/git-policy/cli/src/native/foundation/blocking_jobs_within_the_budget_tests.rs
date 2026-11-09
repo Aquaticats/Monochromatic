@@ -92,18 +92,18 @@ impl Concurrency {
     /// Wait until `wanted` jobs are inside together;
     /// false when they did not all come within `patience`.
     fn wait_for_live(&self, wanted: usize, patience: Duration) -> bool {
-        let held = self.state.lock().expect("lock");
-        let (held, waited) = self.changed.wait_timeout_while(held, patience, |held: &mut Held| { return held.live < wanted; }).expect("wait");
-        drop(held);
+        let locked = self.state.lock().expect("lock");
+        let (released, waited) = self.changed.wait_timeout_while(locked, patience, |held: &mut Held| { return held.live < wanted; }).expect("wait");
+        drop(released);
         return !waited.timed_out();
     }
 
     /// Hold the job until the control has counted the burst;
     /// false only when the control never counted, which is a control that failed before it could.
     fn wait_until_counted(&self, patience: Duration) -> bool {
-        let held = self.state.lock().expect("lock");
-        let (held, waited) = self.changed.wait_timeout_while(held, patience, |held: &mut Held| { return !held.counted; }).expect("wait");
-        drop(held);
+        let locked = self.state.lock().expect("lock");
+        let (released, waited) = self.changed.wait_timeout_while(locked, patience, |held: &mut Held| { return !held.counted; }).expect("wait");
+        drop(released);
         return !waited.timed_out();
     }
 
