@@ -14,7 +14,7 @@
 /// import * as fs from 'node:fs';
 /// import { spawnSync } from 'node:child_process';
 /// ```
-use std::{fs, io, io::Write, path::PathBuf, process::{Command, Output, Stdio}};
+use std::{fs, io, io::Write, path::{Path, PathBuf}, process::{Command, Output, Stdio}};
 
 /// What:
 /// `pub fn` exports a function;
@@ -37,8 +37,24 @@ pub fn fixture() -> io::Result<PathBuf> {
     // const home = requireEnv('HOME');
     // ```
     let home = std::env::var("HOME").map_err(io::Error::other)?;
+    return fixture_in(Path::new(&home));
+}
+
+/// What:
+/// `pub fn fixture_in(home: &Path) -> io::Result<PathBuf>` declares the fixture builder for one home directory,
+/// borrowed so a test can pass a disposable home instead of the process's own.
+/// Why:
+/// The scratch root's mode only shows up when the directory does not exist yet,
+/// which is exactly the injected-home case,
+/// and a test that changes `HOME` for the whole process would race every sibling test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function fixtureIn(home: string): string { ... }
+/// ```
+pub fn fixture_in(home: &Path) -> io::Result<PathBuf> {
     // Own the scratch path so tests never depend on a particular username.
-    let scratch = PathBuf::from(home).join("temp/agent");
+    let scratch = home.join("temp/agent");
     // What: `&scratch` lends this value without transferring ownership.
     // Why: Directory creation and mktemp both need the same filename.
     //
