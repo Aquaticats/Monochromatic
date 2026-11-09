@@ -12,13 +12,21 @@
 
 /// Import the classification under test and shared fixtures.
 use super::{
-    EffectiveTarget, classify_effective_target, default_allowed_worktree_dirs,
-    is_allowed_worktree_dir, mise_data_dir, uv_cache_dir,
+    EffectiveTarget, ToolCacheDirectory, classify_effective_target, default_allowed_worktree_dirs,
+    is_allowed_worktree_dir, matching_allowed_worktree_dir, mise_data_dir, uv_cache_dir,
 };
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+
+/// One uv or mise directory as the variable named it.
+fn named(path: &str, named_by: &'static str) -> Option<ToolCacheDirectory> {
+    return Some(ToolCacheDirectory {
+        path: PathBuf::from(path),
+        named_by,
+    });
+}
 
 /// Build an environment list from text pairs.
 fn environment(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
@@ -40,21 +48,18 @@ fn uv_cache_directory_follows_uv_precedence() {
     for (pairs, expected) in [
         (
             vec![("UV_CACHE_DIR", "/explicit"), ("XDG_CACHE_HOME", "/xdg")],
-            Some(PathBuf::from("/explicit")),
+            named("/explicit", "UV_CACHE_DIR"),
         ),
         (
             vec![("UV_CACHE_DIR", ""), ("XDG_CACHE_HOME", "/xdg")],
-            Some(PathBuf::from("/xdg/uv")),
+            named("/xdg/uv", "XDG_CACHE_HOME"),
         ),
-        (
-            vec![("XDG_CACHE_HOME", "/xdg")],
-            Some(PathBuf::from("/xdg/uv")),
-        ),
+        (vec![("XDG_CACHE_HOME", "/xdg")], named("/xdg/uv", "XDG_CACHE_HOME")),
         (
             vec![("UV_CACHE_DIR", ""), ("XDG_CACHE_HOME", "")],
-            Some(PathBuf::from("/home/fixture/.cache/uv")),
+            named("/home/fixture/.cache/uv", "HOME"),
         ),
-        (vec![], Some(PathBuf::from("/home/fixture/.cache/uv"))),
+        (vec![], named("/home/fixture/.cache/uv", "HOME")),
     ] {
         assert_eq!(
             uv_cache_dir(environment(pairs.as_slice()).as_slice(), home),
@@ -68,18 +73,24 @@ fn uv_cache_directory_follows_uv_precedence() {
             environment(&[("UV_CACHE_DIR", "/explicit")]).as_slice(),
             None
         ),
-        Some(PathBuf::from("/explicit"))
+        named("/explicit", "UV_CACHE_DIR")
     );
     assert_eq!(
         default_allowed_worktree_dirs(&[], home),
         vec![
-            PathBuf::from("/home/fixture/.cache/uv"),
-            PathBuf::from("/home/fixture/.local/share/mise"),
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.cache/uv"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.local/share/mise"),
+                named_by: "HOME",
+            },
         ]
     );
     assert_eq!(
         default_allowed_worktree_dirs(&[], None),
-        Vec::<PathBuf>::new()
+        Vec::<ToolCacheDirectory>::new()
     );
 }
 
@@ -94,28 +105,22 @@ fn mise_data_directory_follows_mise_precedence() {
     for (pairs, expected) in [
         (
             vec![("MISE_DATA_DIR", "/explicit"), ("XDG_DATA_HOME", "/xdg")],
-            Some(PathBuf::from("/explicit")),
+            named("/explicit", "MISE_DATA_DIR"),
         ),
         (
             vec![("MISE_DATA_DIR", ""), ("XDG_DATA_HOME", "/xdg")],
-            Some(PathBuf::from("/xdg/mise")),
+            named("/xdg/mise", "XDG_DATA_HOME"),
         ),
-        (
-            vec![("XDG_DATA_HOME", "/xdg")],
-            Some(PathBuf::from("/xdg/mise")),
-        ),
+        (vec![("XDG_DATA_HOME", "/xdg")], named("/xdg/mise", "XDG_DATA_HOME")),
         (
             vec![("MISE_DATA_DIR", ""), ("XDG_DATA_HOME", "")],
-            Some(PathBuf::from("/home/fixture/.local/share/mise")),
+            named("/home/fixture/.local/share/mise", "HOME"),
         ),
-        (
-            vec![],
-            Some(PathBuf::from("/home/fixture/.local/share/mise")),
-        ),
+        (vec![], named("/home/fixture/.local/share/mise", "HOME")),
         // The uv variables are not mise's.
         (
             vec![("UV_CACHE_DIR", "/uv"), ("XDG_CACHE_HOME", "/cache")],
-            Some(PathBuf::from("/home/fixture/.local/share/mise")),
+            named("/home/fixture/.local/share/mise", "HOME"),
         ),
     ] {
         assert_eq!(
@@ -130,11 +135,11 @@ fn mise_data_directory_follows_mise_precedence() {
             environment(&[("MISE_DATA_DIR", "/explicit")]).as_slice(),
             None
         ),
-        Some(PathBuf::from("/explicit"))
+        named("/explicit", "MISE_DATA_DIR")
     );
     assert_eq!(
         mise_data_dir(environment(&[("XDG_DATA_HOME", "/xdg")]).as_slice(), None),
-        Some(PathBuf::from("/xdg/mise"))
+        named("/xdg/mise", "XDG_DATA_HOME")
     );
     // Both tools' directories are allowlisted together, each from its own variables.
     assert_eq!(
@@ -142,7 +147,16 @@ fn mise_data_directory_follows_mise_precedence() {
             environment(&[("UV_CACHE_DIR", "/uv"), ("MISE_DATA_DIR", "/mise")]).as_slice(),
             home
         ),
-        vec![PathBuf::from("/uv"), PathBuf::from("/mise")]
+        vec![
+            ToolCacheDirectory {
+                path: PathBuf::from("/uv"),
+                named_by: "UV_CACHE_DIR",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/mise"),
+                named_by: "MISE_DATA_DIR",
+            },
+        ]
     );
 }
 
@@ -155,7 +169,16 @@ fn allowlist_matches_whole_segments_through_links() {
     std::fs::create_dir_all(cache.join("git/checkout/.git")).expect("cache layout");
     std::fs::create_dir_all(root.join("cache/uv-other/.git")).expect("sibling layout");
     std::os::unix::fs::symlink(root.join("cache"), root.join("cache-link")).expect("symlink");
-    let through_link: Vec<PathBuf> = vec![root.join("missing"), root.join("cache-link/uv")];
+    let through_link: Vec<ToolCacheDirectory> = vec![
+        ToolCacheDirectory {
+            path: root.join("missing"),
+            named_by: "UV_CACHE_DIR",
+        },
+        ToolCacheDirectory {
+            path: root.join("cache-link/uv"),
+            named_by: "XDG_CACHE_HOME",
+        },
+    ];
     for (candidate, expected) in [
         (cache.join("git/checkout/.git"), true),
         (cache.clone(), true),
@@ -172,8 +195,17 @@ fn allowlist_matches_whole_segments_through_links() {
     assert!(!is_allowed_worktree_dir(cache.as_path(), &[]));
     assert!(!is_allowed_worktree_dir(
         cache.as_path(),
-        &[root.join("missing")]
+        &[ToolCacheDirectory {
+            path: root.join("missing"),
+            named_by: "MISE_DATA_DIR",
+        }]
     ));
+    // The matched entry is the one whose variable is reported.
+    assert_eq!(
+        matching_allowed_worktree_dir(cache.join("git/checkout/.git").as_path(), through_link.as_slice())
+            .map(|found| return found.named_by),
+        Some("XDG_CACHE_HOME")
+    );
     remove(root.as_path());
 }
 
@@ -184,7 +216,10 @@ fn identities_map_to_targets() {
     let root: PathBuf = fixture("targets");
     let cache: PathBuf = root.join("uv");
     std::fs::create_dir_all(cache.join("clone/.git/worktrees/w")).expect("cache layout");
-    let allowed: Vec<PathBuf> = vec![cache.clone()];
+    let allowed: Vec<ToolCacheDirectory> = vec![ToolCacheDirectory {
+        path: cache.clone(),
+        named_by: "UV_CACHE_DIR",
+    }];
     let main: WorktreeIdentity = WorktreeIdentity::MainWorktree {
         common_dir: PathBuf::from("/r/.git"),
         git_dir: PathBuf::from("/r/.git"),

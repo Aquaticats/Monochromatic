@@ -24,7 +24,7 @@
 /// the file names,
 /// the rotation steps and the bound under test.
 use super::{
-    AUDIT_FILE, AUDIT_HISTORY_BYTES, AuditOutcome, AuditRecord, ROTATE_AT_BYTES, RotationStep, append_line, audit_line,
+    AUDIT_FILE, AUDIT_HISTORY_BYTES, AuditOutcome, AuditRecord, DecidedForm, ROTATE_AT_BYTES, RotationStep, append_line, audit_line,
     move_aside_between,
 };
 use crate::command_test_support::{fixture, remove};
@@ -73,7 +73,7 @@ fn saved_conflict_line(root: &Path, copies: &[String]) -> String {
         time_millis: 1_700_000_000_000,
         process: 1,
         parent: 1,
-        form: GuardedCommand::CheckoutPaths,
+        form: DecidedForm::Guarded(GuardedCommand::CheckoutPaths),
         outcome: AuditOutcome::SavedConflict,
         place: &place,
         git_dir: place.0.as_path(),
@@ -81,6 +81,7 @@ fn saved_conflict_line(root: &Path, copies: &[String]) -> String {
         arguments: arguments.as_slice(),
         dirty: None,
         copies,
+        facts: &[],
     });
     return line.trim_end().to_string();
 }
