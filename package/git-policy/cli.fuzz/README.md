@@ -380,10 +380,14 @@ so both lock the same registry versions.
 `mise run //package/git-policy/cli.fuzz:smoke` builds AddressSanitizer targets with the read-only nightly compiler,
 runs the controls and Clippy in the same bounded container,
 then fuzzes each target for 30 seconds without host mounts
-under 2 GiB,
+under the shared container bounds
+(`defaultContainerLimits`,
+re-exported by `package/git-policy/cli/bin/container-limits.ts`:
+2 GiB,
 2 CPUs,
-512 PIDs,
-and a 4,096-byte input limit.
+512 PIDs),
+and a 4,096-byte input limit
+(`maxInputBytes` in `bin/fuzz-images.ts`).
 A target must exit 0 and report at least one executed unit.
 A longer campaign passes the time per target after the task name,
 for example `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=1800`;
