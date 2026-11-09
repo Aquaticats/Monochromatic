@@ -24,9 +24,10 @@
 //! expect(await held).toLandOnTheNewTip();
 //! ```
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, runtime_for, start, through_service};
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, bounded_for, fixture, git, repository, wrapper_first_path};
+use super::supervisor::{IdleHold, hold_idle_judgment};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
@@ -34,9 +35,23 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// The longest a control waits for a marker or for a commit to end,
+/// The longest a control waits for a marker,
+/// in seconds,
 /// far beyond a healthy run.
-const PATIENCE: Duration = Duration::from_secs(60);
+/// Why:
+///   The preparation of a conclusion runs several Git starts and a policy pass,
+/// and this host under a load average above a hundred took most of a minute for one of them;
+/// the wait is bounded, never a hang,
+/// and the command's own bound is the one that ends work that really is stuck.
+const PATIENCE_SECONDS: u64 = 300;
+
+/// The time bound on the held commit of a control,
+/// in seconds.
+/// Why:
+///   A conclusion prepared again builds itself twice and replays a tree between the builds,
+/// and a host under a load average above a hundred took more than the commit bound of every other control,
+/// which ended the command with `SIGKILL` and hid what the commit came to.
+const HELD_BOUND_SECONDS: &str = "600";
 
 /// How many arrivals at the phase marker the control releases in advance:
 /// the bound on how often a commit is prepared again.
@@ -55,6 +70,10 @@ struct Held {
     /// once it has ended.
     stderr: Option<std::thread::JoinHandle<String>>,
     markers: PathBuf,
+    /// The hold that suspends the hang guard's idle rule while this control keeps the commit waiting on purpose.
+    /// The commit waits for a file this control writes,
+    /// which the guard cannot tell from an endless wait on something outside the tree.
+    hold: Option<IdleHold>,
 }
 
 impl Held {
@@ -89,7 +108,13 @@ fn marker_directory(fixture: &Fixture) -> PathBuf {
 /// await holdsAt(held, 'service-prepared-1');
 /// ```
 fn held_commit(fixture: &Fixture, repo: &Path, name: &str, markers: &Path, arguments: &[&str]) -> Held {
-    let mut command: Command = wrapped_commit(fixture, repo, arguments);
+    let mut command: Command = bounded_for(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(fixture).as_os_str(),
+        HELD_BOUND_SECONDS,
+    );
+    command.current_dir(repo).args(arguments);
     command
         .env("XDG_RUNTIME_DIR", runtime_for(name))
         .env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", markers.display()))
@@ -106,7 +131,8 @@ fn held_commit(fixture: &Fixture, repo: &Path, name: &str, markers: &Path, argum
         }
         return all;
     });
-    return Held { child, stderr: Some(reader), markers: markers.to_path_buf() };
+    let hold: IdleHold = hold_idle_judgment(child.id());
+    return Held { child, stderr: Some(reader), markers: markers.to_path_buf(), hold: Some(hold) };
 }
 
 /// Waits until the commit is held at the marker between its preparation and its landing,
@@ -119,7 +145,10 @@ fn wait_held(held: &mut Held) {
             let words: String = held.ended();
             panic!("the commit ended ({status:?}) before it was held: {words}");
         }
-        assert!(began.elapsed() < PATIENCE, "never happened: the commit prepared and is held before the service");
+        assert!(
+            began.elapsed() < Duration::from_secs(PATIENCE_SECONDS),
+            "never happened: the commit prepared and is held before the service"
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
 }
@@ -128,6 +157,8 @@ fn wait_held(held: &mut Held) {
 fn release(mut held: Held) -> Ended {
     std::fs::write(held.markers.join("service-prepared-1.release"), "").expect("release");
     let status = held.child.wait().expect("the commit ends");
+    // The guard judges the commit again once this control is no longer holding it.
+    let _held_again: Option<IdleHold> = held.hold.take();
     let stderr: String = held.ended();
     return Ended { code: status.code(), stderr };
 }
