@@ -99,6 +99,29 @@ fn an_empty_gitdir_proves_nothing_about_a_registration() {
     remove(root.as_path());
 }
 
+/// A registration whose recorded worktree cannot be resolved proves nothing:
+/// a directory another command makes unsearchable for a moment leaves every path through it unresolved,
+/// while the registration, the destination and its pointer stay unchanged.
+#[cfg(unix)]
+#[test]
+fn a_gitdir_that_cannot_be_resolved_proves_nothing_about_a_registration() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("registration-naming-unresolvable");
+    let (_source, common, topic) = repository_with_a_linked_worktree(root.as_path(), "repo");
+    let admin: PathBuf = match registration_naming(common.as_path(), topic.as_path()) {
+        NamedRegistration::Named(admin) => admin,
+        other => panic!("the registration is there: {other:?}"),
+    };
+    let closed: PathBuf = root.join("closed");
+    std::fs::create_dir(closed.as_path()).expect("a directory another command closes for a moment");
+    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o000)).expect("no search through it");
+    std::fs::write(admin.join("gitdir").as_path(), format!("{}/see/.git\n", closed.display()).as_bytes()).expect("a gitdir recorded through the closed directory");
+    let answer: NamedRegistration = registration_naming(common.as_path(), topic.as_path());
+    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o700)).expect("searchable again");
+    assert_eq!(answer, NamedRegistration::Unknown);
+    remove(root.as_path());
+}
+
 /// A registration whose recorded worktree is gone names nothing,
 /// as Git would prune it,
 /// and the destination still exists.

@@ -326,6 +326,35 @@ fn a_gitdir_unlinked_while_it_is_written_again_keeps_the_pending_copy() {
     remove(root.as_path());
 }
 
+/// A command that makes a directory unsearchable for a moment leaves every path through it unresolved,
+/// while the registration, the destination and its pointer stay unchanged:
+/// resolution failing for a reason other than absence proves nothing,
+/// so recovery keeps the journal and the stage and says so.
+#[cfg(unix)]
+#[test]
+fn a_gitdir_that_cannot_be_resolved_keeps_the_pending_copy() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("recovery-registration-unresolvable");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
+    let closed: PathBuf = root.join("closed");
+    std::fs::create_dir(closed.as_path()).expect("a directory another command closes for a moment");
+    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o000)).expect("no search through it");
+    std::fs::write(admin.join("gitdir").as_path(), format!("{}/see/.git\n", closed.display()).as_bytes()).expect("a gitdir recorded through the closed directory");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o700)).expect("searchable again");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("could not be examined"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
 /// A `.git` that another command replaced with a named pipe must be answered without waiting:
 /// the pending check runs before every forwarded command,
 /// so a pipe with no writer would stick a command in an unrelated worktree.
