@@ -78,6 +78,13 @@ that entry stays fresh,
 and the next run skips the builder and returns
 early before its content callback ever runs.
 
+The paths this record names under `package/file-enforcer/core/` were removed on 2026-10-31 in
+`e7b5130459` (feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names
+its own generator);
+no file in the working tree carries them now.
+
 This is not an edge case in this repo.
 The root config reads real inputs outside
 the tracked API at six sites:

@@ -36,6 +36,11 @@ The repository retired:
 - `package/config/oxlint/src/rule/prefer-readonly-parameter-types.ts`;
 - `package/config/oxlint/src/rule/prefer-readonly-parameter-types.allow-pkg.ts`.
 
+`package/config/oxlint/src/rule/prefer-readonly-parameter-types.ts` is not in the working tree and
+no commit in this repository carries it.
+`package/config/oxlint/src/rule/prefer-readonly-parameter-types.allow-pkg.ts` is not in the working
+tree and no commit in this repository carries it.
+
 Both files are absent in the current tree.
 The replacement rule is
 `prefer-readonly-parameter-type/prefer-readonly-parameter-types` in

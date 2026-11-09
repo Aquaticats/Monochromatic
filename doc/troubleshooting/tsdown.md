@@ -699,6 +699,11 @@ The repair keeps each ownership boundary explicit:
   and `postcss`,
   the dependencies observed in the generated bundle.
 
+`package/css/cli/src/apply-mixins.ts` is not in the working tree and no commit in this repository
+carries it.
+`package/done/variant-postcss/tsdown.client.config.ts` is not in the working tree and no commit in
+this repository carries it.
+
 `mise run //package/done/variant-postcss:build` then completed
 without unresolved imports or dependency hints.
 A text scan found no remaining bare package imports in `dist/client`.

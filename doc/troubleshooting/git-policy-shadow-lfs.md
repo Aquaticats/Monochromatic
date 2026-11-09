@@ -29,6 +29,12 @@ error: external filter 'git-lfs filter-process' failed
 fatal: package/ide/app/design/screenshots/2026-10-05-annotations-as-built/caret-card-dark.png: clean filter 'lfs' failed
 ```
 
+The paths this record names under `package/pi-plugin/auto-mode/native/` were removed on 2026-10-19
+in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build);
+no file in the
+working tree carries them now.
+
 The named LFS asset is outside the requested commit paths.
 The owned source changes remain staged.
 The worker stops Git retries and preserves its complete original tool event and stderr.

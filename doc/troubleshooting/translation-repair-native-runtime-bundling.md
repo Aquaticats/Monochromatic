@@ -142,6 +142,14 @@ The prototype helper lives only in the owned experiment worktree,
 `package/module/translation-repair/src/build-native-runtime-assets.ts` (removed before 2026-10-18).
 It also emits `runtime-imports.json` for later inspection.
 
+`package/module/translation-repair/src/build-native-runtime-assets.ts` is not in the working tree
+and no commit in this repository carries it.
+The paths this record names under `package/module/translation-repair/` were removed on 2026-09-15
+in `cbedea3574` (refactor(translation-repair):
+remove the provider-free preparation infrastructure
+no pass reaches);
+no file in the working tree carries them now.
+
 Tradeoffs:
 
 - This prototype targets the measured Linux x64 GNU runtime,

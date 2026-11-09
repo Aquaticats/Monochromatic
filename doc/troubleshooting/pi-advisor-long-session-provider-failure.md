@@ -125,6 +125,14 @@ export const DEFAULT_CONFIG: Omit<AdvisorConfig, 'source'> = {
 };
 ```
 
+The `package/pi-plugin/advisor/src/` paths this record names moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/` in `093f32832a`
+(refactor(agent-harness-shared-advisor):
+move the advisor core files).
+`package/pi-shared/model-selection/src/cost-ranking.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/model-selection/src/cost-ranking.ts` in `b710410e81` (refactor(*):
+move model-selection to agent-harness-shared).
+
 Disabling prior results on the raw Task 8 branch reduced the serialized context from `1512228` to
 `1503716` characters.
 This is not the primary inflation source.

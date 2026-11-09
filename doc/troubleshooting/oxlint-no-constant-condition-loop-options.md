@@ -229,6 +229,13 @@ Within
 - `package/logger/core/src/sink/session-storage-store.ts`:
    one occurrence.
 
+`package/file-enforcer/core/src/io/staleness-manifest-lock.ts` was removed on 2026-10-31 in
+`e7b5130459` (feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names
+its own generator);
+no file in the working tree carries it now.
+
 Every catalog entry is executable syntax,
 so the command totals 25 lint-scoped statements without comment filtering.
 

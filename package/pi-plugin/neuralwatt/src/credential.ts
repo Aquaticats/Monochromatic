@@ -2,7 +2,9 @@
  Credential seam for the NeuralWatt pi extension:
  one resolution chain over pi's credential,
  the sops/age-encrypted `.env.local.json` store,
- and the environment.
+ and the environment,
+ remembered per process so a slow or failing store read cannot take a
+ working credential away.
 
  The chain order is the owner-accepted one from
  `doc/planning/neuralwatt-pi-plugin.md` (`cred-home`, `cold-start`):
@@ -47,6 +49,14 @@ import {
   NEURALWATT_CREDENTIAL_GUIDANCE,
   NEURALWATT_CREDENTIAL_NAME,
 } from './constants.ts';
+import {
+  createRememberingStoreRead,
+  type NeuralWattStoreRead,
+} from './credential-memory.ts';
+
+export type {
+  NeuralWattStoreRead,
+} from './credential-memory.ts';
 
 //region Types
 
@@ -80,21 +90,6 @@ export type NeuralWattCredentialResolution = {
 };
 
 /**
- One store read's outcome:
- the stored value under the credential name and the store path when loaded.
- */
-export type NeuralWattStoreRead = {
-  /**
-   Stored value, absent when the store carried none.
-   */
-  readonly value?: string;
-  /**
-   Store path, absent when no store was read.
-   */
-  readonly path?: string;
-};
-
-/**
  Inputs one resolution reads.
  Injected so tests drive every home without touching real secrets.
  */
@@ -108,7 +103,9 @@ export type NeuralWattCredentialSources = {
    */
   readonly environmentKey?: string;
   /**
-   Reads the encrypted store lazily, per resolve, with no caching.
+   Reads the encrypted store for one resolution:
+   the read this process already made while it stands,
+   one shared read otherwise.
    */
   readonly readStoreValue: () => Promise<NeuralWattStoreRead>;
 };
@@ -440,6 +437,13 @@ function sourceLabel(
  `resolve` walks the accepted chain and reports the winning home as pi's
  `source` label;
  the key itself is never logged.
+ One process remembers the store read that answered
+ (`createRememberingStoreRead`),
+ so the store is decrypted once instead of once per request,
+ no request waits for a revalidation,
+ a store read that fails keeps the last good key,
+ and a key rotated in the store replaces the served one within
+ `CREDENTIAL_REVALIDATION_INTERVAL_MS`.
 
  @param logger - package logger, re-tagged for this seam
 
@@ -449,11 +453,16 @@ function sourceLabel(
 
  @param fileExists - existence probe for the derived store candidate
 
+ @param readStore - store reader seam, injected in tests so no run decrypts
+
+ @param now - clock seam, injected in tests so a revalidation window passes
+ without waiting for one
+
  @returns the api-key auth object the provider serves
 
  @example
  ```typescript
- const auth = { apiKey: createNeuralWattApiKeyAuth({ logger }) };
+ const auth = createNeuralWattApiKeyAuth({ logger });
  ```
  */
 export function createNeuralWattApiKeyAuth({
@@ -462,12 +471,14 @@ export function createNeuralWattApiKeyAuth({
   moduleUrl = import.meta.url,
   fileExists = defaultFileExists,
   readStore = readEnvLocalJson,
+  now,
 }: {
   readonly logger: Logger;
   readonly environment?: EnvLocalJsonEnvironment;
   readonly moduleUrl?: string;
   readonly fileExists?: (path: string) => Promise<boolean>;
   readonly readStore?: typeof readEnvLocalJson;
+  readonly now?: () => number;
 },): NonNullable<ApiKeyAuth> {
   /**
    Logger tagged for this seam, so records name the credential resolution.
@@ -475,6 +486,24 @@ export function createNeuralWattApiKeyAuth({
   const l = tagged({
     tag: createNeuralWattApiKeyAuth.name,
     l: logger,
+  },);
+  /**
+   Store read this process remembers across resolutions.
+   */
+  const rememberedStoreRead = createRememberingStoreRead({
+    logger,
+    readStoreValue: function readStoreValue({
+      signal,
+    }) {
+      return readNeuralWattStoreValue({
+        environment,
+        moduleUrl,
+        fileExists,
+        readStore,
+        ...(signal === undefined ? {} : { signal, }),
+      },);
+    },
+    ...(now === undefined ? {} : { now, }),
   },);
   return {
     name: NEURALWATT_CREDENTIAL_NAME,
@@ -500,28 +529,6 @@ export function createNeuralWattApiKeyAuth({
       const environmentKey = await input.ctx
         .env(NEURALWATT_API_KEY_ENV,);
       /**
-       Store read that logs and falls through instead of failing the request.
-
-       @returns the stored value and path when a store answered,
-       otherwise an empty result
-       */
-      async function readStoreValue(): Promise<NeuralWattStoreRead> {
-        try {
-          return await readNeuralWattStoreValue({
-            environment,
-            moduleUrl,
-            fileExists,
-            readStore,
-            signal: input.signal,
-          },);
-        } catch (error) {
-          rl.warn(
-            `encrypted store read failed, falling through to the environment: ${caughtValueText(error,)}`,
-          );
-          return {};
-        }
-      }
-      /**
        pi credential key, narrowed before the sources object is built so no
        optional slot receives an explicit undefined.
        */
@@ -532,7 +539,9 @@ export function createNeuralWattApiKeyAuth({
        */
       const resolution = await resolveNeuralWattCredential({
         sources: {
-          readStoreValue,
+          readStoreValue: function readStoreForResolution() {
+            return rememberedStoreRead({ signal: input.signal, },);
+          },
           ...(credentialKey === undefined ? {} : { credentialKey, }),
           ...(environmentKey === undefined ? {} : { environmentKey, }),
         },

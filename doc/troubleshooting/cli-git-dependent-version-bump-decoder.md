@@ -37,6 +37,19 @@ async function manifestFileOf(file: TrackedFile,): Promise<WorkspaceManifestFile
 }
 ```
 
+`package/git-policy/repository/src/dependent-version-bump-policy.ts` was removed on 2026-10-13 in
+`a2b56c548c` (refactor(*):
+delete the dependent-version and configuration differentials and the
+four git-policy authoring packages);
+no file in the working tree carries it now.
+`package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts` was
+removed on 2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its
+tasks,
+bins and trust workflow);
+no file in the working tree carries it now.
+
 The generated counterpart is
 `package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts`.
 This identifies a relevant decoding path,

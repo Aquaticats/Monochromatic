@@ -89,6 +89,11 @@ The committed fixture at trial revision `67f7340dd5` passed on rerun.
 Its initial container startup failed with local task-allocation pressure;
 that attempt provided no cache verification evidence.
 
+`package/music-player/desktop-app/depot-trial/cache-repro/mise.toml` exists only on an unmerged
+branch (newest commit `67f7340dd5` (test(music-player-desktop-app):
+preserve stale-source cache
+reproducer [skip ci]) on 2026-10-15) and is not in the working tree.
+
 Working patterns are a newly timestamped source change and a package clean followed by a rebuild.
 The failing pattern is an older changed source snapshot paired with a newer artifact for different source content.
 The full application rerun subsequently passed in both corrected workflows.
