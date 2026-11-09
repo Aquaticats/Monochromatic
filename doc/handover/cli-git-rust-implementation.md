@@ -195,20 +195,25 @@ The old tree kept for the rollback stays until the owner deletes it.
   briefs in `~/temp/agent/pi-runs/`:
   none at this moment,
   because every follow-up written so far has been started.
-  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
-- The provider ended resumed runs with `terminated` after 5 to 29 turns:
-  `discarding-commands-findings-fixed` runs 5 and 6,
-  `conflict-resolution-findings-fixed` run 6,
-  and `wrapper-tests-that-fail-only-in-a-suite` run 4.
-  Their contexts held 448 to 550 thousand tokens,
-  and `merge-route-findings-fixed` run 10 finished normally at 887 thousand,
-  so context size does not explain it and the cause is unknown.
-  An unauthenticated `GET` of the provider's model list answered 200 at the time.
-  A run the provider ends on resume is restarted without its session
-  when its brief stands alone,
-  on a brief that names the shared rules and says to continue from the committed state.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
+  Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
+- The provider ended a burst of runs with `terminated` between 2026-11-09T11:24:25-05:00 and 2026-11-09T11:29:23-05:00:
+  `discarding-commands-findings-fixed` runs 5 to 7,
+  `conflict-resolution-findings-fixed` runs 6 and 7,
+  `wrapper-tests-that-fail-only-in-a-suite` run 4,
+  and `push-route-findings-fixed` run 7.
+  Runs 7 of the first two were fresh sessions,
+  and the feed of the first shows an empty answer after 18 s of one model response,
+  so resuming is not the cause.
+  Context size does not explain it either:
+  the ended runs held 448 to 550 thousand tokens,
+  and `merge-route-findings-fixed` run 10 finished normally at 887 thousand.
+  An unauthenticated `GET` of the provider's model list answered 200 in the same minutes,
+  and other agents kept producing events,
+  so the cause is unknown.
+  Retry after a few minutes.
+  A fresh session on a brief that stands alone costs about 30 s when it fails again.
 - The provider ended several runs with `terminated`:
   `commit-ceiling-and-private-index-follow-ups` run 1,
   `intent-to-add-keeps-stat-data` runs 3 and 4,
