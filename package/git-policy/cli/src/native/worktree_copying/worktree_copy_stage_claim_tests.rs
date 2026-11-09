@@ -686,3 +686,124 @@ fn an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed(
     assert!(journals.join(dead_name.as_str()).exists(), "nothing was removed before the refusal");
     remove(root.as_path());
 }
+
+/// A scene whose destination sits under a parent named with bytes that are not text,
+/// so the stage container beside it holds those bytes too.
+fn scene_with_bytes(name: &str, parent_bytes: &[u8]) -> (PathBuf, PathBuf, PathBuf) {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let (root, common, _destination) = scene(name);
+    let parent: PathBuf = root.join(OsStr::from_bytes(parent_bytes));
+    std::fs::create_dir_all(parent.as_path()).expect("a parent that is not text");
+    return (root, common, parent.join("topic"));
+}
+
+/// The claim reader of the release installed before the line of hexadecimal bytes,
+/// copied from `read_claim` in `worktree_copy_stage_claim_reaping.rs` at commit 9462675cd8.
+/// Why:
+///  A record this build writes must still be read by that release when the path is text,
+///  and must make it refuse rather than act on the replacement character when it is not.
+fn earlier_release_claim_container(text: &str) -> Option<PathBuf> {
+    let mut lines = text.lines();
+    let container: PathBuf = PathBuf::from(lines.next().unwrap_or_default());
+    let stage_named: bool = match container.file_name() {
+        Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
+        None => false,
+    };
+    if !(container.is_absolute() && stage_named) {
+        return None;
+    }
+    return Some(container);
+}
+
+/// A claim keeps the bytes of a container whose parent is not text,
+/// so the reader names the container the claim was made for.
+#[test]
+fn a_claim_keeps_the_bytes_of_a_container_path_that_is_not_text() {
+    let (root, common, destination) = scene_with_bytes("claim-bytes", b"par\xffnt");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    assert_eq!(claim.container().parent(), destination.parent(), "the container stands beside the destination");
+    let read: (PathBuf, Option<String>) = read_claim(claim.path.as_path()).expect("read").expect("present");
+    assert_eq!(read.0, claim.container().to_path_buf(), "the claim names the container it was made for");
+    assert_eq!(read.1, Some(dead_copy_owner().token()), "the claim names its owner");
+    claim.release().expect("release");
+    remove(root.as_path());
+}
+
+/// Two destinations that differ only in a byte that is not text keep two claims,
+/// and releasing one leaves the other's record.
+#[test]
+fn two_claims_whose_paths_differ_only_in_bytes_are_two_records() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let (root, common, _destination) = scene("claim-two-byte-names");
+    let mut claims: Vec<StageClaim> = Vec::new();
+    for bytes in [b"one\xff".as_slice(), b"one\xfe".as_slice()] {
+        let parent: PathBuf = root.join(OsStr::from_bytes(bytes));
+        std::fs::create_dir_all(parent.as_path()).expect("parent");
+        claims.push(claim_stage_for(common.as_path(), parent.join("topic").as_path(), &dead_copy_owner()).expect("claim"));
+    }
+    let first: StageClaim = claims.remove(0);
+    let second: StageClaim = claims.remove(0);
+    assert_ne!(first.path, second.path, "two records, two files");
+    assert_eq!(read_claim(first.path.as_path()).expect("read").expect("present").0, first.container().to_path_buf());
+    assert_eq!(read_claim(second.path.as_path()).expect("read").expect("present").0, second.container().to_path_buf());
+    let first_path: PathBuf = first.path.clone();
+    let second_path: PathBuf = second.path.clone();
+    first.release().expect("release");
+    assert!(!first_path.exists(), "its own record goes");
+    assert!(second_path.exists(), "the other record stays");
+    second.release().expect("release");
+    remove(root.as_path());
+}
+
+/// An abandoned stage whose path is not text is removed,
+/// and a directory standing at the replacement spelling is not touched.
+#[test]
+fn an_abandoned_stage_that_is_not_text_is_removed_and_no_other_directory_is() {
+    let (root, common, destination) = scene_with_bytes("claim-reap-bytes", b"par\xffnt");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    abandoned_stage(claim.container());
+    let container: PathBuf = claim.container().to_path_buf();
+    let replacement: PathBuf = PathBuf::from(container.to_string_lossy().into_owned());
+    std::fs::create_dir_all(replacement.as_path()).expect("a directory at the replacement spelling");
+    std::fs::write(replacement.join("keep"), b"not the stage").expect("marker");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reaped");
+    assert!(!container.exists(), "the stage the claim named is removed");
+    assert!(replacement.join("keep").exists(), "the replacement spelling names another directory and is not touched");
+    assert!(!claim.path.exists(), "the claim goes with its stage");
+    assert_eq!(
+        notices,
+        vec![format!(
+            "monochromatic-git-policy-cli: removed the stage {} that an interrupted ignored-state copy left behind.",
+            quote(container.to_string_lossy().as_ref())
+        )]
+    );
+    remove(root.as_path());
+}
+
+/// The release now installed reads a claim this build writes for a text path,
+/// and refuses one that names other bytes instead of acting on the replacement spelling.
+#[test]
+fn an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes() {
+    let (root, common, destination) = scene("claim-earlier-text");
+    let text_claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let text: String = std::fs::read_to_string(text_claim.path.as_path()).expect("claim file");
+    assert_eq!(
+        earlier_release_claim_container(text.as_str()),
+        Some(text_claim.container().to_path_buf()),
+        "a path that is text stays readable by the installed release"
+    );
+    text_claim.release().expect("release");
+    remove(root.as_path());
+    let (root, common, destination) = scene_with_bytes("claim-earlier-bytes", b"par\xffnt");
+    let bytes_claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let text: String = std::fs::read_to_string(bytes_claim.path.as_path()).expect("claim file");
+    assert_eq!(
+        earlier_release_claim_container(text.as_str()),
+        None,
+        "the installed release refuses rather than naming the replacement character"
+    );
+    bytes_claim.release().expect("release");
+    remove(root.as_path());
+}
