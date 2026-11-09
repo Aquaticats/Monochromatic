@@ -45,6 +45,72 @@ pub(crate) fn status_differs(before: &[u8], after: &[u8]) -> bool {
 }
 
 /// What:
+///  The step that brings the checkout and then a named branch to the merge,
+/// given as a value.
+/// Why:
+///   A control must be able to play a `git switch` in the instant between the checks above and the move
+/// (`advance_local_branch_moving`),
+/// which is the window the move has to survive;
+/// the shipped step is `move_the_named_branch`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type BranchMove = (git, branchRef, local, mergeOid) => Result<void, string>;
+/// ```
+pub(crate) type BranchMove<'a> = &'a dyn Fn(&PushGit, &str, &str, &str) -> Result<Result<(), String>, SingleFlightError>;
+
+/// What:
+///  Bring this worktree's index and files to the merge,
+/// then move the branch this command checked,
+/// and only that branch.
+/// Why:
+///   `git merge --ff-only <merge>` moves the branch `HEAD` names at the instant it runs,
+/// so an ordinary `git switch` that finishes in the window between the check of the branch and the merge
+///  moves a branch this command never checked.
+/// Naming the branch is what removes that window:
+/// the two-way update of the index and the worktree,
+/// which is what Git's own fast-forward of a checkout does,
+/// leaves the worktree holding the merge's files while the branch still holds the old tip,
+/// and a `git switch` over that refuses;
+/// the branch then moves by compare-and-swap against the tip this command checked,
+/// so a branch that moved meanwhile is refused instead of overwritten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git.readTreeUpdateIndex(['-u','-m',local,mergeOid]); await git.updateRef(['-m',message,branchRef,mergeOid,local]);
+/// ```
+pub(crate) fn move_the_named_branch(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str) -> Result<Result<(), String>, SingleFlightError> {
+    // The branch tip must be the merge's ancestor: `read-tree` moves between any two trees, and `update-ref` moves a branch
+    //  to any commit, so this is the check `--ff-only` made for the move.
+    let ancestry = run_query(git, &argv(&["merge-base", "--is-ancestor", local, merge_oid]))?;
+    match ancestry.code {
+        Some(0) => {}
+        // Git's own words for the refusal a `merge --ff-only` prints.
+        Some(1) => return Ok(Err(String::from("Git refused the fast-forward: fatal: Not possible to fast-forward, aborting."))),
+        other => {
+            let how: String = match other {
+                Some(code) => code.to_string(),
+                None => String::from("on a signal"),
+            };
+            return Ok(Err(format!("Git refused the fast-forward: merge-base --is-ancestor exited {how}")));
+        }
+    }
+    let checked_out = run_query(git, &argv(&["read-tree", "-u", "-m", local, merge_oid]))?;
+    if checked_out.code != Some(0) {
+        return Ok(Err(refusal_of(&checked_out.stderr)));
+    }
+    // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
+    record_streams(&["read-tree", "-u", "-m", local, merge_oid], &checked_out.stdout, &checked_out.stderr);
+    let message: String = format!("merge: fast-forward {branch_ref} to the published reconcile merge");
+    let moved = run_query(git, &argv(&["update-ref", "-m", message.as_str(), branch_ref, merge_oid, local]))?;
+    if moved.code != Some(0) {
+        return Ok(Err(refusal_of(&moved.stderr)));
+    }
+    record_streams(&["update-ref", branch_ref, merge_oid, local], &moved.stdout, &moved.stderr);
+    return Ok(Ok(()));
+}
+
+/// What:
 ///  Git's fast-forward to the published merge,
 /// with an intent record written first and settled after,
 /// so a branch that moved in
@@ -68,8 +134,7 @@ pub(crate) fn status_differs(before: &[u8], after: &[u8]) -> bool {
 /// ```ts
 /// const refusal = await fastForwardRecorded({ git, branchRef, local, mergeOid }); // undefined when it moved
 /// ```
-pub(crate) fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str) -> Result<Result<(), String>, SingleFlightError> {
-    let moved_arguments = argv(&["merge", "--ff-only", merge_oid]);
+pub(crate) fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str, move_branch: BranchMove<'_>) -> Result<Result<(), String>, SingleFlightError> {
     let git_dir: Option<PathBuf> = {
         let named = run_query(git, &argv(&["rev-parse", "--absolute-git-dir"]))?;
         if named.code == Some(0) { Some(PathBuf::from(String::from_utf8_lossy(&named.stdout).trim())) } else { None }
@@ -78,21 +143,18 @@ pub(crate) fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str
     if let Some(dir) = git_dir.as_deref() {
         recorded = record_merge_intent(dir, git, branch_ref, local, merge_oid);
     }
-    let moved = run_query(git, &moved_arguments)?;
-    // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
-    if moved.code == Some(0) {
-        record_streams(&["merge", "--ff-only", merge_oid], &moved.stdout, &moved.stderr);
-    }
+    let moved: Result<(), String> = move_branch(git, branch_ref, local, merge_oid)?;
     let Some((record, intent)) = recorded else {
         // Without a record the fast-forward runs as it always did, and Git's refusal is the reason.
-        return Ok(if moved.code == Some(0) { Ok(()) } else { Err(refusal_of(&moved.stderr)) });
+        return Ok(moved);
     };
-    if moved.code == Some(0) {
+    if moved.is_ok() {
         if let Err(error) = remove_merge_intent(record.as_path()) {
             debug(TAG, &format!("the merge record could not be removed: {error}"));
         }
         return Ok(Ok(()));
     }
+    let refusal: String = moved.err().unwrap_or_default();
     let place: RecoveryPlace = RecoveryPlace {
         git: GitContext { real_git: git.real_git.clone(), overlay: git.environment.clone(), global_prefix: Vec::new(), common_dir: git_dir.clone() },
         cwd: git.cwd.clone(),
@@ -100,10 +162,14 @@ pub(crate) fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str
     };
     return Ok(match settle_failed_merge(&place, record.as_path(), &intent) {
         Ok(MergeRecoveryAction::Completed) => Ok(()),
-        Ok(_) => Err(refusal_of(&moved.stderr)),
-        Err(error) => Err(format!("{} ({})", refusal_of(&moved.stderr), error.0)),
+        Ok(_) => Err(refusal),
+        Err(error) => Err(format!("{refusal} ({})", error.0)),
     });
 }
+
+/// The step the shipped reconcile moves with,
+/// named once so a control can play the window with exactly what ships.
+pub(crate) const SHIPPED_MOVE: BranchMove<'static> = &move_the_named_branch;
 
 /// The reason line for a fast-forward Git refused:
 /// its first line of words.
@@ -151,6 +217,18 @@ pub(crate) fn advance_local_branch(
     local: &str,
     merge_oid: &str,
 ) -> Result<Result<bool, String>, SingleFlightError> {
+    return advance_local_branch_moving(git, branch_ref, local, merge_oid, SHIPPED_MOVE);
+}
+
+/// `advance_local_branch` with the step that does the move given,
+/// so a control can play a `git switch` in the window between the checks and it.
+pub(crate) fn advance_local_branch_moving(
+    git: &PushGit,
+    branch_ref: &str,
+    local: &str,
+    merge_oid: &str,
+    move_branch: BranchMove<'_>,
+) -> Result<Result<bool, String>, SingleFlightError> {
     let checked_out = run_query(git, &argv(&["symbolic-ref", "--quiet", "HEAD"]))?;
     if checked_out.code != Some(0) {
         return Ok(Err(String::from("HEAD is detached")));
@@ -197,7 +275,7 @@ pub(crate) fn advance_local_branch(
             )));
         }
     }
-    if let Err(reason) = fast_forward_recorded(git, branch_ref, local, merge_oid)? {
+    if let Err(reason) = fast_forward_recorded(git, branch_ref, local, merge_oid, move_branch)? {
         return Ok(Err(reason));
     }
     if kept {

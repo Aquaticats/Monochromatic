@@ -1727,14 +1727,18 @@ fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
     let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
     let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
     assert_eq!(named("fetch"), 1, "one fetch: {starts:?}");
-    assert_eq!(named("--ff-only"), 1, "one fast-forward: {starts:?}");
+    // The move of the branch names it: an ancestry check, the two-way update of the checkout and a compare-and-swap ref write.
+    assert_eq!(named("read-tree"), 1, "one update of the checkout: {starts:?}");
+    let moves: Vec<&String> = starts.iter().filter(|start| { return start.contains("fast-forward refs/heads/main to the published reconcile merge"); }).collect();
+    assert_eq!(moves.len(), 1, "one update of the branch, named: {starts:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(&s.root);
 }
 
-/// What the fetch and the fast-forward of a reconcile say is kept in the service's log:
-/// one entry for each,
-/// naming the command.
+/// The fetch of a reconcile keeps Git's own words in the service's log,
+/// and the move of the branch is in its reflog,
+/// which `update-ref --message` writes:
+/// `read-tree -u -m` and `update-ref` say nothing of their own.
 #[test]
 fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
     let s = scenario("ar-words");
@@ -1748,7 +1752,8 @@ fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
         return entries.iter().filter(|entry| { return entry.message.contains(format!("git {command}").as_str()) && entry.message.contains(" said: "); }).collect();
     };
     assert_eq!(said("fetch --no-tags").len(), 1, "Git's report of the fetched branch: {entries:?}");
-    assert_eq!(said("merge --ff-only").len(), 1, "Git's report of the fast-forward: {entries:?}");
+    let reflog: String = text_of(&s.local, &["reflog", "show", "--format=%gs", "refs/heads/main"]);
+    assert!(reflog.contains("fast-forward refs/heads/main to the published reconcile merge"), "the move is in the branch's reflog: {reflog}");
     remove(&s.root);
 }
 
@@ -1773,8 +1778,10 @@ fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_th
     let old = text_of(&s.local, &["rev-parse", "HEAD"]);
     let marker = s.root.join("raced");
     let shim = s.root.join("racing-git");
+    // The stand-in plays the person's commit when the ref update of the move runs, so the checkout holds the merge's
+    //  paths while the branch is at the winner's commit.
     let script = format!(
-        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = --ff-only ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    cd '{local}' || exit 1\n    echo 'committed meanwhile' > z.txt\n    /usr/bin/git add -- z.txt\n    /usr/bin/git commit --quiet --message=meanwhile -- z.txt\n    winner=$(/usr/bin/git rev-parse HEAD)\n    /usr/bin/git read-tree -m -u '{old}' '{target}'\n    echo \"fatal: update_ref failed for ref 'HEAD': cannot lock ref 'HEAD': is at $winner but expected {old}\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    cd '{local}' || exit 1\n    echo 'committed meanwhile' > z.txt\n    /usr/bin/git add -- z.txt\n    /usr/bin/git commit --quiet --message=meanwhile -- z.txt\n    winner=$(/usr/bin/git rev-parse HEAD)\n    echo \"fatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': is at $winner but expected {old}\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
         marker = marker.display(),
         local = s.local.display(),
     );
@@ -1845,4 +1852,26 @@ fn a_second_pass_command_that_stalls_is_stopped_and_named() {
     assert!(reported.contains("merge-tree"), "{reported}");
     assert!(waited < STALLED_STAND_IN_SLEEP, "the command was stopped at its window: {reported}");
     crate::test_support::remove(root.as_path());
+}
+
+/// A `git switch` that lands in the window between the checks and the move moves only the branch this command checked:
+/// the move names its branch,
+/// so the branch the person switched to is where the person left it.
+#[test]
+fn a_switch_in_the_window_moves_only_the_branch_this_command_checked() {
+    let s = scenario("ar-ff-window-switch");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    git(&s.local, &["branch", "topic"]);
+    // The person's `git switch topic` finishes in the window: after the checks, before the move.
+    let interposed = |git_ref: &PushGit, branch_ref: &str, local: &str, merge_oid: &str| -> Result<Result<(), String>, SingleFlightError> {
+        git(&s.local, &["switch", "--quiet", "topic"]);
+        return (crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)(git_ref, branch_ref, local, merge_oid);
+    };
+    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &interposed).expect("git");
+    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
+    remove(&s.root);
 }
