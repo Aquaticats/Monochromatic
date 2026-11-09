@@ -49,8 +49,10 @@ use crate::merge_isolation_recovery_cleanup::{
 /// put back when the merge does not land,
 /// merged with it when it does.
 use crate::merge_isolation_carry::drop_capture_ref;
-use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, restore};
+use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, changes_between, restore};
 use crate::merge_isolation_carry_notice::report_lines;
+/// Running Git for the ancestry question.
+use crate::transaction_git::{GitRequest, run_git_checked};
 /// The install and the branch move of a merge that is finished from its record.
 use crate::merge_isolation_recovery_complete::complete;
 use crate::merge_isolation_recovery_steps::{
@@ -283,6 +285,7 @@ pub fn settle_failed_merge(
                 // The branch already names this merge, so a refusal here reports it as installed.
                 return Err(MergeRefusal { error, began: true });
             }
+            drop_capture(place, root, intent);
             return Ok(MergeRecoveryAction::AlreadyLanded);
         }
         Some(_moved) => {}
@@ -381,6 +384,24 @@ pub fn settle_failed_merge(
     match current.as_deref() {
         Some(head) if head == intent.old_oid => {}
         Some(head) => {
+            // A merge that landed and was then built on by another session is still the person's merge: the checkout is put back
+            //  to the moved head, and their own work is merged onto it rather than written back as it was before the merge, which
+            //  would show the merge's lines undone. The record stays until their bytes are in the files.
+            if intent.carried.is_some() && is_ancestor(place, root, intent.new_oid.as_str(), head)? {
+                let action: MergeRecoveryAction = settle_moving_the_record_aside(place, record, intent, head, out)?;
+                if action != MergeRecoveryAction::BranchMoved {
+                    return Ok(action);
+                }
+                if !carry_onto(place, root, intent, head, out)? {
+                    return Ok(MergeRecoveryAction::IndexHeld);
+                }
+                if let Err(error) = drop_record(record) {
+                    return Err(MergeRefusal { error, began });
+                }
+                drop_side_ref(place, root, intent);
+                drop_capture(place, root, intent);
+                return Ok(MergeRecoveryAction::AlreadyLanded);
+            }
             if intent.side_ref.is_some() {
                 // A merge that is partly installed here has files and index entries nobody else can settle: its record stays,
                 //  and the command is told, because dropping it would leave them with nothing that ever recovers them.
@@ -410,7 +431,7 @@ pub fn settle_failed_merge(
                 drop_capture(place, root, intent);
                 return Ok(MergeRecoveryAction::SavedBranchMoved);
             }
-            let action: MergeRecoveryAction = settle_moved_branch(place, record, intent, head, out)?;
+            let action: MergeRecoveryAction = settle_moved_branch(place, record, intent, head, false, out)?;
             if action == MergeRecoveryAction::BranchMoved {
                 drop_side_ref(place, root, intent);
                 if restore_the_capture(place, root, intent, out)? {
@@ -431,6 +452,7 @@ pub fn settle_failed_merge(
         if let Err(error) = drop_record_and_side_ref(place, root, record, intent) {
             return Err(MergeRefusal { error, began });
         }
+        drop_capture(place, root, intent);
         return Ok(MergeRecoveryAction::Discarded);
     }
     let mut foreign: Vec<String> = Vec::new();
@@ -463,6 +485,7 @@ pub fn settle_failed_merge(
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     drop_record_and_side_ref(place, root, record, intent).map_err(partly_installed)?;
+    drop_capture(place, root, intent);
     return Ok(MergeRecoveryAction::Completed);
 }
 
@@ -496,6 +519,91 @@ fn carry_the_capture(
             return Ok(true);
         }
         // A lock that stays held leaves everything to the next command, which carries the same bytes.
+        Err(CarryFailure::IndexHeld(lock)) => {
+            debug("recoverInterruptedMerges", format!("the work a merge carries waits for {lock}").as_str());
+            return Ok(false);
+        }
+        Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
+    }
+}
+
+/// What:
+///  Whether one commit is an ancestor of another,
+/// which is what says a merge landed and a branch was built on it.
+/// Why:
+///   The two cases of a moved branch are unlike:
+/// a branch built on the merge holds its content,
+/// and one that was reset away does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isAncestor(place, root, ancestor, commit): boolean; // git merge-base --is-ancestor
+/// ```
+fn is_ancestor(place: &RecoveryPlace, root: &Path, ancestor: &str, commit: &str) -> Result<bool, MergeRefusal> {
+    let arguments: [&str; 4] = ["merge-base", "--is-ancestor", ancestor, commit];
+    return match run_git_checked(&place.git, &GitRequest::new(root, &arguments)) {
+        Ok(_) => Ok(true),
+        // `git merge-base --is-ancestor` answers 1 for "no" and anything else is a failure to read.
+        Err(error) if error.to_string().contains("exit") => Ok(false),
+        Err(error) => Err(MergeRefusal { error: RecoveryError(error.to_string()), began: true }),
+    };
+}
+
+/// What:
+///  Put the merge's paths at the moved head while the record stays,
+/// so the person's work can be carried onto it.
+/// Why:
+///  The record is the only thing that names the capture,
+/// and the carry needs it until the bytes are in the files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const action = await settleMovedBranch({ place, record, intent, movedTo, keepRecord: true });
+/// ```
+fn settle_moving_the_record_aside(
+    place: &RecoveryPlace,
+    record: &Path,
+    intent: &MergeIntent,
+    moved_to: &str,
+    out: &mut dyn Write,
+) -> Result<MergeRecoveryAction, MergeRefusal> {
+    return settle_moved_branch(place, record, intent, moved_to, true, out);
+}
+
+/// What:
+///  Merge the person's own work with the tree of one commit,
+/// which is the moved head when the branch was built on the merge.
+/// Why:
+///   A carry onto the old merge's own commit would leave the moved head's later changes out of the files,
+/// and a
+///  carry onto the moved head keeps them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function carryOnto({ place, root, intent, end, out }): Promise<boolean>;
+/// ```
+fn carry_onto(place: &RecoveryPlace, root: &Path, intent: &MergeIntent, end: &str, out: &mut dyn Write) -> Result<bool, MergeRefusal> {
+    let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
+    let mut changes: Vec<Change> = changes_between(&place.git, root, intent.old_oid.as_str(), end)
+        .map_err(|error| { return partly_installed(RecoveryError(error)); })?;
+    // A captured path the moved head left alone is not in that difference, so the merge's own side of it is what the person's
+    //  work merges with.
+    let merge: Vec<Change> = merge_changes(place, root, intent).map_err(partly_installed)?;
+    for entry in &capture.paths {
+        if changes.iter().any(|change| { return change.path == entry.path; }) {
+            continue;
+        }
+        if let Some(change) = merge.iter().find(|change| { return change.path == entry.path; }) {
+            changes.push(change.clone());
+        }
+    }
+    match carry(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, LockWait::WhileFinishing, out) {
+        Ok(report) => {
+            for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
+                let _noted = out.write_all(format!("{line}\n").as_bytes());
+            }
+            return Ok(true);
+        }
         Err(CarryFailure::IndexHeld(lock)) => {
             debug("recoverInterruptedMerges", format!("the work a merge carries waits for {lock}").as_str());
             return Ok(false);

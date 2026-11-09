@@ -379,8 +379,14 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
             reach_phase(Phase::MergeCarriedBack)?;
         }
     }
-    if carry_finished && let Err(error) = remove_merge_intent(record.as_path()) {
-        debug(TAG, format!("the merge record could not be removed: {error}").as_str());
+    if carry_finished {
+        if let Err(error) = remove_merge_intent(record.as_path()) {
+            debug(TAG, format!("the merge record could not be removed: {error}").as_str());
+        }
+        // The record was the last thing that named the capture, so its bytes are in the checkout and the ref can go.
+        if let Some(capture) = plan.carried {
+            drop_capture_ref(&session.context, root, capture);
+        }
     }
     // The fast-forward carries no `--quiet`, and what Git says of it ("Updating a..b", "Fast-forward", its diffstat) is about
     //  the wrapper's own step, not about the merge the person asked for. The person's streams carry exactly what native Git's

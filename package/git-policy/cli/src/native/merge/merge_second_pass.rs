@@ -187,7 +187,7 @@ pub enum Verdict {
 /// ```ts
 /// const verdict = (bytes) => bytes.length > LARGEST ? 'too-large' : bytes.subarray(0, PROBE).includes(0) ? 'binary' : 'text';
 /// ```
-fn unfit(bytes: &[u8]) -> Option<Left> {
+pub(crate) fn unfit(bytes: &[u8]) -> Option<Left> {
     if bytes.len() > LARGEST_BLOB_BYTES {
         return Some(Left::TooLarge);
     }

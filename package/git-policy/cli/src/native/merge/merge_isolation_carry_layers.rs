@@ -29,7 +29,7 @@
 //! const end = decide(runner, path, { base, ours, theirs }); // { outcome: 'merges' | 'ours' | 'merged' | 'kept' | 'gone', mode }
 //! ```
 
-use crate::merge_second_pass::{Conflict, GitRunner, Left, Stage, Verdict, second_pass, write_blob};
+use crate::merge_second_pass::{Conflict, GitRunner, Left, Stage, Verdict, second_pass, unfit, write_blob};
 use crate::word_merge::MergedPart;
 use crate::merge_second_pass::AttributeSource;
 use crate::word_merge::{WordMerge, keep_both, merge_by_word};
@@ -248,6 +248,29 @@ pub fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Deci
         (None, Some(_)) => return Ok(Decision { outcome: Outcome::Gone(DELETE_MODIFY), mode: None }),
         (Some(_), Some(_)) => {}
         (None, None) => return Ok(Decision { outcome: Outcome::Merges, mode: None }),
+    }
+    if layer.base.is_none() {
+        // Both sides added the path, so there is no ancestor to merge from: the two texts are the whole of it, and the word
+        //  pass still settles the regions that agree.
+        let (Some(ours), Some(theirs)) = (&layer.ours, &layer.theirs) else {
+            return Err(String::from("a path both sides added holds two sides"));
+        };
+        let ours_bytes: Vec<u8> = bytes_of(runner, ours.oid.as_str())?;
+        let theirs_bytes: Vec<u8> = bytes_of(runner, theirs.oid.as_str())?;
+        if unfit(ours_bytes.as_slice()).is_some() || unfit(theirs_bytes.as_slice()).is_some() {
+            return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: end_mode(layer) });
+        }
+        return match merge_by_word(b"", ours_bytes.as_slice(), theirs_bytes.as_slice()) {
+            WordMerge::Resolved { merged, parts } => Ok(Decision { outcome: Outcome::Merged { bytes: merged, conflict: false, parts }, mode: end_mode(layer) }),
+            WordMerge::Conflict { .. } => Ok(Decision {
+                outcome: Outcome::Merged {
+                    bytes: keep_both(b"", ours_bytes.as_slice(), theirs_bytes.as_slice(), (OUR_LABEL, THEIR_LABEL)),
+                    conflict: true,
+                    parts: Vec::new(),
+                },
+                mode: end_mode(layer),
+            }),
+        };
     }
     let conflict: Conflict = Conflict { path: path.to_vec(), base: stage(&layer.base), ours: stage(&layer.ours), theirs: stage(&layer.theirs) };
     let verdicts: Vec<Verdict> = second_pass(runner, &[conflict], AttributeSource::Invocation)?;

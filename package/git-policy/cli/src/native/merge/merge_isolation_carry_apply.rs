@@ -629,7 +629,11 @@ pub fn carry(
         let state: WorktreeState = worktree_state(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
         let merged_object: Option<&str> = change.exists_after().then(|| { return change.new_oid.as_str(); });
-        if !explained(&state, &[captured_object, merged_object]) {
+        let (worktree, note, target) = plan_worktree((&runner, context, root), change, entry)?;
+        // What stands there is the capture, the merge's own, or the bytes this carry writes:
+        // a carry that was killed after writing a path finds its
+        //  own bytes and writes the same ones again. Anything else was written by someone else since the capture.
+        if !explained(&state, &[captured_object, merged_object, target.as_deref()]) {
             report.changed.push(entry.path.clone());
             continue;
         }
@@ -641,7 +645,6 @@ pub fn carry(
             report.changed.push(entry.path.clone());
             continue;
         }
-        let (worktree, note) = plan_worktree((&runner, context, root), change, entry)?;
         let index: IndexWrite = plan_index(&runner, change, entry)?;
         match note {
             Note::Merged => report.merged.push(entry.path.clone()),
@@ -668,27 +671,35 @@ fn plan_worktree(
     places: (&dyn GitRunner, &GitContext, &Path),
     change: &Change,
     entry: &crate::merge_isolation_carry_parts::CapturedPath,
-) -> Result<(FileWrite, Note), CarryFailure> {
+) -> Result<(FileWrite, Note, Option<String>), CarryFailure> {
     let (runner, context, root) = places;
     let layer: Layer = Layer { base: side(change, false), ours: entry.worktree.as_ref().map(side_of_file), theirs: side(change, true) };
     let decision: Decision = decide(runner, entry.path.as_slice(), &layer).map_err(CarryFailure::Failed)?;
     let mode: String = decision.mode.clone().unwrap_or_else(|| { return String::from(PLAIN_FILE_MODE); });
     return match decision.outcome {
-        Outcome::Merges => Ok((FileWrite::Leave, Note::None)),
+        Outcome::Merges => Ok((FileWrite::Leave, Note::None, None)),
         Outcome::Ours => match &entry.worktree {
-            Some(file) => Ok((FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, mode), Note::None)),
-            None => Ok((FileWrite::Remove, Note::None)),
+            Some(file) => Ok((
+                FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, mode),
+                Note::None,
+                Some(file.blob.clone()),
+            )),
+            None => Ok((FileWrite::Remove, Note::None, None)),
         },
         Outcome::Merged { bytes, conflict, .. } => {
             let oid: String = write_layer_bytes(runner, bytes.as_slice()).map_err(CarryFailure::Failed)?;
             let form: Vec<u8> = file_form(context, root, entry.path.as_slice(), oid.as_str()).map_err(CarryFailure::Failed)?;
-            return Ok((FileWrite::Bytes(form, mode), if conflict { Note::Conflict } else { Note::Merged }));
+            return Ok((FileWrite::Bytes(form, mode), if conflict { Note::Conflict } else { Note::Merged }, Some(oid)));
         }
         Outcome::Kept(why) => match &entry.worktree {
-            Some(file) => Ok((FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, mode), Note::Kept(why))),
-            None => Ok((FileWrite::Remove, Note::Kept(why))),
+            Some(file) => Ok((
+                FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, mode),
+                Note::Kept(why),
+                Some(file.blob.clone()),
+            )),
+            None => Ok((FileWrite::Remove, Note::Kept(why), None)),
         },
-        Outcome::Gone(why) => Ok((FileWrite::Remove, Note::Kept(why))),
+        Outcome::Gone(why) => Ok((FileWrite::Remove, Note::Kept(why), None)),
     };
 }
 
@@ -756,20 +767,17 @@ pub fn restore(
         let state: WorktreeState = worktree_state(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
         // The branch's own content is what a clear leaves, so it is what a restore may replace.
-        let old_object: Option<&str> = changes
-            .iter()
-            .find(|change| { return change.path == entry.path; })
-            .and_then(|change| { return change.existed().then(|| { return change.old_oid.as_str(); }); });
-        if !explained(&state, &[captured_object, old_object]) {
+        let change: Option<&Change> = changes.iter().find(|change| { return change.path == entry.path; });
+        let old_object: Option<&str> = change.and_then(|found| { return found.existed().then(|| { return found.old_oid.as_str(); }); });
+        let merged_object: Option<&str> = change.and_then(|found| { return found.exists_after().then(|| { return found.new_oid.as_str(); }); });
+        if !explained(&state, &[captured_object, old_object, merged_object]) {
             return Err(CarryFailure::Foreign(entry.path.clone()));
         }
         let current: Option<(String, String)> = index_entry(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(|staged| { return (staged.mode.as_str(), staged.oid.as_str()); });
-        let old_entry: Option<(&str, &str)> = changes
-            .iter()
-            .find(|change| { return change.path == entry.path; })
-            .and_then(|change| { return change.existed().then(|| { return (change.old_mode.as_str(), change.old_oid.as_str()); }); });
-        if !entry_explained(&current, &[captured_entry, old_entry]) {
+        let old_entry: Option<(&str, &str)> = change.and_then(|found| { return found.existed().then(|| { return (found.old_mode.as_str(), found.old_oid.as_str()); }); });
+        let merged_entry: Option<(&str, &str)> = change.and_then(|found| { return found.exists_after().then(|| { return (found.new_mode.as_str(), found.new_oid.as_str()); }); });
+        if !entry_explained(&current, &[captured_entry, old_entry, merged_entry]) {
             return Err(CarryFailure::Foreign(entry.path.clone()));
         }
         let index: IndexWrite = match entry.index.as_ref() {
