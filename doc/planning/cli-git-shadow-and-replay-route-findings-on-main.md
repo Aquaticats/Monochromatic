@@ -470,10 +470,12 @@ keeps a name that is not UTF-8 through the parser.
 
 ### The signing request that an exact `gitdir` include lost
 
-Commits `c268e5d579`, `ebfc4c6d99` and `b7a51bd742`.
+Commits `c268e5d579`, `ebfc4c6d99`, `b7a51bd742` and `361473a3ee`.
 The capture's configuration snapshot already holds what Git resolved for the invocation,
-so each key native `git commit` reads now travels to the shadow as a `-c` setting,
-the last entry of a key being the value Git would have used.
+so every entry of every key native `git commit` reads now travels to the shadow as a `-c` setting,
+in the order Git resolved them:
+a key read once keeps its last entry,
+and a key that may repeat keeps all of them.
 One list, in `src/native/commit/native_commit_configuration.rs`, now says which keys those are,
 and the route to native preparation reads the same list.
 Control:
