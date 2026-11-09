@@ -9972,21 +9972,36 @@ and asks Git which of them the worktree holds as ignored files,
 then refuses,
 naming the paths,
 while any path is both.
+Every directory on the way to each of those paths is asked about as well,
+because a tree creates the directories it needs,
+and a worktree that holds a file where one of them must go loses that file
+(Git removes it to make the directory);
+an entry Git lists inside a directory the tree also has is not counted,
+because writing the tree leaves it alone.
+An entry Git lists inside a path the tree holds as a regular file is counted:
+the tree replaces that directory with the file,
+so every file inside it is deleted,
+and that is the answer a filter that kept only exact names would drop.
 Only these three forms are read that way,
 and only in a linked worktree;
 the question is one `git ls-files --others --ignored --exclude-standard` over those paths alone,
 so no query walks the worktree's ignored files
-(measured on this repository's worktree at 1,860 tracked paths:
-`git ls-tree` 4 to 6 ms and `git ls-files` 9 to 77 ms per start,
-the spread being host load).
+(measured on this repository's worktree at 1,860 tracked paths and their 42 directories:
+`git ls-tree` 4 to 6 ms and `git ls-files` 8 to 11 ms per start,
+in ten-run batches with a load average of 61).
 Every path is named with `:(top,literal)` magic,
 anchored at the top of the worktree and read as itself,
 and the query turns off a caller's `--literal-pathspecs`,
 which would otherwise make the magic a path.
-A tree or an answer Git cannot read is a `fact-unavailable` finding,
-never a clean worktree,
-and a revision Git cannot resolve is read as `HEAD`,
+A revision Git cannot resolve is read as `HEAD`,
 because every form that names no tree writes `HEAD`'s content.
+A revision spelled `-`,
+which only `switch` and `checkout` read as the previous branch,
+is read as `@{-1}` before the tree is listed,
+because no other Git command resolves `-` and the tree would otherwise be read as `HEAD`'s;
+`@{-N}` is resolved by Git itself wherever an object name is read.
+A tree or an answer Git cannot read is a `fact-unavailable` finding,
+never a clean worktree.
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.
 Repositories under an allowlisted tool cache are exempt.
@@ -10071,6 +10086,20 @@ and leave one audit line each
   Untracked and ignored files are deliberately not counted:
   walking them is what would make a removal of a large worktree slow,
   and the record says what it counted rather than claiming the worktree was clean.
+  The target is the path Git resolves before it removes anything:
+  the named path,
+  or the one registered worktree whose path components the name ends,
+  from one `git worktree list --porcelain -z`,
+  whose NUL-terminated fields keep a path that holds a line break whole
+  (splitting such a path at its line break would read another worktree),
+  asked first because every read of the target has to happen before Git removes it
+  (measured at 32 to 50 ms per start in this repository's worktree,
+  in ten-run batches with a load average of 70),
+  so `git worktree remove topic` describes `/r/worktrees/topic`,
+  and not a directory of that name beside the command.
+  A name no worktree answers is the path the command named,
+  and a name that matches several worktrees is one Git refuses,
+  so neither claims a worktree the command will not remove.
   The line is written whether or not `--no-enforce-worktree` was given:
   the hatch skips the policy that writes it,
   and the line is the owner's own requirement,
@@ -10101,15 +10130,30 @@ and leave one audit line each
   The namespace is read from the command,
   because the same name can exist as a local branch and as a remote-tracking reference at two different commits,
   and a record that read the local branch would name the wrong commit to restore.
-  A short cluster is read letter by letter,
-  except after `-u`,
-  whose value takes the rest of the token (`-ur` sets the upstream of `r` and selects nothing).
-  A name with no local branch writes no line:
+  A reference name is bytes and not text:
+  a branch name that is not UTF-8 is passed to `rev-parse` as it is written
+  and named in the line as JSON can hold it,
+  because a name converted to text would arrive empty and the deletion would leave no line.
+  A name Git expands before deleting (`@{-1}`,
+  the branch the worktree visited before the current one) is read through
+  `git rev-parse --symbolic-full-name --verify`,
+  and the line names the branch that expression resolved to and its commit,
+  so the owner's line is written for every deletion Git runs;
+  the typed reference is asked about first,
+  so a plain name costs the one query it always did.
+  The region is read with the wrapper's own `git branch` option table and tokenizer,
+  the same ones every other `git branch` fact uses,
+  so every spelling and abbreviation Git accepts is read
+  (`--remote` is `--remotes`,
+  `-rD` is one cluster,
+  and the value of `-u` is never a name:
+  `-ur` sets the upstream of `r` and selects nothing)
+  and no list of spellings can fall behind Git's table.
+  A name with no reference in that namespace writes no line:
   it deletes nothing and Git's own error is the answer.
   `--delete-merged` is not read,
-  because it deletes only branches a merged branch already contains.
-  An abbreviation of `--delete` is not read either:
-  every one of them is ambiguous with `--delete-merged` in Git 2.56.0.
+  because it deletes only branches a merged branch already contains,
+  and an abbreviation of `--delete` is a region Git refuses for ambiguity with `--delete-merged` in Git 2.56.0.
 
 #### Conflicted files during a merge, rebase, cherry-pick or revert
 
