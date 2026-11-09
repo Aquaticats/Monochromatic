@@ -19,6 +19,10 @@ export {
   stripAnsi,
 } from './oxlint-augment.ts';
 export {
+  detectNativeAnalysisCrash,
+  type NativeAnalysisCrash,
+} from './oxlint-analysis-crash.ts';
+export {
   fixUntilStable,
   MAX_AUTOFIX_PASSES,
   normalizeForConvergence,
