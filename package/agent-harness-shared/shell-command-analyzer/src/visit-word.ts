@@ -43,7 +43,30 @@ const COMMAND_FREE_WORD_PART_TYPES: ReadonlySet<string> = new Set([
   'AnsiCQuoted',
 ],);
 
+/**
+ Text that opens an expansion or a substitution inside a word.
+ */
+const EXPANSION_OPENERS: readonly string[] = ['$', '`', '<(', '>(',];
+
 //endregion Fixtures
+
+/**
+ Tell whether a word part's raw text could expand into something a shell runs.
+
+ @param text - raw text of the part
+
+ @returns whether the text holds an opener of an expansion or substitution
+
+ @example
+ ```ts
+ textOpensAnExpansion('{a,b}'); // false
+ ```
+ */
+function textOpensAnExpansion(text: string,): boolean {
+  return EXPANSION_OPENERS.some(function textHoldsOpener(opener,): boolean {
+    return text.includes(opener,);
+  },);
+}
 
 /**
  Read the child list a word part carries, when the parser gives it one.
@@ -159,6 +182,13 @@ function visitPart(
     };
   }
   if ((part.type === 'Glob') || COMMAND_FREE_WORD_PART_TYPES.has(part.type,))
+    return EMPTY_VISIT_RESULT;
+  /**
+   The parser gives a brace expansion or extended glob no child list when its text is only
+   literal, and also past its nesting budget, where that text can still hold a command.
+   A missing list is therefore a leaf only for text that cannot open an expansion.
+   */
+  if (((part.type === 'BraceExpansion') || (part.type === 'ExtendedGlob')) && !textOpensAnExpansion(part.text,))
     return EMPTY_VISIT_RESULT;
   return visitResultForUnreadNodeKind(part.type,);
 }
