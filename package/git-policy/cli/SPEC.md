@@ -6625,6 +6625,16 @@ A read has no time bound,
 which is native Git's own behaviour for the same files under `index.lock`;
 what bounds the person is the client's answer ceiling,
 after which it withdraws the request and the commit is reported as not landed.
+A read the system interrupts (`EINTR`) is tried again,
+because an interruption says nothing about the file,
+and the tries are counted (`INTERRUPTED_TRIES`,
+one try and three retries,
+the same count the attributes reader takes):
+a file system that interrupts every read for ever ends in the same refusal a hard read error does,
+so that path keeps the all-zero stat data,
+the landing goes on,
+and the next command that needs the file hashes it through Git.
+Nothing in the landing waits for an interruption to stop.
 The 4,000 newest non-merge commits of this repository change a median of 27 KB
 (p90 209 KB,
 p99 3.3 MB,
@@ -8163,6 +8173,52 @@ the `core.lockfilePid` key of Git 2.54.0,
 That design and the observations of 2026-09-26 are in this section at commit
 `f4fc1fa213ece65672e4314983a75266837892f9`.
 
+#### An answer read in process is only ever Git's
+
+A question the wrapper answers in process (`repo_read_*.rs`) counts as answered only when every stream is Git's:
+standard output,
+standard error and the exit code.
+Any shape whose streams Git would word differently is a decline,
+and real Git answers it,
+so an answer stays Git's byte for byte rather than nearly.
+Two shapes turn on this rule,
+and each is measured against real Git 2.56.0 in
+the differential controls of `repo_read_query_tests.rs` and `repo_read_query_refs_tests.rs`:
+
+- An index carrying an optional extension the readers know nothing about.
+  Git prints `ignoring <signature> extension` on standard error and answers,
+  so the reader declines instead of answering in silence.
+  `TREE`,
+  `UNTR`,
+  `EOIE` and `IEOT` are read without a word on any body they are handed,
+  so those answer,
+  and `REUC` and `FSMN` answer only when their bodies read the way Git reads them,
+  because Git words a body it cannot read for those two.
+  An unknown lower-case signature is a required extension,
+  which Git stops on and the reader already declined.
+- A ref name Git itself would refuse.
+  The reader takes the names Git's own rule takes (`refname_disposition` and
+  `check_refname_component` in `refs.c`):
+  every printable ASCII byte but space and `*`,
+  `:`,
+  `?`,
+  `[`,
+  `\`,
+  `^` and `~`,
+  with `..`,
+  `@{`,
+  a component led by `.`,
+  a component ending in `.lock` and a whole name ending in `.` refused.
+  `@`,
+  `+`,
+  `{` and `}` are therefore answered,
+  which is what this repository's packed `refs/tags/@monochromatic-dev/...` tags need,
+  and the bytes above ASCII,
+  the control bytes and DEL are kept as declines,
+  because the reader cannot prove Git's bytes for them.
+  A listing that holds a name Git refuses declines whole:
+  Git words such a name on standard error (`ignoring ref with broken name`) and prints the other refs without it.
+
 ### Verification
 
 Concurrent mutation of shared Git state is verified only by running it concurrently against real repositories.
@@ -8423,6 +8479,7 @@ read from the index file in process:
 no Git process runs for the decision.
 An index that cannot be read in process (split,
 sparse,
+carrying an extension the readers cannot vouch for,
 unreadable,
 or chosen by `GIT_INDEX_FILE`)
 shows no path as conflicted,
