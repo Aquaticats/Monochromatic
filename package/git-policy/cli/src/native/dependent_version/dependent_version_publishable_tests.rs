@@ -209,3 +209,20 @@ auth:
         "begins with '!', which opens a key this reader does not read on line 13"
     );
 }
+
+/// A comment a tab introduces is not part of a package name:
+/// `- app\t# published` lists the package `app`,
+/// as a YAML parser reads it.
+#[test]
+fn reads_a_comment_a_tab_introduces() {
+    let text: &str = "\
+auth:
+  oidc:
+    - name: github
+      workloads:
+        - registry: monochromatic-dev
+          packages:
+            - app\t# published
+";
+    assert_eq!(names(text), ["app"]);
+}

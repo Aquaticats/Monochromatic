@@ -211,3 +211,57 @@ fn reads_and_refuses_scalars() {
         ))
     );
 }
+
+/// A tab separates as a space does,
+/// and every other form this reader would have to guess
+///       at is refused:
+/// a comment after a plain scalar,
+/// a tab before the comment,
+/// a
+///       mapping colon,
+/// a comment or an item indicator where a value belongs,
+/// text after a
+///       closing quote with no space before it,
+/// and a carriage return inside a line.
+#[test]
+fn reads_a_tab_and_refuses_every_form_it_does_not_read() {
+    assert_eq!(read_scalar("app\t# published"), Ok(String::from("app")));
+    assert_eq!(read_scalar("app\t"), Ok(String::from("app")));
+    assert_eq!(read_scalar("app\tb"), Ok(String::from("app\tb")));
+    assert_eq!(item_content("- \tapp"), "app");
+    assert_eq!(
+        read_scalar("repo:\texample"),
+        Err(String::from(
+            "holds a colon a space follows, so it reads as a key and not as one value"
+        ))
+    );
+    assert_eq!(
+        read_scalar("# published"),
+        Err(String::from(
+            "begins with '#', which opens a value this reader does not read"
+        ))
+    );
+    assert_eq!(
+        read_scalar("- item"),
+        Err(String::from(
+            "begins with '-', which opens a value this reader does not read"
+        ))
+    );
+    assert_eq!(
+        read_scalar("? key"),
+        Err(String::from(
+            "begins with '?', which opens a value this reader does not read"
+        ))
+    );
+    assert_eq!(
+        read_scalar("'app'#published"),
+        Err(String::from("holds text after its closing quote"))
+    );
+    assert_eq!(
+        read_lines("auth:\roidc:\n"),
+        Err(YamlProblem::new(
+            1,
+            "holds a carriage return, which starts a new line"
+        ))
+    );
+}
