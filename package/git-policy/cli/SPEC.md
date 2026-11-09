@@ -1375,6 +1375,17 @@ runs a second pass that must find nothing to
 copy;
 `Synced` only records that this once held,
 so every resume before the swap copies and proves again.
+Each of those passes says what it could not carry into the stage,
+in the words the migration uses for its
+own passes (`subvolume_pass_report.rs`):
+every socket or device node it did not recreate,
+the owner,
+the
+permission bits,
+the times and the extended attributes the kernel refused,
+the destination entries it kept,
+and any
+file that changed while it was copied and was copied again.
 It exchanges the two directories (`RENAME_EXCHANGE`),
 checks that the path is a subvolume root,
 is the subvolume whose identity

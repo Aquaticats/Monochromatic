@@ -22,6 +22,7 @@ use crate::process_use::{UseTarget, processes_using};
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_index_files::{IndexLock, RefreshOptions, RefreshStatus, refresh_index_file_report, repository_hash_length};
 use crate::subvolume_lock::{acquire, is_ours};
+use crate::subvolume_pass_report::say_what_a_pass_could_not_carry;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use crate::worktree_convert_inspection::{Candidate, GIT_FILE_LIMIT, converting_path};
@@ -220,13 +221,15 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     ensure_stage(platform, job, interrupt)?;
     interrupt.check("created")?;
     let first: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None }, interrupt)?;
-    require_complete(&first, job.candidate.path.as_path())?;
     say.say(format!("  copied {} entries ({} files, {} cloned)", first.entries, first.files_copied, first.cloned).as_str());
+    say_what_a_pass_could_not_carry("  copy", &first, &mut |text: &str| say.say(text));
+    require_complete(&first, job.candidate.path.as_path())?;
     // Git's `index.lock` is taken only now: the long first copy ran without it, and the lock covers the span in which a Git
     // writer could invalidate the proof, the swap or the index rewrite.
     hold_index_lock(job)?;
     // The proof: a second pass that must find nothing to copy or delete, so the copy equals the original at this instant.
     let second: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None }, interrupt)?;
+    say_what_a_pass_could_not_carry("  proving copy", &second, &mut |text: &str| say.say(text));
     if let Err(error) = require_complete(&second, job.candidate.path.as_path()) {
         release_index_lock(job)?;
         return Err(error);
