@@ -290,9 +290,13 @@ never by gaining flags.
 ### Partial limits, no weight
 
 - `package/terminal/app/mise.toml:68` and the twelve copies in `task.ts` (`--memory=4g --cpus=4`):
-  add 1024 processes (the IDE's 4-CPU bound;
-  unmeasured here,
-  as is the 4g) and the weight.
+  the twelve `task.ts` copies now pass `containerLimitArguments(containerBound)`, and so does the `mise.toml` body
+  since 2026-11-08T20:00:00-05:00: before that, `mise run //package/terminal/app:build:container` started the
+  compiler container with the two literal flags and no `--pids-limit` (the observed `pids.max` was Podman's 2048)
+  and no weight, while the inventory said it had them.
+  The 4g is measured (2.97 GiB, 74 percent of it, on a build that reused a warm target directory) and 1024 processes
+  is still adopted,
+  though the same run reached 235 threads of it.
 - `package/test-harness/core/mise.toml:64` (2g,
   2 CPUs,
   unmeasured here):
@@ -500,6 +504,31 @@ and every Windows and macOS leg.
   `png2icns` and `icotool`.
   The signing containers share this bound and were not run,
   because they need a Windows executable.
+- `package/terminal/app` compile containers,
+  command `mise run //package/terminal/app:build:container`,
+  started 2026-11-08T19:53:09-05:00 and finished 19:57:43-05:00
+  (4 min 34 s,
+  exit 0),
+  host load 40.33 at the start.
+  The container (4 GiB,
+  4 CPUs,
+  and no process option at all,
+  because `mise.toml` still spelled `--memory=4g --cpus=4` by hand when it ran;
+  see the bullet in `### Open`) peaked at 3,188,219,904 bytes (2.97 GiB),
+  74 percent of its 4 GiB,
+  and cargo reported "Finished in 4m 18s".
+  It reached 235 threads,
+  was throttled in 207 of 2260 CPU periods (164.8 s of throttled time),
+  and killed nothing.
+  Two limits of this figure:
+  the build reused the target directory the failed attempt below had already filled,
+  so a cold build can go higher,
+  and the variants covered are the release build only.
+  `lint:clippy:container` and `test:container` share this bound and were not run.
+  An earlier attempt of the same task (19:45:55 to 19:51:07)
+  stopped in the `libghostty-vt-sys` build script because `target/ghostty-offline/source` was empty in this worktree,
+  after peaking at 3,007,496,192 bytes (2.8 GiB) of 4 GiB while compiling dependencies.
+  Neither failed nor warm run makes 4 GiB look loose.
 - `package/test-harness/core-matrix` `CELL_LIMITS`:
   not measured,
   because the only `*:test:container` task that reaches the matrix here cannot run its workload on this host.
@@ -757,7 +786,9 @@ which the published crates do not use.
   the `containerCargo` release build of `package/music-player/desktop-app`
   (5.3 GiB of 12 GiB, 61 of 1024 processes),
   the music-player image build of the same run (3.35 GiB of 12 GiB),
-  and the music-player icon one-shot containers (111 MiB of 2 GiB, 1 of 128 processes).
+  the music-player icon one-shot containers (111 MiB of 2 GiB, 1 of 128 processes),
+  and the `package/terminal/app` compile container (2.97 GiB of 4 GiB, 235 threads,
+  two of whose 4 GiB and weight were missing from the file `mise run` reads until this pass).
   Two sites could not be measured at all,
   because this host's `node_modules` holds links into `${HOME}/.local/share/pnpm/store`,
   which the containers do not mount:
@@ -768,11 +799,32 @@ which the published crates do not use.
   Still unmeasured after this pass,
   each needing the run its bullet in `## What each adopted size would need measured` names:
   the music-player clippy and nextest containers and its signing containers,
-  the `package/terminal/app` compile containers,
   the `package/test-harness/core` `test:browser` run,
   the `upstream-fork/conf` and `deepmerge-ts.fuzz` container runs,
   the `config/pnpr` verification containers,
   the browserslist oracle container,
   every image build except the music-player one,
   and the rootful `vm-builder` runs.
+- The `package/terminal/app` compiler container shipped two different bounds.
+  `task.ts` passes `containerLimitArguments(containerBound)` in all twelve copies,
+  while `mise.toml` spelled `--memory=4g --cpus=4` by hand,
+  so `mise run //package/terminal/app:build:container` (the path `mise` takes) started the container with no process
+  option and no disk weight:
+  the measured run of 2026-11-08T19:53:09-05:00 recorded `pids.max` at Podman's default 2048,
+  not the 1024 the inventory claimed.
+  Fixed on this branch:
+  the `mise.toml` body now passes the same helper.
+  The ledger test in `package/container-limit/core` did not catch it,
+  because it accepts a file that merely names a helper somewhere,
+  and this file imported one without calling it.
+- Two sizes are left as they are with a measurement that suggests they could shrink,
+  and the choice belongs to the owner:
+  the icon tool bound (2 GiB against a measured 111 MiB)
+  and the music-player cargo bound's 1024 processes (against 61 threads).
+  Neither is lowered here,
+  because each run covered one variant of its workload and the signing containers were not run at all.
+- The 4 GiB of the `package/terminal/app` compile container is 74 percent used by a build that reused a warm target
+  directory.
+  It is not lowered and not raised;
+  a cold build measuring it again is the run that would settle it.
 - `package-paused/` and `package/git-policy/**` are unchanged.
