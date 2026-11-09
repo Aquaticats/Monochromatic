@@ -35,7 +35,9 @@
 /// Debug logging of a snapshot that could not be used.
 use crate::diagnostic_log::debug;
 /// One required Git start with the caller's context.
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+/// The same start awaited by a caller that is a task of the runtime.
+use crate::transaction_git_awaiting::run_git_awaiting;
 /// The components one `core.fsync` value makes Git flush.
 use crate::config_fsync::FsyncComponents;
 /// Ordered map of the four maintenance keys to the text Git prints for them.
@@ -608,8 +610,57 @@ impl ConfigSnapshot {
 /// const snapshot = await readConfigSnapshot({ context, cwd }); // undefined means: ask Git per key
 /// ```
 pub fn read_config_snapshot(context: &GitContext, cwd: &Path) -> Option<ConfigSnapshot> {
-    let request: GitRequest = GitRequest::new(cwd, &["config", "--list", "-z", "--show-scope"]);
-    let output = match run_git(context, &request) {
+    let request: GitRequest = config_listing_request(cwd);
+    return snapshot_of(run_git(context, &request), context);
+}
+
+/// What:
+///  The same read,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The synchronous face enters the runtime for the pipes of a step that is ended at its ceiling,
+/// and that entering is refused from inside the runtime,
+/// so a consumer that has become a future asks for the read here.
+///  The request,
+/// the parse and the debug lines are the synchronous face's,
+/// so the two cannot differ in what they read or record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const snapshot = await readConfigSnapshotOnTheRuntime({ context, cwd });
+/// ```
+pub async fn read_config_snapshot_awaiting(context: &GitContext, cwd: &Path) -> Option<ConfigSnapshot> {
+    let request: GitRequest = config_listing_request(cwd);
+    return snapshot_of(run_git_awaiting(context, &request).await, context);
+}
+
+/// What:
+///  The command line one configuration read puts to Git.
+/// Why:
+///   Both faces of the read ask exactly this question,
+/// and a listing whose shape this module does not model is refused whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gitRequest(cwd, ['config', '--list', '-z', '--show-scope']);
+/// ```
+fn config_listing_request(cwd: &Path) -> GitRequest {
+    return GitRequest::new(cwd, &["config", "--list", "-z", "--show-scope"]);
+}
+
+/// What:
+///  The snapshot of one finished read,
+/// or nothing when the read failed or its listing has a shape this module does not model.
+/// Why:
+///   The outcome is the same whichever face ran the read,
+/// so the deciding and the debug lines are written once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// snapshotOf(await read, context); // undefined means: ask Git per key
+/// ```
+fn snapshot_of(run: std::io::Result<GitOutput>, context: &GitContext) -> Option<ConfigSnapshot> {
+    let output: GitOutput = match run {
         Ok(finished) => finished,
         Err(error) => {
             debug("readConfigSnapshot", format!("git config --list could not start: {error}").as_str());

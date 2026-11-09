@@ -9,17 +9,31 @@ use super::*;
 use crate::action::Action;
 use crate::doctor::{doctor_action, doctor_action_with_section};
 use crate::test_support::{executable, fixture, git_context, remove, repository};
+use crate::transaction_git::GitContext;
 use std::os::unix::fs::MetadataExt;
 
 /// The checkout path the built facts use.
 const ROOT: &str = "/work/checkout";
-
 /// The mount point the built facts use.
 const MOUNT: &str = "/work";
 
 /// The source the built mount and the built root mount share,
 /// unless a control separates them.
 const SOURCE: &str = "/dev/mapper/root";
+
+/// The doctor's action with a filesystem section,
+/// its report built by a task of the runtime,
+/// because every Git question of the report is awaited there.
+fn with_section(
+    context: &GitContext,
+    cwd: &Path,
+    home: Option<&Path>,
+    section: &dyn Fn(&Path, Option<&Path>) -> String,
+) -> (i32, String, String) {
+    let action: Action = crate::lazy_runtime::run_on_runtime(doctor_action_with_section(context, cwd, home, section)).expect("the runtime");
+    let Action::Exit { code, stdout, stderr } = action else { panic!("an exit action") };
+    return (code, stdout, stderr);
+}
 
 /// Facts for a btrfs checkout on an ostree host with one `rootflags=` word.
 fn facts(kind: FilesystemKind, root_is_subvolume: bool, has_removal_option: Option<bool>) -> FilesystemFacts {
@@ -223,13 +237,13 @@ fn the_section_is_informational_and_last() {
         return (code, stdout, stderr);
     };
     let clean: (i32, String, String) = split(doctor_action(&git_context(), repo.as_path()));
-    let with: (i32, String, String) = split(doctor_action_with_section(&git_context(), repo.as_path(), None, &section));
+    let with: (i32, String, String) = with_section(&git_context(), repo.as_path(), None, &section);
     assert_eq!((with.0, with.1.as_str(), with.2.as_str()), (clean.0, clean.1.as_str(), format!("{}{section_text}", clean.2).as_str()));
     executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
-    let found: (i32, String, String) = split(doctor_action_with_section(&git_context(), repo.as_path(), None, &section));
+    let found: (i32, String, String) = with_section(&git_context(), repo.as_path(), None, &section);
     assert_eq!(found.0, 1);
     assert!(found.2.ends_with(section_text) && found.2.contains("never run through monochromatic-git-policy-cli"), "{}", found.2);
-    let failed: (i32, String, String) = split(doctor_action_with_section(&git_context(), parent.as_path(), None, &section));
+    let failed: (i32, String, String) = with_section(&git_context(), parent.as_path(), None, &section);
     assert_eq!(failed.0, 2);
     assert!(!failed.2.contains(SECTION_MARKER), "{}", failed.2);
     remove(parent.as_path());

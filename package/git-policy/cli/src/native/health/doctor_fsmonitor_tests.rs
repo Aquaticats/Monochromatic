@@ -15,6 +15,13 @@ use crate::test_support::{fixture, git, git_context, remove, repository};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+/// The fsmonitor section for `cwd`,
+/// read by a task of the runtime,
+/// because reading it asks Git.
+fn fsmonitor_of(context: &GitContext, cwd: &Path) -> String {
+    return crate::lazy_runtime::run_on_runtime(fsmonitor_report(context, cwd)).expect("the runtime");
+}
+
 /// A listing record as `git config --list --show-origin --show-scope -z` prints it.
 fn record(scope: &str, origin: &str, key_and_value: &str) -> Vec<u8> {
     return format!("{scope}\0{origin}\0{key_and_value}\0").into_bytes();
@@ -253,14 +260,14 @@ fn a_listing_that_cannot_be_read_is_said_plainly() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let mut missing: GitContext = git_context();
     missing.real_git = root.join("no-such-git");
-    let not_started: String = fsmonitor_report(&missing, repo.as_path());
+    let not_started: String = fsmonitor_of(&missing, repo.as_path());
     assert!(
         not_started.starts_with("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list could not start: ")
             && not_started.ends_with('\n'),
         "{not_started}"
     );
     std::fs::write(repo.join(".git/config"), "[core\n").expect("a broken configuration");
-    let refused: String = fsmonitor_report(&git_context(), repo.as_path());
+    let refused: String = fsmonitor_of(&git_context(), repo.as_path());
     assert!(
         refused.starts_with("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list failed: "),
         "{refused}"
