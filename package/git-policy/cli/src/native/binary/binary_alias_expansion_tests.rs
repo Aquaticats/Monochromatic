@@ -179,6 +179,43 @@ fn a_shell_alias_naming_only_git_runs_the_callers_arguments_under_the_guard() {
 }
 
 /// What:
+///  A shell alias resolves the aliases the caller configured,
+///  because Git hands the Git inside the shell the configuration of every `-c` option it read.
+/// Why:
+///   `git_config_push_parameter` puts each `-c` entry in the environment Git starts
+///  (`config.c:469` to `config.c:504`),
+///  so `git -c 'alias.outer=!git inner' -c 'alias.inner=reset --hard' outer`
+///  runs the inner reset;
+///  a nested reading without those options finds no `inner` and leaves the reset unguarded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // real Git: tracked.txt becomes BASE; the wrapper: refused, tracked.txt stays USER DATA
+/// ```
+#[test]
+fn a_shell_alias_reads_the_aliases_the_caller_configured() {
+    let fixture: Fixture = fixture("alias-expansion-shell-configuration");
+    let control: PathBuf = repository_with_unstaged_work(&fixture, "control");
+    let refused: PathBuf = repository_with_unstaged_work(&fixture, "refused");
+    let arguments: [&str; 5] = [
+        "-c",
+        "alias.outer=!git inner",
+        "-c",
+        "alias.inner=reset --hard",
+        "outer",
+    ];
+    // The positive control proves the invocation discards the work when the nested alias is not read.
+    let direct_run: Observed = observe(direct(&fixture).current_dir(control.as_path()).args(arguments), b"");
+    assert_eq!(direct_run.code, Some(0), "direct Git failed: {}", stderr_of(&direct_run));
+    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let observed: Observed = run_wrapped(&fixture, refused.as_path(), arguments.as_slice());
+    assert_ne!(observed.code, Some(0), "the wrapper ran the inner alias's reset: {}", stderr_of(&observed));
+    assert_eq!(tracked(refused.as_path()), USER_DATA, "the inner alias discarded the work");
+    remove(&fixture);
+}
+
+/// What:
+/// What:
 ///  The same refusal from a clean linked worktree,
 ///  where the guard of uncommitted work has nothing to reject and the copy of a
 ///       main checkout is not involved.

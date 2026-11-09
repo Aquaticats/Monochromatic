@@ -388,36 +388,47 @@ pub fn resolve_forwarded_command(
     environment: &[(OsString, OsString)],
     arguments: &[OsString],
 ) -> ResolvedCommand {
-    return resolve_command(context, environment, arguments, 0);
+    return resolve_command(context, environment, arguments, 0, &[]);
 }
 
 /// What:
 ///  Resolve the command,
 ///  and read the one `git` command a shell alias runs,
 ///  one shell deep.
-///  `usize` counts the shells already read.
+///  `usize` counts the shells already read;
+///  `&[OsString]` borrows the globals of the process that started this one,
+///       which the Git a shell alias starts reads too;
+///       no globals when Git starts the command itself.
 /// Why:
 ///   A `!` alias runs a shell that runs the real Git,
 ///  so no guard sees that command unless the value
 ///  is read here;
 ///  the count stops a shell alias that names itself from reading without end.
+///  The Git inside the shell inherits the configuration of every `-c` option
+///  (`config.c:469`)
+///  and the exec path of the process that started it
+///  (`exec-cmd.c:303`),
+///  so a nested
+///  reading without those globals finds no alias the caller configured.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resolveCommand({ context, environment, args, shellDepth }): ResolvedGitCommand;
+/// function resolveCommand({ context, environment, args, shellDepth, inheritedGlobals }): ResolvedGitCommand;
 /// ```
 fn resolve_command(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     arguments: &[OsString],
     shell_depth: usize,
+    inherited_globals: &[OsString],
 ) -> ResolvedCommand {
     // `mut` allows replacing the arguments with each expansion.
     let mut current: Vec<OsString> = arguments.to_vec();
     let mut seen: Vec<OsString> = Vec::new();
     // The globals of the caller are the ones Git read before it reached the command word, and they decide the exec
     //  path the search for an executable uses; an alias expansion adds none of them back.
-    let caller_globals: &[OsString] = &arguments[..global_layout(arguments).prefix_len];
+    let mut caller_globals: Vec<OsString> = inherited_globals.to_vec();
+    caller_globals.extend(arguments[..global_layout(arguments).prefix_len].iter().cloned());
     for _ in 0..=MAX_ALIAS_EXPANSIONS {
         let layout: GlobalLayout = global_layout(current.as_slice());
         let route: Route = if seen.is_empty() { Route::Direct } else { Route::Alias };
@@ -430,7 +441,7 @@ fn resolve_command(
         }
         // Git runs an installed `git-<word>` before it looks for an alias of that word (git.c:905 to git.c:912), so
         //  such a word reaches no alias and the wrapper leaves it to Git.
-        if dashed_external_selected(context, environment, caller_globals, name.as_os_str()) {
+        if dashed_external_selected(context, environment, caller_globals.as_slice(), name.as_os_str()) {
             debug(
                 "resolveForwardedCommand",
                 format!("Git runs {} as an external command", name.to_string_lossy()).as_str(),
@@ -445,8 +456,13 @@ fn resolve_command(
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         }
         seen.push(name.clone());
-        let global: &[OsString] = &current[..layout.prefix_len];
-        let Some(value) = lookup_alias(context, global, &name) else {
+        // What this Git process reads as its configuration and its exec path: the globals it inherited and its own
+        //  before the command word, which an expansion of `-c` adds to.
+        // Why: the alias lookup and the Git the shell starts read both, and a lookup that read only the own ones
+        //  would miss what the process that started this one passed along.
+        let mut process_globals: Vec<OsString> = inherited_globals.to_vec();
+        process_globals.extend(current[..layout.prefix_len].iter().cloned());
+        let Some(value) = lookup_alias(context, process_globals.as_slice(), &name) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         };
         // Git decides what an alias is from its first byte, and splits the value it read, without trimming it.
@@ -460,6 +476,7 @@ fn resolve_command(
                 value.as_slice(),
                 shell_depth,
                 &current[layout.prefix_len + 1..],
+                process_globals.as_slice(),
             );
             return resolved_with_shell_command(current.as_slice(), &layout, Route::ShellAlias, shell_command);
         }
@@ -483,7 +500,7 @@ fn resolve_command(
             );
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         }
-        let mut expanded: Vec<OsString> = global.to_vec();
+        let mut expanded: Vec<OsString> = current[..layout.prefix_len].to_vec();
         expanded.extend(expanded_words);
         expanded.extend(current[layout.prefix_len + 1..].iter().cloned());
         debug(
@@ -528,7 +545,10 @@ pub fn creates_worktrees(command: &ResolvedCommand) -> bool {
 ///  when the value names one.
 ///  `&[(OsString, OsString)]` borrows the environment the nested reading asks about;
 ///  `&[OsString]` borrows the caller's own words,
-///       which Git hands the shell after the alias's.
+///       which Git hands the shell after the alias's;
+///  `&[OsString]` borrows the globals of the process that started this one,
+///       which the Git
+///       inside the shell reads too.
 /// Why:
 ///   Git prepends its own executable directory to `PATH` before it runs the shell
 ///  (`exec-cmd.c:333` to
@@ -540,13 +560,16 @@ pub fn creates_worktrees(command: &ResolvedCommand) -> bool {
 ///  so the command that runs
 ///  is the words of the value and then the caller's,
 ///  and a reading that stopped at the value would guard a command nobody runs.
+///  The nested Git also reads the configuration and exec path the caller passed,
+///  which Git
+///  exports to what it starts.
 ///  The reading is kept to one command with no global
 ///  option of its own:
 ///  a global such as `-C` would move the command away from the repository the caller described.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function shellCommandOf({ context, environment, value, shellDepth, callerArguments }): string[] | undefined;
+/// function shellCommandOf({ context, environment, value, shellDepth, callerArguments, inheritedGlobals }): string[] | undefined;
 /// ```
 fn shell_command_of(
     context: &GitContext,
@@ -554,6 +577,7 @@ fn shell_command_of(
     value: &[u8],
     shell_depth: usize,
     caller_arguments: &[OsString],
+    inherited_globals: &[OsString],
 ) -> Option<Vec<OsString>> {
     // One shell is read: a shell alias named inside another is left unread, so a chain of them cannot repeat.
     if shell_depth >= 1 {
@@ -566,7 +590,8 @@ fn shell_command_of(
     if words.is_empty() {
         return None;
     }
-    let nested: ResolvedCommand = resolve_command(context, environment, words.as_slice(), shell_depth + 1);
+    let nested: ResolvedCommand =
+        resolve_command(context, environment, words.as_slice(), shell_depth + 1, inherited_globals);
     // Only a built-in this crate already read is handed on, and only when no global option stands before it.
     if !nested.is_builtin() || nested.subcommand_index != 0 {
         return None;
