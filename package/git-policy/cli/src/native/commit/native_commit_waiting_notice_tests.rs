@@ -272,6 +272,24 @@ fn the_same_program_must_be_seen_at_both_looks_to_be_credited() {
 }
 
 /// What:
+///  A program that takes the place of another between two looks is credited only from its own look.
+/// Why:
+///   Finding 7 of the second review:
+/// a process number and its start time survive an `exec`,
+/// so a shell that becomes the signing program keeps the identity the look before it recorded,
+/// and the interval before the `exec` is credited to a program that was not running then.
+///  One number and one start time hold two names here, which is exactly what an `exec` leaves.
+#[test]
+fn a_program_that_takes_another_place_between_looks_is_credited_only_from_its_own() {
+    let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(Duration::from_secs(60)));
+    let before: Vec<SeenBelow> = seen_below(&[seen(100, 5, "sh")]);
+    let now: Vec<(i32, ProcessUse)> = vec![seen(100, 5, "ssh-keygen")];
+    credit_between_looks(&mut facts, before.as_slice(), now.as_slice(), Duration::from_millis(250));
+    let kept: &crate::scratch_commit_step::SeenProgram = kept_below(facts.below.as_slice(), "ssh-keygen");
+    assert_eq!(kept.seen, Duration::ZERO, "a program was credited with an interval in which another program held its process: {facts:?}");
+}
+
+/// What:
 ///  A program a look saw once is kept,
 /// with a zero lower bound.
 /// Why:
