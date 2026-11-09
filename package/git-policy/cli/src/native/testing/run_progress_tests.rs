@@ -214,15 +214,18 @@ fn run_child(name: &str) -> std::process::Output {
 }
 
 /// How long a child a watcher must end is given before the control counts it as a run that never ended.
-/// The child starts this test binary (measured at up to 11 s on this host under load), waits its one-second window
-/// and aborts, so this is four times the slowest start measured (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
+/// The child starts this test binary (measured at up to 11 s on this host under load),
+/// waits its one-second window
+/// and aborts,
+/// so this is four times the slowest start measured (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
 const CHILD_DEADLINE: Duration = Duration::from_secs(45);
 
 /// What:
 ///  Run the child test `name` with its standard error on `stderr`,
 /// and give back what it said and how it ended,
 /// or nothing where it outlived
-///  `CHILD_DEADLINE`, in which case it is killed first.
+///  `CHILD_DEADLINE`,
+/// in which case it is killed first.
 /// Why:
 ///   A watcher that cannot end its process leaves a blocked child alive for ever,
 /// so a control that waits for such a child without a
@@ -322,19 +325,22 @@ fn a_stuck_run_ends_its_process_though_its_report_cannot_be_written() {
 const WATCHERS_UNDER_TEST: usize = 2;
 
 /// What:
-///  How many watchers this process has registered, waiting up to `within` for `expected` of them to start.
+///  How many watchers this process has registered,
+/// waiting up to `within` for `expected` of them to start.
 /// Why:
 ///   A watcher registers itself at the start of its own thread,
 /// so the count is the control's to read only once the
 ///  threads have run;
 /// a fixed sleep would make the control's meaning depend on the host's load.
 /// Every look at the count writes a newline
-///  (a line, because this process's standard output is held until one arrives),
+///  (a line,
+/// because this process's standard output is held until one arrives),
 /// and a write is work,
 /// so the watcher that must end this child does not judge it quiet while it is still finding out,
 /// and a child
 ///  that saw fewer watchers than it expected can still say so.
-/// The count is read again every 200 ms, which is well inside the watcher's own 500 ms look.
+/// The count is read again every 200 ms,
+/// which is well inside the watcher's own 500 ms look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -512,7 +512,8 @@ fn run(window: Duration) {
 /// so it names the window that passed and the signs that were
 ///  read,
 /// and there is no other way to end a stuck run from its own thread.
-/// A report that cannot be written (a full disk, a closed pipe) must not be a precondition for ending:
+/// A report that cannot be written (a full disk,
+/// a closed pipe) must not be a precondition for ending:
 /// a
 ///  panicking macro would kill only this thread,
 /// and the test it watches would stay blocked without a watcher.
