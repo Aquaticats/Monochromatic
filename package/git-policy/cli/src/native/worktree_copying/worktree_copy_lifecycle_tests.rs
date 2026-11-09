@@ -410,6 +410,73 @@ fn recorded_names(common: &Path) -> Vec<String> {
     return names;
 }
 
+/// An add aimed at a worktree that is registered already records nothing about it,
+/// so a third add that copies from that worktree is not told it is still being filled.
+#[cfg(unix)]
+#[test]
+fn an_add_aimed_at_a_registered_worktree_does_not_mark_it_as_being_filled() {
+    let root: PathBuf = fixture("lifecycle-taken-destination");
+    let (main, common) = source(root.as_path());
+    // The repository's own exclusion file, so the registered worktree ignores `cache` without holding a .gitignore file.
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let taken: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("taken");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "taken", taken.to_str().expect("utf8")]);
+    // The registered worktree holds the source's ignored state, as one a finished copy leaves it.
+    std::fs::create_dir_all(taken.join("cache")).expect("cache");
+    std::fs::write(taken.join("cache/data"), b"payload").expect("data");
+    let topic: PathBuf = root.join("topic");
+    let mut records_during_git: Vec<String> = Vec::new();
+    let mut nested_stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(taken.as_path())),
+        &mut |_step: &GitStep<'_>| {
+            records_during_git = recorded_names(common.as_path());
+            // A third command adds from the registered worktree while this command is still pending.
+            let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+                common_dir: common.clone(),
+                git_dir: common.join("worktrees").join("taken"),
+                worktree_root: taken.clone(),
+            };
+            let nested: Invocation = Invocation {
+                identity,
+                effective_cwd: taken.clone(),
+                creates: true,
+                destination: Some(topic.clone()),
+                opted_out: false,
+                short_circuit: false,
+                context: git_context(),
+                add_plan: None,
+                repair: crate::package_repair::RepairSwitch::default(),
+            };
+            let _settled = run_with_worktree_copy(
+                &nested,
+                &mut |_step: &GitStep<'_>| return Ok(run_real(taken.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+                &mut nested_stderr,
+            )
+            .expect("settled");
+            // Real Git refuses this command's own destination, which another command registered already.
+            return Ok(GitStatus { code: Some(1) });
+        },
+        &mut Vec::new(),
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
+    assert_eq!(records_during_git, Vec::<String>::new(), "an add aimed at a registered worktree records nothing about it");
+    let copied: std::io::Result<Vec<u8>> = std::fs::read(topic.join("cache/data"));
+    assert_eq!(
+        copied.ok(),
+        Some(b"payload".to_vec()),
+        "the third add copies from a worktree that is whole: {}",
+        String::from_utf8_lossy(nested_stderr.as_slice())
+    );
+    assert!(
+        !String::from_utf8_lossy(nested_stderr.as_slice()).contains("being filled"),
+        "the third add is not told the registered worktree is being filled: {:?}",
+        String::from_utf8_lossy(nested_stderr.as_slice())
+    );
+    remove(root.as_path());
+}
+
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();

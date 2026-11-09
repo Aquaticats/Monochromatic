@@ -296,8 +296,10 @@ fn settle_creation(
     };
     let choose_rung_entered: bool = begin_step("chooseRung");
     // The record comes before real Git runs, so a command killed after Git returned still leaves a record of the worktree
-    // it made; a command that will copy nothing records nothing.
-    let copies: bool = observation.source_root.is_some()
+    // it made; a command that will copy nothing records nothing. A destination that is registered already is no worktree
+    // this command will make, so a record naming it would tell every other command that worktree is still being filled.
+    let copies: bool = !registered_before
+        && observation.source_root.is_some()
         && !matches!(&observation.selection, CopySelection::Paths(paths) if paths.is_empty());
     let record_destination_entered: bool = begin_step("recordDestination");
     let recorded = claim_stage_for_creation(observation.common_dir.as_path(), invocation.destination.as_deref(), copies);
