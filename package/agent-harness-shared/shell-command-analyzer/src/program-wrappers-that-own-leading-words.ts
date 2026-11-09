@@ -85,6 +85,7 @@ const PROGRAM_WRAPPERS_THAT_OWN_LEADING_WORDS: readonly CommandWrapper[] = [
     defaultSearchPathFlags: NO_OPTIONS,
     unsetVariableOptions: NO_OPTIONS,
     leadingWordsToSkip: 1,
+    joinsRemainderAsShellSource: true,
     launchesOnAnotherHost: true,
   },
   {

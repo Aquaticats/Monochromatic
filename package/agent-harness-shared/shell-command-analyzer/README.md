@@ -157,14 +157,16 @@ and `find . -exec git commit {} \;` reaches the wrapper.
 
 ### A program handed to another host
 
-`ssh` runs its program on another host,
-so a path word is the only spelling that proves the wrapper is skipped:
-`ssh build-host /usr/bin/git commit` is refused,
+`ssh` joins its arguments into one command line the remote login shell runs,
+so that line is read the way a local script string is:
+`ssh build-host /usr/bin/git commit` and
+`ssh build-host 'cd /repo && /usr/bin/git commit -m x'` are refused,
 while `ssh build-host git commit` stays allowed,
 because the remote search path,
 and whether that host installs the wrapper,
 is not in the command text.
-A `PATH` assignment before `ssh` is not read as applying to the remote program.
+A path word is therefore the only spelling that proves a wrapper is skipped there,
+and a `PATH` assignment before `ssh` is not read as applying to the remote program.
 
 ### Read-only subcommands
 

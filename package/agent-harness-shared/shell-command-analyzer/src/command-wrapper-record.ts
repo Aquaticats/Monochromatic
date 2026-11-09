@@ -56,7 +56,9 @@ type CommandWrapper = {
   /**
    Whether the words after the wrapper's options are one shell source line
    rather than the program and its arguments,
-   as `eval` joins its arguments and `watch` hands them to `sh -c`.
+   as `eval` joins its arguments,
+   `watch` hands them to `sh -c`,
+   and `ssh` sends them to the remote login shell.
    */
   readonly joinsRemainderAsShellSource?: boolean;
   /**
