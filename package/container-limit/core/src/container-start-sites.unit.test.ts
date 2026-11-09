@@ -221,6 +221,10 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
   // names, stand-ins for tests, and the generic runner whose callers build the arguments.
   ...[
     'package/claude-code-plugin/bash-output-filter/bundle/node/index.mjs',
+    'package/container-limit/core/src/argument-text-of-a-container-start.ts',
+    'package/container-limit/core/src/container-start-vocabulary.ts',
+    'package/container-limit/core/src/container-starts-in-source-text.ts',
+    'package/container-limit/core/src/positions-in-source-text.ts',
     'package/claude-code-plugin/source/src/handler/bash-output-filter/validation.ts',
     'package/forbidden-strings/cli/bin/scanner-run.ts',
     'package/forbidden-strings/cli/data/betterleaks-default-config.toml',
