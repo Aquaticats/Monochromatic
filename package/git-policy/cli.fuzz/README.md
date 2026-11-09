@@ -370,7 +370,7 @@ runs the controls and Clippy in the same bounded container,
 then fuzzes each target for 30 seconds without host mounts
 under 2 GiB,
 2 CPUs,
-128 PIDs,
+512 PIDs,
 and a 4,096-byte input limit.
 A target must exit 0 and report at least one executed unit.
 A longer campaign passes the time per target after the task name,
