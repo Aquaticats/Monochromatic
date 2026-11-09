@@ -150,7 +150,7 @@ pub trait WorkspaceContent {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PolicyIncomplete = { kind: 'not-utf8'; path } | { kind: 'manifest-syntax'; path; detail } | { kind: 'manifest-shape'; path; problem } | { kind: 'duplicate-name'; name; first; second };
+/// type PolicyIncomplete = { kind: 'not-utf8'; path } | { kind: 'manifest-syntax'; path; detail } | { kind: 'manifest-shape'; path; problem } | { kind: 'duplicate-name'; name; first; second } | { kind: 'publish-set-unknown'; path; problem };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PolicyIncomplete {
@@ -186,6 +186,16 @@ pub enum PolicyIncomplete {
         first: Vec<u8>,
         /// The later manifest.
         second: Vec<u8>,
+    },
+    /// The registry configuration is missing or names no publishable package,
+    /// so
+    /// which dependents a raise reaches cannot be judged.
+    PublishSetUnknown {
+        /// The registry configuration.
+        path: Vec<u8>,
+        /// What is wrong with it,
+        /// in one clause that names the cause without a final period.
+        problem: String,
     },
 }
 
@@ -332,6 +342,13 @@ fn incomplete_reason(incomplete: &PolicyIncomplete) -> String {
                  names is ambiguous",
                 display_path(first),
                 display_path(second)
+            );
+        }
+        PolicyIncomplete::PublishSetUnknown { path, problem } => {
+            return format!(
+                "the publish set of {} cannot be read ({problem}), \
+                 so whether a dependent is published cannot be judged",
+                display_path(path)
             );
         }
     }

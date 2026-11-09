@@ -8897,6 +8897,80 @@ the wrapper lists the stage entries of the pre-landing and post indexes,
 and warns with the differing paths outside the committed and guarded paths.
 The warning never changes the landing.
 
+### Dependent version bump
+
+`mono/dependent-version-bump` reads the publish set from the generated registry configuration
+(`package/config/pnpr/config.yaml`) as the document format it is,
+never as a line of text (`dependent_version_publishable.rs`).
+Every `packages:` list under an `auth.oidc[]` workload is the set,
+because a package any trusted CI identity may publish is published;
+the names are read in document order without repeats,
+so a narrower workload list above the publish set cannot hide it.
+The `packages` mapping under `registries` grants a permission pattern to a scope and lists no
+publishable name,
+and is never read as one.
+The executable links no YAML parser.
+`package/config/pnpr/src/generated-config-render.ts` writes the file,
+so that template is the reader's whole specification:
+`dependent_version_yaml` and `dependent_version_yaml_lines` accept exactly the
+line forms it writes and refuse every other line by name and number,
+never keeping text they would have to guess at.
+The accepted forms are a blank line,
+a comment line beginning `#`,
+`key: value`,
+`key:` with its block below,
+and a sequence item whose dash is followed by exactly one space.
+Indentation counts spaces,
+never a tab,
+and reaches fourteen spaces at most,
+the depth of the template's `claims` children.
+A line beginning `---` that is not exactly `---` is refused,
+because a document marker belongs alone on its line and this reader reads one document.
+A tag,
+anchor,
+alias,
+block scalar,
+directive,
+reserved character,
+flow collection,
+comment or quote indicator,
+the `-`,
+`?` and `:` that open an item or an explicit key,
+an empty key,
+a colon a space or tab follows inside a value,
+text a closing quote does not separate,
+and an interior carriage return are refused too.
+A space or a tab separates a key from its value and starts a comment,
+so `- app` with a tab and `# published` after it lists the package `app`,
+and an interior tab stays part of a plain scalar as it does to a YAML parser.
+Because no line sits deeper than twelve spaces,
+the block recursion is bounded by that indentation and the reader runs on constant stack;
+a configuration nested deeper is refused at its first over-deep line
+instead of exhausting the stack.
+Every line is read once,
+and a repeated key is refused in constant time,
+so a configuration of any length is one pass.
+A general YAML parser is not a dependency of this executable:
+it would accept every YAML document while the publish-set traversal would still
+have to map a shape set wider than the generator writes,
+which is the silent miss this reader refuses instead.
+
+A publish set that cannot be read is a `policy-incomplete` engine failure,
+which stops `check` and `fix` with exit `2`:
+the file is not tracked,
+no `auth.oidc` workload lists a package name,
+or the text is not block YAML this executable reads.
+That is the status every input these commands cannot use already has,
+and an unjudged ripple therefore never reads as a clean workspace.
+The diagnostic names the file,
+the cause,
+and the escape hatch.
+No commit,
+push or landed commit reads the publish set:
+the policy plans only on `direct-check` and `direct-fix`,
+so no publish configuration can fail a commit,
+and an unreadable one is reported by `check` and `fix` alone.
+
 ### Forbidden root context
 
 Reject root `CONTEXT.md` for commit candidates and direct check.
