@@ -143,38 +143,6 @@ At 2026-11-08T23:47:13-05:00 that was wrapper `0.6.1-alpha.5` over Git 2.56.0.
 The wrapper commits on main after that release are not published yet.
 Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footprint.md`).
 
-### Unmerged branches and worktrees of this effort
-
-Tips were read from `git for-each-ref` at 2026-11-03T08:16:08-05:00 and keep moving while the owning agents work.
-
-- `fix/git-policy-cli-commits-never-fail` `f160209787`,
-  worktree `.claude/worktrees/commits-never-fail`.
-- `fix/git-policy-cli-plain-commit-finishes-conflicted-merge` `a06af6102c` (finished),
-  worktree `.claude/worktrees/plain-commit-conflicted`.
-- `fix/git-policy-cli-no-inner-quiet-and-slow-server-waits` `e38a7dea6a` (finished),
-  worktree `.claude/worktrees/no-inner-quiet-slow-server`.
-- `feat/git-policy-cli-word-level-second-merge-pass` `8cc36cd4b6`,
-  fifteen commits ahead of the merge base,
-  worktrees `.claude/worktrees/word-level-second-merge-pass` and the gate copy
-  `.claude/worktrees/gate-word-level-merge-pass`.
-- `feat/cargo-shadow-cli` `504a82aa3f`,
-  worktree `.claude/worktrees/cargo-shadow`,
-  fifty commits ahead,
-  all on origin.
-- `worktree-agent-ab3dd6294f9d91284` `fe2081f2a1`,
-  the copy-in-service design that was never merged (see the P1 section).
-- `e2e-trace-diagnosis-20261101` `a0126e571c`,
-  unmerged and kept on purpose.
-- `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` `2ac6da873e` is the stopped first 0.5.21 candidate;
-  both of its parts shipped by other routes,
-  so it is stale and can be deleted once the owner agrees to branch deletions.
-
-Many detached worktrees under `.claude/worktrees/` (`integrate-0NN`,
-`gate-*`,
-`survivors-*` and others) remain from merged work;
-their files and mutation evidence were kept deliberately,
-and removing them is open (see "Housekeeping").
-
 ### Agents and gates running
 
 At 2026-11-04T03:27:12-05:00 (the owner's cap is five delegate agents at once),
@@ -6401,6 +6369,33 @@ which that run did not reach.
   a cheaper fixture,
   or its own bound).
 
+### The branches and worktrees this effort still holds (2026-11-08T23:57:46-05:00)
+
+Read with `git for-each-ref` and `git merge-base --is-ancestor main` on 2026-11-08,
+the day this page dropped `### Unmerged branches and worktrees of this effort`.
+Unmerged,
+and each kept on purpose:
+
+- `fix/git-policy-cli-commits-never-fail` `1fc759ba80`,
+the commit protocol design.
+The 2026-11-04 pause was never lifted for it;
+`### Open: decisions a read-only audit of all recorded work found`
+in `doc/handover/questions-for-the-owner.md` asks whether it still covers it.
+- `worktree-agent-ab3dd6294f9d91284` `fe2081f2a1`,
+the copy-in-service design that was never merged.
+- `e2e-trace-diagnosis-20261101` `a0126e571c`,
+kept on purpose.
+
+Stale,
+and deletable once the owner agrees to branch deletions:
+`integrate/git-policy-cli-deadline-stop-and-conversion-real-git` `2ac6da873e`,
+the stopped first 0.5.21 candidate,
+both of whose parts shipped by other routes.
+
+Detached worktrees under `.claude/worktrees/` from merged work remain,
+their files and mutation evidence kept deliberately;
+`### Housekeeping` holds their removal.
+
 ### Questions waiting for the owner
 
 - Delete the thirteen merged branches with nondescript names
@@ -6433,7 +6428,10 @@ which that run did not reach.
 - Remove the stale detached worktrees listed by `git worktree list` under `.claude/worktrees/` when their evidence is
   no longer
   needed (needs the owner's word for deletions);
-  the stale integration branch named under "Unmerged branches and worktrees of this effort" goes with them.
+  the stale integration branch named under "Unmerged branches and worktrees of this effort"
+  (a subsection this page dropped on 2026-11-08;
+  its surviving items are under "The branches and worktrees this effort still holds")
+  goes with them.
 - Test services that crash on purpose:
   checked 2026-11-08 by reading `coredumpctl`,
   and clean.
