@@ -129,22 +129,26 @@ The old tree kept for the rollback stays until the owner deletes it.
 
 - `421ab69c3e` landed the landing branch,
   `2522a13f4f` the literal-pathspec branch,
-  and `2b309f8f25` the test-coverage branch.
+  `2b309f8f25` the test-coverage branch,
+  and `87f5771748` the index offset guard.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
 - Follow-up runs started:
   landing run 12,
   worktree-removal run 6,
-  worktree-add run 4 and child-process run 5.
-  The last two open with a merge of main in conflict,
+  worktree-add run 4,
+  child-process run 5
+  and merge run 8.
+  Worktree-add and child-process open with a merge of main in conflict,
   which their briefs tell them to resolve first,
   so neither branch has landed.
 - Deferred until a slot frees,
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `merge-route-round-8-prompt.md`,
+  `resume-after-wall-clock-prompt.md` for `wrapper-issue-defects-and-linear-scans`,
+  which reached its time limit in a full test run,
   `shadow-and-replay-round-2-prompt.md`,
   `push-route-round-5-prompt.md`,
   and `literal-pathspec-round-3-prompt.md`.
@@ -161,9 +165,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   a Git step reads its child through the runtime,
   so inside a blocking job of the pool every step refuses as nested.
   Its branch keeps the corrected wording for a refused thread.
-- The stale-comments branch and the test-coverage branch corrected the same comments.
-  The merge takes main's text,
-  and that branch still brings the index offset guard.
 - Open from the test-coverage report,
   not yet given to an agent:
   the kill sweeps list calls a flow never makes,
