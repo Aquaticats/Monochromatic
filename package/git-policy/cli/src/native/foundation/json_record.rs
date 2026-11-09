@@ -308,6 +308,10 @@ impl ObjectWriter {
 ///   `serde_json` escapes `"`,
 ///  `\` and control characters as `JSON.stringify` does;
 ///       serializing a `&str` cannot fail.
+///  Fixture output does not call this:
+///       `dependent_version_fixture_json::quote` owns the byte-for-byte
+///       `JSON.stringify` contract there,
+///       because a fixture string can hold an unpaired surrogate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
