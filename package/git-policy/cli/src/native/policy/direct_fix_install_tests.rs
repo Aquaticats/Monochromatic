@@ -24,7 +24,7 @@
 use super::{
     InstallChange, Prepared, content_of, install_corrections, install_prepared, read_index,
 };
-use crate::direct_fix_install_journal::reap_interrupted_installs;
+use crate::direct_fix_install_journal_sweep::reap_interrupted_installs;
 use crate::candidate_object::CandidateMode;
 use crate::direct_fix_install_journal::{RECORD_FILE, read_record};
 use crate::direct_fix_install_writes::{Kept, write_new};
@@ -1346,7 +1346,8 @@ fn a_reap_never_removes_a_permission_change_the_person_made() {
 ///  The swap moves whatever stands at the destination into the journal,
 ///  and opening a FIFO with no
 ///       writer blocks for ever:
-///  a recovery that read its bytes would hold every later fix, against the owner's
+///  a recovery that read its bytes would hold every later fix,
+/// against the owner's
 ///       "nothing should wait forever".
 ///  The check is the file's own type,
 ///  read without following a link.

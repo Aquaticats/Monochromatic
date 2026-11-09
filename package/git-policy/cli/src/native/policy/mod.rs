@@ -80,6 +80,10 @@ pub mod direct_fix_install_writes;
 /// and the sweep that finishes what a kill interrupted.
 pub mod direct_fix_install_journal;
 
+/// The sweep of the journals an interrupted fix left,
+/// and its sentences.
+pub mod direct_fix_install_journal_sweep;
+
 /// The sentences an install reports.
 pub mod direct_fix_install_messages;
 

@@ -556,7 +556,7 @@ fn a_fix_with_nothing_to_correct_still_reports_a_journal() {
         [PolicyEvent::EngineFailure {
             code: EngineFailureCode::PolicyIncomplete,
             hint: crate::policy_events::EngineFailureHint::OfCode,
-            message: crate::direct_fix_install_journal::reported_leftover(journal.as_path()),
+            message: crate::direct_fix_install_journal_sweep::reported_leftover(journal.as_path()),
             trigger: Some(Trigger::DirectFix),
             policy: None,
             path: None,

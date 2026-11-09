@@ -32,7 +32,7 @@ use crate::diagnostics::EngineFailureCode;
 ///  and the installer.
 use crate::direct_fix_install::{InstallChange, InstallOutcome, install_corrections};
 /// The sweep of the journals a killed fix left.
-use crate::direct_fix_install_journal::reap_interrupted_installs;
+use crate::direct_fix_install_journal_sweep::reap_interrupted_installs;
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the shipped checks,
