@@ -29,8 +29,9 @@ pub const MISE_TASKS: &[&str] = &[
 
 /// `mpm-shadow` verbs that fetch from the network,
 /// with or without the `-g` flag,
-/// including the short alias of `install`.
-pub const MPM_SHADOW_VERBS: &[&str] = &["install", "i", "update", "outdated"];
+/// including the short alias of `install`
+/// and pnpm's own aliases of `update`.
+pub const MPM_SHADOW_VERBS: &[&str] = &["install", "i", "update", "up", "upgrade", "outdated"];
 
 /// Path tails of the TypeScript launcher that every root `toolchain:*` task runs to find or download `mpm-shadow`:
 /// the source,
@@ -42,6 +43,11 @@ pub const TOOLCHAIN_SCRIPT_TAILS: &[&str] = &[
     "/monorepo-task/core-exec/src/mpm-shadow.ts",
     "/monorepo-task/core-exec/dist/final/node/mpm-shadow.mjs",
 ];
+
+/// Tail of Pi's CLI entry,
+/// the file the installed shim runs with the toolchain's node or another node:
+/// a versioned store path whose last components name the package and the bundle.
+pub const PI_CLI_TAIL: &str = "/pi-coding-agent/dist/bundle/cli.js";
 
 /// Why a process is kept outside the tunnel.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -56,6 +62,9 @@ pub enum MatchReason {
     ToolchainScript,
     /// An executable under the toolchain install roots.
     ToolchainPath,
+    /// Pi, the agent harness this repository runs,
+    /// whose provider traffic leaves the tunnel.
+    PiAgent,
 }
 
 /// Wording for a reason.
@@ -68,6 +77,7 @@ impl MatchReason {
             MatchReason::MpmShim => "the mpm shadow",
             MatchReason::ToolchainScript => "the TypeScript mpm-shadow launcher, which downloads from the network",
             MatchReason::ToolchainPath => "an executable under the toolchain install roots",
+            MatchReason::PiAgent => "Pi, the agent harness whose provider traffic stays outside the tunnel",
         };
     }
 }
@@ -152,6 +162,30 @@ fn runs_toolchain_script(args: &[Vec<u8>]) -> bool {
     return false;
 }
 
+/// Reports whether the process is Pi.
+/// Pi rewrites its process title,
+/// which leaves one command-line word,
+/// its own name;
+/// before that rewrite the exec event carries node and the entry Pi runs.
+/// The first word counts only for `node`,
+/// so `exec -a pi /usr/bin/curl` does not match.
+fn is_pi_agent(exe: &Path, args: &[Vec<u8>]) -> bool {
+    if !is_program(exe, "node") {
+        return false;
+    }
+    if let Some(first) = args.first()
+        && basename(first) == b"pi"
+    {
+        return true;
+    }
+    for argument in args.iter().skip(1) {
+        if argument.ends_with(PI_CLI_TAIL.as_bytes()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Reports whether `exe` lies below one of `roots`,
 /// comparing whole path components.
 fn is_under_any(exe: &Path, roots: &[PathBuf]) -> bool {
@@ -163,7 +197,9 @@ fn is_under_any(exe: &Path, roots: &[PathBuf]) -> bool {
     return false;
 }
 
-/// Decides whether a process is an update entry point or runs from the toolchain install roots.
+/// Decides whether a process is an update entry point,
+/// runs from the toolchain install roots,
+/// or is Pi.
 /// `exe` is the resolved executable,
 /// `args` the raw command line with the program name first,
 /// and `install_roots` the toolchain root spellings of the watched user.
@@ -182,6 +218,9 @@ pub fn classify(exe: &Path, args: &[Vec<u8>], install_roots: &[PathBuf]) -> Opti
     }
     if is_program(exe, "node") && runs_toolchain_script(args) {
         return Some(MatchReason::ToolchainScript);
+    }
+    if is_pi_agent(exe, args) {
+        return Some(MatchReason::PiAgent);
     }
     return None;
 }
