@@ -160,25 +160,88 @@ pub fn with_ancestors(paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
 }
 
 /// What:
-///  The answers that name exactly one of the requested paths.
+///  Whether one path lies below another at a component boundary,
+///  `a/b` below `a` and `ab` not.
 /// Why:
-///   A request for a directory also lists the ignored files inside it,
-///  which a form writing a tree does
-///       not remove,
-///  so only an entry at the requested path itself is a file the command would replace.
+///   A tree path below which the worktree holds ignored files is the path a regular file replaces,
+///  and a
+///       name that merely starts the same letters names nothing below it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function requestedAnswers(requested: Buffer[][], answer: Buffer[]): Buffer[][];
+/// function isBelow(path: Buffer, directory: Buffer): boolean;
 /// ```
-pub fn requested_answers(requested: &[Vec<u8>], answer: &[Vec<u8>]) -> Vec<Vec<u8>> {
+fn is_below(path: &[u8], directory: &[u8]) -> bool {
+    return path.starts_with(directory)
+        && path.get(directory.len()) == Some(&b'/');
+}
+
+/// What:
+///  Whether the query asked about this very path.
+/// Why:
+///   A path the query asked about is one the worktree may hold as a file,
+/// and a named function keeps the
+///  scan free of a closure that captures nothing but the path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function askedAt(asked: Buffer[], path: Buffer): boolean;
+/// ```
+fn asked_at(asked: &[Vec<u8>], path: &[u8]) -> bool {
+    for known in asked {
+        if known == path {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether the tree holds a regular file at a path this one lies below.
+/// Why:
+///   Such a tree replaces that directory with the file,
+/// so every file inside it is deleted;
+///  a named
+///  function keeps the scan free of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function belowATrackedPath(tracked: Buffer[], path: Buffer): boolean;
+/// ```
+fn below_a_tracked_path(tracked: &[Vec<u8>], path: &[u8]) -> bool {
+    for known in tracked {
+        if is_below(path, known) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The ignored files one answer names that the form would delete:
+///  those at a path the query asked about,
+///  and those inside a directory the tree replaces with a regular file.
+///  `asked` and `tracked` borrow the paths the query asked about and the tree's own paths.
+/// Why:
+///   An answer deeper than an asked path means the worktree holds a directory there,
+///  and writing the tree
+///       leaves the files inside it alone
+///  unless the tree holds a regular file at that path,
+///  which replaces the
+///  directory and every file in it.
+///  Dropping those answers would let a `git reset --hard` delete a person's
+///  directory without a guard,
+///  so only an entry inside a directory the tree also has is left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function replacedAnswers(asked: Buffer[][], tracked: Buffer[][], answer: Buffer[]): Buffer[][];
+/// ```
+pub fn replaced_answers(asked: &[Vec<u8>], tracked: &[Vec<u8>], answer: &[Vec<u8>]) -> Vec<Vec<u8>> {
     let mut named: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for path in answer {
-        for known in requested {
-            if known == path {
-                named.push(path.clone());
-                break;
-            }
+        if asked_at(asked, path) || below_a_tracked_path(tracked, path) {
+            named.push(path.clone());
         }
     }
     return named;

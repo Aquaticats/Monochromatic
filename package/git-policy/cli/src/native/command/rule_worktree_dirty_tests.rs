@@ -14,7 +14,7 @@
 /// the reader and the scopes.
 use super::{
     DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
-    ignored_paths_queries, index_file_is_absent, requested_answers, with_ancestors,
+    ignored_paths_queries, index_file_is_absent, replaced_answers, with_ancestors,
 };
 use crate::command_test_support::{byte_argument, fixture, git, os_arguments, remove, repository};
 use crate::git_metadata::MetadataOutput;
@@ -308,17 +308,45 @@ fn the_question_names_every_directory_the_tree_needs() {
     assert!(with_ancestors(&[]).is_empty());
     // A directory a worktree holds as a file is asked about as the directory itself;
     // an entry Git lists inside
-    //  a requested directory is one the command leaves alone.
+    //  a directory the tree also has is one the form leaves alone.
     assert_eq!(
-        requested_answers(
+        replaced_answers(
+            &with_ancestors(tracked.as_slice()),
             tracked.as_slice(),
             &[b"one/two/three.txt".to_vec(), b"one/two/other.txt".to_vec()]
         ),
         vec![b"one/two/three.txt".to_vec()]
     );
     assert_eq!(
-        requested_answers(&[b"one".to_vec()], &[b"one".to_vec()]),
+        replaced_answers(&[b"one".to_vec()], tracked.as_slice(), &[b"one".to_vec()]),
         vec![b"one".to_vec()]
     );
-    assert!(requested_answers(&[b"one".to_vec()], &[b"one/inside.txt".to_vec()]).is_empty());
+    assert!(
+        replaced_answers(&[b"one".to_vec()], tracked.as_slice(), &[b"one/inside.txt".to_vec()]).is_empty(),
+        "a directory the tree also has keeps the files inside it"
+    );
+    // A tree path the worktree holds as a directory loses everything inside it when the tree writes a file
+    //  there, so those answers are the files the form deletes.
+    let replaced: Vec<Vec<u8>> = vec![b"private".to_vec(), b"nested/file.txt".to_vec()];
+    assert_eq!(
+        replaced_answers(
+            &with_ancestors(replaced.as_slice()),
+            replaced.as_slice(),
+            &[
+                b"private/secret.txt".to_vec(),
+                b"private/deeper/other.txt".to_vec(),
+                b"nested/file.txt/inside.txt".to_vec(),
+                b"private-notes.txt".to_vec()
+            ]
+        ),
+        vec![
+            b"private/secret.txt".to_vec(),
+            b"private/deeper/other.txt".to_vec(),
+            b"nested/file.txt/inside.txt".to_vec()
+        ]
+    );
+    // A name that merely starts the same letters is below nothing.
+    assert!(
+        replaced_answers(&[], &[b"private".to_vec()], &[b"private-notes.txt".to_vec()]).is_empty()
+    );
 }

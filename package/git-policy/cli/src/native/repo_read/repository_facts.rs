@@ -50,7 +50,7 @@ use crate::command_clean::clean_would_delete_from_answer;
 use crate::command_discard::previous_branch_expression;
 use crate::rule_worktree_dirty::{
     DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
-    ignored_paths_queries, nul_separated_paths, requested_answers, with_ancestors,
+    ignored_paths_queries, nul_separated_paths, replaced_answers, with_ancestors,
 };
 use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
 use crate::rule_commit_sequencer::{
@@ -453,7 +453,11 @@ impl RepositoryFacts for GitFacts {
         let mut shared: Vec<String> = Vec::<String>::new();
         for query in ignored_paths_queries(self.global_prefix.as_slice(), asked.as_slice()) {
             let output: MetadataOutput = self.query(query, "the ignored files")?;
-            for path in requested_answers(asked.as_slice(), ignored_paths_from_answer(&output)?.as_slice()) {
+            for path in replaced_answers(
+                asked.as_slice(),
+                tracked.as_slice(),
+                ignored_paths_from_answer(&output)?.as_slice(),
+            ) {
                 shared.push(String::from_utf8_lossy(path.as_slice()).into_owned());
             }
         }

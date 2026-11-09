@@ -9603,9 +9603,12 @@ Every directory on the way to each of those paths is asked about as well,
 because a tree creates the directories it needs,
 and a worktree that holds a file where one of them must go loses that file
 (Git removes it to make the directory);
-an entry Git lists inside such a directory is not counted,
+an entry Git lists inside a directory the tree also has is not counted,
 because writing the tree leaves it alone.
-Only an answer that names exactly one of the asked paths is one.
+An entry Git lists inside a path the tree holds as a regular file is counted:
+the tree replaces that directory with the file,
+so every file inside it is deleted,
+and that is the answer a filter that kept only exact names would drop.
 Only these three forms are read that way,
 and only in a linked worktree;
 the question is one `git ls-files --others --ignored --exclude-standard` over those paths alone,
