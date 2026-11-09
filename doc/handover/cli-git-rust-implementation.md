@@ -125,15 +125,19 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:06:48-05:00)
+#### Reviews and landings in progress (2026-11-09T03:08:57-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
   names a final wake that can be missed so a run waits for ever,
   index preparation that can block the runtime before its first await,
   and refused jobs that later run outside the blocking-job budget.
-  Not ready to merge.
-  Run 4 of its agent is on them.
+  Its agent reports all three fixed.
+  Its tests on top of main and the review `tokio-pure-file-sites-round-4` are running.
+  Some overlap controls now pass without running on a host with too few CPUs for them,
+  naming themselves when they do,
+  and a test seam for the CPU bound would be stronger:
+  ask for that in its next round.
 - `fix/git-policy-cli-push-route-records-and-ceilings`,
   at `5b0393dbf6`:
   its agent reports all eleven audit findings fixed,
@@ -243,13 +247,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   The script now takes `--source` and `--about`,
   and stops when it finds no file to attach.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
-  319 of 319 selected tests pass on top of main.
+  landed on main as `512bc52f56`,
+  with 319 of 319 selected tests passing on top of main.
   The review of its last round (`${HOME}/temp/agent/reviews/copy-records-round-7-narrow-sol.txt`) names one defect on Linux:
   `nothing_but_a_reservation` reads every `read_dir` error as an empty destination,
   so a destination made unreadable during an add can lose its unfinished-add record.
   That takes another program changing the mode inside the add,
   and main keeps no such record at all,
-  so the branch lands and the fix follows it.
+  so the branch landed and the fix follows it.
   Waits for a free agent slot,
   since all twenty are taken:
   resume the run `copy-route-records-before-git` as run 8,
@@ -278,10 +283,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   The test `a_running_renewal_renews_the_held_claims_until_it_is_dropped` compares against a snapshot taken before the drop,
   which went to the inbox of `controls-witness-their-race-by-ordering`.
 - `doc/planning/cli-git-repo-read-and-index-route-findings-on-main.md` names two defects in the in-process readers.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  start a run with `repo-read-findings-fixed-prompt.md`,
-  branch `fix/git-policy-cli-readers-match-git-on-extensions-and-ref-names`.
+  The agent `repo-read-findings-fixed` is on them.
 - `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
   among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
   The agent `policy-and-candidate-findings-fixed` is on them.
