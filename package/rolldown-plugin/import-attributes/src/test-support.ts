@@ -74,13 +74,22 @@ export function importAttributesOf(code: string,): readonly ESTree.ImportAttribu
     code,
     visitor: new Visitor({
       ImportDeclaration(node: ForeignBorrowed<ESTree.ImportDeclaration>,): void {
-        found.attributes ??= node.attributes;
+        if (node.attributes
+          .length
+          > 0)
+          found.attributes ??= node.attributes;
       },
       ExportNamedDeclaration(node: ForeignBorrowed<ESTree.ExportNamedDeclaration>,): void {
-        found.attributes ??= node.attributes;
+        if (node.attributes
+          .length
+          > 0)
+          found.attributes ??= node.attributes;
       },
       ExportAllDeclaration(node: ForeignBorrowed<ESTree.ExportAllDeclaration>,): void {
-        found.attributes ??= node.attributes;
+        if (node.attributes
+          .length
+          > 0)
+          found.attributes ??= node.attributes;
       },
     },),
   },);

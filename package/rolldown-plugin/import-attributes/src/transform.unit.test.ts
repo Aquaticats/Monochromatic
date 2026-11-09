@@ -185,16 +185,33 @@ await describe({
     },),
 
     it({
-      name: 'elides a clause holding an attribute value with a brace',
+      name: 'elides a clause whose last attribute value holds a brace',
       fn: async () => {
         /**
-         Attribute value that is itself a brace; only a scan that skips string
-         literals can find the clause end here.
+         Attribute list whose final value is a brace: the clause scan starts past
+         every attribute value, so the value cannot end the elision early.
          */
         const code = "import query from './sample.sql' with { type: 'text', extra: '}' };";
         const transformed = transform(code,);
 
         expect(transformed,).toBe(`import query from './sample.sql?${ATTR_QUERY_KEY}=text';`,);
+        expectParses(transformed,);
+      },
+    },),
+
+    it({
+      name: 'removes an options argument whose separating comma follows a comment holding one',
+      fn: async () => {
+        /**
+         Options argument separated by a comma that follows a comment holding a
+         comma of its own.
+         */
+        const code = "const loaded = import('./sample.sql' /* , */, { with: { type: 'text' } });";
+        const transformed = transform(code,);
+
+        expect(transformed,).toBe(
+          `const loaded = import('./sample.sql?${ATTR_QUERY_KEY}=text' /* , */);`,
+        );
         expectParses(transformed,);
       },
     },),

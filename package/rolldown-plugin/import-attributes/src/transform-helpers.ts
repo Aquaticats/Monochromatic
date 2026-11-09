@@ -45,6 +45,12 @@ export type Replacement = {
  
  @returns first non-whitespace position at or after `idx`
  
+ Only space, tab, newline and carriage return are skipped. JavaScript also admits
+ vertical tab, form feed and the Unicode space separators, which this scan leaves
+ alone on purpose: the four characters are what editors and formatters put between
+ a specifier and its keyword, and the restriction keeps the pinned behaviour of the
+ linear rewrite that replaced the earlier recursive scan.
+ 
  @example
  ```ts
  skipWithClauseWhitespace({ s: '   with', idx: 0 }); // 3
@@ -222,6 +228,10 @@ function findWithClauseStart({
  Finds the closing brace `}` of the `with`/`assert` clause after the
  last import attribute entry, ignoring any `}` that sits inside a comment.
  
+ The scan starts past every attribute node, so it never meets the string literal
+ an attribute value is written as; the only text between the last value and the
+ closing brace is whitespace, a comma and comments.
+ 
  @param code - full source code
  
  @param afterLastAttr - position after the last attribute node's span
@@ -260,6 +270,67 @@ function findWithClauseEnd({
       cursor += 1;
     }
     return code.length + 1;
+  })();
+}
+
+/**
+ Returns the offset of the first comma between `fromPos` and `toPos` that sits
+ outside a comment, or -1 when the range holds none.
+ 
+ The dynamic-import options argument is separated from its specifier by a comma
+ that a comment may precede, and a comment may hold a comma of its own, so the
+ separator cannot be found by searching the gap for the next comma.
+ 
+ @param code - full source code
+ 
+ @param fromPos - position the range starts at (typically the specifier's end)
+ 
+ @param toPos - position the range ends before (typically the options' start)
+ 
+ @returns offset of the separating comma, or -1 when the range holds none
+ 
+ @example
+ ```ts
+ findCommaOutsideComments({ code: "import('./a.sql', { with: {} })", fromPos: 18, toPos: 30 });
+ // 17: the comma between the specifier and its options
+ ```
+ 
+ With a comment between the two, the separator is the comma after the comment,
+ never one the comment itself holds.
+ */
+export function findCommaOutsideComments({
+  code,
+  fromPos,
+  toPos,
+}: {
+  readonly code: string;
+  readonly fromPos: number;
+  readonly toPos: number;
+},): number {
+  return (function scan(): number {
+    /**
+     Cursor walked right through the range; a comment it enters is skipped whole,
+     so the commas it holds are never read as the separator.
+     */
+    let cursor = fromPos;
+    while (cursor < toPos) {
+      /**
+       Position past a comment starting at the cursor, or the cursor itself when none starts there.
+       */
+      const commentEnd = skipComment({
+        code,
+        idx: cursor,
+      },);
+      if (commentEnd !== cursor) {
+        cursor = commentEnd;
+        continue;
+      }
+      if (code.charAt(cursor,)
+        === ',')
+        return cursor;
+      cursor += 1;
+    }
+    return -1;
   })();
 }
 

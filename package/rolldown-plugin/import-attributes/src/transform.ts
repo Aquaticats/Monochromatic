@@ -25,6 +25,7 @@ import {
 import { ATTR_QUERY_KEY, } from './patterns.ts';
 import {
   collectStaticReplacements,
+  findCommaOutsideComments,
   type Replacement,
 } from './transform-helpers.ts';
 
@@ -272,31 +273,23 @@ export function transformImportAttributes({
         )}?${ATTR_QUERY_KEY}=${attrType}${rawLiteral.slice(-1,)}`,
       },);
 
-      // Remove the options argument: find the first comma between source and options
       /**
-       Slice between source end and options start, scanned to locate the separating comma.
+       Absolute offset of the comma separating the specifier from its options,
+       found outside comments; -1 means the options follow without one.
        */
-      const between = code.slice(
-        node.source
+      const commaPos = findCommaOutsideComments({
+        code,
+        fromPos: node.source
           .end,
-        node.options
+        toPos: node.options
           .start,
-      );
-      /**
-       Position of the comma within `between`; -1 means no comma was found.
-       */
-      const relCommaIndex = between.indexOf(',',);
-      /**
-       Absolute offset where the options-argument removal span begins.
-       */
-      const commaPos = relCommaIndex === (-1)
-        ? node.options
-          .start
-        : node.source
-          .end
-          + relCommaIndex;
+      },);
       replacements.push({
-        start: commaPos,
+        start: commaPos
+          === (-1)
+          ? node.options
+            .start
+          : commaPos,
         end: node.options
           .end,
         text: '',
