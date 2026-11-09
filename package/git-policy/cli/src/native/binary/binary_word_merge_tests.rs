@@ -575,11 +575,16 @@ fn children_of(pid: u32) -> Vec<u32> {
 ///   The pass's own `check-attr` and its `cat-file --batch` both run inside it,
 /// and a commit's content policy starts a `check-attr` too,
 /// which the `--stdin` of the pass's invocation tells apart.
-fn is_the_pass_query(pid: u32) -> bool {
+fn is_the_pass_query(pid: u32, repo: &Path) -> bool {
     let arguments: Vec<u8> = match std::fs::read(format!("/proc/{pid}/cmdline")) {
         Ok(bytes) => bytes,
         Err(_) => return false,
     };
+    // Another fixture's Git, or one the wrapper starts for its own readers, is not this pass.
+    let Ok(cwd) = std::fs::read_link(format!("/proc/{pid}/cwd")) else { return false };
+    if cwd != repo {
+        return false;
+    }
     let has = |word: &[u8]| -> bool { return arguments.windows(word.len()).any(|part| { return part == word; }); };
     if has(b"cat-file") && has(b"--batch") {
         return true;
@@ -598,7 +603,8 @@ fn is_the_pass_query(pid: u32) -> bool {
 /// which is a handful of processes,
 /// and gives up after five seconds,
 /// so a control never waits for ever.
-fn during_the_pass(root: u32, when: impl FnOnce() + Send + 'static) -> std::thread::JoinHandle<bool> {
+fn during_the_pass(root: u32, repo: &Path, when: impl FnOnce() + Send + 'static) -> std::thread::JoinHandle<bool> {
+    let watched: PathBuf = repo.to_path_buf();
     return std::thread::spawn(move || {
         let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(15);
         while std::time::Instant::now() < deadline {
@@ -607,7 +613,7 @@ fn during_the_pass(root: u32, when: impl FnOnce() + Send + 'static) -> std::thre
                 let mut next: Vec<u32> = Vec::new();
                 for pid in waiting.drain(..) {
                     for child in children_of(pid) {
-                        if is_the_pass_query(child) {
+                        if is_the_pass_query(child, watched.as_path()) {
                             when();
                             return true;
                         }
@@ -651,8 +657,9 @@ fn an_edit_made_while_the_pass_merges_is_not_replaced() {
     let edited: String = format!("conflict{:02}.md", CONFLICTS_FOR_A_WINDOW / 2);
     let resolution: &[u8] = b"a resolution another command wrote\n";
     let target: PathBuf = repo.join(edited.as_str());
+    let watched_repo: PathBuf = repo.clone();
     let (observed, watcher) = watched_run(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice(), move |root: u32| {
-        return during_the_pass(root, move || {
+        return during_the_pass(root, watched_repo.as_path(), move || {
             std::fs::write(target.as_path(), resolution).expect("the other command's write");
         });
     });
@@ -683,8 +690,9 @@ fn a_same_length_resolution_with_a_restored_time_is_not_replaced() {
     let repo: PathBuf = many_conflicts(&fixture, CONFLICTS_FOR_A_WINDOW);
     let edited: String = format!("conflict{:02}.md", CONFLICTS_FOR_A_WINDOW / 2);
     let target: PathBuf = repo.join(edited.as_str());
+    let watched_repo: PathBuf = repo.clone();
     let (observed, watcher) = watched_run(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice(), move |root: u32| {
-        return during_the_pass(root, move || {
+        return during_the_pass(root, watched_repo.as_path(), move || {
             let before: std::fs::Metadata = std::fs::metadata(target.as_path()).expect("the file Git left");
             let saved: SystemTime = before.modified().expect("its modification time");
             let replacement: Vec<u8> = vec![b'R'; before.len() as usize];
