@@ -18,7 +18,8 @@
 //! const standing = standing(change, state); // 'merged' | 'untouched' | ...
 //! ```
 
-use crate::index_holder_wait::{IndexWait, wait_for_index_release_while_finishing_a_merge};
+use crate::index_holder_wait::{IndexLook, IndexWait, look_at_the_index_lock_once, wait_for_index_release_while_finishing_a_merge};
+use crate::index_lock_evidence::dead_owner_diagnostic;
 use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::inner_git_words::record_words;
 use crate::merge_isolation_changes::{
@@ -32,6 +33,9 @@ use crate::recovery_error::{RecoveryError, io_failure};
 use crate::service_index_unheld_removal::{Unheld, remove_if_the_owner_is_gone};
 /// The platform whose unlink removes the lock.
 use crate::service_index_placement::SYSTEM;
+/// The sentence a lock a gone process left is cleared on,
+/// and the consequence of the wait that found it.
+use crate::index_holder_wait::{CLEARS_A_DEAD_OWNERS_LOCK, RECOVERY_CONSEQUENCE};
 /// The index reading,
 /// and the take of a worktree file a merge must replace or delete,
 /// re-exported so a caller of the recovery keeps one path.
@@ -385,6 +389,69 @@ pub enum Installed {
 }
 
 /// What:
+///  Whether the index lock stands in the way of a merge that has nothing of itself in the checkout,
+///  clearing it when a
+///  process that no longer runs left it.
+/// Why:
+///  Nothing of such a merge is installed,
+/// so a lock cannot be in its way:
+/// the merge is on its record and its
+///  side ref,
+/// and the next command finishes it once the lock is free.
+/// A lock a gone process left is released by nobody,
+///  so it is cleared here on the commit service's proof of disuse,
+/// exactly as the merge's own path clears it,
+/// and
+///  the merge goes on rather than every command exiting 2 until the person deletes the file.
+/// A lock that proof does not
+///  cover stays where it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stands = (place, out) => match (lookAtTheIndexLockOnce(index)) {
+///   case 'free': return false;
+///   case 'left-by-a-gone-process': out.write(deadOwnerDiagnostic(...)); return !clearTheLockAGoneOwnerLeft(place);
+///   case 'held': return true;
+/// };
+/// ```
+fn the_lock_of_a_merge_that_installed_nothing_stands_in_the_way(place: &RecoveryPlace, index: &Path, out: &mut dyn Write) -> bool {
+    return match look_at_the_index_lock_once(index) {
+        IndexLook::Free => false,
+        IndexLook::LeftByAGoneProcess(pid) => {
+            let _noted = out.write_all(
+                dead_owner_diagnostic(
+                    crate::service_index_lock::lock_path_of(index).as_path(),
+                    pid,
+                    RECOVERY_CONSEQUENCE,
+                    CLEARS_A_DEAD_OWNERS_LOCK,
+                )
+                .as_bytes(),
+            );
+            !clear_the_lock_a_gone_owner_left(place)
+        }
+        IndexLook::Held => true,
+    };
+}
+
+/// What:
+///  Whether the index lock a process that no longer runs left is gone now.
+/// Why:
+///  The merge's own path and the recovery of an interrupted merge clear such a lock on one proof,
+/// so neither can drift
+///  from the other's conditions.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cleared = (place) => removeIfTheOwnerIsGone(place.gitDir) === 'removed';
+/// ```
+fn clear_the_lock_a_gone_owner_left(place: &RecoveryPlace) -> bool {
+    return matches!(
+        remove_if_the_owner_is_gone(&SYSTEM, place.git_dir.join("index").as_path(), &scan_platform_holders_bounded),
+        Unheld::Removed(_)
+    );
+}
+
+/// What:
 ///  Whether the merge may be written after this wait for the index lock,
 ///  clearing a lock a gone process left on the proof the merge's own path acts on.
 /// Why:
@@ -415,10 +482,7 @@ pub fn may_install(place: &RecoveryPlace, waited: IndexWait) -> bool {
     return match waited {
         IndexWait::NotHeld | IndexWait::Released(_) => true,
         IndexWait::GaveUp(_) => false,
-        IndexWait::OwnerGone(_) => matches!(
-            remove_if_the_owner_is_gone(&SYSTEM, place.git_dir.join("index").as_path(), &scan_platform_holders_bounded),
-            Unheld::Removed(_)
-        ),
+        IndexWait::OwnerGone(_) => clear_the_lock_a_gone_owner_left(place),
     };
 }
 
@@ -521,8 +585,17 @@ pub fn install_entries(
     installed_before: bool,
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
-    let waited: IndexWait = wait_for_index_release_while_finishing_a_merge(place.git_dir.join("index").as_path(), out);
-    if !may_install(place, waited) {
+    let index: PathBuf = place.git_dir.join("index");
+    // A merge that finished its own checkout must finish it before anything reads the checkout, so it waits for the index lock,
+    //  bounded and naming it. A merge with nothing of itself in the checkout has nothing to wait for: it is kept on its record
+    //  and its side ref, and the next command finishes it once the lock is free. Waiting cost every command, a `git rev-parse
+    //  HEAD` included, the whole ceiling again for as long as the lock stood (finding 3 of the merge-and-pull audit of
+    //  2026-11-09). A lock a gone process left is cleared on the way, on the proof the merge's own path acts on.
+    let may_write: bool = match installed_before {
+        true => may_install(place, wait_for_index_release_while_finishing_a_merge(index.as_path(), out)),
+        false => !the_lock_of_a_merge_that_installed_nothing_stands_in_the_way(place, index.as_path(), out),
+    };
+    if !may_write {
         return Ok(Installed::IndexHeld);
     }
     // The take comes first: nothing of the merge is written while a file that was judged may already have changed.
