@@ -8,9 +8,8 @@
  */
 
 import {
-  mkdtemp,
+  mkdtempDisposable,
   realpath,
-  rm,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
@@ -402,12 +401,13 @@ await describe({
           name: 'runs the child in the injected working directory',
           fn: async () => {
             /**
-             Local value for workingDirectory.
+             Disposable working directory, removed when the test scope ends.
              */
-            const workingDirectory = await mkdtemp(join(
+            await using scratchDirectory = await mkdtempDisposable(join(
               scratchRoot(),
               TEMP_WORKING_DIR_PREFIX,
             ),);
+            const workingDirectory = scratchDirectory.path;
 
             /**
              Local value for outcome.
@@ -417,13 +417,6 @@ await describe({
             },),);
 
             expect(outcome.stdout,).toBe(await realpath(workingDirectory,),);
-            await rm(
-              workingDirectory,
-              {
-                recursive: true,
-                force: true,
-              },
-            );
           },
         },),
 

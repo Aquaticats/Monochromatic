@@ -36,7 +36,17 @@ const modulePath = fileURLToPath(new URL('./runtime-publish.ts', import.meta.url
 // Scratch lives in the package's gitignored node_modules/.monochromatic, never the system temporary directory.
 const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'ide');
 mkdirSync(scratchBase, { recursive: true });
-const scratch = (): string => mkdtempSync(join(scratchBase, 'runtime-publish-'));
+
+// A scratch directory that removes itself when its `using` scope unwinds, so a failing assertion leaves nothing.
+const scratch = (): { readonly path: string; readonly [Symbol.dispose]: () => void } => {
+  const path = mkdtempSync(join(scratchBase, 'runtime-publish-'));
+  return {
+    path,
+    [Symbol.dispose]: () => {
+      rmSync(path, { recursive: true, force: true });
+    },
+  };
+};
 
 const namesBelow = (root: string): string[] => readdirSync(root, { recursive: true }).map(String).sort();
 
@@ -67,18 +77,19 @@ test('staging paths of one output differ between calls and match the sweep patte
 });
 
 test('publishBytes writes a new file, replaces a different one, and leaves no staging file', () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   const output = join(root, 'manifest.json');
   publishBytes({ output, bytes: Buffer.from('one') });
   assert.equal(readFileSync(output, 'utf8'), 'one');
   publishBytes({ output, bytes: Buffer.from('two') });
   assert.equal(readFileSync(output, 'utf8'), 'two');
   assert.deepEqual(namesBelow(root), ['manifest.json']);
-  rmSync(root, { recursive: true });
 });
 
 test('publishFile leaves a file with equal bytes untouched and replaces one with other bytes', () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   const source = join(root, 'source.so');
   const output = join(root, 'out.so');
   writeFileSync(source, 'grammar');
@@ -91,20 +102,20 @@ test('publishFile leaves a file with equal bytes untouched and replaces one with
   publishFile({ source, output });
   assert.equal(readFileSync(output, 'utf8'), 'grammar changed');
   assert.deepEqual(namesBelow(root), ['out.so', 'source.so']);
-  rmSync(root, { recursive: true });
 });
 
 test('publishFile keeps the permission bits of its source', () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   const source = join(root, 'tool');
   writeFileSync(source, 'x', { mode: 0o755 });
   publishFile({ source, output: join(root, 'copy') });
   assert.equal(statSync(join(root, 'copy')).mode & 0o777, statSync(source).mode & 0o777);
-  rmSync(root, { recursive: true });
 });
 
 test('a failed publish removes its staging file and keeps the error', () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   const source = join(root, 'source');
   writeFileSync(source, 'data');
   // A non-empty directory at the output path makes the final rename fail after the staging file exists.
@@ -113,11 +124,11 @@ test('a failed publish removes its staging file and keeps the error', () => {
   assert.throws(() => publishFile({ source, output: blocked }));
   assert.throws(() => publishBytes({ output: blocked, bytes: Buffer.from('data') }));
   assert.deepEqual(namesBelow(root), ['blocked', 'blocked/inside', 'source']);
-  rmSync(root, { recursive: true });
 });
 
 test('publishTree copies nested directories and single files, and merges into an existing tree', () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   const source = join(root, 'source');
   mkdirSync(join(source, 'a', 'b'), { recursive: true });
   writeFileSync(join(source, 'top.scm'), 'top');
@@ -129,22 +140,22 @@ test('publishTree copies nested directories and single files, and merges into an
   assert.deepEqual(namesBelow(destination), ['a', 'a/b', 'a/b/deep.scm', 'kept.scm', 'top.scm']);
   publishTree({ source: join(source, 'top.scm'), destination: join(root, 'single.scm') });
   assert.equal(readFileSync(join(root, 'single.scm'), 'utf8'), 'top');
-  rmSync(root, { recursive: true });
 });
 
 test('publishTree keeps a link a link and replaces a link that already exists', () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   writeFileSync(join(root, 'real.txt'), 'real');
   symlinkSync(join(root, 'real.txt'), join(root, 'LICENSE'));
   publishTree({ source: join(root, 'LICENSE'), destination: join(root, 'copy') });
   publishTree({ source: join(root, 'LICENSE'), destination: join(root, 'copy') });
   assert.ok(lstatSync(join(root, 'copy')).isSymbolicLink());
   assert.equal(readFileSync(join(root, 'copy'), 'utf8'), 'real');
-  rmSync(root, { recursive: true });
 });
 
 test('removeStaging deletes only names the staging scheme produces', () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   mkdirSync(join(root, 'queries'));
   writeFileSync(join(root, 'queries', 'highlights.scm'), 'keep');
   writeFileSync(join(root, 'queries', 'notes.new'), 'keep: not a staging name');
@@ -153,11 +164,11 @@ test('removeStaging deletes only names the staging scheme produces', () => {
   removeStaging({ root });
   assert.deepEqual(namesBelow(root), ['queries','queries/highlights.scm', 'queries/notes.new']);
   removeStaging({ root: join(root, 'missing') });
-  rmSync(root, { recursive: true });
 });
 
 test('several processes publishing the same files at once all succeed and leave one complete tree', async () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   const source = join(root, 'source');
   mkdirSync(source);
   const names = Array.from({ length: 12 }, (_, index) => `grammar-${index}.so`);
@@ -188,11 +199,11 @@ test('several processes publishing the same files at once all succeed and leave 
   for (const name of names) {
     assert.equal(readFileSync(join(destination, name), 'utf8'), readFileSync(join(source, name), 'utf8'));
   }
-  rmSync(root, { recursive: true });
 });
 
 test('the lock admits one holder at a time and returns the result of its work', async () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   const lockFile = join(root, 'runtime.lock');
   const log = join(root, 'log.txt');
   const program = `
@@ -221,11 +232,11 @@ test('the lock admits one holder at a time and returns the result of its work', 
   assert.equal(await withExclusiveLock({ lockFile, work: () => 42 }), 42);
   await assert.rejects(withExclusiveLock({ lockFile, work: () => Promise.reject(new Error('work failed')) }), /work failed/);
   assert.equal(await withExclusiveLock({ lockFile, work: () => 'released after a failure' }), 'released after a failure');
-  rmSync(root, { recursive: true });
 });
 
 test('a lock whose holder is killed is released', async () => {
-  const root = scratch();
+  using scratchDirectory = scratch();
+  const root = scratchDirectory.path;
   const lockFile = join(root, 'runtime.lock');
   const program = `
     const { withExclusiveLock } = await import(${JSON.stringify(modulePath)})
@@ -243,5 +254,4 @@ test('a lock whose holder is killed is released', async () => {
   await once(holder.stdout, 'data');
   holder.kill('SIGKILL');
   assert.equal(await withExclusiveLock({ lockFile, work: () => 'taken over' }), 'taken over');
-  rmSync(root, { recursive: true });
 });

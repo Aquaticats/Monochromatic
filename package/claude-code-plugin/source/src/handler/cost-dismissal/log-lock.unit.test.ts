@@ -7,7 +7,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import { wait, } from '@monochromatic-dev/async-time-core';
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   rmdir,
   stat,
   utimes,
@@ -21,9 +21,13 @@ import {
 } from './log-lock.ts';
 
 /**
- Scratch directory for this suite's lock fixtures.
+ Scratch directory for this suite's lock fixtures, removed when this module's
+ scope unwinds.
  */
-const SCRATCH = await mkdtemp(join(scratchRoot(), 'log-lock-',),);
+await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'log-lock-',),);
+
+/** Fixture root this suite shares; `scratchDirectory` owns its removal. */
+const SCRATCH = scratchDirectory.path;
 
 /**
  Concurrency a serializing lock permits at one time.

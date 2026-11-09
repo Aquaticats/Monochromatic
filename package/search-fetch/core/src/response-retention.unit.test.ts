@@ -7,7 +7,8 @@
 import {
   chmod,
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
+  type DisposableTempDir,
   readdir,
   readFile,
   symlink,
@@ -77,19 +78,20 @@ const LOG_SETTLE_MILLISECONDS = 2_000;
 //region Helpers
 
 /**
- Create one disposable fixture directory under the shared scratch root.
+ Create one disposable fixture directory under the shared scratch root, removed
+ when the caller's scope ends.
 
  @param label - short fixture label used in the directory prefix
 
- @returns absolute path of the created fixture directory
+ @returns the directory, which owns its own removal
 
  @example
  ```ts
- await makeFixture({ label: 'retention' });
+ await using fixtureDirectory = await makeFixture({ label: 'retention' });
  ```
  */
-async function makeFixture({ label, }: { readonly label: string; }): Promise<string> {
-  return mkdtemp(join(
+async function makeFixture({ label, }: { readonly label: string; }): Promise<DisposableTempDir> {
+  return mkdtempDisposable(join(
     scratchRoot(),
     `search-fetch-retention-${label}-`,
   ),);
@@ -111,11 +113,13 @@ async function makeFixture({ label, }: { readonly label: string; }): Promise<str
 async function makeProject({ label, }: { readonly label: string; }): Promise<{
   readonly projectDir: string;
   readonly parentDir: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }> {
   /**
-   Project directory holding its own `node_modules` marker.
+   Disposable project directory holding its own `node_modules` marker.
    */
-  const projectDir = await makeFixture({ label, });
+  const fixtureDirectory = await makeFixture({ label, });
+  const projectDir = fixtureDirectory.path;
   await mkdir(join(projectDir, 'node_modules',), { recursive: true, },);
   return {
     projectDir,
@@ -125,6 +129,9 @@ async function makeProject({ label, }: { readonly label: string; }): Promise<{
       '.monochromatic',
       'search-fetch',
     ),
+    [Symbol.asyncDispose]: async function removeProjectDirectory(): Promise<void> {
+      await fixtureDirectory.remove();
+    },
   };
 }
 
@@ -431,7 +438,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'age-under', },);
+            await using fixtureDirectory = await makeFixture({ label: 'age-under', },);
+            const parentDir = fixtureDirectory.path;
             /**
              Local value for seeded.
              */
@@ -458,7 +466,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'age-boundary', },);
+            await using fixtureDirectory = await makeFixture({ label: 'age-boundary', },);
+            const parentDir = fixtureDirectory.path;
             /**
              Local value for overAge.
              */
@@ -519,7 +528,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'count-under', },);
+            await using fixtureDirectory = await makeFixture({ label: 'count-under', },);
+            const parentDir = fixtureDirectory.path;
             await seedAgedDirs({
               parentDir,
               count: RESPONSE_MAX_DIR_COUNT - 1,
@@ -548,7 +558,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'count-over', },);
+            await using fixtureDirectory = await makeFixture({ label: 'count-over', },);
+            const parentDir = fixtureDirectory.path;
             /**
              Local value for seeded.
              */
@@ -599,7 +610,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'combined', },);
+            await using fixtureDirectory = await makeFixture({ label: 'combined', },);
+            const parentDir = fixtureDirectory.path;
             /**
              Seeding promises for over-age directories deleted by the age policy.
              */
@@ -671,7 +683,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'keep-oldest', },);
+            await using fixtureDirectory = await makeFixture({ label: 'keep-oldest', },);
+            const parentDir = fixtureDirectory.path;
             await seedAgedDirs({
               parentDir,
               count: RESPONSE_MAX_DIR_COUNT,
@@ -714,7 +727,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'scope', },);
+            await using fixtureDirectory = await makeFixture({ label: 'scope', },);
+            const parentDir = fixtureDirectory.path;
             /**
              Foreign directory without the owned prefix.
              */
@@ -783,7 +797,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'dangling', },);
+            await using fixtureDirectory = await makeFixture({ label: 'dangling', },);
+            const parentDir = fixtureDirectory.path;
             /**
              Local value for seeded.
              */
@@ -818,7 +833,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'missing-parent', },);
+            await using fixtureDirectory = await makeFixture({ label: 'missing-parent', },);
+            const parentDir = fixtureDirectory.path;
 
             await pruneResponseTempDirs({
               parentDir: join(parentDir, 'not-created',),
@@ -838,7 +854,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'deletion-failure', },);
+            await using fixtureDirectory = await makeFixture({ label: 'deletion-failure', },);
+            const parentDir = fixtureDirectory.path;
             /**
              Local value for seeded.
              */
@@ -895,7 +912,8 @@ await describe({
             /**
              Local value for parentDir.
              */
-            const parentDir = await makeFixture({ label: 'concurrent', },);
+            await using fixtureDirectory = await makeFixture({ label: 'concurrent', },);
+            const parentDir = fixtureDirectory.path;
             await seedAgedDirs({
               parentDir,
               count: 70,
@@ -957,7 +975,8 @@ await describe({
             /**
              Local value for project.
              */
-            const project = await makeProject({ label: 'write-prune', },);
+            await using projectDirectory = await makeProject({ label: 'write-prune', },);
+            const project = projectDirectory;
             await seedAgedDirs({
               parentDir: project.parentDir,
               count: 70,
@@ -995,11 +1014,13 @@ await describe({
             /**
              Local value for projectA.
              */
-            const projectA = await makeProject({ label: 'two-a', },);
+            await using projectADirectory = await makeProject({ label: 'two-a', },);
+            const projectA = projectADirectory;
             /**
              Local value for projectB.
              */
-            const projectB = await makeProject({ label: 'two-b', },);
+            await using projectBDirectory = await makeProject({ label: 'two-b', },);
+            const projectB = projectBDirectory;
             await seedAgedDirs({
               parentDir: projectA.parentDir,
               count: 70,
