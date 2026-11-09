@@ -431,7 +431,12 @@ pub fn prune_toolchain(
                 .collect();
             match newest_finished(&kept) {
                 Some(newest) => {
-                    if !point_current_at(&scope.toolchain_root, crate_name, &newest, &deleted_here)? {
+                    // What: a repoint that fails is restated with the links this pass already removed.
+                    // Why: the links are gone whether or not the new one lands, and the report is the only place a
+                    // person learns it.
+                    let pointed: bool = point_current_at(&scope.toolchain_root, crate_name, &newest, &deleted_here)
+                        .map_err(|error| return after_removing(error, &unlinked))?;
+                    if !pointed {
                         // The version this run keeps is not there any more, so the link was left alone:
                         // it must then not go on naming a version this run deletes.
                         remove_current_link(&scope.toolchain_root, crate_name, &planned, &mut unlinked)?;
