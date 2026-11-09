@@ -21,8 +21,7 @@
 //!  `am`,
 //!  `pull` and `sparse-checkout`.
 //!  Options count only before Git's `--`;
-//!      long options match in full or as the abbreviations Git accepts
-//!      (`src/index-lock/index-writer-commands.ts`).
+//!      long options match in full or as the abbreviations Git accepts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

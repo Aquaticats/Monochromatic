@@ -12,8 +12,7 @@
 //! `gc.auto` and `maintenance.auto` follow the include,
 //!  so the real config cannot redirect the worktree or start maintenance in the shadow;
 //!  `hook.<event>.enabled = false` for every hook event follows it too,
-//! because the wrapper supports no external hook
-//!  (`src/shadow-repository/shadow-config.ts`).
+//! because the wrapper supports no external hook.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

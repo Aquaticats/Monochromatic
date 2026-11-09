@@ -396,3 +396,35 @@ mod tests;
 #[cfg(test)]
 #[path = "service_provision_never_starts_at_login_tests.rs"]
 mod never_starts_at_login_tests;
+
+/// What:
+///  Provision the service the first time it is needed,
+/// and say whether it is now provisioned.
+/// Why:
+///   A commit the service declined,
+/// blocked by a policy,
+/// or abandoned in the editor never needs one,
+/// and the manager starts the service;
+/// so this runs once,
+/// at the first submission,
+/// and the time it takes is the timing record's `provisionMs`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// provisioned = provisionWhenNeeded(host, provisioned, timing);
+/// ```
+pub(crate) fn provision_when_needed(named: Option<&ProvisionHost>, provisioned: bool, timing: &mut std::time::Duration) -> Result<bool, crate::commit_transaction::TransactionStop> {
+    let Some(host) = named else {
+        return Ok(provisioned);
+    };
+    if provisioned {
+        return Ok(true);
+    }
+    let began: std::time::Instant = std::time::Instant::now();
+    let provided = provision(host);
+    *timing += began.elapsed();
+    if let Err(failure) = provided {
+        return Err(crate::commit_transaction::TransactionStop::Message(crate::service_messages::render(&failure)));
+    }
+    return Ok(true);
+}

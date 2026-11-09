@@ -9,9 +9,7 @@
 //!  monochromatic-git-policy-cli's own shadow
 //!      commands remove every variable that would redirect Git elsewhere and point hooks at an
 //!      absent directory,
-//!  so no hook observes private shadow writes
-//!      (`src/shadow-repository/shadow-refs.ts`,
-//!  `runShadowGit`).
+//!  so no hook observes private shadow writes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
