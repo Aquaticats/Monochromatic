@@ -1687,6 +1687,13 @@ through a temporary file created exclusively under a unique name,
 creates
 `<path>.cli-git-converting` as a subvolume and records its identity (device,
 inode and birth time) in the journal right after.
+A kill between those two steps leaves an empty stage the journal does not name yet:
+the next run,
+and `--abandon`,
+take it as this conversion's own because the journal is at the phase that creates the stage and the name holds nothing,
+record it or destroy it,
+and go on.
+An entry at that name is somebody's copy and is still left alone.
 Git's `index.lock`,
 which is Git's own protocol for writing an index and so cannot be dropped,
 is taken with a token only for

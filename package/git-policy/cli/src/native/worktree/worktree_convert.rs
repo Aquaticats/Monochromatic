@@ -298,7 +298,10 @@ fn abandon_seamed(
     }
     between_scans();
     if let Some(found) = stage_identity_of(candidate.path.as_path())? {
-        if journal.new_identity == Some(found) {
+        // An empty stage this conversion created and never recorded is its own as well, so the abandon destroys it instead
+        // of leaving the person a directory only a hand can remove.
+        let recorded: bool = journal.new_identity == Some(found);
+        if recorded || crate::worktree_convert_phases::owns_unrecorded_stage(&journal, candidate.path.as_path())? {
             if !platform.is_subvolume_root(converting.as_path())? {
                 return Err(MigrateError::Journal(format!("{} is not a subvolume root, so it is not what this conversion created and is left alone", converting.display())));
             }
@@ -430,7 +433,8 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
         let owned: Owned = match journal.as_ref() {
             Some(found) => Owned {
                 index_lock: is_ours(candidate.admin.join("index.lock").as_path(), found.token.as_str()),
-                stage: found.new_identity.is_some() && stage_identity_of(candidate.path.as_path())? == found.new_identity,
+                stage: (found.new_identity.is_some() && stage_identity_of(candidate.path.as_path())? == found.new_identity)
+                    || crate::worktree_convert_phases::owns_unrecorded_stage(found, candidate.path.as_path())?,
             },
             None => Owned::default(),
         };

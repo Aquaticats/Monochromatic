@@ -120,6 +120,36 @@ pub fn stage_identity_of(path: &Path) -> Result<Option<ObjectId>, MigrateError> 
 }
 
 /// What:
+///  Whether the object at the converting name is the empty stage this conversion made but never recorded,
+/// because it was killed between the creation and the line that names it.
+/// Why:
+///   A leftover of that kind is the conversion's own,
+/// and leaving it there blocks the worktree with a refusal no command can
+///  lift:
+/// the journal says the phase that creates the stage,
+/// holds no identity yet,
+/// and the name holds
+///  nothing,
+/// which is the one state that window can leave.
+/// Anything that holds even one entry may be somebody's copy and is never adopted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownsUnrecordedStage(journal, worktree): boolean; // creating, no identity, empty directory at the stage name
+/// ```
+pub fn owns_unrecorded_stage(journal: &Journal, worktree: &Path) -> Result<bool, MigrateError> {
+    if journal.new_identity.is_some() || journal.phase != Phase::Creating {
+        return Ok(false);
+    }
+    let converting: PathBuf = converting_path(worktree);
+    return match std::fs::read_dir(converting.as_path()) {
+        Ok(mut entries) => Ok(entries.next().is_none()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(_unreadable) => Ok(false),
+    };
+}
+
+/// What:
 ///  Make sure the converting subvolume exists and is the one this command made:
 /// create it and record its identity,
 /// or find
@@ -136,6 +166,15 @@ pub fn stage_identity_of(path: &Path) -> Result<Option<ObjectId>, MigrateError> 
 /// await ensureStage(platform, job); // throws when the name holds anything the journal did not record creating
 /// ```
 pub fn ensure_stage(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt) -> Result<(), MigrateError> {
+    // An empty stage this conversion created and did not record is its own: the kill landed between the creation and the
+    // line that names it, so the identity is taken now rather than leaving the worktree blocked by its own leftover.
+    if owns_unrecorded_stage(&job.journal, job.candidate.path.as_path())? {
+        let Some(made) = job.stage_identity()? else {
+            return Err(MigrateError::Journal(format!("{} was not there after it was created", job.converting.display())));
+        };
+        job.journal.new_identity = Some(made);
+        return job.journal.save(job.candidate.admin.as_path());
+    }
     match (job.stage_identity()?, job.journal.new_identity) {
         (Some(found), Some(recorded)) if found == recorded => return Ok(()),
         (Some(_), _) => {
