@@ -274,3 +274,45 @@ fn the_notice_reports_the_programs_that_ran_below_the_step() {
     assert!(found.seen >= Duration::from_millis(750), "the sleep ran while the notice looked: {seen:?}");
     assert!(found.seen <= Duration::from_millis(1200), "a program cannot be seen longer than it ran: {seen:?}");
 }
+
+/// One process a look saw below the step,
+/// as `look_below` reports it.
+fn seen(pid: i32, started: u64, name: &str) -> (i32, ProcessUse) {
+    return (pid, ProcessUse { name: String::from(name), started, state: 'S', cpu: Duration::ZERO });
+}
+
+/// What:
+///  A program's time is credited only when the same process was below the step at both looks.
+/// Why:
+///   Two programs can carry one name:
+/// a signing program can end after one look and another of the same name start before the next,
+/// and a name alone then credits the interval to a program that was not there for any of it.
+///  The two looks here name the same program and hold two processes,
+/// so a name match credits the interval and an identity match credits nothing.
+#[test]
+fn the_same_program_must_be_seen_at_both_looks_to_be_credited() {
+    let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(Duration::from_secs(60)));
+    let before: Vec<SeenBelow> = seen_below(&[seen(100, 5, "ssh-keygen")]);
+    let now: Vec<(i32, ProcessUse)> = vec![seen(200, 9, "ssh-keygen")];
+    credit_between_looks(&mut facts, before.as_slice(), now.as_slice(), Duration::from_millis(250));
+    let kept: &crate::scratch_commit_step::SeenProgram = kept_below(facts.below.as_slice(), "ssh-keygen");
+    assert_eq!(kept.seen, Duration::ZERO, "a program that was not below the step at the look before it was credited with time no process ran: {facts:?}");
+}
+
+/// What:
+///  A program a look saw once is kept, with a zero lower bound.
+/// Why:
+///   A signing program that runs and ends between two looks was below the step,
+/// and a record that leaves it out says the step ran no signing program at all.
+///  The look before it saw nothing,
+/// so no interval can be credited to it,
+/// and the entry it keeps is the lower bound of nothing.
+#[test]
+fn a_program_seen_once_is_kept_with_a_zero_lower_bound() {
+    let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(Duration::from_secs(60)));
+    let before: Vec<SeenBelow> = Vec::new();
+    let now: Vec<(i32, ProcessUse)> = vec![seen(300, 9, "ssh-keygen")];
+    credit_between_looks(&mut facts, before.as_slice(), now.as_slice(), Duration::from_millis(250));
+    let kept: &crate::scratch_commit_step::SeenProgram = kept_below(facts.below.as_slice(), "ssh-keygen");
+    assert_eq!(kept.seen, Duration::ZERO, "a program seen once is kept with a zero lower bound: {facts:?}");
+}

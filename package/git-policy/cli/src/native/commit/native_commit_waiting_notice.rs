@@ -249,24 +249,44 @@ fn member_number(member: &TreeMember) -> i32 {
 }
 
 /// What:
-///  The names one look saw below the step,
-/// once each.
+///  One process a look saw below the step,
+/// as the next look needs it:
+/// the number and the start time that prove it is the same process,
+/// and the name the record keeps.
 /// Why:
-///   The next look credits a program with the interval only when it was there at both ends,
-/// so the names are what the look is remembered by.
+///   Two programs can carry one name,
+/// so the name alone cannot say that the program a look credited was below the step at both ends of the interval.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const names = [...new Set(below.map(([, used]) => used.name))];
+/// type SeenBelow = { pid: number; started: number; name: string };
 /// ```
-fn names_seen(below: &[(i32, ProcessUse)]) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    for (_pid, used) in below {
-        if !names.contains(&used.name) {
-            names.push(used.name.clone());
-        }
-    }
-    return names;
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SeenBelow {
+    /// The process number.
+    pid: i32,
+    /// The start time the kernel recorded for it.
+    started: u64,
+    /// The kernel's name for it.
+    name: String,
+}
+
+/// What:
+///  The processes one look saw below the step,
+/// numbered once each.
+/// Why:
+///   The next look credits a program with the interval only when it was there at both ends,
+/// so this is what the look is remembered by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seen = below.map(([pid, used]) => ({ pid, started: used.started, name: used.name }));
+/// ```
+fn seen_below(below: &[(i32, ProcessUse)]) -> Vec<SeenBelow> {
+    return below
+        .iter()
+        .map(|(pid, used)| { return SeenBelow { pid: *pid, started: used.started, name: used.name.clone() }; })
+        .collect();
 }
 
 /// The processor time one process below the step has used.
@@ -303,10 +323,13 @@ fn other_programs(below: &[(i32, ProcessUse)]) -> Vec<(i32, String)> {
 /// ```ts
 /// for (const name of namesAtBothLooks) facts.credit(name, sinceLastLook);
 /// ```
-fn credit_between_looks(facts: &mut ScratchStepFacts, before: &[String], now: &[(i32, ProcessUse)], interval: Duration) {
+fn credit_between_looks(facts: &mut ScratchStepFacts, before: &[SeenBelow], now: &[(i32, ProcessUse)], interval: Duration) {
     let mut credited: Vec<&str> = Vec::new();
     for (_pid, used) in now {
-        if !before.contains(&used.name) || credited.contains(&used.name.as_str()) {
+        if credited.contains(&used.name.as_str()) {
+            continue;
+        }
+        if !before.iter().any(|known| { return known.name == used.name; }) {
             continue;
         }
         facts.credit(used.name.as_str(), interval);
@@ -380,8 +403,8 @@ impl NativeCommitNotice {
             facts.armed = true;
             // When the step was first found below this process; the ceiling is counted from then.
             let mut seen_at: Option<Duration> = None;
-            // The names the previous look saw below the step, and when that look was.
-            let mut before: Vec<String> = Vec::new();
+            // The processes the previous look saw below the step, and when that look was.
+            let mut before: Vec<SeenBelow> = Vec::new();
             let mut last_look: Duration = Duration::ZERO;
             loop {
                 let waited: Duration = began.elapsed();
@@ -395,7 +418,7 @@ impl NativeCommitNotice {
                     seen_at = Some(waited);
                 }
                 credit_between_looks(&mut facts, before.as_slice(), below.as_slice(), waited.saturating_sub(last_look));
-                before = names_seen(below.as_slice());
+                before = seen_below(below.as_slice());
                 last_look = waited;
                 facts.below_cpu = below.iter().map(process_cpu).sum();
                 if below.iter().any(process_is_blocked) {

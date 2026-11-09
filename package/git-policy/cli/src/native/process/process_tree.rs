@@ -207,6 +207,11 @@ pub fn descendant_numbers_from_thread_lists(_root: i32) -> Option<Vec<i32>> {
 pub struct ProcessUse {
     /// The kernel's name for the process.
     pub name: String,
+    /// The start time the kernel recorded for it,
+    /// in clock ticks since boot (`/proc/<pid>/stat`,
+    /// field 22),
+    /// which proves at the next read that the number still names it.
+    pub started: u64,
     /// The state letter (`R`,
     /// `S`,
     /// `D`,
@@ -253,12 +258,13 @@ fn parse_use(text: &str) -> Option<ProcessUse> {
     let name: String = text.get(opened + 1..closed)?.to_string();
     let fields: Vec<&str> = text.get(closed + 2..)?.split(' ').collect();
     let state: char = fields.first()?.chars().next()?;
-    // After the name: state (0), parent (1), ..., utime (11), stime (12).
+    // After the name: state (0), parent (1), ..., utime (11), stime (12), ..., start time (19).
     let utime: u64 = fields.get(11)?.parse().ok()?;
     let stime: u64 = fields.get(12)?.parse().ok()?;
+    let started: u64 = fields.get(19)?.parse().ok()?;
     let ticks: u64 = utime.saturating_add(stime);
     let cpu: Duration = Duration::from_millis(ticks.saturating_mul(1_000) / ticks_per_second());
-    return Some(ProcessUse { name, state, cpu });
+    return Some(ProcessUse { name, started, state, cpu });
 }
 
 /// Only Linux reads a process's state and processor time;
