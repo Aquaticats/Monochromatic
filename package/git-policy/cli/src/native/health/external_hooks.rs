@@ -30,9 +30,9 @@ use crate::diagnostics::render_configuration_warning;
 use crate::config_snapshot::{ConfigSnapshot, Lookup};
 /// The longest this optional line may take to reach the stream it is written to.
 use crate::wait_ceilings::WARNING_WRITE_CEILING;
-/// The job run on a thread of its own,
+/// The line given to the stream on a thread of its own,
 /// awaited no longer than that ceiling.
-use crate::work_awaited_within_a_ceiling::work_within;
+use crate::work_awaited_within_a_ceiling::write_within;
 /// A stream the warning is written to.
 use std::io::Write;
 
@@ -298,23 +298,23 @@ pub fn external_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<Strin
 /// ```ts
 /// const line = externalHooksWarning(snapshot); if (line !== undefined) writeWithin(WARNING_WRITE_CEILING, stream, line);
 /// ```
-pub fn warn_external_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) {
+pub fn warn_external_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) -> bool {
     let Some(line) = external_hooks_warning(snapshot) else {
-        return;
+        // A configuration with nothing to warn about lost nothing.
+        return true;
     };
-    let delivered: Option<std::io::Result<()>> = work_within(WARNING_WRITE_CEILING, move || {
-        let mut target = stream;
-        // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
-        return match target.write_all(line.as_bytes()) {
-            Ok(()) => target.flush(),
-            Err(error) => Err(error),
-        };
-    });
-    match delivered {
-        Some(Err(error)) => debug(TAG, format!("the warning could not be written: {error}").as_str()),
-        Some(Ok(())) => {}
-        None => debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str()),
-    }
+    let delivered: Option<std::io::Result<()>> = write_within(WARNING_WRITE_CEILING, stream, line);
+    return match delivered {
+        Some(Ok(())) => true,
+        Some(Err(error)) => {
+            debug(TAG, format!("the warning could not be written: {error}").as_str());
+            false
+        }
+        None => {
+            debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str());
+            false
+        }
+    };
 }
 
 /// Reading hooks from the snapshot and the warning are controlled in the test module.

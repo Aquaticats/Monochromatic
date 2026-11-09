@@ -170,6 +170,10 @@ pub mod service_index_watch;
 
 /// The preparation of a commit that the service lands,
 /// for every command line.
+/// The notices a commit's preparation prints on standard error,
+/// given to the descriptor under a ceiling.
+pub mod preparation_notice;
+
 pub mod service_prepare;
 
 /// The renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.

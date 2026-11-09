@@ -42,8 +42,11 @@ fn with_section(
     section: &dyn Fn(&crate::doctor::CheckoutViewpoint<'_>) -> String,
 ) -> (i32, String, String) {
     let action: Action = crate::lazy_runtime::run_on_runtime(doctor_action_with_section(context, cwd, home, section)).expect("the runtime");
-    let Action::Exit { code, stdout, stderr } = action else { panic!("an exit action") };
-    return (code, stdout, stderr);
+    return match action {
+        Action::Exit { code, stdout, stderr } => (code, stdout, stderr),
+        Action::ExitBytes { code, stdout, stderr } => (code, String::from_utf8(stdout).expect("a report of text paths"), stderr),
+        other => panic!("an exit action, not {other:?}"),
+    };
 }
 
 /// Facts for a btrfs checkout on an ostree host with one `rootflags=` word.
@@ -247,8 +250,11 @@ fn the_section_is_informational_and_last() {
     let section_text: &str = "git monochromatic-git-policy-cli doctor: filesystem: informational test text\n";
     let section = |_viewpoint: &crate::doctor::CheckoutViewpoint<'_>| -> String { return section_text.to_string(); };
     let split = |action: Action| -> (i32, String, String) {
-        let Action::Exit { code, stdout, stderr } = action else { panic!("an exit action") };
-        return (code, stdout, stderr);
+        return match action {
+            Action::Exit { code, stdout, stderr } => (code, stdout, stderr),
+            Action::ExitBytes { code, stdout, stderr } => (code, String::from_utf8(stdout).expect("a report of text paths"), stderr),
+            other => panic!("an exit action, not {other:?}"),
+        };
     };
     let clean: (i32, String, String) = split(doctor_action(&git_context(), repo.as_path()));
     let with: (i32, String, String) = with_section(&git_context(), repo.as_path(), None, &section);
