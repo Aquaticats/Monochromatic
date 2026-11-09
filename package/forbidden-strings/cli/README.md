@@ -1051,7 +1051,10 @@ current tree instead.
   unrelated file named `forbidden-strings.local.txt`,
    or a copy of `builtin-rules.txt` under another directory,
    is still scanned.
-  Paths that fail to canonicalize from the current cwd are silently dropped from the set.
+  Paths that fail to canonicalize are silently dropped from the set:
+   the anchor is the discovered repository root,
+   so a run started in any subdirectory resolves the same three files,
+   and a standalone run outside any repository resolves them from the working directory.
   Explicit positional arguments bypass the rules-file skip of `--all`,
    so a rules file the user names is scanned;
    the scanner's own
