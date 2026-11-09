@@ -15,7 +15,11 @@ fn scratch(name: &str) -> PathBuf {
 
 /// An environment naming only these variables.
 fn environment(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
-    return pairs.iter().map(|(name, value)| (OsString::from(*name), OsString::from(*value))).collect();
+    let mut environment: Vec<(OsString, OsString)> = Vec::with_capacity(pairs.len());
+    for (name, value) in pairs {
+        environment.push((OsString::from(*name), OsString::from(*value)));
+    }
+    return environment;
 }
 
 /// The context a search runs in:
@@ -173,6 +177,10 @@ fn git_reports_the_exec_path_the_search_uses() {
         .trim_end_matches('\n')
         .to_owned();
     assert_eq!(reported, Some(OsString::from(expected)));
-    assert!(reported.is_some_and(|path| !path.is_empty()), "Git reported no exec path");
+    // `match` picks by variant, so the reading names the present case instead of shadowing the option.
+    match reported {
+        Some(path) => assert!(!path.is_empty(), "Git reported an empty exec path"),
+        None => panic!("Git reported no exec path"),
+    }
     remove(root.as_path());
 }
