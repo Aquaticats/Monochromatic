@@ -46,6 +46,14 @@ use crate::private_storage::{ReadRefusal, read_regular_file};
 /// the start directory below it and the object hash a directory is read with.
 #[cfg(unix)]
 use crate::repo_read_layout::{RepoLayout, read_layout_in};
+/// The threads an independent set of items may use,
+/// as the neighbouring file-tree jobs derive them.
+#[cfg(unix)]
+use crate::parallel_budget::{BudgetRequest, HostResources, SLICE_MEMORY, worker_budget};
+/// One job per thread inside one thread scope,
+/// and the join of every job.
+#[cfg(unix)]
+use crate::side_by_side_threads::run_all_side_by_side;
 /// How many bytes one object name of the repository's hash has.
 #[cfg(unix)]
 use crate::repo_read_object::name_length;
@@ -72,6 +80,36 @@ use std::path::Path;
 /// not a new measurement.
 #[cfg(unix)]
 const INDEX_LIMIT: u64 = 1 << 30;
+
+/// What:
+///  The fewest entries at which walking them on several threads beat walking them on one:
+/// 32 entries.
+/// Why:
+///  A stat walk of one entry costs a few microseconds,
+/// so a short walk pays less than the threads it would start.
+///  Measured on a throwaway repository of 22,200 committed files on this host
+/// (8 CPUs,
+/// other sessions running,
+/// the release build of 2026-11-08,
+/// 25 samples of each walk in one run,
+/// medians,
+/// warm cache):
+/// 16 entries took 0.125 ms on one thread and 0.145 ms on seven,
+/// so the threads lost there;
+/// 32 took 0.218 ms against 0.158 ms,
+/// 64 0.391 ms against 0.193 ms,
+/// 128 0.786 ms against 0.289 ms,
+/// 256 1.651 ms against 0.479 ms,
+/// 512 3.223 ms against 0.858 ms,
+/// 2,048 13.335 ms against 2.912 ms,
+/// and all 22,200 took 160.12 ms against 30.56 ms on the seven threads the host's budget gives.
+/// The neighbouring file-tree jobs measured their own break-even at 16 entries
+/// (`parallel_budget.rs`,
+/// `PARALLEL_BREAK_EVEN_ENTRIES`);
+/// a stat walk's entry is cheaper than theirs,
+/// so its break-even is higher.
+#[cfg(unix)]
+const STAT_WALK_BREAK_EVEN_ENTRIES: usize = 32;
 
 /// The file-type bits of an entry's mode.
 #[cfg(unix)]
@@ -434,8 +472,70 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     // const restaged = restagedPaths(staging, layout.prefix);
     // ```
     let restaged: Vec<Vec<u8>> = restaged_paths(&staging, layout.prefix.as_slice());
-    for entry in parsed.entries.iter() {
-        if is_left_to_git(entry) || is_restaged(restaged.as_slice(), entry.path.as_slice()) {
+    // What:
+    //  Whether any entry the commit leaves alone records stat data its file no longer has,
+    // walked in slices on several threads
+    //  where the index is large enough for the walk to pay for them (`slice_needs_refresh`).
+    // Why:
+    //  Git's own stat pass preloads the same work across threads (`core.preloadIndex`),
+    // and one thread of this walk took 47 to
+    //  58 ms on a checkout of 22,161 entries against Git's 10 ms;
+    // over 22,200 files a walk of one thread took 160.12 ms and seven
+    //  took 30.56 ms (`STAT_WALK_BREAK_EVEN_ENTRIES`).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const needs = walkInSlices(parsed.entries, layout.worktreeRoot, restaged, workersFor(parsed.entries.length));
+    // ```
+    let workers: usize = workers_for(parsed.entries.len());
+    let slice: EntrySlice<'_> = EntrySlice { entries: parsed.entries.as_slice(), worktree_root: layout.worktree_root.as_path(), restaged: restaged.as_slice() };
+    return match workers {
+        1 => slice_needs_refresh(slice),
+        _ => walk_in_slices(slice, workers),
+    };
+}
+
+/// What:
+///  One contiguous slice of the entries the question walks,
+/// with what the walk of every entry needs.
+/// Why:
+///   A worker borrows its slice of the caller's entries without copying them,
+/// and the slices together are the one linear walk
+///  over the index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type EntrySlice = { entries: FullEntry[]; worktreeRoot: string; restaged: Uint8Array[] };
+/// ```
+#[cfg(unix)]
+struct EntrySlice<'a> {
+    /// The entries this walk judges,
+    /// in index order.
+    entries: &'a [FullEntry],
+    /// The worktree's top level,
+    /// which index paths are relative to.
+    worktree_root: &'a Path,
+    /// The top-relative paths the commit stages from the worktree afresh.
+    restaged: &'a [Vec<u8>],
+}
+
+/// What:
+///  Whether any entry of `slice` records stat data its file no longer has.
+/// Why:
+///   The walk stops at the first entry it cannot prove,
+/// so a slice with a stale entry costs the others nothing,
+/// and an entry
+///  the commit leaves to Git or stages afresh is never asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sliceNeedsRefresh = (slice) => slice.entries.some((entry) => !leftToGit(entry) && !restaged.has(entry.path)
+///   && !matchesRecorded(entry, worktreeFile(join(slice.worktreeRoot, entry.path)) ?? stale));
+/// ```
+#[cfg(unix)]
+fn slice_needs_refresh(slice: EntrySlice<'_>) -> bool {
+    for entry in slice.entries.iter() {
+        if is_left_to_git(entry) || is_restaged(slice.restaged, entry.path.as_slice()) {
             continue;
         }
         // What:
@@ -445,9 +545,9 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const path = join(layout.worktreeRoot, entry.path);
+        // const path = join(slice.worktreeRoot, entry.path);
         // ```
-        let path: PathBuf = layout.worktree_root.join(OsStr::from_bytes(entry.path.as_slice()));
+        let path: PathBuf = slice.worktree_root.join(OsStr::from_bytes(entry.path.as_slice()));
         // What:
         //  The stat data that file has now.
         // Why:
@@ -466,6 +566,63 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
         }
     }
     return false;
+}
+
+/// What:
+///  The threads the walk uses for `entries` entries:
+/// one below `STAT_WALK_BREAK_EVEN_ENTRIES`,
+/// the host's budget above it.
+/// Why:
+///  Below the break-even measured for this walk,
+/// creating the threads costs more than the walk they share,
+/// and the budget
+///  leaves the CPU margin of the host free and honours a container's quota.
+/// No ceiling bounds it:
+/// no measurement found the stat calls flattening at a number of threads the
+///  budget gives.
+///  Each worker copies nothing,
+/// so `SLICE_MEMORY`,
+/// the conservative per-worker bound of the file-tree jobs,
+/// is an upper bound here too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const workers = entries < STAT_WALK_BREAK_EVEN_ENTRIES ? 1 : workerBudget({ items: entries, perItemMemory: SLICE_MEMORY, ceiling: undefined, cap: undefined, host: HostResources.read() });
+/// ```
+#[cfg(unix)]
+fn workers_for(entries: usize) -> usize {
+    if entries < STAT_WALK_BREAK_EVEN_ENTRIES {
+        return 1;
+    }
+    return worker_budget(&BudgetRequest { items: entries, per_item_memory: SLICE_MEMORY, ceiling: None, cap: None, host: &HostResources::read() });
+}
+
+/// What:
+///  Whether any slice of `slice`'s entries needs the refresh,
+/// the slices walked side by side on `workers` threads.
+/// Why:
+///   A worker that panicked judged no entry,
+/// and an entry nothing judged is one Git's refresh decides,
+/// so the answer is
+///  "needs the refresh" there too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const needs = (await Promise.allSettled(slices.map((slice) => walk(slice)))).some((result) => result.status === 'rejected' || result.value);
+/// ```
+#[cfg(unix)]
+fn walk_in_slices(slice: EntrySlice<'_>, workers: usize) -> bool {
+    let size: usize = slice.entries.len().div_ceil(workers.max(1)).max(1);
+    let mut slices: Vec<EntrySlice<'_>> = Vec::new();
+    for entries in slice.entries.chunks(size) {
+        slices.push(EntrySlice { entries, worktree_root: slice.worktree_root, restaged: slice.restaged });
+    }
+    let walked: Vec<std::thread::Result<bool>> = run_all_side_by_side(slices, slice_needs_refresh);
+    let mut needs: bool = false;
+    for outcome in walked {
+        needs = needs || !matches!(outcome, Ok(false));
+    }
+    return needs;
 }
 
 /// What:

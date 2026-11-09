@@ -219,8 +219,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+        # The gnu archive links the glibc of its build host, so its runner is named, not
+        # ubuntu-latest (GitHub moves that label to Ubuntu 26.04 in November 2026, which
+        # would raise the floor of the forbidden-strings gnu archive). The arm64 runner is
+        # Ubuntu 24.04 for the same glibc. The musl legs stay on ubuntu-latest: a statically
+        # linked musl binary carries no glibc floor.
         - target: x86_64-unknown-linux-gnu
-          runner: ubuntu-latest
+          runner: ubuntu-24.04
         - target: x86_64-unknown-linux-musl
           runner: ubuntu-latest
           needs_musl: true
@@ -2265,8 +2270,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+        # The gnu archive links the glibc of its build host, so its runner is named, not
+        # ubuntu-latest (GitHub moves that label to Ubuntu 26.04 in November 2026, which
+        # would raise the floor of the monochromatic-lint gnu archive). The arm64 runner is
+        # Ubuntu 24.04 for the same glibc. The musl legs stay on ubuntu-latest: a statically
+        # linked musl binary carries no glibc floor.
         - target: x86_64-unknown-linux-gnu
-          runner: ubuntu-latest
+          runner: ubuntu-24.04
         - target: x86_64-unknown-linux-musl
           runner: ubuntu-latest
           needs_musl: true
