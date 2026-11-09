@@ -24,7 +24,7 @@ use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_di
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_remove::remove_tree;
-use crate::worktree_convert_compare::first_difference;
+use crate::worktree_convert_compare::first_difference_after;
 use crate::worktree_convert_journal::{io_step, is_recorded_object};
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
@@ -60,8 +60,8 @@ pub enum Removal {
 /// ```ts
 /// removeRecordedOldTree(platform, parent, name, oldRoot, installed);
 /// ```
-pub fn remove_recorded_old_tree(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: ObjectId, installed: &Path) -> Result<Removal, MigrateError> {
-    return remove_recorded_old_tree_seamed(platform, parent, name, old, installed, &mut do_nothing);
+pub fn remove_recorded_old_tree(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: ObjectId, installed: &Path, synced_ms: Option<i64>) -> Result<Removal, MigrateError> {
+    return remove_recorded_old_tree_seamed(platform, parent, name, old, installed, synced_ms, &mut do_nothing);
 }
 
 /// What:
@@ -80,7 +80,7 @@ fn do_nothing() {}
 /// `remove_recorded_old_tree` with a call right after the directory was pinned and judged to be the old tree,
 /// where a control
 ///  moves it away and puts another directory at the name.
-pub fn remove_recorded_old_tree_seamed(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: ObjectId, installed: &Path, after_pinned: &mut dyn FnMut()) -> Result<Removal, MigrateError> {
+pub fn remove_recorded_old_tree_seamed(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: ObjectId, installed: &Path, synced_ms: Option<i64>, after_pinned: &mut dyn FnMut()) -> Result<Removal, MigrateError> {
     let shown: PathBuf = PathBuf::from(name);
     let pinned: std::fs::File = match open_directory_at(parent, name) {
         Ok(opened) => opened,
@@ -96,7 +96,7 @@ pub fn remove_recorded_old_tree_seamed(platform: &dyn Platform, parent: &std::fs
         return Ok(Removal::Kept(format!("{} is a subvolume, so it is not the old tree this conversion recorded", shown.display())));
     }
     // Nothing is deleted unless the installed tree holds all of the old one; a difference is reported and settled by a person.
-    match first_difference(through.as_path(), installed) {
+    match first_difference_after(through.as_path(), installed, synced_ms) {
         Ok(None) => {}
         Ok(Some(reason)) => return Ok(Removal::Differs(reason)),
         Err(error) => return Ok(Removal::Differs(format!("the old tree cannot be compared with the installed worktree ({error})"))),
