@@ -1492,6 +1492,19 @@ a worktree moved while a conversion is unfinished is refused with both paths.
 A journal,
 a registration file or a `.git` that is a named pipe or any other file that is not plain ends the run with a reason
 instead of blocking while the lock is held.
+The same holds for every record either command reads:
+the migration reads its journal,
+its list of unreadable files,
+an index,
+the repository's configuration and every registration's `gitdir` through the one plain-file
+reader (`foundation/plain_file.rs`),
+which opens without waiting and without following a link and takes the type from the open
+handle,
+so a named pipe at any of them ends that run with the file named instead of waiting for a writer
+that never comes while the claim of the checkout is held.
+An index is read up to a gigabyte,
+the largest index this repository has measured at 2,786,564 bytes and the bound the merge pass
+uses.
 A dry run reconciles an exchange the journal has not recorded in memory,
 as a real run does,
 and writes nothing.

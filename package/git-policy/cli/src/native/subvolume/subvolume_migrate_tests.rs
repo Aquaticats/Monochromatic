@@ -462,10 +462,10 @@ fn a_named_pipe_where_the_unreadable_list_belongs_ends_the_run_at_once() {
     let layout: Layout = layout_of(root.as_path()).expect("layout");
     make_fifo(layout.unreadable_path.as_path(), 0o600).expect("named pipe");
     let read = crate::test_support::finished_within(move || {
-        let layout: Layout = layout_of(root.as_path()).expect("layout");
+        let inside: Layout = layout_of(root.as_path()).expect("layout");
         let platform: PlainPlatform = PlainPlatform::new();
         let mut say = |_text: &str| {};
-        return match Run::open(&platform, &layout, &Interrupt::never(), &mut say) {
+        return match Run::open(&platform, &inside, &Interrupt::never(), &mut say) {
             Ok(_) => String::from("opened"),
             Err(error) => error.to_string(),
         };

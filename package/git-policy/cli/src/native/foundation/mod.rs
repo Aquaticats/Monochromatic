@@ -41,6 +41,12 @@ pub mod iso_time;
 /// Lexical path normalization.
 pub mod lexical_path;
 
+/// Reading a file only when it is a plain one:
+/// never waiting for a writer,
+/// never following a link,
+/// never past a limit.
+pub mod plain_file;
+
 /// How many workers independent items may use together,
 /// from the CPUs allowed,
 /// the memory free and a measured ceiling.

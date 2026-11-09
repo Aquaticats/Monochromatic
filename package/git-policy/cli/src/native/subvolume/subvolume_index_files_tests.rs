@@ -574,7 +574,7 @@ fn a_named_pipe_where_the_index_belongs_is_skipped_at_once() {
     std::fs::remove_file(index.as_path()).expect("remove the index");
     crate::subvolume_sync_attrs::make_fifo(index.as_path(), 0o600).expect("named pipe");
     let tree: PathBuf = root.clone();
-    let read = crate::test_support::finished_within(move || refresh_index_file(index.as_path(), tree.as_path()));
+    let read = crate::test_support::finished_within(move || { return refresh_index_file(index.as_path(), tree.as_path()); });
     let Some(line) = read else { panic!("reading the index did not finish within five seconds") };
     assert!(line.starts_with("skipped (cannot read it:") && line.contains("not a plain file"), "{line}");
     remove(parent.as_path());
@@ -595,7 +595,7 @@ fn a_named_pipe_where_the_configuration_belongs_reads_as_none_at_once() {
     std::fs::remove_file(config.as_path()).expect("remove the configuration");
     crate::subvolume_sync_attrs::make_fifo(config.as_path(), 0o600).expect("named pipe");
     let git_directory: PathBuf = root.join(".git");
-    let read = crate::test_support::finished_within(move || repository_hash_length(git_directory.as_path()));
+    let read = crate::test_support::finished_within(move || { return repository_hash_length(git_directory.as_path()); });
     let Some(length) = read else { panic!("reading the configuration did not finish within five seconds") };
     assert_eq!(length, None);
     remove(parent.as_path());
@@ -618,9 +618,9 @@ fn a_named_pipe_where_a_registration_gitdir_belongs_is_left_out_at_once() {
     std::fs::remove_file(recorded.as_path()).expect("remove the gitdir file");
     crate::subvolume_sync_attrs::make_fifo(recorded.as_path(), 0o600).expect("named pipe");
     let scanned: PathBuf = root.clone();
-    let read = crate::test_support::finished_within(move || scan_linked_worktrees(scanned.as_path()));
-    let Some(scan) = read else { panic!("reading the registration did not finish within five seconds") };
-    let scan: LinkedWorktreeScan = scan.expect("the scan finishes");
+    let read = crate::test_support::finished_within(move || { return scan_linked_worktrees(scanned.as_path()); });
+    let Some(found) = read else { panic!("reading the registration did not finish within five seconds") };
+    let scan: LinkedWorktreeScan = found.expect("the scan finishes");
     assert_eq!(scan.inside.len(), 0, "no registration is a worktree: {scan:?}");
     assert_eq!(scan.left_out.len(), 1, "{scan:?}");
     assert!(scan.left_out[0].reason.contains("not a plain file"), "{:?}", scan.left_out[0].reason);

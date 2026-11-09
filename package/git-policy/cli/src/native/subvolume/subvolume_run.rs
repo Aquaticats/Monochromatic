@@ -19,6 +19,7 @@
 //! class Run { platform; layout; journal; interrupt; say(line); async pass(label, source, destination, options) { ... } }
 //! ```
 
+use crate::plain_file::read_plain_text;
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_journal::Journal;
 use crate::subvolume_lock::relative_lock_paths;
@@ -78,7 +79,7 @@ impl Run<'_> {
         say: &'a mut dyn FnMut(&str),
     ) -> Result<Run<'a>, MigrateError> {
         let journal: Journal = Journal::load(layout.journal_path.as_path())?;
-        let unreadable: BTreeSet<PathBuf> = match std::fs::read_to_string(&layout.unreadable_path) {
+        let unreadable: BTreeSet<PathBuf> = match read_plain_text(&layout.unreadable_path) {
             Ok(text) => {
                 let mut listed: BTreeSet<PathBuf> = BTreeSet::new();
                 for line in text.lines() {

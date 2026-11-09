@@ -324,7 +324,7 @@ fn a_named_pipe_where_the_journal_belongs_is_refused_at_once() {
     let parent: PathBuf = fixture("journal-fifo");
     let path: PathBuf = parent.join(".cli-git-migrate-checkout.journal.json");
     crate::subvolume_sync_attrs::make_fifo(path.as_path(), 0o600).expect("named pipe");
-    let read: Option<Result<Journal, MigrateError>> = crate::test_support::finished_within(move || Journal::load(path.as_path()));
+    let read: Option<Result<Journal, MigrateError>> = crate::test_support::finished_within(move || { return Journal::load(path.as_path()); });
     let Some(loaded) = read else { panic!("reading the journal did not finish within five seconds") };
     let reason: String = loaded.expect_err("a named pipe is not a journal").to_string();
     assert!(reason.contains("not a plain file"), "{reason}");

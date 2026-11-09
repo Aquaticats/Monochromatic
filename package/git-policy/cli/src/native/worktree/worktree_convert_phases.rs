@@ -18,6 +18,7 @@
 
 use crate::line_sink::LineSink;
 use crate::fs_beneath::{ObjectId, identity_at, open_root};
+use crate::plain_file::read_plain_file;
 use crate::process_use::{UseTarget, processes_using};
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_index_files::{IndexLock, RefreshOptions, RefreshStatus, refresh_index_file_report, repository_hash_length};
@@ -27,7 +28,7 @@ use crate::subvolume_platform::Platform;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use crate::subvolume_sync_pass_state_and_checks::SAMPLE_SIZE;
 use crate::worktree_convert_inspection::{Candidate, GIT_FILE_LIMIT, converting_path};
-use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object, read_plain_file};
+use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object};
 use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::path::{Path, PathBuf};
 
