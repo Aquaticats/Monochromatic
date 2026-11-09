@@ -17,6 +17,8 @@ the runner scripts this document names under `package/git-policy` (`cli/bin`,
 Read every `.mjs` file name here as the same
 name ending in `.ts`;
 the driver `old-format-fixtures` is `old-format-driver`.
+Those folders are `package/git-policy/cli/bin`,
+`package/git-policy/cli/native-interop` and `package/git-policy/cli.fuzz/bin`.
 
 ## Purpose
 

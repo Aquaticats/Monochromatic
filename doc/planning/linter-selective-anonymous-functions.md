@@ -7,7 +7,7 @@ recorded in `doc/decision/rust-closure-lint-dylint.md`.
 Later that day the owner removed the rule `rust/no-anonymous-functions` altogether instead of making it selective
 (section "Removal of `rust/no-anonymous-functions`" of that record),
 so Change 1 and Change 2 below were never built for `monochromatic-lint`.
-The sections below are the evidence behind the Dylint choice,
+The sections from Evidence and gaps to Round two results are the evidence behind the Dylint choice,
 and describe the rule as it was before its removal.
 
 ## Problem
@@ -115,7 +115,7 @@ The measured result under the shipped load mode is 14 of 67 (see "Spike results"
   (`library/std/src/panic.rs`,
   line 358).
 - The spikes of the same day settled the points that were open when this was first written;
-  see "Spike results" below,
+  see the "Spike results" section,
   which supersedes the 63 of 67 estimate.
 
 ## Spike results

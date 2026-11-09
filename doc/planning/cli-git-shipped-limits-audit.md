@@ -282,7 +282,7 @@ and one design is still in review.
   Update,
   2026-11-03:
   it is in the 0.5.27 integration tip,
-  and picks 5 and 12 below were then built on branch
+  and picks 5 and 12 were then built on branch
   `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx`;
   the entries of "Pushes" carry their outcomes.
 Read with `git show`:
@@ -336,7 +336,8 @@ Pick
 options as if I had picked them and invite veto when I say I'm back."
 Clarified:
 "\"As if I had chosen\" means what I would have picked most likely if I'm always here."
-Every pick below is therefore the coordinator's pick under that delegation,
+Every pick under the `Delegated picks applied on 2026-11-03` heading
+is therefore the coordinator's pick under that delegation,
 open to the owner's veto;
 none of them is
 an owner decision,
@@ -374,7 +375,8 @@ the index-lock holder wait and the waits on the service,
 and the
 commit service unit (it has no limits,
 by owner decision).
-Where one of the limits above sits in a file those agents own,
+Where one of the limits in the `Left to other agents and not touched here` list
+sits in a file those agents own,
 its entry is unchanged and says so.
 
 Each measurement is recorded with its command,
@@ -701,7 +703,7 @@ which are not limits.
   then a diagnostic listing the evidence."
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   the wait for a foreign `index.lock` (proven alive or not)
   ends at `LOCK_CEILING`,
   10 minutes,
@@ -744,7 +746,7 @@ which are not limits.
   It is listed under the open questions.
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a hold the mark proves to run is waited for until `SERVICE_HOLD_CEILING`,
   10 minutes (five times the longest measured hold,
   119.7 s);
@@ -1066,7 +1068,8 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   a second quiet run fails with
   "showed no
   sign of work for {n} seconds and was stopped".
-  The redo count of once is the coordinator's reading of the owner's "ended and its step redone" and is flagged below.
+  The redo count of once is the coordinator's reading of the owner's
+  "ended and its step redone" and is flagged under `Time limits on Git child steps of a commit`.
   A writer that may not be run twice (`update-ref`,
   a commit Git builds) is announced and waited for,
   never ended.
@@ -1452,7 +1455,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a start the manager reports as under way is waited for until `START_CEILING`,
   60 seconds (58 times the slowest observed
   start,
@@ -1510,7 +1513,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   not by this.
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   the client's wait for the answer ends at `ANSWER_CEILING`,
   20 minutes (3.9 times the longest observed answer wait,
   308 s;
@@ -1993,7 +1996,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   in "Questions raised while building picks 5 and 12".
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a push whose connection is open is ended when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW`,
   150 seconds,
   unmeasured (twice the longest whole push,
@@ -3393,7 +3396,7 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
     and the rotation size and the history
     horizon are judgements on it.
 - Conflict:
-  resolved for the audit file by the pick above,
+  resolved for the audit file by delegated pick 11,
   because no generation that explains a copy on disk is dropped.
   A timing log still drops its older generation;
   it is a diagnostic,
@@ -3581,7 +3584,8 @@ by content" and the path is not judged clean;
   "Reference locks left by a Git that was
   killed".
   `COARSE_CLOCK_SLACK` (50 ms,
-  measurement unchanged above) returned in `stale_ref_lock_judge.rs` for one use:
+  measurement unchanged in `Empty-lock settle time, one second`) returned in
+  `stale_ref_lock_judge.rs` for one use:
   telling a lock
   born in a stopped child's life from an older one,
   in the wrapper's own proof for a child it stopped and saw end.
@@ -3786,7 +3790,7 @@ each with its measurement beside it:
   `START_CEILING` 60 seconds;
   `SERVICE_HOLD_CEILING` 10 minutes
   (measured,
-  with the margins given at each entry above).
+  with the margins given at each limit's own section).
 - `LOCK_CEILING` 10 minutes:
   measured on 2026-11-08 from the commit timing log (1,332 records,
   2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z).
@@ -4896,6 +4900,193 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
   one generation of the log,
   and five of the six waits are the same incident.
 
+### The lock ceilings' waits read again from the service journal (2026-11-08T18:43-05:00)
+
+Item 5 of the queue audit asked for the measurement `LOCK_CEILING` never had.
+The entry "The lock ceiling and the three waits it fed" answered it from the commit timing log alone.
+This read adds the commit service's journal,
+and gives every wait of that population with its count,
+median,
+95th percentile,
+99th percentile and maximum,
+so the citation beside each value in `src/native/service/wait_ceilings.rs` states a sample size and a spread.
+No value changed.
+
+- Command:
+  read-only reads of both generations of the commit timing log
+  (`<common Git dir>/monochromatic-git-policy-cli-commit-timing.jsonl` and its `.1`)
+  and of the service's journal,
+  by one scratch script under `${HOME}/temp/agent/lock-ceiling-journal`,
+  not committed.
+  The journal was taken with
+  `journalctl --user -t cli-git-service -t monochromatic-git-policy-cli-service --since 2026-10-14`.
+  Both identifiers are needed because the program was renamed:
+  a read filtered to the current one alone sees 1,429 of the 4,386 answers and understates every count.
+  Nothing was written to the repository.
+- Window and count:
+  1,608 timing records from 2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z,
+  from 134 worktrees and releases 0.5.34 to 0.6.1-alpha.5:
+  1,564 landed,
+  41 stopped and 3 ended.
+  The journal answers 4,386 requests from 2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00:
+  4,348 landed,
+  32 answered `branch-moved`,
+  1 was `already` and 5 failed with `index-in-use`.
+  The timing log rotates at one mebibyte and keeps one generation,
+  so anything before 2026-11-05T03:13:38Z has left it;
+  the journal holds the landings of the same window plus the two days before.
+- Percentiles are the nearest rank of the samples a wait had.
+  The read ran at load average 63.2 on 32 CPUs.
+- The whole command (`totalMs`,
+  1,608 records):
+  median 1,244 ms,
+  95th percentile 27,159 ms,
+  99th percentile 60,615 ms,
+  longest 1,228,797 ms.
+  The answer wait (`answerWaitMs`,
+  1,608 records):
+  median 103 ms,
+  95th percentile 3,924 ms,
+  99th percentile 14,875 ms,
+  longest 1,200,776 ms.
+  Six records hold a waiting notice for another program's hold on the index:
+  two landed (3,636 and 23,783 ms of answer time)
+  and four stopped at the lock that never went (644,710,
+  756,215,
+  1,087,175 and 1,200,776 ms).
+  Five name the holder kind `unproven` and the sixth names none;
+  no record holds a queued position.
+  The preparation (`prepareMs`,
+  1,608 records):
+  median 391.5 ms,
+  95th percentile 7,226 ms,
+  99th percentile 20,078 ms,
+  longest 230,525 ms.
+  The build (`buildMs`):
+  median 107 ms,
+  95th percentile 11,134 ms,
+  99th percentile 36,685 ms,
+  longest 493,699 ms.
+  The policy gate (`gateMs`):
+  median 26 ms,
+  95th percentile 694 ms,
+  99th percentile 4,001 ms,
+  longest 8,687 ms.
+  The work after the landing (`afterLandingMs`):
+  zero in 1,595 of the 1,608 records and 7,856 ms at most.
+- The landing's wait for the index (`lock_wait_ms`,
+  4,386 answers):
+  3,777 are zero,
+  median 0 ms,
+  95th percentile 6 ms,
+  99th percentile 158 ms,
+  longest 600,718 ms.
+  609 landings waited at all and 20 waited more than a second.
+  Fourteen of the twenty landed,
+  at 1,034,
+  1,110,
+  1,132,
+  1,230,
+  1,389,
+  1,389,
+  1,516,
+  1,915,
+  2,208,
+  2,483,
+  5,629,
+  8,000 and 11,490 ms;
+  one answered `branch-moved` after 4,611 ms;
+  one more of 497,803 ms landed only when a person removed the lock;
+  and five were refused after 600,090,
+  600,098,
+  600,164,
+  600,395 and 600,718 ms.
+  The field holds the wrapper's own staging of the index beside the wait for the holder:
+  `lock_stage_ms` is above zero in 124 landings,
+  and 9,467 of the 11,490 ms are the staging of a cold index.
+- The wait for the holder's place (`lock_place_ms`,
+  4,186 answers):
+  4,115 are zero,
+  median 0 ms,
+  95th percentile 0 ms,
+  99th percentile 4 ms,
+  longest 600,132 ms,
+  and 71 landings are above zero.
+  The largest place wait that ended when the lock was released is 8,000 ms (2026-11-02T23:59:30-05:00;
+  the line names no holder,
+  so it does not say whether that was this worktree's own service landing or another program),
+  then 2,022,
+  1,389,
+  798,
+  341,
+  265,
+  262 and 258 ms.
+  Above it are the 497,482 ms that a person ended by removing the lock
+  and the five refusals at 600,090,
+  600,095,
+  600,098,
+  600,109 and 600,132 ms.
+- The service's own hold of the index (`lock_hold_ms`,
+  3,769 answers):
+  median 34 ms,
+  95th percentile 328 ms,
+  99th percentile 1,844 ms,
+  longest 119,721 ms.
+  The queue (`queued_ms`,
+  4,386 answers):
+  median 0 ms,
+  95th percentile 0 ms,
+  99th percentile 41 ms,
+  longest 580,364 ms (the third of the commits behind the never-went lock).
+  The landing itself (`landing_ms`,
+  4,386 answers):
+  median 64 ms,
+  95th percentile 1,449 ms,
+  99th percentile 11,808 ms,
+  longest 756,118 ms.
+  The settle (`settle_ms`,
+  4,386 answers):
+  4,214 zero,
+  172 above zero,
+  median 0 ms,
+  95th percentile 0 ms,
+  99th percentile 17 ms,
+  longest 172 ms.
+- What could not be measured:
+  a merge writes no record (the commit command writes every one of the 1,608),
+  and no record names the `git reset` of the index reconciliation,
+  so neither of those two waits has a sample of its own;
+  no log names a PID namespace,
+  so no hold of another namespace was observed;
+  and the journal's oldest line is 2026-11-01T08:22:38-05:00,
+  so a wait older than that has left it.
+- What the values rest on after this read:
+  `LANDING_LOCK_CEILING` one minute is 7.5 times the longest place wait that ended when the lock was
+  released (8,000 ms) and 5.2 times the longest whole lock acquisition (11,490 ms),
+  and both readings keep it.
+  `MERGE_LOCK_CEILING` and `RECONCILE_LOCK_CEILING` have no sample of their own,
+  and the borrowed population's longest self-released wait is an eighth of their one minute.
+  `SETTLE_LOCK_CEILING` keeps its whole-minute rounding:
+  five times the longest settle (172 ms) is 0.86 s.
+  `LOCK_CEILING` ten minutes is 52 times the longest whole lock acquisition,
+  and no wait takes it.
+  `FOREIGN_OWNER_PATIENCE`,
+  twice `LOCK_CEILING`,
+  is ten times the longest service-side hold
+  (119,721 ms).
+  The longest whole command,
+  1,228,797 ms,
+  is 28,797 ms past it,
+  but the log times a command and not a record's hold,
+  so it does not show the patience is too short.
+- Open,
+  for the owner:
+  the patience's stated basis is twice the longest wait of a merge,
+  and the merge waits one minute now,
+  which would make it two minutes rather than the twenty it ships.
+  Another change owns that constant;
+  nothing was changed here.
+
 ## Counts
 
 The limit sections hold 73 limits (a grouped entry,
@@ -4961,7 +5152,7 @@ and 4 of those 11 determine the value.
 
 ### After the delegated picks
 
-Counted by entry as in the lists above;
+Counted by entry as in the lists under the `Counts` heading;
 the first count is unchanged and describes main at the audited commit.
 
 - Newly cited,
@@ -6165,7 +6356,8 @@ option A,
 where the data allow;
 see the entries of the same names and "Measurement
 record".
-The follow-up questions below list what the data could not settle.
+The questions under the `Follow-up questions after the delegated picks` heading
+list what the data could not settle.
 
 Covers:
 `MAX_BATCH` 64,
@@ -6412,7 +6604,8 @@ and A for `STOP_GRACE` and `MAX_PUSH_OUTPUT`.
 ### Follow-up questions after the delegated picks
 
 Each lists what the measurements could not settle.
-The ranking is the coordinator's reading of the options against the decisions quoted above.
+The ranking is the coordinator's reading of the options against the decisions quoted in
+"Owner decisions that bear on limits".
 
 #### Batch size and claim lease
 

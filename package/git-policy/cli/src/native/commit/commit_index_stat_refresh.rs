@@ -31,10 +31,15 @@
 //!  `update-index --refresh` is a form the cut experiment proved may be run twice
 //! (`transaction_git_step_rerun_and_end_rules.rs`),
 //! so the step is ended at its class's ceiling and a stop leaves the index as it was.
+//!  Git takes `index.lock` on every one of these refreshes,
+//!  even the refresh of an index that already describes the worktree,
+//!  so the step runs only when an entry's recorded stat data differs from its file's
+//! (`commit_index_stat_staleness.rs`):
+//!  an up-to-date index costs no Git start and no lock.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const kept: boolean = await refreshStatData({ gitPath, cwd, indexFile });
+//! const outcome = statRefreshIfStale({ context, cwd, index, staging });
 //! ```
 
 /// A Git request naming one index,
@@ -44,8 +49,30 @@ use crate::private_index_request::indexed_request;
 /// its output,
 /// and the context it runs in.
 use crate::transaction_git::{GitContext, GitOutput, run_git};
+/// What a commit stages from the worktree,
+/// which decides whose recorded stat data still matters.
+use crate::commit_index_stat_staleness::WorktreeStaging;
+/// Whether the index still records the worktree's stat data,
+/// answered without starting Git.
+use crate::commit_index_stat_staleness::index_stat_data_needs_refresh;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
+
+/// What happened to the real index's stat data before the private copies were made.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StatRefresh {
+    /// The index already described the worktree:
+    /// no Git ran and the file was not touched.
+    NotNeeded,
+    /// Git wrote the worktree's stat data into the index,
+    /// so the copies carry it.
+    Kept,
+    /// Git did not write it:
+    /// another program held `index.lock`,
+    /// the step was ended at its ceiling,
+    /// or it could not start.
+    NotKept,
+}
 
 /// The exit statuses of `git update-index --refresh` that leave the index holding the worktree's stat data:
 /// zero,
@@ -57,6 +84,7 @@ use std::path::Path;
 /// which it reports as fatal,
 /// for instance when another program holds `index.lock`.
 const STATUSES_THAT_KEEP_THE_REFRESH: [i32; 2] = [0, 1];
+
 
 /// What:
 ///  Whether one exit status means the index holds the worktree's stat data after the refresh.
@@ -114,6 +142,65 @@ pub fn refresh_stat_data(context: &GitContext, cwd: &Path, index: &Path) -> bool
 fn without_the_refresh(index: &Path, why: &str) -> bool {
     crate::diagnostic_log::debug("refreshStatData", format!("the refresh of {} was not kept: {why}", index.display()).as_str());
     return false;
+}
+
+/// What:
+///  Refreshes `index`'s stat data only when the worktree moved under it.
+/// Why:
+///  Git's `index.lock` is taken by every `update-index --refresh`,
+/// even one that writes nothing,
+/// so an index that describes the worktree must cost neither a Git start nor the lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = statRefreshIfStale({ context, cwd, index, staging });
+/// ```
+pub fn refresh_stat_data_when_stale(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> StatRefresh {
+    // What:
+    //  The in-process question,
+    //  whose answer decides whether Git runs at all.
+    // Why:
+    //  A refresh Git ran would take the real index's lock even when it writes nothing.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (!indexStatDataNeedsRefresh({ context, cwd, index, staging })) return 'not-needed';
+    // ```
+    if !index_stat_data_needs_refresh(context, cwd, index, staging) {
+        // What:
+        //  The answer for an index that already describes the worktree.
+        // Why:
+        //  The caller must not refresh the private index instead:
+        //  there is nothing to refresh.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return 'not-needed';
+        // ```
+        return StatRefresh::NotNeeded;
+    }
+    // What:
+    //  The refresh Git runs on the real index.
+    // Why:
+    //  The copies made after it carry the worktree's stat data,
+    //  and the real index keeps them for the next commit.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const kept: boolean = await refreshStatData({ gitPath, cwd, indexFile: index });
+    // ```
+    let kept: bool = refresh_stat_data(context, cwd, index);
+    // What:
+    //  The answer of the refresh Git ran.
+    // Why:
+    //  The caller decides whether the private index needs the refresh instead,
+    //  and a refresh that was not kept is the only case that does.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return kept ? 'kept' : 'not-kept';
+    // ```
+    return if kept { StatRefresh::Kept } else { StatRefresh::NotKept };
 }
 
 /// Refreshing an index stays out of the release executable.

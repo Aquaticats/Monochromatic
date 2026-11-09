@@ -1874,7 +1874,7 @@ so no step waits for the layout moves.
   `mise run //package/git-policy/cli:native:lock:members` checked the 17 newly locked versions against the release-age and trust policy (all passed).
 - Linux calls (`rustix`):
   started with `getrlimit` and the pidfd;
-  the file calls move with the safe-file-saving replacement below.
+  the file calls move with the safe-file-saving replacement in the `Safe file saving` section.
 
 ### Step T4, children without a blocking wait (partly)
 
@@ -1960,7 +1960,7 @@ the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard l
 
 ### Safe file saving: the publish replaced, 2026-11-07T07:55:00-05:00
 
-- The owner's answer on G1 is recorded above,
+- The owner's answer on G1 is recorded in the Safe file saving section,
   verbatim:
   "Keep the fallback (Recommended)".
 - `1cff4935cd` records it;
@@ -2090,7 +2090,7 @@ the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard l
      `tempfile-v2.56.0.c` (tag `v2.56.0`).
 - The index lock without links,
   branch `fix/git-policy-cli-index-lock-without-links`:
-  item 2 above is built.
+  item 2 of the coordinator's settlements is built.
   `907416dba7` is the red test
   (`a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`:
   `EOPNOTSUPP` on `link`,
@@ -2543,7 +2543,8 @@ Neither is a T5 regression.
   as a process held in a stalled disk call does,
   or one that the
   scheduler did not run (this host once took 6.03 s of wall time for a check and a rename,
-  section c above;
+  section c under the heading
+  `The coordinator's three settlements after T5, 2026-11-07T10:20:00-05:00 to 2026-11-07T11:10:00-05:00`;
   whether disk or scheduler is not measured).
   A load of 70 on the gate's few CPUs is the trigger;
   the cause is the escalation
@@ -3742,7 +3743,8 @@ not by gate reruns.
 - Not starvation of the look:
   the service's answer line of the failing gate run named `lock_holder="Process 80482"` with `lock_looks=1`,
   so the one look returned `ProvenAlive`,
-  and in every instrumented run below the only holder notice was proven.
+  and in every instrumented run under "Counts of the one test under the gate's limits"
+  the only holder notice was proven.
   The look did not reach its ceiling in any run.
   The pool's busy count was not recorded,
   because no look waited on the pool.
@@ -3899,7 +3901,7 @@ and why").
   `LAST_RESORT` (the alarm) = `SETTLE_CEILING` plus `STOP_GRACE`,
   29.096 s;
   the manager's default stop timeout was taken to be 90 s and this crate's unit set none (wrong,
-  see "Owner answer of 2026-11-08" below:
+  see the "Owner answer of 2026-11-08 and what it changed" section:
   the host's default is 15 s,
   and the unit now sets its own).
 
@@ -3944,7 +3946,8 @@ the shutdown now writes its one line without waiting (`send_without_waiting`).
 
 #### Owner answer of 2026-11-08 and what it changed
 
-The coordinator put the first judgment call below to the owner (question tool,
+The coordinator put the first judgment call in the `Judgment calls open to the owner's veto` section
+to the owner (question tool,
 verbatim answer "B:
 let a branch write finish (Recommended)").
 The option read:
@@ -3988,7 +3991,36 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
   The commit is not copied to `refs/cli-git/kept/<n>` in that case,
   because the landing is still inside the write when the service ends and cannot unwind;
   recovery reads the open intent as it does after any kill.
-  Whether the commit should also be copied to a kept ref at the limit is not decided.
+  Whether the commit should also be copied to a kept ref at the limit is decided (2026-11-08,
+  branch `fix/git-policy-cli-kept-ref-for-a-branch-write-past-the-stop`):
+  it is,
+  by the recovery that settles the batch,
+  never by the stop.
+  What that touched was read first:
+  a start of the service does not settle its own journal
+  (only an earlier release's shared journal is settled at a start),
+  the next batch settles it,
+  and that drop left the commit on the landing's scratch branch alone,
+  which a commit Git built never has.
+  The drop now writes `refs/cli-git/kept/<n>` before the intent goes
+  (`keep_what_the_branch_does_not_show` in `service_land_finish.rs`),
+  it is a side-ref write,
+  so a stop cuts it like any other Git of a landing,
+  and a drop whose kept write fails is logged with Git's words and still drops,
+  so a ref nobody can write does not leave every later commit waiting on the batch's index lock.
+  The stop waits for nothing more than it did,
+  so the ref is named once the worktree commits again.
+  Main's own sweep of a dropped batch's scratch reference came in the merge (`f293f8f58d`,
+  `service_scratch_ref_of_a_dropped_batch.rs`),
+  so the drop keeps this commit and then removes that reference;
+  a kept reference that already names another commit is never replaced,
+  and the scratch reference then stays too.
+  Controls,
+  red first (`70d04ae08a`):
+  `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref`,
+  `a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref`
+  and
+  `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`.
 - The measured host facts behind the unit:
   the live unit had `KillMode=control-group` and `TimeoutStopUSec=15s`
   from `DefaultTimeoutStopSec=15s` in `/etc/systemd/user.conf.d/timeout.conf`,
@@ -4014,7 +4046,7 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
 
 #### Judgment calls open to the owner's veto
 
-- Superseded on 2026-11-08 by the owner's answer above:
+- Superseded on 2026-11-08 by the owner's answer in the `Owner answer of 2026-11-08 and what it changed` section:
   a stop ends a branch write too (the landing's `Unbounded` step),
   with `SIGTERM` first,
   the kill after `STOP_GRACE`,
@@ -4154,6 +4186,159 @@ The bar (every paired delta far under five seconds) holds.
 The after binary was built before the fix of the shutdown's start;
 the fix changes nothing a commit through the service runs.
 
+### Step T12, the runner's jobs on the runtime and one bound for the process, 2026-11-08T18:40:00-05:00
+
+Branch `feat/git-policy-cli-tokio-steps-12-and-13`,
+from main at `1a907ccfb9`.
+Two commits:
+`2b1f830568` (the bound and the runner) and
+`c1e6a78a4c` (the lint and Clippy fixes).
+
+#### Where the plan and the code disagree, told as the coordinator asked
+
+The plan's T12 reads "the parallel runner and the scoped threads ... become tasks and `spawn_blocking` jobs under
+the semaphore of the round;
+the nine `HostResources::read` call sites read the budget through the new owner".
+The code does not allow that as one step,
+for two reasons:
+
+- A job of the blocking pool must own what it reads (`spawn_blocking` requires `'static`),
+  and the scoped threads of
+  `parallel_runner.rs` and `side_by_side_threads.rs`
+  borrow the caller's items,
+  lanes and work for the length of one thread scope.
+  So every call site must hand over shared values (`Arc`)
+  instead of borrows,
+  and the seven `run_ordered` call sites
+  (`worktree/worktree_convert_command.rs`,
+  `worktree/worktree_trash_entries.rs`,
+  `push/manual_push_probe.rs`,
+  `push/manual_push_lifecycle.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+  `landing/service_round.rs`,
+  and the controls) plus the nine `run_all_side_by_side`/`run_beside_caller` sites must change that way,
+  one at a time,
+  since a change of the runner's signature reaches all of them at once.
+- The work of `landing/service_round.rs` runs Git:
+  `drain_directories` calls
+  `drain_planned` → `run_due_push_retries` and `drain_pending` → the `WorkHandlers` of the landing
+  (`landing/service_work.rs`),
+  and those start Git children.
+  A pool job reaches `run_git`,
+  which enters the runtime through `run_on_runtime`,
+  and that bridge refuses a call from inside the runtime (`RuntimeError::Nested`).
+  So the round's conversion needs the leaf-first `async` Git that T11 named and did not build:
+  there is no `async fn run_git` in `transaction/transaction_git.rs` today
+  (T11 left the note in
+  "What T11 did not convert,
+  and why";
+  79 production files and 203 mentions).
+
+So this step is the part that needs neither:
+the two pieces every later call-site conversion rests on.
+
+#### What landed
+
+- `foundation/blocking_jobs_within_the_budget.rs`:
+  the process's one bound on blocking jobs,
+  a `tokio::sync::Semaphore` made once,
+  sized by
+  `runtime_plan::budgeted_workers` (budget ∩ `RLIMIT_NPROC`/`pids.max` ∩ address space)
+  and by `hold_blocking_jobs_to`,
+  whose permits a job takes before the pool is asked for a thread.
+  The size is the same derivation the runtime's worker count uses
+  (`runtime_plan.rs` now has one function for both),
+  so more jobs than threads cannot run.
+- `foundation/parallel_runner_on_the_runtime.rs`:
+  the same ordered run as `parallel_runner.rs` (input order,
+  the live lines of the head item,
+  a lane's items one after another)
+  with each item as one job of the pool under that bound,
+  the consumer on the calling task,
+  and `run_ordered_and_wait_here` as the face a caller that is still synchronous uses
+  (it enters the runtime and refuses from inside it).
+  The reporting is shared with the scoped runner:
+  `Cursor`,
+  the message type and the lane-coverage check are `pub(crate)` in `parallel_runner.rs`,
+  so the two cannot report differently.
+- `service/service_main.rs`:
+  the service holds its blocking jobs to `SERVICE_WORKER_CAP`,
+  as it holds its workers.
+
+The seven call sites are not converted;
+the scoped runner stays beside the new one until they are.
+The nine `HostResources::read` sites still read the budget themselves;
+the bound is what now limits how much of it runs at once.
+
+#### A refused `spawn_blocking` swallows the job, measured
+
+The design of a permit was changed by a measurement,
+not by a preference.
+When the system refuses a thread,
+`spawn_blocking` pushes the job into the pool's queue and *then* panics
+(`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+`spawn_task`:
+the queue push precedes the thread start,
+and `Err(NoThreads)` leaves the task queued with no thread to run it).
+The queued job keeps everything it captured for the life of the process,
+so:
+
+- a permit moved into the job is lost for good.
+  Planted control (the permit put back into the closure):
+  `where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back` failed with
+  "the place of a job refused a thread was never given back:
+  Elapsed(())" after 30 s.
+- a sending end moved into the job never drops,
+  so a consumer that ends when the channel closes never ends.
+  Planted control (the consumer reading until the channel closed):
+  `where_no_thread_can_start_the_run_is_a_plain_error` hung to nextest's 300 s timeout
+  (`TIMEOUT [ 300.007s]`).
+
+So the place is held by the awaiting frame
+(no shipped caller stops waiting for one of these jobs;
+the doc beside it says so),
+and the consumer ends when every job has *returned*,
+counted by `SlotsStillRunning`,
+and then drains what the jobs already sent.
+Both controls pass in 0.016 s and 0.025 s once the design carries this.
+
+#### Controls
+
+`foundation/blocking_jobs_within_the_budget_tests.rs` (5):
+`a_job_gives_its_value`,
+`the_budget_is_at_least_one_place_and_a_cap_holds_it_lower`,
+`no_more_jobs_run_at_once_than_the_budget_allows` (a burst of six held to the two places it asked for;
+reports the most places held at once),
+`a_job_that_panics_gives_its_place_back`,
+`where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back` (the child that is refused every thread,
+two jobs,
+both refused,
+the job never ran,
+no thread started for the second wait).
+
+`foundation/parallel_runner_on_the_runtime_tests.rs` (5):
+`every_item_runs_and_the_report_keeps_input_order` (the first item ends last and the report keeps input order),
+`items_run_at_the_same_time` (a rendezvous of four that a serial run can never pass),
+`the_process_bound_holds_the_items_to_one_at_a_time`,
+`where_no_thread_can_start_the_run_is_a_plain_error`,
+`a_lane_set_that_leaves_an_item_out_is_refused`.
+
+#### Checks
+
+`mise run //package/git-policy/cli:native:test:host -- foundation::blocking_jobs_within_the_budget foundation::parallel_runner foundation::parallel_runner_on_the_runtime foundation::runtime_plan`:
+27 tests run,
+27 passed.
+The scoped runner's 12 controls and the side-by-side,
+scoped-start and blocking-job controls ran unchanged in an earlier run of the same filter (37 tests run,
+37 passed before the two no-thread fixes below landed as they are).
+`native:clippy` clean;
+package `lint` 0 errors and 0 warnings with the closure check run.
+Not run:
+the container gate (it builds the gate image;
+the tree has not been through it),
+`native:perf` (the plan asks for it after T12),
+and the mutation campaign.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
@@ -4192,6 +4377,18 @@ the final removal and lint),
 the replacement of `private_storage.rs`,
 the descriptor-limit sweeps of the child helper,
 and the mutation campaign.
+- After T12's first part (2026-11-08T18:40:00-05:00,
+"Step T12,
+the runner's jobs on the runtime"):
+  the bound and the runtime runner exist and are tested;
+  what is left of T12 is the per-call-site conversion of seven `run_ordered` sites and nine
+  `run_all_side_by_side`/`run_beside_caller` sites to shared state,
+  and that conversion of the service round needs the leaf-first `async` Git first.
+  T13's lint (no `std::thread`,
+  no `std::process::Command` outside the guarded start,
+  no `thread::sleep`) cannot be tightened until those call sites are converted,
+  since `scoped_start.rs`,
+  `side_by_side_threads.rs` and 30-odd other files still start threads.
 
 ## Open choices for the owner
 
@@ -4591,7 +4788,7 @@ The owner's answer to choice 6 says a signal reaches only the children of the op
 and that a stop of the service is an operation of its own.
 Before T7 a commit prepared inside the service swapped the service's stop handler for the length of the Git step,
 so a stop of the service reached that one Git (and the service went on running).
-T7 builds the owner's rule literally (option A below),
+T7 builds the owner's rule literally (option A),
 which leaves that Git running when the service is stopped.
 
 - A.

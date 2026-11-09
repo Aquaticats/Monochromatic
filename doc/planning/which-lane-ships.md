@@ -105,7 +105,7 @@ That is a measurable question and it gates the whole option.
 ## What is NOT proposed
 
 Choosing a lane by damage counts.
-The measurement above shows those counts cannot carry the decision,
+The measurement in `The damage instruments cannot separate the lanes` shows those counts cannot carry the decision,
 and a rule built on three events would be overfitting to noise
 rather than to this corpus.
 
@@ -239,7 +239,8 @@ A rule preferring one lane,
 on any measurable property of a slice,
 is choosing
 which of the two failures to accept everywhere.
-That explains the record above better than anything already written here:
+That explains the record in `Eight entries read complete: the lanes fail in opposite directions`
+better than anything already written here:
 every automatic discriminator was indefensible because the discriminating fact
 is not a property of the slice at all.
 It is a question about the archive's text:

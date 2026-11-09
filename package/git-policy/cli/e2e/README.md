@@ -482,6 +482,17 @@ Design scenarios exercise the accepted concurrent-commit design:
   Both commits must land exactly once,
   the index and worktree must agree with the branch,
   and `service-fault-fired` fails when the service never reached the point.
+  The references the kill leaves are checked too:
+  `no-scratch-reference-left` fails when a batch's scratch reference
+  (`refs/worktree/cli-git-service/<batch>`) survives the recovery
+  (a kill between the import and the intent leaves one that no intent names,
+  and the record the landing writes beside its batch is what the restart keeps its commit with and then removes it by),
+  `the-unlanded-commit-is-kept` requires exactly one `refs/cli-git/kept/<batch>` at the two points before the branch move,
+  `the-branch-took-the-commit` requires none after it,
+  and `the-kept-commit-carries-an-agents-token` reads the commit that kept reference holds.
+  A kept reference is not a leftover:
+  the line the person is told names it,
+  so `findLeftovers` reports every other `refs/cli-git/` reference and leaves the kept ones to these expectations.
 - `sigkill-service-offset`:
   six agents are queued at a frozen service,
   the service resumes,

@@ -36,7 +36,7 @@ use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::line_sink::LineSink;
 use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 use crate::subvolume_error::{Interrupt, MigrateError};
-use crate::subvolume_index_files::linked_worktrees_inside;
+use crate::subvolume_index_files::{LinkedWorktreeScan, scan_linked_worktrees};
 use crate::subvolume_platform::{LinuxPlatform, Platform};
 use crate::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
 use crate::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
@@ -55,23 +55,47 @@ pub const REFUSED_EXIT_CODE: i32 = 1;
 /// The exit status of a failure after the journal began.
 pub const FAILED_EXIT_CODE: i32 = 2;
 
+/// What:
+///  The worktrees a run covers,
+/// and the registrations of `--all` it leaves out with why.
+/// Why:
+///   A run that covers fewer worktrees than are registered says which ones it left out,
+/// so no worktree is passed over without a word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Targets = { covered: string[]; leftOut: string[] };
+/// ```
+struct Targets {
+    /// The worktrees to convert,
+    /// in input order.
+    covered: Vec<PathBuf>,
+    /// One sentence per registered worktree that is not covered.
+    left_out: Vec<String>,
+}
+
 /// The worktrees a run covers:
 /// every linked worktree inside the main checkout,
-/// or the named paths resolved from `cwd`.
-fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Vec<PathBuf>, String> {
+/// or every named path resolved from `cwd`.
+fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Targets, String> {
     if arguments.all {
         let root: PathBuf = main_checkout_root(cwd)?;
-        let mut inside: Vec<PathBuf> = Vec::new();
-        for linked in linked_worktrees_inside(root.as_path()) {
-            inside.push(linked.worktree);
+        let scan: LinkedWorktreeScan = scan_linked_worktrees(root.as_path())?;
+        let mut covered: Vec<PathBuf> = Vec::new();
+        for linked in scan.inside {
+            covered.push(linked.worktree);
         }
-        return Ok(inside);
+        let mut left_out: Vec<String> = Vec::new();
+        for left in scan.left_out {
+            left_out.push(left.reason);
+        }
+        return Ok(Targets { covered, left_out });
     }
     let mut named: Vec<PathBuf> = Vec::new();
     for word in &arguments.paths {
         named.push(cwd.join(word));
     }
-    return Ok(named);
+    return Ok(Targets { covered: named, left_out: Vec::new() });
 }
 
 /// What:
@@ -306,7 +330,7 @@ impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
 /// `execute` with the host's resources chosen by the caller.
 pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     let ConvertRun { platform, arguments, cwd, interrupt, host } = *run;
-    let list: Vec<PathBuf> = match targets(arguments, cwd) {
+    let found: Targets = match targets(arguments, cwd) {
         Ok(found) => found,
         Err(reason) => {
             say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {reason}").as_str());
@@ -314,6 +338,13 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
             return REFUSED_EXIT_CODE;
         }
     };
+    // `--all` covers every linked worktree inside the main checkout; a registration outside it or one Git would prune is
+    //  said with its reason, so a run never looks at fewer worktrees than are registered without saying so.
+    for reason in &found.left_out {
+        say(format!("  left out of --all: {reason}").as_str());
+    }
+    let left_out: usize = found.left_out.len();
+    let list: Vec<PathBuf> = found.covered;
     let options: ConvertOptions = ConvertOptions { dry_run: arguments.dry_run, abandon: arguments.abandon, command_line_attributes: arguments.command_line_attributes };
     // Said once, before the first worktree is touched, when the run can delete an old tree.
     if !arguments.dry_run && !arguments.abandon && !list.is_empty() {
@@ -335,6 +366,7 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     let (refused, converted, would_convert, failed): (usize, usize, usize, usize) =
         (report.refused, report.converted, report.would_convert, report.failed);
     let failures: String = if failed > 0 { format!(", {failed} failed") } else { String::new() };
+    let left_text: String = if left_out > 0 { format!("; {left_out} registered worktree(s) left out") } else { String::new() };
     // A dry run converts nothing, so its summary counts what it listed as a conversion it would make; the other counters
     // would say "0 converted" beside lines that say "would convert".
     let counted: String = if arguments.dry_run {
@@ -342,7 +374,7 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     } else {
         format!("{converted} converted or completed")
     };
-    (report.say)(format!("{} worktree(s) looked at, {counted}, {refused} skipped{failures}.", list.len()).as_str());
+    (report.say)(format!("{} worktree(s) looked at, {counted}, {refused} skipped{failures}{left_text}.", list.len()).as_str());
     if failed > 0 {
         return FAILED_EXIT_CODE;
     }

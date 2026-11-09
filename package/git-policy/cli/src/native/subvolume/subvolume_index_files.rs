@@ -52,55 +52,16 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  One linked worktree of the checkout.
+///  The linked worktrees of a main checkout and the registrations that are not one of them.
 /// Why:
-///   The index lives in the administrative directory;
-/// the files it describes live in the worktree.
+///   They are read together from `.git/worktrees`;
+/// see `subvolume_registered_worktrees.rs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LinkedWorktree = { adminDirectory: string; worktree: string };
+/// export * from './subvolume_registered_worktrees';
 /// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LinkedWorktree {
-    /// `<root>/.git/worktrees/<name>`.
-    pub admin_directory: PathBuf,
-    /// The directory the worktree's files are in.
-    pub worktree: PathBuf,
-}
-
-/// What:
-///  The linked worktrees of `root` whose directory is inside `root` and exists.
-/// Why:
-///   Only worktrees inside the checkout are copied with it.
-/// An administrative directory without a readable `gitdir`
-///  file belongs to a worktree Git would prune,
-/// so it is skipped.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function linkedWorktreesInside(root: string): LinkedWorktree[];
-/// ```
-pub fn linked_worktrees_inside(root: &Path) -> Vec<LinkedWorktree> {
-    let admin: PathBuf = root.join(".git").join("worktrees");
-    let Ok(names) = std::fs::read_dir(&admin) else { return Vec::new() };
-    let mut found: Vec<LinkedWorktree> = Vec::new();
-    for name in names.flatten() {
-        let Ok(recorded) = std::fs::read(name.path().join("gitdir")) else { continue };
-        // The recorded path is raw bytes: a directory named with bytes that are not UTF-8 is a valid path on Linux.
-        let Some(worktree) = Path::new(OsStr::from_bytes(recorded.trim_ascii())).parent() else { continue };
-        if worktree.starts_with(root) && worktree != root && worktree.is_dir() {
-            found.push(LinkedWorktree { admin_directory: name.path(), worktree: worktree.to_path_buf() });
-        }
-    }
-    found.sort_by(by_worktree_path);
-    return found;
-}
-
-/// Order two linked worktrees by their path.
-fn by_worktree_path(left: &LinkedWorktree, right: &LinkedWorktree) -> std::cmp::Ordering {
-    return left.worktree.cmp(&right.worktree);
-}
+pub use crate::subvolume_registered_worktrees::{LeftOutWorktree, LinkedWorktree, LinkedWorktreeScan, linked_worktrees_inside, scan_linked_worktrees};
 
 /// The call the refresh makes at its seam when no control wants one:
 /// none.

@@ -14,15 +14,23 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { createPathGuardMatcher, } from './path-guard.ts';
 import {
+  createPathGuardMatcher,
   evaluateToolCall,
-  registerGuardrail,
-} from './index.ts';
-import {
   GUARDRAIL_NOT_BLOCKED,
+  registerGuardrail,
   type GuardrailConfig,
-} from './types.ts';
+} from '../dist/final/node/index.mjs';
+
+/**
+ Absolute real-Git spelling used by fixture commands.
+ */
+const FIXTURE_REAL_GIT_PATH = '/usr/bin/git';
+
+/**
+ Injected executable names that keep fixture commands independent of the host install.
+ */
+const FIXTURE_REAL_GIT_NAMES = ['git',] as const;
 
 /**
  Minimal event handler signature captured by the mock API.
@@ -187,7 +195,7 @@ await describe({
       fn: async function testBlocksFileMutations() {
         const config = testConfig();
         const matcher = createPathGuardMatcher(config.pathRules,);
-        expect(evaluateToolCall({
+        expect(await evaluateToolCall({
           event: toolEvent({ toolName: 'edit', input: { path: 'pnpm-lock.yaml', }, },),
           ctx: context(),
           config,
@@ -196,7 +204,7 @@ await describe({
           block: true,
           reason: 'run pnpm install',
         },);
-        expect(evaluateToolCall({
+        expect(await evaluateToolCall({
           event: toolEvent({ toolName: 'write', input: { path: 'package/a/pnpm-lock.yaml', }, },),
           ctx: context(),
           config,
@@ -212,7 +220,7 @@ await describe({
       fn: async function testBashGuardToggle() {
         const config = testConfig();
         const matcher = createPathGuardMatcher(config.pathRules,);
-        const decision = evaluateToolCall({
+        const decision = await evaluateToolCall({
           event: toolEvent({ toolName: 'bash', input: { command: 'bun test', }, },),
           ctx: context(),
           config,
@@ -222,7 +230,7 @@ await describe({
           throw new Error('Expected bun test tool call to be blocked',);
         expect(decision.block,).toBe(true,);
         expect(decision.reason.includes('Blocked: `bun test` invocations are banned',),).toBe(true,);
-        expect(evaluateToolCall({
+        expect(await evaluateToolCall({
           event: toolEvent({ toolName: 'bash', input: { command: 'bun test', }, },),
           ctx: context(),
           config: {
@@ -234,17 +242,51 @@ await describe({
       },
     },),
     it({
+      name: 'blocks bash mutations through an absolute real-Git path even with the bun test guard off',
+      fn: async function testBlocksAbsoluteRealGitMutation() {
+        const config = {
+          ...testConfig(),
+          blockBunTest: false,
+        };
+        const matcher = createPathGuardMatcher(config.pathRules,);
+        const decision = await evaluateToolCall({
+          event: toolEvent({
+            toolName: 'bash',
+            input: { command: `${FIXTURE_REAL_GIT_PATH} commit -m x`, },
+          },),
+          ctx: context(),
+          config,
+          pathMatcher: matcher,
+          realGitBasenames: FIXTURE_REAL_GIT_NAMES,
+        },);
+        if (decision === GUARDRAIL_NOT_BLOCKED)
+          throw new Error('Expected an absolute real-Git commit to be blocked',);
+        expect(decision.block,).toBe(true,);
+        expect(decision.reason.includes('git -C <repository-root>',),).toBe(true,);
+        expect(await evaluateToolCall({
+          event: toolEvent({
+            toolName: 'bash',
+            input: { command: `${FIXTURE_REAL_GIT_PATH} status`, },
+          },),
+          ctx: context(),
+          config,
+          pathMatcher: matcher,
+          realGitBasenames: FIXTURE_REAL_GIT_NAMES,
+        },),).toBe(GUARDRAIL_NOT_BLOCKED,);
+      },
+    },),
+    it({
       name: 'allows unrelated tools and non-matching paths',
       fn: async function testAllowsUnrelatedTools() {
         const config = testConfig();
         const matcher = createPathGuardMatcher(config.pathRules,);
-        expect(evaluateToolCall({
+        expect(await evaluateToolCall({
           event: toolEvent({ toolName: 'read', input: { path: 'pnpm-lock.yaml', }, },),
           ctx: context(),
           config,
           pathMatcher: matcher,
         },),).toBe(GUARDRAIL_NOT_BLOCKED,);
-        expect(evaluateToolCall({
+        expect(await evaluateToolCall({
           event: toolEvent({ toolName: 'edit', input: { path: 'package.json', }, },),
           ctx: context(),
           config,
@@ -264,7 +306,7 @@ await describe({
           },
         },);
         const handler = getHandler({ handlers, event: 'tool_call', },);
-        const result = handler(
+        const result = await handler(
           toolEvent({ toolName: 'edit', input: { path: 'pnpm-lock.yaml', }, },),
           context(notifications,),
         );

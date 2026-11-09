@@ -52,14 +52,12 @@ use crate::service_journal::{DONE_RETAINED, prune_done};
 use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::service_land::{LandContext, recover_instance};
 use crate::service_protocol::PROTOCOL_VERSION;
-use crate::service_route::non_empty_path_variable;
 use crate::service_timing::{log, started_line};
 use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
-use crate::service_units_of_removed_worktrees::{UnitFolders, own_worktree_gone, stop_own_socket_of_a_gone_worktree};
-use crate::systemd_dbus::{Bus, EXCHANGE_WAIT, session_bus_path};
+use crate::service_units_of_removed_worktrees::{OwnWorktree, own_worktree_state, stop_own_socket_when_the_worktree_is_gone};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 /// The words,
@@ -212,99 +210,6 @@ fn option(arguments: &[String], name: &str) -> Option<String> {
 }
 
 /// What:
-///  The state directory whose service folder holds `journal`,
-/// and nothing when the path has not the shape the unit passes.
-/// Why:
-///   The unit starts the service with `--journal <state>/monochromatic-git-policy-cli/service/<instance>`,
-/// and the service reads the worktree of its instance from its own journal records as well as from its note,
-/// by the same rule the sweep and `doctor` use.
-/// A journal of another shape (a development run) names no state directory,
-/// and then only the note maps the instance.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// stateDirOfJournal('/s/monochromatic-git-policy-cli/service/3f9a', '3f9a') // '/s'
-/// ```
-fn state_dir_of_journal(journal: &Path, instance: &str) -> Option<PathBuf> {
-    let state: &Path = journal.parent()?.parent()?.parent()?;
-    let expected: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current).join("service").join(instance);
-    if journal != expected {
-        return None;
-    }
-    return Some(state.to_path_buf());
-}
-
-/// What:
-///  Stops this unit's own socket when the worktree it serves is gone,
-/// and says whether it is gone.
-/// Why:
-///   A removal Git ran with the wrapper replaced (`worktree remove --force`,
-/// `worktree prune`),
-/// and a worktree deleted without Git,
-/// leave the socket unit listening and the service unit running for a directory that is gone,
-/// and a service has nothing to commit to there.
-/// The service is what learns first:
-/// the manager starts it on the first connection,
-/// so it stops its own socket instead of serving,
-/// and the note and the socket file go with it (`service_units_of_removed_worktrees.rs`),
-/// which is what makes the leftover stop without a person remembering the sweep.
-/// Only the socket is stopped:
-/// this process ends of its own accord,
-/// which is what stops the service unit,
-/// and a stop of that unit from inside it would signal this process mid-sentence.
-/// A worktree on a device that is simply not mounted is not gone,
-/// so its service serves,
-/// and neither is one the notes and the journal cannot name.
-/// Nothing here starts a unit,
-/// and a manager that cannot be reached only logs:
-/// the sweep and `doctor` still count and stop what is left.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (ownWorktreeGone(folders, instance)) await stopOwnSocket(folders, instance, bus);
-/// ```
-fn stop_own_socket_if_the_worktree_is_gone(instance: &str, journal: &Path) -> bool {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return false };
-    let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
-    // A worktree that is there, or one nothing names, costs no bus connection and no question to the manager: the files answer it.
-    let Some(gone) = own_worktree_gone(&folders, instance) else { return false };
-    let address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
-    let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
-        crate::service_warn!(
-            "the worktree of this commit service is gone ({}), so it serves nothing, but no session bus was found to stop its socket; `git monochromatic-git-policy-cli doctor` counts it and the sweep stops it",
-            gone.display()
-        );
-        return true;
-    };
-    let mut bus: Bus = match Bus::connect(socket.as_path(), EXCHANGE_WAIT) {
-        Ok(connected) => connected,
-        Err(error) => {
-            crate::service_warn!(
-                "the worktree of this commit service is gone ({}), so it serves nothing, but the session bus could not be reached ({error:?}) to stop its socket; `git monochromatic-git-policy-cli doctor` counts it and the sweep stops it",
-                gone.display()
-            );
-            return true;
-        }
-    };
-    return match stop_own_socket_of_a_gone_worktree(&folders, instance, &mut bus) {
-        Ok(Some(stopped)) => {
-            crate::service_log!("the worktree of this commit service is gone ({}), so it served nothing and stopped its own socket", stopped.display());
-            true
-        }
-        // The directory came back between the two looks, so this service is a live worktree's again.
-        Ok(None) => false,
-        Err(error) => {
-            crate::service_warn!(
-                "the worktree of this commit service is gone ({}), so it serves nothing, but its socket was not stopped ({error:?}); `git monochromatic-git-policy-cli doctor` counts it and the sweep stops it",
-                gone.display()
-            );
-            true
-        }
-    };
-}
-
-/// What:
 ///  Refuses a `--git` that would make every Git the service starts start the wrapper again.
 /// Why:
 ///   A launcher of the wrapper,
@@ -352,6 +257,9 @@ pub fn run(arguments: &[String]) -> i32 {
     crate::hooks_off::activate();
     // The runtime is built by the first need (the warm below, or the acceptor): the cap comes before it.
     crate::lazy_runtime::cap_workers(SERVICE_WORKER_CAP);
+    // The blocking jobs of the service are held to the same cap: one service runs per worktree, so the pool is bounded as its workers
+    //  are. A budget that is already made is not resized, so the call comes before the service's first job.
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(SERVICE_WORKER_CAP);
     // A signal that ends the service (the manager stops a unit with `SIGTERM`) leaves one line with the signal and the uptime.
     crate::service_signal::install();
     // The push messages this process writes name the remedies that reach the service, not a terminal's variable.
@@ -375,11 +283,19 @@ pub fn run(arguments: &[String]) -> i32 {
     };
     // The worktree of this unit is read before anything is created or bound: a service of a worktree that no longer exists
     //  has nothing to serve, so it stops its own socket rather than listen for a directory that is gone.
+    //  A worktree that is there is remembered, so the serving loop asks again: a removal by another Git leaves the socket
+    //  listening while this service runs, and a start is not what such a service gets.
     let named_instance: Option<String> = option(arguments, "--instance");
-    if let Some(name) = named_instance.as_deref()
-        && stop_own_socket_if_the_worktree_is_gone(name, journal.as_path())
-    {
-        return EXIT_NOTHING_TO_SERVE;
+    let mut own_git_dir: Option<PathBuf> = None;
+    if let Some(name) = named_instance.as_deref() {
+        match own_worktree_state(name, journal.as_path()) {
+            OwnWorktree::Gone(_) => {
+                let _served_nothing = stop_own_socket_when_the_worktree_is_gone(name, journal.as_path());
+                return EXIT_NOTHING_TO_SERVE;
+            }
+            OwnWorktree::Served(git_dir) => own_git_dir = Some(git_dir),
+            OwnWorktree::Unmapped => {}
+        }
     }
     let git: PathBuf = match option(arguments, "--git") {
         Some(named) => PathBuf::from(named),
@@ -412,6 +328,8 @@ pub fn run(arguments: &[String]) -> i32 {
     };
     let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
     let mut settings: ServeSettings = ServeSettings::new(idle);
+    // The serving loop asks about this worktree at its own interval, so a removal that no wrapper sees still ends the units.
+    settings.own_git_dir = own_git_dir;
     if let Some(release) = option(arguments, "--release") {
         settings.release = release;
     }

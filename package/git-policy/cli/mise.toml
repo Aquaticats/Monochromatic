@@ -1,14 +1,18 @@
 [tasks."native:test:container"]
 description = "Run native wrapper tests and Clippy in bounded containers with pacman's current Git; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
-run = "node bin/test-native-container.ts"
+# Mechanism D: the run-record retention of this package's target/verification runs before a run writes a new record,
+# through cargo-shadow's own sweep so the task does not reimplement it (doc/handover/cargo-shadow-lean-build-folders.md).
+run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts"]
 
 [tasks."native:mutation"]
 description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at the default limits (run native:test:container with its own options first to change them)"
-run = ["node bin/test-native-container.ts", "node bin/mutate-native-container.ts"]
+# The gate step sweeps this package's run records before either step writes another (mechanism D).
+run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts", "node bin/mutate-native-container.ts"]
 
 [tasks."native:mutation:scoped"]
 description = "Plant guard removals and run cargo-mutants for `-- --file <glob>` scopes (and `--examine <regex>` mutant-name patterns, `--timeout <s>`, `--build-timeout <s>`) against the last gate image; `--memory <size>`, `--cpus <count>` and `--pids-limit <count>` after the `--` override the 2g, 2 CPUs and 512 PIDs defaults"
-run = "node bin/mutate-native-container.ts"
+# Mechanism D: this task writes native-mutation-* records of its own, so it sweeps the run records first too.
+run = ["cargo-shadow lean records target/verification", "node bin/mutate-native-container.ts"]
 
 [tasks."native:mutation:parallel"]
 description = "Start one capped systemd unit per file for `-- [options] <label> <file.rs>...` (files relative to src/native, with their folder: command/command_add.rs), each running native:mutation:scoped through the shared slot limiter, after making each unit's image tag with `podman tag` from the last native:test:container image (`--from-tag <tag>` names another gate image; nothing starts when a tag cannot be made); the shared launcher's options such as --timeout, --build-timeout, --examine <regex> (repeatable, for every file), --memory, --cpus, --unit-memory-max, --unit-cpu-quota and --unit-tasks-max follow the same --. Where no campaign evidence proves the planted controls for an image, one more unit runs only the controls beside the file units, which skip them and name that unit; `--setenv NATIVE_MUTATION_SKIP_PLANTED=1` skips them without proof"
@@ -16,7 +20,8 @@ run = "node bin/native-mutation-parallel.ts --task //package/git-policy/cli:nati
 
 [tasks."native:mutation:planted"]
 description = "Run only the planted controls over the last gate image and record their pass in target/verification/native-mutation-planted-*; `-- --memory <size> --cpus <count> --pids-limit <count>` override the defaults. native:mutation:parallel starts this as its own unit"
-run = "node bin/native-planted-controls-only.ts"
+# Mechanism D: this task writes a native-mutation-planted-* record of its own, so it sweeps the run records first too.
+run = ["cargo-shadow lean records target/verification", "node bin/native-planted-controls-only.ts"]
 
 [tasks."native:mutation:reconcile"]
 description = "Look up the planted-controls obligation of campaigns that deferred their controls to a controls unit: prints the record that validates each, or \"no record yet\" with the unit and its log, and exits nonzero unless all are validated (a controls invocation that ended without a matching record fails)"
@@ -72,9 +77,17 @@ run = "cargo nextest run --locked --offline --lib"
 description = "Run the native binary-level tests matching `-- <filter>...` on the host against the host's Git; the gate's Git stays the authority"
 run = "cargo nextest run --locked --offline --test native_binary"
 
+[tasks."native:test:host:btrfs"]
+description = "Run every native test with its btrfs controls real instead of skipped, on a fixture root that must be on btrfs (`CLI_GIT_TEST_ROOT`, default `${HOME}/temp/agent/cli-git-btrfs-fixtures`); the gate's acknowledgement variable is unset, so a control that cannot run fails the run naming its control and the filesystem it found, and `--success-output=final` brings the line of a passing control that had nothing to check here into the log; `-- <filter>...` narrows the run while iterating"
+# The gate container runs on an overlay filesystem, so it sets CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED and every btrfs control
+# prints one line naming itself and passes. This task is the other half of that bargain: on a btrfs host nothing is
+# acknowledged, so each of those controls really runs, and no list of their names can go stale as tests are added.
+run = "env --unset=CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED CLI_GIT_TEST_ROOT=\"${CLI_GIT_TEST_ROOT:-$HOME/temp/agent/cli-git-btrfs-fixtures}\" cargo nextest run --locked --offline --all-targets --no-fail-fast --success-output=final"
+
 [tasks."test:git-image"]
 description = "Build the gate's base image: the newest CachyOS image on its `latest` tag (pulled now; needs a network when it or native-test-base.Containerfile is new to this host), the Rust toolchain and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest), all current pacman packages; prints the release of each; `-- [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs). native:test:container builds it first when needed"
-run = "node bin/build-git-test-image.ts"
+# Mechanism D: this task writes a git-image-* record of its own, so it sweeps the run records first too.
+run = ["cargo-shadow lean records target/verification", "node bin/build-git-test-image.ts"]
 
 [tasks."lint:clippy"]
 description = "Lint the native wrapper with Clippy, warnings denied; matches the sibling Rust CLI package/forbidden-strings/cli"
@@ -191,4 +204,7 @@ run = "node bin/e2e-native-container.ts run"
 
 [tasks."native:lock:scanner"]
 description = "Seed the native wrapper lockfile from the linked scanner's lockfile, then let Cargo add only the wrapper's own packages, so both lock the same registry versions"
-run = ["cp ../../forbidden-strings/cli/Cargo.lock Cargo.lock", "cargo update --workspace --offline"]
+run = [
+  "cp ../../forbidden-strings/cli/Cargo.lock Cargo.lock",
+  "cargo update --workspace --offline",
+]

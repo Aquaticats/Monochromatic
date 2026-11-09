@@ -472,6 +472,24 @@ from the brief and the plan:
   with a link the worktree sits under,
   and requires the stop the old process-environment read answered as `Clear`
   (`invocation/startup_gate_tests.rs`).
+- The other two reads of `HOME` from the process environment,
+  `route_from_environment` (`landing/service_route.rs`) and `route_for_this_worktree`
+  (`landing/service_commit_input_notes_and_embedded_commit.rs`),
+  are right as they stand and each now says why beside the read (commit `9d0fbcab34`):
+  `main` hands the entry `std::env::vars_os()` as the invocation's environment,
+  no source of the package changes the wrapper's own environment
+  (`rg 'set_var|remove_var'` over `package/git-policy/cli` finds none),
+  and no service chooses a route,
+  because a service start goes to `service_main` before any command's route is picked
+  and all three callers (`worktree_trash_dispose`,
+  `auto_push_trigger`,
+  `service_commit`) run in the process of the command that asked.
+  So the startup gate and the route read one home for one command,
+  and no read inside a serving process can answer with the manager's home instead.
+  The third process-environment `HOME` read,
+  in `repository_move_freeze::move_state_folder`,
+  is reached from the client's rendering of a read-only failure (`service_client.rs`),
+  so the same reasoning covers it and it was left as it is.
 - `mise trust --show` prints `<path>: trusted` or `<path>: untrusted` (checked in this worktree),
   which `c24-mise-trust` greps.
 
@@ -684,7 +702,7 @@ then `toolchain:update`,
 commit the lock;
 ask the coordinator first;
 the wrapper alpha.2 is the coordinator's).
-W6 and W7 stay the owner's call (blocked section above).
+W6 and W7 stay the owner's call (see "W6 and W7 edits to apply").
 
 Hot-path facts to keep:
 phase `before` is one `lstat`;

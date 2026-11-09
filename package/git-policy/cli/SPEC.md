@@ -2765,12 +2765,16 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   1.04 s).
 - `LANDING_LOCK_CEILING` 1 minute:
   the landing waits for a foreign `index.lock` this long.
-  It is five times the longest wait for a foreign lock that ended because the holder let go (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
+  It is five times the longest wait at a holder's place that ended when the lock was released (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
   8 s,
-  the longest of ten landings that waited over a second in the `lock_wait_ms` of 3,634 answers since 2026-11-01),
+  the largest of the 71 landings that waited at a place at all in the 4,386 answers since 2026-11-02T04:01:38-05:00;
+  the longest whole lock acquisition is 11,490 ms once the wrapper's own staging of a cold index is counted,
+  which keeps the one minute at 5.2 times it),
   in whole
   minutes.
-  The only longer waits in that journal were one lock that a live or killed `git commit` left for 62 minutes (2026-11-07).
+  The longer waits in that journal were one lock that a live or killed `git commit` left for 62 minutes (2026-11-07),
+  one 497,803 ms wait that ended when a person removed the lock,
+  and five refusals at 600,090 to 600,718 ms.
   The lock that outlasts one commit's wait is remembered by its file identity,
   and the commits queued behind it are refused at once
   instead of each waiting a ceiling (`src/native/landing/service_index_refused_lock.rs`).
@@ -2785,16 +2789,17 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the same kind of holder,
   the only
   sample there is.
-  The commit timing log read on 2026-11-08 (1,332 records,
-  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z) adds no sample of its own:
+  The commit timing log read on 2026-11-08 (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z) adds no sample of its own:
   it holds no record of a
   merge,
-  though 278 merge commits were made in the window,
+  though 351 merge commits were made in the window,
   and no `git reset` step,
   so the reconciliation never ran in it.
   What it shows is
   that no wait a holder released came near a minute:
-  the longest was under 23,783 ms of answer time.
+  the longest was under 23,783 ms of answer time,
+  and the longest wait at a holder's place that ended when the lock was released was 8,000 ms.
   The memory of a lock that outlasted a wait is per process and the service lands every batch of a worktree on one
   thread,
   so only the landing has queued commits to spare it for;
@@ -2803,8 +2808,9 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the settling of an earlier service's open batches.
   Five times the longest settle in the journal
   since 2026-11-01 (`LONGEST_SETTLE_WAIT`,
-  172 ms of 3,630 settles,
-  99th percentile 20 ms),
+  172 ms of 4,386 settles read on 2026-11-08,
+  99th percentile 17 ms;
+  the read of 2026-11-07 had 3,630 settles and 20 ms),
   in whole minutes.
   The settle's whole time
   holds any wait it made,
@@ -2813,12 +2819,20 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   `service settle-earlier-batches`),
   so the journal stays its only sample.
 - `LOCK_CEILING` 10 minutes,
-  measured on 2026-11-08 from the commit timing log (1,332 records,
-  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z):
+  measured on 2026-11-08 from the commit timing log (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z)
+  and the service journal (4,386 answers,
+  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00):
   the six records that hold a waiting notice were two that landed after 3,636 and 23,783 ms of answer time
   and four are the commits that met the lock that never went on 2026-11-07 (62 waiting notices each,
   644,710 to 1,200,776 ms,
   every one stopped).
+  Of the journal's 4,386 landings,
+  609 waited on the index at all (95th percentile 6 ms,
+  99th percentile 158 ms),
+  71 waited at a holder's place,
+  and the longest whole lock acquisition was 11,490 ms counted with the wrapper's own staging
+  (8,000 ms at the place).
   No wait a holder released reached the ten minutes,
   and the longest of those four is 776 ms past the
   client's twenty-minute `ANSWER_CEILING`,
@@ -2968,6 +2982,30 @@ on the commit path:
   (the landing sweeps its own batch when it fails,
   the restart when it drops one;
   `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
+- A service killed between the import of a batch's objects and the write of its intent leaves the scratch reference with no
+  intent to settle it,
+  and a service instance is a hash of its worktree's Git directory,
+  which no path can be made from,
+  so the
+  landing writes `<batch>.scratch` in its own journal before the import,
+  naming the worktree root and the worktree's own Git
+  directory,
+  and a restart's recovery does what the drop does for a named batch:
+  it keeps the commit the reference holds on
+  `refs/cli-git/kept/<batch>`,
+  removes the reference,
+  and removes the record once the reference is gone.
+  A record that cannot be read,
+  a keep Git refused,
+  a kept reference that names another commit and a reference Git cannot read all leave the
+  reference and the record where they are,
+  and the journal keeps that batch number out of use while the record stays,
+  because the next
+  import of that number would move the reference
+  (`src/native/landing/service_scratch_ref_marker_of_a_batch.rs`).
+  The record is written without a flush,
+  so a power loss
+  rather than a kill can lose it and leave the reference where it was.
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").
@@ -5462,7 +5500,8 @@ Owner,
 "Remove all three (Recommended)" for the CPU,
 task and disk limits,
 after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
-A service that starts and finds the worktree it serves gone stops its own socket and serves nothing:
+A service that finds the worktree it serves gone stops its own socket and serves nothing,
+and it asks when it starts and once a minute while it serves:
 the administrative directory is missing while the repository that held it is there
 (a repository on a drive that is not mounted proves nothing),
 and the note provisioning wrote beside the socket,
@@ -7477,8 +7516,30 @@ and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
-The service keeps a journal of each batch it lands and settles an unfinished batch when it starts again;
-the wrapper recovers nothing for a commit.
+The service keeps a journal of each batch it lands and settles an unfinished batch before its next batch;
+a service's start settles only an earlier release's shared journal,
+and the wrapper recovers nothing for a commit.
+A batch whose branch does not show its commit is dropped:
+its commit is written to `refs/cli-git/kept/<batch>` before the intent goes
+(`keep_what_the_branch_does_not_show` in `src/native/landing/service_land_finish.rs`),
+so the commit of a branch write that a stop left running,
+including one Git built,
+which has no scratch branch,
+reaches a ref the wrapper names instead of an unnamed one,
+or none at all.
+The kept write runs only on this drop,
+never during a landing,
+and it is a side-ref write,
+so the stop's own bounds cut it as they cut every other Git of a landing.
+It writes a kept reference only where nothing is kept under that number yet:
+a kept reference that already names another commit is left as it is,
+and so is the batch's scratch reference,
+whose removal waits for the keep
+(`service_scratch_ref_of_a_dropped_batch.rs`).
+A drop whose kept write fails is logged with Git's words and the commit's name,
+and it still drops:
+the drop is what releases the worktree's index lock and forgets the batch,
+so a ref that cannot be written holds up neither the next commit nor the stop.
 What the wrapper still settles at the start of a command is state other code writes:
 an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format

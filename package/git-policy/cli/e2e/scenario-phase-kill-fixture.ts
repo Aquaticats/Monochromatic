@@ -37,6 +37,7 @@ import {
   startQueued,
 } from './scenario-queue-fixture.ts';
 import { planFaultOffset, } from './seeded-schedule-fixture.ts';
+import { realGit, } from './repository-fixture.ts';
 import { waitForPushRecord, } from './work-record-fixture.ts';
 import {
   runWrapper,
@@ -129,6 +130,58 @@ export async function recoverAndCommit(context: ScenarioContext,): Promise<Expec
 }
 
 /**
+ The references of one namespace in the scenario's repository, as `name object` pairs.
+
+ A kill between the import of a batch's objects and the write of its intent leaves the batch's scratch reference
+ (`refs/worktree/cli-git-service/<batch>`) with no intent that names it, and the record the landing writes for it is what
+ lets the restarted service keep the commit on `refs/cli-git/kept/<batch>` and then remove the reference.
+
+ @param context - scenario context
+
+ @param namespace - reference namespace to list
+
+ @returns reference names with the objects they name
+
+ @example
+ ```ts
+ await sideRefs({ context, namespace: 'refs/cli-git/kept/' });
+ ```
+ */
+async function sideRefs({
+  context,
+  namespace,
+}: Readonly<{
+  context: ScenarioContext;
+  namespace: string;
+}>): Promise<readonly (readonly [
+  string,
+  string,
+])[]> {
+  return (await realGit({
+    repository: context.repository,
+    args: [
+      'for-each-ref',
+      '--format=%(refname) %(objectname)',
+      namespace,
+    ],
+  },))
+    .split('\n',)
+    .filter(function nonEmpty(line,) {
+      return line !== '';
+    },)
+    .map(function pair(line,) {
+      /**
+       Name and object of the reference on the line.
+       */
+      const [name = '', object = '',] = line.split(' ',);
+      return [
+        name,
+        object,
+      ] as const;
+    },);
+}
+
+/**
  Arms the service with a fault, lets two agents commit through it, restarts it when it ended, and recovers.
 
  @param context - scenario context
@@ -203,6 +256,51 @@ async function killServiceAt({
     .includes(`test fault at ${point}`,);
   if (fired)
     await restarted;
+  /**
+   The restart's recovery, then a commit that lands after it.
+   */
+  const recovered = await recoverAndCommit(context,);
+  /**
+   The references the kill left on the batch's scratch namespace, read once the run has recovered.
+   */
+  const scratch = await sideRefs({
+    context,
+    namespace: 'refs/worktree/cli-git-service/',
+  },);
+  /**
+   The references the kill left on the namespace a commit that did not land is kept on.
+   */
+  const kept = await sideRefs({
+    context,
+    namespace: 'refs/cli-git/kept/',
+  },);
+  /**
+   Whether the point is before the branch move.
+   A batch killed before it has its commit kept; one killed after it has the branch, so nothing is kept.
+   */
+  const beforeTheBranchMoved = (point === 'after-objects') || (point === 'after-intent');
+  /**
+   The one kept reference, when there is one.
+   */
+  const [keptReference,] = kept;
+  /**
+   Its name, empty when nothing is kept.
+   */
+  const [keptName = '',] = keptReference ?? [];
+  /**
+   Subject of the commit the kept reference holds, empty when nothing is kept.
+   */
+  const keptSubject = (keptName === '')
+    ? ''
+    : await realGit({
+      repository: context.repository,
+      args: [
+        'log',
+        '-1',
+        '--format=%s',
+        keptName,
+      ],
+    },);
   return [
     {
       name: 'service-fault-fired',
@@ -213,7 +311,24 @@ async function killServiceAt({
       name: 'agents-succeed-after-restart',
       attempts: settled,
     },),
-    ...await recoverAndCommit(context,),
+    ...recovered,
+    {
+      name: 'no-scratch-reference-left',
+      holds: scratch.length === 0,
+      detail: `the restart left ${String(scratch.length,)} scratch references: ${JSON.stringify(scratch,)}`,
+    },
+    {
+      name: beforeTheBranchMoved ? 'the-unlanded-commit-is-kept' : 'the-branch-took-the-commit',
+      holds: beforeTheBranchMoved ? (kept.length === 1) : (kept.length === 0),
+      detail: `${String(kept.length,)} kept references: ${JSON.stringify(kept,)}`,
+    },
+    {
+      name: 'the-kept-commit-carries-an-agents-token',
+      holds: (keptName === '')
+        ? (!beforeTheBranchMoved)
+        : (keptSubject.includes(victim.token,) || keptSubject.includes(bystander.token,)),
+      detail: `the kept reference holds "${keptSubject}"`,
+    },
   ];
 }
 

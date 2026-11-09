@@ -73,7 +73,8 @@ and nothing was committed.
    "Could not connect to server (Failed to connect to index.crates.io:443 after 123 ms)".
   Per the caller's instruction the network policy was not worked around.
   Consequence:
-   every probe below builds with `cargo build --offline` against crates already in the local registry cache,
+   every probe from `Rewrite scope` to `Documentation and source loads` builds with `cargo build --offline`
+   against crates already in the local registry cache,
    and crates that are not cached
    (`rhai`,
   `mlua`,
@@ -314,7 +315,7 @@ single `curl` and `gh api` loads are cited where used.
    "Switch from config-as-data to TypeScript when conf needs logic (`if`,
   `map`,
   `await`)."
-  The root configuration has that logic (probe counts above).
+  The root configuration has that logic (the counts under `Rewrite scope`).
   The user's statement that the configuration need not be TypeScript is recorded only in the vet doc's FE01 text;
    `AD2` itself is unchanged.
   Per variant:
@@ -360,7 +361,10 @@ single `curl` and `gh api` loads are cited where used.
   rustdoc on every
 - documentable item,
   private included)
-   apply to every ported module and to any Rust configuration crate.
+   apply to every ported module and to any Rust configuration crate (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now).
   They do not apply to Starlark,
   Lua,
   Rhai,
@@ -645,7 +649,7 @@ Crate defaults (`toml_edit` 0.25.13 with `TableLike::insert`) against today's `a
    `REG/toml_edit-0.25.13+spec-1.1.0/src/inline_table.rs:94`),
    but every placement and formatting rule of `module-toml-edit` that file-enforcer reaches must be ported and tested
    against the TypeScript output.
-  Only the cases above were probed.
+  Only the cases in the `TOML` section were probed.
 
 ### JSON
 
@@ -1171,7 +1175,10 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    but every configuration edit needs `cargo` and `rustc` on the machine.
 - Rules:
    Rust logic in configuration (`AD2`);
-   `MXR` and `RDC` apply.
+   `MXR` and `RDC` apply (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now).
 - Disqualifying problem:
    by the user's own precedent that the Rust core with TypeScript children passes only if Node travels inside the file,
    a configuration that needs an external compiler to take effect fails the single-file requirement,
@@ -1435,7 +1442,10 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    a full rewrite of 69 functions and 42 templates into the new language.
 - F,
   G:
-   a full rewrite into Rust modules under `MXR` and `RDC`,
+   a full rewrite into Rust modules under `MXR` and `RDC` (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now),
    with the `CLAUDE.md` preamble as `include_str!` or a raw string.
 - I:
    constants move into the data file;
@@ -1549,7 +1559,10 @@ variant items follow.
     and 56 test files (11,126 lines),
     against `DECISION.rust-migration.md`,
     `AD2`,
-    and `MXR`/`RDC` for every Rust file.
+    and `MXR`/`RDC` for every Rust file (MXR and RDC:
+    retired from `AGENTS.md` 2026-09-29;
+    `rust/max-lines`,
+    `rust/require-rustdoc` and `MXL` now).
 4.  **Shared Rust core risks remain** (`stack-rust-crates.md`,
     "Remaining yikes"):
     unexercised cgroup migration,

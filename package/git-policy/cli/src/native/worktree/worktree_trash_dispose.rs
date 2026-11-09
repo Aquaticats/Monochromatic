@@ -101,6 +101,35 @@ enum Handed {
 }
 
 /// What:
+///  A snapshot's trash waiting for the disposal:
+/// the worktree that holds it,
+/// its administrative directory,
+/// what the
+///  leave-out moved,
+/// and whether the person asked for silence.
+/// Why:
+///   The add hands it to the lifecycle,
+/// which empties it beside the package repair instead of before it,
+/// so the
+///  person waits for the slower of the two and not for both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PendingTrash = { destination: string; gitDir: string; manifest: TrashManifest; quiet: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PendingTrash {
+    /// The new worktree that holds the trash.
+    pub destination: PathBuf,
+    /// That worktree's administrative directory.
+    pub git_dir: PathBuf,
+    /// What the leave-out made and moved.
+    pub manifest: TrashManifest,
+    /// Whether the person's `--quiet` silences the notices of the hand-over.
+    pub quiet: bool,
+}
+
+/// What:
 ///  Dispose of the trash a snapshot made in the new worktree `destination`,
 /// when it made one.
 /// Why:

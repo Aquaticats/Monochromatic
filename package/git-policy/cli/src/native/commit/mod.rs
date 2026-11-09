@@ -107,6 +107,10 @@ pub mod commit_index_builds;
 /// so its ceiling does not end a commit over a moved worktree.
 pub mod commit_index_stat_refresh;
 
+/// Whether an index still records the stat data its worktree has,
+/// so the refresh runs only when it would change something.
+pub mod commit_index_stat_staleness;
+
 /// The selection a commit names:
 /// the choices that shape its private index,
 /// its `git add` arguments and the interactive selection.

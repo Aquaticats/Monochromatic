@@ -1,5 +1,64 @@
 # cli-git native dependent-version planner
 
+Note 2026-10-29:
+`package/rust-module` no longer exists.
+Its packages were placed with their products by `592d78b143`,
+for example `package/forbidden-strings/core`
+`package/jsonc-edit/core-rust`
+`package/xml-edit/core-rust`
+`package/catalog-specifier/core-rust`
+and `package/browserslist/core-rust`.
+
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:native:differential:dependent-version` went on 2026-10-13 (`a2b56c548c`);
+`//package/git-policy/cli:native:lint:rust` went on 2026-10-06 (`0b49ae109e`),
+`//package/git-policy/cli:native:clippy` lints the native wrapper;
+`//package/git-policy/cli:lint:monochromatic-lint` lints the repository sources.
+
+Note 2026-11-08:
+the `package/module/...` paths this document names are names inside a throwaway fixture
+repository it built to exercise the dependent-version policy;
+the repository-level `package/module` category has not existed since 2026-10-29
+(`592d78b143`).
+`package/module/a/package.json`
+`package/module/b/package.json`
+`package/module/[ab]/src/index.ts`
+and `package/module/a/src/index.ts` are names inside that fixture repository.
+
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
+Note 2026-10-13:
+`package/git-policy/api`
+`package/git-policy/forbidden-strings`
+`package/git-policy/markdown-lint`
+`package/git-policy/repository`
+were deleted by `a2b56c548c`
+with the four git-policy authoring packages;
+no same-name package replaced them.
+The scanner moved to `package/forbidden-strings/cli` on 2026-10-29 (`113633b259`)
+and the candidate scan it fed is `package/git-policy/cli/src/native/candidate/scanner_adapter.rs`.
+
+Note 2026-10-13:
+the TypeScript wrapper this document names under `package/git-policy/cli/src`
+was deleted by `642b6d72cb`,
+and the four authoring packages by `a2b56c548c`.
+That covered `package/git-policy/cli/src/bin.ts`
+`package/git-policy/cli/src/optional`
+`package/git-policy/cli/src/parser`
+`package/git-policy/cli/src/policy-engine`
+and `package/git-policy/cli/src/rule`;
+no `.ts` path under `package/git-policy` survives,
+and that work is Rust under `package/git-policy/cli/src/native/`.
+
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -17,6 +76,8 @@ the runner scripts this document names under `package/git-policy` (`cli/bin`,
 Read every `.mjs` file name here as the same
 name ending in `.ts`;
 the driver `old-format-fixtures` is `old-format-driver`.
+Those folders are `package/git-policy/cli/bin`,
+`package/git-policy/cli/native-interop` and `package/git-policy/cli.fuzz/bin`.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);

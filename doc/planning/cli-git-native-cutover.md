@@ -62,7 +62,7 @@ the retirement commits are on the branch `feat/cli-git-native-retire`
  gates,
  leftovers and the cleanup list for the main checkout:
  `doc/handover/cli-git-native-retire.md`).
-The sections below describe the plan and the facts that led to it;
+The sections from the Decisions heading to Order of the retirement commits describe the plan and the facts that led to it;
 where they say a file "will be deleted" or "stays",
  the branch is the outcome.
 
@@ -1176,9 +1176,9 @@ On the install branch (commit `8f0d946a24`,
 - `file-enforcer.config.ts`,
    `generateMiseToml`:
    `'.cache/cli-git-bin'` precedes `'node_modules/.bin'` in the `_.path` list,
-   and the comment above `_.path` in the generated file says so.
+   and the comment on the `_.path` entry in the generated file says so.
 - `mise.toml` (generated):
-   the entry above,
+   the `'.cache/cli-git-bin'` entry,
    the `_.path` entry,
    and the other `_.path` lines unchanged.
 - `mise.lock`:
@@ -1191,7 +1191,7 @@ On the install branch (commit `8f0d946a24`,
 
 The `_.path` list in the committed `mise.toml` is the list of a full install,
 not the list this lane's `sync:files` run produced.
-The generator globs `package/*/*/node_modules/.bin` from disk (the comment above `_.path` says the list moves with
+The generator globs `package/*/*/node_modules/.bin` from disk (the comment on the `_.path` entry says the list moves with
 install state).
 The install worktree had a partial install (34 such directories;
  for example `package/git-policy/cli/node_modules/.bin` did not exist),
@@ -1342,7 +1342,7 @@ the user decided that nothing this repository publishes needs a pin
 ("You don't need to pin anything we control"),
 so `mise.no-env.toml` now says `latest` for the wrapper and the
 linter and `mise.lock` records the resolved version (0.1.2).
-The section below stays as the record of why 0.1.0 must never be installed.
+The 0.1.0 account under the Why the pin is 0.1.1 heading stays as the record of why 0.1.0 must never be installed.
 
 Version 0.1.0 landed a Markdown commit and then exited 2:
  in the throwaway repository with the repository's configuration (which lists `markdown/autofix`),

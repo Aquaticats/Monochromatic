@@ -281,7 +281,7 @@ Still the user's call.
 
 ### CORRECTION, within the hour: 0.889 was measured on a degraded ensemble
 
-The first version of the entry above,
+The first version of the "Task 51 is measured" entry,
 and of the README paragraph,
 presented
  0.889 as the current roster's recall.

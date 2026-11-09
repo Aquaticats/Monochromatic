@@ -2,8 +2,11 @@
 
 Tool-call guardrails for pi.
 
-The extension blocks misleading `bun test` Bash tool calls and refuses `edit` or
-`write` calls for protected paths matched with `.gitignore` semantics.
+The extension blocks misleading `bun test` Bash tool calls,
+ refuses Bash tool calls that run a mutating Git subcommand through a path to a
+ real Git binary,
+ and refuses `edit` or `write` calls for protected paths matched with
+ `.gitignore` semantics.
 
 ## Pi dependency trust
 
@@ -44,6 +47,71 @@ When no such task exists,
  add one to the target package's `mise.toml` first.
 For ad-hoc single-file runs,
  use `node <file>` directly.
+
+### Absolute-path real Git blocking
+
+`git` on `PATH` in this repository is a wrapper.
+ It applies the repository's policies,
+ runs the commit-time checks,
+ and pushes after each commit.
+A command that spells the Git binary by path,
+ such as `/usr/bin/git commit`,
+ starts the real binary instead,
+ so every one of those policies is skipped.
+So does a command that takes the wrapper off the search path:
+`PATH=/usr/bin:$PATH git commit`,
+`export PATH=/usr/bin; git commit`,
+`command -p git commit`,
+`env -i git commit`,
+and `env -u PATH git commit`.
+
+The guardrail therefore blocks a Bash tool call that runs a mutating Git
+subcommand outside that wrapper.
+ The refusal names the subcommand to run instead:
+
+```sh
+git -C <repository-root> commit -m "message" path/to/file
+```
+
+`git -C <root>` is the same `git` the wrapper provides,
+ so it works from any directory.
+Without `-C`,
+ plain `git` works from the repository root.
+
+Read-only probes through the same absolute path,
+ or under any of those search-path forms,
+ stay allowed,
+ because they change nothing:
+ `status`,
+ `log`,
+ `show`,
+ `diff`,
+ `rev-parse`,
+ `for-each-ref`,
+ `ls-remote`,
+ `cat-file`,
+ `ls-files`,
+ and `merge-base`.
+A subcommand whose effect the analyzer cannot prove read-only counts as
+mutating,
+ so only a proven read passes.
+
+The check parses shell grammar rather than matching text,
+ so quoting,
+ chaining,
+ and wrappers such as `env`,
+ `sudo`,
+ `timeout`,
+ or a shell `-c` string do not hide a mutation.
+
+A Git path that only the shell knows at run time stays undetected:
+`bash -c "$CMD commit"` and `G=/usr/bin/git; $G commit` are not refused,
+because the check reads command text and runs no shell evaluator.
+The shared analyzer README lists every undetected form.
+
+Unlike the `bun test` guard,
+ this one has no config switch:
+ running the real binary skips guards that protect committed work.
 
 ### `pnpm-lock.yaml` edit and write blocking
 
@@ -102,7 +170,7 @@ a built-in rule:
 ```text
 src/
   index.ts                         # Extension entry point and tool_call registration
-  bash-guard.ts                    # Shared analyzer backed `bun test` detection
+  bash-guard.ts                    # Shared analyzer backed `bun test` and absolute real-Git checks
   path-guard.ts                    # `ignore`-backed protected-path matching
   path-normalize.ts                # Tool path extraction and cwd-relative normalization
   config.ts                        # Global config loader orchestration
@@ -114,6 +182,10 @@ src/
   types.ts                         # Shared config and decision types
   *.unit.test.ts                   # Unit tests
   mise.verify-extension.ts         # Built extension smoke verification
+  mise.verify-pi-runtime.ts        # Real Pi session in a throwaway repository
+  pi-runtime-verifier-session.ts   # Real agent session running scripted Bash calls
+  pi-runtime-verifier-scripted-provider.ts # Pi faux provider playing those calls
+  pi-runtime-verifier-repository.ts # Throwaway Git repository and its reads
 ```
 
 ## Validation
@@ -125,4 +197,13 @@ mise run //package/pi-plugin/guardrail:build
 mise run //package/pi-plugin/guardrail:test:unit
 mise run //package/pi-plugin/guardrail:lint
 mise run //package/pi-plugin/guardrail:verify:extension
+mise run //package/pi-plugin/guardrail:verify:pi-runtime
 ```
+
+`verify:pi-runtime` drives a real Pi session in a throwaway repository.
+ The session asks its Bash tool to run `/usr/bin/git commit`,
+ which is refused with the remedy text,
+ and then `/usr/bin/git status`,
+ which runs and prints the fixture.
+The same commit then runs through the PATH wrapper and lands,
+ which shows the refused call would otherwise have committed.

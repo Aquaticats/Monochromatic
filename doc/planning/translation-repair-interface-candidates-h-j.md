@@ -663,7 +663,7 @@ It adds demonstrated truncating producer and twelve-payload graph while no Kimi 
 
 Candidate I remained a private prototype,
 not production selection,
-until the calibration recorded in the next section.
+until the calibration recorded in the Candidate I pinned-Carena disposition section.
 GLM route was manifest-bound and transport-validated before consumer validation.
 It inherits Candidate H's zero-retry and pre-dispatch exchange cap,
 Hyper-only provider binding,

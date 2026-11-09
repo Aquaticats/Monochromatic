@@ -20,7 +20,8 @@
 
 /// Import the shared fixtures and the helpers of the snapshot controls.
 use super::support::{Fixture, Observed, fixture, git, remove, repository, run_wrapped, stderr_of};
-use super::worktree_snapshot::{add_pair, age, commit_all, on_btrfs_or_acknowledged, tracked, tracked_content};
+use super::support::on_btrfs_or_acknowledged;
+use super::worktree_snapshot::{add_pair, age, commit_all, tracked, tracked_content};
 use git_policy_cli::fs_kind::is_subvolume_root;
 use std::ffi::OsStr;
 use std::os::unix::io::AsRawFd;
