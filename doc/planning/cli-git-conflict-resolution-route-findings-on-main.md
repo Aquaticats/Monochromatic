@@ -349,9 +349,13 @@ If they resolve `.gitattributes` and commit,
 the hybrid is committed with nothing else said.
 The two versions survive in `HEAD` and `MERGE_HEAD`,
 so no content is unrecoverable,
-but the choice is gone:
-`git checkout --merge -- data.lock` cannot rebuild the conflict once the stages are replaced
-(`merge_second_pass_worktree.rs:201`).
+but the conflict is gone,
+and it comes back only through a command nothing in the output names
+(`git checkout --merge -- data.lock` rebuilds the three stages;
+verified in this arm).
+Once the operation is committed the same command exits `0` and leaves no stage
+(verified in finding 1's arm),
+so nothing rebuilds the choice then.
 
 Suggestion:
 fail closed for the whole pass when any attribute file that can apply to a candidate
@@ -470,8 +474,11 @@ so nothing in the output says the merge's files are now resolved.
 
 What it risks:
 the person is told the command changed nothing while it left a resolved file staged,
-and the same command on that machine (`git commit`) ends with the same sentence,
-so the way out is not in the output either.
+and the same command on that machine (`git commit`)
+ends with the same sentence,
+so the way out is not in the output either
+(verified:
+the wrapped `git commit --no-edit` in this arm exits `1` with exactly that text).
 No content is lost,
 which is why this is ranked last.
 
@@ -553,8 +560,9 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
   after the pass resolved the file,
   the wrapper prints Git's own sentence,
   exits `0`,
-  leaves `MERGE_HEAD` and `MERGE_MSG` or `SQUASH_MSG` as a clean run leaves them,
-  and keeps `MERGE_MSG` cleaned of the conflict hint.
+  stages the resolved file,
+  keeps `MERGE_HEAD` and `SQUASH_MSG` as Git left them,
+  and cuts the conflict hint from `MERGE_MSG`.
 - A file whose one region cannot resolve beside another that can:
   the whole file stays as Git left it,
   which a stored control and this audit's reading of `merge_by_word` both confirm.
