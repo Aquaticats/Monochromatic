@@ -167,6 +167,90 @@ branch and checked-out files,
 and no ignored state.
 The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
 
+#### Claude Sonnet audits, the gate on `742076c71d`, and what waits for an agent slot (2026-11-09T16:48:18-05:00)
+
+The release gate on `742076c71d` ended with 69 of 6,699 tests failed
+(`gpc-gate-wrapper-next-alpha-on-742076c71d-20261109T161449-0500.log` in `~/temp/agent/gate/`).
+A new gate runs on `776281f4ee`.
+Owners of the failures:
+
+- The lock scan refuses every file on an `overlay` mount (`process/open_file_of_a_descriptor.rs:159`),
+  so in a container a stale lock is never cleared:
+  the Pi agent `lock-scan-reads-overlay-mounts`.
+- Panics where the system refused a thread,
+  under the gate's `--pids-limit 512`:
+  the Pi agent `refused-thread-ends-no-command`.
+- The rest,
+  among them commit budgets that rose and controls that no longer match the product:
+  the Pi agent `gate-failures-after-todays-landings`.
+
+The owner asked for long reviews and audits on Claude Sonnet.
+Reports are at `~/temp/agent/sonnet-audits/<name>/final.md`,
+and every finding has a reproduction beside it.
+The coordinator's judgement of each,
+under rule `WGH`:
+
+- `push-delivery`:
+  a pending push a killed wrapper left is never delivered,
+  a delivered held commit is reported as held for ever,
+  and a reconcile's report never reaches the person.
+  The Pi agent `push-delivery-audit-findings-fixed` owns them.
+  Its blocked-commit finding is the open owner question in `doc/handover/questions-for-the-owner.md`.
+- `service-restart-and-version-skew`:
+  no commit was lost or doubled in any combination.
+  A landed commit can be reported as not made,
+  and the rollback advice does not say how to stop the newer service:
+  both are briefed.
+  Dismissed:
+  an older release moves a newer push record to `failed`,
+  because only a rollback reaches it,
+  that release cannot change,
+  and the next push carried the commit.
+- `worktree-lifecycle`:
+  a `0600` credential is `0644` until its chmod,
+  and permanently if the add is killed there,
+  and a kill during install leaves empty files and a half-filled worktree that nothing records.
+  Both come from the EXDEV copy fallback.
+  The Pi agent `worktree-copy-install-keeps-modes-and-finishes` owns them.
+- `merge-and-pull-never-fail`:
+  a dead Git's `index.lock` makes every command exit 2,
+  read-only commands wait 60 s over a saved merge,
+  and the owner's "Carry edits forward" is still not built:
+  both are briefed.
+- `never-stuck`:
+  a FIFO at `.git/index.lock` or at a rules file blocks for ever,
+  and it is briefed.
+- `differential-against-real-git`:
+  `git commit -- .` also commits untracked files,
+  global pathspec modes are ignored by an explicit-path commit,
+  service-landed commits write an empty reflog message,
+  and a stopped service leaves its lock marker.
+  All are briefed.
+  Dismissed as cosmetic:
+  the wrapper's merge omits `Auto-merging <path>`.
+
+The `worktree-lifecycle`,
+`never-stuck`,
+`merge-and-pull-never-fail` and `differential-against-real-git` audits returned early or are still ending under rule `PLQ`,
+with some probes running;
+what each has left is at the end of its `final.md`.
+
+These agents wait for a free Pi slot,
+each with its brief at `~/temp/agent/pi-runs/<name>-prompt.md`,
+highest priority first:
+
+- `commit-survives-a-dead-ref-lock-and-a-moved-branch`,
+  from the audit `commit-kills-and-concurrency`:
+  `git commit -a` fails when the branch moves while it waits,
+  and a killed `git update-ref` leaves `refs/heads/main.lock`,
+  after which every commit fails saying the branch kept changing.
+- `client-reports-landed-commit-after-service-restart`,
+  which also owns that audit's finding of clients told "not known" while a slow recovery lands their commits.
+- `merge-recovers-after-a-dead-gits-lock`
+- `fifo-where-a-file-is-expected-ends-no-command`
+- `merge-carries-unsaved-edits-forward`
+- `commit-pathspecs-and-reflog-match-real-git`
+
 #### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
 - `421ab69c3e` landed the landing branch,
