@@ -89,27 +89,43 @@ fn an_unreadable_directory_is_an_error() {
 
 /// The default directory comes first,
 /// the configured one follows,
-/// and one directory named two ways is scanned once.
+/// and one directory named two ways is scanned once,
+/// by the identity the file system gives it.
 #[test]
 fn directories_are_the_default_then_the_configured_one_once() {
+    let root: PathBuf = fixture("doctor-directories");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let hooks: PathBuf = repo.join(".git/hooks");
+    std::fs::create_dir(repo.join("custom")).expect("custom hooks directory");
     let plain: HooksLocation = HooksLocation {
-        common_directory: PathBuf::from("/repo/.git"),
+        common_directory: repo.join(".git"),
         configured: None,
     };
-    assert_eq!(hook_directories(&plain), vec![PathBuf::from("/repo/.git/hooks")]);
+    assert_eq!(hook_directories(&plain), vec![hooks.clone()]);
     let configured: HooksLocation = HooksLocation {
-        common_directory: PathBuf::from("/repo/.git"),
-        configured: Some(PathBuf::from("/repo/custom")),
+        common_directory: repo.join(".git"),
+        configured: Some(repo.join("custom")),
     };
-    assert_eq!(
-        hook_directories(&configured),
-        vec![PathBuf::from("/repo/.git/hooks"), PathBuf::from("/repo/custom")]
-    );
+    assert_eq!(hook_directories(&configured), vec![hooks.clone(), repo.join("custom")]);
+    // The same directory through another spelling of a component that exists is scanned once.
     let same: HooksLocation = HooksLocation {
-        common_directory: PathBuf::from("/repo/.git"),
-        configured: Some(PathBuf::from("/repo/./sub/../.git/hooks/")),
+        common_directory: repo.join(".git"),
+        configured: Some(repo.join("./custom")),
     };
-    assert_eq!(hook_directories(&same), vec![PathBuf::from("/repo/.git/hooks")]);
+    assert_eq!(hook_directories(&same), vec![hooks.clone(), repo.join("./custom")]);
+    // The default hooks directory named again by the configured path is one directory too.
+    let itself: HooksLocation = HooksLocation {
+        common_directory: repo.join(".git"),
+        configured: Some(repo.join(".git/./hooks")),
+    };
+    assert_eq!(hook_directories(&itself), vec![hooks.clone()]);
+    // A spelling whose directory does not exist is a directory that holds no hooks either way, so it is kept as given.
+    let absent: HooksLocation = HooksLocation {
+        common_directory: repo.join(".git"),
+        configured: Some(PathBuf::from("/repo/./sub/../absent")),
+    };
+    assert_eq!(hook_directories(&absent), vec![hooks, PathBuf::from("/repo/./sub/../absent")]);
+    remove(root.as_path());
 }
 
 /// The report is one path per line and nothing else.
@@ -547,5 +563,38 @@ fn a_stalled_directory_listing_gives_up_at_its_ceiling() {
     let outcome: std::io::Result<Vec<PathBuf>> = answered.unwrap_or_else(|_| { panic!("the listing never returned, so a directory on a mount that stopped answering holds the report forever") });
     let error: std::io::Error = outcome.expect_err("a listing that gives no answer is an error, never an empty directory");
     assert_eq!(error.kind(), ErrorKind::TimedOut, "{error}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A `core.hooksPath` of `redirect/../hooks`,
+/// where `redirect` is a symbolic link,
+/// scans the directory Git runs hooks
+///  in.
+/// Why:
+///  A lexical rewrite removes the component before `..` without asking the file system,
+/// while the kernel resolves
+///  `redirect` first:
+/// Git ran the hook and the doctor listed nothing (`SPEC.md`,
+/// section Doctor,
+///  "the directory it names").
+#[cfg(unix)]
+#[test]
+fn a_dot_dot_after_a_symlink_scans_the_directory_git_runs() {
+    let root: PathBuf = fixture("doctor-symlink-parent");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let external: PathBuf = root.join("external");
+    std::fs::create_dir_all(external.join("child")).expect("the redirect's target");
+    std::fs::create_dir_all(external.join("hooks")).expect("the hooks directory Git reads");
+    executable(external.join("hooks/pre-commit").as_path(), b"#!/bin/sh\necho HOOK-RAN >&2\n");
+    std::os::unix::fs::symlink(external.join("child"), repo.join("redirect")).expect("the redirect");
+    git(repo.as_path(), &["config", "core.hooksPath", "redirect/../hooks"]);
+    let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1, "the hook Git runs is listed: {stdout}");
+    assert!(stdout.contains("hooks/pre-commit"), "{stdout}");
+    assert!(stdout.trim_end().ends_with("hooks/pre-commit"), "{stdout}");
+    // The file the report names is the file Git runs, resolved by the file system and not by the spelling.
+    let reported: PathBuf = PathBuf::from(stdout.trim_end());
+    assert_eq!(std::fs::canonicalize(reported).expect("the reported hook exists"), std::fs::canonicalize(external.join("hooks/pre-commit")).expect("the ran hook exists"));
     remove(root.as_path());
 }

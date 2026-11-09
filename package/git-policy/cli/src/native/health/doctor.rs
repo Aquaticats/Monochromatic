@@ -39,9 +39,6 @@ use crate::doctor_config::{ConfigFindings, config_findings, render_hook_lines, r
 /// Whether Git's own fsmonitor is off,
 /// or which setting turns it on.
 use crate::doctor_fsmonitor::fsmonitor_report;
-/// Lexical path normalization,
-/// so one directory named two ways is scanned once.
-use crate::lexical_path::normalized_path;
 /// One required Git start with the caller's context.
 use crate::transaction_git::{GitContext, GitRequest};
 /// The same Git start awaited by a task of the runtime.
@@ -100,14 +97,45 @@ pub struct HooksLocation {
 /// unique([join(commonDirectory, 'hooks'), configured].filter(Boolean));
 /// ```
 pub fn hook_directories(location: &HooksLocation) -> Vec<PathBuf> {
-    let mut directories: Vec<PathBuf> = vec![normalized_path(location.common_directory.join("hooks").as_path())];
+    let mut directories: Vec<PathBuf> = vec![location.common_directory.join("hooks")];
     if let Some(configured) = &location.configured {
-        let normalized: PathBuf = normalized_path(configured.as_path());
-        if !directories.contains(&normalized) {
-            directories.push(normalized);
+        if !directory_is_listed(directories.as_slice(), configured.as_path()) {
+            directories.push(configured.clone());
         }
     }
     return directories;
+}
+
+/// What:
+///  Whether `candidate` is one of the directories already listed,
+/// judged by the identity the file system gives it.
+/// Why:
+///   Only the file system can say that `redirect/../hooks` and `hooks` are one directory,
+/// because a symbolic link
+///  in the way decides it:
+/// a lexical rewrite of the path removed the component before `..` without asking,
+/// and then the
+///  scan looked at a directory Git runs no hook in.
+///  A spelling whose directory does not exist is kept as given,
+/// because one that does not exist holds no hooks either
+///  way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = (realpath(listed)) === (realpath(candidate));
+/// ```
+fn directory_is_listed(listed: &[PathBuf], candidate: &Path) -> bool {
+    let identity: Option<PathBuf> = std::fs::canonicalize(candidate).ok();
+    for existing in listed {
+        if existing.as_path() == candidate {
+            return true;
+        }
+        let known: Option<PathBuf> = std::fs::canonicalize(existing).ok();
+        if identity.is_some() && identity == known {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

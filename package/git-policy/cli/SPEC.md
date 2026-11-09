@@ -459,7 +459,11 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   the directory it names.
   A relative value resolves against the worktree root,
   or against the Git directory of a repository without a worktree.
-  A directory that two spellings name is scanned once.
+  Each directory is scanned under the spelling Git was given,
+  and a directory that two spellings name is scanned once,
+  judged by the identity the file system gives it:
+  a symbol link in the way decides what `..` means,
+  so a lexical rewrite of the path would scan a directory Git runs no hook in.
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included),
   except names ending in `.sample`.
