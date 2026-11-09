@@ -32,6 +32,15 @@ and candidate-binding values.
 It does not encode the per-field status alphabet as a JSON Schema pattern.
 The substantive prompt requires:
 
+`package/module/translation-repair/src/prototype-review-unit-schema.ts` exists only on an unmerged
+branch (newest commit `97cc07e38e` (feat(translation-repair):
+prototype lean finite realization) on
+2026-09-01) and is not in the working tree.
+`package/module/translation-repair/src/prototype-review-unit-guard.ts` exists only on an unmerged
+branch (newest commit `97cc07e38e` (feat(translation-repair):
+prototype lean finite realization) on
+2026-09-01) and is not in the working tree.
+
 - `p` or `d` for front matter,
   clauses,
   and relations;

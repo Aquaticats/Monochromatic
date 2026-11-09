@@ -1,5 +1,12 @@
 # Translation repair history 2026-08-05 to 2026-08-07: sensitivity checks of the probe and the checkers
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:probe-sensitivity` is now
+> `//package/translation-repair/probe:probe-sensitivity` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:checker-sensitivity` is now
+> `//package/translation-repair/bench:checker-sensitivity` (2026-10-18 `4bd1aea8d5`).
+
 The quiet first reading of the probe and the planted-damage checks that followed:
 the probe can hear,
 the checkers can say no but miss collateral damage,

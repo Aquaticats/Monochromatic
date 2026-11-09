@@ -1,5 +1,10 @@
 # Handover: slopo cluster report to GitHub issue triage
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/logger/src/create-logger.unit.test.js` is now
+> `package/logger/core/src/create-logger.unit.test.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

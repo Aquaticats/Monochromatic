@@ -223,6 +223,14 @@ await utimes(destinationPath, atime, mtime);
 await handle.utimes(atime, mtime);
 ```
 
+`package/git-policy/cli/src/policy-engine/index-file-timestamps.ts` was removed on 2026-10-13 in
+`642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust
+workflow);
+no file in the working tree carries it now.
+
 Tradeoffs:
 
 - Git re-hashes every entry whose cached mtime is not older than the carried timestamp,

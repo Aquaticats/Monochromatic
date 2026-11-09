@@ -1,5 +1,14 @@
 # Handover: file-manager sticky prototypes, audit doc, and troubleshooting write-ups
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/desktop-app/file-manager-electron:test:wayland` is now
+> `//package/file-manager/variant-electron:test:wayland` (2026-10-29 `592d78b143`).
+> `//package/desktop-app/file-manager-gtk-sticky:test:wayland` is now
+> `//package/file-manager/variant-gtk-sticky:test:wayland` (2026-10-29 `592d78b143`).
+> `package/module/jsonc-edit/src/edit-state.ts` is now
+> `package/jsonc-edit/core-ts/src/edit-state.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

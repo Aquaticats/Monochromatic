@@ -70,6 +70,18 @@ The corresponding sources are:
 - `package/git-policy/api/src/authoring.ts`;
 - `package/git-policy/cli/src/api/authoring.ts`.
 
+`package/git-policy/api/src/authoring.ts` was removed on 2026-10-13 in `a2b56c548c` (refactor(*):
+delete the dependent-version and configuration differentials and the four git-policy authoring
+packages);
+no file in the working tree carries it now.
+`package/git-policy/cli/src/api/authoring.ts` was removed on 2026-10-13 in `642b6d72cb`
+(refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust workflow);
+no
+file in the working tree carries it now.
+
 Both are gone:
 `a2b56c548c` (2026-10-13) deleted `package/git-policy/api/`,
 and `642b6d72cb` of the same day deleted `package/git-policy/cli/src/api/`

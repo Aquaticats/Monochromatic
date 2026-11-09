@@ -1,5 +1,104 @@
 # Translation repair handover snapshots: closing out the full-roster run, 2026-08-25
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:build` is now `//package/translation-repair/*:build`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint` is now `//package/translation-repair/*:lint`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:lint:types` is now
+> `//package/translation-repair/*:lint:types` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/candidate-ledger.ts` is now
+> `package/translation-repair/house-rule/src/candidate-ledger.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/candidate-ledger.unit.test.ts` is now
+> `package/translation-repair/house-rule/src/candidate-ledger.unit.test.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/candidate-select-record.ts` is now
+> `package/translation-repair/translate-stage/src/candidate-select-record.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/hyper-price.ts` is now
+> `package/translation-repair/run/src/corpus-run/hyper-price.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/hyper-price.unit.test.ts` is now
+> `package/translation-repair/run/src/corpus-run/hyper-price.unit.test.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/ledger-parse.ts` is now
+> `package/translation-repair/run/src/corpus-run/ledger-parse.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/ledger-read.ts` is now
+> `package/translation-repair/run/src/corpus-run/ledger-read.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/ledger-read.unit.test.ts` is now
+> `package/translation-repair/run/src/corpus-run/ledger-read.unit.test.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/ledger-report.ts` is now
+> `package/translation-repair/run/src/corpus-run/ledger-report.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/spend-cost.ts` is now
+> `package/translation-repair/run/src/corpus-run/spend-cost.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/spend-cost.unit.test.ts` is now
+> `package/translation-repair/run/src/corpus-run/spend-cost.unit.test.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/spend-read.ts` is now
+> `package/translation-repair/run/src/corpus-run/spend-read.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/spend-read.unit.test.ts` is now
+> `package/translation-repair/run/src/corpus-run/spend-read.unit.test.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/spend-report.ts` is now
+> `package/translation-repair/run/src/corpus-run/spend-report.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/spend-line.ts` is now
+> `package/translation-repair/provider/src/spend-line.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/spend-line.unit.test.ts` is now
+> `package/translation-repair/provider/src/spend-line.unit.test.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/mise.toml` is deleted (2026-10-18 `4bd1aea8d5`) and
+> each of the 36 packages under `package/translation-repair/` carries its own `mise.toml`
+> today.
+> `package/module/translation-repair/rolldown.node.config.ts` is deleted
+> (2026-10-18 `4bd1aea8d5`) and each of the 36 packages under `package/translation-repair/`
+> carries its own build config today.
+> `package/module/translation-repair/src/anthropic-delta-scan.ts` is now
+> `package/translation-repair/provider-stream/src/anthropic-delta-scan.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/anthropic-delta-scan.unit.test.ts` is now
+> `package/translation-repair/provider-stream/src/anthropic-delta-scan.unit.test.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/ballot-barrel.ts` is deleted
+> (2026-10-18 `4bd1aea8d5`) and the split's packages under `package/translation-repair/`
+> carry its exports today.
+> `package/module/translation-repair/src/candidate-select.ts` is now
+> `package/translation-repair/translate-stage/src/candidate-select.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/sentinel-probe.ts` is now
+> `package/translation-repair/bench/src/corpus-run/sentinel-probe.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/editor-ensemble.ts` is now
+> `package/translation-repair/repair/src/editor-ensemble.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/hyper-client.ts` is now
+> `package/translation-repair/provider/src/hyper-client.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/judge-fidelity.ts` is now
+> `package/translation-repair/run/src/judge-fidelity.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/pipeline-barrel.ts` is deleted
+> (2026-10-18 `4bd1aea8d5`) and the split's packages under `package/translation-repair/`
+> carry its exports today.
+> `package/module/translation-repair/src/provider-barrel.ts` is deleted
+> (2026-10-18 `4bd1aea8d5`) and the split's packages under `package/translation-repair/`
+> carry its exports today.
+> `package/module/translation-repair/src/refine-stage.ts` is now
+> `package/translation-repair/repair/src/refine-stage.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/stream-idle-guard.ts` is now
+> `package/translation-repair/provider-stream/src/stream-idle-guard.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/stream-idle-guard.unit.test.ts` is now
+> `package/translation-repair/provider-stream/src/stream-idle-guard.unit.test.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/synthetic-client.ts` is now
+> `package/translation-repair/provider/src/synthetic-client.ts` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/translate-judge.ts` is now
+> `package/translation-repair/translate-stage/src/translate-judge.ts`
+> (2026-10-18 `4bd1aea8d5`).
+
 What to do when the run exits:
 the verified landing sequence for the parked work with the commit trap,
 the three measurements owed afterwards,

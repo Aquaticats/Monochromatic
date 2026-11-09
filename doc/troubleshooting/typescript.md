@@ -1384,6 +1384,9 @@ In this workspace 7 of the 135 ignored stray `.js` files carry the helper,
  for example
 `package/logger/core/src/create-logger.unit.test.js:1`.
 
+`package/logger/core/src/create-logger.unit.test.js` is not in the working tree and no commit in
+this repository carries it.
+
 Symptom 2 is behavior.
 `await using` on an object whose `[Symbol.asyncDispose]` is `null` and whose `[Symbol.dispose]` is
 callable throws in the downlevel output and completes natively.

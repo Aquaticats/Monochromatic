@@ -1,5 +1,10 @@
 # Handover: forbidden-strings engine migration orchestration
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/cli/forbidden-strings:build` is now `//package/forbidden-strings/cli:build`
+> (2026-10-29 `113633b259`).
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

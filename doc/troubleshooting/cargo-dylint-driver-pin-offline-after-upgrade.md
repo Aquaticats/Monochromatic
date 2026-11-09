@@ -409,6 +409,11 @@ the durable repair is B.
   does not repair the missing probe,
   and any bump still needs the warm step.
 
+`package/file-enforcer/core/src/toolchain/plan.tools.data.ts` exists only on an unmerged branch
+(newest commit `5f5debe2f0` (chore(toolchain):
+move the branch pins up to the newest releases,
+monochromatic-lint 0.4.0 to 0.5.0 among them) on 2026-11-01) and is not in the working tree.
+
 Every option that runs `mise run toolchain:sync`,
 `toolchain:update` or writes `~/.cargo` or `~/.dylint_drivers` needs
 the owner's approval.

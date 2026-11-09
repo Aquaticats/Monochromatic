@@ -77,6 +77,11 @@ Issues `#356` and `#357` completed release readiness and removed hk/Pkl infrastr
 This document remains as durable root-cause and exact-byte regression evidence;
 it no longer prescribes repository setup.
 
+`package/git-policy/cli/src/trust/fixtures/built-final-newline-consumer.ts` is not in the working
+tree and no commit in this repository carries it.
+`package/git-policy/cli/src/trust/fixtures/built-autofix-transaction-consumer.ts` is not in the
+working tree and no commit in this repository carries it.
+
 ## Root cause
 
 The source trace uses `jdx/hk` tag `v1.50.0`,

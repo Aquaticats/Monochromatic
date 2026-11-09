@@ -28,6 +28,9 @@ but `git commit` and `git cli-git check -- <path>` still flagged the file
 Reading the running code mid-investigation showed identifiers flipping between readable and minified forms,
 which was the trusted snapshot bundle being confused for regenerated source.
 
+`package/forbidden-strings/cli/data/builtin-rules.ported.txt` is not in the working tree and no
+commit in this repository carries it.
+
 ## Mechanism
 
 `cli-git.config.ts` imports plugins from `@monochromatic-dev/git-policy-cli/ts`,

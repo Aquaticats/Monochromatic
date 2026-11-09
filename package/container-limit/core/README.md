@@ -77,6 +77,28 @@ so a new start site cannot skip the limits
 unnoticed.
 Each listed starter must carry one of the shared helpers or the literal options.
 
+The list is not the whole check:
+the test also reads every start the file writes,
+because a file that imports a helper and never calls it in a start's own argument list once passed on the helper's
+name alone
+(`package/terminal/app/mise.toml` before `bbadfac560` had `--memory=4g --cpus=4`,
+no process option and no disk weight).
+`src/container-starts-in-source-text.ts` finds each start,
+`src/argument-text-of-a-container-start.ts` reads the argument text that reaches the program
+(an array literal after the program name,
+the program name as an array literal first element,
+a call that returns the arguments,
+or a shell command line with its continuations joined),
+`src/defined-text-in-source-text.ts` and `src/imported-module-by-name.ts` follow the names that text uses to where
+the arguments are written,
+and `src/source-text-without-comments.ts` blanks each language's comments so a mention in one is not a start.
+
+A start whose bound is a size decision the owner has not made is listed by path in the test
+(`UNBOUNDED_SITE_DECISIONS`) with the reason,
+and the paired test fails when such a path gains a bound,
+so an entry leaves the list with its fix.
+`doc/handover/container-limits-everywhere.md` carries the decision each one waits on.
+
 ## Verification
 
 `mise run //package/container-limit/core:test:unit` runs the tests.
