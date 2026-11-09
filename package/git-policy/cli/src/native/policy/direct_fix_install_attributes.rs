@@ -15,8 +15,12 @@
 //!  A replacement that did not carry them would delete the only copy,
 //!  which is
 //!       the loss the owner forbids;
-//!  so a replacement either carries every attribute the file lists or the fix
+//!  so a replacement either carries exactly the attributes the file lists or the fix
 //!       refuses that file and says which attribute it could not keep.
+//!  An attribute the replacement carries and the original never
+//!       did is taken off for the same reason read the other way:
+//!  the corrected file would otherwise
+//!       grant an account access the original never granted.
 //!
 //! What is out of reach:
 //!  a namespace this process may not list (another user's `trusted.*`)
@@ -31,13 +35,10 @@
 //! // for (const { name, value } of attributes) await fsetxattr(file, name, value);
 //! ```
 
-/// `CStr` is a NUL-terminated name for the system calls;
-///  `CString` is one this code builds.
-use std::ffi::{CStr, CString};
+/// `CString` is a NUL-terminated name this code builds.
+use std::ffi::CString;
 /// `File` is the open replacement the attributes are given to.
 use std::fs::File;
-/// `OsStrExt` lends a path's bytes.
-use std::os::unix::ffi::OsStrExt;
 /// `AsRawFd` lends the descriptor the system calls take.
 use std::os::unix::io::AsRawFd;
 /// `Path` is a borrowed filesystem path.
@@ -105,144 +106,119 @@ impl Attribute {
 }
 
 /// What:
-///  A pathname as the system calls want it.
+///  Why a replacement could not be made to carry exactly the attributes the original had.
 /// Why:
-///   They take NUL-terminated bytes,
-///  and a pathname holding a NUL byte cannot name a file at all.
+///  The person must be told which attribute the system would not carry,
+///  and which one the
+///       replacement carries that the original did not;
+///  the two are different harms,
+///  one deleting their
+///       data and the other granting access the original never granted,
+///  so they are different answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const name = (path) => Buffer.concat([path, Buffer.from([0])]);
+/// type AttributeRefusal =
+///   | { kind: 'not-given'; attribute: Attribute; reason: Error }
+///   | { kind: 'not-removed'; attribute: Attribute; reason: Error }
+///   | { kind: 'list-failed'; reason: Error };
 /// ```
-#[cfg(unix)]
-fn name_of(path: &Path) -> Result<CString, std::io::Error> {
-    let text: Result<CString, std::ffi::NulError> = CString::new(path.as_os_str().as_bytes());
-    return match text {
-        Ok(built) => Ok(built),
-        Err(_invalid) => Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
-    };
+#[derive(Debug)]
+pub(crate) enum AttributeRefusal {
+    /// The replacement could not be given an attribute the original carries.
+    NotGiven {
+        /// The attribute the system refused.
+        attribute: Attribute,
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+    /// The replacement carries an attribute the original did not,
+    ///  and the system would not take it off.
+    NotRemoved {
+        /// The attribute that stays on the replacement.
+        attribute: Attribute,
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+    /// The attributes of the open replacement could not be listed,
+    ///  so what it carries beyond the original's cannot be named.
+    ListFailed {
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
 }
 
-/// Whether `byte` is the zero that separates two attribute names in a list.
+/// The calls that read the names and the values,
+///  and the retry that survives a file changing under them.
+#[path = "direct_fix_install_attributes_reading.rs"]
+mod reading;
+
+/// What:
+///  Whether `name` is a security label:
+///  the identity the kernel and its policy give a file,
+///  rather than data a person wrote.
 /// Why:
-///   The list is one buffer of names,
-///  each one NUL-terminated,
-///  so the separator is what splits them.
+///   A container without the label's module answers "operation not supported" for every one of them,
+///  and a
+///       process may not set or take off a label at all;
+///  a correction that refused there would install nothing,
+///  and a
+///       label is not something a person typed,
+///  so a correction carries one when the system allows it and never
+///       counts it as a difference.
+///  Smack names its labels after the LSM (`security.smack64`,
+///  `security.smack64exec`
+///       and the rest),
+///  so the prefix is what matches them.
+///  Every other attribute,
+///  `security.capability` and
+///       `security.ima` included,
+///  decides what the file may do or is data of the person's,
+///  and a refusal to
+///       carry one still stops the write.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isZero = (byte) => byte === 0;
+/// const isALabel = (name) => name === 'security.selinux' || name === 'security.apparmor' || name.startsWith('security.smack64');
 /// ```
-#[cfg(unix)]
-fn is_zero(byte: &u8) -> bool {
-    return *byte == 0;
+pub(crate) fn is_a_label(name: &[u8]) -> bool {
+    if name == b"security.selinux" || name == b"security.apparmor" {
+        return true;
+    }
+    return name.starts_with(b"security.smack64");
 }
 
-/// Whether a listed name is one,
-///  rather than the empty rest after a final separator.
+/// Whether an attribute is not a security label,
+///  which is what a judgement compares.
 /// Why:
-///   The list ends with a zero,
-///  which would otherwise read as an attribute with an empty name.
+///  A label is the identity this system gives a file,
+///  so two descriptions that differ only there are the same
+///  state of the same file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const named = (name) => name.length > 0;
+/// const isNotALabel = (attribute) => !isALabel(attribute.name);
 /// ```
-#[cfg(unix)]
-fn named(name: &&[u8]) -> bool {
-    return !name.is_empty();
+fn is_not_a_label(attribute: &&Attribute) -> bool {
+    return !is_a_label(attribute.name.as_slice());
 }
 
 /// What:
-///  The names of every extended attribute of the regular file at `path`,
-///  in the order the kernel
-///       lists them.
+///  Whether two attribute lists carry the same data,
+///  apart from the security labels each system gives.
 /// Why:
-///   The list is what the replacement must carry;
-///  a namespace the kernel does not report here is one this
-///       process cannot see,
-///  and `SPEC.md` records that limit.
+///  A fix carries a label when the system lets it and says so when it cannot,
+///  so a replacement that
+///       lacks the label the file had is still this fix's own file;
+///  comparing labels would keep a journal the fix
+///       wrote and would report a correction as the person's save.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const names = (path) => llistxattr(path).split('\0').filter(Boolean);
+/// const sameData = (left, right) => left.filter(isNotALabel).equals(right.filter(isNotALabel));
 /// ```
-#[cfg(unix)]
-fn names_of_attributes(path: &Path) -> std::io::Result<Vec<Vec<u8>>> {
-    let text: CString = name_of(path)?;
-    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
-        // SAFETY: a null buffer with size 0 asks the system for the length of the list.
-        let length: libc::ssize_t = unsafe { libc::llistxattr(text.as_ptr(), std::ptr::null_mut(), 0) };
-        if length < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        let mut names: Vec<u8> = vec![0; usize::try_from(length).unwrap_or(0)];
-        // SAFETY: `names` holds `names.len()` writable bytes, and the path outlives the call.
-        let filled: libc::ssize_t =
-            unsafe { libc::llistxattr(text.as_ptr(), names.as_mut_ptr().cast(), names.len()) };
-        if filled < 0 {
-            let error: std::io::Error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::ERANGE) {
-                continue;
-            }
-            return Err(error);
-        }
-        names.truncate(usize::try_from(filled).unwrap_or(0));
-        return Ok(names
-            .split(is_zero)
-            .filter(named)
-            .map(<[u8]>::to_vec)
-            .collect());
-    }
-    return Err(std::io::Error::other(
-        "the list of its extended attributes kept changing while it was read",
-    ));
-}
-
-/// What:
-///  The bytes the extended attribute `attribute` holds on the file at `path`.
-/// Why:
-///   The value is the person's data,
-///  and a name whose value cannot be read is a refusal rather than an
-///       attribute left behind on the replacement.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const value = (path, attribute) => lgetxattr(path, attribute);
-/// ```
-#[cfg(unix)]
-fn value_of_attribute(path: &Path, name: &CStr) -> std::io::Result<Vec<u8>> {
-    let text: CString = name_of(path)?;
-    for _attempt in 0..ATTRIBUTE_ATTEMPTS {
-        // SAFETY: a null buffer with size 0 asks the system for the length of the value.
-        let length: libc::ssize_t =
-            unsafe { libc::lgetxattr(text.as_ptr(), name.as_ptr(), std::ptr::null_mut(), 0) };
-        if length < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        let mut value: Vec<u8> = vec![0; usize::try_from(length).unwrap_or(0)];
-        // SAFETY: `value` holds `value.len()` writable bytes, and both names outlive the call.
-        let read: libc::ssize_t = unsafe {
-            libc::lgetxattr(
-                text.as_ptr(),
-                name.as_ptr(),
-                value.as_mut_ptr().cast(),
-                value.len(),
-            )
-        };
-        if read < 0 {
-            let error: std::io::Error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::ERANGE) {
-                continue;
-            }
-            return Err(error);
-        }
-        value.truncate(usize::try_from(read).unwrap_or(0));
-        return Ok(value);
-    }
-    return Err(std::io::Error::other(
-        "its value kept changing while it was read",
-    ));
+pub(crate) fn same_data(left: &[Attribute], right: &[Attribute]) -> bool {
+    return left.iter().filter(is_not_a_label).eq(right.iter().filter(is_not_a_label));
 }
 
 /// What:
@@ -265,7 +241,7 @@ fn value_of_attribute(path: &Path, name: &CStr) -> std::io::Result<Vec<u8>> {
 /// ```
 #[cfg(unix)]
 pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, String> {
-    let names: Vec<Vec<u8>> = match names_of_attributes(path) {
+    let names: Vec<Vec<u8>> = match reading::names_of_attributes(path) {
         Ok(listed) => listed,
         Err(error) => return Err(unreadable_list(step, &error)),
     };
@@ -274,7 +250,7 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
         let Ok(text) = CString::new(name.as_slice()) else {
             return Err(unaddressable_name(step));
         };
-        let value: Vec<u8> = match value_of_attribute(path, text.as_c_str()) {
+        let value: Vec<u8> = match reading::value_of_attribute(path, text.as_c_str()) {
             Ok(read) => read,
             Err(error) => return Err(unreadable_value(step, name.as_slice(), &error)),
         };
@@ -358,7 +334,9 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
 /// What:
 ///  Give the open replacement at `file` each of `attributes`,
 ///  and nothing else.
-///  `Result<(), (Attribute, std::io::Error)>` is the attribute the system refused and why.
+///  `Result<(), AttributeRefusal>` is the attribute the system refused and why,
+///  or the
+///       attribute the system would not take off.
 /// Why:
 ///   The descriptor cannot be redirected by a swap of the name,
 ///  so the attributes land on the file that will be
@@ -371,20 +349,28 @@ pub(crate) fn attributes_of(path: &Path, step: &str) -> Result<Vec<Attribute>, S
 ///  a system label that the file was created with is then replaced by the label the
 ///       person's file carried,
 ///  and a refusal to replace it is a refusal to fix.
+///  Everything the replacement carries that `attributes` does not name is then taken
+///       off,
+///  because a directory's default access-control list is copied onto every file created
+///       inside it,
+///  and the replacement is created inside the Git directory:
+///  a corrected file that kept that
+///       list would grant an account access the original never granted (`take_off_every_extra`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const { name, value } of attributes) { try { fsetxattr(file, name, value) } catch (error) { return { refused: name, error } } }
+/// for (const { name, value } of attributes) { try { fsetxattr(file, name, value) } catch (error) { return { kind: 'not-given', attribute: name, error } } }
+/// takeOffEveryExtra(file, attributes);
 /// ```
 #[cfg(unix)]
-pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attribute, std::io::Error)> {
+pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), AttributeRefusal> {
     let descriptor: libc::c_int = file.as_raw_fd();
     for attribute in attributes {
         let Ok(text) = CString::new(attribute.name.as_slice()) else {
-            return Err((
-                attribute.clone(),
-                std::io::Error::from(std::io::ErrorKind::InvalidInput),
-            ));
+            return Err(AttributeRefusal::NotGiven {
+                attribute: attribute.clone(),
+                reason: std::io::Error::from(std::io::ErrorKind::InvalidInput),
+            });
         };
         // SAFETY: the names are NUL-terminated strings, and `value` holds `value.len()` initialised bytes.
         let result: libc::c_int = unsafe {
@@ -397,7 +383,109 @@ pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attr
             )
         };
         if result != 0 {
-            return Err((attribute.clone(), std::io::Error::last_os_error()));
+            let reason: std::io::Error = std::io::Error::last_os_error();
+            // What: A security label is the system's identity for the file, so a system that will not let this
+            //       process set one gets a warning and the correction goes ahead.
+            // Why:  A container without the label's module answers "operation not supported" for every label, and a
+            //       correction that refused there would install nothing at all.
+            //
+            // In TS you'd write (pseudocode):
+            // if (isALabel(attribute.name)) { l.warn(labelKeptSentence(attribute, reason)); continue; }
+            if is_a_label(attribute.name.as_slice()) {
+                continue;
+            }
+            return Err(AttributeRefusal::NotGiven {
+                attribute: attribute.clone(),
+                reason,
+            });
+        }
+    }
+    return take_off_every_extra(file, attributes);
+}
+
+/// What:
+///  Whether `kept` names the attribute `name`.
+/// Why:
+///  A name the original carried is left as it is;
+///  a name it never had is one the replacement may not keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesIt = (kept, name) => kept.some((attribute) => attribute.name === name);
+/// ```
+#[cfg(unix)]
+fn names_it(kept: &[Attribute], name: &[u8]) -> bool {
+    for attribute in kept {
+        if attribute.name.as_slice() == name {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Take off the open replacement at `file` every extended attribute `kept` does not name.
+/// Why:
+///  A default access-control list belongs to the directory a file is created in,
+///  and the journal
+///       directory the replacement is written inside inherits one from the Git directory;
+///  the list is
+///       then copied onto the replacement,
+///  which after the swap decides who may read the person's file.
+///  A
+///       corrected file that kept it would grant an account the original never named read access,
+///  and
+///       comparing the displaced original cannot see it,
+///  because the unexpected list belongs to the
+///       replacement.
+///  The list is read from the descriptor,
+///  so no other process can move the name
+///       between the listing and the removal,
+///  and a removal the system refuses stops the write rather than leaving
+///       a grant behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of flistxattr(file)) if (!kept.some((attribute) => attribute.name === name)) fremovexattr(file, name);
+/// ```
+#[cfg(unix)]
+fn take_off_every_extra(file: &File, kept: &[Attribute]) -> Result<(), AttributeRefusal> {
+    let descriptor: libc::c_int = file.as_raw_fd();
+    let names: Vec<Vec<u8>> = match reading::names_on_descriptor(descriptor) {
+        Ok(listed) => listed,
+        Err(reason) => return Err(AttributeRefusal::ListFailed { reason }),
+    };
+    for name in names {
+        if names_it(kept, name.as_slice()) {
+            continue;
+        }
+        let extra: Attribute = Attribute {
+            name: name.clone(),
+            value: Vec::new(),
+        };
+        let Ok(text) = CString::new(name.as_slice()) else {
+            return Err(AttributeRefusal::NotRemoved {
+                attribute: extra,
+                reason: std::io::Error::from(std::io::ErrorKind::InvalidInput),
+            });
+        };
+        // SAFETY: the name is a NUL-terminated string the kernel listed, and the descriptor is this file's.
+        let result: libc::c_int = unsafe { libc::fremovexattr(descriptor, text.as_ptr()) };
+        if result != 0 {
+            let reason: std::io::Error = std::io::Error::last_os_error();
+            // What: A label this process may not take off stays, with a warning, and the correction goes ahead.
+            // Why:  The label is the identity this system gave the new file rather than data a person wrote, and a
+            //       process may not be allowed to remove one at all.
+            //
+            // In TS you'd write (pseudocode):
+            // if (isALabel(extra.name)) { l.warn(labelKeptSentence(extra, reason)); continue; }
+            if is_a_label(extra.name.as_slice()) {
+                continue;
+            }
+            return Err(AttributeRefusal::NotRemoved {
+                attribute: extra,
+                reason,
+            });
         }
     }
     return Ok(());
@@ -416,16 +504,16 @@ pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attr
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const giveTo = (file, attributes) => attributes.length === 0 ? undefined : { refused: attributes[0], error: unsupported };
+/// const giveTo = (file, attributes) => attributes.length === 0 ? undefined : { kind: 'not-given', attribute: attributes[0], error: unsupported };
 /// ```
 #[cfg(not(unix))]
-pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), (Attribute, std::io::Error)> {
+pub(crate) fn give_to(file: &File, attributes: &[Attribute]) -> Result<(), AttributeRefusal> {
     let _ = file;
     return match attributes.first() {
-        Some(attribute) => Err((
-            attribute.clone(),
-            std::io::Error::from(std::io::ErrorKind::Unsupported),
-        )),
+        Some(attribute) => Err(AttributeRefusal::NotGiven {
+            attribute: attribute.clone(),
+            reason: std::io::Error::from(std::io::ErrorKind::Unsupported),
+        }),
         None => Ok(()),
     };
 }
