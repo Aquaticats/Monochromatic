@@ -29,7 +29,7 @@ use crate::private_index_request::{CaptureIndexes, indexed_request};
 use crate::commit_staged_additions::{
     StagedAddition, carry_additions, explain_ignored_refusal, pathspecs_of_file, staged_additions_selected,
 };
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
 /// The index copy steps,
@@ -214,21 +214,17 @@ fn stage_into_the_private_index(
         note_index_build(IndexBuildKind::First, real_index_present);
         if selection.stage_tracked_changes {
             // Whole-tree update of tracked paths, exactly what `commit -a` stages, captured once at invocation. The
-            // pathspec is `:/`, which literal pathspec mode, from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`,
-            // would read as a file name and stage nothing, so the mode is switched off for this start.
-            private_git(
-                context,
+            // pathspec is `:/`, one the wrapper wrote, so every pathspec mode the caller set is removed from this start:
+            // literal mode would read it as a file name and stage nothing, and two glob modes at once make Git refuse it
+            // and fail the commit.
+            let staged: GitRequest = indexed_request(
                 cwd,
-                indexes.commit_index.as_path(),
-                indexes.object_directory.as_path(),
-                &[
-                    "--no-literal-pathspecs".to_string(),
-                    "add".to_string(),
-                    "--update".to_string(),
-                    "--".to_string(),
-                    ":/".to_string(),
-                ],
-            )?;
+                &["add", "--update", "--", ":/"],
+                Some(indexes.commit_index.as_path()),
+                Some(indexes.object_directory.as_path()),
+            )
+            .own_pathspecs();
+            run_git_checked(context, &staged)?;
         }
         if !selection.stage_into_index {
             return Ok(());
