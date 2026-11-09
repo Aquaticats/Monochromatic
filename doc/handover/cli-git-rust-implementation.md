@@ -92,24 +92,37 @@ Issue 6005 stays open for its surviving instance,
 
 #### The 860 move
 
-`package/repository-move/cli/src/run-repository-move.ts status` is the live record;
-stages through `c26-kopia-snapshot` are done.
+The cut-over finished at 2026-11-09T05:27:00+00:00:
+`package/repository-move/cli/src/run-repository-move.ts status` records every stage through `c28-ide-through-link`.
 Kopia no longer backs this repository up,
 by the owner's word recorded in `questions-for-the-owner.md`,
 so a folder vanishing during a read can no longer fail that stage.
+
+The last checks were made through the link spelling.
+`c27-container-bind` started a container that read the Git folder.
+A container created first and started afterwards did the same (W13 of `doc/planning/repository-on-the-860-drive.md`).
+`c28` opened the installed IDE in a headless nested compositor:
+the file tree listed the repository,
+`README.md` opened,
+and a content search returned matches from `package/git-policy/cli/SPEC.md` and other files.
+That IDE shows the physical path `/var/mnt/encrypted/repository/Monochromatic/README.md`,
+so it resolves the link rather than keeping the spelling it was given,
+as the stage's text says it does.
+Its language servers did not start in that check,
+which used an empty settings folder so the run left the owner's alone;
+`mise` reported no global version there.
+They were not otherwise checked through the link.
 
 `c27-container-bind` stopped because the repository's top folder carries the private label
 `container_file_t:s0:c311,c738`,
 which SELinux enforces against any container that did not get that label.
 Every container this repository runs passes `--security-opt label=disable`,
 and the stage did not.
-It now does.
+It now does (`73428ae89d`).
 What gave the folder that label is not known.
 
-Next:
-rerun the cut-over from that stage.
-After it come the `c28` IDE check in the nested compositor with `--assert=c28-ide-through-link`,
-and the merge of `fix/repository-move-cli-checks-after-the-860-move`.
+`922fa7d1fb` merged the move tool's fixes,
+and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
 #### Reviews and landings in progress
