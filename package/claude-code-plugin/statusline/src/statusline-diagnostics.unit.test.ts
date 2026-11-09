@@ -238,22 +238,26 @@ async function writeSettings({
 /**
  Runs the built command against a throwaway home.
 
- `MONOCHROMATIC_VERBOSE=true` is what makes the statusline's degraded reads
- report at all: without it the logger keeps ordinary failures silent, which is
- the point of an ordinary render.
+ `MONOCHROMATIC_VERBOSE=true` is what makes the statusline's ordinary degraded
+ reads report at all: without it the logger keeps them silent, which is the point
+ of an ordinary render.
 
  @param home - throwaway home the command reads its state from
 
  @param input - statusline payload written to the command's stdin
+
+ @param verbose - whether the run carries `MONOCHROMATIC_VERBOSE=true`
 
  @returns captured stdout and stderr
  */
 function runStatusline({
   home,
   input,
+  verbose = true,
 }: Readonly<{
   home: string;
   input: unknown;
+  verbose?: boolean;
 }>): StatuslineRun {
   /**
    Child run of the built command.
@@ -267,7 +271,7 @@ function runStatusline({
       env: {
         ...process.env,
         HOME: home,
-        MONOCHROMATIC_VERBOSE: 'true',
+        ...(verbose ? { MONOCHROMATIC_VERBOSE: 'true', } : {}),
       },
       input: JSON.stringify(input,),
       timeout: CHILD_TIMEOUT_MS,
@@ -446,6 +450,80 @@ await describe({
 
             expect(stderr,).toContain(`remembered activity word not persisted to ${memoryPath}`,);
             expect(stdout,).toBe(MODEL_AND_ACTIVITY_LINE,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'reported levels',
+      children: [
+        it({
+          name: 'reports durable corruption without the verbose flag',
+          fn: async function testWarnNeedsNoVerbose(): Promise<void> {
+            await using home = await makeHome();
+            await writeSettings({
+              home: home.path,
+              text: UNPARSABLE_SETTINGS,
+            },);
+
+            const { stderr, stdout, } = runStatusline({
+              home: home.path,
+              input: MODEL_ONLY_INPUT,
+              verbose: false,
+            },);
+
+            expect(stderr,).toContain('settings JSON is unparsable',);
+            expect(stdout,).toBe(MODEL_LINE,);
+          },
+        },),
+        it({
+          name: 'keeps an absent settings file quiet without the verbose flag',
+          fn: async function testAbsentFileNeedsNoReport(): Promise<void> {
+            await using home = await makeHome();
+
+            const { stderr, stdout, } = runStatusline({
+              home: home.path,
+              input: MODEL_ONLY_INPUT,
+              verbose: false,
+            },);
+
+            expect(stderr,).toBe('',);
+            expect(stdout,).toBe(MODEL_LINE,);
+          },
+        },),
+        it({
+          name: 'reports a refused permission without the verbose flag',
+          fn: async function testRefusedPermissionWarns(): Promise<void> {
+            await using home = await makeHome();
+            const transcriptPath = await writeTranscript({
+              home: home.path,
+              text: '',
+            },);
+            /**
+             Memory path of this session, occupied by a directory so the read
+             fails with a reason other than absence.
+             */
+            const memoryPath = join(
+              home.path,
+              MEMORY_DIRECTORY,
+              'session.txt',
+            );
+            await mkdir(
+              memoryPath,
+              { recursive: true, },
+            );
+
+            const { stderr, stdout, } = runStatusline({
+              home: home.path,
+              input: {
+                ...MODEL_ONLY_INPUT,
+                transcript_path: transcriptPath,
+              },
+              verbose: false,
+            },);
+
+            expect(stderr,).toContain(`remembered activity word unreadable from ${memoryPath}`,);
+            expect(stdout,).toBe(MODEL_LINE,);
           },
         },),
       ],

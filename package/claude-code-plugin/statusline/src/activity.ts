@@ -9,7 +9,10 @@ import { readFile, } from 'node:fs/promises';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
 
-import { diagnosticLogger, } from './diagnostic-logger.ts';
+import {
+  diagnosticLogger,
+  reportUnreadable,
+} from './diagnostic-logger.ts';
 import { findGerundInText, } from './gerund.ts';
 
 //region Transcript tail
@@ -274,13 +277,16 @@ async function readActivityWord({
     return '';
   }
   catch (error: unknown) {
-    // Without the transcript the status line loses its activity word, so the
-    // path and the read failure are both reported.
-    tagged({
-      tag: readActivityWord.name,
-      l: diagnosticLogger,
-    },)
-      .debug(`activity word unavailable because ${transcriptPath} could not be read: ${caughtValueText(error,)}`,);
+    // Without the transcript the status line loses its activity word; the path
+    // and the read failure are both reported.
+    reportUnreadable({
+      error,
+      l: tagged({
+        tag: readActivityWord.name,
+        l: diagnosticLogger,
+      },),
+      subject: `activity word unavailable because ${transcriptPath} could not be read`,
+    },);
     return '';
   }
 }

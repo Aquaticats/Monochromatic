@@ -8,7 +8,10 @@ import { readFile, } from 'node:fs/promises';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
 
-import { diagnosticLogger, } from './diagnostic-logger.ts';
+import {
+  diagnosticLogger,
+  reportUnreadable,
+} from './diagnostic-logger.ts';
 
 //region Constants
 
@@ -69,14 +72,14 @@ function effortLevelFromSettings(raw: string,): string {
       : DEFAULT_EFFORT_LEVEL;
   }
   catch (error: unknown) {
-    // The effort indicator disappears from the status line while the settings
-    // file stays unparsable, so the reason has to be recoverable: the caught
-    // value names what made the text invalid.
+    // The settings file was read, so unparsable text is durable corruption of a
+    // user file rather than an absent one, and it silently reverts the effort
+    // indicator to the default on every render until it is repaired.
     tagged({
       tag: effortLevelFromSettings.name,
       l: diagnosticLogger,
     },)
-      .debug(`settings JSON is unparsable, so the effort level stays unknown: ${caughtValueText(error,)}`,);
+      .warn(`settings JSON is unparsable, so the effort level stays unknown: ${caughtValueText(error,)}`,);
     return DEFAULT_EFFORT_LEVEL;
   }
 }
@@ -120,13 +123,15 @@ async function readEffortIndicator(): Promise<string> {
   }
   catch (error: unknown) {
     // A home without a settings file is ordinary, and so is this line: the
-    // reason still names the file the level was read from, so an unreadable
-    // settings file is distinguishable from a missing one.
-    tagged({
-      tag: readEffortIndicator.name,
-      l: diagnosticLogger,
-    },)
-      .debug(`effort level unreadable from ${settingsPath}: ${caughtValueText(error,)}`,);
+    // reason still names the file the level was read from.
+    reportUnreadable({
+      error,
+      l: tagged({
+        tag: readEffortIndicator.name,
+        l: diagnosticLogger,
+      },),
+      subject: `effort level unreadable from ${settingsPath}`,
+    },);
     return '';
   }
 }
