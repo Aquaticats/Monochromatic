@@ -7,6 +7,7 @@
 use super::*;
 use crate::lazy_runtime::run_on_runtime;
 use std::sync::atomic::AtomicUsize;
+use crate::parallel_test_support::ONE_PLACE;
 use std::time::Duration;
 
 /// How long a job of the bound's control holds its place,
@@ -195,4 +196,61 @@ fn a_job_the_pool_queued_after_a_refusal_does_not_run() {
         "the job the report gave up on ran afterwards with no place of the bound held for it, so the bound no longer covers every running blocking job"
     );
     let _kept: tokio::runtime::Runtime = runtime;
+}
+
+/// How long the control of a cancelled job lets the pool run after the caller stopped waiting.
+const AFTER_THE_CANCEL: Duration = Duration::from_secs(2);
+
+/// What:
+///  A job whose caller stopped waiting does not run afterwards.
+/// Why:
+///  Dropping the future of `run_blocking_job_within_the_budget` leaves the closure queued in the pool
+/// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+/// `spawn_task`),
+/// and the queue's next thread runs it.
+/// A caller that timed out has told nobody that the work would happen,
+/// so a job it gave up on must do nothing:
+///  its progress and its result have no reader left,
+/// and for a conversion the worktree would change after the caller reported a timeout
+/// ("never discard user data",
+/// "nothing should ever wait forever").
+/// The control keeps the pool's only thread inside an unrelated job,
+/// so the measured job is queued when the timeout drops it,
+///  and then lets the pool run.
+#[test]
+fn a_job_whose_caller_stopped_waiting_does_not_run_afterwards() {
+    crate::lazy_runtime::cap_workers(ONE_PLACE);
+    hold_blocking_jobs_to(BOUND_HELD_TO);
+    let (holding, held) = std::sync::mpsc::channel::<()>();
+    let (release, waiting) = std::sync::mpsc::channel::<()>();
+    let busy = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _outcome = run_blocking_job_within_the_budget(move || {
+            let _told = holding.send(());
+            let _ = waiting.recv();
+        })
+        .await;
+    });
+    assert!(busy.is_some(), "the runtime has a worker, so a place of the blocking pool can be held");
+    assert!(held.recv_timeout(PATIENCE).is_ok(), "the job that keeps the pool's thread never started");
+    // The place this job takes is free, so its closure is queued behind the only pool thread.
+    let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let did_run = Arc::clone(&ran);
+    let stopped = run_on_runtime(async move {
+        let timed = tokio::time::timeout(Duration::from_millis(200), run_blocking_job_within_the_budget(move || { did_run.store(true, Ordering::SeqCst); })).await;
+        return timed;
+    })
+    .expect("the runtime");
+    assert!(stopped.is_err(), "the caller stopped waiting for a job whose closure the pool had not started");
+    // The pool's thread is free again, and its queue runs what the caller gave up on.
+    let _let_go = release.send(());
+    let pool_ran = run_on_runtime(async { return run_blocking_job_within_the_budget(|| ()).await; }).expect("the runtime");
+    assert!(pool_ran.is_ok(), "the job that drains the pool's queue ran: {pool_ran:?}");
+    let waited: std::time::Instant = std::time::Instant::now();
+    while ran.load(Ordering::SeqCst) && waited.elapsed() < AFTER_THE_CANCEL {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        !ran.load(Ordering::SeqCst),
+        "the job whose caller stopped waiting ran afterwards, so a step can act after its caller reported a timeout"
+    );
 }
