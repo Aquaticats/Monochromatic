@@ -72,6 +72,7 @@ pub(crate) fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
     let rules_mark = crate::entry_rules_text_change_warm::mark_rules_text(&forward.command, &forward.identity);
     let code: i32 = match run_coordinated_forward(forward) {
         CoordinatedRun::Ran(code) => code,
+        CoordinatedRun::Killed(signal) => end_as_git_ended(signal),
         CoordinatedRun::Failed { stderr, code } => {
             write_stream(&mut std::io::stderr(), stderr.as_str());
             code

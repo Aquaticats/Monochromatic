@@ -1929,6 +1929,22 @@ Where that signal cannot end this process the exit status is 128 + the signal.
 So `git log -p | head -1` ends by `SIGPIPE` on this route as it does on native Git
 (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 finding 3).
+The coordinated route keeps a process around Git for every index writer,
+and a Git it started that a signal ended
+ends the wrapper the same way:
+`run_forwarded_git`,
+the hold retry that runs the command again while the service holds the index,
+and `from_forwarded` keep the signal,
+and `run_coordinated_action` ends by it through `end_as_git_ended`.
+Before that the death reached the caller as a normal exit with status 128 + the signal,
+so `git add` under `kill -TERM <git child>` told a script that maps signals that nothing was signalled.
+What still ends with a status on that route is the fetch of a pull,
+which ends with `1` as native Git's `cmd_pull` does.
+Tests:
+`a_git_child_that_a_signal_ended_keeps_its_signal_through_the_coordinated_forward`,
+`a_git_child_that_a_signal_ended_keeps_its_signal_when_no_scratch_place_is_given`,
+and
+`a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal`.
 
 ### Package-manager repair of a new worktree
 
