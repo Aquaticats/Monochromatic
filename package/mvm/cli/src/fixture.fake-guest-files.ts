@@ -149,11 +149,45 @@ function hostPathOf({
 }
 
 /**
+ Error codes that mean nothing stands at the path.
+
+ `ENOENT` covers a missing entry and `ENOTDIR` a component that is a file
+ rather than a directory. A directory the process may not search leaves
+ existence unknown, so it must reach the caller instead of answering "absent".
+ */
+const ABSENT_PATH_ERROR_CODES: ReadonlySet<string> = new Set([
+  'ENOENT',
+  'ENOTDIR',
+],);
+
+/**
+ Checks whether an error says the probed path holds no entry.
+
+ @param error - Caught value from the probe
+
+ @returns Whether the path is absent rather than uninspectable
+ */
+function isAbsentPathError(error: unknown,): boolean {
+  if (!(Error.isError(error,)))
+    return false;
+  if (!('code' in error))
+    return false;
+  if ((typeof error.code) !== 'string')
+    return false;
+  return ABSENT_PATH_ERROR_CODES.has(error.code,);
+}
+
+/**
  Checks whether a path exists.
+
+ Only an entry the kernel reports as missing answers `false`; a failure that
+ leaves existence unknown reaches the caller.
 
  @param path - Path to look for
 
  @returns Whether the path can be reached
+
+ @throws The probe's own failure when existence cannot be decided
  */
 async function exists(path: string,): Promise<boolean> {
   try {
@@ -161,10 +195,9 @@ async function exists(path: string,): Promise<boolean> {
     return true;
   }
   catch (error) {
-    if (!(Error.isError(error,)))
-      throw error;
-
-    return false;
+    if (isAbsentPathError(error,))
+      return false;
+    throw error;
   }
 }
 

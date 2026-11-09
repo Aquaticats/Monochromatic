@@ -318,11 +318,21 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
 }
 
-/// A child the kernel releases only after the push was reported has its lock swept when it ends,
-/// on a thread of its own.
+/// A child the kernel releases only after the push was reported is swept on a thread of its own when it ends,
+/// and the lock it left stays,
+/// because the pid file beside it names a number and neither that number nor the birth order of the two files proves
+/// whose writer made it
+/// (cross-vendor review of 2026-11-09,
+/// finding 3;
+/// `Proof::PidGone` is removed).
+/// What replaced the removal is the notice:
+/// the sweep names the lock,
+/// its size and age,
+/// and the `rm --` command that clears it with its pid file,
+/// and the next push that meets it prints that line before Git refuses.
 #[cfg(unix)]
 #[test]
-fn a_child_released_late_has_its_lock_swept_when_it_ends() {
+fn a_child_released_late_is_swept_and_its_lock_stays_named() {
     let root: std::path::PathBuf = crate::test_support::fixture("sweep-after-exit");
     let heads: std::path::PathBuf = root.join(".git").join("refs").join("heads");
     std::fs::create_dir_all(heads.as_path()).expect("ref directory");
@@ -335,7 +345,13 @@ fn a_child_released_late_has_its_lock_swept_when_it_ends() {
     let member: TreeMember = member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
     let sweeper = sweep_after_exit(child, vec![member], locks).expect("the sweeping task starts");
     crate::lazy_runtime::run_on_runtime(sweeper).expect("the runtime runs the wait").expect("the sweeping task ends");
-    assert!(!lock.exists(), "the lock the child left is swept once it ended");
+    assert!(lock.exists(), "the lock the child left stays: no number in a pid file proves its writer gone");
+    assert!(heads.join("late~pid.lock").exists(), "its pid file stays with it, so the pre-removal words can quote it");
+    // The judgement that this sweep ran is the one the earlier rounds pinned; here the outcome is what the person meets:
+    // the lock is still on disk, and the notice of the next command names it with the command that clears it.
+    let git_dir: std::path::PathBuf = root.join(".git");
+    let judged = crate::stale_ref_locks::clear_stale_ref_locks(std::slice::from_ref(&git_dir), &crate::stale_ref_lock_killed_git::judge());
+    assert!(judged.notice().contains("rm -- ") && judged.notice().contains("late.lock"), "the notice names the file and the command: {}", judged.notice());
     crate::test_support::remove(root.as_path());
 }
 
@@ -349,12 +365,18 @@ fn a_child_released_late_has_its_lock_swept_when_it_ends() {
 const HELD_UP_TEST_THREAD: Duration = Duration::from_millis(1500);
 
 /// A tree that has not ended when the grace is over is not swept then,
-/// which would remove nothing and never be tried again:
+/// which would leave its lock and never try again:
 /// the sweep waits for it on a thread of its own,
-/// and removes the lock once it has ended.
+/// runs once it has ended,
+/// and leaves the lock it left,
+/// because the pid file beside it proves nothing about its writer
+/// (cross-vendor review of 2026-11-09,
+/// finding 3;
+/// `Proof::PidGone` is removed).
+/// What replaced the removal is the notice that names the lock and the command that clears it.
 #[cfg(unix)]
 #[test]
-fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
+fn a_tree_still_running_after_the_grace_is_swept_when_it_ends_and_its_lock_stays() {
     let root: std::path::PathBuf = crate::test_support::fixture("sweep-lingering-member");
     let heads: std::path::PathBuf = root.join(".git").join("refs").join("heads");
     std::fs::create_dir_all(heads.as_path()).expect("ref directory");
@@ -376,7 +398,11 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
     drop(lingering.stdin.take());
     lingering.wait().expect("the member ends");
     crate::lazy_runtime::run_on_runtime(sweeper).expect("the runtime runs the wait").expect("the sweeping task ends");
-    assert!(!lock.exists(), "the lock is swept once the tree has ended");
+    assert!(lock.exists(), "the sweep ran once the tree ended and left the lock: no number in a pid file proves its writer gone");
+    assert!(heads.join("lingering~pid.lock").exists(), "its pid file stays with it");
+    let git_dir: std::path::PathBuf = root.join(".git");
+    let judged = crate::stale_ref_locks::clear_stale_ref_locks(std::slice::from_ref(&git_dir), &crate::stale_ref_lock_killed_git::judge());
+    assert!(judged.notice().contains("rm -- ") && judged.notice().contains("lingering.lock"), "the notice names the file and the command: {}", judged.notice());
     crate::test_support::remove(root.as_path());
 }
 

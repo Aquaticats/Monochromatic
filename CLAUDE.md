@@ -287,14 +287,25 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- OpenAI reviews and audits,
- `timeout` in seconds:
+ GPT reviews and audits,
+ `timeout` sized in seconds:
  `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
 
 XVB:
  Every `codex` run passes `--dangerously-bypass-approvals-and-sandbox`,
  because its auto mode has too many issues,
  and names `xhigh` explicitly.
+
+XVS:
+ Keep GPT runs small,
+ one narrow question each:
+ GPT models cannot be trusted on long-horizon work.
+
+LHZ:
+ Long-horizon reviews and audits,
+ in every harness:
+ use Claude Sonnet,
+ by whatever route that harness offers.
 
 PFW:
  Alongside advisor,
@@ -668,9 +679,11 @@ UPN:
  Never run bare `mpm upgrade --all`.
 
 TRB:
- External tool fails with a diagnostic:
- `rg` its message in `doc/troubleshooting/` before any workaround;
- follow a recorded verified workaround as written.
+ External tool diagnostic:
+ `rg` its message in `doc/troubleshooting/`;
+ apply an authorized repair unasked,
+ follow recorded workarounds as written,
+ then recheck the emitting tool.
 
 EDR:
  Parallel tool calls may run in any order,
@@ -764,13 +777,12 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Every command an agent does not consider trivial,
+ Every non-trivial command,
  in every agent:
- run it in its own cgroup with CPU,
+ run it as a harness-managed background process,
+ in its own cgroup with CPU,
  memory,
- process-count and disk-weight limits,
- each sized to that command,
- and state the bounds.
+ process-count and disk-weight limits sized to it.
 
 RXS:
  Per-command cgroups:

@@ -86,6 +86,11 @@ describes a WebDAV compiler cache and explicitly sets `RUSTC_WRAPPER` in its hos
 An endpoint variable or server-start command alone does not prove Cargo used the wrapper or returned hits.
 Root `.cargo/config.toml`,
 `mise.toml` and `mise.no-env.toml` have no matching wrapper or sccache configuration in the verified search.
+`mise.no-env.toml` was deleted on 2026-10-31,
+ in `7bbe5719d5`,
+ and its static environment moved to `.config/mise/conf.d/20-env.toml`,
+ which that search did not cover:
+ the absence above is verified for `mise.toml` and the deleted file only.
 Provider-injected runtime state is still an observation to record,
 not something that search proves absent.
 

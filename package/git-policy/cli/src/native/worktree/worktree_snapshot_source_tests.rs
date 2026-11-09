@@ -5,8 +5,35 @@
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
+use crate::parallel_test_support::{PATIENCE, hold_the_only_place};
 use crate::test_support::{age, git, git_context, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
+
+/// What:
+///  The three checks of a source are waits of the process's runtime,
+/// and the filesystem proof inside the clean check is a job of its blocking pool.
+/// Why:
+///   The owner asked every wait to sit on the runtime,
+/// and a synchronous walk of every tracked file must not run on a task
+///  that other work of the check shares.
+/// Only a job of the blocking pool asks for a place of the process's bound on blocking jobs,
+/// so an ask is what says the proof left
+///  the calling thread;
+/// the holder gives its place back on that ask and never on a clock.
+#[test]
+fn btrfs_the_checks_of_the_source_take_a_place_of_the_processs_bound() {
+    let Some(root) = btrfs_fixture("source-a-place-of-the-bound") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    let plan = plan_to(root.join("topic"));
+    let (_given_back, finished) = hold_the_only_place();
+    let source: Result<SnapshotSource, String> = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan);
+    assert!(source.is_ok(), "{:?}", source.err());
+    assert!(
+        finished.recv_timeout(PATIENCE).expect("the job that holds the only place never returned"),
+        "the files of the source were proven clean without asking for a place of the process's bound on blocking jobs"
+    );
+    remove(root.as_path());
+}
 
 /// A clean subvolume main checkout is a source,
 /// and it names the commit and tree of its `HEAD`.

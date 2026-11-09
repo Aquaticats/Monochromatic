@@ -7,9 +7,13 @@
 //!  the Restart Manager on Windows.
 //! Why:
 //!  An open descriptor proves a live owner.
-//!  Matching by device and inode,
+//!  Matching by the device number and the inode the file has,
 //!  never by path text,
-//!      means bind mounts and renamed paths cannot fake or hide a holder.
+//!      means a renamed path cannot fake a holder,
+//!      a bind mount cannot hide one,
+//!  and two files of two btrfs subvolumes are told apart,
+//!  which the mount number the kernel writes for a descriptor cannot do (audit of 2026-11-09,
+//!  finding 4).
 //!  Processes the scan
 //!      cannot read are partial evidence,
 //!  and they are reported as such rather than counted as absent.
@@ -25,6 +29,12 @@ use std::path::Path;
 ///  used by the Unix proc scan.
 #[cfg(unix)]
 use std::path::PathBuf;
+
+/// How a descriptor's open file is read:
+/// the kernel's copy of the descriptor in a judgement,
+/// or a control's own read of a link for a table the kernel does not know.
+#[cfg(unix)]
+pub type OpenedFileReader = fn(&Path, &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>;
 
 /// The incumbent's Restart Manager script,
 ///  byte for byte.
@@ -69,6 +79,18 @@ pub struct HolderEvidence {
     pub holders: Vec<Holder>,
     /// Reasons the scan could not see everything.
     pub partial: Vec<String>,
+    /// Reasons a descriptor whose record names the lock could not be identified,
+    /// because the kernel refused to copy it into this process:
+    /// a removal that acts on a scan with one of these is acting on a scan that proved nothing.
+    pub unresolvable: Vec<String>,
+}
+
+impl HolderEvidence {
+    /// Whether the scan reported a descriptor whose record named the lock and which it could not identify,
+    /// which is a holder that may be alive.
+    pub fn unresolved(&self) -> bool {
+        return !self.unresolvable.is_empty();
+    }
 }
 
 /// What:
@@ -127,79 +149,54 @@ fn exited(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  The mount number and the inode a descriptor record names,
-///  read from the text the kernel writes for it.
-/// Why:
-///   `/proc/<pid>/fdinfo/<n>` holds `mnt_id` and `ino` of the open file,
-///  and reading it touches no file system but the kernel's own:
-/// `stat` on the `/proc/<pid>/fd/<n>` link resolves the file on its disk and waits there as long as that disk does,
-///  so one stalled device held eight controls for over two minutes on 2026-11-08.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { mnt_id, ino } = parseFdinfo(await readFile(`/proc/${pid}/fdinfo/${n}`, 'utf8'));
-/// ```
-#[cfg(unix)]
-fn described_identity(record: &Path) -> std::io::Result<(u64, u64)> {
-    let text: String = std::fs::read_to_string(record)?;
-    let mut mount: Option<u64> = None;
-    let mut held: Option<u64> = None;
-    for line in text.lines() {
-        if let Some(value) = line.strip_prefix("mnt_id:") {
-            mount = value.trim().parse::<u64>().ok();
-        } else if let Some(value) = line.strip_prefix("ino:") {
-            held = value.trim().parse::<u64>().ok();
-        }
-    }
-    return match (mount, held) {
-        (Some(found), Some(described)) => Ok((found, described)),
-        _ => Err(std::io::Error::other("the descriptor record names no mount and inode")),
-    };
-}
-
-/// What:
 ///  Whether one process holds the file open,
 ///  and why its descriptors were unreadable.
 /// Why:
 ///   `scanProcess`:
-///  the first unreadable descriptor's reason is kept.
+///  the first unreadable descriptor's reason is kept,
+///  and the identity test is the one the scan of a process tree uses,
+///  so one file has one test everywhere:
+///  the device number and the inode,
+///  against a descriptor's record as the cheap test and its own open link as the answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function scanProcess({ procRoot, pid, device, inode }): Promise<{ holds: boolean; partial?: string }>;
 /// ```
 #[cfg(unix)]
-fn scan_process(proc_root: &Path, pid: &str, mount: u64, inode: u64) -> (bool, Option<String>) {
-    let records: PathBuf = proc_root.join(pid).join("fdinfo");
-    let listing: std::fs::ReadDir = match std::fs::read_dir(&records) {
+fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: OpenedFileReader) -> (bool, Option<String>, Option<String>) {
+    let process: PathBuf = proc_root.join(pid);
+    let listing: std::fs::ReadDir = match std::fs::read_dir(process.join("fd")) {
         Ok(found) => found,
-        Err(error) if exited(&error) => return (false, None),
-        Err(error) => return (false, Some(format!("PID {pid}: {error}"))),
+        Err(error) if exited(&error) => return (false, None, None),
+        Err(error) => return (false, Some(format!("PID {pid}: {error}")), None),
     };
     let mut holds: bool = false;
     let mut partial: Option<String> = None;
+    let mut unresolvable: Option<String> = None;
     for item in listing {
         let Ok(entry) = item else {
             continue;
         };
-        match described_identity(entry.path().as_path()) {
-            Ok((found_mount, found_inode)) => {
-                if found_mount == mount && found_inode == inode {
-                    holds = true;
+        match crate::process_use::descriptor_is_file_with(process.as_path(), entry.file_name().as_os_str(), device, inode, opened) {
+            Ok(true) => holds = true,
+            Ok(false) => {}
+            // The record of this descriptor could not be read: the process's descriptors are what the scan could not look
+            // at, which the service tolerates as it always has (the owner, 2026-11-07, "Service removes it").
+            Err(crate::process_use::Unread::Process(reason)) => {
+                if partial.is_none() {
+                    partial = Some(format!("PID {pid} fd {}: {reason}", entry.file_name().to_string_lossy()));
                 }
             }
-            Err(error) if exited(&error) => {}
-            Err(error) => {
-                if partial.is_none() {
-                    partial = Some(format!(
-                        "PID {pid} fd {}: {error}",
-                        entry.file_name().to_string_lossy()
-                    ));
+            // The record named the file, and the file could not be identified: the process may hold it.
+            Err(crate::process_use::Unread::File(reason)) => {
+                if unresolvable.is_none() {
+                    unresolvable = Some(format!("PID {pid} fd {}: {reason}", entry.file_name().to_string_lossy()));
                 }
             }
         }
     }
-    return (holds, partial);
+    return (holds, partial, unresolvable);
 }
 
 /// What:
@@ -218,8 +215,25 @@ fn scan_process(proc_root: &Path, pid: &str, mount: u64, inode: u64) -> (bool, O
 /// async function scanProcFdHolders({ device, inode, procRoot, selfPid }): Promise<LockHolderEvidence>;
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders(proc_root: &Path, mount: u64, inode: u64, self_pid: u32) -> HolderEvidence {
-    return scan_proc_fd_holders_until(proc_root, mount, inode, self_pid, None);
+pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid: u32) -> HolderEvidence {
+    return scan_proc_fd_holders_until(proc_root, device, inode, self_pid, None);
+}
+
+/// What:
+///  `scan_proc_fd_holders` with the reader of a descriptor's open file given.
+/// Why:
+///   A control's `/proc` is a directory of links and its numbers are not processes the kernel copies a descriptor for,
+///  so the control reads the file from the link,
+///  which is the way the scan no longer reads it in a judgement
+///  (`crate::process_use::descriptor_is_file_with`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// scanProcFdHoldersWith({ procRoot, device, inode, selfPid, opened });
+/// ```
+#[cfg(unix)]
+pub fn scan_proc_fd_holders_with(proc_root: &Path, device: u64, inode: u64, self_pid: u32, opened: OpenedFileReader) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping_with(proc_root, device, inode, self_pid, ScanLimit::default(), opened);
 }
 
 /// What:
@@ -236,8 +250,8 @@ pub fn scan_proc_fd_holders(proc_root: &Path, mount: u64, inode: u64, self_pid: 
 /// await scanProcFdHolders({ device, inode, procRoot, selfPid, deadline });
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders_until(proc_root: &Path, mount: u64, inode: u64, self_pid: u32, deadline: Option<std::time::Instant>) -> HolderEvidence {
-    return scan_proc_fd_holders_stopping(proc_root, mount, inode, self_pid, ScanLimit { deadline, processes: None });
+pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, self_pid: u32, deadline: Option<std::time::Instant>) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping(proc_root, device, inode, self_pid, ScanLimit { deadline, processes: None });
 }
 
 /// The sort key that puts the highest process number first;
@@ -293,11 +307,27 @@ fn past(moment: std::time::Instant) -> bool {
 /// await scanProcFdHolders({ device, inode, procRoot, selfPid, limit: { processes: 5 } });
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders_stopping(proc_root: &Path, mount: u64, inode: u64, self_pid: u32, limit: ScanLimit) -> HolderEvidence {
+pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, self_pid: u32, limit: ScanLimit) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping_with(proc_root, device, inode, self_pid, limit, crate::open_file_of_a_descriptor::opened_file_of);
+}
+
+/// What:
+///  `scan_proc_fd_holders_stopping` with the reader of a descriptor's open file given.
+/// Why:
+///   The same seam as `scan_proc_fd_holders_with`,
+///  for a control that also cuts the scan short.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// scanProcFdHoldersStoppingWith({ procRoot, device, inode, selfPid, limit, opened });
+/// ```
+#[cfg(unix)]
+pub fn scan_proc_fd_holders_stopping_with(proc_root: &Path, device: u64, inode: u64, self_pid: u32, limit: ScanLimit, opened: OpenedFileReader) -> HolderEvidence {
     let mut evidence: HolderEvidence = HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(found) => found,
@@ -306,12 +336,6 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, mount: u64, inode: u64, s
             return evidence;
         }
     };
-    if mount == 0 {
-        evidence.partial.push(String::from(
-            "the kernel reported no mount number for the lock, so no descriptor can be matched to it",
-        ));
-        return evidence;
-    }
     let own: String = self_pid.to_string();
     let mut pids: Vec<String> = Vec::new();
     for item in listing.flatten() {
@@ -335,7 +359,7 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, mount: u64, inode: u64, s
             evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
             break;
         }
-        let (holds, partial) = scan_process(proc_root, pid.as_str(), mount, inode);
+        let (holds, partial, unresolvable) = scan_process(proc_root, pid.as_str(), device, inode, opened);
         if holds && let Ok(number) = pid.parse::<i64>() {
             let command: Option<String> = std::fs::read_to_string(proc_root.join(pid).join("comm"))
                 .ok()
@@ -344,6 +368,9 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, mount: u64, inode: u64, s
         }
         if let Some(reason) = partial {
             evidence.partial.push(reason);
+        }
+        if let Some(reason) = unresolvable {
+            evidence.unresolvable.push(reason);
         }
     }
     crate::diagnostic_log::debug(
@@ -378,8 +405,11 @@ fn trimmed(text: String) -> String {
 /// Measured on 2026-11-07 on this host at load average 37 to 52:
 /// one walk of every process's open descriptors (list each
 ///  `/proc/<pid>/fd` and `stat` each link,
-/// as the scan does) over 1,000 processes and 54,500 descriptors took 313,
+/// which the walk measured here does) over 1,000 processes and 54,500 descriptors took 313,
 /// 360 and 398 ms.
+/// The scan does less of that work now:
+/// it resolves a descriptor's link only where the record already names the lock's inode number,
+/// so this walk remains the upper bound.
 ///  The earlier budget,
 /// 250 ms,
 /// was measured on 2026-11-03 over 858 processes with `ls` (0.10 s) and was shorter than a whole walk
@@ -399,8 +429,8 @@ pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_s
 pub fn scan_platform_holders_bounded(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
     #[cfg(target_os = "linux")]
     {
-        let _ = device;
-        return scan_proc_fd_holders_until(Path::new("/proc"), crate::process_use::mount_of(lock_path), inode, std::process::id(), Some(std::time::Instant::now() + SERVICE_SCAN_BUDGET));
+        let _ = lock_path;
+        return scan_proc_fd_holders_until(Path::new("/proc"), device, inode, std::process::id(), Some(std::time::Instant::now() + SERVICE_SCAN_BUDGET));
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -420,8 +450,8 @@ pub fn scan_platform_holders_bounded(lock_path: &Path, device: u64, inode: u64) 
 pub fn scan_platform_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
     #[cfg(target_os = "linux")]
     {
-        let _ = device;
-        return scan_proc_fd_holders(Path::new("/proc"), crate::process_use::mount_of(lock_path), inode, std::process::id());
+        let _ = lock_path;
+        return scan_proc_fd_holders(Path::new("/proc"), device, inode, std::process::id());
     }
     #[cfg(target_os = "macos")]
     {
@@ -440,6 +470,7 @@ pub fn scan_platform_holders(lock_path: &Path, device: u64, inode: u64) -> Holde
             method: "unsupported",
             holders: Vec::new(),
             partial: vec![String::from("no open-holder scan on this platform")],
+            unresolvable: Vec::new(),
         };
     }
 }
@@ -472,6 +503,7 @@ fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidenc
                 method: "lsof",
                 holders: Vec::new(),
                 partial: vec![format!("lsof failed: exit {:?}", finished.status.code())],
+                unresolvable: Vec::new(),
             };
         }
         Err(error) => {
@@ -479,6 +511,7 @@ fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidenc
                 method: "lsof",
                 holders: Vec::new(),
                 partial: vec![format!("lsof failed: {error}")],
+                unresolvable: Vec::new(),
             };
         }
     };
@@ -488,6 +521,7 @@ fn scan_lsof_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidenc
         method: "lsof",
         holders: matching_holders(parse_lsof_fields(stdout.as_str()).as_slice(), device, inode),
         partial: if root { Vec::new() } else { vec![String::from(SILENT_DENIAL_NOTE)] },
+        unresolvable: Vec::new(),
     };
 }
 
@@ -515,6 +549,7 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
                 method: "restart-manager",
                 holders: parse_restart_manager_output(String::from_utf8_lossy(finished.stdout.as_slice()).as_ref()),
                 partial: Vec::new(),
+                unresolvable: Vec::new(),
             };
         }
         Ok(finished) => {
@@ -522,6 +557,7 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
                 method: "restart-manager",
                 holders: Vec::new(),
                 partial: vec![format!("Restart Manager query failed: exit {:?}", finished.status.code())],
+                unresolvable: Vec::new(),
             };
         }
         Err(error) => {
@@ -529,6 +565,7 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
                 method: "restart-manager",
                 holders: Vec::new(),
                 partial: vec![format!("Restart Manager query failed: {error}")],
+                unresolvable: Vec::new(),
             };
         }
     }

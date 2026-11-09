@@ -212,6 +212,25 @@ fn remove_attribute(handle: Handle<'_>, name: &CStr) -> bool {
 }
 
 /// What:
+///  Whether the handle already holds `value` under `name`,
+/// so a set the system refused loses nothing.
+/// Why:
+///   A mount that forces one security context (`context=` on a container's overlay) reports the same label on every
+/// inode it creates,
+/// and a process may not set that label at all:
+/// the copy's creation gives the replacement that value,
+/// so counting a refusal as a loss would report data that is present as missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const alreadyCarries = (handle, name, value) => bufEquals(getxattr(handle, name), value);
+/// ```
+fn already_carries(destination: Handle<'_>, name: &CStr, value: &[u8]) -> bool {
+    let Some(held) = attribute_value(destination, name) else { return false };
+    return held == value;
+}
+
+/// What:
 ///  Copy every extended attribute of `source` onto the handle,
 /// then remove the carried ones the source lacks.
 /// Why:
@@ -237,7 +256,9 @@ fn copy_extended_attributes(source: &CStr, destination: Handle<'_>, remove_extra
             losses.extended_attributes += 1;
             continue;
         };
-        if !set_attribute(destination, attribute.as_c_str(), value.as_slice()) {
+        // A refusal is a loss only when the destination does not already hold that value: a mount that forces the label
+        //  gives it to the copy by itself, and nothing was lost.
+        if !set_attribute(destination, attribute.as_c_str(), value.as_slice()) && !already_carries(destination, attribute.as_c_str(), value.as_slice()) {
             losses.extended_attributes += 1;
         }
     }

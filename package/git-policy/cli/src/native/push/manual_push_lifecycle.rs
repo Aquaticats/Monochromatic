@@ -26,9 +26,8 @@ use crate::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUp
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::line_sink::LineSink;
 use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
-use crate::manual_push_range::{
-    ManualPushRangeError, UpdateScope, peel_commits, published_tips, tracking_commits, update_scope,
-};
+use crate::manual_push_range::{ManualPushRangeError, UpdateScope, update_scope};
+use crate::manual_push_range_published_tips::{peel_commits, published_tips, tracking_commits};
 /// Maps keyed by remote name and by object name,
 /// and the sets that answer whether a commit or tree is already listed.
 use std::collections::{BTreeMap, HashSet};

@@ -15,6 +15,14 @@
 //!  among the proofs:
 //! a correction of the wall clock moves every time that a lock and the boot are compared by (finding S-2 of
 //!  the cross-vendor review of 2026-11-03T11:33:50-05:00).
+//! Neither is a pid file:
+//!  Git writes it with a process number and no namespace,
+//! and only the birth order of the two files could tie that number to this lock,
+//! which a step of the clock turns around,
+//! so the pid file is read for the words of the notice and decides nothing
+//! (cross-vendor review of 2026-11-09,
+//! finding 3).
+//! The only removal left here is the staging file of the packed references.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,13 +30,11 @@
 //! ```
 
 use crate::fs_mount_options::read_mount_facts;
-use crate::pid_namespace::current_pid_namespace;
-use crate::stale_ref_lock_judge_environment::{INITIAL_PID_NAMESPACE, PROC_MOUNT_POINT, boot_time, nanoseconds_to_time, newest_time, proc_hides_no_process};
+use crate::stale_ref_lock_judge_environment::{PROC_MOUNT_POINT, boot_time, nanoseconds_to_time, newest_time};
 use crate::process_start::{ProcessStart, linux_start, now_ms};
 use crate::process_use::{ProcessUser, UseScan, UseTarget, processes_using_through};
+use crate::git_command_name::names_git_command;
 use crate::stale_ref_lock_found::PidFile;
-pub use crate::stale_ref_lock_own_ended::{ClaimedLock, OwnEnded};
-use crate::stale_ref_lock_nested_numbers::nested_holders_of;
 use crate::stopped_git_locks::pid_named_by;
 use crate::stale_ref_lock_walk::pid_file_beside;
 pub use crate::stale_ref_lock_identity::{Identity, identity_of};
@@ -94,64 +100,12 @@ pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_milli
 /// whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 
-/// How far a file's birth may precede the clock reading taken before a child started,
-/// for the file to count as born after
-///  the child started.
-/// The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
-///  Measured on this host (`CONFIG_HZ=1000`,
-/// so a tick is 1 ms):
-/// a new file's birth time lagged a clock read taken just before
-///  the create by at most 1.684 ms and 1.729 ms in two runs of 10,000 creates each,
-/// so 50 ms is about thirty times the
-///  longest lag.
-/// Kept;
-/// recorded in `doc/planning/cli-git-shipped-limits-audit.md`,
-/// "Margins for removing left-behind locks"
-///  (the coordinator's pick under the owner's delegation,
-/// open to the owner's veto).
-pub const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
-
-/// How far after the lock's birth a process must have started to count as a later user of the same number,
-/// beyond the
-///  clock's resolution.
-/// Measured:
-/// the start time derived from `/proc/<pid>/stat`,
-/// `/proc/uptime` and the clock read together
-///  exceeded the clock read just before the process was spawned by at most 2.331 ms and 2.329 ms in two runs of 1,000 spawns,
-/// so
-///  100 ms is over forty times the longest error beyond the 20 ms resolution.
-/// Kept;
-/// the coordinator's pick under the owner's
-///  delegation,
-/// open to the owner's veto.
-const REUSE_SLACK_MS: f64 = 100.0;
-
-/// The command name of Git,
-/// and of its helpers (`git-remote-https`),
-/// as the kernel reports it.
-const GIT_COMMAND_PREFIX: &str = "git";
-
 /// Why a lock may be removed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Proof {
-    /// The process the pid file names is gone.
-    PidGone(i64),
-    /// The process number now belongs to a program that is not Git.
-    PidReused {
-        /// The number the pid file names.
-        pid: i64,
-        /// The command name of the process that has it now.
-        command: String,
-    },
     /// The staging file `packed-refs.new` has no lock beside it,
     /// and Git creates it only while holding that lock.
     OrphanStaging,
-    /// A member of the tree this wrapper stopped was seen holding the lock,
-    /// by the pid file beside it,
-    /// before the stop signalled it,
-    /// and that member has ended;
-    /// the lock is the same file.
-    ClaimedBeforeStop(i64),
 }
 
 /// What a judgement concluded.
@@ -181,8 +135,6 @@ pub struct Judge {
     pub proc_root: PathBuf,
     /// How old a lock must be before it is judged at all.
     pub margin: Duration,
-    /// Whether the process numbers read here mean the same processes as in the pid files.
-    pub pid_view_complete: bool,
     /// When the machine booted by the wall clock,
     /// where known.
     /// Used only to say that a lock looks older than the boot,
@@ -191,9 +143,6 @@ pub struct Judge {
     pub boot: Option<SystemTime>,
     /// The file system types a lock may sit on.
     pub local_file_systems: Vec<String>,
-    /// The ended processes of a child this wrapper stopped,
-    /// where the judgement follows a stop.
-    pub own_ended: Option<OwnEnded>,
     /// The process numbers a scan for open holders may consider,
     /// where a caller judges one fixture and nothing else.
     /// Every process of the machine is evidence about a lock,
@@ -233,26 +182,21 @@ impl Judge {
         return Self {
             proc_root: PathBuf::from(PROC_MOUNT_POINT),
             margin: MARGIN,
-            pid_view_complete: current_pid_namespace().as_deref() == Some(INITIAL_PID_NAMESPACE) && proc_hides_no_process(),
             boot: boot_time(),
             local_file_systems,
-            own_ended: None,
             scan_scope: None,
         };
     }
 
     /// The processes that may use `identity`'s file,
     /// among every process of the table or only among the numbers this judge was given.
-    /// A file whose mount the kernel does not name is not looked for,
-    /// because a scan cannot recognise it in any process.
+    /// A file is looked for by the device number and the inode it has,
+    /// which a descriptor of any process carries whatever mount it was reached through.
     /// A reason about a process outside the scope is dropped with the process it names:
     /// what the scan could not read of another program cannot be a holder this judgement is about.
     fn users_of(&self, identity: &Identity) -> UseScan {
-        let target: UseTarget = UseTarget::File { mount: identity.mount, inode: identity.inode };
+        let target: UseTarget = UseTarget::File { device: identity.device, inode: identity.inode };
         let mut scan: UseScan = processes_using_through(self.proc_root.as_path(), &target, std::process::id());
-        if identity.mount == 0 {
-            scan.unavailable = Some(String::from("the kernel reported no mount number for the file, so no descriptor can be matched to it"));
-        }
         let Some(scope) = self.scan_scope.as_ref() else {
             return scan;
         };
@@ -273,6 +217,16 @@ impl Judge {
             }
         }
         scan.unreadable = unreadable;
+        let mut unresolved: Vec<String> = Vec::new();
+        for reason in scan.unresolved {
+            let Some(pid) = pid_of_reason(reason.as_str()) else {
+                continue;
+            };
+            if scope.contains(&pid) {
+                unresolved.push(reason);
+            }
+        }
+        scan.unresolved = unresolved;
         return scan;
     }
 
@@ -307,103 +261,14 @@ impl Judge {
         };
     }
 
-    /// What the pid file's process is now:
-    /// gone,
-    /// a program that is not Git,
-    /// a Git,
-    /// or not known.
-    ///  A number that is gone or reused here proves the writer gone only when no process of the table has that number
-    ///  inside a PID namespace of its own,
-    /// because the pid file holds the number its writer had in the writer's namespace.
-    fn judge_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
-        if !self.pid_view_complete {
-            if self.names_ended_own_child(pid, lock_born) {
-                return self.judge_own_ended_pid(pid);
-            }
-            return Verdict::Unproven(format!(
-                "the pid file beside it names process {pid}, but this process runs in a PID namespace of its own, or cannot see every process of the machine, so it cannot tell whether {pid} is gone"
-            ));
-        }
-        let verdict: Verdict = self.judge_listed_pid(pid, lock_born);
-        if !matches!(verdict, Verdict::Stale(_)) {
-            return verdict;
-        }
-        return match nested_holders_of(self.proc_root.as_path(), pid) {
-            Ok(holders) if holders.is_empty() => verdict,
-            Ok(holders) => Verdict::Unproven(format!(
-                "the pid file beside it names process {pid}, and process {} is process {pid} of a PID namespace of its own, so the writer may be that process",
-                holders.first().copied().unwrap_or_default()
-            )),
-            Err(reason) => Verdict::Unproven(format!(
-                "the pid file beside it names process {pid}, and the processes could not be searched for one that is process {pid} of a PID namespace of its own: {reason}"
-            )),
-        };
-    }
-
-    /// Whether the pid file names a process of the tree this wrapper stopped and saw end,
-    /// and the lock was born after that
-    ///  child started:
-    /// then the number is the wrapper's own namespace's,
-    /// and it was the child's.
-    fn names_ended_own_child(&self, pid: i64, lock_born: Option<SystemTime>) -> bool {
-        let Some(own) = self.own_ended.as_ref() else {
-            return false;
-        };
-        if !own.pids.contains(&pid) {
-            return false;
-        }
-        return match lock_born {
-            Some(born) => born + COARSE_CLOCK_SLACK >= own.since,
-            None => false,
-        };
-    }
-
-    /// The verdict for a number of a process this wrapper saw end,
-    /// when the table is not known to be the machine's:
-    /// it is
-    ///  gone if the table shows nothing with that number now,
-    /// and anything running with it is left alone.
-    fn judge_own_ended_pid(&self, pid: i64) -> Verdict {
+    /// What the pid file's number is now,
+    /// in words:
+    /// the notice says it and nothing decides on it.
+    fn process_state_words(&self, pid: i64) -> String {
         return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
-            ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
-            ProcessStart::Unknown(reason) => Verdict::Unproven(format!("the pid file beside it names process {pid}, which could not be looked at: {reason}")),
-            ProcessStart::Running { .. } => Verdict::Held(format!("process {pid}, which the pid file beside it names, ended with the child this wrapper stopped, and a process has the number again")),
-        };
-    }
-
-    /// What the pid file's process is in the process table as listed:
-    /// gone,
-    /// a program that is not Git,
-    /// a Git,
-    /// or not known.
-    fn judge_listed_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
-        return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
-            ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
-            ProcessStart::Unknown(reason) => Verdict::Unproven(format!("the pid file beside it names process {pid}, which could not be looked at: {reason}")),
-            ProcessStart::Running { started_at_ms, resolution_ms } => {
-                let command: String = match std::fs::read_to_string(self.proc_root.join(pid.to_string()).join("comm")) {
-                    Ok(text) => text.trim().to_owned(),
-                    Err(_) => String::new(),
-                };
-                // The number was reused only if the program is not Git AND it started after the lock was made; when the two
-                //  disagree (a Git under another name, a clock that moved) the process is taken for the holder.
-                let born_ms: Option<f64> = match lock_born {
-                    Some(at) => match at.duration_since(SystemTime::UNIX_EPOCH) {
-                        Ok(elapsed) => Some(elapsed.as_secs_f64() * 1000.0),
-                        Err(_) => None,
-                    },
-                    None => None,
-                };
-                let started_after: bool = match born_ms {
-                    Some(born) => started_at_ms > born + resolution_ms as f64 + REUSE_SLACK_MS,
-                    None => false,
-                };
-                if command.starts_with(GIT_COMMAND_PREFIX) || !started_after {
-                    Verdict::Held(format!("process {pid} ({command}), which the pid file beside it names, is running"))
-                } else {
-                    Verdict::Stale(Proof::PidReused { pid, command })
-                }
-            }
+            ProcessStart::Missing => String::from("has ended"),
+            ProcessStart::Unknown(reason) => format!("could not be looked at ({reason})"),
+            ProcessStart::Running { .. } => String::from("is running"),
         };
     }
 
@@ -438,7 +303,7 @@ impl Judge {
             let command: Option<String> = std::fs::read_to_string(self.proc_root.join(pid.to_string()).join("comm")).ok();
             match command {
                 None => {}
-                Some(name) if !name.trim().starts_with(GIT_COMMAND_PREFIX) => {}
+                Some(name) if !names_git_command(name.trim()) => {}
                 Some(_) => return Some(reason.clone()),
             }
         }
@@ -469,6 +334,16 @@ impl Judge {
         if let Some(user) = scan.users.first() {
             return verdict_with(Verdict::Held(format!("process {} ({}) has the file open", user.pid, user.command.clone().unwrap_or_default())), PidFile::Absent, identity, born);
         }
+        if let Some(reason) = scan.unresolved.first() {
+            return verdict_with(
+                Verdict::Unproven(format!(
+                    "a descriptor whose record names this file could not be copied out of the process that holds it ({reason}), so it may hold the file"
+                )),
+                PidFile::Absent,
+                identity,
+                born,
+            );
+        }
         return verdict_with(Verdict::Stale(Proof::OrphanStaging), PidFile::Absent, identity, born);
     }
 
@@ -484,13 +359,7 @@ impl Judge {
             return verdict_with(Verdict::TooNew, pid_file.clone(), identity, born);
         }
         let newest: SystemTime = newest_time(born, &identity);
-        // A lock whose pid file names a process this wrapper stopped and saw end needs no margin: its holder is known to be gone.
-        let claimed: Option<i64> = match self.own_ended.as_ref() {
-            Some(own) => own.holder_of_claimed(lock, &identity),
-            None => None,
-        };
-        let own: bool = claimed.is_some() || matches!(&pid_file, PidFile::Names(pid) if self.names_ended_own_child(*pid, born));
-        if !own && SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
+        if SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
             return verdict_with(Verdict::TooNew, pid_file.clone(), identity, born);
         }
         if let Err(reason) = self.local_check(lock) {
@@ -503,19 +372,32 @@ impl Judge {
         if let Some(user) = scan.users.first() {
             return verdict_with(Verdict::Held(format!("process {} ({}) has the file open", user.pid, user.command.clone().unwrap_or_default())), pid_file.clone(), identity, born);
         }
-        // A holder the wrapper itself saw hold this very file, and then saw end, needs no inference about the processes it cannot look into.
-        if let Some(pid) = claimed {
-            return verdict_with(Verdict::Stale(Proof::ClaimedBeforeStop(pid)), pid_file.clone(), identity, born);
-        }
         if let Some(reason) = self.unreadable_git(&scan) {
             return verdict_with(Verdict::Unproven(format!("a Git process of this account could not be looked into ({reason}), so it may hold the lock")), pid_file.clone(), identity, born);
         }
-        if let PidFile::Names(pid) = pid_file {
-            return verdict_with(self.judge_pid(pid, born), pid_file.clone(), identity, born);
+        if let Some(reason) = scan.unresolved.first() {
+            return verdict_with(
+                Verdict::Unproven(format!(
+                    "a descriptor whose record names this file could not be copied out of the process that holds it ({reason}), so that process may hold the lock"
+                )),
+                pid_file.clone(),
+                identity,
+                born,
+            );
         }
+        // A pid file is read for these words and decides nothing: its number names a process of the writer's own PID
+        // namespace, Git records no namespace, and only the birth order of the two files could tie the number to this lock,
+        // which a correction of the clock turns around (cross-vendor review of 2026-11-09, finding 3).
         let mut why: String = match pid_file {
-            PidFile::Older(pid) => format!("the pid file beside it (process {pid}) is older than the lock, so it belongs to an earlier holder"),
-            _ => String::from("no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open"),
+            PidFile::Names(pid) => format!(
+                "a pid file beside it names process {pid}, which {}, and nothing ties that number to this lock: Git writes a number and no namespace, and only the times of the two files could tie them, which a correction of the clock turns around",
+                self.process_state_words(pid)
+            ),
+            PidFile::Older(pid) => format!(
+                "the pid file beside it names process {pid}, which {}, and its times are earlier than the lock's, which fits an earlier holder as well as a correction of the clock, so it proves nothing",
+                self.process_state_words(pid)
+            ),
+            PidFile::Absent => String::from("no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open"),
         };
         if self.looks_older_than_boot(born, &identity) {
             why.push_str("; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing");

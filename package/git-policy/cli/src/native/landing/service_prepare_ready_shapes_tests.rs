@@ -109,13 +109,23 @@ fn an_unusable_repository_scratch_directory_falls_back_to_the_git_directory() {
 /// and the renewal stops when the command lets the tree go,
 /// so a sweep of the place by age never takes a live tree
 /// and a killed command's tree ages out as it did before.
+/// The renewal names itself on the thread it starts,
+/// so the control waits for the name instead of reading the process at the instant the spawn returned:
+/// a host under load runs the command before the new thread has set its name,
+/// and reading at that instant found no renewal thread at all
+/// (measured 2026-11-09 in the whole suite:
+/// the control passed alone and failed there).
 #[test]
 fn a_made_tree_is_renewed_while_its_command_lives() {
     let root: PathBuf = fixture("ready-shapes-scratch-renewed");
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
     let scratch: Scratch = Scratch::make(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d").expect("the scratch tree");
-    assert!(thread_names().iter().any(|name| { return name == "scratch-renewal"; }), "a made tree is renewed while the command lives: {:?}", thread_names());
+    let named: std::time::Instant = std::time::Instant::now();
+    while !thread_names().iter().any(|name| { return name == "scratch-renewal"; }) {
+        assert!(named.elapsed() < Duration::from_secs(15), "a made tree is renewed while the command lives: {:?}", thread_names());
+        std::thread::sleep(Duration::from_millis(20));
+    }
     drop(scratch);
     let began: std::time::Instant = std::time::Instant::now();
     while thread_names().iter().any(|name| { return name == "scratch-renewal"; }) {

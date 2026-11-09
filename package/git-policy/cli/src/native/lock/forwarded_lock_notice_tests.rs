@@ -23,16 +23,18 @@ fn prefix(stage: &Stage) -> Vec<OsString> {
     return vec![OsString::from("-C"), stage.repo.clone().into_os_string()];
 }
 
-/// A killed fetch's locks are removed before a forwarded fetch,
-/// and the notice says so.
+/// A killed fetch's locks are named before a forwarded fetch,
+/// and each carries the command that clears it,
+/// because a number in a pid file proves nothing about its writer.
 #[test]
-fn a_forwarded_fetch_clears_what_is_proven_stale_and_says_so() {
+fn a_forwarded_fetch_names_what_stays_and_says_so() {
     let stage: Stage = killed::stage("forwarded-notice-proven", true);
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
     let notice: String = forwarded_lock_notice(b"fetch", prefix(&stage).as_slice(), &[], &killed::judge());
-    assert!(notice.contains("monochromatic-git-policy-cli: removed the reference lock"), "{notice}");
-    assert!(!stage.lock_of(killed::GONE_REF).exists() && !stage.packed_lock().exists());
+    assert!(notice.contains("monochromatic-git-policy-cli: left the reference lock"), "{notice}");
+    assert!(notice.contains("rm -- "), "{notice}");
+    assert!(stage.lock_of(killed::GONE_REF).exists() && stage.packed_lock().exists());
     stage.finish();
 }
 
@@ -84,6 +86,6 @@ fn git_dir_in_the_environment_names_the_repository() {
     held.kill();
     let environment: Vec<(OsString, OsString)> = vec![(OsString::from("GIT_DIR"), stage.git_dir.clone().into_os_string())];
     let notice: String = forwarded_lock_notice(b"fetch", prefix(&stage).as_slice(), environment.as_slice(), &killed::judge());
-    assert!(notice.contains("removed the reference lock"), "{notice}");
+    assert!(notice.contains("left the reference lock"), "{notice}");
     stage.finish();
 }

@@ -184,7 +184,7 @@ fn a_commit_the_service_named_no_place_for_is_told_the_service_has_not_said_wher
         std::thread::sleep(FAKE_BEAT);
     }
     let commit: String = "d".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert_eq!(notices.matches(UNPLACED_SAID).count(), 1, "said once, and only once: {notices:?}");
@@ -285,7 +285,7 @@ fn a_commit_whose_notice_stream_stopped_taking_lines_still_lands() {
     }
     assert!(held.recv_timeout(PATIENCE).is_ok(), "the standing notice reached the stream, which then held it");
     let commit: String = "a".repeat(40);
-    (&service_stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&service_stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     // The answer is read while the line is still held: a stream that stopped taking lines never holds the commit.
     let end = answered.recv_timeout(ANSWERED_WHILE_THE_STREAM_IS_HELD).expect("the commit answered while its notice stream was held");
     assert_eq!(end, Ok(Submitted::Landed { commit, already: false }));
@@ -322,7 +322,7 @@ fn a_place_from_a_service_that_went_away_is_not_printed_as_the_current_one() {
         std::thread::sleep(FAKE_BEAT);
     }
     let commit: String = "b".repeat(40);
-    (&second).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&second).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert!(notices.contains(UNPLACED_SAID), "the second service named no place, and that is what the person is told: {notices:?}");
@@ -340,7 +340,7 @@ fn a_commit_that_lands_at_once_prints_nothing_new() {
     greet(&stream);
     read_request(&stream);
     let commit: String = "e".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert_eq!(notices, "", "a commit the service lands at once prints nothing");
@@ -359,7 +359,7 @@ fn a_place_the_service_names_before_the_wait_matters_prints_nothing() {
     let place: (usize, usize) = (2, 4);
     (&stream).write_all(&line(&ServiceMessage::Position { number: place.0, of: place.1 })).expect("the place");
     let commit: String = "c".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices, trace) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     assert_eq!(notices, "", "a commit the service lands at once prints nothing");
@@ -390,7 +390,7 @@ fn a_commit_the_service_places_after_a_wait_says_how_many_go_before_it() {
     }
     (&stream).write_all(&line(&ServiceMessage::Position { number: place.0, of: place.1 })).expect("the place");
     let commit: String = "f".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices, trace) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
     let placed: String = position_notice(place.0, place.1);

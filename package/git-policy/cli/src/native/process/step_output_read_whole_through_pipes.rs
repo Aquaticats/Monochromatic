@@ -462,7 +462,8 @@ async fn read_until_the_step_has_ended(mut pipe: Receiver, mut ends: tokio::sync
 /// the writes that closed are the step's whole answer,
 /// and a step that finished inside its
 ///  ceiling must not be reported as one whose output a program holds open.
-///  The descriptor is asked itself, and not the reactor:
+///  The descriptor is asked itself,
+/// and not the reactor:
 /// every operation of the runtime answers a read of a stream it has not
 ///  yet heard about with nothing,
 /// and the kernel's own answer is what decides here.
@@ -548,7 +549,7 @@ fn pipe_identity(_descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)>
 /// The processes that have the pipe with this identity open,
 /// this one aside.
 fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
-    let scan: UseScan = crate::process_use::processes_using(&UseTarget::File { mount, inode });
+    let scan: UseScan = crate::process_use::processes_using(&UseTarget::Mounted { mount, inode });
     return scan.users;
 }
 

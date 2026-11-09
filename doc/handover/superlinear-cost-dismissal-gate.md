@@ -580,7 +580,7 @@ by the uniform scoring pass of 2026-10-29.
 That pass re-judged the whole log
 after the first two scoring passes disagreed on the `yes` share
 (5 of 38 against 11 of 27),
-so the counts below are one instrument reading:
+so the named-cost counts are one instrument reading:
 
 - Named superlinear cost (`yes`):
   16 of 65.
