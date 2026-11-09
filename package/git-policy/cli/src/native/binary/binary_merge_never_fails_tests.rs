@@ -123,3 +123,62 @@ fn a_merge_whose_branch_moved_underneath_it_lands_on_the_new_head() {
         remove_settled(&fixture);
     }
 }
+
+/// What:
+///  A command run only to look at the worktree finishes the merge a killed command had started,
+///  and says so on standard error alone.
+/// Why:
+///  The startup step settles a dead merge before any command reads the checkout,
+/// so `git status` can move the branch onto the
+///  merge commit;
+/// silence there was the audit's finding 1
+///  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`).
+/// Standard output stays byte for byte what a script reads today,
+/// because scripts parse `git status --porcelain`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeKilledMergeRecord(repo); await readTree(repo, old, merged); const looked = await run(['status', '--porcelain=v1']);
+/// expect(looked.code).toBe(0); expect(looked.stdout).toEqual(''); expect(looked.stderr).toContain(merged);
+/// ```
+#[test]
+fn a_read_only_command_that_finishes_a_killed_merge_says_so() {
+    use git_policy_cli::merge_isolation_journal::{MergeIntent, write_merge_intent};
+    use git_policy_cli::transaction_owner::{TransactionOwner, current_transaction_owner};
+    let fixture: Fixture = fixture("merge-recovery-reported");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let old_oid: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let feature: String = git_text(&fixture, repo.as_path(), &["rev-parse", "feature"]).trim().to_owned();
+    let tree: String = git_text(&fixture, repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]).trim().to_owned();
+    let merged: String = git_text(
+        &fixture,
+        repo.as_path(),
+        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+    )
+    .trim()
+    .to_owned();
+    // The record a merge leaves when it is killed after Git moved the checkout and before it moved the branch, with an
+    //  owner whose process-birth identity no process has.
+    let mut owner: TransactionOwner = current_transaction_owner("dddddddd-0000-4000-8000-00000000000d", "2026-10-29T00:00:00.000Z").expect("owner");
+    owner.owner_identity = String::from("linux:1");
+    let intent: MergeIntent = MergeIntent {
+        owner,
+        repository_root: repo.to_string_lossy().into_owned(),
+        target_ref: Some(String::from("refs/heads/main")),
+        old_oid: old_oid.clone(),
+        new_oid: merged.clone(),
+    };
+    let record: PathBuf = write_merge_intent(repo.join(".git").as_path(), &intent).expect("the record");
+    git(&fixture, repo.as_path(), &["read-tree", "-m", "-u", old_oid.as_str(), merged.as_str()]);
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), old_oid, "the checkout holds the merge and the branch does not");
+    let looked = super::commit::run_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    assert_eq!(looked.code, Some(0), "{}", String::from_utf8_lossy(&looked.stderr));
+    assert_eq!(String::from_utf8_lossy(&looked.stdout), "", "the command's standard output is what it always was");
+    let said: String = String::from_utf8_lossy(&looked.stderr).into_owned();
+    assert!(said.contains("finished an interrupted merge"), "the recovery is stated: {said}");
+    assert!(said.contains("refs/heads/main"), "the ref it landed on is named: {said}");
+    assert!(said.contains(merged.as_str()), "the merge commit is named: {said}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the branch is on the merge");
+    assert!(!record.exists(), "the record is gone");
+    remove_settled(&fixture);
+}

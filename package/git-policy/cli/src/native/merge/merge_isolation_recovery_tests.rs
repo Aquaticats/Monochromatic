@@ -98,8 +98,16 @@ fn a_merge_that_never_began_is_discarded() {
     git(world.repo.as_path(), &["add", "--", "u.txt"]);
     let before = snapshot(&world);
     let record: PathBuf = record_of(&world, dead_owner("11111111-0000-4000-8000-000000000001"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
-    assert_eq!(outcomes, vec![MergeRecoveryOutcome { record: record.clone(), action: MergeRecoveryAction::Discarded }]);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
+    assert_eq!(
+        outcomes,
+        vec![MergeRecoveryOutcome {
+            record: record.clone(),
+            action: MergeRecoveryAction::Discarded,
+            target_ref: Some(String::from("refs/heads/main")),
+            new_oid: world.new_oid.clone(),
+        }]
+    );
     assert!(!record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid);
     assert_eq!(snapshot(&world), before);
@@ -114,7 +122,7 @@ fn a_live_owners_record_is_left_alone() {
         current_transaction_owner("22222222-0000-4000-8000-000000000002", "2026-10-29T00:00:00.000Z").expect("owner");
     let record: PathBuf = record_of(&world, live, Some("refs/heads/main"));
     assert!(!merge_intents_to_recover(world.git_dir.as_path()).expect("scan"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::OwnerActive);
     assert!(record.exists());
     remove(world.parent.as_path());
@@ -130,7 +138,7 @@ fn only_dead_or_unreadable_records_need_recovery() {
     assert!(merge_intents_to_recover(world.git_dir.as_path()).expect("dead owner"));
     std::fs::write(record.as_path(), b"{").expect("damage");
     assert!(merge_intents_to_recover(world.git_dir.as_path()).expect("malformed"));
-    let error = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect_err("fails closed");
+    let error = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect_err("fails closed");
     assert!(error.0.contains("malformed") && error.0.contains(record.to_string_lossy().as_ref()), "{error}");
     assert!(record.exists(), "a record that cannot be read is kept");
     remove(world.parent.as_path());
@@ -142,7 +150,7 @@ fn a_landed_merge_only_loses_its_record() {
     let world: World = world("merge-recovery-landed");
     git(world.repo.as_path(), &["merge", "--ff-only", "--quiet", world.new_oid.as_str()]);
     let record: PathBuf = record_of(&world, dead_owner("44444444-0000-4000-8000-000000000004"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded);
     assert!(!record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "");
@@ -161,7 +169,7 @@ fn a_branch_that_moved_before_the_checkout_changed_only_loses_its_record() {
     git(world.repo.as_path(), &["commit", "--quiet", "--all", "--message=elsewhere"]);
     let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
     let record: PathBuf = record_of(&world, dead_owner("55555555-0000-4000-8000-000000000005"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved);
     assert!(!record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved);
@@ -191,7 +199,7 @@ fn a_branch_that_moved_after_the_install_puts_the_merged_paths_back() {
     git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     assert!(world.repo.join("dir/new.txt").exists(), "the merge was installed");
     let record: PathBuf = record_of(&world, dead_owner("77777777-0000-4000-8000-000000000007"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved);
     assert!(!record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the winner's");
@@ -216,7 +224,7 @@ fn a_merge_killed_after_the_checkout_update_is_completed() {
     git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid);
     let record: PathBuf = record_of(&world, dead_owner("66666666-0000-4000-8000-000000000006"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
     assert!(!record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
@@ -235,7 +243,7 @@ fn a_merge_killed_between_the_worktree_and_the_index_is_completed() {
     std::fs::write(world.repo.join("f.txt"), b"f.txt feature\n").expect("the file Git wrote");
     std::fs::remove_file(world.repo.join("gone.txt")).expect("the file Git removed");
     let record: PathBuf = record_of(&world, dead_owner("77777777-0000-4000-8000-000000000007"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
     assert!(!record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
@@ -252,7 +260,7 @@ fn a_foreign_edit_stops_the_completion() {
     git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     std::fs::write(world.repo.join("f.txt"), b"someone else's edit\n").expect("foreign edit");
     let record: PathBuf = record_of(&world, dead_owner("88888888-0000-4000-8000-000000000008"), Some("refs/heads/main"));
-    let error = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect_err("fails closed");
+    let error = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect_err("fails closed");
     assert!(error.0.contains("f.txt") && error.0.contains("Nothing was changed"), "{error}");
     assert!(record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid);
@@ -266,7 +274,7 @@ fn an_unrelated_edit_does_not_make_a_merge_that_never_began_complete() {
     let world: World = world("merge-recovery-edit-only");
     std::fs::write(world.repo.join("f.txt"), b"an edit made while the merge was dead\n").expect("edit");
     let record: PathBuf = record_of(&world, dead_owner("99999999-0000-4000-8000-000000000009"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Discarded);
     assert!(!record.exists());
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("file"), b"an edit made while the merge was dead\n");
@@ -281,7 +289,7 @@ fn a_staged_change_of_a_merged_path_is_not_a_started_merge() {
     git(world.repo.as_path(), &["add", "--", "f.txt"]);
     let before = snapshot(&world);
     let record: PathBuf = record_of(&world, dead_owner("cccccccc-0000-4000-8000-00000000000c"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Discarded);
     assert!(!record.exists());
     assert_eq!(snapshot(&world), before);
@@ -296,7 +304,7 @@ fn a_detached_head_is_completed_too() {
     git(world.repo.as_path(), &["switch", "--quiet", "--detach", "HEAD"]);
     git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     let record: PathBuf = record_of(&world, dead_owner("aaaaaaaa-0000-4000-8000-00000000000a"), None);
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
     assert!(!record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), world.new_oid);
@@ -345,7 +353,7 @@ fn the_recovery_checks_files_out_without_quiet() {
     // The checkout and the index update hand their paths on standard input, which a request makes in the common directory.
     recording.common_dir = Some(world.git_dir.clone());
     let recording_place: RecoveryPlace = RecoveryPlace { git: recording, cwd: world.repo.clone(), common_dir: world.git_dir.clone() };
-    let outcomes = recover_interrupted_merges(&recording_place, world.git_dir.as_path()).expect("recovery");
+    let outcomes = recover_interrupted_merges(&recording_place, world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
     let checkouts: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("checkout-index"); }).collect();
     assert_eq!(checkouts.len(), 1, "one start checks the files out: {checkouts:?}");
@@ -375,7 +383,7 @@ fn an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes()
     std::fs::File::options().write(true).open(record.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age the record");
     let before = snapshot(&world);
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect_err("an expired foreign record is refused");
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect_err("an expired foreign record is refused");
     let text: String = refused.0;
     assert!(text.contains(record.to_string_lossy().as_ref()), "the record file is named: {text}");
     assert!(text.contains("31337") && text.contains("pid:[4026531999]"), "the owner and its namespace are named: {text}");
@@ -403,8 +411,65 @@ fn an_old_record_of_another_namespace_after_a_dead_one_stops_recovery_before_the
     let foreign: PathBuf = record_of(&world, owner, Some("refs/heads/main"));
     std::fs::File::options().write(true).open(foreign.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age the record");
     assert!(dead.file_name() < foreign.file_name(), "the dead owner's record is read first");
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect_err("an expired foreign record is refused");
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect_err("an expired foreign record is refused");
     assert!(refused.0.contains("31337"), "{}", refused.0);
     assert!(dead.exists() && foreign.exists(), "nothing was settled before the refusal");
     remove(world.parent.as_path());
+}
+
+/// What:
+///  A merge that recovery finishes tells the person so,
+///  naming the ref and the commit,
+///  and a merge it discards tells them nothing.
+/// Why:
+///  A command run only to look at the worktree must not move the branch onto a merge commit in silence
+///  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 1);
+/// the notice is the one record of that change outside the debug log,
+/// and it goes to standard error alone,
+/// because scripts read the command's standard output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notices = []; await recoverInterruptedMerges(place, gitDir, notices); expect(notices).toEqual([line]); expect(stdout).toBe('');
+/// ```
+#[test]
+fn a_completed_merge_is_reported_with_the_ref_and_the_commit() {
+    let world: World = world("merge-recovery-reported");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let _record: PathBuf = record_of(&world, dead_owner("dddddddd-0000-4000-8000-00000000000d"), Some("refs/heads/main"));
+    let mut notices: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut notices).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
+    let said: String = String::from_utf8(notices).expect("the notices are UTF-8");
+    assert_eq!(said.lines().count(), 1, "one line for the one merge that changed the branch: {said}");
+    assert!(said.contains("refs/heads/main"), "the ref is named: {said}");
+    assert!(said.contains(world.new_oid.as_str()), "the merge commit is named: {said}");
+    assert!(said.starts_with("monochromatic-git-policy-cli: "), "the line is the wrapper's: {said}");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
+    remove(world.parent.as_path());
+}
+
+/// A record that is only discarded,
+/// a live owner's record and a branch that already names the merge change nothing of the branch,
+/// so they say nothing.
+#[test]
+fn a_merge_that_changed_nothing_is_not_reported() {
+    let discarded: World = world("merge-recovery-unreported");
+    std::fs::write(discarded.repo.join("f.txt"), b"an edit made while the merge was dead\n").expect("edit");
+    let _record: PathBuf = record_of(&discarded, dead_owner("eeeeeeee-0000-4000-8000-00000000000e"), Some("refs/heads/main"));
+    let mut notices: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&discarded), discarded.git_dir.as_path(), &mut notices).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Discarded);
+    assert_eq!(String::from_utf8_lossy(&notices), "", "a discarded merge was never in the checkout");
+    remove(discarded.parent.as_path());
+
+    let landed: World = world("merge-recovery-unreported-landed");
+    git(landed.repo.as_path(), &["merge", "--ff-only", "--quiet", landed.new_oid.as_str()]);
+    let _landed_record: PathBuf = record_of(&landed, dead_owner("ffffffff-0000-4000-8000-00000000000f"), Some("refs/heads/main"));
+    let mut landed_notices: Vec<u8> = Vec::new();
+    let landed_outcomes = recover_interrupted_merges(&place(&landed), landed.git_dir.as_path(), &mut landed_notices).expect("recovery");
+    assert_eq!(landed_outcomes[0].action, MergeRecoveryAction::AlreadyLanded);
+    assert_eq!(String::from_utf8_lossy(&landed_notices), "", "a branch that already names the merge did not move");
+    remove(landed.parent.as_path());
 }

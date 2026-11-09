@@ -7570,6 +7570,15 @@ an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format
 (`.git/cli-git-transaction`)
 with the way to recover it.
+A merge that settling finishes says so on standard error,
+naming the ref it landed on and the merge commit,
+because the command may have been run only to look at the worktree;
+the same line names the ref a merge was abandoned on when the branch moved while it was prepared.
+A record that is discarded,
+a record whose owner still runs and a branch that already names the merge
+change nothing of the branch and say nothing.
+Standard output is never touched by these lines,
+because scripts read it.
 Commit records of an earlier release in `.git/cli-git-transactions`
 are not read,
 and the directory is no longer used:

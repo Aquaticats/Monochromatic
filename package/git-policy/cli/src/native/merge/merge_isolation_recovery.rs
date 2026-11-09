@@ -44,6 +44,8 @@ use crate::recovery_error::{RecoveryError, io_failure};
 use crate::transaction_owner::{OwnerLiveness, OwnerLivenessError, classify_transaction_owner_record};
 /// Running real Git.
 use crate::transaction_git::{GitRequest, run_git, run_git_checked};
+/// Writing the notices of what recovery did.
+use std::io::Write;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -51,7 +53,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type MergeRecoveryOutcome = { record: string; action: MergeRecoveryAction };
+/// type MergeRecoveryOutcome = { record: string; action: MergeRecoveryAction; targetRef?: string; newOid: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MergeRecoveryOutcome {
@@ -59,6 +61,71 @@ pub struct MergeRecoveryOutcome {
     pub record: PathBuf,
     /// What recovery did.
     pub action: MergeRecoveryAction,
+    /// The ref the record names,
+    /// or nothing when the merge ran on a detached `HEAD`.
+    pub target_ref: Option<String>,
+    /// The merge commit the record names.
+    pub new_oid: String,
+}
+
+/// What:
+///  The line that tells the person what recovery did to a merge whose owner is gone,
+/// for the outcomes that changed the checkout,
+/// or nothing for the outcomes that changed nothing.
+/// Why:
+///   A command a person ran to look at the worktree can move the branch onto a merge commit that a killed merge
+///  started;
+/// that is a state change the person did not ask for,
+/// and the only record of it was a debug line
+///  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 1).
+///  A discarded record,
+/// a live owner's record and one whose branch already names the merge changed
+///  nothing of the branch,
+/// so they say nothing.
+/// The line names the ref and the commit,
+/// never the wrapper's own
+///  record files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recoveryNotice(outcome: MergeRecoveryOutcome): string | undefined;
+/// ```
+pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
+    let reference: &str = outcome.target_ref.as_deref().unwrap_or("HEAD (detached)");
+    return match outcome.action {
+        MergeRecoveryAction::Completed => Some(format!(
+            "monochromatic-git-policy-cli: finished an interrupted merge: {reference} now names {}, the merge commit. A command that \
+             started this merge ended before it moved the branch, so this command moved it; the merge's files were already in the \
+             checkout.\n",
+            outcome.new_oid
+        )),
+        MergeRecoveryAction::BranchMoved => Some(format!(
+            "monochromatic-git-policy-cli: {reference} moved while a merge was being prepared here, so that merge did not land; its \
+             files were put back and the checkout matches the branch.\n"
+        )),
+        MergeRecoveryAction::OwnerActive | MergeRecoveryAction::Discarded | MergeRecoveryAction::AlreadyLanded => None,
+    };
+}
+
+/// What:
+///  Write the notice of every outcome that changed the checkout.
+/// Why:
+///   Both the startup step of every command and an isolated merge's own recovery settle dead merges,
+/// and the person is
+///  told the same way by both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const outcome of outcomes) { const line = recoveryNotice(outcome); if (line) out.write(line); }
+/// ```
+pub fn report_recovery(outcomes: &[MergeRecoveryOutcome], out: &mut dyn Write) {
+    for outcome in outcomes {
+        if let Some(line) = recovery_notice(outcome) {
+            // A closed terminal is not a reason to stop the command the person asked for.
+            let _noted = out.write_all(line.as_bytes());
+        }
+    }
 }
 
 /// What:
@@ -105,6 +172,7 @@ pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
 pub fn recover_interrupted_merges(
     place: &RecoveryPlace,
     git_dir: &Path,
+    out: &mut dyn Write,
 ) -> Result<Vec<MergeRecoveryOutcome>, RecoveryError> {
     let mut outcomes: Vec<MergeRecoveryOutcome> = Vec::new();
     // Every record is read and its owner judged before any is settled, so a record of another namespace older than the patience
@@ -133,7 +201,17 @@ pub fn recover_interrupted_merges(
         } else {
             settle_failed_merge(place, record.as_path(), &intent)?
         };
-        outcomes.push(MergeRecoveryOutcome { record, action });
+        let outcome: MergeRecoveryOutcome = MergeRecoveryOutcome {
+            record,
+            action,
+            target_ref: intent.target_ref.clone(),
+            new_oid: intent.new_oid.clone(),
+        };
+        if let Some(line) = recovery_notice(&outcome) {
+            // A closed terminal is not a reason to stop the command the person asked for.
+            let _noted = out.write_all(line.as_bytes());
+        }
+        outcomes.push(outcome);
     }
     return Ok(outcomes);
 }
