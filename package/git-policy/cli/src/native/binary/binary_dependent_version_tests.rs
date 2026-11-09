@@ -125,6 +125,108 @@ fn read(repo: &Path, name: &str) -> String {
         .expect("manifest");
 }
 
+/// A committed workspace of `@s/base` and its runtime dependent `app`,
+/// configured for the policy,
+/// with `@s/base` raised to `1.1.0` in the worktree and no registry configuration yet.
+fn app_workspace(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    write(
+        repo.as_path(),
+        "package/module/base/package.json",
+        &manifest("@s/base", "1.0.0", None),
+    );
+    write(
+        repo.as_path(),
+        "package/module/app/package.json",
+        &manifest("app", "2.0.0", Some("@s/base")),
+    );
+    write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(
+        fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=workspace"],
+    );
+    write(
+        repo.as_path(),
+        "package/module/base/package.json",
+        &manifest("@s/base", "1.1.0", None),
+    );
+    return repo;
+}
+
+/// A tagged workload key ends the check with the line that holds it,
+/// instead of hiding the
+///       publishable package the other workload already listed a name beside.
+#[test]
+fn a_tagged_key_stops_the_check_by_line() {
+    let fixture: Fixture = fixture("dependent-version-tagged-key");
+    let repo: PathBuf = app_workspace(&fixture);
+    write(
+        repo.as_path(),
+        "package/config/pnpr/config.yaml",
+        concat!(
+            "auth:\n",
+            "  oidc:\n",
+            "    - name: github\n",
+            "      workloads:\n",
+            "        - registry: r\n",
+            "          packages:\n",
+            "            - '@s/base'\n",
+            "        - registry: monochromatic-dev\n",
+            "          !!str packages:\n",
+            "            - 'app'\n",
+        ),
+    );
+    let refused: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["monochromatic-git-policy-cli", "check", "--all"],
+    );
+    assert_eq!(refused.code, Some(2), "{}", String::from_utf8_lossy(&refused.stdout));
+    let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
+    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains("begins with '!', which opens a key this reader does not read on line 9"),
+        "{events}"
+    );
+    remove(&fixture);
+}
+
+/// A comment a tab introduces is not part of a package name:
+/// the list item `- app` and the tab and `# published` after it name `app`,
+/// so the check reports its stale version.
+#[test]
+fn a_tab_comment_keeps_the_package_name() {
+    let fixture: Fixture = fixture("dependent-version-tab-comment");
+    let repo: PathBuf = app_workspace(&fixture);
+    write(
+        repo.as_path(),
+        "package/config/pnpr/config.yaml",
+        concat!(
+            "auth:\n",
+            "  oidc:\n",
+            "    - name: github\n",
+            "      workloads:\n",
+            "        - registry: r\n",
+            "          packages:\n",
+            "            - '@s/base'\n",
+            "            - app\t# published\n",
+        ),
+    );
+    let reported: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["monochromatic-git-policy-cli", "check", "--all"],
+    );
+    assert_eq!(reported.code, Some(1), "{}", String::from_utf8_lossy(&reported.stdout));
+    let events: String = String::from_utf8_lossy(&reported.stdout).into_owned();
+    assert!(events.contains("\"code\":\"mono/dependent-version-bump/dependent-version-stale\""), "{events}");
+    assert!(events.contains("\"path\":\"package/module/app/package.json\""), "{events}");
+    assert!(!events.contains("app\\t# published"), "{events}");
+    remove(&fixture);
+}
+
 /// A commit that raises a version lands whether the publish set is absent or empty:
 /// the pre-forward lifecycle plans no dependent bump,
 /// so a publish set it cannot read never fails a commit.
