@@ -430,6 +430,9 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     environment: &[(OsString, OsString)],
     checks: &mut ShippedChecks<F>,
 ) -> WrappedOutcome {
+    // The guard reads the environment to know whether Git reaches an installed `git-<word>` before an alias of that
+    //  word, so every check of a wrapped command carries the environment this invocation was started with.
+    checks.environment = environment.to_vec();
     if stripped.layout.outcome != GlobalOutcome::Command {
         return WrappedOutcome::Forward {
             // `.clone()` copies the arguments for the caller.
