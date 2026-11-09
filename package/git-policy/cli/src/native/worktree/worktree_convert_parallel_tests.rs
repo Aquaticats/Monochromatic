@@ -20,6 +20,13 @@ use std::time::Duration;
 /// How many worktrees the controls convert.
 const WORKTREES: usize = 4;
 
+/// How many worktrees a control converts when the conversions run one after another:
+/// one proves that a conversion takes a place of the bound, and two show a serial report beside a side-by-side one.
+const ONE_CONVERSION: usize = 1;
+
+/// How many worktrees the comparison of a serial run against a side-by-side run converts.
+const TWO_CONVERSIONS: usize = 2;
+
 /// A host large enough that neither the CPUs nor the memory bound a run of `WORKTREES` worktrees.
 const LARGE_HOST: HostResources = HostResources { parallelism: WORKTREES * 8, memory_available: None };
 
@@ -344,8 +351,10 @@ fn lines_without_root(lines: &[String], root: &Path) -> Vec<String> {
 /// What a person reads is the same whether the worktrees were converted one at a time or side by side.
 #[test]
 fn the_output_equals_the_one_at_a_time_output() {
-    let (serial_parent, serial_root) = checkout_with_worktrees("convert-parallel-equal-serial", WORKTREES);
-    let (side_parent, side_root) = checkout_with_worktrees("convert-parallel-equal-side", WORKTREES);
+    // Two worktrees show a serial run against a side-by-side one, and the serial arm's second conversion is the only
+    //  other storage work this control needs: four would be four conversions one after another.
+    let (serial_parent, serial_root) = checkout_with_worktrees("convert-parallel-equal-serial", TWO_CONVERSIONS);
+    let (side_parent, side_root) = checkout_with_worktrees("convert-parallel-equal-side", TWO_CONVERSIONS);
     let (serial_code, serial_lines) = run_on(&shared_quiet(), &LARGE_HOST, &ConvertArguments { jobs: Some(1), ..all_arguments() }, serial_root.as_path());
     let (side_code, side_lines) = run_on(&shared_quiet(), &LARGE_HOST, &all_arguments(), side_root.as_path());
     assert_eq!(serial_code, side_code);
@@ -440,7 +449,10 @@ fn the_conversions_run_on_the_processs_runtime() {
 /// and a conversion run on a worker of the runtime instead would start at once.
 #[test]
 fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
-    let (parent, root) = checkout_with_worktrees("convert-parallel-a-place-of-the-bound", WORKTREES);
+    // One conversion proves it, and it is the only one that may run: the place this control holds is the process's
+    //  only place, so four worktrees here would be four conversions one after another, which under the load of a whole
+    //  suite can outlast the test watchdog (measured: 105 s in a suite, 1.1 s alone).
+    let (parent, root) = checkout_with_worktrees("convert-parallel-a-place-of-the-bound", ONE_CONVERSION);
     let (given_back, finished) = hold_the_only_place();
     let started_after: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
     let (began, given) = (Arc::clone(&started_after), Arc::clone(&given_back));
@@ -451,10 +463,11 @@ fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
         }),
         ..Watched::quiet()
     });
-    let (code, lines) = run_on(&shared(&platform), &LARGE_HOST, &all_arguments(), root.as_path());
+    let named: ConvertArguments = ConvertArguments { paths: vec![name_of(0).into()], ..ConvertArguments::default() };
+    let (code, lines) = run_on(&shared(&platform), &LARGE_HOST, &named, root.as_path());
     assert_eq!(code, 0, "{lines:#?}");
     let seen: Vec<bool> = started_after.lock().expect("lock").clone();
-    assert_eq!(seen, vec![true; WORKTREES], "a conversion started while another job held the only place of the process's bound, so it did not take one: {lines:#?}");
+    assert_eq!(seen, vec![true; ONE_CONVERSION], "a conversion started while another job held the only place of the process's bound, so it did not take one: {lines:#?}");
     // The holder gives its place back when a job of this work asks for one, so this is the proof that the work
     //  reached the process's bound instead of starting at once.
     assert!(
