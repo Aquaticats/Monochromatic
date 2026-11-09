@@ -697,3 +697,207 @@ Decision:
 do not file a defect.
 If the owner accepts the direction,
 prepare an upstream feature proposal or maintain the local adapter deliberately.
+
+---
+
+## Bug 5: the pinned plugins cannot parse a set of tracked files, so the gate is red across the tree
+
+### Symptom
+
+`mise run lint:dprint` (`dprint check --list-different`) exits 1 and prints two different lists.
+The first is absolute paths of files that would be reformatted,
+one per line.
+The second is files that cannot be formatted at all,
+each as `Error formatting <path>. Message: ...`,
+and the run ends with `Had 44 errors formatting.`
+At commit `c6cc850c6d` the run listed 377 files that would be reformatted and 44 that failed to parse.
+
+### Root cause
+
+No CI job runs the gate:
+nothing under `.github/` invokes `dprint` (`rg -n "dprint" .github/ --glob '!*.json'` finds nothing),
+and the only lint job that runs,
+`lint:monochromatic-lint` over changed files in `.github/workflows/advisory-core.yml`,
+sets `continue-on-error: true`.
+A file written without `dprint fmt` and never touched again therefore stays unformatted until an agent happens to run the gate.
+
+Under that gap the 377 split into two content groups,
+neither of them new:
+
+- 217 are `package/music-player/design/**` artifacts:
+  evaluation pages and `.dc.html` candidates written by the folder's own renderers (`*.mjs` scripts and `*.template.html` templates) or by hand.
+- 160 are configuration,
+  manifest and fixture files elsewhere:
+  28 `Cargo.toml`,
+  46 `mise.toml`,
+  7 other TOML,
+  22 JSON or JSONC (`file-enforcer.config.jsonc`,
+  `monochromatic-git-policy-cli.config.jsonc` and fixtures),
+  17 YAML (the workflow files and the `cordis.patch.yml` files),
+  12 XML,
+  12 HTML and 5 SVG,
+  plus 11 `tsconfig.json`.
+Nearly all of them differ by lines longer than `lineWidth` 90 that dprint splits,
+  or by arrays dprint expands one element per line.
+
+Two shapes come from a tool rather than from a hand:
+
+- file-enforcer's block appender writes a blank line before each block it appends (`package/file-enforcer/core-rust/src/toml_ops.rs:155`):
+
+  ```rust
+  pub fn append_block(text: &str, block: &str) -> String {
+      let mut result = text.to_string();
+      if !result.is_empty() && !result.ends_with('\n') {
+          result.push('\n');
+      }
+      if !result.is_empty() {
+          result.push('\n');
+      }
+  ```
+
+  `dprint-plugin-toml` 0.7.0 deletes a blank line that follows an empty table header before a comment,
+  so every `[workspace]` followed by a blank line and the catalog comment is a finding.
+  The two do not conflict in the other direction today:
+  with the line removed,
+  `file-enforcer check` reports `check-clean, drifted 0` and `file-enforcer write` writes nothing,
+  so the blank line is not generated content either way.
+- the design renderers write HTML in a template dialect (`{{ placeholder }}` expressions and custom elements such as `<x-dc>` and `<sc-for>`) that `markup_fmt` cannot parse,
+  which is what produces 41 of the errors.
+
+The 44 unparseable files are three kinds:
+
+- 41 `package/music-player/design/candidates/*.dc.html` files,
+  failing with `failed to format code with external formatter:` and a parser error such as `syntax error at line 12, col 19: expect token '<ident>', but found '{'`.
+- 2 files with an unclosed `<p>` element:
+  `package/music-player/design/questions/archive/search-ranking-before-dm.html` and its `.template.html`,
+  both reporting `syntax error 'expected close tag for opening tag <p> from line 287, column 4'`.
+  The template carries the defect and `package/music-player/design/search-ranking-question.mjs` renders the copy.
+- 1 fixture:
+  `package/linter/monochromatic-lint/fixtures/lfs-url-parity.json` line 2158 holds `"https://lfs.example/\ud83d\ude00"`,
+  and `dprint-plugin-json` 0.20.0 reports `Invalid unicode escape sequence. 'd83d' is not a valid UTF8 character` for the surrogate pair the Node incumbent emitted.
+
+### Verification
+
+Version under test:
+dprint 0.64.3,
+the version `toolchain.lock.json` locks,
+with the plugins `package/config/dprint/index.json` pins (`toml-0.7.0`,
+`g-plane/markup_fmt-v0.23.1`,
+`g-plane/malva-v0.14.1`,
+`g-plane/pretty_yaml-v0.5.1`,
+`json-0.20.0`).
+No plugin URL has changed since 2025-07-30 and no setting since 2026-05-25,
+so a file's verdict depends only on its content.
+
+Reproduce the whole gate,
+and one parse failure alone:
+
+```sh
+mise run lint:dprint
+dprint check -- package/linter/monochromatic-lint/fixtures/lfs-url-parity.json
+```
+
+Measure the blank-line rule on one file that differs only in which table is empty:
+
+```sh
+printf '[a]\nx = 1\n\n# comment\n[b]\ny = 2\n\n[c]\n\n# comment2\n[d]\nz = 3\n' > example.toml
+dprint fmt --stdin example.toml < example.toml
+```
+
+The blank line after `[a]` survives and the one after `[c]` is deleted.
+
+Show that today's commits did not create the drift by reconstructing an older commit in a scratch tree under the same config,
+with a control that the harness reproduces today's list:
+
+```sh
+scratch="${HOME}/temp/agent/dprint-reconstruction"
+mkdir --parents "$scratch/tree"
+chmod 700 "$scratch" "$scratch/tree"
+cp package/config/dprint/index.json "$scratch/tree/index.json"
+printf '{ "extends": ["./index.json"] }\n' > "$scratch/tree/dprint.json"
+# From the repository root, per path in the list mise run lint:dprint printed, take the older content.
+while read -r path; do
+  mkdir --parents "$scratch/tree/$(dirname "$path")"
+  git show "c34dc10052a847b0312482085b286ebc6e9df0c2:$path" > "$scratch/tree/$path"
+done < differing-paths.txt
+cd "$scratch/tree" && dprint check --list-different
+```
+
+At `c34dc10052` (2026-10-01) 208 of the 377 paths existed and 202 of them were already listed as not formatted.
+The control,
+the same harness filled with today's content,
+listed 377 of 377.
+So the findings predate the commits that last touched the named files,
+and the version-bump commits that touched `package/cargo-shadow/cli/Cargo.toml` and `package/mpm-shadow/cli/Cargo.toml` changed nothing but a version line.
+
+### Verified workaround
+
+Formatting a file-enforcer managed manifest is safe exactly where the generated content is untouched,
+and that is measurable before and after the edit:
+
+```sh
+mise run check:files                  # check-clean, drifted 0
+mise run sync:files                   # written 0
+dprint check -- package/cargo-shadow  # clean
+```
+
+`package/cargo-shadow/cli/Cargo.toml` lost that one blank line and is now clean under both tools at once.
+The other 27 manifests take the same measured step,
+one file and one measurement each.
+The tradeoff is a one-line diff per manifest instead of a formatting wave across unrelated packages.
+
+For the remaining drift the tradeoff is the diff size:
+`dprint fmt` rewrites the other 376 listed files across packages this work does not touch,
+and the owner deferred a repo-wide formatting push to issue #6267.
+
+The unparseable files have no formatter workaround,
+because the plugin refuses the input.
+Closing the `<p>` elements in `search-ranking-before-dm.template.html` would let `markup_fmt` read both files,
+but that is an artifact edit for the design folder.
+The JSON fixture is a record of what the Node incumbent emitted,
+so editing it would weaken the parity evidence it exists for.
+
+### What does not work
+
+- `dprint fmt` over the whole tree as part of a narrow fix:
+  it rewrites 376 files in unrelated packages,
+  which is issue #6267's work and not a side effect of a lint fix.
+- Hand-editing the `.dc.html` candidates:
+  `markup_fmt` cannot parse the dialect,
+  so `dprint check` keeps erroring,
+  and the renderers rewrite the files on their next run.
+- Excluding those paths or relaxing the plugins:
+  both are dprint setting changes,
+  and a lint setting change needs the owner's approval first.
+- Changing `append_block` alone:
+  it shapes only blocks it appends,
+  so no existing manifest changes;
+  a formatting pass over the manifests is still needed once.
+
+### Upstream filing decision
+
+Nothing filed and nothing drafted.
+`.out-of-scope/low-impact-typescript-formatting.md` excludes TypeScript formatter parity work,
+and no other file in `.out-of-scope/` matches dprint,
+`markup_fmt` or `malva`.
+
+1. **Is it really upstream's fault?**
+   No for the two HTML groups and the fixture:
+   the templates carry the defect and the fixture records the incumbent's output.
+   Possibly for `dprint-plugin-json` rejecting a valid surrogate pair,
+   unverified against its source.
+2. **Can upstream fix it?**
+   Not assessed;
+   no source trace was made of the plugin parsers.
+3. **Are they supporting this use case?**
+   Not assessed.
+4. **Would the repository welcome our contribution?**
+   Not assessed.
+5. **Will they likely fix it?**
+   Not assessed.
+6. **Have we prototyped a compatible minimal fix?**
+   No.
+
+Constraints 1 and 6 do not hold,
+so no filing is recommended.
+The next session that wants to file the surrogate-pair defect starts by cloning `dprint-plugin-json` and reading its escape handling.

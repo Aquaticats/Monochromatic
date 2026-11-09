@@ -508,9 +508,10 @@ Adding it is the ordinary lifecycle,
 never `update --all`:
 
 ```sh
-# Lock the new entry alone, then converge the machine-global tools; both work from any directory.
-mpm update -g llama.cpp-cpu
-mpm install -g
+# Lock the new entry alone, then converge the machine-global tools; both work from any directory,
+# because they name `mpm-shadow`, the program that owns these verbs (the machine-wide `mpm` is the real mpm).
+mpm-shadow update -g llama.cpp-cpu
+mpm-shadow install -g
 ```
 
 The lock then records `llama-b9829-bin-ubuntu-x64.tar.gz` for `linux-x64`,
@@ -897,6 +898,18 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   with the package,
   the locked version,
   what the listing said and the directory `uv tool dir` names.
+- `go install <module>@v<locked>` with `GOBIN` set to the `bin` directory of the version's install directory,
+  after which `install` reads back the executables that directory holds.
+  A Go install writes no record anywhere and no manager lists a Go tool,
+  so the executables `go` writes are the whole record:
+  a `bin` directory holding none of the declared binaries fails the install,
+  naming the module,
+  the locked version,
+  the binaries it expected and the directory to check.
+  The version directory itself proves nothing,
+  because `install` creates it before `go` runs,
+  and `list` reads the same executables,
+  so a Go tool with no binaries is absent there too.
 - `archive` tools are downloaded,
   checked against the lock's SHA-256,
   and only then unpacked with `tar` or `unzip`.
@@ -1064,16 +1077,28 @@ whichever route installed them.
   and the next install of that version replaces it.
   A run killed without cleanup leaves its staging directory behind;
   nothing reads it and it can be deleted by hand.
+- A release archive of this repository gets one link per declared program before the marker is written:
+  `<version directory>/<program name>`,
+  pointing at the program inside the folder the archive unpacked into
+  (a relative target,
+  so a moved toolchain root still resolves).
+  The program is then reachable at `current/<program name>`,
+  a path that names no version,
+  which is the shape a `cargo-binstall` tool already has (`current/bin/<name>`).
+  Without it the program below `current` sits in a folder whose name carries the version,
+  and any tree that installs a newer version deletes that folder.
+  A version directory an earlier release unpacked in place carries no such link,
+  and its program is still found below `current`.
 - Downloaded archives are kept in `<toolchain root>/downloads/<tool>/<version>/`
   and removed with their version.
 - `<toolchain root>/cargo/<crate>/current` (for a release archive,
   `<toolchain root>/<tool id>/current`) is a link to the newest finished version.
   Every tree's exposed link goes through it,
   and two trees syncing at once converge on the newest.
-  The link itself never dangles when an older version is deleted,
-  but for a release archive the program below it sits in a folder whose name carries the version,
-  so a launcher record that names that path would dangle;
-  see "The launcher" for how the launcher follows `current` instead.
+  Neither the link nor the program named through it dangles when an older version is deleted:
+  a crate's program is `current/bin/<name>`,
+  and a release archive's is `current/<program name>`,
+  because of the link the previous bullet describes.
 - A running `mpm-shadow` that installs a newer `mpm-shadow` has just deleted its own file.
   That no longer stops the launchers:
   they are copied from the newest install,
@@ -1124,13 +1149,26 @@ the newest finished copy wins wherever it is.
 - The warning names the upgrade command of that scope as mpm's own pnpm-style verb with the tool id,
   so it moves only that row:
   `mpm update <tool id>` for a tree,
-  and `mpm update -g <tool id>` for the machine-global lock.
+  and `mpm-shadow update -g <tool id>` for the machine-global lock.
   The id is printed as one shell word,
   single-quoted when it holds anything other than letters,
   digits and `@%+=:,./_-`,
   so the command can be pasted as it is.
   It names no mise task,
-  because the repository is moving away from mise and `mpm update -g` works from any directory.
+  because the repository is moving away from mise.
+- The machine-global sentence names `mpm-shadow`,
+  never `mpm`.
+  Only a worktree's `PATH` makes `mpm` this tool:
+  the `mpm-shadow` plan entry's postinstall link puts it first under `.cache/mpm-shadow-bin`.
+  The machine-wide `mpm` is the real mpm of the global plan's `mpm` entry,
+  and it reads `update` as its own `upgrade` verb,
+  so a sentence naming `mpm` failed wherever a shell stood outside a worktree
+  (`Usage: mpm upgrade [OPTIONS] [PACKAGES_SPECS]...`,
+  `Error: No such option '-g'.`,
+  measured 2026-11-08).
+  A machine whose global plan declares no `mpm-shadow` entry has none on `PATH` either;
+  the entry the repository plan carries exposes it in the global exposure directory,
+  which `PATH` holds.
 - The exposed links,
   postinstall links and postinstall commands of both scopes use the winning copy,
   so `mpm-shadow install --global` makes `~/.local/bin/git` run the repository root's newest wrapper (through the global launcher) when that is the newest.
@@ -1140,7 +1178,7 @@ the newest finished copy wins wherever it is.
   in the same words everywhere the tree's sentence appears:
 
   ```text
-  <tool id> is locked at <locked> in this machine's global lock, <path to that lock file>, but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm update -g <tool id>`
+  <tool id> is locked at <locked> in this machine's global lock, <path to that lock file>, but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm-shadow update -g <tool id>`
   ```
 
 #### Older managed copies
@@ -1206,6 +1244,9 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   the tree's lock file,
   the real binary
   and which scope made it (the warning names that scope's upgrade command).
+  The real binary is named through the tool's `current` link,
+  `current/<program name>` for a release archive and `current/bin/<name>` for a crate,
+  so the record names no version.
   The kernel resolves a symlink chain to its final file,
   so a hard link per tree is what lets the running process learn which tree's link started it
   (`/proc/self/exe`).
@@ -1226,11 +1267,17 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   or,
   when that file no longer exists,
   the program of the same file name under the `current` link above it.
-  A release archive of this repository unpacks into a folder named after the version
+  A record written by a release that carries the newest-only rule names `current/<program name>`,
+  which survives every version move;
+  one written before that rule names the folder the release archive unpacked into,
+  whose name carries the version
   (`monochromatic-cargo-shadow-0.1.4-x86_64-unknown-linux-gnu`),
   so a record written while `current` named 0.1.4 holds a path through that folder,
   and installing 0.1.5 in any tree deletes it.
-  Before this rule every other tree's launcher then exited 127 with `mpm-shadow: could not start <path>: No such file or directory`
+  Following `current` therefore runs the program the version that runs holds,
+  and the rewrite below names `current/<program name>`,
+  a path no later version move can stale.
+  Before that rule every other tree's launcher exited 127 with `mpm-shadow: could not start <path>: No such file or directory`
   although `current` named a working program
   (measured 2026-11-07:
   122 of the 853 launcher records in this repository's checkouts named a deleted folder).
@@ -1279,7 +1326,8 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   the version the lock pins,
   the version `current` names
   and the command to run:
-  `mpm install` in the tree (`mpm install -g` for the machine-global launcher).
+  `mpm install` in the tree (`mpm-shadow install -g` for the machine-global launcher,
+  because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
   A file that vanishes between the check and the start still gets the `could not start` line and the same sentence.
 - The launcher never reads `PATH` or the working directory,

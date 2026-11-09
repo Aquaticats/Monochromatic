@@ -9,8 +9,10 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { evaluateBashGuard, } from './bash-guard.ts';
-import { GUARDRAIL_NOT_BLOCKED, } from './types.ts';
+import {
+  evaluateBashGuard,
+  GUARDRAIL_NOT_BLOCKED,
+} from '../dist/final/node/index.mjs';
 
 //region Fixtures
 

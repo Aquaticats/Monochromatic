@@ -180,6 +180,59 @@ pub async fn retry_refused_start_awaiting_within<T, Start: RefusableStart<T>>(
 }
 
 /// What:
+///  One start that is awaited between two pauses of the runtime's timer,
+/// such as a Git step whose child is awaited rather than
+///  blocked on.
+/// Why:
+///   `RefusableStart` runs a start that returns at once and sleeps between tries;
+/// a start that itself awaits (a watched Git
+///  step on the runtime,
+/// `transaction/transaction_git_awaiting.rs`) must be awaited by the same budget rather than blocked,
+///  so it needs a face of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface RefusableAwaitingStart<T> { start(): Promise<T> }
+/// ```
+pub trait RefusableAwaitingStart<T> {
+    /// Try the start once,
+    /// awaiting the run it makes.
+    fn start(&mut self) -> impl std::future::Future<Output = Result<T>> + Send;
+}
+
+/// What:
+///  Run an awaited `start` until it is not refused for lack of processes,
+/// pausing on the runtime's timer between
+///  tries,
+/// and give Git's own last words when the budget is spent on a refusal.
+/// Why:
+///   The same budget and the same schedule as `retry_refused_start_awaiting_within`,
+/// for a start that must itself be awaited;
+/// a worker thread that slept through the budget
+///  would be a worker no other task could use,
+/// and one that blocked on the child would be worse.
+///  A refusal whose last output says the system refused Git is the caller's answer once the budget is spent,
+/// as
+///  `run_git_pausing` reads it for a synchronous caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await retryRefusedAwaitingStart({ what, budgetMs, start }); // resolves with Git's last words after the budget
+/// ```
+pub async fn retry_refused_awaiting_start<T, Start: RefusableAwaitingStart<T>>(what: &str, budget: Duration, start: &mut Start) -> Result<T> {
+    // `mut` lets the loop count its refusals and the time it has paused.
+    let mut schedule: RefusalSchedule = RefusalSchedule::new();
+    loop {
+        let error: Error = match start.start().await {
+            Ok(started) => return Ok(started),
+            Err(error) if error.kind() == ErrorKind::WouldBlock => error,
+            Err(error) => return Err(error),
+        };
+        tokio::time::sleep(schedule.pause_after(what, budget, error)?).await;
+    }
+}
+
+/// What:
 ///  Run `start`,
 /// pausing for real between refused tries within the standard budget.
 /// Why:

@@ -4,11 +4,10 @@ use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, decode_service};
 use super::*;
 use crate::service_protocol::{HEARTBEAT_EVERY, HEARTBEAT_SILENCE, encode_service};
 
-/// A commit queued behind a full batch of landings waits for them for as long as the service keeps sending,
-/// so there is no
-/// queue wait to read;
-/// what bounds the wait is the silence of the service,
-/// which is the service's own beat several times over.
+/// A commit queued behind a full batch of landings has no queue wait of its own,
+/// so the wait ends on the silence of the service,
+/// which is the service's own beat several times over,
+/// or at `ANSWER_CEILING`.
 #[test]
 fn the_silence_bound_is_several_beats_so_one_late_beat_is_not_a_stopped_service() {
     assert!(HEARTBEAT_SILENCE >= HEARTBEAT_EVERY * MINIMUM_BEATS_MISSED, "{HEARTBEAT_SILENCE:?} against a beat every {HEARTBEAT_EVERY:?}");

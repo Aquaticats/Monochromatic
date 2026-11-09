@@ -39,6 +39,11 @@ pub const DEFAULT_STATE_FOLDER_NAME: &str = "repository-move-state";
 /// process.env.MOVE_STATE_DIR ?? join(homedir(), 'repository-move-state')
 /// ```
 pub fn move_state_folder() -> Option<PathBuf> {
+    // The environment read here is the invocation's own, on the same terms as the service route reads it: `main` hands the
+    //  entry `std::env::vars_os()` and nothing in the crate changes the wrapper's own environment, so a command started with
+    //  another `HOME` reads that home's state folder. The one caller (`service_client.rs`, turning a read-only failure into the
+    //  person's line) runs in the process of the command that asked, never in the serving process, so no manager's home is
+    //  read in place of the caller's. A runner started under another `HOME` is why `MOVE_STATE_DIR` is read first, by both.
     if let Some(folder) = crate::service_route::non_empty_path_variable("MOVE_STATE_DIR") {
         return Some(folder);
     }

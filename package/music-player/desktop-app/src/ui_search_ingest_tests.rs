@@ -31,6 +31,7 @@ use crate::ui_screen_view::Route;
 use crate::ui_search::{install, service, wire_route};
 use crate::ui_search_apply::apply_answer;
 use crate::ui_search_model::{SEARCH_SCANNING_TITLE};
+use crate::ui_test_support::logged_by;
 
 /// How long a test waits for the window to show what it expects.
 const PATIENCE: Duration = Duration::from_secs(20);
@@ -233,43 +234,6 @@ fn an_answer_to_an_older_query_is_dropped() {
     };
     apply_answer(&scan.app, old_answer);
     assert_eq!(scan.app.get_search_rows().row_count(), 50);
-}
-
-/// What:
-/// `LogSink` is a writer that appends to a shared buffer,
-/// so a test can read what the log wrote.
-/// Why:
-/// the state lines of the end-to-end run exist only in the log.
-struct LogSink(Arc<Mutex<Vec<u8>>>);
-
-/// Methods of `LogSink` as a writer.
-impl std::io::Write for LogSink {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().expect("the log buffer lock is not poisoned").extend_from_slice(bytes);
-        return Ok(bytes.len());
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        return Ok(());
-    }
-}
-
-/// What:
-/// `logged_by` runs `action` with a log subscriber for this thread that records every level,
-/// and returns the log text.
-/// Why:
-/// `apply_answer` runs on the calling thread,
-/// so its state lines land in this thread's subscriber.
-fn logged_by(action: impl FnOnce()) -> String {
-    let buffer: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
-    let writer: Arc<Mutex<Vec<u8>>> = Arc::clone(&buffer);
-    let subscriber = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
-        .with_ansi(false)
-        .with_writer(move || return LogSink(Arc::clone(&writer)))
-        .finish();
-    tracing::subscriber::with_default(subscriber, action);
-    return String::from_utf8(buffer.lock().expect("the log buffer lock is not poisoned").clone()).expect("the log is UTF-8");
 }
 
 /// What:

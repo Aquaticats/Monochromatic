@@ -68,12 +68,34 @@ The guard does not detect a Git path it cannot read from the command text:
 `G=/usr/bin/git; $G commit`,
 `eval "$G commit"`,
 and `$(command -v git) commit`.
-It also does not follow a program that runs another program but carries no wrapper entry,
-such as `find -exec`,
-`flock`,
-`busybox`,
-`systemd-run`,
-`watch`,
-or `ssh`.
-Closing either gap needs a shell evaluator or a larger wrapper table,
+Closing that gap needs a shell evaluator,
 not a text rule.
+
+The wrapper table follows the programs an agent can put in front of a command:
+`systemd-run`,
+`find` with `-exec`,
+`-execdir`,
+`-ok`,
+or `-okdir`,
+`flock`,
+`watch`,
+`eval`,
+`busybox sh -c`,
+`taskset`,
+`chrt`,
+`ssh` with a spelled path word,
+and the wrappers it already held.
+Two forms stay unread:
+a script a shell reads from standard input
+(`bash <<< '/usr/bin/git commit'`),
+and a program that hands its command to a runtime or a host
+whose own wrapper installation the command text does not carry
+(`unshare`,
+`nsenter`,
+`chroot`,
+`systemd-cat`,
+`script`,
+`tmux`,
+the container runtimes,
+an interpreter).
+The analyzer README lists both.

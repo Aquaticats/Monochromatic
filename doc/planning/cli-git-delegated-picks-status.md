@@ -60,6 +60,14 @@ with the owner's words:
   write),
   and the commands that find an old record from another PID namespace stop,
   name it and change nothing.
+  Note 2026-11-08T19:19:04-05:00:
+  `LOCK_CEILING` is still ten minutes and this patience is still twice it,
+  but no wait takes `LOCK_CEILING` any more:
+  a commit's wait for a foreign `index.lock` is one minute (`LANDING_LOCK_CEILING`),
+  the merge's and the reconciliation's are one minute (`MERGE_LOCK_CEILING`,
+  `RECONCILE_LOCK_CEILING`),
+  and only the wait on the service's own hold is ten (`SERVICE_HOLD_CEILING`),
+  all in `package/git-policy/cli/src/native/service/wait_ceilings.rs`.
 
 ## Picks the owner kept on 2026-11-04
 

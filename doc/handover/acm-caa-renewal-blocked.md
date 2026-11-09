@@ -132,7 +132,7 @@ measured what that means here.
   so Njalla publishes the edge set it resolves,
   not the querier's nearest edge.
 
-That yields a seventh option no earlier section considered:
+That yields a seventh option the `Options and ranking` section did not consider:
 replace the CNAME at `aws.aquati.cat` with an ANAME to the same target,
 and publish the four Amazon `issue` records at `aws.aquati.cat` itself.
 The climb for that FQDN then terminates at the leaf,
@@ -899,7 +899,7 @@ A second boundary check ran after the deletion:
 `aws.aquati.cat`,
 `mirror.amazon.aquati.cat`,
 and `aquati.cat` each returned 200 with an identical 3445-byte body.
-The byte count differs from the digest comparison earlier in this section
+The byte count differs from the digest comparison in the boundary verification list
 because the origin's content changed between the two checks;
 parity held at both.
 

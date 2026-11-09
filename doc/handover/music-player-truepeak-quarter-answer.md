@@ -113,7 +113,7 @@ residual 26 clamps;
  9 crests are strictly one-off);
  (c) "bucket the metadata
 first" (WORKS,
- see below);
+as the bucket round results show);
  (d) "find more levers yourself" (lever matrix run).
 
 Bucket round results (committed 77fcc0ef0,

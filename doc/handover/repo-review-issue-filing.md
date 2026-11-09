@@ -331,7 +331,11 @@ per `config-paused-2` notes;
  dedupe candidate with the `config-paused-2` rename-staleness finding and
  `docs-handover-008`.
  `doc/planning/monorepo-manager-route-research/stack-rust.md` cites an `MXR` rule tag that
- no longer exists in `AGENTS.md` (`MXL` is the max-lines rule),
+ no longer exists in `AGENTS.md` (`MXL` is the max-lines rule;
+ MXR and RDC:
+retired from `AGENTS.md` 2026-09-29;
+ `rust/max-lines`,
+ `rust/require-rustdoc` and `MXL` now),
 per `cross-rust` notes;
  file it directly at dedupe time.
  `.agents/skills/project-code-review/SKILL.md` line 913 requires every catch block to log

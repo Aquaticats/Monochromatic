@@ -14,15 +14,13 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { createPathGuardMatcher, } from './path-guard.ts';
 import {
+  createPathGuardMatcher,
   evaluateToolCall,
-  registerGuardrail,
-} from './index.ts';
-import {
   GUARDRAIL_NOT_BLOCKED,
+  registerGuardrail,
   type GuardrailConfig,
-} from './types.ts';
+} from '../dist/final/node/index.mjs';
 
 /**
  Absolute real-Git spelling used by fixture commands.

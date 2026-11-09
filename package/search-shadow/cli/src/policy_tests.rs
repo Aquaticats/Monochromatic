@@ -23,6 +23,9 @@
 /// ```
 use crate::policy::{WalkDescription, describe_walk, rg_refusal};
 
+/// Imports the kind of standard input an invocation carries.
+use crate::stdin_kind::StdinKind;
+
 /// What:
 /// `fn texts(items: &[&str]) -> Vec<String>` declares a helper turning a borrowed list of text slices into an
 /// owned list of `String`s (the shape the policy functions take).
@@ -69,7 +72,14 @@ fn a_plain_search_is_not_wide_and_names_no_path() {
     // `assert_eq!(a, b)` stops the test with a message when `a != b` (a macro, hence `!`).
     assert_eq!(
         walk(&["foo"]),
-        WalkDescription { widened: false, informational: false, path_count: 0, short_replace: false }
+        WalkDescription {
+            widened: false,
+            informational: false,
+            path_count: 0,
+            short_replace: false,
+            files_mode: false,
+            stdin_marker_named: false,
+        }
     );
 }
 
@@ -101,7 +111,7 @@ fn lookalikes_of_the_short_r_flag_are_not_flags() {
 /// repository root or path condition.
 #[test]
 fn refuses_the_short_r_flag_for_rg_everywhere() {
-    let message = rg_refusal("rg", &texts(&["-rl", "foo"]), false, false, false, "/anywhere");
+    let message = rg_refusal("rg", &texts(&["-rl", "foo"]), false, false, StdinKind::None, "/anywhere");
 
     assert!(message.is_some());
     let text = message.unwrap_or_default();
@@ -109,11 +119,11 @@ fn refuses_the_short_r_flag_for_rg_everywhere() {
     assert!(text.contains("--replace"));
     assert!(text.contains("-l"));
     // The wide-walk escape hatch must not lift this ban, and a piped stdin must not either.
-    assert!(rg_refusal("rg", &texts(&["-r", "X", "foo"]), true, true, true, "/repo").is_some());
+    assert!(rg_refusal("rg", &texts(&["-r", "X", "foo"]), true, true, StdinKind::Pipe, "/repo").is_some());
     // Other tools keep their own meaning of `-r` (grep's is "recursive").
-    assert_eq!(rg_refusal("grep", &texts(&["-rl", "foo"]), false, true, false, "/repo"), None);
+    assert_eq!(rg_refusal("grep", &texts(&["-rl", "foo"]), false, true, StdinKind::None, "/repo"), None);
     // The explicit long form is not refused.
-    assert_eq!(rg_refusal("rg", &texts(&["--replace", "X", "foo"]), false, false, false, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["--replace", "X", "foo"]), false, false, StdinKind::None, "/repo"), None);
 }
 
 /// The first positional is the pattern,
@@ -145,11 +155,29 @@ fn a_pattern_from_a_flag_makes_every_positional_a_path() {
 }
 
 /// With `--files` there is no pattern,
-/// so every positional is a path.
+/// so every positional is a path,
+/// and the mode is recorded because it also means no input is read.
 #[test]
 fn files_mode_has_no_pattern() {
+    assert!(walk(&["--files", "--hidden"]).files_mode);
     assert_eq!(walk(&["--files", "--hidden"]).path_count, 0);
     assert_eq!(walk(&["--files", "src"]).path_count, 1);
+    assert!(!walk(&["foo"]).files_mode);
+}
+
+/// `-` is ripgrep's "read standard input" only where a path may stand;
+/// as the pattern it names nothing.
+#[test]
+fn the_standard_input_marker_counts_only_where_a_path_may_stand() {
+    assert!(walk(&["X", "-"]).stdin_marker_named);
+    assert!(walk(&["X", "-", "extra/path"]).stdin_marker_named);
+    assert!(walk(&["-e", "X", "-"]).stdin_marker_named);
+    assert!(walk(&["--files", "-"]).stdin_marker_named);
+    assert!(walk(&["X", "--", "-"]).stdin_marker_named);
+    // The pattern position is not a path.
+    assert!(!walk(&["-"]).stdin_marker_named);
+    assert!(!walk(&["X"]).stdin_marker_named);
+    assert!(!walk(&["X", "some/dir"]).stdin_marker_named);
 }
 
 /// A flag's value must not be mistaken for a path or a pattern.
@@ -191,7 +219,7 @@ fn information_flags_are_informational() {
 /// no piped input.
 #[test]
 fn refuses_a_wide_rg_walk_with_no_path_at_a_repository_root() {
-    let message = rg_refusal("rg", &texts(&["--hidden", "foo"]), false, true, false, "/repo");
+    let message = rg_refusal("rg", &texts(&["--hidden", "foo"]), false, true, StdinKind::None, "/repo");
 
     // `message.is_some()` asks whether a refusal came back; `unwrap_or_default()` then takes the text out.
     assert!(message.is_some());
@@ -202,15 +230,90 @@ fn refuses_a_wide_rg_walk_with_no_path_at_a_repository_root() {
     assert!(text.contains("narrower path"));
 }
 
+/// What:
+/// `fn piped_rg(items: &[&str]) -> Option<String>` declares a helper that asks the policy about one piped invocation
+/// (standard input is a pipe,
+/// the working directory is not a repository root).
+/// Why:
+/// Every case below differs only in the arguments,
+/// and the lost-input risk does not depend on the directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pipedRg = (items: string[]) => rgRefusal('rg', texts(items), false, false, 'pipe', '/anywhere');
+/// ```
+fn piped_rg(items: &[&str]) -> Option<String> {
+    return rg_refusal("rg", &texts(items), false, false, StdinKind::Pipe, "/anywhere");
+}
+
+/// A pipe on standard input with a named search path loses the piped lines:
+/// ripgrep reads the paths and never the pipe.
+/// It is refused wherever it runs,
+/// repository root or not.
+#[test]
+fn refuses_a_piped_search_that_names_a_search_path() {
+    for arguments in [&["--invert-match", "X", "."][..], &["X", "some/dir"], &["-l", "X", "a", "b"]] {
+        let message = piped_rg(arguments);
+
+        assert!(message.is_some(), "{arguments:?} with a pipe must be refused");
+        let text = message.unwrap_or_default();
+        // The message names the command, the input it would drop, and both ways forward (rule DGT).
+        assert!(text.contains("refused"), "{text}");
+        assert!(text.contains(&arguments.join(" ")), "the message must name the command: {text}");
+        assert!(text.contains("standard input is a pipe"), "the message must name the affected input: {text}");
+        assert!(text.contains("drop the search path"), "the message must offer dropping the path to filter the pipe: {text}");
+        assert!(text.contains("without a pipe"), "the message must offer dropping the pipe to search the path: {text}");
+        assert!(text.contains("name `-` beside the path"), "the message must offer reading both inputs: {text}");
+    }
+}
+
+/// Every shape where ripgrep does read the pipe,
+/// or reads no input at all,
+/// must still run.
+#[test]
+fn lets_a_piped_search_through_when_the_pipe_is_read_or_no_search_runs() {
+    // No search path: the pipe is the input.
+    assert_eq!(piped_rg(&["X"]), None);
+    // `-` is ripgrep's explicit "read standard input", alone or beside other paths.
+    assert_eq!(piped_rg(&["X", "-"]), None);
+    assert_eq!(piped_rg(&["X", "-", "extra/path"]), None);
+    // `--files` lists files and reads no input.
+    assert_eq!(piped_rg(&["--files", "."]), None);
+    // Informational flags only print, even with the positionals that would otherwise be a pattern and a path.
+    assert_eq!(piped_rg(&["--version"]), None);
+    assert_eq!(piped_rg(&["--help"]), None);
+    assert_eq!(piped_rg(&["--version", "X", "."]), None);
+    assert_eq!(piped_rg(&["--help", "X", "."]), None);
+    assert_eq!(piped_rg(&["--type-list", "X", "."]), None);
+    // A redirected file and a socket are deliberate, and an unpiped run reads nothing.
+    assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::File, "/anywhere"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::Socket, "/anywhere"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::None, "/anywhere"), None);
+    // Other tools keep their own argument grammar.
+    assert_eq!(rg_refusal("grep", &texts(&["X", "."]), false, false, StdinKind::Pipe, "/anywhere"), None);
+}
+
+/// The lost-input rule depends on neither the directory nor the wide-walk escape hatch:
+/// a pipe beside a path is refused at a repository root too,
+/// and `SEARCH_SHADOW_ALLOW_WIDE=1` does not lift it.
+#[test]
+fn refuses_the_lost_pipe_at_a_repository_root_and_with_the_wide_walk_hatch() {
+    let piped = texts(&["X", "."]);
+
+    assert!(rg_refusal("rg", &piped, false, true, StdinKind::Pipe, "/repo").is_some());
+    assert!(rg_refusal("rg", &piped, true, true, StdinKind::Pipe, "/repo").is_some());
+    assert!(rg_refusal("rg", &piped, true, false, StdinKind::Pipe, "/repo").is_some());
+}
+
 /// Each condition that makes the walk bounded or deliberate must let it through.
 #[test]
 fn lets_through_everything_that_is_not_a_wide_unbounded_rg_walk() {
     let wide = texts(&["--hidden", "foo"]);
-    assert_eq!(rg_refusal("rg", &texts(&["--hidden", "foo", ".github"]), false, true, false, "/repo"), None);
-    assert_eq!(rg_refusal("rg", &texts(&["foo"]), false, true, false, "/repo"), None);
-    assert_eq!(rg_refusal("rg", &texts(&["--help", "--hidden"]), false, true, false, "/repo"), None);
-    assert_eq!(rg_refusal("grep", &wide, false, true, false, "/repo"), None);
-    assert_eq!(rg_refusal("rg", &wide, true, true, false, "/repo"), None);
-    assert_eq!(rg_refusal("rg", &wide, false, false, false, "/repo"), None);
-    assert_eq!(rg_refusal("rg", &wide, false, true, true, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["--hidden", "foo", ".github"]), false, true, StdinKind::None, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["foo"]), false, true, StdinKind::None, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["--help", "--hidden"]), false, true, StdinKind::None, "/repo"), None);
+    assert_eq!(rg_refusal("grep", &wide, false, true, StdinKind::None, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &wide, true, true, StdinKind::None, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &wide, false, false, StdinKind::None, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &wide, false, true, StdinKind::Pipe, "/repo"), None);
 }

@@ -186,6 +186,29 @@ fn texts(items: &[&str]) -> Vec<OsString> {
 }
 
 /// What:
+/// `fn run_rg_with_piped_stdin(...) -> Output` declares a helper that runs the `rg` shadow link with standard input
+/// attached to a pipe.
+/// Why:
+/// The lost-input rule turns on a pipe exactly,
+/// so the end-to-end case needs a real one.
+/// `Command::output` closes the write end at once,
+/// so the child sees a pipe at its end without any writer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runRgWithPipedStdin(root, args, cwd, pathVariable): SpawnSyncReturns<Buffer> { ... }
+/// ```
+fn run_rg_with_piped_stdin(root: &Path, arguments: &[OsString], working_directory: &Path, path_variable: &str) -> Output {
+    let mut command = Command::new(root.join("shadow").join("rg"));
+    command.args(arguments);
+    command.current_dir(working_directory);
+    command.env_clear();
+    command.env("PATH", path_variable);
+    command.stdin(Stdio::piped());
+    return command.output().expect("run the shadow");
+}
+
+/// What:
 /// `#[test]` marks the next function as a test case.
 /// Why:
 /// The runner finds the tests by it.
@@ -357,6 +380,49 @@ fn refuses_a_recursive_grep_from_a_repository_root_but_runs_a_bounded_one() {
     assert!(String::from_utf8_lossy(&refused.stderr).contains("a whole repository"));
     assert!(refused.stdout.is_empty(), "the real tool must not have run");
     assert!(String::from_utf8_lossy(&allowed.stdout).contains("REAL grep -rn foo package"));
+}
+
+/// The incident:
+/// a shell pipeline into a search that names a path.
+/// ripgrep never reads the pipe there,
+/// so the shadow refuses through the real process and the pipe's lines are not silently dropped.
+#[test]
+fn refuses_a_shell_pipeline_into_a_search_that_names_a_path() {
+    let (root, path_variable) = make_world();
+    let shadow = root.path().join("shadow").join("rg");
+    // The pipeline shape of 2026-11-01 (`find ... | rg --invert-match X .`), reduced to its decision. The shadow's path
+    // arrives as a positional (`$1`) and is quoted where it is used, so a directory with a space or a metacharacter
+    // cannot change the command.
+    let script = "printf 'a\\nb\\n' | \"$1\" --invert-match X .";
+
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(script)
+        .arg("pipeline")
+        .arg(&shadow)
+        .current_dir(root.path())
+        .env_clear()
+        .env("PATH", &path_variable)
+        .output()
+        .expect("run the pipeline");
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    assert_eq!(output.status.code(), Some(2), "{stderr}");
+    assert!(stderr.contains("refused"), "{stderr}");
+    assert!(stderr.contains("standard input is a pipe"), "{stderr}");
+    assert!(output.stdout.is_empty(), "the real tool must not have run");
+}
+
+/// The same pipe with no search path runs:
+/// there the pipe is the input.
+#[test]
+fn runs_a_piped_search_that_names_no_path() {
+    let (root, path_variable) = make_world();
+
+    let output = run_rg_with_piped_stdin(root.path(), &texts(&["X"]), root.path(), &path_variable);
+
+    assert!(output.status.success(), "the shadow failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("REAL X"), "the real tool did not run");
 }
 
 /// An unbounded find from a repository root is refused,

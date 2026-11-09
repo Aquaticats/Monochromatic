@@ -35,7 +35,7 @@ use super::context::Context;
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::install_support`.
 use super::install_support::{
-    ARCHIVE_SUFFIXES, artifact_for_host, download_verified, extract_archive, extract_conda, make_executable, restore_exec_bits,
+    ARCHIVE_SUFFIXES, artifact_for_host, atomic_symlink, download_verified, extract_archive, extract_conda, make_executable, restore_exec_bits,
 };
 /// Imports what this module uses from `super::layout`.
 use super::layout::{find_bin_under, install_dir_name, tool_downloads_dir, tool_install_dir};
@@ -72,6 +72,97 @@ pub fn safe_file_name(url: &str) -> String {
         return "download".to_string();
     }
     return cleaned;
+}
+
+/// The program an alias names:
+/// the second half of a `binAliases` entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function primaryOfAlias(entry: [string, string]): string
+/// ```
+fn primary_of_alias(entry: &(String, String)) -> String {
+    return entry.1.clone();
+}
+
+/// What:
+/// Every program name the plan declares for `tool`:
+/// its `bins` and the program side of every `binAliases` entry,
+/// sorted and without repeats.
+/// Why:
+/// An alias names another program of the same archive,
+/// so a stable link is made once per program,
+/// never for the alias's own name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function programNames(tool: LockedTool): string[]
+/// ```
+fn program_names(tool: &LockedTool) -> Vec<String> {
+    let mut names: Vec<String> = tool.declaration.bins.clone();
+    if let Some(aliases) = &tool.declaration.options.bin_aliases {
+        names.extend(aliases.iter().map(primary_of_alias));
+    }
+    names.sort();
+    names.dedup();
+    return names;
+}
+
+/// The target a stable link gets:
+/// the program's path relative to the version directory,
+/// so the link stays right when the whole toolchain root moves.
+#[cfg(unix)]
+fn stable_link_target(version_dir: &Path, program: &Path) -> PathBuf {
+    return match program.strip_prefix(version_dir) {
+        Ok(relative) => relative.to_path_buf(),
+        Err(_) => program.to_path_buf(),
+    };
+}
+
+/// A platform without symbolic links makes a hard link,
+/// whose relative target would resolve against the working directory.
+#[cfg(not(unix))]
+fn stable_link_target(_version_dir: &Path, program: &Path) -> PathBuf {
+    return program.to_path_buf();
+}
+
+/// What:
+/// Gives every declared program of a release archive of this repository a path that names no version:
+/// `<version directory>/<program name>`,
+/// linked to the program inside the folder the archive unpacks into,
+/// so the program is `<tool directory>/current/<program name>`.
+/// Why:
+/// A release archive unpacks into a folder whose name carries the version,
+/// so the program below `current` is `current/<version folder>/<program>`,
+/// and every launcher record that named it went stale the moment any tree installed a newer version.
+/// A launcher does repair such a record by following `current`,
+/// but only once it runs;
+/// a link of the program's own name inside the version directory makes the program reachable at
+/// `current/<program name>`,
+/// the shape a `cargo-binstall` tool already has,
+/// so a record written through `current` names a program that is there after every version move.
+/// A directory an earlier release unpacked in place carries no such link,
+/// and its program is still found below `current`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function linkStablePrograms(tool: LockedTool, versionDir: string): void  // throws
+/// ```
+pub fn link_stable_programs(tool: &LockedTool, version_dir: &Path) -> Result<(), ToolchainError> {
+    if !is_published_archive(tool) {
+        return Ok(());
+    }
+    for name in program_names(tool) {
+        let link: PathBuf = version_dir.join(&name);
+        let Some(program) = find_bin_under(version_dir, &name) else {
+            continue;
+        };
+        if program == link {
+            continue;
+        }
+        atomic_symlink(&link, &stable_link_target(version_dir, &program))?;
+    }
+    return Ok(());
 }
 
 /// Writes the gunzipped contents of `source` to `target`.
@@ -183,10 +274,11 @@ fn unpack_into(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path
 }
 
 /// Unpacks the verified download into `staging`,
-/// checks it,
+/// gives a release archive of this repository its version-independent program paths,
 /// and writes the completion marker last.
 fn unpack_and_mark(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path, staging: &Path) -> Result<(), ToolchainError> {
     unpack_into(ctx, tool, url, download_path, staging)?;
+    link_stable_programs(tool, staging)?;
     return write_complete_marker(staging, &tool.declaration.id, &tool.version);
 }
 

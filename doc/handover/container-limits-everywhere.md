@@ -192,7 +192,7 @@ so the number beside it was adopted from the sibling the parentheses name.
 
 These start containers through `runLimitArguments`,
 `limitArguments` or a literal that already carries the weight.
-They change only by taking the shared constant (the copies above),
+They change only by taking the shared constant (the copies the "Shared constant" section lists),
 never by gaining flags.
 
 - `package/git-policy/cli/bin/*.ts` (`build-git-test-image.ts`,
@@ -290,9 +290,19 @@ never by gaining flags.
 ### Partial limits, no weight
 
 - `package/terminal/app/mise.toml:68` and the twelve copies in `task.ts` (`--memory=4g --cpus=4`):
-  add 1024 processes (the IDE's 4-CPU bound;
-  unmeasured here,
-  as is the 4g) and the weight.
+  the twelve `task.ts` copies now pass `containerLimitArguments(containerBound)`,
+  and so does the `mise.toml` body
+  since this pass:
+  before that,
+  `mise run //package/terminal/app:build:container` started the
+  compiler container with the two literal flags and no `--pids-limit` (the observed `pids.max` was Podman's 2048)
+  and no weight,
+  while the inventory said it had them.
+  The 4g is measured (2.97 GiB,
+  74 percent of it,
+  on a build that reused a warm target directory) and 1024 processes
+  is still adopted,
+  though the same run reached 235 threads of it.
 - `package/test-harness/core/mise.toml:64` (2g,
   2 CPUs,
   unmeasured here):
@@ -335,7 +345,7 @@ never by gaining flags.
 - `.github/workflows/music-player-release.yml` (`podman run` at the lines that read `--memory="$BUILD_MEMORY"`,
   the
   smoke test and the runtime image checks) and `.github/workflows/ide-release.yml:298` to `:308`:
-  see the workflow decisions below.
+  see the "Workflow decisions" section.
 
 ### Image builds (`podman build`, no weight option exists)
 
@@ -390,19 +400,31 @@ those runs are the separate work.
 - The Playwright browser run of the root `mise.toml` `runPlaywright` task,
   for the memory,
   CPU and process peaks a browser set reaches.
+  Still needed:
+  the run is blocked on this host until the Playwright image and the shared pnpm store reach the
+  container;
+  `### Measured runs on this host` records what was tried.
 - The `containerCargo` cargo build of `package/music-player/desktop-app`
   (build,
   clippy and nextest),
   whose bound was copied from that package's Alpine guard.
   Its Windows GNU leg stays paused with the rest of Windows.
+  The release build is measured (5.3 GiB of 12 GiB);
+  clippy and nextest still need their own run.
 - The music player's icon and signing one-shot tool containers,
   whose bound was copied from `vm-builder` `image:check`.
+  The icon containers are measured (111 MiB of 2 GiB);
+  the signing containers still need a run.
 - The `test-harness/core` `test:browser` run,
   whose 2048 processes is the Podman default.
 - One matrix cell of `package/test-harness/core-matrix`,
   which bounds every cell from the one `CELL_LIMITS` constant and is the one site already known to have grown to
   42 GB RSS unbounded,
   with 2048 processes that is the Podman default.
+  Still needed:
+  no cell on this host can resolve its dependencies inside the container,
+  so the bound has no runnable workload here;
+  `### Measured runs on this host` records the failure.
 - The `upstream-fork/conf` and `deepmerge-ts.fuzz` container runs,
   whose 512 processes is the mutation runner's constant.
 - The `config/pnpr` verification containers,
@@ -421,6 +443,131 @@ Each is one run,
 not a benchmark:
 the rule asks for a peak that a bound can be read against,
 and `AGENTS.md` rule NQH keeps the measurement at the load the host already has.
+
+### Measured runs on this host
+
+Pass of 2026-11-08T19:18:31-05:00 to 19:57:43-05:00 on branch
+`docs/container-limit-sizes-measured-from-their-own-workloads`.
+Each entry is one run of a site's own task,
+at the load the host already had,
+with the bound the task passes.
+Every command ran inside `systemd-run --user --scope` with `CPUQuota`,
+`MemoryMax`,
+`TasksMax` and `IOWeight=10` (rule `RXI`),
+and a watcher polled every live `libpod-*.scope` under
+`/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/user.slice` for `memory.peak`,
+`memory.current`,
+`pids.current`,
+`pids.max` and `cpu.stat`
+(every 200 ms,
+20 ms for the one-shot tool containers).
+Rootless Podman gives each container its own scope there,
+so those figures are the container's own,
+and `memory.peak` is the kernel's watermark rather than a single sample.
+One run does not prove a bound is adequate for every variant of a workload,
+and each entry names the variants its run covered.
+Excluded by the brief that set this pass:
+the `vm-builder` runs,
+which need root before any figure can be read,
+and every Windows and macOS leg.
+
+- `package/music-player/desktop-app` `containerCargo`,
+  command `mise run //package/music-player/desktop-app:build:container`,
+  started 2026-11-08T19:21:30-05:00 and finished 19:31:10-05:00
+  (9 min 40 s,
+  exit 0),
+  host load 13.64 at the start on 12 CPUs.
+  The `cargo build --release` container (12 GiB,
+  4 CPUs,
+  1024 processes) ran 7 min 12 s (19:23:58 to 19:31:10;
+  cargo reported "Finished in 7m 10s") and peaked at 5,651,558,400 bytes (5.3 GiB),
+  44 percent of its 12 GiB.
+  It reached 61 threads of 1024,
+  was throttled in 293 of 4251 CPU periods (25.3 s of throttled time),
+  and killed nothing.
+  Variants covered:
+  the release build only.
+  `lint:clippy:container` (clippy) and `test:container` (nextest) share this bound and were not run.
+  The image build of the same run (`podman build` with `--memory=12g --cpu-quota=400000`) crested at
+  3,598,233,600 bytes (3.35 GiB).
+  That figure is the launching scope's watermark and also covers the wrapper of the later cargo container,
+  so it bounds the build without isolating it.
+- `package/music-player/desktop-app` icon tool containers,
+  command `mise run //package/music-player/desktop-app:gen:icons`,
+  started 2026-11-08T19:37:39-05:00 and finished 19:39:19-05:00
+  (1 min 40 s,
+  exit 0),
+  host load 32.67.
+  Ten containers,
+  each bounded to 2 GiB,
+  2 CPUs and 128 processes;
+  the largest peak was 116,862,976 bytes (111 MiB) in the `png2icns` step,
+  the eight `rsvg-convert` sizes (16 to 1024 pixels) peaked between 700,416 and 7,864,320 bytes,
+  and `icotool` peaked at 1,310,720 bytes.
+  One thread of 128 was busy at each sample,
+  no container was throttled,
+  and nothing was killed.
+  Variants covered:
+  eight `rsvg-convert` sizes,
+  `png2icns` and `icotool`.
+  The signing containers share this bound and were not run,
+  because they need a Windows executable.
+- `package/terminal/app` compile containers,
+  command `mise run //package/terminal/app:build:container`,
+  started 2026-11-08T19:53:09-05:00 and finished 19:57:43-05:00
+  (4 min 34 s,
+  exit 0),
+  host load 40.33 at the start.
+  The container (4 GiB,
+  4 CPUs,
+  and no process option at all,
+  because `mise.toml` still spelled `--memory=4g --cpus=4` by hand when it ran;
+  see the bullet in `### Open`) peaked at 3,188,219,904 bytes (2.97 GiB),
+  74 percent of its 4 GiB,
+  and cargo reported "Finished in 4m 18s".
+  It reached 235 threads,
+  was throttled in 207 of 2260 CPU periods (164.8 s of throttled time),
+  and killed nothing.
+  Two limits of this figure:
+  the build reused the target directory the failed attempt named later in this bullet had already filled,
+  so a cold build can go higher,
+  and the variants covered are the release build only.
+  `lint:clippy:container` and `test:container` share this bound and were not run.
+  An earlier attempt of the same task (19:45:55 to 19:51:07)
+  stopped in the `libghostty-vt-sys` build script because `target/ghostty-offline/source` was empty in this worktree,
+  after peaking at 3,007,496,192 bytes (2.8 GiB) of 4 GiB while compiling dependencies.
+  Neither failed nor warm run makes 4 GiB look loose.
+- `package/test-harness/core-matrix` `CELL_LIMITS`:
+  not measured,
+  because the only `*:test:container` task that reaches the matrix here cannot run its workload on this host.
+  `mise run //package/env-local-json/core:test:container` of 2026-11-08T19:18:31-05:00 failed in both of its
+  combinations (`container:ubuntu` as `root` and as `user`,
+  runtime `node`) after 42 s:
+  the container's node could not resolve `p-limit`,
+  imported by `/workspace/package/test-harness/core/src/describe.ts`,
+  with `ERR_MODULE_NOT_FOUND`,
+  because this repository's `node_modules` holds links into `${HOME}/.local/share/pnpm/store`
+  (`storeDir` and `virtualStoreType: global` in `pnpm-workspace.yaml`),
+  a path the cell's `/workspace` mount does not contain.
+  The two failed runs peaked at 435,101,696 and 283,648,000 bytes of 2 GiB,
+  with 9 and 10 threads of 2048,
+  no throttling and no kills;
+  those are set-up figures,
+  not the workload's.
+  A hand-built copy of the `root` cell with the same options reproduced the same error at 439,230,464 bytes.
+- The root `mise.toml` `runPlaywright` browser run:
+  not measured.
+  `mise run test:browser` of 2026-11-08T19:40:29-05:00 failed after 7 s before any browser started,
+  with the same `ERR_MODULE_NOT_FOUND` into the pnpm store,
+  raised by `npx playwright`.
+  Repeating the container with the store mounted read-only let Playwright start and fail all 84 tests with
+  `browserType.launch: Executable doesn't exist at /ms-playwright/chromium_headless_shell-1254/...`:
+  the local `monochromatic-playwright` image carries Playwright 1.63.0 while the workspace pins 1.65.0,
+  and `prepare:playwright` cannot replace the image for the same store reason.
+  That run peaked at 1,833,377,792 bytes (1.7 GiB) of 2 GiB with 183 threads of 2048 and 182 throttled periods of
+  268,
+  and it measured node and the harness,
+  not a browser.
 
 ## Workflow decisions
 
@@ -469,7 +616,7 @@ after the first dry runs of the two release workflows on `main`:
   neither starts a container or reads this branch's files.
 
 Earlier reasoning,
-kept for the record (superseded by the update above):
+kept for the record (superseded by the update dated 2026-11-08 in "Workflow decisions"):
 - On a dedicated hosted runner the job is the only tenant,
   so the weight has no sibling to yield disk time to.
 - `playwright-image.yml` builds through `core-exec`'s `playwright-image-build.ts` (build bound only).
@@ -640,4 +787,55 @@ which the published crates do not use.
   and `## What each adopted size would need measured` lists the run each still needs.
   The check found no measurement of any adopted site's own workload,
   and the ledger gains one only when such a run is recorded.
+  Update 2026-11-08T19:46:11-05:00:
+  the first measured pass ran four sites and its figures sit in
+  `### Measured runs on this host`.
+  Measured:
+  the `containerCargo` release build of `package/music-player/desktop-app`
+  (5.3 GiB of 12 GiB,
+  61 of 1024 processes),
+  the music-player image build of the same run (3.35 GiB of 12 GiB),
+  the music-player icon one-shot containers (111 MiB of 2 GiB,
+  1 of 128 processes),
+  and the `package/terminal/app` compile container (2.97 GiB of 4 GiB,
+  235 threads,
+  two of whose 4 GiB and weight were missing from the file `mise run` reads until this pass).
+  Two sites could not be measured at all,
+  because this host's `node_modules` holds links into `${HOME}/.local/share/pnpm/store`,
+  which the containers do not mount:
+  the `package/test-harness/core-matrix` cell and the root `runPlaywright` browser run.
+  Neither figure was changed by this pass:
+  the measurements leave the memory values between 2 and 19 times the peak of one variant,
+  and every bound covers variants that were not run.
+  Still unmeasured after this pass,
+  each needing the run its bullet in `## What each adopted size would need measured` names:
+  the music-player clippy and nextest containers and its signing containers,
+  the `package/test-harness/core` `test:browser` run,
+  the `upstream-fork/conf` and `deepmerge-ts.fuzz` container runs,
+  the `config/pnpr` verification containers,
+  the browserslist oracle container,
+  every image build except the music-player one,
+  and the rootful `vm-builder` runs.
+- The `package/terminal/app` compiler container shipped two different bounds.
+  `task.ts` passes `containerLimitArguments(containerBound)` in all twelve copies,
+  while `mise.toml` spelled `--memory=4g --cpus=4` by hand,
+  so `mise run //package/terminal/app:build:container` (the path `mise` takes) started the container with no process
+  option and no disk weight:
+  the measured run of 2026-11-08T19:53:09-05:00 recorded `pids.max` at Podman's default 2048,
+  not the 1024 the inventory claimed.
+  Fixed on this branch:
+  the `mise.toml` body now passes the same helper.
+  The ledger test in `package/container-limit/core` did not catch it,
+  because it accepts a file that merely names a helper somewhere,
+  and this file imported one without calling it.
+- Two sizes are left as they are with a measurement that suggests they could shrink,
+  and the choice belongs to the owner:
+  the icon tool bound (2 GiB against a measured 111 MiB)
+  and the music-player cargo bound's 1024 processes (against 61 threads).
+  Neither is lowered here,
+  because each run covered one variant of its workload and the signing containers were not run at all.
+- The 4 GiB of the `package/terminal/app` compile container is 74 percent used by a build that reused a warm target
+  directory.
+  It is not lowered and not raised;
+  a cold build measuring it again is the run that would settle it.
 - `package-paused/` and `package/git-policy/**` are unchanged.

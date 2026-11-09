@@ -399,7 +399,7 @@ fn settle_creation(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
     run_git: &mut dyn GitRunner,
-    stderr: &mut dyn Write,
+    stderr: &mut (dyn Write + Send),
 ) -> Result<(Settlement, AfterLock), WorktreeCopyError> {
     let registered_before: bool = match invocation.destination.as_deref() {
         Some(destination) => destination_is_registered(observation.common_dir.as_path(), destination),
@@ -414,13 +414,14 @@ fn settle_creation(
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
         Ok(status) => {
             let finish_rung_entered: bool = begin_step("finishRung");
-            let finished = ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout());
+            // The line Git's checkout prints goes to the standard output, and every note about what the add did instead goes to the stream this command was given, so a caller that hands in its own report reads the whole of it.
+            let finished = ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout(), stderr);
             end_step(finish_rung_entered);
             Ok(finished)
         }
         Err(error) => {
             // Git did not start: the ladder only has its empty subvolume to remove, whatever status it is given.
-            ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink());
+            ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink(), stderr);
             Err(error)
         }
     };
@@ -460,10 +461,14 @@ fn settle_creation(
 /// ```ts
 /// await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 /// ```
+///
+/// The stream is also the one the disposal of a snapshot's trash writes to from a thread of its own,
+/// so it is asked
+///  for what a thread may carry.
 pub fn run_with_worktree_copy(
     invocation: &Invocation,
     run_git: &mut dyn GitRunner,
-    stderr: &mut dyn Write,
+    stderr: &mut (dyn Write + Send),
 ) -> Result<Settlement, WorktreeCopyError> {
     return settle_invocation(invocation, run_git, stderr).map_err(lifecycle_failure);
 }
@@ -482,7 +487,7 @@ pub fn run_with_worktree_copy(
 fn settle_invocation(
     invocation: &Invocation,
     run_git: &mut dyn GitRunner,
-    stderr: &mut dyn Write,
+    stderr: &mut (dyn Write + Send),
 ) -> Result<Settlement, WorktreeCopyError> {
     // `if` chain in the incumbent's order: each bypass forwards without touching the repository.
     if invocation.opted_out || invocation.short_circuit {
@@ -527,7 +532,7 @@ fn settle_observed(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
     run_git: &mut dyn GitRunner,
-    stderr: &mut dyn Write,
+    stderr: &mut (dyn Write + Send),
 ) -> Result<Settlement, WorktreeCopyError> {
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.
     let recover_entered: bool = begin_step("recover");

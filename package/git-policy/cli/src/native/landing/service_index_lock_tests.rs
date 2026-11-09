@@ -2,7 +2,8 @@
 //! exclusive creation with the marker in place,
 //! a wait that ends when the
 //!  holder lets go and is not woken by anything else,
-//! no bound on the wait for a holder proven alive or one nothing proves alive,
+//! the wait for a holder proven alive or one nothing proves alive,
+//!  which ends at its ceiling,
 //! release by rename,
 //! and
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
@@ -165,69 +166,122 @@ fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
 }
 
 /// A foreign holder that lets go while the service waits is followed at once by the service's own lock,
-/// long before the
-///  repetition of the notice;
-/// the wait makes a handful of attempts,
-/// not one per event it causes itself.
-/// The holder lets go a while after the wait's first notice,
-/// so the wait idles on the watch for that while however long
-///  the marker's flush took before it.
+/// and the wait is woken by that removal and by nothing else.
+/// What that is read from is the order of the placements,
+/// not how fast the host runs:
+/// no placement
+///  after the first met the holder,
+/// so nothing but the removal that ended the hold woke the wait,
+/// and a wait woken by a file of its own would meet the holder over and over.
+/// How soon the wake came is the one thing no order can show,
+/// so it is one clock reading,
+/// taken from the wait's own line and not from the
+///  staging before it,
+/// against half of the interval that repeats that line:
+/// over ten runs the wake came 400.35 to 400.51 ms after the line,
+/// and 10.0018 to 10.0090 s after it
+///  over three runs with the watch blinded to the lock's removal.
+/// The repeated line is no witness of the same thing:
+/// it was said once in both arms,
+/// because a wake from the
+///  interval's timer places the lock before it repeats anything.
+/// The hold is the window the order is read in;
+/// no verdict is measured against it.
 #[test]
 fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
+    /// How long the foreign holder keeps the lock after the wait's first look.
+    ///
+    /// It is the window a wait woken by anything but the lock would be seen in,
+    /// so it is far longer than one look and far shorter than the interval that
+    ///  repeats the holder's line.
+    const HOLD: Duration = Duration::from_millis(400);
+    /// The longest the wake may take after the wait's line,
+    /// half of the interval that repeats it.
+    ///
+    /// A wake from the removal takes that line's own measure of the hold (400 ms),
+    /// and one from the interval's timer takes the whole interval (10 s),
+    /// so half of it sits between the two by a factor of two either way,
+    /// and a host that stalls the removal by up to 4.6 s is still read as an event.
+    /// A fifth of it failed once in a run of the thirty-six controls beside this one
+    /// (2026-11-08,
+    /// this host while other agents built),
+    /// and that run's message carried no reading of the interval,
+    /// so the bound is the half and no tighter.
+    const WAKE_WITHIN: Duration = Duration::from_secs(5);
+    assert_eq!(WAKE_WITHIN * 2, NOTICE_EVERY, "the bound stays half of the interval that repeats the holder's line");
     let (root, index) = index_in("index-lock-wait");
-    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     let foreign: PathBuf = lock_path_of(&index);
+    std::fs::write(&foreign, "foreign").expect("foreign lock");
     let (looked, looking) = std::sync::mpsc::channel::<()>();
+    let let_go: PathBuf = foreign.clone();
     let release = std::thread::spawn(move || {
         looking.recv_timeout(Duration::from_secs(60)).expect("the wait looked at the lock");
-        std::thread::sleep(Duration::from_millis(400));
-        std::fs::remove_file(foreign).expect("the foreign holder lets go");
+        std::thread::sleep(HOLD);
+        std::fs::remove_file(let_go).expect("the foreign holder lets go");
     });
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
-    let attempts_made: Cell<usize> = Cell::new(0);
-    let counting = |from: &Path, to: &Path| -> std::io::Result<()> {
-        attempts_made.set(attempts_made.get() + 1);
+    // Whether the foreign lock stood at each placement, in the order the placements were made.
+    let met: Mutex<Vec<bool>> = Mutex::new(Vec::new());
+    let noting = |from: &Path, to: &Path| -> std::io::Result<()> {
+        met.lock().expect("lock").push(foreign.exists());
         return rename_noreplace(from, to);
     };
-    let platform: Platform = Platform { rename: &counting, ..SYSTEM };
-    let began: Instant = Instant::now();
+    let platform: Platform = Platform { rename: &noting, ..SYSTEM };
+    // When the wait said what it waits for: the interval its own reminder is counted in begins there, after the staging.
+    let said_at: Mutex<Option<Instant>> = Mutex::new(None);
     let lock = acquire_on(&platform, &index, 2, &|note| {
-        let _sent = looked.send(());
+        {
+            let mut when = said_at.lock().expect("lock");
+            if when.is_none() {
+                *when = Some(Instant::now());
+                let _sent = looked.send(());
+            }
+        }
         heard.lock().expect("lock").push(note);
     }).expect("taken after the wait");
-    let waited: Duration = began.elapsed();
-    let attempts: usize = attempts_made.get();
+    let said: Option<Instant> = *said_at.lock().expect("lock");
     release.join().expect("thread");
-    // The holder let go 400 ms after the wait's first look, and the wait followed it by the event, not by the notice's timer.
-    assert!(waited >= Duration::from_millis(300) && waited < NOTICE_EVERY, "{waited:?}");
+    let placements: Vec<bool> = met.lock().expect("lock").clone();
+    assert_eq!(placements.first(), Some(&true), "the first placement meets the foreign holder: {placements:?}");
+    assert!(placements[1..].iter().all(|stood| return !stood), "every placement after the first follows the holder's removal, so the wait woke for nothing else: {placements:?}");
     assert!(!heard.lock().expect("lock").is_empty(), "the wait said that it waits");
-    // A wait woken by its own files tries thousands of times in 400 ms; one woken only by the lock tries a few times.
-    assert!(attempts < 20, "{attempts} attempts in {waited:?}");
+    // The holder let go a hold after the wait's line, so a wait that returned before the foreign lock was gone is caught by the placements and here.
+    let since_said: Duration = said.expect("the wait said what it waits for").elapsed();
+    assert!(since_said >= HOLD, "the wait returned before the hold it was told to keep: {since_said:?} against {HOLD:?}, placements {placements:?}");
+    assert!(since_said < WAKE_WITHIN, "the wake came {since_said:?} after the line, against {WAKE_WITHIN:?}, so it was the reminder's timer and not the removal; placements {placements:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(2));
     drop(lock);
     remove(root.as_path());
 }
 
 /// An owner nothing proves alive is waited for like one proven alive:
-/// the lock is taken the moment it goes,
-/// however long that
-///  is,
-/// and the clients are told what is known and how to remove the lock if no program uses the repository.
+/// the clients are told what is known and how to remove the lock if no program uses the repository,
+/// the wait ends only when the holder lets go,
+/// and the lock is taken then.
+/// The hold begins when the wait has spoken,
+/// so it is the wait's own line that ends the hold.
 #[test]
 fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     let (root, index) = index_in("index-lock-unproven-unbounded");
     std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     let holding: Duration = LONG_HOLD;
     let foreign: PathBuf = lock_path_of(&index);
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let (said_once, speaking) = std::sync::mpsc::channel::<()>();
+    // The holder lets go a hold after the wait said what it waits for; a hold counted from before the acquisition's staging could
+    //  end before the wait's first look on a host whose flush is slow.
     let release = std::thread::spawn(move || {
+        speaking.recv_timeout(Duration::from_secs(60)).expect("the wait said what it waits for");
         std::thread::sleep(holding);
         std::fs::remove_file(foreign).expect("the foreign lock goes");
     });
-    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
     let began: Instant = Instant::now();
-    let lock = acquire(&index, 4, &|note| { heard.lock().expect("lock").push(note); }).expect("taken once the lock went");
+    let lock = acquire(&index, 4, &|note| {
+        let _sent = said_once.send(());
+        heard.lock().expect("lock").push(note);
+    }).expect("taken once the lock went");
+    assert!(began.elapsed() >= holding, "the wait returned before the hold it was told to keep: {:?}", began.elapsed());
     release.join().expect("thread");
-    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
     assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("cannot be proven alive") && text.contains("removing the file") && text.contains("has the lock open")); }), "{said:?}");
     assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("not made")); }), "{said:?}");
@@ -257,11 +311,10 @@ fn where_no_watch_can_be_set_the_wait_polls_until_the_lock_goes() {
     remove(root.as_path());
 }
 
-/// How long the controls keep a foreign lock:
-/// far more than the old backoff of an owner nothing proves alive,
-/// which was one
-///  second,
-/// so only a wait with no bound lasts through it.
+/// How long the controls keep a foreign lock after the wait has spoken:
+/// more than the one second an owner nothing proves alive was once backed off for,
+/// so a wait that ends by itself in that time is caught,
+/// and no control reads the host's speed for it.
 const LONG_HOLD: Duration = Duration::from_millis(2500);
 
 /// The shortest ceiling a wait can be given:
@@ -292,27 +345,40 @@ fn a_dead_owner_ends_the_wait_at_once() {
     remove(root.as_path());
 }
 
-/// A holder proven alive is waited for with no bound:
-/// the wait goes on through the whole hold with the holder named and no line
-///  that gives up,
-/// and the service's lock is taken the moment the holder lets go.
+/// A holder proven alive is waited for until it lets go:
+/// the wait names the holder from its Git lock PID file and leaves the lock in place,
+/// the wait goes on through the whole hold with no line that gives up,
+/// and the service's lock is taken once the holder lets go.
+/// The hold begins when the wait has spoken,
+/// so it is the wait's own line that ends it.
+/// A hold counted from before the acquisition's staging ended before the wait's first look on a slow host,
+/// and the control then read no line at all
+/// (measured 2026-11-08:
+/// a flush of 10.2 s against a hold of 2.5 s).
 #[test]
-fn a_holder_proven_alive_is_waited_for_with_no_bound() {
+fn a_holder_proven_alive_is_waited_for_until_the_holder_lets_go() {
     let (root, index) = index_in("index-lock-proven-alive");
     std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     // The PID file names this process, which runs and started before the lock was made.
     std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {}\n", std::process::id())).expect("PID file");
     let holding: Duration = LONG_HOLD;
     let foreign: PathBuf = lock_path_of(&index);
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let (said_once, speaking) = std::sync::mpsc::channel::<()>();
+    // The holder lets go a hold after the wait said what it waits for; a hold counted from before the acquisition's staging could
+    //  end before the wait's first look on a host whose flush is slow.
     let release = std::thread::spawn(move || {
+        speaking.recv_timeout(Duration::from_secs(60)).expect("the wait said what it waits for");
         std::thread::sleep(holding);
         std::fs::remove_file(foreign).expect("the foreign holder lets go");
     });
-    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
     let began: Instant = Instant::now();
-    let lock = acquire(&index, 6, &|note| { heard.lock().expect("lock").push(note); }).expect("taken once the holder let go");
+    let lock = acquire(&index, 6, &|note| {
+        let _sent = said_once.send(());
+        heard.lock().expect("lock").push(note);
+    }).expect("taken once the holder let go");
+    assert!(began.elapsed() >= holding, "the wait returned before the hold it was told to keep: {:?}", began.elapsed());
     release.join().expect("thread");
-    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
     assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("proven by its Git lock PID file")); }), "{said:?}");
     assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("giving up") || text.contains("not made")); }), "{said:?}");
@@ -366,7 +432,7 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     let pid: i64 = i64::from(holder.0.id());
     let birth: String = process_birth_identity(pid).expect("identity").expect("running");
     std::fs::write(lock_path_of(&index), marker_of_holder(9, pid, birth.as_str())).expect("a live holder's lock");
-    // The wait has no bound, so it runs on a thread; it must still be waiting after a while and must not have touched the lock.
+    // The wait blocks until the holder lets go, so it runs on a thread; it must still be waiting after a while and must not have touched the lock.
     let (finished, ended) = std::sync::mpsc::channel::<()>();
     let waiter_index: PathBuf = index.clone();
     let waiter = std::thread::spawn(move || {
@@ -1343,7 +1409,15 @@ fn an_owned_lock_that_is_already_gone_is_not_unsettled() {
 //endregion
 
 /// A lock that a power loss brought back after its release (the unlink was not yet on storage) carries the marker of the boot that ended:
-/// the next acquisition reclaims it at once though a process of that number and tick runs now.
+/// the next acquisition reclaims it and takes the lock without waiting at all,
+/// though a process of that number and tick runs now.
+/// The ceiling the acquisition is given is already past when it begins,
+/// so a lock waited for like a live holder's would end in the ceiling's words at once;
+/// a reclaim announces no wait,
+/// and that is the claim,
+/// where a stopwatch measured the flush of the marker instead
+/// (measured 2026-11-08:
+/// 14.3 s under a capped flush).
 /// This is why the release does not sync the directory.
 #[test]
 fn a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisition() {
@@ -1352,9 +1426,10 @@ fn a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisiti
     let parts: Vec<&str> = own.split('#').collect();
     let pid: u32 = std::process::id();
     std::fs::write(lock_path_of(&index), format!("{LOCK_MARKER}{}103 {pid} {}#{}#{}{}\n", crate::service_index_marker::MARKER_VERSION, parts[0], "0".repeat(32), parts[2], parts.get(3).map_or_else(String::new, |machine| { return format!("#{machine}"); }))).expect("the lock that came back");
-    let began: Instant = Instant::now();
-    let lock = acquire(&index, 104, &|_| {}).expect("taken at once");
-    assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let lock = acquire_within(&SYSTEM, &index, 104, NO_CEILING, &|note| { heard.lock().expect("lock").push(note); }).expect("taken with no wait");
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    assert!(said.is_empty(), "the lock that came back from an earlier boot was waited for: {said:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(104));
     drop(lock);
     remove(root.as_path());
@@ -1750,25 +1825,41 @@ fn a_holder_proven_alive_is_named_with_its_program_start_time_and_the_way_out() 
 ///  every queued commit began its own wait.
 /// The lock is the same file;
 /// a second wait for it tells nothing the first did not.
+/// What is claimed is the order:
+/// the second commit's ending names the first commit's wait,
+/// in the seconds that commit was told,
+/// and the second is given no ceiling of its own,
+/// so no clock of its own can be what its verdict came from.
 #[test]
 fn a_lock_that_outlasted_one_wait_is_refused_at_once_to_the_next_commit() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let (root, index) = index_in("index-lock-refused-once");
         std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
-        let first_ceiling: Duration = Duration::from_millis(400);
-        let began: Instant = Instant::now();
-        assert!(acquire_within(&SYSTEM, &index, 21, first_ceiling, &|_| {}).is_err());
-        assert!(began.elapsed() >= first_ceiling, "{:?}", began.elapsed());
+        // Over a whole second, so the first wait's seconds cannot be the zero a fresh wait of the second commit would report.
+        let first_ceiling: Duration = Duration::from_millis(1200);
+        let first_heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+        assert!(
+            acquire_within(&SYSTEM, &index, 21, first_ceiling, &|note| { first_heard.lock().expect("lock").push(note); }).is_err(),
+            "the holder never let go"
+        );
+        let first_said: Vec<Announce> = first_heard.lock().expect("lock").clone();
+        let ceiling_words: &String = first_said
+            .iter()
+            .find_map(|note| { return match note { Announce::Waiting(text) if text.contains("still held after") => Some(text), _ => None }; })
+            .expect("the first wait ended in the ceiling's words");
+        let first_seconds: &str = ceiling_words.split("still held after ").nth(1).and_then(|rest| { return rest.split(' ').next(); }).expect("the ceiling's line says how long the lock was held");
+        assert!(first_seconds.parse::<u64>().expect("whole seconds") >= 1, "the first wait measured no whole second: {ceiling_words}");
         let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
-        let next_began: Instant = Instant::now();
-        // The next commit's own ceiling is far longer than the control runs.
-        let next = acquire_within(&SYSTEM, &index, 22, NOTICE_EVERY * 6, &|note| { heard.lock().expect("lock").push(note); });
-        let next_waited: Duration = next_began.elapsed();
-        assert!(next.is_err());
-        assert!(next_waited < NOTICE_EVERY, "the second commit waited {next_waited:?} for a lock that had already outlasted a wait");
+        let next = acquire_within(&SYSTEM, &index, 22, NO_CEILING, &|note| { heard.lock().expect("lock").push(note); });
+        assert_eq!(next.expect_err("a lock that outlasted a wait is refused").code, FailureCode::IndexInUse);
         let said: Vec<Announce> = heard.lock().expect("lock").clone();
         assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held")); }), "{said:?}");
-        assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("earlier commit")); }), "{said:?}");
+        assert!(
+            said.iter().any(|note| {
+                return matches!(note, Announce::Waiting(text) if text.contains(format!("stopped an earlier commit after {first_seconds} seconds").as_str()));
+            }),
+            "the refusal names the earlier commit's wait of {first_seconds} seconds: {said:?}"
+        );
         remove(root.as_path());
     });
 }

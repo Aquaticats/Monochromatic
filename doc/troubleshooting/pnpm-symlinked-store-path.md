@@ -873,3 +873,139 @@ The observable before the repair was `mise run //package/pi-plugin/guardrail:ver
 failing at the same `proper-lockfile` error;
 after it,
 that task printed `pi guardrail extension verified: event:tool_call`.
+
+## The store spelling decides a link's climb count, measured 2026-11-08T18:58:00-05:00
+
+A third worktree (`pi-guardrail-runtime-verifier`) hit the same missing `proper-lockfile`,
+and the existing workaround was not what had failed.
+This section records the measurements that separate the store spelling from the reuse check.
+
+### What the two paths resolved to
+
+The package's own dependency link resolved the instance the Pi package ran from:
+
+```text
+package/pi-plugin/guardrail/node_modules/@earendil-works/pi-coding-agent
+  -> ../../../../../../../../../../../../home/user/.local/share/pnpm/store/v11/links/
+     @earendil-works/pi-coding-agent/1.5.0/c1d76576.../node_modules/@earendil-works/pi-coding-agent
+```
+
+That link resolved.
+The override link inside the instance did not:
+
+```text
+.../links/@earendil-works/pi-coding-agent/1.5.0/c1d76576.../node_modules/proper-lockfile
+  -> ../../../../../../../../../../../../../var/mnt/encrypted/repository/Monochromatic/
+     .claude/worktrees/pi-guardrail-runtime-verifier/package/pnpm-override/shim-proper-lockfile
+```
+
+Thirteen parent traversals are written and the link's parent directory is fourteen components deep,
+so the climb reaches `/var` and the remaining `var/mnt/...` becomes `/var/var/mnt/...`.
+The target itself exists at `/var/mnt/...`.
+
+The instance list shows how widespread that shape is,
+measured over the 269 instances of this one version:
+
+- 234 have a `proper-lockfile` link that does not resolve.
+- The 35 that do resolve name a target under `/var/home/user/Monochromatic` or the main checkout,
+  whose paths happen to survive the misplaced climb.
+
+Every worktree gets its own instance because the `link:` override target is that worktree's own directory,
+so a broken instance is created per worktree rather than shared from the main checkout.
+
+### Which spelling produces which link
+
+Two fixtures,
+each a workspace with one dependency replaced by a `link:` override,
+`virtualStoreType: global`,
+one disposable store per measurement,
+and pnpm `12.18.0`:
+
+- Store spelled through `/home/user/...` (the `${HOME}` spelling this repository's
+  `pnpm-workspace.yaml` gives):
+  thirteen climbs over a fourteen-deep physical parent,
+  and the kernel resolves the link to `/var/var/...`,
+  which does not exist.
+- Store spelled through the physical `/var/home/user/...`:
+  the climb count matches the physical depth,
+  the remainder starts at the first component the climb did not consume,
+  and the kernel resolves the link.
+
+The same pair was measured with the workspace under `/var/mnt` and under the home directory with the same result,
+so the workspace location is not the deciding input;
+the store spelling is.
+
+The repository's own environment reproduces the second arm:
+a fixture workspace below `/var/mnt` whose `pnpm-workspace.yaml` spells the store `${HOME}/.local/...`
+and whose child environment carries `PNPM_CONFIG_STORE_DIR` at the physical spelling
+(the way `.config/mise/conf.d/20-env.toml` supplies it) installs a link that resolves.
+
+`.modules.yaml` records the store directory as spelled,
+not canonicalized,
+which is how the install that wrote it can be told apart:
+
+```text
+pnpm store path                  -> /home/user/.local/share/pnpm/store/v11
+mise exec -- pnpm store path     -> /var/home/user/.local/share/pnpm/store/v11
+```
+
+The worktree's `.modules.yaml` recorded the physical spelling while its instance link carried the
+thirteen-climb shape the `${HOME}` spelling produces,
+so the instance was written by an install outside this repository's mise environment,
+and a later mise install reconciled `node_modules` and `.modules.yaml` without touching the instance,
+which is the reuse check recorded above.
+
+### Repair and the check that now guards it
+
+`mise exec -- pnpm install --offline --frozen-lockfile` answered `Already up to date` in 7.6 s
+and left the link as it was.
+`mise run prepare:pnpm:install -- --force --frozen-lockfile --ignore-scripts` rewrote it:
+
+```text
+.../node_modules/proper-lockfile -> ../../../../../../../../../../../../../mnt/encrypted/repository/Monochromatic/
+  .claude/worktrees/pi-guardrail-runtime-verifier/package/pnpm-override/shim-proper-lockfile
+```
+
+That link resolves,
+`pnpm install --force` added 627 packages in 1 m 28 s with no lockfile change,
+and no store link was edited by hand.
+
+The new `mise run prepare:pnpm:store-links` task reads every `link:` override name from
+`pnpm-workspace.yaml`,
+collects the store instances this workspace's dependency links point into,
+and reports every override link inside those instances that does not resolve.
+When it finds one it runs the forced install itself,
+checks again,
+and fails if a link is still dangling.
+`prepare:pnpm` runs it between the install and the `prepare:pnpm:others:*` fan-out.
+
+Measured controls:
+
+- The repaired worktree printed `148 store instance(s) checked`,
+  then named the five override names every one of those instances resolves.
+- A disposable fixture holding one dangling `link:` override and a stub `pnpm` on `PATH`:
+  the task printed `store link does not resolve: .../instance/node_modules/proper-lockfile`,
+  reported `/nowhere/shim-proper-lockfile` as the path the climb reached,
+  and threw `1 store link(s) still do not resolve after a forced install`.
+
+The check covers the `link:` overrides this workspace declares.
+It does not repair links for another workspace that shares the store,
+and it cannot run for an install started outside mise,
+which is the install that creates the broken shape.
+
+### What the real-session verifier printed after the repair
+
+`mise run //package/pi-plugin/guardrail:verify:pi-runtime` failed before the repair at
+`Cannot find package 'proper-lockfile'` imported from the store instance.
+After it:
+
+```text
+refused "denied absolute-path commit" through /usr/bin/git; ran "/usr/bin/git" status --short;
+landed "commit through the PATH wrapper" through the PATH wrapper;
+refused "denied PATH-assignment commit" with "/usr/bin" ahead on PATH
+Finished in 5.56s
+```
+
+The denial text itself reached the model twice,
+once for the absolute path and once for the `PATH` assignment added by commit `55089a1ad5`,
+and the run left exactly one commit behind.

@@ -197,7 +197,7 @@ Build them
 from `$(pwd)` at the worktree root.
 
 **The entry-balanced estimand does cover round one.**
-The claim recorded above
+The entry-balanced estimand claim
 rests on rounds one and two sharing the draw,
 and task #32 is titled "draw
 50-issue uniform sample",

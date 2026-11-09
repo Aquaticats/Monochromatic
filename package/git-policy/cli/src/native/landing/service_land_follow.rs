@@ -56,8 +56,8 @@ use std::path::Path;
 /// `update-index` at most 77 ms).
 /// Five tries
 ///  of that hold cover five holds in a row.
-/// A holder that is still there is waited for by `index_holder_wait.rs`,
-/// with no bound,
+/// A holder that is still there is waited for by `index_holder_wait.rs`
+/// until that wait's own ceiling (`MERGE_LOCK_CEILING`),
 ///  and does not use these tries.
 const INDEX_ATTEMPTS: usize = 5;
 
@@ -229,10 +229,9 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 /// waiting while another program holds the index.
 /// Why:
 ///   Only Git's own index lock can make this fail for a moment.
-/// A holder proven alive is waited for with no bound,
-/// one that
-///  nothing proves alive for the short backoff,
-/// and a dead one not at all (`index_holder_wait.rs`);
+/// A holder is waited for by `index_holder_wait.rs` until `ceiling`,
+/// which the caller of this function sets to `RECONCILE_LOCK_CEILING`,
+/// and a holder whose PID file names a process that is gone ends the wait at once;
 /// a lock that was gone by the
 ///  time it was looked at is tried again a few times.
 /// An empty list changes nothing,

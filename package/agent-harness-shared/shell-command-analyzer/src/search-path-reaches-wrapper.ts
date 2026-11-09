@@ -17,11 +17,11 @@ import {
   delimiter,
 } from 'node:path';
 
+import type { WrappedCommand, } from './command-wrapper-words.ts';
 import {
   readVariableAssignment,
-  type WrappedCommand,
   type WrapperAssignment,
-} from './command-wrapper-words.ts';
+} from './shell-assignment-words.ts';
 import type { ShellCommandInfo } from './types.ts';
 
 //region Constants

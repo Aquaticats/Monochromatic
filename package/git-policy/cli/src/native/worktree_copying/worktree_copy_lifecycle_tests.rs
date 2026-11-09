@@ -360,7 +360,7 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
     static CALLS: AtomicUsize = AtomicUsize::new(0);
     /// The stand-in records the work as the shipped job does,
     /// and leaves the trash where it is.
-    fn refuse(_state: (&GitContext, &PendingTrash)) -> Result<(), String> {
+    fn refuse(_state: (&GitContext, &PendingTrash, &crate::shared_notice_stream::NoticeStream<'_>)) -> Result<(), String> {
         let began: std::time::Instant = begin_work();
         CALLS.fetch_add(1, Ordering::SeqCst);
         end_work("disposeTrash", began);
@@ -378,7 +378,10 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
     let invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(main.as_path()));
     let mut stderr: Vec<u8> = Vec::new();
     crate::add_timing::begin(common.clone());
-    in_thread_scope(TrashBesideRepair { invocation: &invocation, after: &after, pending: &pending, stderr: &mut stderr, dispose: refuse });
+    {
+        let stream: crate::shared_notice_stream::NoticeStream<'_> = std::sync::Mutex::new(&mut stderr);
+        in_thread_scope(TrashBesideRepair { invocation: &invocation, after: &after, pending: &pending, stream: &stream, dispose: refuse });
+    }
     crate::add_timing::finish(0);
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "the trash was emptied once, and the add waited for it");
     assert_eq!(stderr, Vec::<u8>::new(), "the person's stream carries the repair, and a disposal that fails says so in the log");
@@ -392,6 +395,37 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();
+}
+
+/// The arguments of a quiet `git worktree add --no-checkout -b <name> <destination>`.
+fn add_without_checkout(name: &str, destination: &Path) -> Vec<String> {
+    return ["worktree", "add", "--quiet", "--no-checkout", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();
+}
+
+/// The note a snapshot of the main checkout writes reaches the stream the caller handed in,
+/// where the rest of the add's report goes.
+/// Why:
+///   A caller that hands in its own stream reads the whole report;
+/// a line written to the process's standard error beside it is one that caller never sees.
+#[test]
+fn btrfs_a_main_checkout_snapshot_notes_on_the_stream_the_caller_handed_in() {
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("lifecycle-main-note") else { return };
+    let main: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    let topic: PathBuf = root.join("topic");
+    let mut invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(topic.as_path()));
+    invocation.add_plan = Some(crate::worktree_ladder_test_support::plan_to(topic.clone()));
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &invocation,
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_without_checkout("topic", topic.as_path()).as_slice())),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert!(said.contains(crate::worktree_trash::MAIN_SNAPSHOT_NOTE), "the note reaches the stream the caller handed in: {said:?}");
+    remove(root.as_path());
 }
 
 /// Another command registers a worktree while this one's Git runs:

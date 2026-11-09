@@ -74,7 +74,7 @@ The sample is being redrawn.
 
 ### Correction: the invisible character WELDS paragraphs, it does not split them
 
-The entry above this one described a lone U+FEFF becoming its own paragraph.
+The paragraph-split entry this correction replaces described a lone U+FEFF becoming its own paragraph.
 That is what a fixture with blank lines either side does,
 and it is not the
 shape the corpus contains.
