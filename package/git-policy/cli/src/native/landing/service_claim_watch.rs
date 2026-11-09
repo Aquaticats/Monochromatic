@@ -153,19 +153,6 @@ fn byte_of_digit_pair(pair: &[u32]) -> Option<u8> {
 }
 
 /// What:
-///  A byte as two lowercase hexadecimal digits.
-/// Why:
-///  `encode` writes the bytes of a Git directory's path in hexadecimal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const hexOfByte = (byte: number) => byte.toString(16).padStart(2, '0');
-/// ```
-fn hex_of_byte(byte: &u8) -> String {
-    return format!("{byte:02x}");
-}
-
-/// What:
 ///  Reads a whole file.
 /// Why:
 ///  `restored` and `retry` hand it to the versions that take the reading as a parameter,
@@ -208,7 +195,8 @@ fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
 /// the format words and the bytes of the path in hexadecimal,
 /// so that any path is kept as it is.
 fn encode(git_dir: &Path) -> String {
-    let hex: String = git_dir.as_os_str().as_bytes().iter().map(hex_of_byte).collect();
+    // The crate's one encoder spells the path's bytes (`hexadecimal_of_bytes.rs`).
+    let hex: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(git_dir.as_os_str().as_bytes());
     return format!("{FORMAT_PREFIX}{hex}\n");
 }
 

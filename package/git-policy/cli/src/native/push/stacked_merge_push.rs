@@ -128,9 +128,9 @@ fn run_planned(action: Action) -> i32 {
             return code;
         }
         Action::ExitBytes { code, stdout, stderr } => {
-            // The report is pathnames as bytes: the exit status carries the result.
+            // Both reports are pathnames as bytes: the exit status carries the result.
             let _written = std::io::stdout().write_all(stdout.as_slice());
-            write_to_standard_error(stderr.as_str());
+            let _said = std::io::stderr().write_all(stderr.as_slice());
             return code;
         }
         other => {

@@ -643,7 +643,11 @@ fn direct_commands_report_git_failures() {
 fn exit_parts(action: Action) -> (i32, String, String) {
     return match action {
         Action::Exit { code, stdout, stderr } => (code, stdout, stderr),
-        Action::ExitBytes { code, stdout, stderr } => (code, String::from_utf8(stdout).expect("a report of text paths"), stderr),
+        Action::ExitBytes { code, stdout, stderr } => (
+            code,
+            String::from_utf8(stdout).expect("a report of text paths"),
+            String::from_utf8(stderr).expect("an explanation of text paths"),
+        ),
         other => panic!("a management command ends in an exit action, not {other:?}"),
     };
 }
