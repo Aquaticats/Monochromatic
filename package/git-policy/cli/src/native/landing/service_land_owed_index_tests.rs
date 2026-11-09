@@ -602,6 +602,9 @@ fn a_check_that_cannot_be_made_still_leaves_the_moved_paths_out() {
     land_with_failed_index(&world, 1, &[landed]);
     let commit_index: PathBuf = commit_index_of(&world);
     git(world.repo.as_path(), &["add", "one.txt"]);
+    // The record is settled, so the record's own comparison cannot be what leaves the path out: only the check that the copied index
+    //  is older than the live one can.
+    crate::owed_index_update::settle(world.repo.join(".git").as_path(), 1);
     // A path in conflict in the live index: `write-tree` refuses it, so the check falls back to the listings.
     let stage = |content: &str| -> String {
         std::fs::write(world.root.join("stage-content"), content).expect("write");

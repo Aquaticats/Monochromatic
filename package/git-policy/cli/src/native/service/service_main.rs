@@ -319,6 +319,14 @@ pub fn run(arguments: &[String]) -> i32 {
             return EXIT_NOT_LISTENING;
         }
     };
+    // A push whose command died between this service's answer and its post-commit gate waits in the queue's held state, and no round
+    //  drains it. A start is a moment when no command of this worktree is gating, so those records become runnable here.
+    let remembered: Vec<std::path::PathBuf> =
+        crate::service_claim_watch::ClaimWatch::restored(journal.join(crate::service_claim_watch::WATCH_DIRECTORY).as_path(), named_instance.as_deref()).directories();
+    let promoted: usize = crate::service_server_work_loop::promote_held_at_start(own_git_dir.as_deref(), remembered.as_slice());
+    if promoted > 0 {
+        crate::service_log!("promoted {promoted} held push records of the worktrees this service remembers at start");
+    }
     let context: LandContext = LandContext {
         git: GitContext { real_git: git, overlay: crate::child_environment::service_child_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
@@ -327,15 +335,6 @@ pub fn run(arguments: &[String]) -> i32 {
         lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(crate::wait_ceilings::LANDING_LOCK_CEILING, Duration::from_millis),
     };
     let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
-    // A push whose command died between this service's answer and its post-commit gate waits in the queue's held state, and no round
-    //  drains it. A start is a moment when no command of this worktree is gating, so those records become runnable here.
-    if let Some(git_dir) = own_git_dir.as_deref() {
-        let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
-        let promoted: usize = crate::work_item::promote_held(work_dir.as_path());
-        if promoted > 0 {
-            crate::service_log!("promoted {promoted} held push records of this worktree at start");
-        }
-    }
     let mut settings: ServeSettings = ServeSettings::new(idle);
     // The serving loop asks about this worktree at its own interval, so a removal that no wrapper sees still ends the units.
     settings.own_git_dir = own_git_dir;

@@ -5625,12 +5625,25 @@ Each commit passes through three phases:
     hand the push and the upkeep to the service as work items.
     A blocked gate keeps the commit local and exits `2`.
 
-The wrapper leaves the push work item of a commit the service landed before it runs the post-commit gate,
-and takes it back when the gate blocks,
-so the gate alone decides whether a landed commit may be published and a wrapper killed while the gate runs
-loses no push (see "What a landed batch leaves behind").
-The service leaves no push record of its own:
-it cannot know the gate's verdict.
+The landing holds the push work item of every commit a batch would land,
+in the work queue's `held` state,
+before the branch moves,
+and recovery holds them for a batch it finds landed;
+every path on which a batch does not land forgets them.
+Nothing drains a held item,
+so no round can publish a commit whose post-commit gate has not decided.
+The wrapper claims its own record with its process number and birth identity before its gate runs,
+and another command and the service's start promote only records whose owner is absent or proven gone,
+compared through `process_birth_identity`:
+a living gate is never overtaken,
+a dead one never strands a push,
+and a start covers a service started without an instance name,
+whose worktrees are the ones it remembers.
+The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
+blocks,
+so a blocked gate keeps the commit local,
+and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
+behind").
 
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,

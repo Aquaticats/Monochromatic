@@ -105,3 +105,49 @@ fn recovery_holds_the_push_of_a_batch_it_finishes() {
     assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s"]), "message of landed");
     remove(world.root.as_path());
 }
+
+/// A service started without an instance name recovers an approved held push:
+/// its worktrees are the ones it remembers,
+/// and a start is a moment when no command of them is deciding.
+#[test]
+fn a_service_with_no_instance_promotes_the_held_push_of_a_worktree_it_remembers() {
+    let world: World = world("service-land-owed-push-no-instance");
+    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: world.repo.display().to_string(),
+        git_dir: world.repo.join(".git").display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0".repeat(40)),
+        parent: String::from("0".repeat(40)),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
+    // No instance name: the worktree is one this service remembers, not one it can name from its unit.
+    let promoted: usize = crate::service_server_work_loop::promote_held_at_start(None, std::slice::from_ref(&world.repo.join(".git")));
+    assert_eq!(promoted, 1, "the approved push of a remembered worktree is promoted");
+    assert!(state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "the push is runnable");
+    remove(world.root.as_path());
+}
+
+/// A worktree the service does not remember is not promoted by its start.
+#[test]
+fn a_service_start_leaves_the_held_push_of_a_worktree_it_does_not_remember() {
+    let world: World = world("service-land-owed-push-unknown-worktree");
+    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: world.repo.display().to_string(),
+        git_dir: world.repo.join(".git").display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0".repeat(40)),
+        parent: String::from("0".repeat(40)),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    crate::work_item::hold(work_dir.as_path(), &item).expect("held");
+    assert_eq!(crate::service_server_work_loop::promote_held_at_start(None, &[]), 0, "nothing is promoted for a worktree nothing named");
+    assert!(!state_directory(work_dir.as_path(), PENDING).join(item.id()).exists(), "nothing runnable was made");
+    remove(world.root.as_path());
+}
