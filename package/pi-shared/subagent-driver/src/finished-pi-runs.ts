@@ -45,16 +45,17 @@ export type FinishedPiRun = {
   readonly totalMilliseconds: number;
 
   /**
-   Whether that length says how long the work takes. A run the model provider ended, a prompt Pi refused and a driver that
-   failed all stopped for their own reasons, so their length is no estimate; the calls they finished before stopping are
-   still calls that finished.
+   Whether that length says how long the work takes. A run the model provider ended, a prompt Pi refused or a compaction Pi could
+   not finish, and a driver that failed all stopped for their own reasons, so their length is no estimate; the calls they
+   finished before stopping are still calls that finished.
    */
   readonly lengthCountsAsWork: boolean;
 };
 
 /**
  End reasons whose duration says nothing about how long the work takes, so a run that ended on one is left out of the length
- sample: the model answered with an error, the prompt was refused, or the driver itself failed.
+ sample: the model answered with an error, the prompt was refused, Pi could not compact its session, or the driver itself
+ failed.
 
  A run that hit its wall clock or its turn cap counts all the same: it did the work for as long as it was allowed. Whatever a
  run ended on, the tool calls it finished before stopping are calls that finished, so its feed stays in the call sample.
@@ -62,6 +63,7 @@ export type FinishedPiRun = {
 export const END_REASONS_WITHOUT_A_JOB: readonly string[] = [
   'model-error',
   'prompt-rejected',
+  'compaction-failed',
   'driver-failed',
 ];
 

@@ -29,12 +29,14 @@ export type PiExit = {
  Why a run ended. `idle` and `stop-file` are the ends a run chooses; the others fail the driver.
 
  `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from, `pi-not-stopped`
- means Pi was still alive when every bound on ending it ran out, and `driver-failed` covers the driver's own failures.
+ means Pi was still alive when every bound on ending it ran out, `compaction-failed` means a compaction Pi reported failing left
+ it silent instead of taking the prompt, and `driver-failed` covers the driver's own failures.
  */
 export type EndReason =
   | 'idle'
     | 'stop-file'
     | 'prompt-rejected'
+    | 'compaction-failed'
     | 'pi-exited'
     | 'turn-cap'
     | 'wall-clock'
@@ -46,6 +48,65 @@ export type EndReason =
  Where a run stands: over for a reason, or still going.
  */
 export type RunProgress = EndReason | 'still-running';
+
+/**
+ How a command's wait ended.
+
+ `answered` means Pi wrote a response, which may itself report a refusal: what Pi made of the command is in that record.
+ `silence` and `deadline` are the driver's own bounds running out, and `pi-exited` is Pi going before it answered.
+ */
+export type CommandEnding =
+  | 'answered'
+    | 'silence'
+    | 'deadline'
+    | 'pi-exited';
+
+/**
+ Pi's answer to a command, or the driver's own reason for waiting no longer. Which one it is says where the fields are: an
+ answer carries Pi's own record, and every other ending carries the driver's words for it.
+ */
+export type CommandAnswer =
+  | {
+    readonly ending: 'answered';
+
+    /**
+     Pi's own response record, whose `success` and `error` say what Pi made of the command.
+     */
+    readonly record: PiRecord;
+  }
+    | {
+      readonly ending: 'silence' | 'deadline' | 'pi-exited';
+
+    /**
+     What the driver names for stopping: the bound Pi stayed silent for, or the deadline the run reached.
+     */
+      readonly problem: string;
+
+    /**
+     What Pi reported of a compaction this wait saw: one that failed, or one still under way when the wait ended. A run that
+     ends on it did not end because Pi refused anything.
+     */
+      readonly compactionProblem?: string;
+    };
+
+/**
+ What Pi reports of its own session: a compaction under way, or nothing.
+ */
+export type CompactionOfPi =
+  | { readonly compacting: false }
+    | {
+      readonly compacting: true;
+
+    /**
+     Why Pi began the compaction, as `compaction_start` reports it: `manual`, `threshold` or `overflow`.
+     */
+      readonly reason: string;
+
+    /**
+     When the driver saw the compaction begin, as milliseconds since the epoch.
+     */
+      readonly since: number;
+    };
 
 /**
  A failure a run can end with, or the reason there is none. Absence travels as a value rather than as a nullish member, so every
@@ -118,6 +179,12 @@ export type RunSummary = {
    What went wrong in the driver itself, when `endReason` is `driver-failed`.
    */
   readonly driverError?: string;
+
+  /**
+   What Pi reported of the compaction it could not finish while the run waited for its prompt: the failure, or the compaction
+   still running when the run's own bound ended it. Absent when the run never waited on a compaction.
+   */
+  readonly compactionProblem?: string;
 };
 
 /**
