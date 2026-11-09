@@ -59,6 +59,41 @@ and the host may run short before the provider does.
 
 The trial at twenty is still running and decides the raise to 20 by itself.
 
+### Should a commit add the manifests of dependents it bumps?
+
+Your decision of 2026-09-15 and `SPEC.md` say opposite things.
+`doc/decision/private-npm-registry.md:158-160` says:
+"A cli-git commit policy bumps dependents by patch,
+transitively,
+in the same commit as a hand bump."
+It rejects "a read-only check plus a `version:bump` command (two steps when forgotten)".
+`doc/decision/cli-git-policies-platform.md:751-754` says the same.
+`package/git-policy/cli/SPEC.md:207-208` says:
+"A commit adds no paths of its own:
+only the paths it selected reach the landing."
+
+The code follows `SPEC.md`,
+and an audit reproduced the result
+(`doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
+finding 2).
+A hand bump of `a` commits only `a`'s manifest,
+and nothing says the dependents were left behind.
+After that commit,
+`check` and `fix` are silent too,
+because the raise now equals `HEAD`.
+So a published package can depend on an older version of a package it was meant to follow.
+
+Recommended:
+build what the decision says,
+so a commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`.
+It is the only option where a forgotten step cannot leave a stale dependent,
+at the price of a commit touching paths the person did not name.
+The alternative keeps `SPEC.md`,
+changes the decision,
+and makes a commit warn loudly that dependents were left behind.
+That is much less code,
+and the person has one more step to remember.
+
 ### May a moved-path note be added to records in `doc/decision/`?
 
 Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
