@@ -1885,6 +1885,64 @@ fn a_switch_in_the_window_moves_only_the_branch_this_command_checked() {
     remove(&s.root);
 }
 
+/// What:
+///  A `git switch` that lands in the window on a branch already at the merge leaves that checkout alone.
+/// Why:
+///   The branch it switched to already holds the merge's files,
+/// so there is nothing of this fast-forward to put back;
+/// putting
+///  back the branch this command checked would write that branch's tree over the person's branch,
+/// staging a reversal of the
+///  merge on a branch that still holds it.
+#[test]
+fn a_switch_in_the_window_to_a_branch_at_the_merge_is_not_put_back() {
+    let s = scenario("ar-ff-window-switch-at-merge");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    // The branch the person switches to already points at the merge.
+    git(&s.local, &["branch", "topic", target.as_str()]);
+    // The switch lands in the instant between the look at the checkout and the write of its files.
+    let switching = std::path::PathBuf::from(&s.local);
+    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+        git(&switching, &["switch", "--quiet", "topic"]);
+    });
+    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    drop(_played);
+    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), target, "the branch the person switched to is not moved");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "its checkout holds no staged reversal of the merge");
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "and its files are the merge's");
+    remove(&s.root);
+}
+
+/// The companion control of the test above:
+/// a switch that lands between the look and the write on a branch that does not hold the merge is put back to that
+///  branch's own commit,
+/// so the rollback still happens where it is needed.
+#[test]
+fn a_switch_in_the_window_to_another_commit_is_put_back_to_that_commit() {
+    let s = scenario("ar-ff-window-switch-elsewhere");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    // The branch the person switches to is this repository's own tip, whose files are not the merge's.
+    git(&s.local, &["branch", "topic", tip.as_str()]);
+    let switching = std::path::PathBuf::from(&s.local);
+    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+        git(&switching, &["switch", "--quiet", "topic"]);
+    });
+    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    drop(_played);
+    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the merge's files were put back to that branch's own commit");
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "which is the tree that branch names");
+    remove(&s.root);
+}
+
 /// The private fetch ref a killed instance left is taken by the next reconcile,
 /// and one whose process still runs is left where it is:
 /// another worktree of this repository may be reconciling at the same time.

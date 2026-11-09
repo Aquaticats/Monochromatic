@@ -86,6 +86,65 @@ fn still_on_the_branch(git: &PushGit, branch_ref: &str, local: &str) -> Result<b
     return Ok(String::from_utf8_lossy(&head.stdout).trim() == local);
 }
 
+/// The step a control plays in the instant between the look at the checkout and the write of its files,
+/// as another command's `git switch` finishing there;
+/// nothing outside a control.
+#[cfg(test)]
+thread_local! {
+    /// The step of the control running on this thread.
+    static BETWEEN_LOOK_AND_WRITE: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Plays `step` in the instant between the look at the checkout and the write, until the guard drops.
+#[cfg(test)]
+pub(crate) fn between_look_and_write_in_a_control(step: impl Fn() + 'static) -> BetweenGuard {
+    BETWEEN_LOOK_AND_WRITE.with(|slot| { *slot.borrow_mut() = Some(Box::new(step)); });
+    return BetweenGuard;
+}
+
+/// Ends the control's step when dropped.
+#[cfg(test)]
+pub(crate) struct BetweenGuard;
+
+#[cfg(test)]
+impl Drop for BetweenGuard {
+    fn drop(&mut self) {
+        BETWEEN_LOOK_AND_WRITE.with(|slot| { *slot.borrow_mut() = None; });
+    }
+}
+
+/// Plays the control's step, if one is set.
+#[cfg(test)]
+fn play_between_look_and_write() {
+    // The step borrows nothing of the caller, so it runs here rather than through a reference that would hold the borrow.
+    let step: Option<Box<dyn Fn()>> = BETWEEN_LOOK_AND_WRITE.with(|slot| { return slot.borrow_mut().take(); });
+    if let Some(step) = step {
+        step();
+        BETWEEN_LOOK_AND_WRITE.with(|slot| { *slot.borrow_mut() = Some(step); });
+    }
+}
+
+/// What:
+///  The tree `revision` names,
+/// or nothing when it names none.
+/// Why:
+///   Putting the merge's files back must name the tree of the commit the checkout shows,
+/// not a branch tip that
+///  may hold the merge already,
+/// and a revision that names no commit is said rather than guessed at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = await git.revParseQuiet(`${revision}^{tree}`); return tree === undefined ? undefined : tree.trim();
+/// ```
+fn tree_of(git: &PushGit, revision: &str) -> Result<Option<String>, SingleFlightError> {
+    let asked = run_query(git, &argv(&["rev-parse", "--verify", format!("{revision}^{{tree}}").as_str()]))?;
+    if asked.code != Some(0) {
+        return Ok(None);
+    }
+    return Ok(Some(String::from_utf8_lossy(&asked.stdout).trim().to_owned()));
+}
+
 /// What:
 ///  Bring this worktree's index and files to the merge,
 /// then move the branch this command checked,
@@ -131,6 +190,8 @@ pub(crate) fn move_the_named_branch(git: &PushGit, branch_ref: &str, local: &str
     if !still_on_the_branch(git, branch_ref, local)? {
         debug(TAG, "another branch is checked out here, so the fast-forward moves the branch and leaves that checkout as it is");
     } else {
+        #[cfg(test)]
+        play_between_look_and_write();
         let checked_out = run_query(git, &argv(&["read-tree", "-u", "-m", local, merge_oid]))?;
         if checked_out.code != Some(0) {
             return Ok(Err(refusal_of(&checked_out.stderr)));
@@ -138,20 +199,39 @@ pub(crate) fn move_the_named_branch(git: &PushGit, branch_ref: &str, local: &str
         // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
         record_streams(&["read-tree", "-u", "-m", local, merge_oid], &checked_out.stdout, &checked_out.stderr);
         // The question again, after the write: a `git switch` that landed inside it was given the merge's files, and they go
-        //  back before the branch moves below, so the checkout shows the commit the person switched to.
+        //  back before the branch moves below. What they go back to is the tree of the commit that checkout shows now, never
+        //  this branch's tip: a switch that landed on a branch already at the merge left the merge's files there, and writing
+        //  this branch's tree over them would stage a reversal of the merge on a branch that still holds it.
         if !still_on_the_branch(git, branch_ref, local)? {
-            let put_back = run_query(git, &argv(&["read-tree", "-u", "-m", merge_oid, local]))?;
-            if put_back.code != Some(0) {
-                return Ok(Err(format!(
-                    "another command checked out another branch while this fast-forward wrote its files, and putting them back failed: {}",
-                    refusal_of(&put_back.stderr)
-                )));
+            let merged: Option<String> = tree_of(git, merge_oid)?;
+            let checked_out: Option<String> = tree_of(git, "HEAD")?;
+            match checked_out {
+                // The checkout already shows the merge's tree: nothing of this fast-forward is in it.
+                Some(tree) if merged.as_deref() == Some(tree.as_str()) => {
+                    debug(TAG, "the branch checked out here already holds the merge's tree, so the fast-forward has nothing to put back");
+                }
+                Some(tree) => {
+                    let put_back = run_query(git, &argv(&["read-tree", "-u", "-m", merge_oid, tree.as_str()]))?;
+                    if put_back.code != Some(0) {
+                        return Ok(Err(format!(
+                            "another command checked out another branch while this fast-forward wrote its files, and putting them back failed: {}",
+                            refusal_of(&put_back.stderr)
+                        )));
+                    }
+                    record_streams(&["read-tree", "-u", "-m", merge_oid, tree.as_str()], &put_back.stdout, &put_back.stderr);
+                    warn(
+                        TAG,
+                        "another command checked out another branch while the fast-forward wrote its files; they were put back to that branch's own tree and only the branch moved",
+                    );
+                }
+                // Nothing says which tree the checkout shows, so nothing of the merge's is written back over it.
+                None => {
+                    warn(
+                        TAG,
+                        "another command checked out another commit while the fast-forward wrote its files, and that commit's tree could not be read; the files are left as they are",
+                    );
+                }
             }
-            record_streams(&["read-tree", "-u", "-m", merge_oid, local], &put_back.stdout, &put_back.stderr);
-            warn(
-                TAG,
-                "another command checked out another branch while the fast-forward wrote its files; they were put back and only the branch moved",
-            );
         }
     }
     let message: String = format!("merge: fast-forward {branch_ref} to the published reconcile merge");
