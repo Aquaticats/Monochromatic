@@ -125,6 +125,113 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
+#### Main stopped building, and what landed after it (2026-11-09T06:35:43-05:00)
+
+- Main did not compile from `367c52c390` until `121100623c`.
+  The landing branch had been tested before the path-bytes branch (`e590c0554d`) landed,
+  and it landed on top of that branch with no build of the two together.
+  `121100623c` passes the paths themselves and stores path bytes in the owed index record (`pathsHex`),
+  where the compiler's suggestion would have turned them into lossy text.
+  81 selected tests passed on it,
+  and the running wrapper agents were told through their inboxes.
+  `land-branch-on-main.ts` now merges without committing,
+  builds the merged tree when the merge touches `package/git-policy/cli/`,
+  and commits only after that build passes.
+  `8447a02aa6` was its first real use.
+- Open in `landing/owed_index_update.rs`:
+  `repository`,
+  `gitDir` and `index` are still written with `display()`,
+  and no test round-trips a non-UTF-8 path through `pathsHex`.
+  This is a small follow-up after the landing branch's run 10 lands.
+- Landed:
+  `8447a02aa6` (module docs stop citing deleted TypeScript files),
+  `341f966762` (mpm-shadow prune settles `current` from its plan,
+  723 of 723 on top of main),
+  and `ad3731e420` (the audit `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`).
+  The module-doc issues the docs agent reported fixed or no longer applicable are closed with evidence comments,
+  and the commit messages of `78c5b5e245` and `42a8a1d544` carry corrective comments.
+  `d39dffb7b8` corrects the citations in `doc/planning/`,
+  and issues 4245,
+  4853,
+  4863,
+  4871 and 4872 are closed with evidence.
+  Issues 4408 and 3258 hold,
+  and their files are under `doc/decision/`,
+  so they wait for the open question on moved-path notes in `doc/handover/questions-for-the-owner.md`.
+  The docs agent's report that 4519,
+  4526,
+  4587 and 2650 do not hold looked only at the filed paths.
+  `wrapper-doc-folder-citations` found each defect still present at its moved path
+  (`shadow/replay_subsumption.rs:255-270`,
+  `shadow/shadow_create.rs:61-65`,
+  `policy/event_hints.rs:12-17`,
+  `binary/binary_lfs_pre_push_tests.rs:11`),
+  so they stay open for a small comment fix.
+- The shadow audit reproduced three defects:
+  a conflict on `é.txt` makes replay silently revert the distinct file `Ã©.txt`,
+  signing set through an exact `gitdir` conditional include is lost in native shadow preparation,
+  and an unrelated non-UTF-8 tag blocks shadow creation.
+  The agent `shadow-and-replay-findings-fixed` is on them,
+  on `fix/git-policy-cli-shadow-replay-keeps-distinct-files-and-signing`.
+- The review `literal-pathspec-remaining-starts-round-1-sol.txt` names two findings:
+  a global option's value read as the literal-pathspec option,
+  and `GIT_ICASE_PATHSPECS` reaching the wrapper's own resets,
+  so a reset also replaces a differently cased staged entry.
+  Run 2 of that agent is on them.
+- No command copies a configured ignored file today:
+  `CopySelection::Paths` is constructed only in `worktree_copying/worktree_copy_selection_tests.rs`.
+- Running on top of main,
+  each followed by a review and a landing:
+  the conversion branch,
+  the suite-failures branch,
+  the lock branch,
+  the landing branch's run 10,
+  and the ref-listing branch.
+- The review `mpm-shadow-open-issues-round-6-sol.txt` of what landed as `341f966762` names two findings:
+  prune removes `current` when the newer finished version it would have to skip is itself being deleted,
+  and a repointing failure leaves out links the same run already removed.
+  All 20 agent slots were in use when it returned,
+  so `mpm-shadow-open-issues` run 7 with `mpm-shadow-round-7-prompt.md` is next when one frees,
+  on the branch `fix/mpm-shadow-open-issues-batch`.
+  The next mpm-shadow release follows that run.
+- The checks of the conversion,
+  lock,
+  ref-listing and suite-failures branches on top of main each ended with tests timing out at the 300 s limit,
+  on different names,
+  while the host ran 20 agents and the audits.
+  Run alone,
+  the lock branch's named tests passed 4 of 4 and the ref-listing branch's 3 of 3.
+  On main,
+  `the_report_keeps_input_order_whichever_worktree_finishes_first` failed alone,
+  so that family is no defect of the conversion branch.
+  `the_conversions_take_places_of_the_processs_bound_on_blocking_jobs` failed alone on the conversion branch,
+  because `spawn_on_runtime` returned `None`,
+  and it passed in the same filter on main.
+  No cause is measured yet (rule `SUF`).
+  `wrapper-tests-that-fail-only-in-a-suite` run 2 with `wrapper-tests-suite-round-2-prompt.md` has every name.
+  Its run 2 has started,
+  and it has the five findings of `wrapper-tests-suite-round-1-sol.txt` as well.
+- Landed:
+  `58ccfd1df5` (a held push says so where it is held) and `45f5c93e86` (the object check asks the packs first,
+  and a long ref listing is left to Git).
+  The review `landing-route-round-10-sol.txt` names three ways the held notice and the held record disagree.
+  The notice is no worse than main's,
+  which had none in that case.
+  `reader-ref-listing-cost-round-1-sol.txt` names a version-4 index whose offset table starts a block on a
+  compressed path.
+  Real Git never writes one,
+  main answered it the same way,
+  and a small guard is still owed.
+- Fix briefs written and waiting for a free agent slot,
+  in this order:
+  `landing-route-findings-fixed` run 11 with `landing-route-round-11-prompt.md` (one source for the held notice,
+  and path bytes in every field of the owed index record);
+  `locks-and-transactions-findings-fixed` run 3 with `locks-and-transactions-round-3-prompt.md`;
+  `subvolume-conversion-findings-fixed` run 3 with `subvolume-conversion-round-2-prompt.md`.
+  The lock and conversion branches do not land before those runs:
+  their reviews (`locks-and-transactions-round-2-sol.txt`,
+  `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
+
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
 - Landed on main since the previous entry:
@@ -157,10 +264,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   which also refuses an answer cut short.
   Its next run resolves this together with the review `process-and-child-lifetime-round-2-sol.txt`,
   and must measure whether `StepBound::EndAt`'s pipes can cut an answer.
-- The mpm-shadow review `mpm-shadow-open-issues-round-5-sol.txt` names two findings no second process is needed for,
-  and one that needs a concurrent install.
-  `mpm-shadow-round-6-prompt.md` holds them,
-  and the next mpm-shadow release follows that round.
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` landed as `0ac02768cd`,
   with 334 of 334 selected tests passing on top of main before the landing.
   Landing it conflicted with the timing-controls branch in the imports and the budget controls of three test files.
@@ -197,14 +300,8 @@ The old tree kept for the rollback stays until the owner deletes it.
 - Running again on their reviews:
   `merge-route-findings-fixed` run 6,
   `scratch-commit-ceiling-and-three-slow-commits` run 5,
-  and `landing-route-findings-fixed` run 10 with `landing-route-round-10-prompt.md`.
-  Waiting for a free agent slot,
-  in this order:
-  `process-and-child-lifetime-findings-fixed` run 3 (prompt to write once its review returns);
-  `wrapper-issue-test-coverage` with `wrapper-issue-test-coverage-prompt.md`,
-  on its branch `test/git-policy-cli-issue-coverage-gaps` and `--run=2`;
-  a fix agent for the invocation audit's written findings;
-  `mpm-shadow-open-issues` run 6 with `mpm-shadow-round-6-prompt.md`.
+  and `process-and-child-lifetime-findings-fixed` run 3.
+  `wrapper-issue-test-coverage` and `invocation-route-findings-fixed` are also running.
   A unit still starting does not appear in the count,
   so count the launchers started in the last few minutes as well.
 - The hook-route review (`${HOME}/temp/agent/reviews/hook-route-round-1-sol.txt`) names five ways the new "delivered" claim can be false,
