@@ -23,11 +23,18 @@
 //! an editor a real Git started) has another process in between and
 //!  passes:
 //! running `git` there through an installed wrapper stays legitimate.
+//! That shape cannot see every way back to the wrapper,
+//! because a script between two wrappers puts as many processes
+//!  in between as it likes;
+//! so the marker also counts the starts of one chain,
+//! and a wrapper stops once the chain
+//!  holds more than `MOST_STARTS_IN_ONE_CHAIN`,
+//! whatever stood between two of them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // child_process.spawn(realGit, args, { env: { ...env, CLI_GIT_STARTED_AS_GIT: `${process.pid}\x1f${identity}\x1fchild` } });
-//! // if (marker && marker.pid === process.ppid && sameBirth(marker)) { stop('started as Git by a monochromatic-git-policy-cli process'); }
+//! // child_process.spawn(realGit, args, { env: { ...env, CLI_GIT_STARTED_AS_GIT: `${process.pid}\x1f${identity}\x1fchild\x1f${starts}` } });
+//! // if (marker && (marker.starts > MOST_STARTS_IN_ONE_CHAIN || marker.pid === process.ppid && sameBirth(marker))) { stop('started as Git by a monochromatic-git-policy-cli process'); }
 //! ```
 
 /// The one lookup of a named variable in an injected environment.
@@ -63,7 +70,27 @@ use std::process::Command;
 /// ```
 pub const STARTED_AS_GIT_VARIABLE: &str = "CLI_GIT_STARTED_AS_GIT";
 
-/// The byte between the three fields of the marker:
+/// What:
+///  The most starts of real Git one chain may hold before a wrapper stops it.
+/// Why:
+///   The guard below recognises the process a marker names,
+/// and a script named `git` that starts the wrapper as a child puts
+///  itself between the two,
+/// so the same wrapper start arrives looking like one further down a chain
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 1).
+/// Counting the starts ends any such chain,
+///  however many processes stand between two of them,
+/// and a legitimate nesting (a hook,
+/// an alias,
+/// an editor that runs `git`) is nowhere near
+///  this deep:
+/// each level costs a real Git run of its own.
+/// A stop one level too early is repaired by the person who reads the message;
+/// a chain that never ends is not.
+pub const MOST_STARTS_IN_ONE_CHAIN: u32 = 8;
+
+/// The byte between the fields of the marker:
 /// the unit separator,
 /// which a process number,
 /// a birth identity or a mode
@@ -76,6 +103,10 @@ const REPLACE_WORD: &str = "replace";
 /// The mode word of a start that runs beside the starting process,
 /// which waits for it.
 const CHILD_WORD: &str = "child";
+
+/// The mode word of a start the wrapper makes to read the repository itself,
+/// whose output it captures and whose standard input it closes.
+const QUERY_WORD: &str = "query";
 
 /// What:
 ///  How the process that starts "Git" starts it.
@@ -100,6 +131,13 @@ pub enum StartMode {
     Replace,
     /// The starter runs the program as a child and waits for it.
     Child,
+    /// The starter runs the program to read the repository,
+    /// with its output captured and its standard input closed,
+    /// so nothing of the person's can run under it:
+    /// a wrapper that arrives as the Git of such a start came from the file that Git is,
+    /// which
+    ///  is the wrapper leading back to itself.
+    Query,
 }
 
 /// What:
@@ -111,13 +149,13 @@ pub enum StartMode {
 ///       `String` is owned text (sibling `&str`,
 /// a borrowed view).
 /// Why:
-///   The check compares these three facts with the live process;
+///   The check compares these facts with the live process;
 /// keeping them in one value lets a test hand the check
 ///  a marker without touching the real environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type StartMarker = { starterPid: number; starterIdentity: string; mode: StartMode };
+/// type StartMarker = { starterPid: number; starterIdentity: string; mode: StartMode; starts: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StartMarker {
@@ -128,10 +166,14 @@ pub struct StartMarker {
     pub starter_identity: String,
     /// How the program was started.
     pub mode: StartMode,
+    /// How many marked starts of real Git this start is from the wrapper the person ran,
+    /// counting itself:
+    /// one for a first start.
+    pub starts: u32,
 }
 
 /// What:
-///  Build the marker value for a start by the process `own_pid` with birth identity `own_identity`.
+///  Build the marker value for start `starts` by the process `own_pid` with birth identity `own_identity`.
 ///       `&str` borrows the identity text;
 /// `OsString` is the owned value an environment holds.
 /// Why:
@@ -140,12 +182,16 @@ pub struct StartMarker {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const value = [pid, identity, mode === 'replace' ? 'replace' : 'child'].join('\x1f');
+/// const value = [pid, identity, mode === 'replace' ? 'replace' : 'child', starts].join('\x1f');
 /// ```
-pub fn marker_value(mode: StartMode, own_pid: u32, own_identity: &str) -> OsString {
-    let word: &str = if mode == StartMode::Replace { REPLACE_WORD } else { CHILD_WORD };
+pub fn marker_value(mode: StartMode, own_pid: u32, own_identity: &str, starts: u32) -> OsString {
+    let word: &str = match mode {
+        StartMode::Replace => REPLACE_WORD,
+        StartMode::Child => CHILD_WORD,
+        StartMode::Query => QUERY_WORD,
+    };
     // `format!` builds owned text; `OsString::from` turns it into environment text.
-    return OsString::from(format!("{own_pid}{FIELD_SEPARATOR}{own_identity}{FIELD_SEPARATOR}{word}"));
+    return OsString::from(format!("{own_pid}{FIELD_SEPARATOR}{own_identity}{FIELD_SEPARATOR}{word}{FIELD_SEPARATOR}{starts}"));
 }
 
 /// What:
@@ -154,8 +200,12 @@ pub fn marker_value(mode: StartMode, own_pid: u32, own_identity: &str) -> OsStri
 /// or nothing when the text is not one".
 /// Why:
 ///   A variable some other program set to other text must not stop a wrapper,
-/// so anything that is not exactly three
-///  fields of the right kinds is no marker.
+/// so anything that is not three
+///  or four fields of the right kinds is no marker.
+/// A marker of three fields is one an earlier release wrote,
+/// which  never counted its chain:
+/// it is read as the first start,
+/// which is what it was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,18 +218,23 @@ pub fn parse_marker(value: &OsStr) -> Option<StartMarker> {
     let pid_text: &str = fields.next()?;
     let identity: &str = fields.next()?;
     let word: &str = fields.next()?;
+    // `.parse::<u32>().ok()?` reads the digits, turning a failure into `None`.
+    let starts: u32 = match fields.next() {
+        Some(counted) => counted.parse::<u32>().ok()?,
+        None => 1,
+    };
     if fields.next().is_some() {
         return None;
     }
-    // `.parse::<u32>().ok()?` reads the digits, turning a failure into `None`.
     let starter_pid: u32 = pid_text.parse::<u32>().ok()?;
     let mode: StartMode = match word {
         REPLACE_WORD => StartMode::Replace,
         CHILD_WORD => StartMode::Child,
+        QUERY_WORD => StartMode::Query,
         _ => return None,
     };
     // `Some(...)` is the "present" case of an `Option`.
-    return Some(StartMarker { starter_pid, starter_identity: identity.to_string(), mode });
+    return Some(StartMarker { starter_pid, starter_identity: identity.to_string(), mode, starts });
 }
 
 /// What:
@@ -226,7 +281,30 @@ fn own_identity() -> String {
 /// command.env.CLI_GIT_STARTED_AS_GIT = markerValue(mode, process.pid, ownIdentity());
 /// ```
 pub fn mark_real_git_start(command: &mut Command, mode: StartMode) {
-    command.env(STARTED_AS_GIT_VARIABLE, marker_value(mode, std::process::id(), own_identity().as_str()));
+    let starts: u32 = own_start_count().saturating_add(1);
+    command.env(STARTED_AS_GIT_VARIABLE, marker_value(mode, std::process::id(), own_identity().as_str(), starts));
+}
+
+/// What:
+///  How many marked starts of real Git the environment of this process records.
+/// Why:
+///   Every builder that starts Git calls `mark_real_git_start` with nothing but its command,
+/// so the count of the chain is read from this
+///  process's own environment,
+/// which is the only place a start can carry it.
+/// No policy input is read here;
+///  the one
+///  variable is the wrapper's own trace of its starts.
+/// An environment of another program's making reads as no start,
+///  which is what a first start is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const starts = parseMarker(process.env.CLI_GIT_STARTED_AS_GIT)?.starts ?? 0;
+/// ```
+fn own_start_count() -> u32 {
+    let Some(value): Option<OsString> = std::env::var_os(STARTED_AS_GIT_VARIABLE) else { return 0 };
+    return parse_marker(value.as_os_str()).map_or(0, |marker| { return marker.starts; });
 }
 
 /// What:
@@ -252,7 +330,9 @@ pub struct ProcessFacts<'a> {
 
 /// What:
 ///  Whether the marker names the process this one was started by,
-/// in the way its mode says.
+/// in the way its mode says,
+/// or says this
+///  start is one of a chain too long to be anything but the wrapper leading back to itself.
 /// Why:
 ///   `Replace`:
 /// the starter replaced itself,
@@ -266,13 +346,25 @@ pub struct ProcessFacts<'a> {
 ///  agree,
 /// so a later process that reuses the number is not taken for the starter.
 /// A process further down has another
-///  process in between and is not the start.
+///  process in between and is not the start;
+/// a chain longer than `MOST_STARTS_IN_ONE_CHAIN` reached this process whatever stood between
+///  its starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function startedAsGit(marker: StartMarker, facts: ProcessFacts): boolean;
+/// function startedAsGit(marker: StartMarker, facts: ProcessFacts): boolean {
+///   return marker.starts > MOST_STARTS_IN_ONE_CHAIN || sameStarter(marker, facts);
+/// }
 /// ```
 pub fn started_as_git(marker: &StartMarker, facts: &ProcessFacts<'_>) -> bool {
+    // A start the wrapper made to read the repository runs nothing of the person's, so whatever stands between it and this
+    //  process, a wrapper here came from the file that start chose as Git.
+    if marker.mode == StartMode::Query {
+        return true;
+    }
+    if marker.starts > MOST_STARTS_IN_ONE_CHAIN {
+        return true;
+    }
     let candidate: u32 = if marker.mode == StartMode::Replace { facts.own_pid } else { facts.parent_pid };
     if candidate != marker.starter_pid {
         return false;
@@ -328,7 +420,17 @@ pub fn marker_of(environment: &[(OsString, OsString)]) -> Option<StartMarker> {
 /// function refusalText(marker, ownExecutable, environment): string;
 /// ```
 pub fn refusal_text(marker: &StartMarker, own_executable: &Path, environment: &[(OsString, OsString)]) -> String {
-    let how: String = if marker.mode == StartMode::Replace {
+    let how: String = if marker.mode == StartMode::Query {
+        format!(
+            "this is the program that a monochromatic-git-policy-cli wrapper that runs as process {} started as Git to read the repository itself, so the `git` that wrapper chose leads back to monochromatic-git-policy-cli",
+            marker.starter_pid
+        )
+    } else if marker.starts > MOST_STARTS_IN_ONE_CHAIN {
+        format!(
+            "this is start {} of one chain of monochromatic-git-policy-cli starts, so a `git` on the PATH of each of them leads back to monochromatic-git-policy-cli, however many processes stand between two starts",
+            marker.starts
+        )
+    } else if marker.mode == StartMode::Replace {
         format!("this is process {}, which a monochromatic-git-policy-cli wrapper replaced with this program", marker.starter_pid)
     } else {
         format!("this is a child of the monochromatic-git-policy-cli wrapper that runs as process {} and waits for its answer", marker.starter_pid)

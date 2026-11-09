@@ -4653,15 +4653,25 @@ the options weighed and the controls.)
   `auto_push_single_flight.rs`,
   and the two starts with a cleared environment,
   `ask_git_var` and `status_git_dir`.
+- The marker also counts the starts of one chain:
+  the fifth field of `CLI_GIT_STARTED_AS_GIT` is one more than the number the marker of
+  the shell that started this process carried,
+  and a marker written without it,
+  as releases before this one wrote,
+  reads as the first start.
 - A monochromatic-git-policy-cli executable stops before it plans anything when the marker says it is the process of a `replace` starter
   (same process number,
   same birth),
   or the child of a `child` starter (the marker names its parent,
-  same birth).
+  same birth),
+  or when one chain holds more than `MOST_STARTS_IN_ONE_CHAIN` starts
+  (`src/native/invocation/started_as_git.rs`).
   A hook,
   an alias or an editor that the real Git starts has another process in between,
   so running an installed
-  wrapper there is not stopped.
+  wrapper there is not stopped,
+  and such a nesting costs one real Git run per level,
+  far below the bound.
   An identity that cannot be read decides by the numbers.
 - The stop is exit status 2 with one message that names this executable,
   the starter and how it started this process,
@@ -4700,15 +4710,28 @@ the options weighed and the controls.)
   so the next wrapper that
   provisions the unit writes it again.
   Its Git starts go through the marked builders.
-- Not covered:
+- Covered since 2026-11-09,
+  where releases before it were not:
   a user script named `git` that starts the wrapper as a child,
   with no launch record and no marker
   string.
   The parent of the arriving wrapper is the script,
-  not the starter;
-  the message of a wrapper that cannot find
-  Git lists every candidate,
-  which shows the script as the entry to remove.
+  not the starter,
+  so the two checks above it match nothing;
+  such a chain starts one wrapper per level,
+  and the count of the marker ends it at
+  `MOST_STARTS_IN_ONE_CHAIN`,
+  whatever number of processes stands between two starts
+  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+  finding 1,
+  measured there at sixteen levels and no end).
+  The stop is the same exit status 2 and the same message:
+  it says this is start N of one chain,
+  names the file the previous start chose as Git
+  (`CLI_GIT_NATIVE_FORWARD_TARGET`,
+  which is the script),
+  the `PATH`,
+  and both ways out.
 
 ### The wrapper falls back to the Git its commit service was set up with
 

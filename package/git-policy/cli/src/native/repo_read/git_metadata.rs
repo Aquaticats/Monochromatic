@@ -91,9 +91,12 @@ pub fn run_metadata_git(
     // ```ts
     // const result = await spawn(realGit, args, { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
     // ```
-    let output: std::process::Output = git_command(real_git, arguments, overlay)
-        .stdin(Stdio::null())
-        .output_retrying()?;
+    let mut command: std::process::Command = git_command(real_git, arguments, overlay);
+    // The wrapper reads the repository itself here, with the output captured and the input closed, so nothing of the
+    //  person's runs under this start and a wrapper that arrives as its Git came from the file that Git is
+    //  (`started_as_git.rs`).
+    crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Query);
+    let output: std::process::Output = command.stdin(Stdio::null()).output_retrying()?;
     // `Ok(...)` is the success variant carrying the captured result.
     return Ok(MetadataOutput {
         success: output.status.success(),

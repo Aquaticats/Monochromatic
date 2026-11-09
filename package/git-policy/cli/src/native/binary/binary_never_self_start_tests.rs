@@ -49,16 +49,21 @@ const START_CAP: usize = 6;
 const STAND_IN_STOP_CODE: i32 = 97;
 
 /// What:
-///  The most times a control's stand-in may be started before it ends the chain with `STAND_IN_STOP_CODE` itself.
+///  The deepest place in one chain a control's stand-in may reach before it ends the chain with `STAND_IN_STOP_CODE`
+///  itself.
 /// Why:
 ///   The wrapper's own bound on one chain of starts (`started_as_git::MOST_STARTS_IN_ONE_CHAIN`)
 /// is reached first by a
 ///  correct run;
 /// this is the fixture's backstop above it,
-/// so a chain that ignores the bound fails as a start count
+/// so a chain that ignores the bound fails as a level
 ///  and an exit code,
 /// never as a host or a scope that runs out of processes.
-const CHAIN_CAP: usize = 12;
+const CHAIN_CAP: usize = 10;
+
+/// The variable a control's stand-in passes its place in one chain down in,
+/// so a level counts once however many starts it makes.
+const CHAIN_LEVEL_VARIABLE: &str = "CLI_GIT_TEST_CHAIN_LEVEL";
 
 /// The exit code of a wrapper that stops because it has no real Git to run.
 const WRAPPER_STOP_CODE: i32 = 2;
@@ -138,35 +143,58 @@ fn starts(counter: &Path) -> usize {
 
 /// What:
 ///  Write a stand-in `git` that starts `target` as a **child** and waits,
-/// counting every start in `counter` and
-///  ending the chain itself after `cap` starts.
+/// recording its place in one chain in `counter` and
+///  ending the chain itself past `cap`.
 /// Why:
 ///  The covered failure is a script that names the wrapper without `exec`,
 /// which puts a shell between the wrapper
 ///  that replaced itself with the script and the wrapper the script starts.
-/// The cap is the control's own backstop, not a wrapper
-///  limit: without it a regression here would grow the chain until the host or the test's supervisor refused another
-///  process.
+/// The place in the chain travels in `CHAIN_LEVEL_VARIABLE`,
+/// so one level counts once however many starts
+///  it makes;
+/// the cap is the control's own backstop,
+/// not a wrapper limit,
+/// because without it a regression here
+///  would grow the chain until the host or the test's supervisor refused another process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writeExecutable(path, `appendLine(counter); if (lines(counter) > cap) process.exit(97); ${target} "$@"`);
+/// writeExecutable(path, `const level = 1 + +(env[LEVEL] ?? 0); appendLine(counter, level); if (level > cap) process.exit(97); env[LEVEL] = level; ${target} "$@"`);
 /// ```
 fn counting_child_stand_in(path: &Path, counter: &Path, target: &Path, cap: usize) {
     let script: String = format!(
         "#!/bin/sh\n\
-         echo started >> '{counter}'\n\
-         started=0\n\
-         while read -r line; do started=$((started + 1)); done < '{counter}'\n\
-         if [ \"$started\" -gt {cap} ]; then\n\
+         level=$(( ${{{CHAIN_LEVEL_VARIABLE}:-0}} + 1 ))\n\
+         echo \"$level\" >> '{counter}'\n\
+         if [ \"$level\" -gt {cap} ]; then\n\
          echo 'stand-in: start cap reached' >&2\n\
          exit {STAND_IN_STOP_CODE}\n\
          fi\n\
+         {CHAIN_LEVEL_VARIABLE}=$level\n\
+         export {CHAIN_LEVEL_VARIABLE}\n\
          '{target}' \"$@\"\n",
         counter = counter.display(),
         target = target.display(),
     );
     executable(path, script.as_bytes());
+}
+
+/// What:
+///  The deepest place in one chain a counter file records;
+/// none when nothing started.
+/// Why:
+///   A level makes more than one start (its own reads then its forward),
+/// so the place in the chain is the deepest number,
+/// not
+///  the number of lines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const deepest = Math.max(...lines(counter).map(Number));
+/// ```
+fn deepest_level(counter: &Path) -> usize {
+    return std::fs::read_to_string(counter)
+        .map_or(0, |text| { return text.lines().filter_map(|line| { return line.trim().parse::<usize>().ok(); }).max().unwrap_or(0); });
 }
 
 /// One directory under the fixture,
@@ -432,11 +460,11 @@ fn a_script_named_git_that_starts_the_wrapper_without_exec_ends_the_chain() {
     let bin: PathBuf = fixture.root.join("bin");
     let observed: Observed = run_with_only(&fixture, repo.as_path(), &[bin.as_path(), scripts.as_path()], &["rev-parse", "HEAD"]);
     let text: String = words(&observed);
-    let started: usize = starts(counter.as_path());
-    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, {started} starts: {text}");
+    let deepest: usize = deepest_level(counter.as_path());
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "the wrapper must end the chain itself, deepest level {deepest}: {text}");
     assert!(
-        started < CHAIN_CAP,
-        "the chain must end before the stand-in's backstop of {CHAIN_CAP} starts: {started} starts: {text}"
+        deepest >= 2 && deepest < CHAIN_CAP,
+        "the chain must end after one step and before the stand-in's backstop at level {CHAIN_CAP}: deepest level {deepest}: {text}"
     );
     assert!(text.contains("started as Git"), "{text}");
     assert!(text.contains(script.to_string_lossy().as_ref()), "names the `git` on PATH that led back: {text}");
