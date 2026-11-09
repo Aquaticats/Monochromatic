@@ -46,9 +46,9 @@
 use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::subvolume_error::MigrateError;
+use crate::subvolume_file_write_steps::{sync_directory_to_disk, write_all_then_sync};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 use std::ffi::{OsStr, OsString};
-use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
@@ -250,11 +250,11 @@ fn write_private(directory: &Path, record: &ClaimRecord) -> std::io::Result<Path
     };
     let path: PathBuf = directory.join(format!(".cli-git-claim.tmp.{}.{nanos}.{unique}", std::process::id()));
     let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&path)?;
-    // The synchronization runs only when the write succeeded, as `and_then` did.
-    let mut written: std::io::Result<()> = file.write_all(encode(record).as_bytes());
-    if written.is_ok() {
-        written = file.sync_all();
-    }
+    // The flush is the shared step's, so a call that keeps its writes in memory (
+    // `subvolume_file_write_steps::WritesKeptInMemory`,
+    // which a stand-in platform installs for a control that simulates a kill in the process) keeps this one too,
+    // and a release build always flushes.
+    let mut written: std::io::Result<()> = write_all_then_sync(&mut file, encode(record).as_bytes());
     if let Err(error) = written {
         let _removed: std::io::Result<()> = std::fs::remove_file(&path);
         return Err(error);
@@ -262,10 +262,10 @@ fn write_private(directory: &Path, record: &ClaimRecord) -> std::io::Result<Path
     return Ok(path);
 }
 
-/// Make the directory's new entry durable.
+/// Make the directory's new entry durable,
+/// as the shared step does.
 fn sync_directory(directory: &Path) -> std::io::Result<()> {
-    let handle: std::fs::File = std::fs::File::open(directory)?;
-    return handle.sync_all();
+    return sync_directory_to_disk(directory);
 }
 
 /// Publish `record` as `target` without replacing anything:
