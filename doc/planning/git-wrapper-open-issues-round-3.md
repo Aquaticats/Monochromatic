@@ -179,6 +179,14 @@ beside the citation and before the pseudocode block:
 //!  and `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/manifest-text.ts` reads it there.
 ```
 
+The in-place note over deleting the citation is the remedy each of these issues names and the
+one `WR6` states.
+It is a flagged choice,
+open to the owner's veto:
+the other remedy round 1 listed,
+deleting the citation and stating the behaviour in the module's own words,
+reverts these 26 commits one file at a time.
+
 Commit `f02e072b9d` and the 25 after it change doc comments and nothing else,
 so no control covers them and none can.
 
