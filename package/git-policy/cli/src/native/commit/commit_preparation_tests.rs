@@ -7,6 +7,8 @@
 
 use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::private_index_request::CaptureIndexes;
 use crate::commit_index::{IndexSelection, initialize_commit_index, write_private_tree};
 use crate::shadow_create::create_shadow_repository;
@@ -238,7 +240,7 @@ fn converge_fixture(fixture: &Fixture) -> CommitConvergence {
         facts,
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("a.txt")])),
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,

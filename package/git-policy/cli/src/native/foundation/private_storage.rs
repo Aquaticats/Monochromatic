@@ -499,6 +499,42 @@ pub fn write_exclusive_scratch(path: &Path, bytes: &[u8]) -> std::io::Result<()>
     return file.write_all(bytes);
 }
 
+/// The operating system's answer from a publish that kept its staged file,
+/// which is the failure the caller reports.
+fn without_the_staged_file(error: tempfile::PersistError) -> std::io::Error {
+    return error.error;
+}
+
+/// What:
+///  Publish `bytes` at `path` in one rename,
+///  replacing whatever the name held.
+/// Why:
+///   A record this program rewrites (the migration's list of files this user may not read) is read
+/// by a later run as a whole;
+/// a truncating write leaves it empty for a kill that lands between the truncation and the
+///  bytes,
+/// and the next run reads an empty record as nothing to report.
+/// The bytes are staged beside the
+///  name and made durable before the rename,
+/// so a kill leaves either the record that was there or the complete
+///  new one,
+/// and the staging file is created exclusively with mode `0600` and never follows a link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function replacePrivateFile({ path, bytes }): Promise<void>;
+/// ```
+pub fn replace_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut staged: tempfile::NamedTempFile = staging_beside(path)?;
+    staged.as_file_mut().write_all(bytes)?;
+    sync_when_durable(staged.as_file(), path, true)?;
+    staged.persist(path).map_err(without_the_staged_file)?;
+    return match path.parent() {
+        Some(directory) if !directory.as_os_str().is_empty() => sync_directory(directory),
+        _ => sync_directory(Path::new(".")),
+    };
+}
+
 /// What:
 ///  Create one directory with mode `0700`;
 ///  its parent must exist.

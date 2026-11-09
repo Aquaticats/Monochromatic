@@ -430,6 +430,10 @@ Read-only commands,
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
+  The merge's message names the branch whose tip is its first parent
+  (`Merge origin/main into feature`),
+  as `git merge` names the branch it is on,
+   and it names the ref the merge is published to when that ref's name differs from the branch's.
   While the merge is computed and pushed,
   the local branch,
   the index,
@@ -488,6 +492,10 @@ Read-only commands,
   the copy is a transaction of its own whose journal and
   stage claim name the process that owns them,
   and a copy a dead process left is recovered by the next command.
+  A destination,
+  source or stage whose path holds bytes that are not text is named in every record by those bytes,
+  so recovery fills and reaps exactly that directory and no other,
+  and a record written by an earlier release is still read.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
   A worktree whose own ignored-state copy is still running is no source:
@@ -1544,11 +1552,36 @@ The rule is:
    clean or not.
 - In a linked worktree it is rejected while the worktree holds uncommitted tracked changes
    (for `git clean`,
-  also untracked files),
+  also untracked files,
+  and for `git clean -x` or `-X`,
+  ignored files),
    and runs when the worktree is clean.
+- An ignored file counts where the command can delete or replace it:
+  `git clean -x` is rejected while any tracked,
+  untracked or ignored file exists,
+  and `git clean -X` while any ignored file does.
+  A `git clean -fd`,
+  which keeps the ignored files,
+  is unaffected.
+  `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
+  A `git clean -X` that names its own exclusions (`-e`,
+  `--exclude`) is measured by Git's own dry run of that clean,
+  because those patterns decide what it deletes and a status cannot see them.
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
+- A `git checkout` or `git switch` that changes any file is forwarded with `--no-overwrite-ignore`,
+  so Git itself refuses a switch that would replace an ignored file the target branch tracks,
+  and names the file instead.
+  Nothing is lost when nothing would be replaced,
+  and a person who means it can still write `git checkout --overwrite-ignore <branch>`.
+- A forced `git checkout -f`,
+  a forced `git switch -f` and a `git reset --hard` (`--merge`,
+  `--keep`) override that token,
+  so in a linked worktree they are rejected while the worktree holds an ignored file at a path the tree they
+  write tracks,
+  and the rejection names both.
+  The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
    Git sees an initial checkout there (`is_index_unborn` in `read-cache.c`,
@@ -1561,6 +1594,12 @@ The rule is:
    and `git checkout -f`,
   `git reset --hard` and the other forms that overwrite stay rejected.
 - A status Git cannot read stops the command instead of reading as clean.
+- `git stash drop` and `git stash clear` delete entries of `refs/stash`,
+  the one stash every worktree of the repository shares,
+  so they are rejected in a linked worktree while the repository holds an entry,
+  whatever that worktree's own status says.
+  `git stash list` and `git stash show` read the stash,
+  and `git stash branch <branch>` moves an entry into its own branch and keeps the work.
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else
@@ -1569,6 +1608,40 @@ The rule is:
   else `XDG_DATA_HOME/mise`,
    else `~/.local/share/mise`),
   where mise keeps its plugin clones and updates them with a forced checkout.
+  The exemption is chosen by the environment of the command itself,
+  so the wrapper says on standard error which variable exempted the repository and which directory it named,
+  because a variable that happens to name a repository turns the guard off for it.
+
+The guard reads the command Git will run,
+not the word on the command line:
+an ordinary Git alias is expanded as Git expands it,
+the decision is taken on the expansion,
+and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
+A shell alias (`!...`) is a shell command,
+which no reading of its text can judge,
+and Git runs it with its own `git-core` directory first on `PATH`,
+so the `git` inside it is real Git rather than this wrapper.
+
+Two commands are never rejected and always leave one audit line (outcome `logged`,
+with `writtenBeforeGitRuns` `true`,
+because the line is written before Git runs and cannot say whether Git ran the deletion or refused it),
+by the owner's decision,
+also when `--no-enforce-worktree` is given:
+
+- `git worktree remove`,
+  because agents are as likely to run `rm -rf`;
+  the line names the worktree,
+  whether `--force` was given,
+  the `HEAD` it was on,
+  and how many tracked paths differed from it
+  (and says that it counted tracked changes only).
+- `git branch -d`,
+  `git branch -D` and `git branch --delete` from the main worktree;
+  one line per branch names the branch,
+  the reference it took (`refs/heads/<name>`,
+  or `refs/remotes/<name>` with `-r`/`--remotes`),
+  its commit and whether it was already merged,
+  so `git update-ref <reference> <commit>` brings it back.
 
 Every rejection names the form,
  what it would destroy,
@@ -1710,7 +1783,11 @@ the release,
 the process and its parent,
  the worktree kind and the worktree's Git directory (`gitDir`),
 the form,
-the working directory and the arguments
+the working directory and the arguments,
+ each path field and each argument written beside its text as its bytes (`gitDirHex`,
+`cwdHex`,
+`argumentsHex`),
+ so a name that is not UTF-8 still names the command that was run
  (a decision that saved conflicted files also lists where each copy went).
 When uncommitted work disappears,
 `git rev-parse --git-common-dir` locates the file;
@@ -1825,7 +1902,9 @@ when all of these hold:
    `-q`,
   `-v`,
   `--stat`,
+  `--summary` (Git's synonym for it),
   `--no-stat`,
+  `--no-summary`,
   `-n`,
   `--log`,
   `--no-log`,

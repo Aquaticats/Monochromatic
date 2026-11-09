@@ -11,7 +11,7 @@
 //!      policy rejects those forms,
 //!  and the pathspec magic and glob spellings that select the same set
 //!      (`command_add.rs` holds the one list).
-//!  This file decides from the arguments alone;
+//!  This file decides from the arguments and the caller's pathspec-mode variable;
 //!  it reads
 //!      no file and starts no process.
 //!
@@ -32,7 +32,9 @@
 /// ```ts
 /// import { ADD_ESCAPE_HATCH, parseAddRegion } from './command_add.ts';
 /// ```
-use crate::command_add::{ADD_ESCAPE_HATCH, AddRegion, parse_add_region};
+use crate::command_add::{
+    ADD_ESCAPE_HATCH, AddRegion, LITERAL_VARIABLE, bulk_matches_under, caller_global_prefix, literal_pathspecs_enabled, parse_add_region,
+};
 use crate::command_options::OptionError;
 use crate::global_arguments::command_tokens;
 /// What:
@@ -97,9 +99,15 @@ pub fn decide_add_explicit(arguments: &[OsString]) -> Option<String> {
     // `Result<A, B>` is "either success `A` or failure `B`"; `&[]` is an empty flag list.
     let parsed: Result<AddRegion, OptionError> = parse_add_region(region, &[]);
     // `let Ok(x) = ... else { ... };` unwraps the facts or returns for a refused region.
-    let Ok(facts) = parsed else {
+    let Ok(mut facts) = parsed else {
         return None;
     };
+    // What the caller's own command makes of each spelling:
+    // literal pathspec mode turns `**` and every `:` form into a plain file name,
+    // so only a spelling that still names the working directory stages in bulk for that caller.
+    let literal: bool = literal_pathspecs_enabled(caller_global_prefix(arguments), std::env::var_os(LITERAL_VARIABLE).as_deref());
+    // A flag stays bulk in every mode, and a pathspec only while its spelling still selects.
+    facts.bulk_matches = bulk_matches_under(region, facts.bulk_matches.as_slice(), literal);
     if facts.bulk_matches.is_empty() {
         return None;
     }

@@ -76,7 +76,7 @@ pub fn lstat_or_absent(path: &Path) -> Result<Option<std::fs::Metadata>, Worktre
 /// ```ts
 /// async function regularFileBytesEqual({ leftPath, rightPath }): Promise<boolean>;
 /// ```
-fn regular_file_bytes_equal(
+pub(crate) fn regular_file_bytes_equal(
     left_path: &Path,
     right_path: &Path,
 ) -> Result<bool, WorktreeCopyError> {
