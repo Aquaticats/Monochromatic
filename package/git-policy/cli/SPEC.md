@@ -1189,6 +1189,12 @@ and `journalctl --identifier=monochromatic-git-policy-cli` lists the entries.
 The debug line with the reasons of every step stays (`MONOCHROMATIC_VERBOSE=true`).
 
 Converting a nested worktree:
+What a run of it covers is found on the blocking pool and never on the thread that polls the runtime:
+`--all` starts Git and scans the linked worktrees,
+and grouping the targets into lanes resolves each of them with a synchronous path lookup,
+which a filesystem whose lookup stalls would hold before the future's first await,
+where no timeout can expire.
+
 `git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)` converts a registered
 linked worktree that is an ordinary directory into a subvolume at the same path,
 several worktrees side by side.
@@ -2753,7 +2759,16 @@ so:
 - the process's bound on blocking jobs covers every job that runs,
   so a job the pool queued before its frame stopped waiting either gives up its work or keeps its place
   until the work ends,
-  and one of the two is decided once by a claim rather than guessed.
+  and one of the two is decided once by a claim rather than guessed;
+- a caller that stops waiting revokes that claim as its future is dropped,
+  so a step the pool still holds queued does nothing:
+  no conversion changes a worktree after its caller reported a timeout,
+  and no result is produced for a reader that is gone;
+- a refused thread start says which of the two happened,
+  because the claim decides it:
+  either the step will not run and changed nothing,
+  or the pool ran it on another thread and whether it finished is not known.
+
 
 The owner,
 said in the session at about 2026-11-03T12:37-05:00 (quoted):
