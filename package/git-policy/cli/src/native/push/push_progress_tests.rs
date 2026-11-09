@@ -88,11 +88,16 @@ fn settle(meter: &mut Meter, root: i32) {
 ///  An idle tree moves nothing between looks,
 ///  and a write of the root shows at the next look.
 /// Why the child says it has started before the tree is settled:
-///   A tree is idle only once the child is: settling before the shell was scheduled makes the shell's own start the next
-/// look's movement, which read as a write of the root and failed this control once in a run of 1,183 tests while it passed
-///  alone in under five seconds (report `kill-sweeps-reach-the-calls-they-name-1`, 2026-11-09).
-/// The child writes `started` first, and the
-///  control waits for that file, so the order is the control's and never the scheduler's.
+///   A tree is idle only once the child is:
+/// settling before the shell was scheduled makes the shell's own start the next
+/// look's movement,
+/// which read as a write of the root and failed this control once in a run of 1,183 tests while it passed
+///  alone in under five seconds (report `kill-sweeps-reach-the-calls-they-name-1`,
+/// 2026-11-09).
+/// The child writes `started` first,
+/// and the
+///  control waits for that file,
+/// so the order is the control's and never the scheduler's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
