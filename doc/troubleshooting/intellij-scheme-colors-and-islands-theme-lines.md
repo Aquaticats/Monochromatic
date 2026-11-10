@@ -216,7 +216,7 @@ private fun findParentTheme(themes: Collection<LafEntry>, parentId: String?): UI
 
 [`UiThemeProviderListManager.kt#L180-L182`](https://github.com/JetBrains/intellij-community/blob/4f7a2fa69cf0d5ec94e7baab73ace3d2ec19a06e/platform/platform-impl/src/com/intellij/ide/ui/laf/UiThemeProviderListManager.kt#L180-L182)
 
-The same file filters the theme *chooser* by `targetUi`,
+The same file filters the theme **chooser** by `targetUi`,
 so a plugin theme that declares none is grouped with the classic themes and shown
 under either UI.
 That is why a third-party theme can inherit `Islands Dark` on 2025.2 and still
