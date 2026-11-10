@@ -330,6 +330,12 @@ function reportStartFailure({
 }
 
 /**
+ What to check when a failed start reported no reason code this file can act on,
+ such as a command this host cannot start for a reason of its own.
+ */
+const UNKNOWN_START_CHECK_TEXT = 'Check that the task names a command this host can run.';
+
+/**
  Explains what to check for a command that could not be started.
  
  @param error - value nano-spawn threw for the failed start
@@ -343,13 +349,13 @@ function reportStartFailure({
  */
 function startFailureCheck(error: unknown,): string {
   if (!hasCause(error,))
-    return 'Check that the task names a command this host can run.';
+    return UNKNOWN_START_CHECK_TEXT;
   /**
    What the failed start reported as its reason.
    */
   const { cause, } = error;
   if (!hasReasonCode(cause,))
-    return 'Check that the task names a command this host can run.';
+    return UNKNOWN_START_CHECK_TEXT;
   /**
    Node's code for the failed system call, such as `ENOENT`.
    */
@@ -359,7 +365,7 @@ function startFailureCheck(error: unknown,): string {
   if (reasonCode === 'EACCES')
     return 'Check that the file is executable and that this account may run it.';
 
-  return 'Check that the task names a command this host can run.';
+  return UNKNOWN_START_CHECK_TEXT;
 }
 
 /**
