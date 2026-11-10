@@ -285,7 +285,8 @@ fn btrfs_a_snapshot_of_a_linked_worktree_sets_another_commands_stage_aside() {
 /// what keeps it out of the index is the repository's own exclude line,
 /// never an emptying the person waits for
 ///  (`worktree_trash_exclude_line.rs`).
-/// The add's own work is the record, and the emptying belongs to the service that runs
+/// The add's own work is the record,
+/// and the emptying belongs to the service that runs
 ///  it one trash at a time for the repository.
 ///
 /// In TS you'd write (pseudocode):

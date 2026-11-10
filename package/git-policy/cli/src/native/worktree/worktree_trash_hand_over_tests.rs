@@ -81,7 +81,8 @@ fn reach<'a>(router: crate::worktree_trash_hand_over::Router<'a>, provisioner: c
 /// Why:
 ///   The record is the whole difference between a trash that is emptied later and one nobody knows
 /// about;
-/// the common directory is where it must be, because one repository's service drains one work
+/// the common directory is where it must be,
+/// because one repository's service drains one work
 ///  directory after another and so empties one trash at a time.
 #[test]
 fn a_hand_over_with_no_service_leaves_the_trash_and_its_record_under_the_common_directory() {

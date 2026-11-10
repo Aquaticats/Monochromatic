@@ -98,10 +98,12 @@ fn set_priority_here(value: libc::c_int) -> bool {
 ///  priority matters;
 /// setting it here covers every removal that goes through this call,
 /// and restoring it keeps the pool's
-///  other work (a push reading a pack, a review reading a commit) at the priority it expects.
+///  other work (a push reading a pack,
+/// a review reading a commit) at the priority it expects.
 /// A value that cannot be read or set leaves the thread alone in that direction:
 /// no write without a
-///  reading to restore, and no promise that the class changed.
+///  reading to restore,
+/// and no promise that the class changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

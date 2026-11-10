@@ -15,7 +15,8 @@
 //! with 2,182 of 2,796 blocked samples inside `unlink` or `rmdir` and the drive 99% busy
 //!  (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
 //! So the add writes the record,
-//! tells the service, and returns.
+//! tells the service,
+//! and returns.
 //! The record lives in the
 //!  repository's common work directory rather than in the new worktree's,
 //! because that is what makes one repository empty its trashes
