@@ -1,11 +1,25 @@
-// Checks of the version reader behind demandCurrentCompositor.
+// Checks of the version reader behind demandCurrentCompositor and of how a check ends a session.
 // What: each expected value is what the previous regular expression `(\d+)\.(\d+)\.(\d+)` returned for the same text;
 // an exhaustive comparison against that expression over every string up to eight characters of a six-symbol
 // alphabet found no difference when the reader was replaced.
 // Why: the `--version` line decides whether a check may open a window on the desktop, so a misread version must not pass.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readVersion } from './nested-compositor.ts';
+import { endSession, endedWithin, readVersion } from './nested-compositor.ts';
+
+/// A promise that never settles, standing for a compositor that ignores its quit request.
+const never = (): Promise<unknown> => new Promise<unknown>(() => {});
+
+/// A signal log, so a test can see which signals a session was ended with.
+const signals = (): { sent: NodeJS.Signals[]; kill: (signal: NodeJS.Signals) => void } => {
+  const sent: NodeJS.Signals[] = [];
+  return {
+    sent,
+    kill: (signal: NodeJS.Signals): void => {
+      sent.push(signal);
+    },
+  };
+};
 
 test(
   'reads the version line the compositor prints',
@@ -134,5 +148,63 @@ test(
       readVersion('١.٢.٣'),
       null
     );
+  }
+);
+
+test(
+  'a session that has ended is seen as ended at once',
+  async () => {
+    assert.equal(await endedWithin(Promise.resolve(), 60000), true);
+  }
+);
+
+test(
+  'a session that never ends is not seen as ended',
+  async () => {
+    assert.equal(await endedWithin(never(), 1), false);
+  }
+);
+
+test(
+  'a session that ignores its quit request is killed after the patience',
+  async () => {
+    const log = signals();
+    await endSession({
+      ask: async () => 'ok',
+      exited: never(),
+      kill: log.kill,
+      patienceMs: 1
+    });
+    assert.deepEqual(log.sent, ['SIGKILL'], 'the session was asked to quit and then killed');
+  }
+);
+
+test(
+  'a session that ends after its quit request is not killed',
+  async () => {
+    const log = signals();
+    await endSession({
+      ask: async () => 'ok',
+      exited: Promise.resolve(),
+      kill: log.kill,
+      patienceMs: 60000
+    });
+    assert.deepEqual(log.sent, [], 'a session that ended is left alone');
+  }
+);
+
+test(
+  'a session that cannot be asked to quit is stopped by a signal first',
+  async () => {
+    const log = signals();
+    await endSession({
+      ask: async () => {
+        throw new Error('the compositor closed the control connection without replying to quit');
+      },
+      exited: never(),
+      kill: log.kill,
+      patienceMs: 1
+    });
+    assert.deepEqual(log.sent, ['SIGTERM', 'SIGKILL'], 'the failed request falls back to a signal');
   }
 );

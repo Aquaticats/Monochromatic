@@ -77,11 +77,15 @@ function registerGoalLifecycle(
    Runtime identity invalidating callbacks from prior extension instances.
    */
   const runtimeEpoch = services.createId();
+  /* oxlint-disable no-restricted-syntax/no-function-root-let -- Pi lifecycle handlers share one runtime-owned immutable-state cursor. */
   /**
    Controller ownership belongs to this single extension runtime closure.
    */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- Pi lifecycle handlers share one runtime-owned immutable-state cursor.
   let controller = createGoalController(runtimeEpoch,);
+  /* oxlint-enable no-restricted-syntax/no-function-root-let */
+
+  //region Inner transitions
+
   /**
    Store next immutable controller and execute its ordered effects.
    
@@ -283,6 +287,10 @@ function registerGoalLifecycle(
     return delivered;
   }
 
+  //endregion Inner transitions
+
+  //region Pi registrations
+
   pi.registerCommand(
     'goal',
     {
@@ -361,6 +369,9 @@ function registerGoalLifecycle(
       };
     },
   );
+
+  //endregion Pi registrations
+
   return {
     currentController,
     applyTransition,

@@ -81,7 +81,7 @@ class Component extends DCLogic {
         const sel = n === s.selected;
         return { name: n, bg: sel ? "#4A4458" : "transparent", fg: sel ? "#E8DEF8" : "#E6E0E9", weight: sel ? 500 : 400, pick: () => this.setState({ selected: n }) };
       }),
-      caption: "PK-F — one plain-text column at full width (nothing truncated, 16px), and the extent is bounded by TYPING rather than by segmenting: the field narrows across the whole library, the rail dims the letters with no match. Type \u201Cca\u201D or \u201Cremix\u201D. The trade: it puts a text field in the picker, which is close to the search that D25 reserved for later \u2014 and letter browsing with an empty field still scrolls (C \u2248 4 screens)."
+      caption: "PK-F: one plain-text column at full width (nothing truncated, 16px), and the extent is bounded by TYPING rather than by segmenting: the field narrows across the whole library, the rail dims the letters with no match. Type \u201Cca\u201D or \u201Cremix\u201D. The trade: it puts a text field in the picker, which is close to the search that D25 reserved for later, and letter browsing with an empty field still scrolls (C \u2248 4 screens)."
     };
   }
 }

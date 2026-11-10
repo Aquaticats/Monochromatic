@@ -1,5 +1,5 @@
 /**
- CI build tasks for @monochromatic-dev/pi-goal.
+ CI build tasks for @monochromatic-dev/pi-plugin-goal.
 
  Mirrors the build tasks in this package's mise.toml for the current pnpr publisher.
  The repository's task-system replacement remains a separate proposal.

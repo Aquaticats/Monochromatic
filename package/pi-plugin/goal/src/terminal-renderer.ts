@@ -22,6 +22,8 @@ import type {
   GoalReviewUnavailableDiagnostic,
 } from './types.ts';
 
+//region Reviewer summary
+
 /**
  Format attempted reviewer identities for human audit.
  
@@ -39,6 +41,10 @@ function formatAttemptedReviewers(identities: readonly string[],): string {
     ? 'none'
     : identities.join(', ',);
 }
+
+//endregion Reviewer summary
+
+//region Renderer registration
 
 /**
  Register persistent human-only outcome renderers.
@@ -119,6 +125,8 @@ function registerGoalTerminalRenderer(
     },
   );
 }
+
+//endregion Renderer registration
 
 export {
   formatAttemptedReviewers,
