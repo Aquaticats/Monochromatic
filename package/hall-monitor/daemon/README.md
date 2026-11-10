@@ -73,7 +73,7 @@ hf download LiquidAI/LFM2.5-VL-1.6B-GGUF --include "*Q4_0*" "*mmproj*Q8_0*" --lo
 ```
 
 If you don't use distrobox or don't need `HSA_OVERRIDE_GFX_VERSION`,
-adjust the `Bun.spawn` call in the same file to invoke `llama-server` directly.
+adjust the `cpSpawn` call in `spawnWrappedServer` in the same file to invoke `llama-server` directly.
 
 ## Usage
 
@@ -115,9 +115,10 @@ Edit the `Exec` path inside the file to point to your built binary.
 All configuration lives as constants in source files.
 The main knobs:
 
-- `INTERVAL_MS` in `src/index.ts`:
-   time between capture cycles (default:
-   5 min)
+- `INTERVAL_MINUTES` in `src/index.ts`:
+   minutes between capture cycles (default:
+   5);
+   `INTERVAL_MS` is derived from it
 - `RETENTION_MS` in `src/analyze/memory.ts`:
    how long captures stay in the buffer (default:
    10 min)
