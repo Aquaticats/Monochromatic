@@ -147,6 +147,11 @@ journalctl -t hall-monitor -f
 `src/infra/syslog.ts` supplies that routing as a sink for the shared tagged
  logger,
  so each event is filed once.
+ Each record carries the daemon tag and then the tags of the module and function
+ that filed it,
+ so `journalctl -t hall-monitor` shows lines like
+ `[hall-monitor] [cycle] Verdict: UNPRODUCTIVE (streak: 2/5)`,
+ and a filter can select one subsystem without parsing message text.
  When the journal utility is missing or refuses a message,
  the same line goes to stderr with the failure named,
  because a gap in a monitoring daemon's record is worse than a line routed
@@ -156,14 +161,17 @@ journalctl -t hall-monitor -f
 
 ```text
 src/
-  index.ts            Entry point, argument parsing, main loop, signal handling
+  index.ts            Entry point, argument parsing, wiring, signal handling
+  daemon-loop.ts      Between-cycle wait, shutdown signal, loop, detached shutdown
   cycle.ts            Orchestrates one capture-analyze-notify cycle
   analyze.ts          LLM prompt construction, API call, verdict parsing
   analyze/
     llama.ts          llama-server lifecycle (start/stop/health check)
     memory.ts         Rolling in-memory capture buffer
+    decision-window.ts  Verdict window and the notification streak policy
   infra/
     capture.ts        Screenshot (Spectacle) and webcam (ffmpeg) capture
+    ffmpeg-runner.ts  One ffmpeg run whose chosen output stream is collected
     lock.ts           Single-instance enforcement via abstract Unix socket
     notification.ts   Desktop notifications (notify-send)
     syslog.ts         Journal sink for the shared logger (logger)
