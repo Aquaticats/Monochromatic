@@ -24,9 +24,9 @@ import {
 
 import {
   countObjectsSizePack,
+  isMeasured,
   localExact,
-} from './local-exact.ts';
-import { isMeasured, } from './measure.ts';
+} from '../dist/final/node/testing.mjs';
 
 /**
  Sums the byte size of every `*.pack` file under a repo's pack directory,

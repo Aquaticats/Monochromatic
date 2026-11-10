@@ -10,15 +10,13 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  PRIOR_ABSENT_TIP_BYTES,
-  PRIOR_MULTIPLIER,
-} from './constants.ts';
-import {
   churnEstimate,
   deepenEstimate,
+  PRIOR_ABSENT_TIP_BYTES,
+  PRIOR_MULTIPLIER,
   priorAbsentEstimate,
   priorEstimate,
-} from './estimators.ts';
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: deepenEstimate.name,

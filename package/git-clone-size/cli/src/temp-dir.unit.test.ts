@@ -15,7 +15,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { makeTempDir, } from './temp-dir.ts';
+import { makeTempDir, } from '../dist/final/node/testing.mjs';
 
 await describe({
   name: makeTempDir.name,
@@ -27,7 +27,10 @@ await describe({
         await using directory = await makeTempDir({ prefix: 'gcs-test-', },);
 
         expect(existsSync(directory.path,),).toBe(true,);
-        expect(realpathSync(directory.path,).startsWith(realpathSync(tmpdir(),),),).toBe(false,);
+        expect(
+          realpathSync(directory.path,)
+            .startsWith(realpathSync(tmpdir(),),),
+        ).toBe(false,);
       },
     },),
 
@@ -44,12 +47,15 @@ await describe({
     it({
       name: 'REMOVES THE DIRECTORY WHEN THE SCOPE ENDS, success or throw alike',
       fn: async function removesTheDirectoryOnDispose() {
-        let path = '';
-        {
+        // The scope has to close before the assertion runs, so the path a closed
+        // scope leaves behind is the named function's return value rather than a
+        // binding a mutation writes: a function-root let would leak into every
+        // later statement of this case.
+        const path = await (async function pathOfClosedScope(): Promise<string> {
           await using directory = await makeTempDir({ prefix: 'gcs-test-', },);
-          path = directory.path;
-          expect(existsSync(path,),).toBe(true,);
-        }
+          expect(existsSync(directory.path,),).toBe(true,);
+          return directory.path;
+        })();
 
         expect(existsSync(path,),).toBe(false,);
       },

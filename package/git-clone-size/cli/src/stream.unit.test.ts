@@ -23,12 +23,10 @@ import {
   DEFAULT_MAX_DEEPEN_COMMITS,
   DEFAULT_MAX_PACK_BYTES,
   DEFAULT_MAX_PROBE_SECONDS,
-} from './constants.ts';
-import {
   estimate,
   type EstimateOptions,
-} from './stream.ts';
-import type { EstimateSnapshot, } from './types.ts';
+  type EstimateSnapshot,
+} from '../dist/final/node/testing.mjs';
 
 /**
  Default options for the local path.

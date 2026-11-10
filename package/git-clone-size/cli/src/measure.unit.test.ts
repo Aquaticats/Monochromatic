@@ -12,7 +12,7 @@ import {
 import {
   isMeasured,
   UNMEASURED,
-} from './measure.ts';
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: isMeasured.name,

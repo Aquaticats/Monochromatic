@@ -24,7 +24,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import spawn, { type SubprocessError, } from 'nano-spawn';
 
-import type { EstimateSnapshot, } from './types.ts';
+import type { EstimateSnapshot, } from '../dist/final/node/testing.mjs';
 
 /**
  Monorepo root so the built bin path is invariant to the launch directory.

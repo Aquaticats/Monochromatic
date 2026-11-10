@@ -9,8 +9,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { serializeSnapshot, } from './serialize.ts';
-import type { EstimateSnapshot, } from './types.ts';
+import {
+  serializeSnapshot,
+  type EstimateSnapshot,
+} from '../dist/final/node/testing.mjs';
 
 /**
  A representative snapshot with every optional field populated.

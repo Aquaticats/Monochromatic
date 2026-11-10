@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { mergeAsArrived, } from './async-queue.ts';
+import { mergeAsArrived, } from '../dist/final/node/testing.mjs';
 
 /**
  Resolves to a label after a delay, modelling a probe that settles later.

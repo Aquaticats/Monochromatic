@@ -9,7 +9,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { combineEstimates, } from './combine.ts';
+import { combineEstimates, } from '../dist/final/node/testing.mjs';
 
 await describe({
   name: combineEstimates.name,

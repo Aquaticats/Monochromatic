@@ -188,6 +188,28 @@ export function computeRatio(
 }
 
 /**
+ Savings percent at a ratio value. Module scope rather than nested in
+ {@link computeSavings}: it reads only module constants, so nothing about it depends
+ on the caller.
+ 
+ @param ratioValue - shallow/full ratio in `[0, 1]`
+ 
+ @returns savings percentage clamped to `[0, 100]`
+ 
+ @example
+ ```ts
+ savingsAt(0.044);
+ ```
+ */
+function savingsAt(ratioValue: number,): number {
+  return clamp({
+    value: (1 - ratioValue) * PERCENT,
+    min: 0,
+    max: PERCENT,
+  },);
+}
+
+/**
  Computes the savings percentage range from a ratio range: `savings = 1 -
  ratio`, so the ratio's low end maps to the savings high end. Clamped to
  `[0, 100]`.
@@ -202,25 +224,6 @@ export function computeRatio(
  ```
  */
 export function computeSavings({ ratio, }: { readonly ratio: RatioRange; },): RatioRange {
-  /**
-   Savings percent at a ratio value.
-   
-   @param ratioValue - shallow/full ratio in `[0, 1]`
-   
-   @returns savings percentage clamped to `[0, 100]`
-   
-   @example
-   ```ts
-   savingsAt(0.044);
-   ```
-   */
-  function savingsAt(ratioValue: number,): number {
-    return clamp({
-      value: (1 - ratioValue) * PERCENT,
-      min: 0,
-      max: PERCENT,
-    },);
-  }
   return {
     hi: roundTo({
       value: savingsAt(ratio.lo,),

@@ -12,7 +12,7 @@ import {
 import {
   isRemoteInput,
   parseRemoteUrl,
-} from './source.ts';
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: isRemoteInput.name,

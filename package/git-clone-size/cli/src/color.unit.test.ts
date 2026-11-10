@@ -12,7 +12,7 @@ import {
 import {
   colorizeJson,
   shouldColor,
-} from './color.ts';
+} from '../dist/final/node/testing.mjs';
 
 /**
  ESC byte that begins an ANSI escape sequence.

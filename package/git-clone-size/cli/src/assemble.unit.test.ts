@@ -13,10 +13,10 @@ import {
   buildEstimates,
   buildSnapshot,
   computePending,
+  type FusionState,
   type Signals,
-} from './assemble.ts';
-import type { Source, } from './source.ts';
-import type { FusionState, } from './types.ts';
+  type Source,
+} from '../dist/final/node/testing.mjs';
 
 /**
  A minimal fused state for snapshot tests.

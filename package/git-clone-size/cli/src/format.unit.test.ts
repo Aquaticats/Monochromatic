@@ -15,7 +15,7 @@ import {
   computeSavings,
   roundTo,
   toSize,
-} from './format.ts';
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: toSize.name,

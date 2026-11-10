@@ -38,6 +38,7 @@ run = "dprint fmt src"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build the node bin, then run unit tests; cli.unit.test.ts spawns the built bin"
