@@ -13,6 +13,7 @@ import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
+import { preparedSyntaxSpanCount } from './prepared-syntax-record.ts';
 import { isProcessIdentifier } from './process-identifier.ts';
 import { withoutTerminalColors } from './terminal-color-escapes.ts';
 
@@ -201,9 +202,8 @@ const sweep = ({ compositorProcess, application }: { compositorProcess: number |
   if (existsSync(directory)) { found.push(directory); rmSync(directory, { recursive: true, force: true }); }
   return found;
 };
-const prepared = /source syntax prepared path=\S*fixture\.sql spans=(\d+)/;
 const unavailable = 'highlighting unavailable; retaining readable source';
-const settledOnSyntax = (text: string): boolean => prepared.test(text) || text.includes(unavailable);
+const settledOnSyntax = (text: string): boolean => preparedSyntaxSpanCount(text) !== undefined || text.includes(unavailable);
 // `cache` and `config` may be shared between sessions; each session gets its own project and data folders.
 interface SessionResult { output: string; frame: string; settledAfter: number; ending: string | undefined }
 const session = async ({ name, application, cache, config, settled = settledOnSyntax }: {
@@ -323,9 +323,8 @@ const loneCopy = (name: string): string => {
 };
 const spansOf = ({ output, what }: { output: string; what: string }): number => {
   demand({ condition: !output.includes(unavailable), message: what + ' could not highlight: ' + output.split('\n').find(line => line.includes(unavailable)) });
-  const preparedSpans = output.match(prepared)?.[1];
-  if (preparedSpans === undefined) throw new Error(what + ' printed no record of prepared syntax for fixture.sql');
-  const spans = Number(preparedSpans);
+  const spans = preparedSyntaxSpanCount(output);
+  if (spans === undefined) throw new Error(what + ' printed no record of prepared syntax for fixture.sql');
   demand({ condition: spans > 0, message: what + ' prepared no highlighted span for fixture.sql' });
   return spans;
 };
