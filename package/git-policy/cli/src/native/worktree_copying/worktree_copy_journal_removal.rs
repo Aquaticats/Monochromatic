@@ -11,6 +11,7 @@
 //! await removePendingJournal(pending); // removes the stage, then the journal and its unfinished writes
 //! ```
 
+use crate::blocking_job::BlockingJobError;
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::private_storage::sync_directory;
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
@@ -274,30 +275,68 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
 /// async function removeTreeSplit(path: string): Promise<void>;
 /// ```
 async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
-    let walking: PathBuf = path.to_path_buf();
-    // A walk of a stage can read an unbounded number of directories, and a disk, a lock or a mount holds it, so it
-    //  runs on the blocking pool rather than on the worker that carries this call.
-    let (subtrees, shallow): (Vec<PathBuf>, Vec<PathBuf>) =
-        match crate::blocking_job::run_blocking_job(move || { return walk_to_the_split_depth(walking.as_path()); }).await {
-            Ok(lists) => lists?,
-            Err(refusal) => {
-                return Err(std::io::Error::other(format!(
-                    "the walk to the split depth below {} did not run ({refusal})",
-                    path.display()
-                )));
-            }
-        };
+    let (subtrees, shallow): (Vec<PathBuf>, Vec<PathBuf>) = walk_to_the_split_depth_on_the_pool(path).await?;
     let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
     let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
         outcome?;
     }
-    return match crate::blocking_job::run_blocking_job(move || { return remove_shallow_directories(shallow.as_slice()); }).await {
-        Ok(removed) => removed,
-        Err(refusal) => Err(std::io::Error::other(format!(
-            "the directories above the split depth of {} were not removed ({refusal})",
+    return remove_shallow_directories_on_the_pool(shallow).await;
+}
+
+/// What:
+///  `walk_to_the_split_depth` as a job of the blocking pool,
+/// run on this task where the system refuses a thread.
+/// Why:
+///   A walk of a stage can read an unbounded number of directories,
+/// and a disk,
+/// a lock or a mount holds it,
+///  so it belongs off the worker that carries the call.
+/// A thread is only a way to work sooner (`foundation/scoped_start.rs`):
+/// where the system refuses one,
+///  the walk runs in turn,
+/// as the removal it serves did before the pool was asked,
+/// and the control that runs it with no
+///  thread to start still removes the tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function walkToTheSplitDepthOnThePool(path: string): [string[], string[]]
+/// ```
+async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    let walking: PathBuf = path.to_path_buf();
+    return match crate::blocking_job::run_blocking_job(move || { return walk_to_the_split_depth(walking.as_path()); }).await {
+        Ok(lists) => lists,
+        Err(BlockingJobError::NoThreadToStart | BlockingJobError::MayStillRunAfterItsThreadWasRefused) => {
+            return walk_to_the_split_depth(path);
+        }
+        Err(other) => Err(std::io::Error::other(format!(
+            "the walk to the split depth below {} did not run ({other})",
             path.display()
         ))),
+    };
+}
+
+/// What:
+///  `remove_shallow_directories` as a job of the blocking pool,
+/// run on this task where the system refuses a thread.
+/// Why:
+///  The same rule as the walk beside it:
+/// a removal that can wait on storage is a job where a thread starts,
+///  and runs in turn where none does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function removeShallowDirectoriesOnThePool(shallow: string[]): void
+/// ```
+async fn remove_shallow_directories_on_the_pool(shallow: Vec<PathBuf>) -> std::io::Result<()> {
+    let removing: Vec<PathBuf> = shallow.clone();
+    return match crate::blocking_job::run_blocking_job(move || { return remove_shallow_directories(removing.as_slice()); }).await {
+        Ok(removed) => removed,
+        Err(BlockingJobError::NoThreadToStart | BlockingJobError::MayStillRunAfterItsThreadWasRefused) => {
+            return remove_shallow_directories(shallow.as_slice());
+        }
+        Err(other) => Err(std::io::Error::other(format!("the directories above the split depth were not removed ({other})"))),
     };
 }
 
