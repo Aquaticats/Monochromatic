@@ -277,7 +277,14 @@ pub fn run_native_commit_within(
         let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling, signs, below_unlisted, below_unended };
         return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop))));
     }
-    let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = finished?;
+    let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = match finished {
+        Ok(ended) => ended,
+        // The step never started, so the note carries its name and no status, as every other step that cannot start does.
+        Err(error) => {
+            crate::git_step_failure::note_failed_step(step.as_str(), None);
+            return Err(error);
+        }
+    };
     let code: i32 = crate::forwarding::exit_code(outcome);
     // Git's own status for a commit it declined is the reason the command stops, and Git printed why to the terminal; the
     //  note keeps the step and that status so the record can name them (`commit_stop_reason.rs`).

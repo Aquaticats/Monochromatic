@@ -55,10 +55,19 @@ pub const KIND_GIT_STEP: &str = "git-step";
 /// Real Git declined the command and exited with its own status.
 pub const KIND_NATIVE_EXIT: &str = "native-exit";
 
-/// Nothing the record can read says what stopped the commit.
+/// What:
+///  What the record states when no step,
+/// no policy,
+/// no transform and no engine failure explains the stop.
 /// Why:
-///  A record that states this is the gap the owner's rule calls a defect:
-/// the route that stopped the commit reports nothing a reader can name.
+///   The routes that stop a commit with words of their own (the branch kept moving,
+/// the content was pruned,
+/// the service was not there) report
+///  no step and no finding,
+///  so their records say this rather than nothing:
+/// it is where the owner's rule looks for a defect,
+///  "If we can't figure it out,
+/// then we have a defect and should log more.",
 pub const KIND_UNIDENTIFIED: &str = "unidentified";
 
 /// The step name the wrapper gives the `git commit` it builds in a scratch repository.

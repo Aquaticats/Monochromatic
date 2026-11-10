@@ -22,12 +22,12 @@
 use crate::commit_timing::CommitTiming;
 /// Why the commit did not land,
 /// by the route that stopped it.
-use crate::commit_stop_reason::{reason_of_events, reason_of_stop};
+use crate::commit_stop_reason::{CommitStopReason, reason_of_events, reason_of_stop};
 use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
 use crate::service_messages::render;
-use crate::commit_transaction::{CommitInvocation, TransactionStop};
+use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop};
 use crate::config_schema::CliGitConfig;
 use crate::command_commit::CommitRegion;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure};
@@ -85,6 +85,26 @@ pub fn effective_directory(start: &Path, global_prefix: &[OsString]) -> PathBuf 
 pub struct CommitEnding {
     /// The process exit status.
     pub code: i32,
+}
+
+/// What:
+///  Why a commit that reported events did not land,
+/// or nothing when the command did not fail.
+/// Why:
+///   A command that ended without landing and without a non-zero status was not stopped by anything:
+/// nothing needed doing,
+/// and a reason there would be one nobody can check,
+/// which is the signal the record keeps for a real gap (`commit_stop_reason.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stopOfAnEnding = (result) => result.exitCode === 0 ? null : reasonOfEvents(result.events);
+/// ```
+fn stop_of_an_ending(result: &TransactionResult) -> Option<CommitStopReason> {
+    if result.exit_code == 0 {
+        return None;
+    }
+    return Some(reason_of_events(result.events.as_slice()));
 }
 
 /// What:
@@ -236,11 +256,11 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     //  nothing.
     crate::service_fault::reach("after-answer");
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
+    // Why nothing landed, read before the result is taken apart for the work after a landing.
+    let ended: Option<CommitStopReason> = stop_of_an_ending(&served.result);
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
         timing.outcome = "ended";
-        // Nothing landed and the command did not fail: what refused the commit is in the events it reports, and the record
-        //  names the route they give (`commit_stop_reason.rs`).
-        timing.stop = Some(reason_of_events(served.result.events.as_slice()));
+        timing.stop = ended;
         return CommitEnding { code: served.result.exit_code };
     };
     timing.outcome = "landed";
