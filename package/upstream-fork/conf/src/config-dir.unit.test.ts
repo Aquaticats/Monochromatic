@@ -10,7 +10,10 @@
  @module
  */
 
-import path from 'node:path';
+import {
+  basename,
+  join,
+} from 'node:path';
 import process from 'node:process';
 
 import {
@@ -126,13 +129,13 @@ await describe({
         /**
          Custom XDG root the resolution must honor.
          */
-        const customXdg = path.join(handle.home, 'custom-xdg',);
+        const customXdg = join(handle.home, 'custom-xdg',);
         process.env.XDG_CONFIG_HOME = customXdg;
 
         expect(configDirectory({
           projectName: 'foo',
           projectSuffix: 'nodejs',
-        },),).toBe(path.join(customXdg, 'foo-nodejs',),);
+        },),).toBe(join(customXdg, 'foo-nodejs',),);
 
         restoreHome(handle,);
       },
@@ -150,7 +153,7 @@ await describe({
         expect(configDirectory({
           projectName: 'foo',
           projectSuffix: 'nodejs',
-        },),).toBe(path.join(handle.home, '.config', 'foo-nodejs',),);
+        },),).toBe(join(handle.home, '.config', 'foo-nodejs',),);
 
         restoreHome(handle,);
       },
@@ -174,7 +177,7 @@ await describe({
         expect(configDirectory({
           projectName: 'foo',
           projectSuffix: 'nodejs',
-        },),).toBe(path.join(handle.home, '.config', 'foo-nodejs',),);
+        },),).toBe(join(handle.home, '.config', 'foo-nodejs',),);
 
         restoreXdg();
         restoreHome(handle,);
@@ -192,7 +195,7 @@ await describe({
         expect(configDirectory({
           projectName: 'foo',
           projectSuffix: 'nodejs',
-        },),).toBe(path.join(handle.home, '.config', 'foo-nodejs',),);
+        },),).toBe(join(handle.home, '.config', 'foo-nodejs',),);
 
         restoreHome(handle,);
       },
@@ -213,8 +216,8 @@ await describe({
           projectSuffix: '',
         },);
 
-        expect(path.basename(resolved,),).toBe('foo',);
-        expect(resolved,).toBe(path.join(handle.home, '.config', 'foo',),);
+        expect(basename(resolved,),).toBe('foo',);
+        expect(resolved,).toBe(join(handle.home, '.config', 'foo',),);
 
         restoreHome(handle,);
       },
@@ -232,7 +235,7 @@ await describe({
          Roaming root this test supplies,
          which the resolution must prefer over the home fallback.
          */
-        const roaming = path.join(handle.home, 'roaming',);
+        const roaming = join(handle.home, 'roaming',);
         /**
          Puts the host platform back.
          */
@@ -248,7 +251,7 @@ await describe({
         expect(configDirectory({
           projectName: 'foo',
           projectSuffix: 'nodejs',
-        },),).toBe(path.join(roaming, 'foo-nodejs', 'Config',),);
+        },),).toBe(join(roaming, 'foo-nodejs', 'Config',),);
 
         restoreAppData();
         restorePlatform();
@@ -279,7 +282,7 @@ await describe({
           projectName: 'foo',
           projectSuffix: 'nodejs',
         },),).toBe(
-          path.join(
+          join(
             handle.home,
             'AppData',
             'Roaming',

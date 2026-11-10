@@ -8,7 +8,8 @@
  which the repository's disposable-home test rule requires.
  The root variables treat an empty value as absent,
  as upstream's `env-paths` does with
- `env.APPDATA || path.join(homedir, 'AppData', 'Roaming')`;
+ `env.APPDATA || path.join(homedir, 'AppData', 'Roaming')`
+ (that `path` is upstream's default `node:path` namespace, not this module's);
  they are spelled as explicit empty-and-unset checks because this repository's
  lint rules refuse a logical OR as a nullish fallback.
  A nullish fallback would keep `''` and make the joined path relative to the
@@ -20,7 +21,7 @@
  */
 
 import { homedir, } from 'node:os';
-import path from 'node:path';
+import { join, } from 'node:path';
 import process from 'node:process';
 
 //region Platform layouts
@@ -41,11 +42,11 @@ function macosConfigDirectory(name: string,): string {
   /**
    Per-user Library directory macOS keeps preferences in.
    */
-  const library = path.join(
+  const library = join(
     homedir(),
     'Library',
   );
-  return path.join(
+  return join(
     library,
     'Preferences',
     name,
@@ -78,13 +79,13 @@ function windowsConfigDirectory(name: string,): string {
    whose fallback is a logical OR.
    */
   const appData = (configuredAppData === undefined) || (configuredAppData === '')
-    ? path.join(
+    ? join(
       homedir(),
       'AppData',
       'Roaming',
     )
     : configuredAppData;
-  return path.join(
+  return join(
     appData,
     name,
     'Config',
@@ -117,12 +118,12 @@ function xdgConfigDirectory(name: string,): string {
    `env-paths`, whose fallback is a logical OR.
    */
   const configRoot = (configuredConfigRoot === undefined) || (configuredConfigRoot === '')
-    ? path.join(
+    ? join(
       homedir(),
       '.config',
     )
     : configuredConfigRoot;
-  return path.join(
+  return join(
     configRoot,
     name,
   );

@@ -5,7 +5,7 @@
  @module
  */
 
-import path from 'node:path';
+import { join, } from 'node:path';
 import { setTimeout as delay, } from 'node:timers/promises';
 
 import {
@@ -123,7 +123,7 @@ async function createWatcherFixture(): Promise<WatcherFixture> {
   /**
    Absolute path of the watched config file.
    */
-  const filePath = path.join(
+  const filePath = join(
     directory,
     'config.json',
   );

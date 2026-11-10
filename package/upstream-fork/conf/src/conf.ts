@@ -18,7 +18,7 @@
  @module
  */
 
-import path from 'node:path';
+import { resolve, } from 'node:path';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
@@ -86,7 +86,7 @@ function resolveConfigPath<T extends Record<string, unknown>>(options: PreparedO
    empty when the extension is empty.
    */
   const extensionSuffix = options.fileExtension === '' ? '' : `.${options.fileExtension}`;
-  return path.resolve(
+  return resolve(
     options.cwd,
     `${options.configName}${extensionSuffix}`,
   );
