@@ -306,3 +306,118 @@ fn serve_this_release(name: &str) -> FixtureService {
     });
     return FixtureService { finished, thread };
 }
+
+/// What:
+///  A service that reads the add's line and then keeps sending messages without closing cannot hold the hand-over:
+///  the hand-over returns within its own bound.
+/// Why:
+///   The wake reads until the service closes the connection,
+/// which the service does once it has read the line.
+/// A service
+///  that keeps sending heartbeats instead resets the silence bound on every read,
+/// so a loop that only reads has no end,
+/// and the
+///  whole `git worktree add` waits behind it:
+/// the owner's rule is "nothing should ever wait forever or indefinitely".
+/// The
+///  record is already written when the wake starts,
+/// so a wake that reaches its bound costs the person nothing it was going
+///  to get.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = withinSeconds(30, handOverWith({ trash, reach: chattyService() }));
+/// expect(said).toBeDefined();
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_service_that_keeps_talking_does_not_hold_the_hand_over() {
+    let name: String = "7".repeat(40);
+    let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-chatty", name.as_str(), 1);
+    let address: String = format!("trash-hand-over-chatty-{}", std::process::id());
+    let service: ChattyService = serve_heartbeats(address.as_str());
+    let route: Route = Route { address: Bind::Abstract(address), provision: None };
+    let pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
+    let router = move |_git: &Path, _directory: &Path| return Some(route.clone());
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<(), String>>();
+    let hand_over = std::thread::spawn(move || {
+        let mut notices: Vec<u8> = Vec::new();
+        let outcome: Result<(), String> = hand_over_with(&git_context(), &pending, &mut notices, &reach(&router, &nothing_to_set_up));
+        let _sent = sender.send(outcome);
+    });
+    let outcome: Result<(), String> = receiver.recv_timeout(std::time::Duration::from_secs(30)).expect("the hand-over returns within its own bound, whatever the service keeps sending");
+    assert!(outcome.is_ok(), "the line reached the service, which is all the wake asks of it: {outcome:?}");
+    let _joined = hand_over.join();
+    service.finish();
+    remove(root.as_path());
+}
+
+/// A fixture service that greets,
+/// reads one line,
+/// and then keeps sending heartbeats without closing the connection.
+#[cfg(target_os = "linux")]
+struct ChattyService {
+    /// Raised to end the heartbeat loop.
+    finished: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The accept loop.
+    thread: std::thread::JoinHandle<()>,
+}
+
+/// Methods over the chatty fixture service.
+#[cfg(target_os = "linux")]
+impl ChattyService {
+    /// Stop the loop and wait for it.
+    fn finish(self) {
+        self.finished.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _joined = self.thread.join();
+    }
+}
+
+/// Serve `name` as a service of this release on an abstract socket,
+/// which greets,
+/// reads one line,
+/// and then sends a
+///  heartbeat every few milliseconds until it is stopped or the client hangs up.
+/// Why:
+///   A service that never closes a connection it has read is the state the wake must be bounded against,
+/// and a
+///  fixture is cheaper and more deterministic than a wedged release service.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const serveHeartbeats = (name) => { onConnect: write(welcome); readLine(); while (!stopped) { write(heartbeat); await sleep(5); } };
+/// ```
+#[cfg(target_os = "linux")]
+fn serve_heartbeats(name: &str) -> ChattyService {
+    use std::os::linux::net::SocketAddrExt;
+    use std::io::BufRead;
+    let socket = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("a name");
+    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&socket).expect("bind");
+    listener.set_nonblocking(true).expect("non-blocking");
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+    let thread = std::thread::spawn(move || {
+        while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+            let Ok((stream, _)) = listener.accept() else {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                continue;
+            };
+            stream.set_nonblocking(false).expect("blocking");
+            let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) });
+            greeting.push('\n');
+            if std::io::Write::write_all(&mut &stream, greeting.as_bytes()).is_err() {
+                continue;
+            }
+            let mut raw: String = String::new();
+            if std::io::BufReader::new(&stream).read_line(&mut raw).is_err() {
+                continue;
+            }
+            let mut beat: String = encode_service(&ServiceMessage::Heartbeat);
+            beat.push('\n');
+            while !stop.load(std::sync::atomic::Ordering::SeqCst) && std::io::Write::write_all(&mut &stream, beat.as_bytes()).is_ok() {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
+    });
+    return ChattyService { finished, thread };
+}
