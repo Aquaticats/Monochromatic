@@ -133,13 +133,18 @@ async function fetchAndParseFeeds(
     ): Promise<TextWOutline | typeof DISCARD> {
       /**
        Single Response held so status check and text read share one network round trip.
+       A network rejection lands in the same catch as a body-read failure, so one
+       unreachable host costs its own feed only.
        */
-      const response = await fetch(outline.xmlUrl,);
-      if (!response.ok) {
-        innerL.warn(`${outline.xmlUrl} responded ${String(response.status,)}`,);
-        return DISCARD;
-      }
       try {
+        /**
+         Response for this outline's feed URL.
+         */
+        const response = await fetch(outline.xmlUrl,);
+        if (!response.ok) {
+          innerL.warn(`${outline.xmlUrl} responded ${String(response.status,)}`,);
+          return DISCARD;
+        }
         return {
           text: await response.text(),
           outline,
@@ -147,7 +152,7 @@ async function fetchAndParseFeeds(
       }
       catch (error) {
         innerL.warn(
-          `text conversion failed for ${outline.xmlUrl}: ${caughtValueText(error,)}`,
+          `fetch or text conversion failed for ${outline.xmlUrl}: ${caughtValueText(error,)}`,
         );
         return DISCARD;
       }

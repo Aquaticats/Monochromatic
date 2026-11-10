@@ -1,9 +1,10 @@
 /**
- Regression coverage for a feed whose publication date no calendar can read:
- the sort used to throw a ValiError out of the date coercion and take the
- whole page with it instead of falling back to the documented epoch.
+ Regression coverage for feeds that must be discarded rather than abort the
+ pipeline: a publication date no calendar can read, and a fetch that rejects
+ before any response exists.
  */
 
+import { logger, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
@@ -34,6 +35,18 @@ const READABLE_PUB_DATE = 'Mon, 06 Jan 2025 10:00:00 GMT';
 const UNPARSEABLE_PUB_DATE = 'Tue, 32 Jan 2025 10:00:00 GMT';
 
 /**
+ OPML `xmlUrl` whose host cannot be reached, so `fetch` rejects without a
+ response.
+ */
+const UNREACHABLE_URL = 'https://unreachable.example/feed.xml';
+
+/**
+ Message a stubbed rejection carries, so a passing assertion proves the caught
+ text reached the log instead of an empty object.
+ */
+const FETCH_FAILURE_MESSAGE = 'fetch failed: getaddrinfo ENOTFOUND unreachable.example';
+
+/**
  Builds a minimal RSS document whose channel carries one publication date.
  
  @param pubDate - channel `pubDate` text placed in the document
@@ -49,6 +62,7 @@ function rssWithPubDate(pubDate: string,): string {
 
 await describe({
   name: getSortedFeeds.name,
+  concurrency: 1,
   children: [
     it({
       name: 'sorts a feed with an unparseable publication date after a readable one',
@@ -86,6 +100,48 @@ await describe({
         expect(feeds.map(function outlineText(feed,) {
           return feed.outline.text;
         },),).toEqual(['readable', 'unparseable',],);
+      },
+    },),
+    it({
+      name: 'discards a feed whose fetch rejects instead of rejecting the pipeline',
+      fn: async ctx => {
+        /**
+         Rendered warn lines the console sink emits while the stub is active.
+         */
+        const lines: string[] = [];
+        ctx.sinon
+          .stub(console, 'warn',)
+          .callsFake((...args: unknown[]) => {
+            lines.push(args.map(String,).join(' ',),);
+          },);
+        ctx.sinon
+          .stub(globalThis, 'fetch',)
+          .value(async function stubUnreachableFetch(url: string,) {
+            if (url === UNREACHABLE_URL)
+              throw new TypeError(FETCH_FAILURE_MESSAGE,);
+            return new Response(
+              rssWithPubDate(READABLE_PUB_DATE,),
+              { status: 200, },
+            );
+          } as typeof fetch,);
+
+        const feeds = await getSortedFeeds([
+          {
+            type: 'rss',
+            text: 'readable',
+            xmlUrl: READABLE_URL,
+          },
+          {
+            type: 'rss',
+            text: 'unreachable',
+            xmlUrl: UNREACHABLE_URL,
+          },
+        ],);
+        await logger.flush();
+
+        expect(feeds,).toHaveLength(1,);
+        expect(feeds[0]?.outline.text,).toBe('readable',);
+        expect(lines.join('\n',),).toContain(FETCH_FAILURE_MESSAGE,);
       },
     },),
   ],

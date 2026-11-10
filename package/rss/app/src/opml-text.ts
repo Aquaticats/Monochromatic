@@ -73,19 +73,23 @@ export async function getOPMLTexts(
     ): Promise<string | typeof DISCARD> {
       if (opmlLink.startsWith('http',)) {
         /**
-         Single Response held so status check and text read share one network round trip.
+         Response, status check, and body read share one catch so a rejected
+         connection discards this source like a failed body read does.
          */
-        const response = await fetch(opmlLink,);
-        if (!response.ok) {
-          innerL.warn(`${opmlLink} responded ${String(response.status,)}`,);
-          return DISCARD;
-        }
         try {
+          /**
+           Response for this OPML source URL.
+           */
+          const response = await fetch(opmlLink,);
+          if (!response.ok) {
+            innerL.warn(`${opmlLink} responded ${String(response.status,)}`,);
+            return DISCARD;
+          }
           return await response.text();
         }
         catch (error) {
           innerL.warn(
-            `text conversion failed for ${opmlLink}: ${caughtValueText(error,)}`,
+            `fetch or text conversion failed for ${opmlLink}: ${caughtValueText(error,)}`,
           );
           return DISCARD;
         }
