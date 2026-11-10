@@ -40,7 +40,7 @@ export class RepositorySelectionError extends Error {
 /**
  Checks ASCII alphanumeric character.
  
- @param character - One UTF-16 code unit.
+ @param character - One character of the segment.
  
  @returns Whether character belongs to ASCII alphanumeric set.
  */
@@ -53,7 +53,7 @@ function isAsciiAlphanumeric(character: string,): boolean {
 /**
  Checks GitHub owner character grammar.
  
- @param character - One owner code unit.
+ @param character - One character of the owner segment.
  
  @returns Whether owner accepts character.
  */
@@ -64,7 +64,7 @@ function isOwnerCharacter(character: string,): boolean {
 /**
  Checks GitHub repository-name character grammar.
  
- @param character - One repository-name code unit.
+ @param character - One character of the repository-name segment.
  
  @returns Whether repository name accepts character.
  */
@@ -76,7 +76,11 @@ function isRepositoryCharacter(character: string,): boolean {
 }
 
 /**
- Checks every code unit against supplied character grammar.
+ Checks every character against supplied character grammar.
+ 
+ The grammar is ASCII, so `for...of` walking characters rather than UTF-16 code
+ units reaches the same verdict: a character outside the grammar is refused
+ whole, wherever its surrogate pair falls.
  
  @param value - Owner or repository segment.
  
@@ -94,8 +98,8 @@ function everyCharacter({
   if (value === '') {
     return false;
   }
-  for (let index = 0; index < value.length; index += 1) {
-    if (!accepts(value.charAt(index,),)) {
+  for (const character of value) {
+    if (!accepts(character,)) {
       return false;
     }
   }
