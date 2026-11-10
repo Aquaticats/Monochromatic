@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isBareShutdownError, isServerStandardErrorLine, levelOf, withoutColourSequences } from './language-log-records.ts';
+import { isBareShutdownError, isServerStandardErrorEnd, isServerStandardErrorLine, levelOf, withoutColourSequences } from './language-log-records.ts';
 
 test(
   'removes the colour sequence a tracing record carries',
@@ -301,5 +301,38 @@ test(
     assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls ERR <- "a"'), false);
     assert.equal(isServerStandardErrorLine('helix_lsp::transport:  err <- "a"'), false);
     assert.equal(isServerStandardErrorLine(''), false);
+  }
+);
+
+test(
+  'reads the record helix-lsp writes when a server standard error ends',
+  () => {
+    // A real record of the shape doc/troubleshooting/helix-lsp-transport-error-level-records.md captured.
+    assert.equal(isServerStandardErrorEnd('helix_lsp::transport: typescript-native err: <- StreamClosed'), true);
+    assert.equal(isServerStandardErrorEnd('ERROR helix_lsp::transport: scripted-ls err: <- StreamClosed'), true);
+  }
+);
+
+test(
+  'reads no end of a standard error from a record that says something else',
+  () => {
+    assert.equal(isServerStandardErrorEnd('helix_lsp::transport: scripted-ls err: <- StreamClosed '), false);
+    assert.equal(isServerStandardErrorEnd('helix_lsp::transport: scripted-ls err: <- StreamClosedX'), false);
+    assert.equal(isServerStandardErrorEnd('helix_lsp::transport: scripted-ls err <- StreamClosed'), false);
+    assert.equal(isServerStandardErrorEnd('helix_lsp::transport: scripted-ls err: <- closed'), false);
+    assert.equal(isServerStandardErrorEnd('helix_lsp::transport: scripted-ls err: <- streamclosed'), false);
+    assert.equal(isServerStandardErrorEnd('helix_lsp::transport: scripted-ls err: <- StreamClosed\n'), false);
+    assert.equal(isServerStandardErrorEnd('helix_lsp::transport:  err: <- StreamClosed'), false);
+    assert.equal(isServerStandardErrorEnd(''), false);
+  }
+);
+
+test(
+  'reads the end of a standard error from a record that holds the module path twice',
+  () => {
+    assert.equal(
+      isServerStandardErrorEnd('helix_lsp::transport: a helix_lsp::transport: b err: <- StreamClosed'),
+      true
+    );
   }
 );

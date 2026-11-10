@@ -1,6 +1,7 @@
 // The readers a language-server lifetime check applies to the application's log, written as cursor scans.
 // What: the text of a record without the colour escapes it carries, the level a record states, whether the text
-// reports its own shutdown as a failure, and which of the three record shapes a healthy server prints it is.
+// reports its own shutdown as a failure, and which of the three record shapes a healthy server prints it is: a
+// standard error line, the end of a standard error, and a moot error answer.
 // Why: the application colours every record for a terminal, so a lifetime check that reads a record's level or the
 // shape helix-lsp wrote would read the escape instead of the field when the escape is left in place, and it accepts
 // a run only when no record states ERROR.
@@ -256,4 +257,23 @@ export function isServerStandardErrorLine(line: string): boolean {
     }
     return true;
   });
+}
+
+/// The wording a record carries when a server's standard error ends.
+const STANDARD_ERROR_END = ' err: <- StreamClosed';
+
+/**
+ Whether a record reports that a server's standard error ended.
+ 
+ What: the transport prefix, the server's name and the wording of a standard error's end, which must end the record;
+ the answer an anchored `helix_lsp::transport: \S+ err: <- StreamClosed$` match gave to the same record.
+ 
+ Why: a server that closed its standard error is one of the three shapes a healthy server prints, so the lifetime
+ check has to tell this record from one that reports a failure, and the wording ends the record it belongs to.
+ 
+ @param line - one record of the application's log, with its colour sequences already removed
+ @returns whether the record reports the end of a server's standard error
+ */
+export function isServerStandardErrorEnd(line: string): boolean {
+  return someHelixTransportTail(line, tail => tail === STANDARD_ERROR_END);
 }
