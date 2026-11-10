@@ -60,6 +60,13 @@ not a reason to disable parts of it.
   Shim executables are not shell scripts.
 - A per-repository hook lock serializes preparation hooks and the post-landing `post-commit`
   unless `cli-git.config` sets `hooks: { concurrentCommits: true }`.
+  Retired (note added 2026-11-10):
+   no dispatcher shim and no hook lock exist in the native wrapper,
+   which supports no external hook command;
+   `package/git-policy/cli/src/native/health/external_hooks.rs` inspects `core.hooksPath` instead,
+   `hooks.concurrentCommits` is parsed into the config and read by no production module,
+   and the settings file is `monochromatic-git-policy-cli.config.jsonc`,
+  renamed from `cli-git.config.jsonc` on 2026-11-07.
 
 ## Serial landing
 
@@ -156,6 +163,13 @@ cli-git records each policy's lazy context reads
 `trackedFiles` pathspecs,
 `headOid`)
 and re-runs a declared policy only when a recorded read or declared input changed.
+Note added 2026-11-10:
+ the native wrapper keeps no per-policy read sets and no input fingerprints,
+ and reuses no recorded policy run
+ (`package/git-policy/cli/SPEC.md`,
+"Policy re-run after a retried landing"),
+ no `PolicyInput` or `unrestricted` identifier exists in its source,
+ and that declaration design is specified at the retired TypeScript wrapper's last incumbent commit.
 Precedent:
  Nx task `inputs`,
 broad when absent.
@@ -259,6 +273,11 @@ the agent-behavior gap is tracked separately.
   a mise task packs the npm tarball
   and runs a consumer script inside `podman`
   with stated memory and CPU bounds.
+  Note added 2026-11-10:
+   no `test:built:trust` task exists in any mise configuration,
+   and the suite no longer packs an npm tarball;
+   `package/git-policy/cli/mise.toml` defines `native:test:container` and its sibling `native:*` tasks,
+   which run the release native wrapper in bounded podman containers.
 - The image provides every Git version under test:
   the declared minimum and the current release.
   Distribution images that ship an older Git do not qualify.

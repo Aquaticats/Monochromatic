@@ -8,6 +8,12 @@ Plan:
 Handover:
  `package/file-enforcer/core/HANDOVER.fuzzing.md`.
 
+Note added 2026-11-10:
+ `package/file-enforcer/core` was deleted with the TypeScript file-enforcer on 2026-10-31,
+ so the package this record governs holds no tracked file;
+ its Rust replacement `package/file-enforcer/core-rust` holds 63 tracked files,
+ none of them a fuzz handover or a property test.
+
 ## Context
 
 `package/file-enforcer/core` parses and transforms structured,

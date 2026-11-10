@@ -21,6 +21,9 @@ The repo previously blocked general-purpose Agent subagents at three layers:
 - A line in the generated `CLAUDE.md` preamble (source `file-enforcer.config.ts`):
   "General purpose agents are banned because of bugs.
   "
+  Note added 2026-11-10:
+   `file-enforcer.config.ts` was deleted with the TypeScript file-enforcer on 2026-10-31,
+   and the tracked configuration is `file-enforcer.config.jsonc`.
 
 Specialized subagents (Explore,
  Plan,

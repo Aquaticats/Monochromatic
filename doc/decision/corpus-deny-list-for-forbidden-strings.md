@@ -103,6 +103,11 @@ Rules are per worktree,
 not per repository.
 `mise.toml` sets `FORBIDDEN_STRINGS_RULES` to `{{config_root}}/.cache/forbidden-strings.rules.txt`,
 and `{{config_root}}` is the worktree root.
+Note added 2026-11-10:
+ `mise.toml` no longer sets `FORBIDDEN_STRINGS_RULES`,
+ and no `.cache/forbidden-strings.rules.txt` is generated;
+ the tracked rules files are `forbidden-strings.append.txt` and the optional `forbidden-strings.append.local.txt`,
+ named as `rulesFile` in `monochromatic-git-policy-cli.config.jsonc`.
 The two live worktrees already carry different generated rules files,
 10652 bytes against 12635,
 so this is observed rather than assumed.
@@ -171,6 +176,9 @@ The natural fix is to compile the appendix once where it is already generated:
 `file-enforcer` writes `.cache/forbidden-strings.rules.txt` when rules change,
 so it could write `.cache/forbidden-strings.rules.bin` beside it,
 and the scanner could prefer the serialized set when it is newer than the text.
+Note added 2026-11-10:
+ nothing writes `.cache/forbidden-strings.rules.txt` today,
+ and the scanner takes its rules through `--rules` or `FORBIDDEN_STRINGS_RULES`.
 That turns two minutes per commit into two minutes per rule change,
 which is what the design assumed all along.
 Filed rather than built:

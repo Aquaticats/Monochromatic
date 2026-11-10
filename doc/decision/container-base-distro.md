@@ -24,6 +24,20 @@ The resolver lives in `package/test-harness/core-matrix`
 Without the argument the plain image builds,
  which runs on every x86-64 CPU.
 
+Note added 2026-11-10:
+ ten of the twenty tracked Containerfiles outside `doc/` name their base through `ARG CACHYOS_IMAGE`.
+The other ten are the exceptions this file names
+ (`package/config/pnpr`,
+ `package/vm-builder/cli`,
+ `package/music-player/desktop-app/Containerfile.alpine`,
+ and the release images),
+ the two `package/ide/app` files that chain from a local terminal image,
+ and four test or mutation images:
+ `docker.io/library/rust:1`,
+ `docker.io/library/node:26-slim`,
+ a bare digest,
+ and `localhost/forbidden-regex-mutants`.
+
 ## Owner directives (2026-10-29)
 
 - "Make cachyOS (or arch linux proper) the de-facto distro for this repo from now on.

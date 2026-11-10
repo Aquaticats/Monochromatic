@@ -3,6 +3,18 @@
 ## Status
 
 Accepted.
+Note added 2026-11-10:
+ this record is superseded in part by [`cli-git-rust-rewrite.md`](cli-git-rust-rewrite.md),
+accepted 2026-10-04.
+The wrapper is Rust (`package/git-policy/cli/src/native`),
+ the repository's settings file is `monochromatic-git-policy-cli.config.jsonc`
+ (renamed from `cli-git.config.jsonc` on 2026-11-07),
+ no Rolldown bundling remains in `package/git-policy/cli`,
+ `definePlugin` appears in no tracked file outside `doc/`,
+ and `trust [--yes]`,
+ `untrust` and `status` are retired forms that only print an explanation
+ (`package/git-policy/cli/SPEC.md`,
+ the retired-forms paragraph).
 Implementation is tracked by GitHub issues #342 through #357.
 The public package is prepared for npm distribution,
 but registry publication remains indefinitely deferred in #358.

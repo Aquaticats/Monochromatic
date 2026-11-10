@@ -16,6 +16,16 @@ The two alternatives (silent stub and pure removal) both fail under at least one
 that pi-coding-agent exercises during normal startup,
  and the workspace silent stub additionally has a thenable trap that hangs the async lock path.
 
+Note added 2026-11-10:
+ the stub no longer hangs,
+ because `package/pnpm-override/stub-silent/index.cjs` reads `then`,
+ `catch` and `finally` as `undefined` since 2026-11-09,
+ so awaiting it settles.
+The silent stub still cannot carry the lock:
+ it answers `lockSync` and `lock` with itself,
+ so no lock is ever taken and the release function releases nothing.
+That is why the API-compatible shim stays the pick.
+
 ## First-party callers
 
 `rg -n -e "AuthStorage|SettingsManager|FileAuthStorageBackend|InMemoryAuthStorageBackend|proper-lockfile|lockfile" /var/home/user/Monochromatic/package/` returns zero matches.
@@ -97,11 +107,21 @@ Consequence for the pi-coding-agent chain:
 - Async path (`AuthStorage.getApiKey` during model resolution):
    `release = await lockfile.lock(...)` hangs on the thenable trap.
   pi hangs on startup model lookup.
+  Note added 2026-11-10:
+   it no longer hangs;
+   the await settles on the stub,
+   which then holds no lock and releases nothing.
 
 A `then` carve-out in `package/pnpm-override/stub-silent/` would fix this,
  but the current implementation does not have one.
 Editing the silent stub to add the carve-out for one consumer weakens the stub contract for every other policy entry,
  and is out of scope here.
+
+Note added 2026-11-10:
+ the stub carries that carve-out since 2026-11-09,
+ so the section above records the stub as it was when this record was written;
+ the shim decision stands on the lock semantics the stub cannot provide,
+ not on the hang.
 
 ## Ranked decision
 
@@ -130,6 +150,11 @@ Editing the silent stub to add the carve-out for one consumer weakens the stub c
     Add `proper-lockfile` to `.pnpmfile.mjs` `POLICY` with `action: 'silent'`.
     Works for the sync path but hangs the async path under `await release` and under `await lockfile.lock(...)`
     because the workspace stub's Proxy treats every property access (including `.then`) as a self-return.
+    Note added 2026-11-10:
+     the silent stub no longer hangs;
+     it settles on itself,
+    takes no lock,
+     and releases nothing.
 
     - Pros:
        one-line change,
@@ -158,6 +183,10 @@ Ranking:
 
 - 1 > 2 because the silent stub hangs the async lock path on a startup-hot code path (`model-registry.js:519`),
    and the workspace silent stub does not carve out `.then`.
+  Note added 2026-11-10:
+   the stub now carves out `then`,
+   so the hang no longer orders 1 over 2;
+   the shim still wins because the stub takes no lock.
 - 2 > 3 because the silent stub at least allows module-load to succeed;
    pure removal crashes pi-coding-agent before any first-party code runs.
 

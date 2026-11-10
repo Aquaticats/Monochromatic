@@ -17,6 +17,10 @@ Design:
 Session state:
 [`doc/handover/monorepo-manager.md`](../handover/monorepo-manager.md).
 Supersedes `package/file-enforcer/core/DECISION.rust-migration.md` for the tool's file enforcement.
+Note added 2026-11-10:
+ that path is no longer tracked,
+ because its directory was deleted with the TypeScript file-enforcer on 2026-10-31;
+ the amendment below and [`file-enforcer-rust-rewrite.md`](file-enforcer-rust-rewrite.md) record what replaced it.
 Amended 2026-10-29 by [`file-enforcer-rust-rewrite.md`](file-enforcer-rust-rewrite.md) (accepted):
 file enforcement is a standalone Rust library and CLI that meow links instead of rewriting,
 configured in JSONC rather than HCL,
