@@ -419,8 +419,8 @@ pub struct FixedFacts {
     pub ignored_and_tracked: Vec<String>,
     /// The answer to `repository_holds_a_stash`.
     pub stash: bool,
-    /// Whether the dry run of a clean as typed names a path only its own `-e`/`--exclude` patterns call
-    ///  ignored, and the same clean without them names nothing.
+    /// Whether the dry run of a clean as typed names a path only its own `-e`/`--exclude` patterns call ignored,
+    ///  and the same clean without them names nothing.
     pub clean_deletes: bool,
 }
 
@@ -474,8 +474,9 @@ impl RepositoryFacts for FixedFacts {
     ///  Answer the dry run of the clean as typed with the one path its own patterns add,
     ///  and the dry run of the same clean without them with nothing.
     /// Why:
-    ///   That difference is what decides whether a clean carrying its own exclusions rejects,
-    ///  and a path both answers name is one the worktree itself ignores, which no longer refuses anything.
+    ///   That difference is what decides whether a clean carrying its own exclusions rejects;
+    ///  a path both answers name is one the worktree itself ignores,
+    ///  which no longer refuses anything.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
