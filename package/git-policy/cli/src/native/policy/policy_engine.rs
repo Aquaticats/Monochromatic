@@ -102,10 +102,15 @@ pub struct PolicyFinding {
 ///  and never stops the command,
 ///  because a
 ///       commit must not fail over a copy somebody else is holding.
+///  The hint is the note's own,
+///  because
+///       two notes can leave work behind for reasons the person answers differently:
+/// a copy
+///       somebody holds, and a Git read that failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PolicyNote = { message: string; path?: EventPath };
+/// type PolicyNote = { message: string; path?: EventPath; hint?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PolicyNote {
@@ -114,6 +119,9 @@ pub struct PolicyNote {
     /// The repository path the note is about,
     ///  when it is about one.
     pub path: Option<EventPath>,
+    /// The hint the failure carrying this note gives,
+    ///  or none for no hint at all.
+    pub hint: Option<&'static str>,
 }
 
 /// What:
@@ -484,12 +492,12 @@ pub fn run_policy_stage(
             }
         };
         let found_any: bool = !findings.is_empty();
-        // A note is a report, never a stop: it is written as an engine failure whose chosen hint says the command goes on, because
-        //  a commit must not fail over a file the policy chose not to change.
+        // A note is a report, never a stop: it is written as an engine failure whose chosen hint says what the person can
+        //  do about it, because a commit must not fail over a file the policy chose not to change.
         for note in notes {
             events.push(PolicyEvent::EngineFailure {
                 code: EngineFailureCode::PolicyIncomplete,
-                hint: crate::policy_events::EngineFailureHint::Chosen(Some(crate::policy_events::LEFT_ALONE_HINT)),
+                hint: crate::policy_events::EngineFailureHint::Chosen(note.hint),
                 message: note.message,
                 trigger: Some(request.trigger),
                 policy: Some(*policy),

@@ -2771,6 +2771,9 @@ Listing one with a severity is the only way to turn it on,
    or a dependent whose version cannot be bumped automatically,
    is named the same way;
    a commit never fails over the ripple.
+  A real index the commit could not list is named the same way,
+   once for each dependent whose copies that listing would have proved,
+   so a failed lookup never reads as an index that holds nothing.
   `git monochromatic-git-policy-cli check` and
    `git monochromatic-git-policy-cli fix` report the same ripple for the worktree.
 - `mono/catalog-specifiers`:

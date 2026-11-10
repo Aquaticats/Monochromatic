@@ -11424,6 +11424,14 @@ the dependent is left out of the commit and named in a note
 and the commit lands with the dependents it could take.
 The landing then writes the commit's entries into the real index,
 which is why the real index must already hold them.
+The listing that reads the real index names the repository the command line does,
+with `--git-dir` and `--work-tree` kept from the global options and resolved from the worktree top level
+the listing runs in
+(`repository_selection::from_global_options`),
+because a Git directory beside its work tree has no `.git` in the work tree to find.
+A listing that cannot run is not a verdict that the index holds nothing:
+each dependent it would have proved is left out of the commit and named with Git's own reason,
+and the commit lands with the rest.
 
 ### Sequencer conclusion state
 
@@ -14124,7 +14132,10 @@ never a finding that blocks and never an engine failure that exits `2`:
   so the dependent alone is left out of the commit and keeps its version;
 - a dependent whose version cannot be patch-bumped automatically;
 - a publish set the commit cannot read,
-  or any other input the planner cannot use.
+  or any other input the planner cannot use;
+- a real index that could not be listed,
+  which leaves out every dependent whose copies that listing would have proved,
+  each named with the reason Git gave.
 
 A note prints as an engine-failure event with code `policy-incomplete` whose chosen hint says the command
 is not stopped and nothing was discarded (`LEFT_ALONE_HINT`,
