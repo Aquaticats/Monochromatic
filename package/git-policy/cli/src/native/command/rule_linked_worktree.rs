@@ -12,7 +12,8 @@
 //!  a forced `rm`,
 //!  `mv`,
 //!  or `checkout-index`,
-//!  `read-tree --reset` and an `--abort` can throw away work,
+//!  `read-tree`,
+//!  and an `--abort` can throw away work,
 //! and the loss leaves no record.
 //!  This file decides from the arguments alone whether the command is guarded and when,
 //!  and from the worktree kind and dirtiness the caller measured whether to reject it.
@@ -494,7 +495,7 @@ fn guarded_decision(
         return Ok(decided(GuardedCommand::CheckoutIndex, force_discard(region)));
     }
     if word == b"read-tree" {
-        return Ok(decided(GuardedCommand::ReadTree, read_tree_discard(region)));
+        return Ok(decided(GuardedCommand::ReadTree, read_tree_discard(region)?));
     }
     for (aborting, command) in [
         (&b"merge"[..], GuardedCommand::AbortMerge),

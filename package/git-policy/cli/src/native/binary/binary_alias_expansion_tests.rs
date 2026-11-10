@@ -449,3 +449,179 @@ fn a_directory_changing_alias_from_a_linked_worktree_resets_nothing() {
     assert_eq!(tracked(linked.as_path()), b"BASE\n", "the linked worktree changed");
     remove(&fixture);
 }
+
+/// What:
+///  A value is split into the words Git's `split_cmdline` produces,
+///  so the same invocation through real Git and through the wrapper runs the same command.
+/// Why:
+///  Git's `isspace` in the splitter is `GIT_SPACE`
+///  (space,
+///  TAB,
+///  LF and CR only,
+///  `ctype.c`),
+///  and the split leaves an empty last word when the value ends with whitespace,
+///  so a wider whitespace class ran `rev-parse --git-dir` where Git ran one command word
+///  and for a trailing space ran `status` where Git refused `status ''`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // for each value: direct.stdout === wrapped.stdout and direct.code === wrapped.code
+/// ```
+#[test]
+fn an_alias_value_is_split_into_the_words_git_splits() {
+    let fixture: Fixture = fixture("alias-expansion-split");
+    let repo: PathBuf = repository_with_unstaged_work(&fixture, "repo");
+    let trailing: [&str; 5] = [" ", "\t", "\n", "\r", "  "];
+    let between: [&str; 4] = ["\u{0b}", "\u{0c}", "\t", "  "];
+    let mut values: Vec<String> = Vec::new();
+    for tail in trailing {
+        values.push(format!("rev-parse --git-dir{tail}"));
+        values.push(format!("status{tail}"));
+    }
+    for separator in between {
+        values.push(format!("rev-parse{separator}--git-dir"));
+    }
+    for value in values {
+        let option: String = format!("alias.audit={value}");
+        let arguments: [&str; 3] = ["-c", option.as_str(), "audit"];
+        let direct_run: Observed = observe(
+            direct(&fixture).current_dir(repo.as_path()).args(arguments),
+            b"",
+        );
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert_eq!(
+            (observed.code, observed.stdout.clone()),
+            (direct_run.code, direct_run.stdout.clone()),
+            "{value:?}: the wrapper ran a different command; direct stderr: {}",
+            stderr_of(&direct_run)
+        );
+        assert_eq!(tracked(repo.as_path()), USER_DATA, "{value:?} changed the worktree");
+    }
+    remove(&fixture);
+}
+
+/// What:
+///  Two spellings of one alias select the value Git selects:
+///  the last one in config order,
+///  wherever it is defined.
+/// Why:
+///  Git's `config_alias_cb` replaces the value it kept on every matching variable
+///  (`alias.c`),
+///  so the caller reads the answer of the last definition,
+///  and a lookup that preferred `alias.<name>` ran the command Git does not select.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // alias.audit = 'rev-parse --is-inside-work-tree', then [alias "audit"] command = 'rev-parse --git-dir'
+/// // => both arms print .git
+/// ```
+#[test]
+fn two_alias_spellings_run_the_one_git_selects() {
+    let fixture: Fixture = fixture("alias-expansion-spellings");
+    let plain_then_section: PathBuf = repository_with_unstaged_work(&fixture, "plain-then-section");
+    git(
+        &fixture,
+        plain_then_section.as_path(),
+        &["config", "--local", "alias.audit", "rev-parse --is-inside-work-tree"],
+    );
+    git(
+        &fixture,
+        plain_then_section.as_path(),
+        &["config", "--local", "alias.audit.command", "rev-parse --git-dir"],
+    );
+    let section_then_plain: PathBuf = repository_with_unstaged_work(&fixture, "section-then-plain");
+    git(
+        &fixture,
+        section_then_plain.as_path(),
+        &["config", "--local", "alias.audit.command", "rev-parse --git-dir"],
+    );
+    git(
+        &fixture,
+        section_then_plain.as_path(),
+        &["config", "--local", "alias.audit", "rev-parse --is-inside-work-tree"],
+    );
+    let command_line_last: PathBuf = repository_with_unstaged_work(&fixture, "command-line-last");
+    git(
+        &fixture,
+        command_line_last.as_path(),
+        &["config", "--local", "alias.audit", "rev-parse --is-inside-work-tree"],
+    );
+    let cases: Vec<(PathBuf, Vec<&str>)> = vec![
+        (plain_then_section, vec!["audit"]),
+        (section_then_plain, vec!["audit"]),
+        (
+            command_line_last,
+            vec!["-c", "alias.audit.command=rev-parse --git-dir", "audit"],
+        ),
+    ];
+    for (repo, arguments) in cases {
+        let direct_run: Observed = observe(
+            direct(&fixture).current_dir(repo.as_path()).args(arguments.as_slice()),
+            b"",
+        );
+        assert_eq!(direct_run.code, Some(0), "the oracle did not answer: {}", stderr_of(&direct_run));
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert_eq!(
+            (observed.code, observed.stdout.clone()),
+            (direct_run.code, direct_run.stdout.clone()),
+            "{arguments:?}: the wrapper ran the other spelling; direct stderr: {}",
+            stderr_of(&direct_run)
+        );
+    }
+    remove(&fixture);
+}
+
+/// What:
+///  The alias spellings Git matches by other rules keep their answers:
+///  a plain key matches whatever its case,
+///  a subsection is case-sensitive,
+///  and a variable with no value is Git's own refusal.
+/// Why:
+///  The selection reads Git's variables itself,
+///  so a rule it got wrong would run a different command or invent a refusal Git never prints.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // alias.AUDIT-CASE answers git audit-case; [alias "UPPER"] command does not answer git upper;
+/// // a valueless alias.value-free fails with "missing value"
+/// ```
+#[test]
+fn the_alias_matching_rules_git_applies_keep_their_answers() {
+    let fixture: Fixture = fixture("alias-expansion-matching");
+    let upper_plain: PathBuf = repository_with_unstaged_work(&fixture, "upper-plain");
+    git(
+        &fixture,
+        upper_plain.as_path(),
+        &["config", "--local", "alias.AUDIT-CASE", "rev-parse --git-dir"],
+    );
+    let upper_section: PathBuf = repository_with_unstaged_work(&fixture, "upper-section");
+    git(
+        &fixture,
+        upper_section.as_path(),
+        &["config", "--local", "alias.UPPER.command", "rev-parse --git-dir"],
+    );
+    let valueless: PathBuf = repository_with_unstaged_work(&fixture, "valueless");
+    let config: PathBuf = valueless.join(".git/config");
+    let mut text: Vec<u8> = std::fs::read(&config).expect("repository config");
+    text.extend_from_slice(b"\n[alias]\n\tvalue-free\n");
+    std::fs::write(&config, text).expect("config with a valueless alias");
+    let cases: Vec<(PathBuf, Vec<&str>)> = vec![
+        (upper_plain, vec!["audit-case"]),
+        (upper_section, vec!["upper"]),
+        (valueless, vec!["value-free"]),
+    ];
+    for (repo, arguments) in cases {
+        let direct_run: Observed = observe(
+            direct(&fixture).current_dir(repo.as_path()).args(arguments.as_slice()),
+            b"",
+        );
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert_eq!(
+            (observed.code, observed.stdout.clone()),
+            (direct_run.code, direct_run.stdout.clone()),
+            "{arguments:?}: direct stderr: {}",
+            stderr_of(&direct_run)
+        );
+    }
+    remove(&fixture);
+}

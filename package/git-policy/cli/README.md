@@ -216,9 +216,15 @@ Read-only commands,
   (measured with Git 2.56.0,
   `src/native/landing/service_index_unheld_removal.rs`);
   widening the removal to such locks is the owner's to decide.
-- A record from another PID namespace that is older than 20 minutes (`FOREIGN_OWNER_PATIENCE`) is never taken over (the owner,
-   2026-11-04:
+- A record from another PID namespace that is older than two minutes (`FOREIGN_OWNER_PATIENCE`) is never taken over (the owner,
+  2026-11-04:
   "Refuse and name it (Recommended)").
+  The owner chose the two minutes (2026-11-10:
+  "Two minutes (Recommended)"),
+  which is twice the one minute a merge waits for another program's `index.lock`;
+  the record's age is
+   the whole hold of its owner,
+  so a hold that runs longer is refused as this paragraph says instead of being waited for.
   A merge recovery,
   a conversion claim or a worktree add that finds one stops with an
    error that names the record file,
@@ -382,6 +388,12 @@ Read-only commands,
    `mono/dependent-version-bump`,
    `mono/catalog-specifiers` and
   `security/forbidden-strings` check or rewrite what a commit contains.
+  One of them adds content:
+   a hand-raised workspace manifest makes `mono/dependent-version-bump` bump every dependent it reaches
+   and put those manifests in the same commit,
+   and the worktree copies follow the committed bytes while they still hold what the bump was computed on.
+  A dependent whose copy holds anything else is left out of the commit and named on standard error,
+   so the commit lands and nobody's work is overwritten.
   The same content policies scan what a manual `git push` newly publishes.
 - After a landed commit.
   The wrapper checks the committed bytes again,
@@ -468,6 +480,22 @@ Read-only commands,
    list each part merged by word (see "Word-level second merge pass").
   An amended or rebased branch is not merged,
   and its rejection is shown as before.
+  When a post-commit policy kept one of the branch's commits local,
+   the push stops at the commit before the first of them:
+  it publishes the newest commit that no such verdict forbids,
+  which is the merge base of the blocked commits' parents,
+   and it is never reconciled,
+  because the merge a reconcile publishes is made above the local tip and would carry the blocked commit.
+  The branch is then tried again by itself,
+   so the push resumes once the blocked commit is off the branch's way out.
+  Every command in that worktree says so in one line while it holds,
+   naming the branch,
+  the commit and the words of its verdict,
+   and the line goes once the commit is off the branch's way out or Git already holds it in the branch's remote.
+  A person's own `git push` is unchanged and still sends the branch whole,
+   and a commit whose command died before its check ran holds nothing back:
+  it has no verdict,
+   so the next push of the branch carries it.
   A failed push never fails the commit,
    and no configuration key turns the push off.
   Automatic maintenance,
@@ -512,6 +540,16 @@ Read-only commands,
   source or stage whose path holds bytes that are not text is named in every record by those bytes,
   so recovery fills and reaps exactly that directory and no other,
   and a record written by an earlier release is still read.
+  A stage a killed `git worktree add` left beside its destination is removed by the next command
+  that runs the recovery,
+  with one line saying what went,
+  when the record written beside the stage's claim names the object still standing at that name
+  and the folder holds nothing that record cannot account for;
+  a stage nothing proves is named,
+  left whole,
+  and keeps its claim,
+  with the reason it was kept,
+  so a folder holding something you added there is never removed.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
   A copy settles itself against the source:
@@ -954,6 +992,14 @@ An absolute path to the real Git,
  a GUI with an embedded Git library and direct
 libgit2 consumers bypass the wrapper completely,
  including its policies.
+
+There is no switch that forces one command or one repository through the native route,
+and no plan for one:
+the owner answered a request for such a switch (2026-11-10)
+with "No switch,
+/usr/bin/git is it (Recommended)".
+A person who wants a command to skip the wrapper's policies runs `/usr/bin/git` itself,
+which is the same way out that the paragraph above describes.
 
 ## Commands
 
@@ -1816,6 +1862,12 @@ not the word on the command line:
 an ordinary Git alias is expanded as Git expands it,
 the decision is taken on the expansion,
 and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
+`git config --null --list` decides which value Git keeps when both spellings of one alias are set,
+so the last one in config order runs,
+and the value is split on space,
+TAB,
+LF and CR only,
+keeping the empty last word a trailing whitespace character leaves.
 A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
@@ -2053,9 +2105,14 @@ Each alternative is run through the built executable by `src/native/binary/binar
    or `git rm <destination>` first.
 - `git checkout-index --force`:
    `git checkout-index --prefix=<directory>/ --all` writes copies elsewhere.
-- `git read-tree --reset`:
-   `git read-tree -m` merges,
-   or reset in a clean linked worktree.
+- `git read-tree` in any form Git writes with,
+  `--reset`,
+  `-m`,
+  `-m -u`,
+  `--empty` and a plain tree included:
+   `git read-tree --dry-run` with the same arguments shows what the read would change without writing anything,
+   `git ls-tree` and `git cat-file` read a tree without touching the index,
+   or replace the index in a clean linked worktree.
 - `git merge --abort`,
    `git rebase --abort`,
    `git cherry-pick --abort`,
@@ -2122,11 +2179,13 @@ when all of these hold:
   cherry-pick or revert is in progress,
   and the settings `merge.autostash`,
    `merge.verifySignatures` and `branch.<name>.mergeOptions` are unset;
-- the merge would not open an editor:
-  pass `--no-edit`,
-  or set `GIT_MERGE_AUTOEDIT=no`
-   (a merge started from a terminal opens one by default,
-  and then native Git runs it as before).
+- the merge would not open an editor,
+  unless the checkout holds the person's own work in the paths the merge changes:
+  that merge is completed with the editor (see "The editor a carried merge opens").
+  A merge over a clean checkout that would open an editor,
+  and one started with `--edit`,
+  is native Git's whole,
+  as before.
 
 The merge tree comes from `git merge-tree --write-tree`,
 the commit from `git commit-tree`,
@@ -2164,9 +2223,18 @@ Now the merge runs and the person's work is carried across it:
   A `SIGKILL` at any instant leaves them where the next command finds them.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
+  Each path is read again just before the write that replaces it,
+  and the file that was there is set aside under a name of its own and checked before it makes way,
+  so a file the person saves while the merge runs is kept rather than replaced:
+  the captured layers go back,
+  the record and the ref go,
+  and the merge is made again on what the file holds now.
 - After the branch moved,
   each of the person's two layers is merged with the merge on its own:
   a staged edit stays staged and an unsaved edit stays unsaved.
+  The index entries of a path are written before its file,
+  and the next command takes the entries a killed merge wrote as its own,
+  so a kill between the two restores the layer that was not written.
   A layer the merge does not reach is written back byte for byte.
   A text both sides changed goes through the word-level second pass;
   a region it cannot resolve keeps both sides between conflict markers,
@@ -2177,14 +2245,17 @@ Now the merge runs and the person's work is carried across it:
   a mode the pass cannot take,
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
-  A path written again while the merge ran is left alone and named.
+  A path written again while the merge ran is left alone and named,
+  and the naming is true:
+  nothing was written to it before the check that found it changed.
 - A merge killed after it cleared those paths puts the captured bytes back
   when it turns out the merge never landed,
   and carries them when it did.
+  A layer the person saved again while the merge ran stays as they left it,
+  and is named.
 
 A merge over a checkout whose own paths are clean runs exactly as it did.
 The refusals that change nothing are:
-
 - The merge conflicts textually,
   and the word-level second merge pass cannot resolve every conflicted file.
   The finding `merge-isolation/merge-conflict` names the conflicting paths.
@@ -2196,8 +2267,59 @@ The refusals that change nothing are:
   or the index holds an unmerged entry.
   The command is native Git's whole,
   which refuses such a checkout itself.
+- A merge over that work that would open an editor ends without one:
+  the editor exits with a failure
+  (`there was a problem with the editor '<editor>'`),
+  leaves an empty message,
+  or is one this environment resolves to nothing.
+  The command exits 1 and nothing in the repository changes;
+  run the merge again to write the message.
 
 A merge killed while it runs is finished or discarded by the next invocation (see "State on disk").
+
+#### The editor a carried merge opens
+
+A merge started from a terminal opens the person's editor for its message
+(`default_edit_option` in Git's `builtin/merge.c`).
+Native Git performs the merge before the editor opens,
+so over the person's own work it refuses before anything is edited;
+this wrapper opens the editor itself:
+
+- The message is written to `<git-dir>/MERGE_MSG`,
+  with the help lines Git writes under it.
+  A comment character other than `#` (`core.commentChar`,
+  `core.commentString`) opens the message alone,
+  because those help lines would not be stripped then.
+- The program is the one `git var GIT_EDITOR` names,
+  and its arguments are the words of that command line,
+  made here as a shell makes them:
+  blanks separate them,
+  single quotes hold their bytes,
+  double quotes hold
+  theirs,
+  and a backslash escapes the next byte (`merge_isolation_editor_words.rs`).
+  No shell is started,
+  since the wrapper writes no shell text,
+  so `code --wait` and `emacsclient -nw` work as under Git.
+  A line that asks for an expansion,
+  a tilde,
+  a glob,
+  a control operator or a comment is not guessed:
+  that merge is native Git's whole.
+  The editor gets this command's terminal,
+  and no ceiling.
+- What it leaves is cleaned the way a commit that opens an editor cleans it
+  (`git stripspace --strip-comments`),
+  and it is the merge's message.
+  `--no-edit` and `-m` keep the merge away from the editor,
+  as under Git.
+- The message is written once,
+  so a round made again because the branch moved never asks the person to type it twice.
+
+A merge whose editor left nothing,
+  or one whose editor failed,
+  exits 1 with the reason and changes nothing;
+  the message file goes either way.
 
 #### A pull that merges
 
@@ -2533,7 +2655,10 @@ Real Git keeps the normal standard streams.
    commit or engine failure.
 - When real Git runs,
    its exit status is preserved.
-  A landed commit that a post-commit policy then blocks exits `2` and stays local.
+  A landed commit that a post-commit policy then blocks exits `2` and stays local:
+  it stays local past later commits of the same branch,
+   because the automatic push of that branch stops before it and
+   every command says which commit holds the branch back and which check refused it.
 
 The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MONOCHROMATIC_VERBOSE=true`,
  and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words,
@@ -2617,6 +2742,19 @@ Listing one with a severity is the only way to turn it on,
 - `mono/dependent-version-bump`:
    default `error`.
   Packages that depend on a package with a bumped version follow the bump.
+  A wrapped `git commit` of a hand-raised manifest carries its dependents' patch bumps in the same commit,
+   through the whole chain of dependents,
+   and brings their worktree copies to the committed bytes
+   while those copies still match `HEAD`.
+  A dependent whose worktree or index copy holds something else is left out of the commit and named on standard error,
+   with the reason and both remedies,
+   so the commit lands with the rest and nothing is overwritten.
+  A publish set the commit cannot read,
+   or a dependent whose version cannot be bumped automatically,
+   is named the same way;
+   a commit never fails over the ripple.
+  `git monochromatic-git-policy-cli check` and
+   `git monochromatic-git-policy-cli fix` report the same ripple for the worktree.
 - `mono/catalog-specifiers`:
    default `error`,
    no options.
@@ -2816,6 +2954,13 @@ Nothing the wrapper waits for waits for ever (owner,
 "nothing should ever wait forever or indefinitely"),
 and the
 wrapper never waits without saying so.
+A wait with no bound of the wrapper's own is a scratch `git commit` the kernel has taken:
+once the ceiling's `SIGKILL` reaches a process in uninterruptible sleep it cannot act on it,
+and the commit waits until the kernel releases the step,
+saying so in one line
+(owner,
+2026-11-10,
+"Keep waiting and say so").
 Every bound is in `src/native/service/wait_ceilings.rs` with its measurement,
 and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
@@ -3218,6 +3363,22 @@ Each line names what the command waits for,
    whose steps ran 26,256,
    36,651 and 171,383 ms,
    and the owner asked for each of them to be investigated.
+   A step the kernel does not release is waited for with no bound:
+   a process in uninterruptible sleep (state `D`,
+   a stalled disk or a file system that stopped answering)
+   cannot act on the `SIGKILL` until the call it is inside returns,
+   so one line names that `git commit` (its process),
+   says the stop was sent and the kernel has not released it,
+   says that nothing was committed and that the person's index and files are as they were,
+   and says the terminal stays there until the kernel lets go.
+   The owner chose that wait,
+   over leaving after a bound and failing the commit
+   (2026-11-10,
+   "Keep waiting and say so"),
+   as an exception to "nothing should ever wait forever or indefinitely";
+   the write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`.
+   The line is said only of a step that still reports that state one look interval after the signal,
+   so a step that acts on its stop in that interval is never said to be held.
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
   `service/wait_ceilings.rs`;
@@ -3437,6 +3598,16 @@ the commit service and their tests are expected to work under these conditions:
 - slow fsync and unusual filesystems;
 - DNS or mirror trouble,
   where the wrapper recovers or falls back instead of wedging.
+
+The wrapper's guarantees are those of one host.
+It supports one host per repository,
+and a checkout used from two machines is not protected:
+the owner answered a request to support a repository two hosts share (2026-11-10)
+with "Not supported (Recommended)".
+A command of another host counts as an owner of another PID namespace,
+so the wrapper judges it by the age of its record and not by its process number (see "What it does"),
+and the claims and leases of the commit service are compared by machine and boot identity,
+which tells a restarted host from a running one and never closes a race between two.
 
 ### Latency requirements
 
@@ -3675,7 +3846,14 @@ which can hold gigabytes.
 The wrapper records that directory's name in the common Git directory before it creates it,
 so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
-Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
+A directory a `git worktree add` was snapshotting into is removed the same way once the record written beside its name
+holds the identity of what stands there and the folder holds nothing that record cannot account for,
+which is how a whole snapshot of a checkout with its credentials and its `.git` stops outliving the command that was
+killed;
+a directory the wrapper cannot prove that way stays,
+is named on every command with the reason,
+and is yours to look at and remove by hand,
+and only when no `git` command is running in that repository.
 
 Each file the copy installs reaches its destination name only when it holds the source's bytes and permission bits.
 It is filled in a file the filesystem has given no name,
@@ -3687,6 +3865,12 @@ and a copy killed at any moment leaves nothing at a file's real name for the nex
 
 A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
 with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
+No command fills an existing worktree,
+and none is planned:
+the owner answered a request for one (2026-11-10)
+with "No,
+remove and add again",
+so removing the worktree and adding it again stays the remedy.
 The add's own record is written before real Git runs and is handed to the copy rather than dropped once the checkout is
 done,
 so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.
@@ -4843,6 +5027,19 @@ and starts nothing.
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
 
+The repository is the one the command line names.
+`-C` moves the wrapper,
+and `--git-dir`,
+`--work-tree` and `--bare` (or the `GIT_DIR` and `GIT_WORK_TREE` variables) select the repository,
+read from the directory the `-C` chain reaches,
+as Git reads them.
+A commit whose Git directory sits beside its work tree,
+or one an environment variable names,
+lands in that repository,
+and the one the shell happens to be in gains no object and no commit.
+The wrapper's own Git starts run in the directory the `-C` chain reached,
+so they receive the caller's other global options without that `-C`.
+
 When the manager stops the service (`SIGTERM`),
 the unit's `KillMode=mixed` makes it signal the service alone.
 The service then ends the Git processes it waits on (pushes,
@@ -5214,6 +5411,7 @@ all durations in whole milliseconds taken from the monotonic clock:
   `fitting request`,
   `request`,
   `shadow` (what the shadow must carry),
+  `shadow pool` (taking a finished shadow instead of making one),
   `shadow skeleton`,
   `shadow config`,
   `shadow links`,
@@ -5226,6 +5424,11 @@ all durations in whole milliseconds taken from the monotonic clock:
   A build that stops inside itself still states its time,
   because the phase is closed where the command stops and in the record's own writer,
   so no build is ever reported as time that no phase covers.
+  A build that took a finished shadow from the pool names `shadow pool` and no `shadow skeleton`,
+  `shadow config` or `shadow links` stretch,
+  which is how a reading tells the two routes apart
+  (`SPEC.md`,
+  "A shadow taken from the pool").
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:

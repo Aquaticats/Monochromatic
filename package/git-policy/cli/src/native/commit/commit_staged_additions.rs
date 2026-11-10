@@ -205,7 +205,7 @@ pub fn carry_additions(
         }
         run_git_checked(
             context,
-            &indexed_request(cwd, &arguments, Some(private_index), Some(object_directory)),
+            &indexed_request(context, cwd, &arguments, Some(private_index), Some(object_directory)),
         )?;
     }
     return Ok(());

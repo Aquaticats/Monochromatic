@@ -692,8 +692,13 @@ Passes in the gate.
 - `policy_engine::PolicyChecks` is the seam:
   `check(policy, trigger) -> PolicyOutcome`.
   `PolicyOutcome` is `Findings(Vec<PolicyFinding>)`,
-  `Unavailable(&'static str)`
-  or `Failed(String)`.
+  `FindingsWithNotes { findings, notes }`
+  (2026-11-10:
+  a note names work the check left alone and never stops the command),
+  `Unavailable(&'static str)`,
+  `Stopped { message, path }`,
+  `Skipped { message, path }`
+  or `Failed { code, message, path }`.
 - `policy_engine::run_policy_stage(request, policies, checks)` runs the given policies in order
   and returns `StageResult { events, end }`.
   `StageEnd` is `Completed`,

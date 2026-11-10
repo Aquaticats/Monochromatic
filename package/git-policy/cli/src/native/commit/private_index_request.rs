@@ -13,7 +13,7 @@
 //! runTransactionGit({ gitPath, cwd, indexPath, objectDirectory, args })
 //! ```
 
-use crate::transaction_git::GitRequest;
+use crate::transaction_git::{GitContext, GitRequest};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -39,15 +39,20 @@ pub struct CaptureIndexes {
 
 /// What:
 ///  A Git request that reads or writes one private index,
-///  ignoring the invocation's global options as the incumbent does.
+///  keeping none of the invocation's global options as the incumbent does.
 /// Why:
-///   `GIT_INDEX_FILE` and `GIT_OBJECT_DIRECTORY` select the private state.
+///   `GIT_INDEX_FILE` and `GIT_OBJECT_DIRECTORY` select the private state,
+///  and the objects belong to the invocation's repository:
+///  a Git directory beside its work tree,
+///  or one an environment variable sent elsewhere,
+///  is named here because this request keeps none of the caller's other options.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// runTransactionGit({ gitPath, cwd, indexPath, objectDirectory, args })
+/// runTransactionGit({ gitPath, cwd, indexPath, objectDirectory, args, repository: selection({ cwd, globalPrefix }) })
 /// ```
 pub fn indexed_request<S: AsRef<OsStr>>(
+    context: &GitContext,
     cwd: &Path,
     arguments: &[S],
     index: Option<&Path>,
@@ -55,6 +60,7 @@ pub fn indexed_request<S: AsRef<OsStr>>(
 ) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(cwd, arguments);
     request.without_prefix = true;
+    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     request.index = index.map(Path::to_path_buf);
     request.object_directory = object_directory.map(Path::to_path_buf);
     return request;
@@ -78,7 +84,7 @@ pub fn indexed_request<S: AsRef<OsStr>>(
 /// const callerPathspecRequest = (cwd, modes, arguments, index, objects) => ({ ...indexedRequest(cwd, [...modes, ...arguments], index, objects) });
 /// ```
 pub fn caller_pathspec_request(
-    context: &crate::transaction_git::GitContext,
+    context: &GitContext,
     cwd: &Path,
     arguments: &[std::ffi::OsString],
     index: Option<&Path>,
@@ -86,7 +92,7 @@ pub fn caller_pathspec_request(
 ) -> GitRequest {
     let mut words: Vec<std::ffi::OsString> = crate::global_arguments_pathspec_modes::pathspec_mode_options(context.global_prefix.as_slice());
     words.extend(arguments.iter().cloned());
-    return indexed_request(cwd, words.as_slice(), index, object_directory);
+    return indexed_request(context, cwd, words.as_slice(), index, object_directory);
 }
 
 /// Request controls stay out of the release executable.

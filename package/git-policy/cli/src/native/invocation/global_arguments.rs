@@ -121,6 +121,45 @@ const ENVIRONMENT_INLINE_OPTIONS: &[&[u8]] = &[
 ];
 
 /// What:
+///  The tokens of a global prefix without its directory changes.
+/// Why:
+///  A `-C` moves Git before it runs a command,
+///  and the wrapper starts its own Git in the directory the chain already reached
+///  (`commit_command.rs`,
+///  `effective_directory`),
+///  so forwarding `-C` to that start moves it a second time
+///  and reads the repository one level away from the one the caller meant.
+///  Every other option is the caller's and stays where it was,
+///  in the order the caller wrote it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withoutDirectoryChanges = (prefix: string[]) => prefix.filter((token, index) => token !== '-C' && prefix[index - 1] !== '-C');
+/// ```
+pub fn without_directory_changes(global_prefix: &[OsString]) -> Vec<OsString> {
+    let mut kept: Vec<OsString> = Vec::new();
+    let mut index: usize = 0;
+    while index < global_prefix.len() {
+        let argument: &[u8] = global_prefix[index].as_encoded_bytes();
+        if argument == b"-C" {
+            // The token after `-C` is the directory Git moves to, which the wrapper's own start is already in.
+            index += 2;
+            continue;
+        }
+        kept.push(global_prefix[index].clone());
+        index += 1;
+        // A value-taking option that stays keeps its value.
+        if takes_value(argument)
+            && let Some(value) = global_prefix.get(index)
+        {
+            kept.push(value.clone());
+            index += 1;
+        }
+    }
+    return kept;
+}
+
+/// What:
 ///  Whether Git reads this token as a global option that consumes the token after it.
 /// Why:
 ///   Two readings need the same answer:
