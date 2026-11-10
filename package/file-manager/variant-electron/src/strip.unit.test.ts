@@ -273,6 +273,32 @@ await describe({
           },
         },),
         it({
+          name: 'places a child of a closed parent in column zero as a root',
+          fn: async () => {
+            const root = openRoot({
+              location: directoryLocation({ path: '/home', },),
+              strip: createStrip(),
+            },);
+            const closed = closePane({
+              id: root.id,
+              strip: root.strip,
+            },);
+            const spawned = spawnChild({
+              forceDuplicate: false,
+              location: directoryLocation({ path: '/home/docs', },),
+              parent: root.id,
+              strip: closed,
+            },);
+            const pane = mustFind({
+              id: spawned.id,
+              strip: spawned.strip,
+            },);
+            expect(pane.column,).toBe(0,);
+            expect(pane.parent,).toBeUndefined();
+            expect(columnCount({ strip: spawned.strip, },),).toBe(1,);
+          },
+        },),
+        it({
           name: 'treats preview and directory locations as distinct dedup keys',
           fn: async () => {
             const root = openRoot({

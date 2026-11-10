@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }
