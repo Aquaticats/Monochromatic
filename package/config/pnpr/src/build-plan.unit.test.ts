@@ -13,6 +13,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
+  MiseTomlParseError,
   MissingCiBuildTaskError,
   planPackageBuild,
 } from '../dist/final/node/index.mjs';
@@ -58,6 +59,11 @@ const MISE_WITH_BUILD_COMMENTED = '[tasks.build] # builds dist before packing\nr
  `mise.toml` whose text names the build header only inside a multiline string.
  */
 const MISE_NAMING_BUILD_IN_A_STRING = 'description = """\n[tasks.build]\n"""\n';
+
+/**
+ `mise.toml` whose text the TOML parser rejects: the header never closes.
+ */
+const MISE_NOT_TOML = '[tasks.build\nextends = "build"\n';
 
 /**
  Disposable package directory; removed on scope exit.
@@ -271,6 +277,26 @@ await describe({
               packageDirectory,
               directory: DIRECTORY,
             },),).toEqual({ kind: 'none', },);
+          },
+        },);
+      },
+    },),
+    it({
+      name: 'fails naming the file when mise.toml is not valid TOML',
+      fn: async () => {
+        await withPackage({
+          files: { 'mise.toml': MISE_NOT_TOML, },
+          body: async (packageDirectory,) => {
+            const caught = await caughtBy(async () => {
+              await planPackageBuild({
+                packageDirectory,
+                directory: DIRECTORY,
+              },);
+            },);
+            expect(caught instanceof MiseTomlParseError,).toBe(true,);
+            if (!(caught instanceof MiseTomlParseError))
+              throw new Error('rejection was not a MiseTomlParseError',);
+            expect(caught.message,).toContain(`${DIRECTORY}/mise.toml is not valid TOML`,);
           },
         },);
       },
