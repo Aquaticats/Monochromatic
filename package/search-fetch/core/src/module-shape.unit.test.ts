@@ -6,7 +6,9 @@
  flags the reverse order, so every product module's text is read here and checked
  directly. Comment content is dropped first, because a name quoted in a TSDoc
  `@example` is prose rather than a reference, and the scan reads characters
- instead of matching patterns.
+ instead of matching patterns. Only `function` declarations are read, which is
+ where this package declares its callables; a callable bound by a `const` is
+ outside the scan's reach.
 
  The modules below still place a helper after the code that calls it. They are
  recorded rather than repaired together so the pattern cannot spread: a module
