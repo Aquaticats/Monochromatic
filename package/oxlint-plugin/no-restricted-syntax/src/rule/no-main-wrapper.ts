@@ -2,6 +2,7 @@ import type {
   Context,
   CreateOnceRule,
   ESTree,
+  Reference,
   Scope,
   Variable,
   VisitorWithHooks,
@@ -35,48 +36,54 @@ function unawaited(
 }
 
 /**
- Returns the `main()` call a statement exists to make, or `undefined` when the
- statement is anything else.
+ Returns the `main()` calls the given statements make, in source order.
  
  Only a zero-argument call to a bare `main` identifier qualifies. An argument
  means the call carries the script's input, and `main` read through a member
  expression belongs to another object.
  
- @param statement - statement under inspection
+ @param statements - statements under inspection
  
- @returns the offending call, or `undefined` when the statement is no wrapper call
+ @returns every wrapper call among them; empty when none qualifies
  
  @example
  ```ts
- wrapperCallOf(expressionStatementOf('await main();'))?.callee.name; // 'main'
+ wrapperCallsIn(fileLevelStatements(program)).length; // 1 for `await main();`
  ```
  */
-function wrapperCallOf(
-  statement: ForeignBorrowed<ESTree.Node>,
-): ForeignBorrowed<ESTree.CallExpression> | undefined {
-  if (statement.type
-    !== 'ExpressionStatement')
-    return undefined;
+function wrapperCallsIn(
+  statements: readonly ForeignBorrowed<ESTree.Node>[],
+): readonly ForeignBorrowed<ESTree.CallExpression>[] {
   /**
-   The call inside the statement, with any `await` prefix stripped.
+   Wrapper calls found so far.
    */
-  const expression = unawaited(statement.expression,);
-  if (expression.type
-    !== 'CallExpression')
-    return undefined;
-  if (expression.callee
-    .type
-    !== 'Identifier')
-    return undefined;
-  if (expression.callee
-    .name
-    !== WRAPPER_FUNCTION_NAME)
-    return undefined;
-  if (expression.arguments
-    .length
-    !== 0)
-    return undefined;
-  return expression;
+  const calls: ForeignBorrowed<ESTree.CallExpression>[] = [];
+  for (const statement of statements) {
+    if (statement.type
+      !== 'ExpressionStatement')
+      continue;
+    /**
+     The call inside the statement, with any `await` prefix stripped.
+     */
+    const expression = unawaited(statement.expression,);
+    if (expression.type
+      !== 'CallExpression')
+      continue;
+    if (expression.callee
+      .type
+      !== 'Identifier')
+      continue;
+    if (expression.callee
+      .name
+      !== WRAPPER_FUNCTION_NAME)
+      continue;
+    if (expression.arguments
+      .length
+      > 0)
+      continue;
+    calls.push(expression,);
+  }
+  return calls;
 }
 
 /**
@@ -102,10 +109,16 @@ function fileLevelStatements(
   const statements: ForeignBorrowed<ESTree.Node>[] = [];
   for (const statement of program.body) {
     if (statement.type
-      === 'TryStatement')
-      statements.push(...statement.block.body,);
-    else
+      !== 'TryStatement') {
       statements.push(statement,);
+      continue;
+    }
+    /**
+     The top-level `try` block whose statements also run at file level.
+     */
+    const { block, } = statement;
+    for (const inner of block.body)
+      statements.push(inner,);
   }
   return statements;
 }
@@ -221,13 +234,13 @@ function callsAreOnlyReferences({
   references,
   calls,
 }: ForeignBorrowed<{
-  readonly references: readonly { readonly identifier: ESTree.Identifier; }[];
+  readonly references: readonly Reference[];
   readonly calls: readonly ESTree.CallExpression[];
 }>,): boolean {
   if (references.length
     !== calls.length)
     return false;
-  return calls.every(function isReferenced(call,): boolean {
+  return calls.every(function isReferenced(call: ForeignBorrowed<ESTree.CallExpression>,): boolean {
     return references.some(function isThisReference(reference,): boolean {
       return reference.identifier
         === call.callee;
@@ -325,15 +338,7 @@ export const noMainWrapper: CreateOnceRule = {
       /**
        File-level `main()` calls of this script.
        */
-      const calls: ForeignBorrowed<ESTree.CallExpression>[] = [];
-      for (const statement of fileLevelStatements(program,)) {
-        /**
-         The wrapper call this statement makes, when it makes one.
-         */
-        const call = wrapperCallOf(statement,);
-        if (call !== undefined)
-          calls.push(call,);
-      }
+      const calls = wrapperCallsIn(fileLevelStatements(program,),);
       if (calls.length
         === 0)
         return;
