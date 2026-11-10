@@ -32,6 +32,12 @@ const FORWARDED_LINE: &[u8] = b"kept diagnostic\n";
 //           text it can look for verbatim.
 const READ_FAILURE_MESSAGE: &str = "pipe read failed";
 
+// What:     `const REPORT_STOPPED_MARKER: &str = "stderr forwarding stopped";` is the
+//           phrase the report uses to say forwarding ended.
+// Why:      Naming the error alone would not tell a reader that later stderr
+//           output is lost, so the test checks both halves.
+const REPORT_STOPPED_MARKER: &str = "stderr forwarding stopped";
+
 // What:     `const LINE_AFTER_FAILURE: &[u8] = b"never forwarded\n";` is a record
 //           scripted after the read failure.
 // Why:      The worker stops at a read error, so this record proves nothing is
@@ -104,6 +110,10 @@ fn reports_a_read_error_on_the_original_stderr() {
     assert!(
         report.contains(READ_FAILURE_MESSAGE),
         "the report should name the read error, got: {report}"
+    );
+    assert!(
+        report.contains(REPORT_STOPPED_MARKER),
+        "the report should say that forwarding stopped, got: {report}"
     );
     assert!(
         !report.contains(line_after_failure),

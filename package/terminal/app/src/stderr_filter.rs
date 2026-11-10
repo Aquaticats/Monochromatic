@@ -395,8 +395,8 @@ fn forward_filtered_stderr<R: Read, W: Write>(reader_source: R, mut original_std
             //           still named this pipe's write end, so every later stderr write
             //           failed with EPIPE and the app's diagnostics vanished for the rest
             //           of the run (issue 1284). `read_until` already retries
-            //           `ErrorKind::Interrupted` itself, so every error here is a real
-            //           failure that no retry would clear.
+            //           `ErrorKind::Interrupted` itself, so the only errors that reach
+            //           this arm are ones no retry would clear.
             Err(error) => {
                 // What:     `let _ = writeln!(...)` writes one report to the retained
                 //           original stderr and explicitly discards a write error.
