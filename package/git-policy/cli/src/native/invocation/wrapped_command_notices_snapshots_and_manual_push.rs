@@ -30,6 +30,8 @@ use crate::policy_content::LifecycleContent;
 use crate::policy_registry::PolicyId;
 use crate::landed_summary::short_name;
 use crate::held_push_commit_on_the_remote::GitRemoteRecord;
+/// The questions about a branch's history that decide whether a verdict holds it back.
+use crate::push_held_back_by_a_blocked_commit::ContextHistory;
 use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
@@ -167,6 +169,14 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     let context: GitContext = checks.facts.transaction_context();
     let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
     for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
+    // A branch whose commit a post-commit policy kept local is named here, and the line stands while the commit is on the branch's
+    //  way out: the automatic push sends nothing past it, so the person must know which commit holds the branch back and why. Once
+    //  the commit is off the way out, or Git already holds it in the branch's remote, the line goes and the push runs whole again.
+    let history: ContextHistory<'_> = ContextHistory { context: &context, cwd: cwd.as_path() };
+    for line in crate::push_held_back_by_a_blocked_commit::held_back_lines(git_dir.as_path(), &history) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }

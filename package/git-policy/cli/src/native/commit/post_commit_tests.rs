@@ -158,6 +158,46 @@ fn a_blocked_landed_commit_ends_with_an_explicit_commit_landed_event() {
     remove(&root);
 }
 
+/// What:
+///  A gate that blocks says which check refused the commit and what it found,
+/// in one line.
+/// Why:
+///   The next push of the branch stops before that commit and every command says why,
+/// so the words of the verdict are what
+///  the person reads instead of a backup that did not happen;
+/// a policy id alone,
+/// or a message with a line break in it,
+/// would
+///  leave them guessing or split one notice into two lines.
+#[test]
+fn a_blocked_gate_words_its_reason_as_one_line() {
+    let (root, landed) = landed_repository("pc-reason", "no final newline");
+    let prefix = prefix_for(&root);
+    let overlay = fixture_environment();
+    let outcome = run_post_commit_gate(&request(
+        &landed,
+        &prefix,
+        &overlay,
+        with_severity(PolicyId::FinalNewline, Severity::Error),
+        no_controls(),
+    ));
+    assert!(outcome.blocked, "{outcome:?}");
+    let reason: String = blocked_reason(outcome.events.as_slice());
+    assert!(reason.starts_with("final-newline: "), "{reason}");
+    assert!(!reason.contains('\n'), "the verdict is one line: {reason}");
+    // The control: a gate that passed says nothing to hold the branch back with.
+    let clean = run_post_commit_gate(&request(
+        &landed,
+        &prefix,
+        &overlay,
+        PolicyConfig::defaults(),
+        no_controls(),
+    ));
+    assert!(!clean.blocked, "{clean:?}");
+    assert_eq!(blocked_reason(clean.events.as_slice()), String::new());
+    remove(&root);
+}
+
 /// A warning-only result allows the backup,
 /// and its finding is still printed.
 #[test]

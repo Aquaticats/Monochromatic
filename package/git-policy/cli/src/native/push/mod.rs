@@ -175,6 +175,10 @@ pub mod auto_push_dirty_paths;
 /// the surfaced output and the failure reporting.
 pub mod auto_push;
 
+/// Where the automatic push stops when a post-commit gate kept one of a branch's commits local,
+/// and the line every command says about it.
+pub mod push_held_back_by_a_blocked_commit;
+
 /// Authoritative manual-push updates discovered by a private dry-run push and confirmed with ls-remote.
 pub mod manual_push_porcelain;
 

@@ -197,7 +197,7 @@ fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING);
     std::fs::create_dir_all(pending.as_path()).expect("a state directory");
     std::fs::write(pending.join(item.id_before_the_branch()), item.encode()).expect("a record an earlier release left");
-    forget_the_push(&handoff, OID);
+    forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
     assert!(!pending.join(item.id()).exists(), "no record waits under this release's name");
     assert!(!pending.join(item.id_before_the_branch()).exists(), "the record an earlier release named is forgotten too");
     assert_eq!(crate::work_item::hold(work.as_path(), &item), Ok(()), "a later hold asks nothing of a blocked id");

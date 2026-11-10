@@ -132,7 +132,7 @@ fn a_blocked_push_is_not_said() {
     };
     crate::work_item::hold(work_dir.as_path(), &item).expect("the push is held");
     assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked()).len(), 1);
-    crate::work_item::block(work_dir.as_path(), item.id().as_str());
+    crate::work_item::block(work_dir.as_path(), &item, "final-newline: the file does not end with a newline");
     assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked()), Vec::<String>::new(), "a blocked push is not said");
     remove(root.as_path());
 }
