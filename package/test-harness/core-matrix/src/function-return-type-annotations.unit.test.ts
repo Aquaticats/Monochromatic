@@ -19,26 +19,8 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import {
-  readdir,
-  readFile,
-} from 'node:fs/promises';
-import { join, } from 'node:path';
 
-/**
- Suffix of a source file the rule covers.
- */
-const LIBRARY_SOURCE_SUFFIX = '.ts';
-
-/**
- Suffixes that mark a test, benchmark or declaration file rather than library code; `oxlint` turns the return-type
- rule off for the first two through its own override, so the scan leaves them out as that override does.
- */
-const NON_LIBRARY_SOURCE_SUFFIXES: readonly string[] = [
-  '.bench.ts',
-  '.d.ts',
-  '.test.ts',
-];
+import { librarySourceTexts, } from '../dist/final/node/index.mjs';
 
 /**
  The keyword every declaration under the rule starts with.
@@ -82,16 +64,6 @@ type NamedDeclaration = {
   readonly afterParametersIndex: number;
   /** Name the source gives the function */
   readonly name: string;
-};
-
-/**
- One library source file of this package, with the text the scan reads.
- */
-type LibrarySource = {
-  /** Absolute path of the file */
-  readonly path: string;
-  /** The file's text with its comments blanked */
-  readonly text: string;
 };
 
 //region Reading the source text
@@ -374,48 +346,6 @@ function missingReturnTypeSites(text: string,): readonly MissingReturnTypeSite[]
   return sites;
 }
 
-/**
- Lists this package's library source files, each with the text the scan reads.
-
- @returns file paths and their comment-blanked text
- */
-async function librarySources(): Promise<readonly LibrarySource[]> {
-  /**
-   Every file below this test's own directory, tests and declarations included so the filter below can drop them.
-   */
-  const entries = await readdir(
-    import.meta.dirname,
-    {
-      recursive: true,
-      withFileTypes: true,
-    },
-  );
-  /**
-   Paths of the library sources, in directory order.
-   */
-  const paths = entries
-    .filter((entry,) => entry.isFile()
-      && entry.name.endsWith(LIBRARY_SOURCE_SUFFIX,)
-      && (!NON_LIBRARY_SOURCE_SUFFIXES.some((suffix,) => entry.name.endsWith(suffix,),)),)
-    .map((entry,) => join(
-      entry.parentPath,
-      entry.name,
-    ),);
-
-  return await Promise.all(paths.map(async function readLibrarySource(path: string,): Promise<LibrarySource> {
-    return {
-      path,
-      text: stripSourceComments({
-        text: await readFile(
-          path,
-          'utf8',
-        ),
-        language: 'typescript',
-      },),
-    };
-  },),);
-}
-
 //endregion The scan
 
 await describe({
@@ -479,7 +409,7 @@ await describe({
         /**
          Library sources this scan reads.
          */
-        const sources = await librarySources();
+        const sources = await librarySourceTexts();
 
         expect(sources.length,).toBeGreaterThan(0,);
 

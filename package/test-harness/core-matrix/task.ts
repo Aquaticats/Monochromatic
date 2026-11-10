@@ -30,6 +30,8 @@ export default {
       'node src/locked-tool-build-arguments.unit.test.ts',
       'node src/container-image-rebuild-on-changed-inputs.unit.test.ts',
       'node src/function-return-type-annotations.unit.test.ts',
+      'node src/raw-console-in-library-sources.unit.test.ts',
+      'node src/stderr-forwarded-through-logger.unit.test.ts',
     ],
   },
 } satisfies PackageTaskFile;
