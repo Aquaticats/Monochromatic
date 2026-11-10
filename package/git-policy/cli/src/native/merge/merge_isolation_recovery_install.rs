@@ -39,7 +39,7 @@ fn changed_after_judging(root: &Path, paths: &[String]) -> RecoveryError {
     return RecoveryError(format!(
         "A merge in {} was interrupted while Git updated these files, and they changed after this command judged them: {}. \
          Nothing was changed by this command and the merge is still unfinished; writing the merge over them would have \
-         discarded that edit. Save those edits elsewhere, restore the files with `git restore -- <path>`, then run any git \
+         discarded that edit. Save those edits elsewhere, restore the files with `git restore --no-enforce-worktree -- <path>`, then run any git \
          command again so recovery can finish the merge.",
         root.display(),
         paths.join(", ")
