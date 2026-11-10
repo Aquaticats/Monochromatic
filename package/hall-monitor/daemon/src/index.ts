@@ -9,6 +9,10 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { forceCleanup, } from './analyze/llama.ts';
 import { cycle, } from './cycle.ts';
 import {
+  createShutdownSignal,
+  runDaemonLoop,
+} from './daemon-loop.ts';
+import {
   acquireLock,
   closeLock,
   killExisting,
@@ -41,9 +45,9 @@ const { values: args, } = parseArgs({
 },);
 
 /**
- Module-singleton mutable state for the daemon loop flag; wrapped so it satisfies no-module-root-let.
+ Shutdown signal the loop watches and the signal handlers request.
  */
-const state: { running: boolean; } = { running: true, };
+const shutdownSignal = createShutdownSignal();
 
 /**
  Journal flush that runs when its `await using` scope ends.
@@ -72,7 +76,7 @@ async function shutdown(): Promise<void> {
     tag: shutdown.name,
   },);
   l.debug('Shutting down...',);
-  state.running = false;
+  shutdownSignal.request();
   closeLock();
   /**
    Journal flush bound to this call's scope.
@@ -128,23 +132,11 @@ async function main(): Promise<void> {
   );
   l.debug(`PID ${process.pid}, lock: abstract socket`,);
 
-  await cycle();
-
-  // Not needed because we don't allow configuring interval: defense-in-depth: add a floor (e.g. Math.max(INTERVAL_MS, 60_000))
-  // so a misconfigured or zero interval cannot cause a tight spin loop.
-  while (state.running) {
-    // oxlint-disable-next-line no-await-in-loop, promise/avoid-new -- sequential timer loop; setTimeout wrapper for delay
-    await new Promise(function intervalDelay(resolve,) {
-      setTimeout(
-        resolve,
-        INTERVAL_MS,
-      );
-    },);
-    if (state.running) {
-      // oxlint-disable-next-line no-await-in-loop -- sequential polling loop; each cycle must complete before the next
-      await cycle();
-    }
-  }
+  await runDaemonLoop({
+    cycle,
+    intervalMs: INTERVAL_MS,
+    signal: shutdownSignal,
+  },);
 }
 
 /**
