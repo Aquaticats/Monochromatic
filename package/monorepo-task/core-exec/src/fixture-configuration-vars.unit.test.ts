@@ -19,6 +19,7 @@ import {
 
 import { fixtureConfig } from './build-and-test-fixture-config.ts';
 import { fixtureConfiguration } from './root-test-aggregate-fixture-config.ts';
+import { testUnitFixtureConfig } from './test-unit-fixture-config.ts';
 
 //region Reading a generated configuration
 
@@ -36,6 +37,7 @@ type FixtureConfiguration = {
 const configurations: readonly FixtureConfiguration[] = [
   { name: 'buildAndTest fixture', text: fixtureConfig },
   { name: 'root test aggregate fixture', text: fixtureConfiguration() },
+  { name: 'test:unit fixture', text: testUnitFixtureConfig },
 ];
 
 /**
