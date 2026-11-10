@@ -182,3 +182,72 @@ fn reftable_store_held_pseudoref_is_copied_through_the_ref_store() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A worktree that has nothing to conclude gets no copies directory at all,
+///  so the one call that creates it is not made.
+/// Why:
+///  The single `mkdir` of that directory was the largest stretch of a build in the records
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+///  "What each part of a commit's private repository is for, and how many commits need it"),
+///  and a commit that concludes nothing has nothing the directory could hold.
+///  The landing answers an absent directory as no conclusion state at all,
+///  so the absence says what the empty directory said.
+#[test]
+fn a_worktree_with_nothing_to_conclude_gets_no_copies_directory() {
+    let root: PathBuf = fixture("conclusion-copy-nothing");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    copy_conclusion_state(
+        &git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        shadow.as_path(),
+        transaction.as_path(),
+        RefFormat::Files,
+    )
+    .expect("copy");
+    let copies: PathBuf = transaction.join(CONCLUSION_COPY_DIRECTORY);
+    assert!(
+        std::fs::symlink_metadata(copies.as_path()).is_err(),
+        "nothing to conclude makes no copies directory: {}",
+        copies.display()
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree whose only conclusion state is the sequencer's gets the copies directory,
+///  and the directory a commit that does conclude gets holds its entries.
+/// Why:
+///  The directory follows the state, and not the other way round:
+///  the sequencer's files are the one conclusion entry that is a directory.
+#[test]
+fn only_a_conclusion_with_something_to_copy_gets_a_copies_directory() {
+    let root: PathBuf = fixture("conclusion-copy-sequencer-only");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    std::fs::create_dir_all(git_dir.join("sequencer")).expect("sequencer");
+    std::fs::write(git_dir.join("sequencer").join("todo"), "pick abc\n").expect("todo");
+    let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    copy_conclusion_state(
+        &git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        shadow.as_path(),
+        transaction.as_path(),
+        RefFormat::Files,
+    )
+    .expect("copy");
+    assert_eq!(
+        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join("sequencer").join("todo"))
+            .expect("copied sequencer"),
+        "pick abc\n"
+    );
+    remove(root.as_path());
+}
