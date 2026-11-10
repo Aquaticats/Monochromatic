@@ -76,6 +76,26 @@ const EXPECTED_FALLBACK_TARGETS = [
   'node25.0.0',
 ] as const;
 
+/**
+ Targets belonging to the Node runtime only, so browser filtering empties them.
+ 
+ @example
+ ```ts
+ expect(NODE_ONLY_TARGETS).toContain('node 25.2.1');
+ ```
+ */
+const NODE_ONLY_TARGETS = ['node 25.2.1',] as const;
+
+/**
+ Targets naming a browser identifier the Rolldown mapping does not carry.
+ 
+ @example
+ ```ts
+ expect(UNMAPPED_BROWSER_TARGETS).toContain('unknown_browser 1');
+ ```
+ */
+const UNMAPPED_BROWSER_TARGETS = ['unknown_browser 1',] as const;
+
 //endregion Fixtures: generated and fallback target sources
 
 //region Fixture helpers: generated-file branch
@@ -134,6 +154,34 @@ async function importGeneratedTargets(_fileUrl: URL,): Promise<unknown> {
  */
 async function importMalformedTargets(_fileUrl: URL,): Promise<unknown> {
   return { firefox: 140, };
+}
+
+/**
+ Imports generated target JSON holding only Node targets.
+ 
+ @param _fileUrl - Generated URL ignored by deterministic fixture.
+ @returns JSON namespace whose default export is the Node-only target array.
+ @example
+ ```ts
+ const imported = await importNodeOnlyTargets(GENERATED_URL);
+ ```
+ */
+async function importNodeOnlyTargets(_fileUrl: URL,): Promise<unknown> {
+  return NODE_ONLY_TARGETS;
+}
+
+/**
+ Imports generated target JSON naming an unmapped browser identifier.
+ 
+ @param _fileUrl - Generated URL ignored by deterministic fixture.
+ @returns JSON namespace whose default export names an unmapped browser.
+ @example
+ ```ts
+ const imported = await importUnmappedBrowserTargets(GENERATED_URL);
+ ```
+ */
+async function importUnmappedBrowserTargets(_fileUrl: URL,): Promise<unknown> {
+  return UNMAPPED_BROWSER_TARGETS;
 }
 
 /**
@@ -326,5 +374,42 @@ await describe({
     },),
 
     //endregion Browserslist package fallback
+
+    //region Runtime mapping failures
+
+    it({
+      name: 'names rolldown when runtime filtering leaves no targets',
+      fn: async function namesRolldownOnEmptyRuntime(): Promise<void> {
+        const error = await captureBrowserslistTargetsError({
+          exists: generatedExists,
+          generatedFileUrl: GENERATED_URL,
+          importBrowserslist: importUnexpectedBrowserslist,
+          importJson: importNodeOnlyTargets,
+          runtime: 'browser',
+        },);
+
+        expect(error,).toBeInstanceOf(TypeError,);
+        expect((error as Error).message,).toContain('for rolldown',);
+        expect((error as Error).message,).not.toContain('tsdown',);
+      },
+    },),
+
+    it({
+      name: 'names rolldown when a browser has no target mapping',
+      fn: async function namesRolldownOnUnmappedBrowser(): Promise<void> {
+        const error = await captureBrowserslistTargetsError({
+          exists: generatedExists,
+          generatedFileUrl: GENERATED_URL,
+          importBrowserslist: importUnexpectedBrowserslist,
+          importJson: importUnmappedBrowserTargets,
+        },);
+
+        expect(error,).toBeInstanceOf(TypeError,);
+        expect((error as Error).message,).toContain('by rolldown target mapping',);
+        expect((error as Error).message,).not.toContain('tsdown',);
+      },
+    },),
+
+    //endregion Runtime mapping failures
   ],
 },);
