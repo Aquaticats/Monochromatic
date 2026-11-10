@@ -3,8 +3,9 @@
 
  The scan lists the process table first and reads each listed process's
  `/proc/<pid>/cmdline` second. A process can end between those two steps, which
- is ordinary rather than a failure, so a listed entry whose read reports the
- process is gone must not end a scan.
+ is ordinary rather than a failure: Linux answers the read with `ESRCH` once the
+ task is released and the open with `ENOENT` once the directory is gone, so a
+ listed entry reporting either is simply not there to match.
 
  @module
  */
@@ -14,12 +15,14 @@
 /**
  Operating-system error codes a `/proc` entry reports once the process it named has ended.
 
- The directory lookup answers `ENOENT` once the entry is gone. Every other error names a
- real problem with the scan itself, such as `EACCES` under a restrictive `hidepid`, so it
- must reach the caller instead of reading as a process that ended.
+ `fs/proc/base.c` returns `ESRCH` from the `cmdline` read when `get_proc_task` finds no
+ task, and the directory lookup answers `ENOENT` once the entry is gone. Every other error
+ names a real problem with the scan itself, such as `EACCES` under a restrictive `hidepid`,
+ so it must reach the caller instead of reading as a process that ended.
  */
 const VANISHED_PROCESS_ERROR_CODES: ReadonlySet<string> = new Set([
   'ENOENT',
+  'ESRCH',
 ],);
 
 /**
@@ -36,6 +39,7 @@ const VANISHED_PROCESS_ERROR_CODES: ReadonlySet<string> = new Set([
  @example
  ```ts
  isVanishedProcessError(errnoError('ENOENT')); // true
+ isVanishedProcessError(errnoError('ESRCH')); // true
  isVanishedProcessError(errnoError('EACCES')); // false
  ```
  
