@@ -30,7 +30,7 @@ use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// The kinds of work the service runs itself.
-pub const SERVICE_KINDS: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
+pub const SERVICE_KINDS: [WorkKind; 5] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
