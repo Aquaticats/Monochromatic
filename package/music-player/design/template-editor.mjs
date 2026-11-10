@@ -4,6 +4,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import {
+  countFormTags,
+  hasExternalReference,
+  quotesConditionalTemplateCall,
+  scriptBodiesRemoved
+} from './template-editor-markup-scans.mjs';
+import {
   drawnTexts,
   expected,
   scenes
@@ -310,13 +316,12 @@ if (process.argv[2] === 'build') {
   if (/<input\b[^>]*type="(?:radio|checkbox)"|<select\b[^>]*\bname=|<[a-z]+\b[^>]*\srequired[\s>=]/i.test(html)) {
     throw new Error('Template editor review asks a question; the decided design is evidence only.');
   }
-  // A template the page quotes must not use the conditional D92 removed.
-  if (/\$[^$]*\bif\(/.test(html.replaceAll(
-    /<script\b[\s\S]*?<\/script>/g,
-    ''
-  ))) throw new Error('Template editor review quotes a conditional.');
-  if (((html.match(/<form\b/g) ?? []).length !== 1) ||
-    /__TEMPLATE_EDITOR_[A-Z]+__|<script\b[^>]*\bsrc=|<link\b[^>]*\bhref=|<img\b[^>]*\bsrc="https?:/i.test(html)) {
+  // A template the page quotes must not use the conditional D92 removed, and the page's own script is read out
+  // first, so a conditional written in the viewer's code is no template call.
+  if (quotesConditionalTemplateCall({ html: scriptBodiesRemoved({ html }) })) {
+    throw new Error('Template editor review quotes a conditional.');
+  }
+  if ((countFormTags({ html }) !== 1) || hasExternalReference({ html })) {
     throw new Error('Template editor review must be one self-contained form.');
   }
   console.log('Validated the offline template editor review against its evidence and the template reference.');

@@ -72,8 +72,10 @@ copyFileSync(
   ),
   templatePath
 );
-// The builder computes what each state draws from the scenes and the reference, so both travel with it.
+// The builder computes what each state draws from the scenes and the reference, and checks the page's markup with
+// the character walks, so all three travel with it.
 for (const file of [
+  'template-editor-markup-scans.mjs',
   'template-editor-scenes.mjs',
   'template-reference.mjs'
 ]) copyFileSync(
@@ -422,11 +424,27 @@ try {
     diagnostic: 'shows no figure for playing'
   });
   // A page still telling an earlier cohort's capture story names a visit count its views do not have.
+  /** Restates the page's visit count as 3, which is the count the studied views cannot have. */
+  function restatedVisitCount({ page }) {
+    const suffix = ' visits contributed views';
+    let from = 0;
+    while (true) {
+      const end = page.indexOf(
+        suffix,
+        from
+      );
+      if (end === (-1)) throw new Error('Template editor page names no visit count.');
+      let start = end;
+      while ((start > 0) && (page[start - 1] >= '0') && (page[start - 1] <= '9')) start -= 1;
+      if (start !== end) return page.slice(
+        0,
+        start
+      ) + `3${suffix}` + page.slice(end + suffix.length);
+      from = end + 1;
+    }
+  }
   refusedPage({
-    change: page => page.replace(
-      /\d+ visits contributed views/u,
-      '3 visits contributed views'
-    ),
+    change: page => restatedVisitCount({ page }),
     diagnostic: 'does not name its'
   });
   if ((invoke('build')

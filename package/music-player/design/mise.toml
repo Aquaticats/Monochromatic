@@ -544,9 +544,9 @@ dir = "{{config_root}}"
 run = ["node template-editor.mjs build", "node template-editor.mjs validate"]
 
 [tasks."test:template-editor"]
-description = "Prove the template editor review refuses changed evidence, a broken layout claim and a page without its question"
+description = "Prove the template editor review refuses changed evidence, a broken layout claim and a page without its question, then answer every page check's own cases"
 dir = "{{config_root}}"
-run = "node template-editor-test.mjs"
+run = ["node template-editor-test.mjs", "node template-editor-markup-scans-test.mjs"]
 
 [tasks."build:search:ranking"]
 description = "Rebuild the archived D/P and M/F/T comparison from sanitized native captures"
