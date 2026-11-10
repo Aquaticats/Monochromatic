@@ -14,7 +14,8 @@ mise tools;
    `compile`,
   `compile_lenient`,
    and matching must reject cleanly,
-   never panic or hang.
+   never panic or hang,
+   and the leniently built set's two faces must agree on the same bytes.
 - `fuzz_from_bytes`:
    arbitrary bytes through `Regex::from_bytes` / `RegexSet::from_bytes`.
   The security boundary:
@@ -42,6 +43,22 @@ mise tools;
    `RegexSet::line_matches` must agree with that naive
   per-line delegation on every line,
    including empty ones.
+- `fuzz_is_match_matches`:
+   the boolean face of a generated ruleset
+  (`is_match`,
+   `is_match_batch`) compared against its attribution face
+  (`matches`,
+   `line_matches`) on every generated line.
+   The two faces must agree:
+  a rule `line_matches` attributes implies `is_match`,
+   and `is_match(line)` is
+  exactly `matches(line).next().is_some()`.
+
+`src/is_match_matches_tests.rs` runs the same invariant as a unit test over a fixed
+ruleset with one line per routing path plus a deterministic sweep of generated
+rulesets,
+ so a regression fails on every `test` run instead of only when libFuzzer
+reaches it.
 
 The structured pattern/content generator is `src/generators.rs`
 (`PatternAndContent`,

@@ -76,14 +76,20 @@ function ancestorDir(
     readonly levels: number;
   },
 ): string {
-  for (let currentPath = startPath, remainingLevels = levels; remainingLevels >= 0;) {
-    if (remainingLevels === 0)
-      return currentPath;
-    remainingLevels -= 1;
-    currentPath = dirname(currentPath,);
+  /**
+   Path walked one parent link per remaining level.
+   */
+  let ancestorPath = startPath;
+  /**
+   Parent links still to walk before {@link ancestorPath} is the answer.
+   */
+  let levelsRemaining = levels;
+  while (levelsRemaining > 0) {
+    ancestorPath = dirname(ancestorPath,);
+    levelsRemaining -= 1;
   }
 
-  return startPath;
+  return ancestorPath;
 }
 
 /**
