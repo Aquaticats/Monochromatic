@@ -75,8 +75,8 @@ fn package_licenses_copies_required_texts_and_prunes_only_owned_ones() {
         "manifests": ["package/*/*/package.json", "package/*/*/Cargo.toml"],
         "texts": {"CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt", "GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
                   "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt"},
-        "requires": [{"contains": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"]},
-                     {"contains": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"]}]}]}"#;
+        "requires": [{"operand": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"]},
+                     {"operand": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"]}]}]}"#;
     let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
     assert_eq!(code1, 0, "{events1:?}");
     assert_eq!(read_text(dir.path(), "package/a/b/LICENSES/GPL-3.0-or-later.txt"), "gpl");

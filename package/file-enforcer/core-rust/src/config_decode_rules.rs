@@ -154,15 +154,15 @@ fn decode_package_licenses(reader: &mut Reader, object: &Map<String, Value>, poi
     for (index, item) in items.iter().enumerate() {
         let item_pointer = format!("{pointer}/requires/{index}");
         if let Some(entry) = reader.object(item, &item_pointer) {
-            reader.reject_unknown(entry, &item_pointer, &["contains", "texts"]);
-            let contains = reader.text(entry, "contains", &item_pointer);
+            reader.reject_unknown(entry, &item_pointer, &["operand", "texts"]);
+            let operand = reader.text(entry, "operand", &item_pointer);
             let needed = reader.text_list(entry, "texts", &item_pointer);
             for license in &needed {
                 if !texts.contains_key(license) {
                     reader.error(&format!("{item_pointer}/texts"), &format!("{license:?} is not a key of texts"));
                 }
             }
-            requires.push(LicenseRequirement { contains, texts: needed });
+            requires.push(LicenseRequirement { operand, texts: needed });
         }
     }
     return RuleConfig::PackageLicenses { id, manifests, directory, texts, requires };

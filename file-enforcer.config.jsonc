@@ -281,9 +281,9 @@
         "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt",
       },
       "requires": [
-        { "contains": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"] },
-        { "contains": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"] },
-        { "contains": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"] },
+        { "operand": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"] },
+        { "operand": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"] },
+        { "operand": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"] },
       ],
     },
     // The in-repo browserslist crate resolves the production queries once, so rolldown reads a file.
