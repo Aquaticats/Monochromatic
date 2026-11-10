@@ -45,6 +45,21 @@ const MISE_WITH_BUILD = '[tasks.build]\nextends = "build"\n';
 const MISE_WITHOUT_BUILD = '[tasks.lint]\nextends = "lint"\n';
 
 /**
+ `mise.toml` that declares `build` as a dotted key rather than a table header.
+ */
+const MISE_WITH_BUILD_DOTTED = 'tasks.build = { extends = "build" }\n';
+
+/**
+ `mise.toml` that declares `build` on a header line which also carries a comment.
+ */
+const MISE_WITH_BUILD_COMMENTED = '[tasks.build] # builds dist before packing\nrun = "node build.ts"\n';
+
+/**
+ `mise.toml` whose text names the build header only inside a multiline string.
+ */
+const MISE_NAMING_BUILD_IN_A_STRING = 'description = """\n[tasks.build]\n"""\n';
+
+/**
  Disposable package directory; removed on scope exit.
  */
 type DisposablePackage = {
@@ -208,6 +223,54 @@ await describe({
               },);
             },);
             expect(caught instanceof MissingCiBuildTaskError,).toBe(true,);
+          },
+        },);
+      },
+    },),
+    it({
+      name: 'refuses a package whose build task is a dotted key',
+      fn: async () => {
+        await withPackage({
+          files: { 'mise.toml': MISE_WITH_BUILD_DOTTED, },
+          body: async (packageDirectory,) => {
+            const caught = await caughtBy(async () => {
+              await planPackageBuild({
+                packageDirectory,
+                directory: DIRECTORY,
+              },);
+            },);
+            expect(caught instanceof MissingCiBuildTaskError,).toBe(true,);
+          },
+        },);
+      },
+    },),
+    it({
+      name: 'refuses a package whose build task header carries a comment',
+      fn: async () => {
+        await withPackage({
+          files: { 'mise.toml': MISE_WITH_BUILD_COMMENTED, },
+          body: async (packageDirectory,) => {
+            const caught = await caughtBy(async () => {
+              await planPackageBuild({
+                packageDirectory,
+                directory: DIRECTORY,
+              },);
+            },);
+            expect(caught instanceof MissingCiBuildTaskError,).toBe(true,);
+          },
+        },);
+      },
+    },),
+    it({
+      name: 'plans no build when mise.toml names the build header only inside a string',
+      fn: async () => {
+        await withPackage({
+          files: { 'mise.toml': MISE_NAMING_BUILD_IN_A_STRING, },
+          body: async (packageDirectory,) => {
+            expect(await planPackageBuild({
+              packageDirectory,
+              directory: DIRECTORY,
+            },),).toEqual({ kind: 'none', },);
           },
         },);
       },
