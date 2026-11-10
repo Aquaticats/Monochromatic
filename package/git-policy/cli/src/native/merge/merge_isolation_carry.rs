@@ -74,6 +74,49 @@ fn is_nul(byte: &u8) -> bool {
     return *byte == 0;
 }
 
+/// Whether one byte is the tab that ends the header of a `-z` index field.
+fn is_a_tab(byte: &u8) -> bool {
+    return *byte == b'\t';
+}
+
+/// What:
+///  The words for a path of the person's work that could not be read.
+/// Why:
+///   Two reads of one path answer with the same sentence,
+///  and the path is the one the person names.
+fn could_not_be_read(location: &Path, error: std::io::Error) -> String {
+    return format!("{} could not be read: {error}", location.display());
+}
+
+/// What:
+///  The index entry one path has,
+/// from the entries one read returned.
+/// Why:
+///   The capture keeps the entry of each path it carries,
+///  and a path with no entry is one the index never held.
+fn entry_at<'a>(entries: &'a [Entry], path: &[u8]) -> Option<&'a Entry> {
+    for entry in entries {
+        if entry.path.as_slice() == path {
+            return Some(entry);
+        }
+    }
+    return None;
+}
+
+/// The capture's own record of one index entry.
+fn captured_index_of(entry: &Entry) -> CapturedIndex {
+    return CapturedIndex { mode: entry.mode.clone(), oid: entry.oid.clone() };
+}
+
+/// What:
+///  The words for a clock this process could not read.
+/// Why:
+///   The capture's reference names the moment it was made,
+///  and a clock before the epoch cannot say when that was.
+fn the_clock_could_not_be_read(error: std::time::SystemTimeError) -> String {
+    return format!("the clock could not be read: {error}");
+}
+
 /// What:
 ///  The directory a Git start runs in.
 /// Why:
@@ -159,17 +202,23 @@ fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)>, String> 
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
+        Err(error) => return Err(could_not_be_read(location, error)),
     };
     if metadata.is_dir() {
         return Err(format!("{} is a directory, which is not one edit a merge can carry", location.display()));
     }
     let mode: &'static str = mode_of(&metadata);
     if metadata.file_type().is_symlink() {
-        let target: std::path::PathBuf = std::fs::read_link(location).map_err(|error| { return format!("{} could not be read: {error}", location.display()); })?;
+        let target: std::path::PathBuf = match std::fs::read_link(location) {
+            Ok(found) => found,
+            Err(error) => return Err(could_not_be_read(location, error)),
+        };
         return Ok(Some((target.as_os_str().as_encoded_bytes().to_vec(), mode)));
     }
-    let bytes: Vec<u8> = std::fs::read(location).map_err(|error| { return format!("{} could not be read: {error}", location.display()); })?;
+    let bytes: Vec<u8> = match std::fs::read(location) {
+        Ok(found) => found,
+        Err(error) => return Err(could_not_be_read(location, error)),
+    };
     return Ok(Some((bytes, mode)));
 }
 
@@ -236,7 +285,7 @@ async fn staged_entries_awaiting(context: &GitContext, root: &Path) -> Result<Ve
     }
     let mut found: Vec<Entry> = Vec::new();
     for field in output.stdout.split(is_nul) {
-        let Some(split) = field.iter().position(|byte| { return *byte == b'\t'; }) else { continue };
+        let Some(split) = field.iter().position(is_a_tab) else { continue };
         let header: String = String::from_utf8_lossy(&field[..split]).into_owned();
         let parts: Vec<&str> = header.split(' ').collect();
         let [mode, oid, stage] = parts.as_slice() else { continue };
@@ -299,10 +348,7 @@ pub async fn capture_work_awaiting(context: &GitContext, root: &Path, paths: &[V
             }
             None => None,
         };
-        let index: Option<CapturedIndex> = staged
-            .iter()
-            .find(|entry| { return entry.path == *path; })
-            .map(|entry| { return CapturedIndex { mode: entry.mode.clone(), oid: entry.oid.clone() }; });
+        let index: Option<CapturedIndex> = entry_at(staged.as_slice(), path.as_slice()).map(captured_index_of);
         // Both layers absent is the person's own deletion of a path the merge changes, which is work to carry as much as an
         //  edit is: the merge would put a file back they removed.
         captured.push(CapturedPath { path: path.clone(), worktree, index });
@@ -388,7 +434,7 @@ pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &
     let commit: String = String::from_utf8_lossy(created.stdout.as_slice()).trim().to_owned();
     let first: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|error| { return format!("the clock could not be read: {error}"); })?
+        .map_err(the_clock_could_not_be_read)?
         .as_millis();
     let zeros: OsString = OsString::from("0".repeat(commit.len()).as_str());
     for step in 0..REF_ATTEMPTS {
