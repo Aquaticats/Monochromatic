@@ -80,7 +80,7 @@ await describe({
   children: [
     it({
       name: 'returns unrestricted scope when settings are absent',
-      fn: async function testAbsentSettings() {
+      fn: async function testAbsentSettings(): Promise<void> {
         await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-settings-test-',
@@ -101,7 +101,7 @@ await describe({
     },),
     it({
       name: 'reads global settings from the HOME environment when no home option is given',
-      fn: async function testHomeEnvironmentFallback() {
+      fn: async function testHomeEnvironmentFallback(): Promise<void> {
         await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-settings-test-',
@@ -142,7 +142,7 @@ await describe({
     },),
     it({
       name: 'resolves the global settings path from the runtime home when HOME is unset',
-      fn: async function testRuntimeHomeFallback() {
+      fn: async function testRuntimeHomeFallback(): Promise<void> {
         using homeVariable = withEnvironmentVariable({ name: 'HOME', },);
         const { globalPath, } = getSettingsPaths({ cwd: process.cwd(), },);
         expect(globalPath,).toBe(join(
@@ -156,7 +156,7 @@ await describe({
     },),
     it({
       name: 'prefers project enabledModels over global enabledModels',
-      fn: async function testProjectSettingsPrecedence() {
+      fn: async function testProjectSettingsPrecedence(): Promise<void> {
         await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-settings-test-',
@@ -214,7 +214,7 @@ await describe({
     },),
     it({
       name: 'throws for invalid enabledModels',
-      fn: async function testInvalidSettings() {
+      fn: async function testInvalidSettings(): Promise<void> {
         await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-settings-test-',

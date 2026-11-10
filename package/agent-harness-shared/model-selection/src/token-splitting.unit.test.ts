@@ -49,7 +49,7 @@ await describe({
   children: [
     it({
       name: 'splits at punctuation and whitespace separators',
-      fn: async function testPunctuationSeparators() {
+      fn: async function testPunctuationSeparators(): Promise<void> {
         expect(splitSeparatedTokens({
           value: 'claude-3.5 sonnet:latest',
           isSeparator: isModelTextSeparator,
@@ -64,7 +64,7 @@ await describe({
     },),
     it({
       name: 'drops empty tokens at every separator run and at both ends',
-      fn: async function testEmptyTokens() {
+      fn: async function testEmptyTokens(): Promise<void> {
         expect(splitSeparatedTokens({
           value: '--a..b  c-',
           isSeparator: isModelTextSeparator,
@@ -85,7 +85,7 @@ await describe({
     },),
     it({
       name: 'keeps separator characters that the caller does not name',
-      fn: async function testCallerOwnedSeparators() {
+      fn: async function testCallerOwnedSeparators(): Promise<void> {
         expect(splitSeparatedTokens({
           value: 'a-b/c',
           isSeparator: function isHyphen(character,) {
@@ -99,7 +99,7 @@ await describe({
     },),
     it({
       name: 'keeps characters outside the BMP inside one token',
-      fn: async function testSurrogatePairs() {
+      fn: async function testSurrogatePairs(): Promise<void> {
         expect(splitSeparatedTokens({
           value: 'a\u{1F600}b-c',
           isSeparator: function isHyphen(character,) {
@@ -119,7 +119,7 @@ await describe({
   children: [
     it({
       name: 'accepts exactly the six ASCII whitespace characters',
-      fn: async function testAsciiWhitespaceCharacters() {
+      fn: async function testAsciiWhitespaceCharacters(): Promise<void> {
         for (const character of [
           ' ',
           '\t',

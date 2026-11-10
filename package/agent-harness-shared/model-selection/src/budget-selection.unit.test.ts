@@ -11,6 +11,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  type BudgetModel,
   firstAuthenticatedCandidate,
   NO_AUTH,
   NoBudgetModelError,
@@ -102,7 +103,7 @@ function authCallbacks(
   /** Authenticated slug set. */
   const slugs = new Set(authenticatedSlugs,);
   return {
-    async resolveAuth({ model, },) {
+    async resolveAuth({ model, },): Promise<BudgetModelAuth | typeof NO_AUTH> {
       return slugs.has(fixtureSlug(model,),)
         ? auth
         : NO_AUTH;
@@ -131,7 +132,7 @@ await describe({
             sameProviderModel,
             anyProviderModel,
           ],
-          resolveAuth: async function resolveLaterCandidate({ model, },) {
+          resolveAuth: async function resolveLaterCandidate({ model, },): Promise<BudgetModelAuth | typeof NO_AUTH> {
             resolvedSlugs.push(fixtureSlug(model,),);
             return model === anyProviderModel
               ? auth
@@ -157,7 +158,7 @@ await describe({
             activeModel,
             sameProviderModel,
           ],
-          resolveAuth: async function resolveNoCandidate() {
+          resolveAuth: async function resolveNoCandidate(): Promise<typeof NO_AUTH> {
             return NO_AUTH;
           },
         },);
@@ -172,7 +173,7 @@ await describe({
   children: [
     it({
       name: 'selects same-provider candidate with auth',
-      fn: async function testSameProviderBudgetSelection() {
+      fn: async function testSameProviderBudgetSelection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels,
@@ -185,7 +186,7 @@ await describe({
     },),
     it({
       name: 'selects any-provider candidate with auth',
-      fn: async function testAnyProviderBudgetSelection() {
+      fn: async function testAnyProviderBudgetSelection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels,
@@ -198,7 +199,7 @@ await describe({
     },),
     it({
       name: 'selects near-active-cost same-provider candidate',
-      fn: async function testSameProviderSelectionWithoutCostRatioRejection() {
+      fn: async function testSameProviderSelectionWithoutCostRatioRejection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels: [
@@ -214,7 +215,7 @@ await describe({
     },),
     it({
       name: 'selects speed-named same-provider candidate before cheaper model',
-      fn: async function testSameProviderSpeedSelection() {
+      fn: async function testSameProviderSpeedSelection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels: allModelsWithSpeed,
@@ -230,7 +231,7 @@ await describe({
     },),
     it({
       name: 'selects speed-named any-provider candidate before cheaper model',
-      fn: async function testAnyProviderSpeedSelection() {
+      fn: async function testAnyProviderSpeedSelection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels: allModelsWithSpeed,
@@ -246,8 +247,8 @@ await describe({
     },),
     it({
       name: 'throws no-auth error shape',
-      fn: async function testBudgetSelectionErrors() {
-        const noAuth = await captureAsyncError(async function selectWithoutAuth() {
+      fn: async function testBudgetSelectionErrors(): Promise<void> {
+        const noAuth = await captureAsyncError(async function selectWithoutAuth(): Promise<BudgetModel> {
           return await selectBudgetModel({
             activeModel,
             allModels,

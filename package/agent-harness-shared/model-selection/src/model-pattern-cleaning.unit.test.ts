@@ -17,7 +17,7 @@ await describe({
   children: [
     it({
       name: 'trims every pattern and drops empty and whitespace-only entries',
-      fn: async function testTrimAndDrop() {
+      fn: async function testTrimAndDrop(): Promise<void> {
         expect(cleanModelPatterns([
           '  cheap/*  ',
           '',
@@ -31,7 +31,7 @@ await describe({
     },),
     it({
       name: 'keeps order and repeated patterns unchanged',
-      fn: async function testOrderAndRepeats() {
+      fn: async function testOrderAndRepeats(): Promise<void> {
         expect(cleanModelPatterns([
           'b/*',
           'a/*',
@@ -45,7 +45,7 @@ await describe({
     },),
     it({
       name: 'returns an empty list for an empty input',
-      fn: async function testEmptyInput() {
+      fn: async function testEmptyInput(): Promise<void> {
         expect(cleanModelPatterns([],),).toEqual([],);
       },
     },),

@@ -52,7 +52,7 @@ await describe({
       children: [
         it({
           name: 'matches fuzzy aliases and carries thinking suffixes',
-          fn: async function testFuzzyAliasThinking() {
+          fn: async function testFuzzyAliasThinking(): Promise<void> {
             const result = parseModelPattern({
               pattern: 'sonnet:high',
               availableModels,
@@ -63,7 +63,7 @@ await describe({
         },),
         it({
           name: 'strips invalid suffixes iteratively',
-          fn: async function testInvalidSuffixStripping() {
+          fn: async function testInvalidSuffixStripping(): Promise<void> {
             const result = parseModelPattern({
               pattern: 'sonnet:not-a-level',
               availableModels,
@@ -74,7 +74,7 @@ await describe({
         },),
         it({
           name: 'carries a thinking suffix across the strips before the matching body',
-          fn: async function testCarriedThinkingSuffix() {
+          fn: async function testCarriedThinkingSuffix(): Promise<void> {
             const leadingLevel = parseModelPattern({
               pattern: 'sonnet:unknown:high',
               availableModels,
@@ -92,7 +92,7 @@ await describe({
         },),
         it({
           name: 'keeps the first valid thinking suffix when later strips carry another',
-          fn: async function testFirstThinkingSuffixWins() {
+          fn: async function testFirstThinkingSuffixWins(): Promise<void> {
             const result = parseModelPattern({
               pattern: 'sonnet:high:low',
               availableModels,
@@ -108,7 +108,7 @@ await describe({
       children: [
         it({
           name: 'splits valid thinking suffixes only',
-          fn: async function testSplitThinkingSuffix() {
+          fn: async function testSplitThinkingSuffix(): Promise<void> {
             expect(splitThinkingSuffix('anthropic/*:xhigh',),).toEqual({
               pattern: 'anthropic/*',
               thinkingLevel: 'xhigh',
@@ -125,7 +125,7 @@ await describe({
       children: [
         it({
           name: 'detects glob tokens',
-          fn: async function testPatternHasGlob() {
+          fn: async function testPatternHasGlob(): Promise<void> {
             expect(patternHasGlob('anthropic/*',),).toBe(true,);
             expect(patternHasGlob('anthropic/claude',),).toBe(false,);
           },
@@ -137,7 +137,7 @@ await describe({
       children: [
         it({
           name: 'detects thinking levels, aliases, and date suffixes',
-          fn: async function testLowLevelHelpers() {
+          fn: async function testLowLevelHelpers(): Promise<void> {
             expect(isThinkingLevel('minimal',),).toBe(true,);
             expect(isThinkingLevel('custom',),).toBe(false,);
             expect(hasDateSuffix('claude-20251001',),).toBe(true,);

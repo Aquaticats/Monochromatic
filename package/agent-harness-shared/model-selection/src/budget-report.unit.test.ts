@@ -44,7 +44,7 @@ await describe({
       children: [
         it({
           name: 'builds candidate report metadata',
-          fn: async function testCandidateReport() {
+          fn: async function testCandidateReport(): Promise<void> {
             expect(toBudgetModelCandidate({
               model,
               hasConfiguredAuth: true,
@@ -73,7 +73,7 @@ await describe({
         },),
         it({
           name: 'formats provider/model slug through the compatibility name',
-          fn: async function testBudgetModelSlug() {
+          fn: async function testBudgetModelSlug(): Promise<void> {
             expect(budgetModelSlug(model,),).toBe('openai/gpt-4o-mini',);
           },
         },),
@@ -84,7 +84,7 @@ await describe({
       children: [
         it({
           name: 'includes reason and candidates in message',
-          fn: async function testNoBudgetModelError() {
+          fn: async function testNoBudgetModelError(): Promise<void> {
             const error = new NoBudgetModelError('no auth', {
               sameProvider: toBudgetModelCandidate({
                 model,
