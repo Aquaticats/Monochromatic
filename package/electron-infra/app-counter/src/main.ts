@@ -19,7 +19,7 @@ import {
 } from 'electron';
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
 import { writeJsonFileAtomically, } from '@monochromatic-dev/electron-infra-core/ts/atomic-json';
-import { tagged, } from '@monochromatic-dev/logger-core';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   APP_TITLE_PREFIX,
@@ -256,20 +256,21 @@ function logActivationCreateError({ error, }: { readonly error: unknown; },): vo
 /**
  Creates a replacement main window when the app is activated with none open.
  
+ Electron's `activate` event does not await its listener, so the listener
+ starts this task and {@link logActivationCreateError} records any failure.
+ 
  @example
  ```ts
- createMainWindowForActivation();
+ await createActivatedMainWindow();
  ```
  */
-function createMainWindowForActivation(): void {
-  void (async function createActivatedMainWindow(): Promise<void> {
-    try {
-      await createMainWindow();
-    }
-    catch (error: unknown) {
-      logActivationCreateError({ error, },);
-    }
-  })();
+async function createActivatedMainWindow(): Promise<void> {
+  try {
+    await createMainWindow();
+  }
+  catch (error: unknown) {
+    logActivationCreateError({ error, },);
+  }
 }
 
 /**
@@ -297,7 +298,7 @@ function installAppLifecycleHandlers(): void {
       if (BrowserWindow.getAllWindows()
         .length
         === 0)
-        createMainWindowForActivation();
+        void createActivatedMainWindow();
     },
   );
 }
@@ -319,33 +320,32 @@ function logStartupError({ error, }: { readonly error: unknown; },): void {
 }
 
 /**
- Starts Electron asynchronously without blocking ESM module evaluation.
+ Starts Electron without blocking ESM module evaluation.
  
  Electron emits `ready` after the main module finishes evaluating, so a
  top-level `await app.whenReady()` deadlocks startup under Electron's ESM
- loader.
+ loader: the module starts this task with `void` instead.
  
  @example
  ```ts
- startElectronCounterApp();
+ void startElectronCounterApp();
  ```
  */
-function startElectronCounterApp(): void {
-  void (async function startElectronCounterAppTask(): Promise<void> {
-    try {
-      mainLogger.info('Waiting for Electron app readiness.',);
-      await app.whenReady();
-      mainLogger.info('Electron app is ready.',);
-      await createMainWindow();
-    }
-    catch (error: unknown) {
-      logStartupError({ error, },);
-      app.quit();
-    }
-  })();
+async function startElectronCounterApp(): Promise<void> {
+  try {
+    mainLogger.info('Waiting for Electron app readiness.',);
+    await app.whenReady();
+    mainLogger.info('Electron app is ready.',);
+    await createMainWindow();
+  }
+  catch (error: unknown) {
+    logStartupError({ error, },);
+    app.quit();
+  }
 }
 
 configureLinuxWayland();
 app.enableSandbox();
 installAppLifecycleHandlers();
-startElectronCounterApp();
+// oxlint-disable-next-line unicorn/prefer-top-level-await -- Electron fires `ready` only after the main module finishes evaluating, so awaiting startup deadlocks the app; measured by the pure-Wayland boundary task.
+void startElectronCounterApp();
