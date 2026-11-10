@@ -548,7 +548,7 @@ on any repository that carries a scoped tag,
 `for-each-ref` is never answered,
 because `list()` (`repo_read/repo_read_refs.rs:294`) requires every packed and
 loose name to be plain,
-while `lookup()` (`:241`) already skips the unplain *packed* names for exactly this
+while `lookup()` (`:241`) already skips the unplain **packed** names for exactly this
 reason
 ("a repository with scoped tags would otherwise have no branch the in-process
 reader can resolve",

@@ -281,7 +281,7 @@ STALLS,
 
 ## Verified workarounds
 
-1.   ASK THE COMPOSITOR FIRST,
+1.  ASK THE COMPOSITOR FIRST,
       and do not open a window when it says locked.
      Tradeoff:
       it is a KDE-specific interface.
@@ -298,7 +298,7 @@ STALLS,
        | tail --lines=1 | rg --only-matching 'true|false')
      ```
 
-2.   PROVE THE COMMAND RAN,
+2.  PROVE THE COMMAND RAN,
       rather than assuming a launched window works.
       Have
      the command write a marker as its first action and check for the marker a
@@ -311,7 +311,7 @@ STALLS,
      only this one,
       which is why it is worth the wait.
 
-3.   DO NOT NEED A WINDOW.
+3.  DO NOT NEED A WINDOW.
       For anything whose output an agent will read anyway,
      run the tool headless into a file (`pi --print ... > out.log`) and read the
      file.
@@ -321,7 +321,7 @@ STALLS,
      steer it mid-run,
       which is the whole reason the window was wanted.
 
-4.   KEEP THE WINDOW ALIVE PAST THE COMMAND with a trailing `sleep`,
+4.  KEEP THE WINDOW ALIVE PAST THE COMMAND with a trailing `sleep`,
       so a window
      that DID start is still there to be read.
       Tradeoff:
@@ -368,7 +368,7 @@ Ghostty.
  No exemption matches,
  so the six constraints apply.
 
-1.   IS IT REALLY UPSTREAM'S FAULT?
+1.  IS IT REALLY UPSTREAM'S FAULT?
       PARTLY.
       A compositor that refuses to map a
      window while the session is locked is behaving as designed,
@@ -382,7 +382,7 @@ Ghostty.
      the screen is unlocked.
       Ghostty's own source calls the coupling a limitation
      to remove (`src/apprt/gtk/class/surface.zig:621`).
-2.   CAN UPSTREAM FIX IT?
+2.  CAN UPSTREAM FIX IT?
       YES,
       and they have already described the fix in that
      NOTE:
@@ -392,24 +392,24 @@ Ghostty.
       can be initialized before the GLArea exists.
       Large and structural,
      which the constraint explicitly allows.
-3.   ARE THEY SUPPORTING THIS USE CASE?
+3.  ARE THEY SUPPORTING THIS USE CASE?
       YES for `-e`,
       which is a documented
      command-line option with an example in `ghostty --help`.
       Running one while
      the screen is locked is not documented either way.
-4.   WOULD THE REPO WELCOME OUR CONTRIBUTION?
+4.  WOULD THE REPO WELCOME OUR CONTRIBUTION?
       NOT CHECKED YET.
       `CONTRIBUTING.md`,
      the issue templates and any AI-assistance policy in the clone at
      `${HOME}/temp/agent/ghostty-2026-08-15` have not been read,
       and this
      constraint cannot be assumed.
-5.   WILL THEY LIKELY FIX IT?
+5.  WILL THEY LIKELY FIX IT?
       UNKNOWN.
       The upstream tracker has not been searched
      for this behavior.
-6.   HAVE WE PROTOTYPED A MINIMAL FIX?
+6.  HAVE WE PROTOTYPED A MINIMAL FIX?
       NO.
 
 So constraints 4 and 5 are unevaluated rather than met,
