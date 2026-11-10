@@ -51,9 +51,6 @@ const NO_ORPORT_443_CIDR = Symbol('no ORPort 443 CIDR',);
  */
 type NoOrPort443Cidr = typeof NO_ORPORT_443_CIDR;
 
-// 1. Consume OpenTofu input (data.external sends {}; we ignore it)
-await json(process.stdin,);
-
 /**
  Local snapshot of fetched Tor guard relays; reused when Onionoo is unreachable.
  */
@@ -296,79 +293,103 @@ async function readTextIfExists(path: string,): Promise<string | typeof ABSENT> 
 }
 
 /**
- Entry point invoked at module load: serves cached relay IPs when fresh, otherwise
- fetches Onionoo, filters to ORPort 443 only, writes the cache, and emits a JSON
- object on stdout for OpenTofu's `external` data source.
+ Reads the cache contents while the cache is younger than {@link ONE_HOUR_MS}.
  
- @throws When fetch fails and no cached fallback exists.
+ @returns Cache text inside the freshness window, or {@link ABSENT} when the
+   cache is missing or older than the window.
+ 
+ @throws When the cache exists but cannot be read for a reason other than absence.
  
  @example
  ```ts
- await run();
+ const fresh = await freshCacheText();
  ```
  */
-async function run(): Promise<void> {
-  // Check cache
+async function freshCacheText(): Promise<string | typeof ABSENT> {
   /**
-   Cache file metadata used to compare mtime against {@link ONE_HOUR_MS},
-   or {@link ABSENT} when no cache file exists yet.
+   Cache file metadata compared against the freshness window.
    */
   const stats = await statIfExists(CACHE_FILE,);
-  if ((stats !== ABSENT)
-    && ((Date.now()
+  if ((stats === ABSENT)
+    || ((Date.now()
       - stats
-        .mtimeMs) < ONE_HOUR_MS)) {
-    process.stdout
-      .write(
-      JSON.stringify({ ips: await readFile(
-        CACHE_FILE,
-        'utf8',
-      ), },),
-      );
-    return;
+        .mtimeMs) >= ONE_HOUR_MS))
+    return ABSENT;
+
+  return await readTextIfExists(CACHE_FILE,);
+}
+
+/**
+ Fetches the guard relay list and reduces it to the ORPort 443 endpoints.
+
+ Port filtering keeps the firewall's effective-rule count predictable (one rule
+ per IP regardless of port count) and consolidates with the existing port-443
+ outbound posture.
+ 
+ @returns Comma-joined `/32` (IPv4) and `/128` (IPv6) CIDRs in Onionoo order.
+ 
+ @throws When the fetch fails, the response is not Onionoo-shaped, or the cache
+   write fails.
+ 
+ @example
+ ```ts
+ const cidrs = await fetchOrPort443Cidrs();
+ ```
+ */
+async function fetchOrPort443Cidrs(): Promise<string> {
+  /**
+   HTTP response from Onionoo carrying relay details JSON.
+   */
+  const response = await fetch(URL,);
+  /**
+   Parsed Onionoo response before shape validation.
+   */
+  const rawData: unknown = await response.json();
+  if (!isOnionooResponse(rawData,))
+    throw new Error('Onionoo response did not match expected relay shape',);
+
+  /**
+   Accumulator of `/32` (IPv4) and `/128` (IPv6) CIDR entries for ORPort 443 endpoints.
+   */
+  const ips: string[] = [];
+  for (const relay of rawData.relays) {
+    for (const address of relay.or_addresses) {
+      /**
+       CIDR representation of current ORPort 443 address, when current address uses that port.
+       */
+      const cidr = parseOrPort443Cidr(address,);
+      if (cidr !== NO_ORPORT_443_CIDR)
+        ips.push(cidr,);
+    }
   }
 
-  // Fetch & filter to ORPort 443 only.
-  // Single-port rules keep the firewall's effective-rule count predictable
-  // (one rule per IP regardless of port count) and consolidate with the
-  // existing port-443 outbound posture.
+  /**
+   Comma-joined CIDR list ready to write to cache and stream out to OpenTofu.
+   */
+  const result = ips.join(',',);
+  await writeFile(
+    CACHE_FILE,
+    result,
+  );
+  return result;
+}
+
+/**
+ Fetches the ORPort 443 CIDR list, falling back to the stale cache when the
+ fetch fails so a transient Onionoo outage never empties the firewall rules.
+ 
+ @returns Freshly fetched CIDR list, or the stale cache contents after a failed fetch.
+ 
+ @throws When the fetch fails and no cache file exists to fall back to.
+ 
+ @example
+ ```ts
+ const cidrs = await fetchCidrsWithCacheFallback();
+ ```
+ */
+async function fetchCidrsWithCacheFallback(): Promise<string> {
   try {
-    /**
-     HTTP response from Onionoo carrying relay details JSON.
-     */
-    const response = await fetch(URL,);
-    /**
-     Parsed Onionoo response before shape validation.
-     */
-    const rawData: unknown = await response.json();
-    if (!isOnionooResponse(rawData,))
-      throw new Error('Onionoo response did not match expected relay shape',);
-
-    /**
-     Accumulator of `/32` (IPv4) and `/128` (IPv6) CIDR entries for ORPort 443 endpoints.
-     */
-    const ips: string[] = [];
-    for (const relay of rawData.relays) {
-      for (const address of relay.or_addresses) {
-        /**
-         CIDR representation of current ORPort 443 address, when current address uses that port.
-         */
-        const cidr = parseOrPort443Cidr(address,);
-        if (cidr !== NO_ORPORT_443_CIDR)
-          ips.push(cidr,);
-      }
-    }
-
-    /**
-     Comma-joined CIDR list ready to write to cache and stream out to OpenTofu.
-     */
-    const result = ips.join(',',);
-    await writeFile(
-      CACHE_FILE,
-      result,
-    );
-    process.stdout
-      .write(JSON.stringify({ ips: result, },),);
+    return await fetchOrPort443Cidrs();
   }
   catch (error) {
     // Log why the live fetch failed before deciding whether a stale cache can cover it.
@@ -386,9 +407,26 @@ async function run(): Promise<void> {
         { cause: error, },
       );
 
-    process.stdout
-      .write(JSON.stringify({ ips: cached, },),);
+    return cached;
   }
 }
 
-await run();
+// 1. Consume OpenTofu input (data.external sends {}; we ignore it)
+await json(process.stdin,);
+
+/**
+ Cache contents still inside the freshness window, or {@link ABSENT} when the
+ cache is missing or stale.
+ */
+const freshCache = await freshCacheText();
+
+/**
+ CIDR list for the firewall rule, served from the fresh cache or fetched with a
+ stale-cache fallback.
+ */
+const ips = freshCache === ABSENT
+  ? await fetchCidrsWithCacheFallback()
+  : freshCache;
+
+process.stdout
+  .write(JSON.stringify({ ips, },),);

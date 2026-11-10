@@ -11,6 +11,8 @@
     "@monochromatic-dev/wg-core-allowedips": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "catalog:"
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "nano-spawn": "catalog:"
   }
 }
