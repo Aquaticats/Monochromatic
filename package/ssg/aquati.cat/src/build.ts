@@ -46,6 +46,7 @@ import {
   resolveGitDatesContext,
 } from './lib/git-dates.ts';
 import { renderMdx, } from './lib/markdown.ts';
+import { PIPELINE_GLOB, } from './lib/pipeline-glob.ts';
 
 // File justification: 120 lines: linear pipeline script; splitting the
 // orchestration across multiple files would scatter the build sequence.
@@ -68,12 +69,6 @@ const SITE_URL = 'https://aquati.cat';
  Content source directory.
  */
 const CONTENT_DIR = 'src/content';
-
-/**
- Glob matching all pipeline source files for cache invalidation.
- Changes to any matched file invalidate all cached content entries.
- */
-const PIPELINE_GLOB = 'src/{lib,components,client,i18n}/**/*.ts';
 
 //region Build orchestration: loads content, processes MDX, generates pages and assets
 
