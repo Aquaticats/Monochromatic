@@ -278,19 +278,28 @@ then the commands.
 ## What was read and not exercised
 
 These name commands whose state needs an injection the audit did not build
-(a killed service, a killed ladder step, a full disk, an unreachable remote, a btrfs-only path,
-a standards-review gateway, an LFS server, a session bus, a PID namespace).
+(a killed service,
+a killed ladder step,
+a full disk,
+an unreachable remote,
+a btrfs-only path,
+a standards-review gateway,
+an LFS server,
+a session bus,
+a PID namespace).
 They are listed so the next reader knows what is unchecked,
 not because a defect is suspected:
 
 - `package/git-policy/cli/src/native/landing/`:
   `git log -1`, `git status`, `git show <oid>`, `git log`, `git commit -F <saved>`,
   `git push`.
-  The states are a branch that moved under a commit, a service from another release, and a message
-  saved to a file.
+  The states are a branch that moved under a commit,
+  a service from another release,
+  and a message saved to a file.
 - `package/git-policy/cli/src/native/push/`:
   `git push`, `git ls-remote <remote>`, `git merge --ff-only <remote>/<branch>`.
-  The states are a failed backup push, a mirror remote and an unset `push.default`.
+  The states are a failed backup push,
+  a mirror remote and an unset `push.default`.
 - `package/git-policy/cli/src/native/merge/`:
   `git merge --no-edit`, `git diff --cached -- <file>`, `git log <target>`,
   `git stash list`, `git cat-file blob <oid>`, `git rebase --continue`,
@@ -301,11 +310,13 @@ not because a defect is suspected:
   whose states need a killed copy at a chosen step.
 - `package/git-policy/cli/src/native/subvolume/` and the `migrate-to-subvolume` and
   `convert-worktree-to-subvolume` notices:
-  they need btrfs, and the gate container runs on overlayfs.
+  they need btrfs,
+  and the gate container runs on overlayfs.
 - `package/git-policy/cli/src/native/health/`:
   `git config --global core.fsmonitor false` and
   `git config --global core.lockfilePid true` write the person's global configuration,
-  so no control runs them; both are forwarded unchanged by the wrapper.
+  so no control runs them;
+  both are forwarded unchanged by the wrapper.
 - `package/git-policy/cli/src/native/candidate/` and
   `package/git-policy/cli/src/native/invocation/`:
   `git cat-file --batch-check`, `git fsck`, `git ls-files --stage`,

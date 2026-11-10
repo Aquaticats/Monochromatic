@@ -46,7 +46,8 @@ fn backticked_commands(text: &str) -> Vec<String> {
 }
 
 /// What:
-///  The words of one printed command, read as a POSIX shell reads them.
+///  The words of one printed command,
+///  read as a POSIX shell reads them.
 /// Why:
 ///  The wrapper quotes a path that needs it with single quotes and leaves a plain one bare,
 /// so a reader that only
@@ -86,7 +87,9 @@ fn shell_words(command: &str) -> Vec<String> {
 }
 
 /// What:
-///  Run one printed command, as printed, through the wrapper from `directory`.
+///  Run one printed command,
+///  as printed,
+///  through the wrapper from `directory`.
 /// Why:
 ///  The printed line starts with the `git` a person types,
 ///  and a shell resolves that word to the wrapper on the

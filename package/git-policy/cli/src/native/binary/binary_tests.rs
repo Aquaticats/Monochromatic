@@ -184,7 +184,8 @@ mod no_checkout_clone;
 #[path = "binary_hint_tests.rs"]
 mod hints;
 
-/// Every command a message prints as a remedy runs as printed, in the state that prints it.
+/// Every command a message prints as a remedy runs as printed,
+/// in the state that prints it.
 #[path = "binary_printed_remedies_tests.rs"]
 mod printed_remedies;
 

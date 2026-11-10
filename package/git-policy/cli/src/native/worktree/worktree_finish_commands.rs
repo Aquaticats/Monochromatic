@@ -25,7 +25,8 @@
 //! ```
 
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
-/// `as_bytes` on an `OsStr`, which the shell quoting reads.
+/// `as_bytes` on an `OsStr`,
+/// which the shell quoting reads.
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
@@ -74,7 +75,8 @@ pub fn finish_or_remove_sentence(destination: &Path) -> String {
     );
 }
 
-/// The words and the quoting of both commands, and what the sentence says they do.
+/// The words and the quoting of both commands,
+/// and what the sentence says they do.
 #[cfg(test)]
 #[path = "worktree_finish_commands_tests.rs"]
 mod tests;

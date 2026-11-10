@@ -37,7 +37,8 @@ use crate::service_index_wait::wait_for_service_hold_here;
 /// The inherited environment,
 /// which decides whether the reflog message is already set.
 use crate::child_environment::environment_value;
-/// The one spelling of the worktree guard's hatch, which the recovery line below names.
+/// The one spelling of the worktree guard's hatch,
+/// which the fast-forward failure's recovery line names.
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
