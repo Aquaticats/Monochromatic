@@ -1,3 +1,5 @@
+//region Marker keys -- Project-owned unique symbols hidden from the public surface
+
 /**
  Project-owned marker key preserving transparent runtime representation.
  */
@@ -7,6 +9,10 @@ declare const FOREIGN_BORROWED_MARKER: unique symbol;
  Project-owned marker key for explicitly audited opaque host capabilities.
  */
 declare const FOREIGN_HOST_CAPABILITY_MARKER: unique symbol;
+
+//endregion Marker keys
+
+//region Exported marker types -- Ownership marks the readonly analyzer recognizes at a foreign boundary
 
 /**
  Marks mutable handle whose ownership and parameter type are dictated by foreign interface.
@@ -50,3 +56,5 @@ export type ForeignHostCapability<Value> = Value & {
   readonly [FOREIGN_BORROWED_MARKER]?: true;
   readonly [FOREIGN_HOST_CAPABILITY_MARKER]?: true;
 };
+
+//endregion Exported marker types
