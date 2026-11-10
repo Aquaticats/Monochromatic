@@ -10,9 +10,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { Post, } from '../lib/content.ts';
-
-import { postPage, } from './post.ts';
+import {
+  postPage,
+  type Post,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Git-derived publication date used by the post fixture.

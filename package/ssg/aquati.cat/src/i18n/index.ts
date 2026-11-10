@@ -15,10 +15,12 @@ import {
   defineCatalanLocale,
   defineChineseLocale,
   defineEnglishLocale,
+  type I18n,
 } from '@monochromatic-dev/i18n-compose-core/ts';
 
 import caLabels from './ca/index.ts';
 import enLabels from './en/index.ts';
+import type { Label, } from './labels-types.ts';
 import zhLabels from './zh/index.ts';
 
 /**
@@ -67,8 +69,13 @@ export type Locale = typeof locales[number];
 
 /**
  Explicit-locale render surface and registry helpers for the site.
+ 
+ Annotated explicitly because the Node build emits declarations with
+ `isolatedDeclarations`, which cannot infer a type across a generic factory.
+ The grammar unions are `never`: the site renders labels only, so no subject,
+ verb, or noun key exists to interpolate.
  */
-export const i18n = createI18n({
+export const i18n: I18n<Locale, Label, never, never, never> = createI18n({
   locales,
   defaultLocale: 'en',
   specs: {
@@ -80,5 +87,18 @@ export const i18n = createI18n({
 
 /**
  Type guard narrowing an arbitrary string to a supported {@link Locale}.
+ 
+ @param value - candidate locale code
+ 
+ @returns `true` when the value names a supported locale
+ 
+ @example
+ ```ts
+ if (isLocale(rawLang)) {
+   i18n.label(rawLang, 'siteName');
+ }
+ ```
  */
-export const {isLocale} = i18n;
+export function isLocale(value: string,): value is Locale {
+  return i18n.isLocale(value,);
+}

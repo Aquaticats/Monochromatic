@@ -11,18 +11,15 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { fingerprint32, } from 'farmhashjs';
 
-import type { SafeHtml, } from '../lib/jsx-to-html.ts';
-
 import {
   QuestionCheckbox,
-  css as checkboxCss,
-  type QuestionOption as CheckboxOption,
-} from './question-checkbox.ts';
-import {
   QuestionRadio,
-  css as radioCss,
-  type QuestionOption as RadioOption,
-} from './question-radio.ts';
+  type QuestionCheckboxOption as CheckboxOption,
+  type QuestionRadioOption as RadioOption,
+  type SafeHtml,
+  questionCheckboxStyles,
+  questionRadioStyles,
+} from '../../dist/final/node/index.mjs';
 
 //region Hash fixtures
 
@@ -419,11 +416,11 @@ await describe({
         /**
          Radio component CSS.
          */
-        const radioStyles = radioCss();
+        const radioStyles = questionRadioStyles();
         /**
          Checkbox component CSS.
          */
-        const checkboxStyles = checkboxCss();
+        const checkboxStyles = questionCheckboxStyles();
 
         expect(radioStyles,).toContain('question-radio',);
         expect(checkboxStyles,).toContain('question-checkbox',);

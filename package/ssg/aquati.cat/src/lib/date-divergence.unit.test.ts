@@ -10,8 +10,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { Logger, } from './types.ts';
-import { warnOnAuthoredDateDivergence, } from './date-divergence.ts';
+import {
+  type Logger,
+  warnOnAuthoredDateDivergence,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Git-derived publication date shared by warning fixtures.

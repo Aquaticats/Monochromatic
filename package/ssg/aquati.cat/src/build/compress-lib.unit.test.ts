@@ -26,9 +26,9 @@ import {
   compressBucket,
   distribute,
   EMPTY_TALLY,
-  type Tally,
   resolveWorkerCount,
-} from './compress-lib.ts';
+  type Tally,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Benchmark fixture size, from the doc example the worker heuristic carries.

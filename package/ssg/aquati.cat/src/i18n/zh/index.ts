@@ -3,7 +3,7 @@ import type { Label, } from '../labels-types.ts';
 /**
  Chinese label table.
  */
-const zh = {
+const zh: Record<Label, string> = {
   siteName: 'Aquaticat',
   siteDescription: '用设计改变世界',
   chooseALang: '语言选择',
@@ -16,6 +16,6 @@ const zh = {
   langSwitcher: '切换语言',
   published: '发布',
   updated: '更新',
-} satisfies Record<Label, string>;
+};
 
 export default zh;

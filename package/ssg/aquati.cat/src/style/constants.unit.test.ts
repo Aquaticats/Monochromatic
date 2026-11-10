@@ -10,13 +10,15 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { css as calloutStyles, } from '../component/callout-alert.ts';
-import { css as langSwitcherStyles, } from '../component/lang-switcher.ts';
-import { css as questionCheckboxStyles, } from '../component/question-checkbox.ts';
-import { css as questionRadioStyles, } from '../component/question-radio.ts';
-import { css as siteHeaderStyles, } from '../component/site-header.ts';
-import { css as siteSearchStyles, } from '../component/site-search.ts';
-import { FONT_WEIGHT_EMPHASIS, } from './constants.ts';
+import {
+  FONT_WEIGHT_EMPHASIS,
+  calloutAlertCss,
+  langSwitcherStyles,
+  questionCheckboxStyles,
+  questionRadioStyles,
+  siteHeaderStyles,
+  siteSearchStyles,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Marker prefixing every emitted `font-weight` declaration.
@@ -73,7 +75,7 @@ function fontWeightValuesIn(styles: string,): string[] {
 const STYLESHEETS = [
   {
     name: 'callout-alert',
-    styles: calloutStyles(),
+    styles: calloutAlertCss(),
   },
   {
     name: 'lang-switcher',

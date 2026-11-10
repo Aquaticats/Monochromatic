@@ -13,7 +13,7 @@ import {
 import {
   containsHiddenDirectory,
   isLeafExcluded,
-} from './postprocess-excludes.ts';
+} from '../../dist/final/node/index.mjs';
 
 /**
  Cases exercising the hidden-segment scan, each paired with its expected answer.

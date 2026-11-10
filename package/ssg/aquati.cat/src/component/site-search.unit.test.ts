@@ -10,8 +10,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { css as siteSearchStyles, } from './site-search.ts';
-import { tokenStyles, } from '../style/tokens.ts';
+import {
+  siteSearchStyles,
+  tokenStyles,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Marker prefixing every emitted outline declaration.

@@ -10,8 +10,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { Post, } from './content.ts';
-import { generateLanguageRss, } from './rss.ts';
+import {
+  generateLanguageRss,
+  type Post,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Older publication date that must not become item pubDate.

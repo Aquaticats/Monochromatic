@@ -13,7 +13,7 @@ import {
 import {
   insertHash,
   sha256Buffer,
-} from './fingerprint-naming.ts';
+} from '../../dist/final/node/index.mjs';
 
 /**
  Hash long enough to exercise the truncation.

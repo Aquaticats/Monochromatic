@@ -11,12 +11,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  LANG_NAMES,
+  indexPage,
   locales,
   type Locale,
-} from '../i18n/index.ts';
-import { LANG_NAMES, } from '../i18n/lang-names.ts';
-
-import { indexPage, } from './index.ts';
+} from '../../dist/final/node/index.mjs';
 
 /**
  Canonical URL the picker fixture renders for.

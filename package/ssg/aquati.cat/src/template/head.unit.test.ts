@@ -13,9 +13,9 @@ import {
 import {
   PRIMARY_DARK,
   PRIMARY_LIGHT,
+  headFragment,
   tokenStyles,
-} from '../style/tokens.ts';
-import { headFragment, } from './head.ts';
+} from '../../dist/final/node/index.mjs';
 
 /**
  Head metadata values shared by the fixtures.

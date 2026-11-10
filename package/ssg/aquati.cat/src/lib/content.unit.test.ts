@@ -21,10 +21,10 @@ import {
 import {
   attachDates,
   loadContent,
+  parseFrontmatter,
   type LoadedPost,
   type ResolvedDates,
-} from './content.ts';
-import { parseFrontmatter, } from './frontmatter.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Frontmatter fixtures
 

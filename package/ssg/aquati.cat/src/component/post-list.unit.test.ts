@@ -10,9 +10,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { Post, } from '../lib/content.ts';
-
-import { html as postListHtml, } from './post-list.ts';
+import {
+  type Post,
+  postListHtml,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Git-derived publication date used by the post fixtures.

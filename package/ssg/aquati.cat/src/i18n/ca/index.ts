@@ -3,7 +3,7 @@ import type { Label, } from '../labels-types.ts';
 /**
  Catalan label table.
  */
-const ca = {
+const ca: Record<Label, string> = {
   siteName: 'Aquaticat',
   siteDescription: 'Canviant el món, un disseny a la vegada',
   chooseALang: 'tria un idioma',
@@ -16,6 +16,6 @@ const ca = {
   langSwitcher: 'Canvia d\'idioma',
   published: 'Publicat',
   updated: 'Actualitzat',
-} satisfies Record<Label, string>;
+};
 
 export default ca;

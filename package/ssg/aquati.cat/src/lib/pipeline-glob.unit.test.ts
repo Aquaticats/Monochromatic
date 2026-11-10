@@ -14,7 +14,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import readdir from 'tiny-readdir-glob';
 
-import { PIPELINE_GLOB, } from './pipeline-glob.ts';
+import { PIPELINE_GLOB, } from '../../dist/final/node/index.mjs';
 
 /**
  Package root, two levels up from this file's `src/lib` directory.
