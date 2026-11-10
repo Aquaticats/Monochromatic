@@ -92,7 +92,7 @@ pub trait GitQueryAwaiting {
 }
 
 /// A borrowed awaited query that the plan functions share.
-pub type QueryAwaiting<'a> = &'a mut dyn GitQueryAwaiting;
+pub type QueryAwaiting<'a> = &'a mut (dyn GitQueryAwaiting + Send);
 
 /// Configuration entries the plan reads:
 /// `(key, value)` with Git's normalised key.

@@ -8,7 +8,6 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  type FigmaFile as FigmaFileType,
   extractZipEntries,
   parseFigmaFile,
 } from '@monochromatic-dev/figma-kiwi/ts';
@@ -17,14 +16,21 @@ import {
   convertFigmaToPenpot,
   figmaColorToHex,
   serializePenpotZip,
-} from './index.ts';
+} from '../dist/final/node/index.mjs';
 
 /**
  UUID Penpot reserves for each page's implicit root frame.
  */
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
-type FigmaFile = FigmaFileType;
+/**
+ Figma file value the shipped converter accepts.
+ 
+ Taken from the artifact's own signature rather than from the parser's source
+ type: the bundle inlines its dependencies, so the converter's declaration names
+ its own absent-document symbol, which differs nominally from the parser's.
+ */
+type FigmaFile = Parameters<typeof convertFigmaToPenpot>[0]['figmaFile'];
 
 /**
  Directory holding the maintainer's personal Figma export fixtures.
@@ -467,6 +473,23 @@ function buildTwoSlideDeck(): FigmaFile {
   },);
 }
 
+/**
+ Decode a real Figma export into the value the shipped converter accepts.
+ 
+ The parser reports an absent document with a unique symbol, and the converter's
+ bundle inlines its own copy of that symbol, so the value decoded from the
+ parser's source type is nominally distinct from the declaration the artifact
+ ships. Both name the same runtime value; the single cast converting between them
+ lives here instead of at each call site.
+ 
+ @param path - absolute path to a `.fig`, `.deck`, or `.jam` export
+ 
+ @returns decoded file typed as the converter's parameter
+ */
+async function decodeFigmaExport(path: string,): Promise<FigmaFile> {
+  return await parseFigmaFile(path,) as unknown as FigmaFile;
+}
+
 // endregion
 
 await describe({
@@ -805,7 +828,7 @@ await describe({
           name: 'converts a real .fig file end-to-end',
           timeout: 30_000,
           fn: async () => {
-            const figFile = await parseFigmaFile(
+            const figFile = await decodeFigmaExport(
               join(FIGMA_EXPORT_DIR, 'Color palette - base.fig',),
             );
             const figDoc = convertFigmaToPenpot({ figmaFile: figFile, },);
@@ -819,7 +842,7 @@ await describe({
           name: 'converts a real .deck file end-to-end',
           timeout: 30_000,
           fn: async () => {
-            const deckFile = await parseFigmaFile(
+            const deckFile = await decodeFigmaExport(
               join(FIGMA_EXPORT_DIR, 'MTM6162-040 participation 2 cover.deck',),
             );
             const deckDoc = convertFigmaToPenpot({ figmaFile: deckFile, },);
@@ -832,7 +855,7 @@ await describe({
           name: 'converts a real .jam file end-to-end',
           timeout: 30_000,
           fn: async () => {
-            const jamFile = await parseFigmaFile(
+            const jamFile = await decodeFigmaExport(
               join(FIGMA_EXPORT_DIR, 'Todo app - Brainstorming.jam',),
             );
             const jamDoc = convertFigmaToPenpot({ figmaFile: jamFile, },);

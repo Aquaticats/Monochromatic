@@ -51,7 +51,7 @@ pub struct GitReply {
 /// How a caller starts Git for the second pass:
 /// in the repository it works in,
 /// with its environment and global options.
-pub trait GitRunner {
+pub trait GitRunner: Send + Sync {
     /// Start Git with `arguments`,
     /// `input` on standard input and `index_file` as the index when given,
     /// and await its end.
