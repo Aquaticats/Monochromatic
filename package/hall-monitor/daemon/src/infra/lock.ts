@@ -8,7 +8,10 @@ import {
   type Server,
 } from 'node:net';
 
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import {
+  tagged,
+  type Logger,
+} from '@monochromatic-dev/logger-core/ts';
 
 import {
   log,
@@ -272,6 +275,56 @@ async function findSocketOwnerPid(): Promise<number> {
 }
 
 /**
+ Sends `signal` to `pid`, reporting a target that has already exited.
+
+ The owner is looked up by walking every `/proc/<pid>/fd`, so it can exit
+ between that walk and this call. `process.kill` throws `ESRCH` for a PID no
+ process holds, and an uncaught `ESRCH` would abort the takeover even though the
+ lock socket is free, so the failure is reported and the caller falls through to
+ the lock retry loop.
+
+ @param pid - process to signal
+
+ @param signal - signal to send, as a name or as the number `kill(2)` takes
+
+ @param logger - logger a failure is reported through
+
+ @returns whether the signal was delivered
+
+ @example
+ ```ts
+ if (signalProcess({ pid, signal: 'SIGTERM', logger: fnLog })) {
+   log.debug('asked the existing instance to stop');
+ }
+ ```
+ */
+export function signalProcess({
+  pid,
+  signal,
+  logger,
+}: Readonly<{
+  pid: number;
+  signal: NodeJS.Signals | number;
+  logger: Logger;
+}>): boolean {
+  try {
+    process.kill(
+      pid,
+      signal,
+    );
+    return true;
+  }
+  catch (error: unknown) {
+    reportExpectedFailure({
+      error,
+      l: logger,
+      operation: `${signal} to process ${pid}`,
+    },);
+    return false;
+  }
+}
+
+/**
  Kills the existing hall-monitor instance, found via
  {@link findSocketOwnerPid}, and acquires the lock via {@link acquireLock}.
  Sends SIGTERM first, escalates to SIGKILL if the process does not exit
@@ -299,10 +352,11 @@ export async function killExisting(): Promise<void> {
   const pid = await findSocketOwnerPid();
 
   fnLog.debug(`Sending SIGTERM to existing instance (PID ${pid})...`,);
-  process.kill(
+  signalProcess({
+    logger: fnLog,
     pid,
-    'SIGTERM',
-  );
+    signal: 'SIGTERM',
+  },);
 
   for (let loopIndex = 0; loopIndex < SIGTERM_RETRIES; loopIndex++) {
     // oxlint-disable-next-line no-await-in-loop, promise/avoid-new -- sequential retry loop with delay
@@ -318,19 +372,11 @@ export async function killExisting(): Promise<void> {
   }
 
   fnLog.debug(`Sending SIGKILL to PID ${pid}...`,);
-  try {
-    process.kill(
-      pid,
-      'SIGKILL',
-    );
-  }
-  catch (error: unknown) {
-    reportExpectedFailure({
-      error,
-      l: fnLog,
-      operation: `SIGKILL to process ${pid}`,
-    },);
-  }
+  signalProcess({
+    logger: fnLog,
+    pid,
+    signal: 'SIGKILL',
+  },);
 
   for (let loopIndex = 0; loopIndex < SIGKILL_RETRIES; loopIndex++) {
     // oxlint-disable-next-line no-await-in-loop, promise/avoid-new -- sequential retry loop with delay
