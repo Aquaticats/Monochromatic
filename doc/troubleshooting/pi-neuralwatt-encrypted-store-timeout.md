@@ -272,22 +272,22 @@ not in sops or pi-ai.
 
 Walked through the six constraints:
 
-1. Is it upstream's fault?
+1.  Is it upstream's fault?
  No.
  The extension asked for a decryption per request,
  while sops timing out under host starvation and pi-ai resolving per
  request are both documented behavior.
-2. Can upstream fix it?
+2.  Can upstream fix it?
  Not applicable.
-3. Does upstream support this use case?
+3.  Does upstream support this use case?
  Not applicable,
  since `ApiKeyAuth.resolve` is documented as request-time work,
  which the extension was performing too literally.
-4. Would the repository welcome a contribution?
+4.  Would the repository welcome a contribution?
  Not applicable.
-5. Will they fix it?
+5.  Will they fix it?
  Not applicable.
-6. Minimal prototype?
+6.  Minimal prototype?
  The prototype is the shipped fix in this repository.
 
 `.out-of-scope/` was not consulted,

@@ -1,4 +1,4 @@
-# Dependency Security Report
+# Dependency security report
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
@@ -169,7 +169,7 @@ Behavioral indicators are visible on the Socket dashboard but not in the CSV exp
 
 ---
 
-## Dependency Source Code Audit
+## Dependency source code audit
 
 ## Excluded from Auditing
 
@@ -178,31 +178,31 @@ Dependencies excluded from full source code audit,
 
 ### Transitive / Unavoidable
 
-- **postcss**:
+- postcss:
    Used by stylelint and CSS build pipeline
-- **tinyglobby**:
+- tinyglobby:
    Used by tsdown and other build tooling
 
 ### Trusted / Pre-Vetted
 
-- **dprint**:
+- dprint:
    Trusted native formatter;
    dev-only
-- **neovim**:
+- neovim:
    Trusted MCP integration;
    dev-only
-- **@anthropic-ai/sdk**:
+- @anthropic-ai/sdk:
    Trusted first-party AI vendor SDK
-- **openai**:
+- openai:
    Trusted first-party AI vendor SDK
-- **zod**:
+- zod:
    Impossible to avoid.
 
 ### Planned for Removal
 
-- **astro**:
+- astro:
    Will be replaced with a simpler SSG
-- **@astrojs/mdx**:
+- @astrojs/mdx:
    Will be removed with astro
 - **`@logtape/*`**:
    To be replaced by our custom logger

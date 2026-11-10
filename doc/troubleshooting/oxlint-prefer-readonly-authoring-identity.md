@@ -194,23 +194,23 @@ Identity helpers that only return their input need no invented mutation statemen
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-    No. Structural readonly rules correctly cannot infer this repository's ownership
-   boundary from a third-party capability type.
-2. **Can upstream fix it?**
-    Not without a project-specific ownership and effect model.
-3. **Are they supporting this use case?**
-    The native rule supports structural type checks,
-   not exact identity-preserving capability contracts.
-4. **Would the repo welcome our contribution?**
-    No generally applicable upstream change was identified.
-5. **Will they likely fix it?**
-    Not applicable because no upstream defect is claimed.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    The project-owned marker,
-   TypeScript 7 semantic bridge,
-   provenance propagation,
-   and verified effect contracts are the implemented fix.
+1.  **Is it really upstream's fault?**
+     No. Structural readonly rules correctly cannot infer this repository's ownership
+    boundary from a third-party capability type.
+2.  **Can upstream fix it?**
+     Not without a project-specific ownership and effect model.
+3.  **Are they supporting this use case?**
+     The native rule supports structural type checks,
+    not exact identity-preserving capability contracts.
+4.  **Would the repo welcome our contribution?**
+     No generally applicable upstream change was identified.
+5.  **Will they likely fix it?**
+     Not applicable because no upstream defect is claimed.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     The project-owned marker,
+    TypeScript 7 semantic bridge,
+    provenance propagation,
+    and verified effect contracts are the implemented fix.
 
 Nothing should be filed upstream.
 

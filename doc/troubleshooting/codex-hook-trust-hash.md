@@ -46,13 +46,13 @@ Evidence read from the codex source at commit `83086188ae`
 
 ## Workarounds
 
-1. Approve the hook again in the `/hooks` view,
-   which writes the new `trusted_hash` into `~/.codex/config.toml`.
-2. Recompute the fingerprint yourself and write it into
-   `[hooks.state."<key>"]` of `~/.codex/config.toml`.
-   Validate the method first:
-   reproduce the `trusted_hash` of an unchanged hook entry exactly,
-   and only then write the new value.
+1.  Approve the hook again in the `/hooks` view,
+    which writes the new `trusted_hash` into `~/.codex/config.toml`.
+2.  Recompute the fingerprint yourself and write it into
+    `[hooks.state."<key>"]` of `~/.codex/config.toml`.
+    Validate the method first:
+    reproduce the `trusted_hash` of an unchanged hook entry exactly,
+    and only then write the new value.
 
 ## Reproducing the fingerprint
 

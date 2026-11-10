@@ -50,18 +50,33 @@ export function lineTableOf(sourceText: string,): IndentLineTable {
    Line texts between newline characters, aligned with `lineStarts`.
    */
   const pieces = sourceText.split('\n',);
+  /**
+   Leading-whitespace width per line, aligned with `lineStarts`.
+   */
   const widths: number[] = [];
+  /**
+   Offset where each line's content begins, past its leading whitespace.
+   */
   const contentStarts: number[] = [];
+  /**
+   Whether each line carries nothing but leading whitespace.
+   */
   const blank: boolean[] = [];
   for (
     let lineIndex = 0;
     lineIndex < pieces.length;
     lineIndex += 1
   ) {
+    /**
+     Text of this line, without its terminating newline.
+     */
     const piece = at({
       arr: pieces,
       index: lineIndex,
     },);
+    /**
+     Length of the line's leading whitespace run, in characters.
+     */
     const width = leadingWhitespace(piece,)
       .length;
     widths.push(width,);
@@ -101,7 +116,9 @@ export type InTemplateFlagsOfParams = {
  line in one forward sweep; proper nesting leaves the containing span on top,
  making membership O(lines + spans).
  
- @param params - template spans and per-line content offsets
+ @param templateSpans - `[start, end)` span per template literal, in source order
+ 
+ @param contentStarts - offset where each line's content begins
  
  @returns `true` per line whose content is template interior
  
@@ -114,11 +131,17 @@ export function inTemplateFlagsOf({
   templateSpans,
   contentStarts,
 }: InTemplateFlagsOfParams,): readonly boolean[] {
+  /**
+   Membership flag per content offset, appended in line order.
+   */
   const flags: boolean[] = [];
   /**
    Span indexes currently covering the sweep cursor, innermost last.
    */
   const openSpanIndexes: number[] = [];
+  /**
+   First span not yet opened by the sweep; spans open in start order.
+   */
   let spanCursor = 0;
   for (const contentStart of contentStarts) {
     while (

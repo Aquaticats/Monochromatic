@@ -216,23 +216,23 @@ so production calls are not affected.
 
 Do not file.
 
-1. Is it really upstream's fault?
-   No. The 300 s defaults are documented behaviour
-   (`docs/docs/api/Client.md:49-51`),
-   with `0` documented as the way to disable them.
-2. Can upstream fix it?
-   Not applicable:
-   there is no defect to fix.
-3. Are they supporting this use case?
-   Yes,
-   through the documented `headersTimeout` and `bodyTimeout` options.
-4. Would the repo welcome our contribution?
-   Not checked,
-   since no contribution is proposed.
-5. Will they likely fix it?
-   Not applicable.
-6. Prototyped a fix?
-   Not applicable.
+1.  Is it really upstream's fault?
+    No. The 300 s defaults are documented behaviour
+    (`docs/docs/api/Client.md:49-51`),
+    with `0` documented as the way to disable them.
+2.  Can upstream fix it?
+    Not applicable:
+    there is no defect to fix.
+3.  Are they supporting this use case?
+    Yes,
+    through the documented `headersTimeout` and `bodyTimeout` options.
+4.  Would the repo welcome our contribution?
+    Not checked,
+    since no contribution is proposed.
+5.  Will they likely fix it?
+    Not applicable.
+6.  Prototyped a fix?
+    Not applicable.
 
 `.out-of-scope/` has no entry for Node or undici (listing of 2026-10-22).
 Duplicate search:

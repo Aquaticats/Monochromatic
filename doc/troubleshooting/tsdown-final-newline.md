@@ -405,46 +405,46 @@ shim banner placement,
 
 The six filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?
-   ** No.
-   tsdown and Rolldown document JavaScript and declaration generation,
-    but no reviewed source promises exactly one
-   final LF.
-   The observed bytes are consistent with Rolldown preserving generator output.
-2. **Can upstream fix it?
-   ** Yes.
-   A canonicalization option could live in tsdown post-processing,
-    or Rolldown could add an explicit output policy.
-   A global Rolldown change would need to account for consumers that rely on exact output bytes.
-3. **Are they supporting this use case?
-   ** Partly.
-   The README explicitly supports library bundles and declaration generation,
-    and the hook documentation supports
-   post-processing.
-   Exact final-LF canonicalization is not documented.
-4. **Would the repo welcome our contribution?
-   ** Yes,
-    with conditions.
-   `.github/ISSUE_TEMPLATE/bug_report.yml` accepts bug reports only with a minimal reproduction.
-   `.github/PULL_REQUEST_TEMPLATE.md` asks contributors to avoid duplicate work and include regression tests.
-   It permits AI-generated core code only after careful human line-by-line review and requires that fact to be
-   checked in the template.
-   No policy banning AI-assisted issue reports was found.
-   The linked `sxzz/contribute` guide asks contributors to discuss features first and use Conventional Commits.
-5. **Will they likely fix it?
-   ** Unknown,
-    with no active rejection.
-   `v0.22.4` is the latest release,
-    tracker searches found no decision,
-    and recent `src/build.ts` history concerns
-   config dependency tracking rather than byte endings.
-   No documented non-goal or maintainer rejection was found.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No upstream patch.
-   Constraints 1 and 3 do not hold,
-    so the automatic upstream prototype gate does not trigger.
-   The verified `build:done` consumer workaround proves the documented extension point is available,
-   but this repository intentionally keeps the smaller producer-native output instead.
+1.  **Is it really upstream's fault?
+    ** No.
+    tsdown and Rolldown document JavaScript and declaration generation,
+     but no reviewed source promises exactly one
+    final LF.
+    The observed bytes are consistent with Rolldown preserving generator output.
+2.  **Can upstream fix it?
+    ** Yes.
+    A canonicalization option could live in tsdown post-processing,
+     or Rolldown could add an explicit output policy.
+    A global Rolldown change would need to account for consumers that rely on exact output bytes.
+3.  **Are they supporting this use case?
+    ** Partly.
+    The README explicitly supports library bundles and declaration generation,
+     and the hook documentation supports
+    post-processing.
+    Exact final-LF canonicalization is not documented.
+4.  **Would the repo welcome our contribution?
+    ** Yes,
+     with conditions.
+    `.github/ISSUE_TEMPLATE/bug_report.yml` accepts bug reports only with a minimal reproduction.
+    `.github/PULL_REQUEST_TEMPLATE.md` asks contributors to avoid duplicate work and include regression tests.
+    It permits AI-generated core code only after careful human line-by-line review and requires that fact to be
+    checked in the template.
+    No policy banning AI-assisted issue reports was found.
+    The linked `sxzz/contribute` guide asks contributors to discuss features first and use Conventional Commits.
+5.  **Will they likely fix it?
+    ** Unknown,
+     with no active rejection.
+    `v0.22.4` is the latest release,
+     tracker searches found no decision,
+     and recent `src/build.ts` history concerns
+    config dependency tracking rather than byte endings.
+    No documented non-goal or maintainer rejection was found.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No upstream patch.
+    Constraints 1 and 3 do not hold,
+     so the automatic upstream prototype gate does not trigger.
+    The verified `build:done` consumer workaround proves the documented extension point is available,
+    but this repository intentionally keeps the smaller producer-native output instead.
 
 The default no-filing policy applies.
 Nothing was posted upstream.

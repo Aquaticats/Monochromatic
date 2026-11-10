@@ -81,7 +81,7 @@ DeepSeek sent five questions:
 5.  Put the logger fake-clock tests under root `concurrency: 1` or split
     the test file.
 
-**Why it failed:**
+Why it failed:
 
 - Every question treated the current harness architecture as fixed:
   process-global fake timers,
@@ -128,7 +128,7 @@ DeepSeek retracted the per-site framing and sent four harness questions:
     per-attempt,
     or both.
 
-**Why it failed:**
+Why it failed:
 
 - These were mechanism menus.
   API shape and seam placement are engineering decisions,

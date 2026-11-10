@@ -216,19 +216,19 @@ so each component is a directory of sibling modules.
 
 ### Startup sequence
 
-1. The user runs `systemd-run --user --scope -p Delegate=yes -- <tool> daemon` in a terminal.
-2. The daemon reads `/proc/self/cgroup`,
-    then checks that its cgroup directory is owned by its uid
-    and that `cgroup.procs` and `cgroup.subtree_control` are writable;
-    otherwise it exits with a `doctor` pointer,
-    because sandboxing is required.
-3. It creates `daemon/` under its delegated cgroup and writes its own PID to `daemon/cgroup.procs`.
-4. It writes `+cpu +io +memory +pids` to the delegated cgroup's own `cgroup.subtree_control`,
-    never to any ancestor.
-5. It kills and removes leftover `tasks/*` cgroups from a previous crash.
-6. It binds the control socket,
-    walks and watches the repository,
-    and starts the scheduler.
+1.  The user runs `systemd-run --user --scope -p Delegate=yes -- <tool> daemon` in a terminal.
+2.  The daemon reads `/proc/self/cgroup`,
+     then checks that its cgroup directory is owned by its uid
+     and that `cgroup.procs` and `cgroup.subtree_control` are writable;
+     otherwise it exits with a `doctor` pointer,
+     because sandboxing is required.
+3.  It creates `daemon/` under its delegated cgroup and writes its own PID to `daemon/cgroup.procs`.
+4.  It writes `+cpu +io +memory +pids` to the delegated cgroup's own `cgroup.subtree_control`,
+     never to any ancestor.
+5.  It kills and removes leftover `tasks/*` cgroups from a previous crash.
+6.  It binds the control socket,
+     walks and watches the repository,
+     and starts the scheduler.
 
 ## Shared Rust core evidence
 

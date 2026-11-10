@@ -124,23 +124,23 @@ Semantic checks must resolve declaration provenance rather than trust surface sp
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** The old mismatch resulted from a native matcher contract combined with ordinary declaration-bundler renaming.
-2. **Can upstream fix it?
-   ** Upstream could broaden alias matching,
-   but that would change the retired rule rather than this repository's active semantic rule.
-3. **Are they supporting this use case?
-   ** The native rule supported type-name allow specifiers,
-   not project-specific ownership provenance.
-4. **Would the repo welcome our contribution?
-   ** No current repository dependency requires that native-rule change.
-5. **Will they likely fix it?
-   ** No prediction is needed because the repository no longer consumes the affected path.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** The project-owned TypeScript 7 bridge,
-   exact declaration provenance,
-   ownership marker,
-   and fixed-point propagation are implemented and tested.
+1.  **Is it really upstream's fault?
+    ** The old mismatch resulted from a native matcher contract combined with ordinary declaration-bundler renaming.
+2.  **Can upstream fix it?
+    ** Upstream could broaden alias matching,
+    but that would change the retired rule rather than this repository's active semantic rule.
+3.  **Are they supporting this use case?
+    ** The native rule supported type-name allow specifiers,
+    not project-specific ownership provenance.
+4.  **Would the repo welcome our contribution?
+    ** No current repository dependency requires that native-rule change.
+5.  **Will they likely fix it?
+    ** No prediction is needed because the repository no longer consumes the affected path.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** The project-owned TypeScript 7 bridge,
+    exact declaration provenance,
+    ownership marker,
+    and fixed-point propagation are implemented and tested.
 
 Nothing should be filed upstream.
 

@@ -403,100 +403,100 @@ whether it needs an owner decision,
 and cost.
 None was adopted by the read.
 
-1. Re-ask a length-cut empty reply,
-   and route the second ask away from the failing route.
-   - Change:
-     in `image-reading-past-refusal.ts`,
-     treat `finishReason === 'length'` with empty text as a runaway and ask again
-     (`ChatTextReply.finishReason` already exists,
-     `chat-contract.ts:282`).
-   - Pros:
-     smallest change;
-     no new seat;
-     no owner decision;
-     covers every reasoning reader added later.
-   - Cons:
-     a same-route re-ask may repeat (guess);
-     sending it to OpenRouter needs a router change,
-     because today only budget refusals reroute;
-     each re-ask costs a few thousand tokens.
-   - Cost:
-     code and tests in `slice-reading`,
-     plus `provider` if rerouting.
-2. Add a third and fourth wet reader from a family independent of MiniMax and Zhipu.
-   - Best evidence:
-     `qwen/qwen3.8-27b` on OpenRouter (it read this picture in `XingZ6015`),
-     which needs the owner to reverse `openrouter-dropped` for picture reads
-     (guess:
-     the 24 percent abandonment was a judge-round effect that picture reads do not share).
-   - Next:
-     `google/gemma-4-26b-a4b-it` on OpenRouter,
-     already on the roster and allowlist,
-     cheapest;
-     it needs the nine-picture measurement of the 2026-09-08 rule before its OpenRouter `readsImages` flips;
-     risk:
-     Gemma failed on a 1.27 MB picture on Bedrock.
-   - Then `deepseek-v4.1-flash` (free on NeuralWatt) and `mimo-v2.6-flash`,
-     each needing the same measurement to lift `reader-unmeasured`.
-   - Pros:
-     gives slack,
-     so one reader failing no longer stops an entry.
-   - Cons:
-     an owner decision or a measurement run first;
-     DeepSeek may reason long like GLM.
-   - Cost:
-     about 0.002 to 0.006 USD a reading;
-     one measurement run of nine pictures per model.
-3. Seat the reader bench by `visionReachOf` and retire the Bedrock-only reader sides.
-   - Evidence:
-     `run-seats.ts:220` `servedBy` and `run-seats-wait.ts:183` `reachableSeats` use text reach,
-     so `gemma-4-26b-a4b-it` counts as served because OpenRouter serves it for text,
-     and the seat line says `readers=5` when two can see.
-   - Pros:
-     honest bench size and quorum;
-     no wasted failing calls.
-   - Cons:
-     adds no reading by itself.
-   - Cost:
-     a small code change plus test updates.
-4. Raise the picture-call completion cap for reasoning readers
-   (a new field,
-   since `requested` only lowers the cap).
-   - Pros:
-     lets `max` effort finish;
-     NeuralWatt energy is cheap (0.23 Wh for 18316 tokens against 550 Wh a day).
-   - Cons:
-     the doc notes a longer cap buys a longer runaway;
-     the evidence is one failure.
-   - Cost:
-     a card field and tests.
-5. Send a lower reasoning effort to NeuralWatt GLM.
-   - Pros:
-     attacks the cause directly.
-   - Cons:
-     breaks the owner's standing rule of 2026-08-25 ("no reasoning parameter ever");
-     needs an explicit exception.
-   - Cost:
-     an owner decision first.
-6. Route GLM pictures to OpenRouter Wafer instead of NeuralWatt.
-   - Pros:
-     avoids the NeuralWatt default;
-     about 0.0014 USD a reading.
-   - Cons:
-     one failure against three small successes on NeuralWatt is not a rate;
-     spends paid money where free energy exists.
-7. Stopgaps with no code:
-   rerun after Synthetic's weekly meter resets
-   (restores `Qwen3.8-27B` and `Kimi-K3`,
-   as in `XingZ6015`),
-   or rerun now and hope GLM finishes.
-   - The unavailable verdict is not cached (log line 540),
-     so a rerun asks all readers again.
-   - Pros:
-     free.
-   - Cons:
-     leaves a two-reader bench with no slack;
-     a rerun now needs GLM to finish.
+1.  Re-ask a length-cut empty reply,
+    and route the second ask away from the failing route.
+    - Change:
+      in `image-reading-past-refusal.ts`,
+      treat `finishReason === 'length'` with empty text as a runaway and ask again
+      (`ChatTextReply.finishReason` already exists,
+      `chat-contract.ts:282`).
+    - Pros:
+      smallest change;
+      no new seat;
+      no owner decision;
+      covers every reasoning reader added later.
+    - Cons:
+      a same-route re-ask may repeat (guess);
+      sending it to OpenRouter needs a router change,
+      because today only budget refusals reroute;
+      each re-ask costs a few thousand tokens.
+    - Cost:
+      code and tests in `slice-reading`,
+      plus `provider` if rerouting.
+2.  Add a third and fourth wet reader from a family independent of MiniMax and Zhipu.
+    - Best evidence:
+      `qwen/qwen3.8-27b` on OpenRouter (it read this picture in `XingZ6015`),
+      which needs the owner to reverse `openrouter-dropped` for picture reads
+      (guess:
+      the 24 percent abandonment was a judge-round effect that picture reads do not share).
+    - Next:
+      `google/gemma-4-26b-a4b-it` on OpenRouter,
+      already on the roster and allowlist,
+      cheapest;
+      it needs the nine-picture measurement of the 2026-09-08 rule before its OpenRouter `readsImages` flips;
+      risk:
+      Gemma failed on a 1.27 MB picture on Bedrock.
+    - Then `deepseek-v4.1-flash` (free on NeuralWatt) and `mimo-v2.6-flash`,
+      each needing the same measurement to lift `reader-unmeasured`.
+    - Pros:
+      gives slack,
+      so one reader failing no longer stops an entry.
+    - Cons:
+      an owner decision or a measurement run first;
+      DeepSeek may reason long like GLM.
+    - Cost:
+      about 0.002 to 0.006 USD a reading;
+      one measurement run of nine pictures per model.
+3.  Seat the reader bench by `visionReachOf` and retire the Bedrock-only reader sides.
+    - Evidence:
+      `run-seats.ts:220` `servedBy` and `run-seats-wait.ts:183` `reachableSeats` use text reach,
+      so `gemma-4-26b-a4b-it` counts as served because OpenRouter serves it for text,
+      and the seat line says `readers=5` when two can see.
+    - Pros:
+      honest bench size and quorum;
+      no wasted failing calls.
+    - Cons:
+      adds no reading by itself.
+    - Cost:
+      a small code change plus test updates.
+4.  Raise the picture-call completion cap for reasoning readers
+    (a new field,
+    since `requested` only lowers the cap).
+    - Pros:
+      lets `max` effort finish;
+      NeuralWatt energy is cheap (0.23 Wh for 18316 tokens against 550 Wh a day).
+    - Cons:
+      the doc notes a longer cap buys a longer runaway;
+      the evidence is one failure.
+    - Cost:
+      a card field and tests.
+5.  Send a lower reasoning effort to NeuralWatt GLM.
+    - Pros:
+      attacks the cause directly.
+    - Cons:
+      breaks the owner's standing rule of 2026-08-25 ("no reasoning parameter ever");
+      needs an explicit exception.
+    - Cost:
+      an owner decision first.
+6.  Route GLM pictures to OpenRouter Wafer instead of NeuralWatt.
+    - Pros:
+      avoids the NeuralWatt default;
+      about 0.0014 USD a reading.
+    - Cons:
+      one failure against three small successes on NeuralWatt is not a rate;
+      spends paid money where free energy exists.
+7.  Stopgaps with no code:
+    rerun after Synthetic's weekly meter resets
+    (restores `Qwen3.8-27B` and `Kimi-K3`,
+    as in `XingZ6015`),
+    or rerun now and hope GLM finishes.
+    - The unavailable verdict is not cached (log line 540),
+      so a rerun asks all readers again.
+    - Pros:
+      free.
+    - Cons:
+      leaves a two-reader bench with no slack;
+      a rerun now needs GLM to finish.
 
 Not recommended by the read:
 

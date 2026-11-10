@@ -73,98 +73,98 @@ which is the inconsistency it records.
 The route is the one that changes a checkout in place,
 so the interesting instants are the ones between a durable record and the write it protects.
 
-1. The merge commit object.
-   `merge_isolation_apply.rs:commit_merge` runs `git commit-tree` before anything is applied.
-   Killed before it ends:
-   nothing is on disk.
-   Killed after:
-   one unreachable commit object,
-   which `git gc` drops;
-   nothing notices and nothing is lost.
-2. The merge intent record.
-   `merge_isolation_journal.rs:write_merge_intent` publishes it whole
-   (a staging file,
-   a sync,
-   an exclusive publish) and syncs the directory.
-   Killed before:
-   the state of item 1.
-   Killed after:
-   a record naming `oldOid` and `newOid` and no checkout change;
-   the next command in that worktree settles it through `startup_gate.rs:211`
-   and discards it,
-   because neither the index nor the worktree holds anything of the merge.
-   Nothing is lost and nothing is reported,
-   which is right:
-   the merge never happened.
-3. Git's own fast-forward to the merge commit.
-   `merge_isolation_apply.rs:250` runs `git merge --ff-only <newOid>`,
-   which writes the merge's worktree files,
-   then the index entries,
-   then the branch.
-   Killed inside:
-   worktree and index hold the merge,
-   the branch does not,
-   and the record from item 2 is there,
-   so the next command completes it
-   (`merge_isolation_recovery.rs:settle_failed_merge`,
-   the `index_started` and `worktree_started` checks).
-   That completion is silent;
-   see finding 1.
-4. The record's removal.
-   `merge_isolation_apply.rs:281` and `merge_isolation_recovery_steps.rs:remove_record`.
-   Killed before it:
-   the record outlives the merge,
-   and the next command sees the branch already at `newOid` and removes it
-   (`MergeRecoveryAction::AlreadyLanded`).
-   Killed after:
-   nothing is left.
-5. Recovery's own install,
-   for a merge that started and lost its process.
-   `merge_isolation_recovery_steps.rs:251` writes the index entries,
-   `:267` writes the files,
-   `merge_isolation_recovery.rs:297` moves the branch by compare and swap against `oldOid`.
-   Killed between the files and the branch write:
-   the same state as item 3,
-   and the same completion,
-   which is idempotent against the files it already wrote.
-6. The settling of a branch that moved.
-   `merge_isolation_moved.rs:143` installs the moved head's entries for the merge's paths,
-   then removes the record.
-   Killed inside:
-   the next command settles again from the record,
-   and a path that holds neither the old,
-   the merge's nor the moved head's content stops it with the record kept.
-7. The word-level second pass over a conflict a forwarded command left.
-   `merge_second_pass_worktree.rs:201` stages the merged blobs,
-   `:202` writes the files,
-   `:208` puts the conflict stages back when the write fails.
-   Killed between the two:
-   the index says resolved and the file still holds markers,
-   which `git status` shows,
-   so the person sees it and the merge commit would carry the markers if they commit.
-   `SPEC.md:2200` accepts exactly that outcome for a plain `git commit` over unmerged files.
-8. The merge message.
-   `merge_second_pass_finish.rs:439` rewrites `MERGE_MSG` with `std::fs::write`,
-   which truncates and then writes.
-   Killed inside the write:
-   a short or empty merge message beside a `MERGE_HEAD` the person has not committed yet.
-   Nothing notices until they commit,
-   and `git commit` then refuses an empty message.
-9. A saved copy of a conflicted file.
-   `conflict_sides.rs:save_copies` creates the private directory,
-   copies each file (each copy is `sync_all`ed,
-   `conflict_side_source.rs:copy_stream`),
-   and syncs every directory it wrote.
-   Killed before the copies:
-   nothing changed and the command never ran.
-   Killed after them:
-   an orphan save directory,
-   which the prune removes under its own limits.
-   The audit line that names the copies comes after the copies and before Git runs
-   (`policy_checks.rs:374`),
-   so a kill in that window leaves copies that no line names;
-   the copy itself is what "never discard user data" is about,
-   and it is on disk.
+1.  The merge commit object.
+    `merge_isolation_apply.rs:commit_merge` runs `git commit-tree` before anything is applied.
+    Killed before it ends:
+    nothing is on disk.
+    Killed after:
+    one unreachable commit object,
+    which `git gc` drops;
+    nothing notices and nothing is lost.
+2.  The merge intent record.
+    `merge_isolation_journal.rs:write_merge_intent` publishes it whole
+    (a staging file,
+    a sync,
+    an exclusive publish) and syncs the directory.
+    Killed before:
+    the state of item 1.
+    Killed after:
+    a record naming `oldOid` and `newOid` and no checkout change;
+    the next command in that worktree settles it through `startup_gate.rs:211`
+    and discards it,
+    because neither the index nor the worktree holds anything of the merge.
+    Nothing is lost and nothing is reported,
+    which is right:
+    the merge never happened.
+3.  Git's own fast-forward to the merge commit.
+    `merge_isolation_apply.rs:250` runs `git merge --ff-only <newOid>`,
+    which writes the merge's worktree files,
+    then the index entries,
+    then the branch.
+    Killed inside:
+    worktree and index hold the merge,
+    the branch does not,
+    and the record from item 2 is there,
+    so the next command completes it
+    (`merge_isolation_recovery.rs:settle_failed_merge`,
+    the `index_started` and `worktree_started` checks).
+    That completion is silent;
+    see finding 1.
+4.  The record's removal.
+    `merge_isolation_apply.rs:281` and `merge_isolation_recovery_steps.rs:remove_record`.
+    Killed before it:
+    the record outlives the merge,
+    and the next command sees the branch already at `newOid` and removes it
+    (`MergeRecoveryAction::AlreadyLanded`).
+    Killed after:
+    nothing is left.
+5.  Recovery's own install,
+    for a merge that started and lost its process.
+    `merge_isolation_recovery_steps.rs:251` writes the index entries,
+    `:267` writes the files,
+    `merge_isolation_recovery.rs:297` moves the branch by compare and swap against `oldOid`.
+    Killed between the files and the branch write:
+    the same state as item 3,
+    and the same completion,
+    which is idempotent against the files it already wrote.
+6.  The settling of a branch that moved.
+    `merge_isolation_moved.rs:143` installs the moved head's entries for the merge's paths,
+    then removes the record.
+    Killed inside:
+    the next command settles again from the record,
+    and a path that holds neither the old,
+    the merge's nor the moved head's content stops it with the record kept.
+7.  The word-level second pass over a conflict a forwarded command left.
+    `merge_second_pass_worktree.rs:201` stages the merged blobs,
+    `:202` writes the files,
+    `:208` puts the conflict stages back when the write fails.
+    Killed between the two:
+    the index says resolved and the file still holds markers,
+    which `git status` shows,
+    so the person sees it and the merge commit would carry the markers if they commit.
+    `SPEC.md:2200` accepts exactly that outcome for a plain `git commit` over unmerged files.
+8.  The merge message.
+    `merge_second_pass_finish.rs:439` rewrites `MERGE_MSG` with `std::fs::write`,
+    which truncates and then writes.
+    Killed inside the write:
+    a short or empty merge message beside a `MERGE_HEAD` the person has not committed yet.
+    Nothing notices until they commit,
+    and `git commit` then refuses an empty message.
+9.  A saved copy of a conflicted file.
+    `conflict_sides.rs:save_copies` creates the private directory,
+    copies each file (each copy is `sync_all`ed,
+    `conflict_side_source.rs:copy_stream`),
+    and syncs every directory it wrote.
+    Killed before the copies:
+    nothing changed and the command never ran.
+    Killed after them:
+    an orphan save directory,
+    which the prune removes under its own limits.
+    The audit line that names the copies comes after the copies and before Git runs
+    (`policy_checks.rs:374`),
+    so a kill in that window leaves copies that no line names;
+    the copy itself is what "never discard user data" is about,
+    and it is on disk.
 10. The prune of saved copies.
     `discarded_prune.rs:remove_entry` empties one directory and then writes its audit line.
     Killed between:
@@ -237,18 +237,18 @@ and `:221` reports the outcomes with `debug` alone.
 
 Sequence:
 
-1. A merge makes a commit,
-   installs the checkout,
-   and is killed before it moves the branch
-   (item 3 of the state changes above).
-2. The person runs any command in that worktree,
-   `git status` included.
-3. The startup gate finds the record of a dead owner,
-   sees the index and worktree holding the merge,
-   installs the entries,
-   and moves the branch by compare and swap
-   (`merge_isolation_recovery.rs:297`).
-4. The command prints only what it was asked to print.
+1.  A merge makes a commit,
+    installs the checkout,
+    and is killed before it moves the branch
+    (item 3 of the state changes above).
+2.  The person runs any command in that worktree,
+    `git status` included.
+3.  The startup gate finds the record of a dead owner,
+    sees the index and worktree holding the merge,
+    installs the entries,
+    and moves the branch by compare and swap
+    (`merge_isolation_recovery.rs:297`).
+4.  The command prints only what it was asked to print.
 
 Wrong result:
 the branch gains a merge commit that the person never saw land,
@@ -286,22 +286,22 @@ is missing exactly where a killed merge is finished.
 
 Sequence:
 
-1. A merge is killed after Git installed the checkout and before the branch moved.
-2. Anything writes the index in that worktree before the next command:
-   the commit service landing a commit,
-   the person's own `git commit` with the editor open,
-   an IDE,
-   another `git add`.
-3. Any command runs,
-   `git status` included.
-4. The startup gate calls recovery,
-   recovery calls `git update-index`,
-   Git refuses for the existing lock.
-5. `merge_isolation_recovery.rs:295` propagates the failure,
-   `startup_gate.rs:297` turns it into `Gate::Stop`,
-   and the command exits 2 as a `content-unavailable` engine failure.
-6. The record is kept,
-   so every later command repeats this until the lock is free.
+1.  A merge is killed after Git installed the checkout and before the branch moved.
+2.  Anything writes the index in that worktree before the next command:
+    the commit service landing a commit,
+    the person's own `git commit` with the editor open,
+    an IDE,
+    another `git add`.
+3.  Any command runs,
+    `git status` included.
+4.  The startup gate calls recovery,
+    recovery calls `git update-index`,
+    Git refuses for the existing lock.
+5.  `merge_isolation_recovery.rs:295` propagates the failure,
+    `startup_gate.rs:297` turns it into `Gate::Stop`,
+    and the command exits 2 as a `content-unavailable` engine failure.
+6.  The record is kept,
+    so every later command repeats this until the lock is free.
 
 Wrong result:
 every command in the worktree exits 2 while another program holds the index,
@@ -342,17 +342,17 @@ Three pieces make this one finding.
 Sequence,
 the proven-dead holder:
 
-1. A Git killed under `core.lockfilePid` leaves `index.lock` and a pid file naming a process that has ended.
-2. The person runs `git merge` of a branch that makes a commit.
-3. Each round waits nothing (`wait_for_index_release` returns `OwnerGone` at once,
-   `index_holder_wait.rs:210`) and runs `git merge --ff-only`,
-   which fails on the lock,
-   and the round repeats.
-4. After 20 rounds the merge exits 2 saying
-   "the branch moved or the index lock was taken in 20 merges in a row,
-   so the wrapper stopped;
-   nothing was changed.
-   Run the merge again."
+1.  A Git killed under `core.lockfilePid` leaves `index.lock` and a pid file naming a process that has ended.
+2.  The person runs `git merge` of a branch that makes a commit.
+3.  Each round waits nothing (`wait_for_index_release` returns `OwnerGone` at once,
+    `index_holder_wait.rs:210`) and runs `git merge --ff-only`,
+    which fails on the lock,
+    and the round repeats.
+4.  After 20 rounds the merge exits 2 saying
+    "the branch moved or the index lock was taken in 20 merges in a row,
+    so the wrapper stopped;
+    nothing was changed.
+    Run the merge again."
 
 Wrong result:
 the merge fails,
@@ -369,12 +369,12 @@ so a commit repairs what a merge refuses.
 Sequence,
 a live or unproven holder:
 
-1. Another program holds `index.lock` and is not the commit service,
-   for instance the person's own `git commit` with its editor open.
-2. A `git merge` that fast-forwards is forwarded to real Git
-   (`lock/index_writer_forward.rs:237`) after the same bounded wait.
-3. At the ceiling the wait names the blocker and ends,
-   and Git refuses for the lock.
+1.  Another program holds `index.lock` and is not the commit service,
+    for instance the person's own `git commit` with its editor open.
+2.  A `git merge` that fast-forwards is forwarded to real Git
+    (`lock/index_writer_forward.rs:237`) after the same bounded wait.
+3.  At the ceiling the wait names the blocker and ends,
+    and Git refuses for the lock.
 
 Wrong result:
 the same `Unable to create ... index.lock` failure native Git gives in 4 ms,
@@ -415,12 +415,12 @@ one `git hash-object` per changed path in `worktree_state`.
 
 Sequence:
 
-1. A killed merge leaves a record and a checkout that holds the merge.
-2. A command starts,
-   and recovery judges each changed path to be the merge's content.
-3. The person's editor saves one of those files between that judgement and `checkout-index --force`,
-   or another process writes it.
-4. `checkout-index --force` replaces it with the merged blob.
+1.  A killed merge leaves a record and a checkout that holds the merge.
+2.  A command starts,
+    and recovery judges each changed path to be the merge's content.
+3.  The person's editor saves one of those files between that judgement and `checkout-index --force`,
+    or another process writes it.
+4.  `checkout-index --force` replaces it with the merged blob.
 
 Wrong result:
 the edit is gone with no notice.
@@ -486,12 +486,12 @@ and folds earlier log lines into the current log
 
 Sequence:
 
-1. A repository still holds names an earlier release wrote,
-   such as an audit log or a data folder under the earlier spelling.
-2. Someone runs `git monochromatic-git-policy-cli doctor`,
-   to look,
-   on a repository they may not own or do not mean to change.
-3. Doctor renames those names and appends to the audit log.
+1.  A repository still holds names an earlier release wrote,
+    such as an audit log or a data folder under the earlier spelling.
+2.  Someone runs `git monochromatic-git-policy-cli doctor`,
+    to look,
+    on a repository they may not own or do not mean to change.
+3.  Doctor renames those names and appends to the audit log.
 
 Wrong result:
 the one command documented as changing nothing changes the repository,

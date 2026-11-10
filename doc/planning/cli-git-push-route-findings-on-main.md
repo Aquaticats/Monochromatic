@@ -155,20 +155,20 @@ and answers `Enqueued::Known` without writing anything.
 
 The sequence:
 
-1. A commit lands on `refs/heads/topic` and its push record `push-<C>` runs and settles `done`.
-2. In the same worktree the person switches to `refs/heads/release`,
-   whose upstream is `origin/release`,
-   and runs `git merge --ff-only topic`
-   or `git pull` with a fast-forward.
-   The branch tip becomes the same commit `C`.
-3. `auto_push_trigger::hand_over_if_ahead` tests the branch and finds it ahead of its upstream
-   (`src/native/push/auto_push_trigger.rs:389-424`),
-   builds the record for `refs/heads/release` at `C`,
-   and `hand_over_push` enqueues it
-   (`src/native/landing/service_handoff.rs:137-150`).
-4. `enqueue` finds `done/push-<C>` and answers `Known`,
-   then the wrapper still wakes the service.
-5. The service finds nothing pending for that branch and pushes nothing.
+1.  A commit lands on `refs/heads/topic` and its push record `push-<C>` runs and settles `done`.
+2.  In the same worktree the person switches to `refs/heads/release`,
+    whose upstream is `origin/release`,
+    and runs `git merge --ff-only topic`
+    or `git pull` with a fast-forward.
+    The branch tip becomes the same commit `C`.
+3.  `auto_push_trigger::hand_over_if_ahead` tests the branch and finds it ahead of its upstream
+    (`src/native/push/auto_push_trigger.rs:389-424`),
+    builds the record for `refs/heads/release` at `C`,
+    and `hand_over_push` enqueues it
+    (`src/native/landing/service_handoff.rs:137-150`).
+4.  `enqueue` finds `done/push-<C>` and answers `Known`,
+    then the wrapper still wakes the service.
+5.  The service finds nothing pending for that branch and pushes nothing.
 
 The wrong result:
 `refs/heads/release` and `origin/release` stay apart with no failure record anywhere,
@@ -217,21 +217,21 @@ The order of the writes,
 and of the settlement between them,
 is:
 
-1. `planned_retry` appends a `RetryChange` to the drain's own `Replanning` list,
-   which lives in that worker's memory,
-   and returns the words
-   (`src/native/landing/service_work_handlers_replanning_and_acceptance.rs:315-345`,
-   called at `src/native/landing/service_work_drain_pending_claims.rs:134-138`).
-2. `record_push_failure` writes the notice,
-   with those words,
-   into the notice directory
-   (`src/native/landing/service_work_drain_pending_claims.rs:139-143`).
-3. The record is settled to `failed`
-   (`src/native/landing/service_work_drain_pending_claims.rs:144`).
-4. Only when the worker returns does the service loop write the plan to disk,
-   in `PushRetries::apply`
-   (`src/native/landing/service_work_run_round.rs:114`,
-   `src/native/push/push_retry.rs:432-450`).
+1.  `planned_retry` appends a `RetryChange` to the drain's own `Replanning` list,
+    which lives in that worker's memory,
+    and returns the words
+    (`src/native/landing/service_work_handlers_replanning_and_acceptance.rs:315-345`,
+    called at `src/native/landing/service_work_drain_pending_claims.rs:134-138`).
+2.  `record_push_failure` writes the notice,
+    with those words,
+    into the notice directory
+    (`src/native/landing/service_work_drain_pending_claims.rs:139-143`).
+3.  The record is settled to `failed`
+    (`src/native/landing/service_work_drain_pending_claims.rs:144`).
+4.  Only when the worker returns does the service loop write the plan to disk,
+    in `PushRetries::apply`
+    (`src/native/landing/service_work_run_round.rs:114`,
+    `src/native/push/push_retry.rs:432-450`).
 
 A process killed between step 3 and step 4 leaves the notice and no plan.
 The window starts at step 3,
@@ -312,26 +312,26 @@ This one is not.
 
 The sequence:
 
-1. A push is refused as stale and the reconcile fetches the remote tip and computes the merge.
-2. `merge-tree` or a second-pass command enters an uninterruptible or simply endless state:
-   a stalled network filesystem the object store sits on,
-   a Git that waits on a lock inside an object alternates file,
-   or any of the crashes and hangs `AGENTS.md` rule `NHP` calls normal here.
-3. `wait_with_output()` never returns.
-   The push worker never returns,
-   so the drain never settles the record,
-   and the claim renewal thread keeps stamping the claim
-   (`src/native/landing/service_claim_renewal_running.rs:235-264`,
-   a task on the multi-threaded runtime started at
-   `src/native/landing/service_work_drain_pending_claims.rs:33-40`).
-4. Because the claim never expires,
-   `requeue_expired_reporting` never takes the item back
-   (`src/native/landing/work_item_recovery.rs:203-283`),
-   and the service's stop arm never sees this child,
-   because nothing on this path registers with `begin_unfinished_work`,
-   which the push and the queries do
-   (`src/native/push/bounded_push.rs:416`,
-   `src/native/push/bounded_query.rs:164`).
+1.  A push is refused as stale and the reconcile fetches the remote tip and computes the merge.
+2.  `merge-tree` or a second-pass command enters an uninterruptible or simply endless state:
+    a stalled network filesystem the object store sits on,
+    a Git that waits on a lock inside an object alternates file,
+    or any of the crashes and hangs `AGENTS.md` rule `NHP` calls normal here.
+3.  `wait_with_output()` never returns.
+    The push worker never returns,
+    so the drain never settles the record,
+    and the claim renewal thread keeps stamping the claim
+    (`src/native/landing/service_claim_renewal_running.rs:235-264`,
+    a task on the multi-threaded runtime started at
+    `src/native/landing/service_work_drain_pending_claims.rs:33-40`).
+4.  Because the claim never expires,
+    `requeue_expired_reporting` never takes the item back
+    (`src/native/landing/work_item_recovery.rs:203-283`),
+    and the service's stop arm never sees this child,
+    because nothing on this path registers with `begin_unfinished_work`,
+    which the push and the queries do
+    (`src/native/push/bounded_push.rs:416`,
+    `src/native/push/bounded_query.rs:164`).
 
 The wrong result:
 every later push of that repository waits behind the stuck worker,
@@ -454,19 +454,19 @@ and the merge then runs on the new branch.
 
 The sequence:
 
-1. Branches `A` and `B` both point at `C`;
-   the worktree has `A` checked out,
-   and `A` is the branch the service pushed.
-2. The push is refused as stale,
-   the reconcile publishes the merge `M` of `C` and the remote tip,
-   and calls `advance_local_branch(git, refs/heads/A, C, M)`.
-3. The branch check and the tip check pass for `A`,
-   and so do the status read and the path overlap test when the worktree is dirty.
-4. A person's `git switch B` runs and finishes:
-   `HEAD` now names `refs/heads/B`,
-   which also holds `C`.
-5. `git merge --ff-only M` runs and fast-forwards `B` to `M`,
-   moving `B` and the index and worktree to `M`.
+1.  Branches `A` and `B` both point at `C`;
+    the worktree has `A` checked out,
+    and `A` is the branch the service pushed.
+2.  The push is refused as stale,
+    the reconcile publishes the merge `M` of `C` and the remote tip,
+    and calls `advance_local_branch(git, refs/heads/A, C, M)`.
+3.  The branch check and the tip check pass for `A`,
+    and so do the status read and the path overlap test when the worktree is dirty.
+4.  A person's `git switch B` runs and finishes:
+    `HEAD` now names `refs/heads/B`,
+    which also holds `C`.
+5.  `git merge --ff-only M` runs and fast-forwards `B` to `M`,
+    moving `B` and the index and worktree to `M`.
 
 `settle_failed_merge` is not reached,
 because the merge exited 0,
@@ -521,16 +521,16 @@ and the text is returned to a caller that writes it to standard error
 
 The sequence:
 
-1. The service failed a push and left the notice.
-2. The person's next command reads it,
-   removes it,
-   and asks Git for the short commit name.
-3. The command is killed there
-   (`AGENTS.md` rule `NHP`:
-   a process killed at any instruction,
-   a closed terminal),
-   or its standard error write fails,
-   or `name_of` runs Git and the command dies while that child runs.
+1.  The service failed a push and left the notice.
+2.  The person's next command reads it,
+    removes it,
+    and asks Git for the short commit name.
+3.  The command is killed there
+    (`AGENTS.md` rule `NHP`:
+    a process killed at any instruction,
+    a closed terminal),
+    or its standard error write fails,
+    or `name_of` runs Git and the command dies while that child runs.
 
 The wrong result:
 the only durable statement that a commit exists only on this computer is gone,
@@ -847,76 +847,76 @@ For each step,
 the state on disk,
 and what notices it later.
 
-1. Work record written,
-   before the wake.
-   A kill before it leaves nothing,
-   and nothing later revisits a commit the person landed:
-   the person's next command does not announce a backup,
-   and no push record exists.
-   A kill after it leaves `pending/push-<oid>`,
-   which the next wake or the next command's wake drains,
-   and
-   `oldest_pending_age`
-   (`src/native/landing/work_item.rs:666-670`)
-   is what the backlog notice is built from.
-   The commit path writes the record before the socket,
-   so this window is outside the route's control.
-   The record is published whole or absent by a staged write and an exclusive link,
-   but without a sync,
-   so a power loss can leave an empty record where a kill cannot;
-   the next drain cannot decode it and moves it to `failed` with a journal line and no notice
-   (`src/native/foundation/private_storage.rs:418-434`,
-   `src/native/landing/work_item.rs:504-545`).
-   That discard is what the writer's own doc comment declares,
-   and its cost is the same silent,
-   unpublished branch.
-2. Wake message sent.
-   Not durable by design;
-   the records are what matter.
-3. `pending` to `recovering`
-   (`src/native/landing/work_item.rs:504-545`).
-   A kill between the two renames leaves the record in `recovering` under a claim name,
-   which the next drain finds by lease expiry and requeues with one more try
-   (`src/native/landing/work_item_recovery.rs:203-283`).
-   Sound.
-4. Stamped and renamed into `claimed`.
-   A kill before the stamp puts the record back into `pending` with its own age
-   (`src/native/landing/work_item.rs:504-545`).
-   Sound.
-5. Claim renewed every 40 seconds.
-   A kill stops the renewals;
-   after the 120 second lease another instance runs the item with one more try.
-   Three such deaths move it to `failed` and the next drain leaves a skip notice that names the branch
-   (`src/native/landing/service_work_handlers_replanning_and_acceptance.rs:226-240`,
-   `src/native/landing/work_item_recovery.rs:264-270`).
-   Sound,
-   and it is the answer to "nothing waits forever" for a killed holder.
-6. The push itself.
-   Git owns the remote ref and the local tracking ref;
-   a kill leaves whatever Git wrote before it died.
-   Git's own lock files may survive
-   (`src/native/lock/stopped_git_locks.rs:1-60`),
-   and the next push or fetch judges them before it starts
-   (`src/native/lock/push_lock_clearing.rs:50-70`).
-   A delivered push is idempotent:
-   the same push again finds everything up to date.
-7. Reconcile fetch.
-   The private ref of finding 11.
-8. Merge commit built from objects.
-   Loose objects only;
-   a kill here leaves unreachable objects that `gc` may prune.
-   No worktree,
-   index or ref is touched
-   (`src/native/push/auto_push_reconcile_merge_commit.rs:105-230`).
-9. Merge pushed.
-   A kill after this and before the branch advance leaves the local branch behind the remote;
-   nothing advances it later,
-   and the next push of that branch is refused as stale,
-   after which the reconcile reports "already contains ... nothing to push" and exits 0
-   (`src/native/push/auto_push_reconcile.rs:295-310`).
-   Self-healing on the next commit,
-   which lands on the new tip and pushes the merge of the two.
-   The published merge is not lost.
+1.  Work record written,
+    before the wake.
+    A kill before it leaves nothing,
+    and nothing later revisits a commit the person landed:
+    the person's next command does not announce a backup,
+    and no push record exists.
+    A kill after it leaves `pending/push-<oid>`,
+    which the next wake or the next command's wake drains,
+    and
+    `oldest_pending_age`
+    (`src/native/landing/work_item.rs:666-670`)
+    is what the backlog notice is built from.
+    The commit path writes the record before the socket,
+    so this window is outside the route's control.
+    The record is published whole or absent by a staged write and an exclusive link,
+    but without a sync,
+    so a power loss can leave an empty record where a kill cannot;
+    the next drain cannot decode it and moves it to `failed` with a journal line and no notice
+    (`src/native/foundation/private_storage.rs:418-434`,
+    `src/native/landing/work_item.rs:504-545`).
+    That discard is what the writer's own doc comment declares,
+    and its cost is the same silent,
+    unpublished branch.
+2.  Wake message sent.
+    Not durable by design;
+    the records are what matter.
+3.  `pending` to `recovering`
+    (`src/native/landing/work_item.rs:504-545`).
+    A kill between the two renames leaves the record in `recovering` under a claim name,
+    which the next drain finds by lease expiry and requeues with one more try
+    (`src/native/landing/work_item_recovery.rs:203-283`).
+    Sound.
+4.  Stamped and renamed into `claimed`.
+    A kill before the stamp puts the record back into `pending` with its own age
+    (`src/native/landing/work_item.rs:504-545`).
+    Sound.
+5.  Claim renewed every 40 seconds.
+    A kill stops the renewals;
+    after the 120 second lease another instance runs the item with one more try.
+    Three such deaths move it to `failed` and the next drain leaves a skip notice that names the branch
+    (`src/native/landing/service_work_handlers_replanning_and_acceptance.rs:226-240`,
+    `src/native/landing/work_item_recovery.rs:264-270`).
+    Sound,
+    and it is the answer to "nothing waits forever" for a killed holder.
+6.  The push itself.
+    Git owns the remote ref and the local tracking ref;
+    a kill leaves whatever Git wrote before it died.
+    Git's own lock files may survive
+    (`src/native/lock/stopped_git_locks.rs:1-60`),
+    and the next push or fetch judges them before it starts
+    (`src/native/lock/push_lock_clearing.rs:50-70`).
+    A delivered push is idempotent:
+    the same push again finds everything up to date.
+7.  Reconcile fetch.
+    The private ref of finding 11.
+8.  Merge commit built from objects.
+    Loose objects only;
+    a kill here leaves unreachable objects that `gc` may prune.
+    No worktree,
+    index or ref is touched
+    (`src/native/push/auto_push_reconcile_merge_commit.rs:105-230`).
+9.  Merge pushed.
+    A kill after this and before the branch advance leaves the local branch behind the remote;
+    nothing advances it later,
+    and the next push of that branch is refused as stale,
+    after which the reconcile reports "already contains ... nothing to push" and exits 0
+    (`src/native/push/auto_push_reconcile.rs:295-310`).
+    Self-healing on the next commit,
+    which lands on the new tip and pushes the merge of the two.
+    The published merge is not lost.
 10. Branch and worktree fast-forwarded through `git merge --ff-only`,
     guarded by an intent record written first
     (`src/native/push/auto_push_reconcile_branch_advance.rs:71-145`).
@@ -1439,29 +1439,29 @@ neither a loss:
 Inspect,
 in this order:
 
-1. findings 1 and 2,
-   against
-   `src/native/landing/work_item.rs`,
-   `src/native/landing/service_work_drain_pending_claims.rs`
-   and
-   `src/native/push/push_retry.rs`;
-2. findings 3 and 4,
-   against
-   `src/native/push/auto_push_reconcile_merge_commit.rs`
-   and
-   `src/native/push/push_progress.rs`;
-3. finding 5,
-   against
-   `src/native/push/auto_push_reconcile_branch_advance.rs`,
-   because it is the one finding that writes to a branch this command never checked;
-4. finding 10,
-   against
-   `src/native/landing/service_work.rs`,
-   because it is the only place a failure goes untold;
-5. the reproductions of "Reproductions",
-   A to F;
-6. the waits and locks lists,
-   for anything a ceiling should have covered and does not.
+1.  findings 1 and 2,
+    against
+    `src/native/landing/work_item.rs`,
+    `src/native/landing/service_work_drain_pending_claims.rs`
+    and
+    `src/native/push/push_retry.rs`;
+2.  findings 3 and 4,
+    against
+    `src/native/push/auto_push_reconcile_merge_commit.rs`
+    and
+    `src/native/push/push_progress.rs`;
+3.  finding 5,
+    against
+    `src/native/push/auto_push_reconcile_branch_advance.rs`,
+    because it is the one finding that writes to a branch this command never checked;
+4.  finding 10,
+    against
+    `src/native/landing/service_work.rs`,
+    because it is the only place a failure goes untold;
+5.  the reproductions of "Reproductions",
+    A to F;
+6.  the waits and locks lists,
+    for anything a ceiling should have covered and does not.
 
 No production code was changed,
 so nothing else is pending.

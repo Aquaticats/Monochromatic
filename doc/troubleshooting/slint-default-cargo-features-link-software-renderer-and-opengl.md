@@ -302,35 +302,35 @@ the `renderer-software` feature of
 
 The six constraints:
 
-1. **Is it really upstream's fault?**
-   No.
-   The default list and the `mcp` to `renderer-software` edge are intentional and documented in the manifests,
-   and the
-   `compat-1-2` mechanism exists so that defaults stay stable across patch releases.
-2. **Can upstream fix it?**
-   Not without breaking users of the defaults;
-   trimming a default feature is a semver-visible change.
-3. **Are they supporting this use case?**
-   Partly:
-   disabling default features is the documented path (the Linux KMS page shows it),
-   and the wgpu FemtoVG
-   renderer is a supported feature,
-   but I found no document that promises a build free of the CPU renderer with `mcp`.
-4. **Would the repo welcome our contribution?**
-   Nothing bans it:
-   `CONTRIBUTING.md` of `v1.18.1` tells AI coding assistants to read `AGENTS.md`,
-   asks for small
-   focused pull requests,
-   and asks that a design change be discussed in an issue first.
-   A change to the defaults would be that kind of discussion.
-5. **Will they likely fix it?**
-   No:
-   nothing in the tracker asks for it,
-   and the design points the other way.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No,
-   and none is warranted:
-   constraint 1 fails.
+1.  **Is it really upstream's fault?**
+    No.
+    The default list and the `mcp` to `renderer-software` edge are intentional and documented in the manifests,
+    and the
+    `compat-1-2` mechanism exists so that defaults stay stable across patch releases.
+2.  **Can upstream fix it?**
+    Not without breaking users of the defaults;
+    trimming a default feature is a semver-visible change.
+3.  **Are they supporting this use case?**
+    Partly:
+    disabling default features is the documented path (the Linux KMS page shows it),
+    and the wgpu FemtoVG
+    renderer is a supported feature,
+    but I found no document that promises a build free of the CPU renderer with `mcp`.
+4.  **Would the repo welcome our contribution?**
+    Nothing bans it:
+    `CONTRIBUTING.md` of `v1.18.1` tells AI coding assistants to read `AGENTS.md`,
+    asks for small
+    focused pull requests,
+    and asks that a design change be discussed in an issue first.
+    A change to the defaults would be that kind of discussion.
+5.  **Will they likely fix it?**
+    No:
+    nothing in the tracker asks for it,
+    and the design points the other way.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No,
+    and none is warranted:
+    constraint 1 fails.
 
 Constraint 1 fails,
 so the auto-prototype step is not triggered and nothing is filed.

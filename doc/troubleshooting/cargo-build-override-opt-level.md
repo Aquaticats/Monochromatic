@@ -333,26 +333,26 @@ Checked `.out-of-scope/`:
 not this default,
 so it does not exempt the topic.
 
-1. **Is it really upstream's fault?**
-   No.
-   The default is deliberate and documented,
-   in both the source comment at `src/workspace/profiles.rs:451` to `:464`
-   and the Cargo book's "Build Dependencies" section.
-   Build scripts that do heavy computation are the exception the override exists for.
-2. **Can upstream fix it?**
-   Not applicable:
-   there is no defect.
-3. **Are they supporting this use case?**
-   Yes,
-   through `[profile.<name>.build-override]`,
-   which is the workaround.
-4. **Would the repo welcome our contribution?**
-   Not evaluated,
-   because constraint 1 fails.
-5. **Will they likely fix it?**
-   Not applicable.
-6. **Have we prototyped a minimal fix?**
-   Not applicable.
+1.  **Is it really upstream's fault?**
+    No.
+    The default is deliberate and documented,
+    in both the source comment at `src/workspace/profiles.rs:451` to `:464`
+    and the Cargo book's "Build Dependencies" section.
+    Build scripts that do heavy computation are the exception the override exists for.
+2.  **Can upstream fix it?**
+    Not applicable:
+    there is no defect.
+3.  **Are they supporting this use case?**
+    Yes,
+    through `[profile.<name>.build-override]`,
+    which is the workaround.
+4.  **Would the repo welcome our contribution?**
+    Not evaluated,
+    because constraint 1 fails.
+5.  **Will they likely fix it?**
+    Not applicable.
+6.  **Have we prototyped a minimal fix?**
+    Not applicable.
 
 Duplicate search:
 `gh search issues --repo rust-lang/cargo 'build-override'` returned

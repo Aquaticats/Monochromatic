@@ -153,26 +153,26 @@ landing commits until then.
 
 ## Order
 
-1. One branch:
-   program file,
-   command word with the old word accepted,
-   tests,
-   docs,
-   workflows,
-   `git-executable` and the other packages;
-   gated.
-2. Release the crate;
-   the archive holds `monochromatic-git-policy-cli`.
-3. Lock the release:
-   `toolchain.plan.jsonc`,
-   `toolchain.lock.json`,
-   the root `mise.toml` task;
-   install;
-   check that `git` resolves to the new file and that a commit,
-   a push and `git cli-git doctor` (old word,
-   with the
-   notice) work,
-   and that the running background helper started by the old program still lands commits.
+1.  One branch:
+    program file,
+    command word with the old word accepted,
+    tests,
+    docs,
+    workflows,
+    `git-executable` and the other packages;
+    gated.
+2.  Release the crate;
+    the archive holds `monochromatic-git-policy-cli`.
+3.  Lock the release:
+    `toolchain.plan.jsonc`,
+    `toolchain.lock.json`,
+    the root `mise.toml` task;
+    install;
+    check that `git` resolves to the new file and that a commit,
+    a push and `git cli-git doctor` (old word,
+    with the
+    notice) work,
+    and that the running background helper started by the old program still lands commits.
 
 ## Older installs
 
@@ -625,29 +625,29 @@ and closed the other three fixes (the process command line and the folder identi
   behind
   the start option `--adopt-earlier-journals`.
 - Options for the owner:
-  1. Stop the socket,
-     adoption off (built):
-     no race,
-     no failing commit,
-     open batches stay open until the owner runs a recovery.
-  2. Stop the socket,
-     adoption on (the owner's pick as worded;
-     one unit file change,
-     the option in `ExecStart`):
-     finishes batches
-     at once;
-     the race stays for an old-release wrapper used in the same worktree,
-     and the recovery's checks of the branch and
-     the index make a second settling a repeat of the same step.
-  3. Stop and mask:
-     the race is closed,
-     and every commit by an old-release wrapper in that worktree fails with the refusal.
-  4. Adoption on demand:
-     finish the batches when the person asks (`doctor` or `fix`) after saying no old wrapper runs.
-     The owner picked this one (below).
-  5. Status quo before the stop:
-     batches stay open until a reboot,
-     because the old units live in the runtime directory.
+  1.  Stop the socket,
+      adoption off (built):
+      no race,
+      no failing commit,
+      open batches stay open until the owner runs a recovery.
+  2.  Stop the socket,
+      adoption on (the owner's pick as worded;
+      one unit file change,
+      the option in `ExecStart`):
+      finishes batches
+      at once;
+      the race stays for an old-release wrapper used in the same worktree,
+      and the recovery's checks of the branch and
+      the index make a second settling a repeat of the same step.
+  3.  Stop and mask:
+      the race is closed,
+      and every commit by an old-release wrapper in that worktree fails with the refusal.
+  4.  Adoption on demand:
+      finish the batches when the person asks (`doctor` or `fix`) after saying no old wrapper runs.
+      The owner picked this one (below).
+  5.  Status quo before the stop:
+      batches stay open until a reboot,
+      because the old units live in the runtime directory.
 
 #### Changes after the sixth review
 

@@ -17,12 +17,12 @@ User's framing:
  **basic git hygiene**.
  The correct order is
 
-1. Land the replacement as an additive,
-    verified,
-    committed change.
-2. Migrate consumers;
-    each commit leaves the tree green.
-3. Delete the old code only once no consumer references it.
+1.  Land the replacement as an additive,
+     verified,
+     committed change.
+2.  Migrate consumers;
+     each commit leaves the tree green.
+3.  Delete the old code only once no consumer references it.
 
 Prose rules buried in `AGENTS.md` / `CLAUDE.md` (already ~50k tokens) are not reliable
 enough to prevent this.

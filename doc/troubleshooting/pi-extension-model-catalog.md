@@ -390,53 +390,53 @@ so all configured packages load.
 
 All five are implemented in `package/pi-plugin/model-retirement`.
 
-1. Filter at `session_start`,
-   the earliest event carrying `ctx.modelRegistry`.
-   Tradeoff:
-   the startup model choice and `pi --list-models` are both settled before the
-   filter runs,
-   so neither reflects it.
-   A session can start on a model the pass then
-   removes,
-   and keeps running on it.
-2. Merge a configuration where `getRegisteredProviderConfig` returns one,
-   since pi merges
-   defined values over the previous registration and so preserves that owner's `apiKey`,
-   `oauth`,
-   and `streamSimple`.
-   Tradeoff:
-   the model list must be rebuilt from registry reads,
-   which drops per-model
-   `headers` and needs an `api` and `baseUrl` per model.
-3. Wrap the composed provider from `getProvider` everywhere else,
-   spreading it and
-   replacing only `getModels` and `getAllModels`.
-   Tradeoff:
-   the wrapper becomes that provider's native registration,
-   so a later
-   configuration registration by its owner would apply on top of the wrapper.
-   In exchange
-   it needs no endpoint metadata,
-   loses no model field,
-   keeps per-model headers,
-   and
-   filters live,
-   so a catalog refresh is filtered on the next read.
-4. Validate a configuration plan's endpoints first,
-   counting provider-level `api` and
-   `baseUrl` as fallbacks the way pi does,
-   and fall back to wrapping when a model cannot be
-   re-declared.
-   Tradeoff:
-   a provider is all-or-nothing on the configuration path,
-   so without the
-   fallback one unregisterable model would keep every superseded model in that provider
-   visible.
-5. Isolate each registration in its own `try` and report the caught value.
-   Tradeoff:
-   a failed provider is logged rather than fatal,
-   so a partial pass is the
-   normal failure mode and the warning lines are the only evidence.
+1.  Filter at `session_start`,
+    the earliest event carrying `ctx.modelRegistry`.
+    Tradeoff:
+    the startup model choice and `pi --list-models` are both settled before the
+    filter runs,
+    so neither reflects it.
+    A session can start on a model the pass then
+    removes,
+    and keeps running on it.
+2.  Merge a configuration where `getRegisteredProviderConfig` returns one,
+    since pi merges
+    defined values over the previous registration and so preserves that owner's `apiKey`,
+    `oauth`,
+    and `streamSimple`.
+    Tradeoff:
+    the model list must be rebuilt from registry reads,
+    which drops per-model
+    `headers` and needs an `api` and `baseUrl` per model.
+3.  Wrap the composed provider from `getProvider` everywhere else,
+    spreading it and
+    replacing only `getModels` and `getAllModels`.
+    Tradeoff:
+    the wrapper becomes that provider's native registration,
+    so a later
+    configuration registration by its owner would apply on top of the wrapper.
+    In exchange
+    it needs no endpoint metadata,
+    loses no model field,
+    keeps per-model headers,
+    and
+    filters live,
+    so a catalog refresh is filtered on the next read.
+4.  Validate a configuration plan's endpoints first,
+    counting provider-level `api` and
+    `baseUrl` as fallbacks the way pi does,
+    and fall back to wrapping when a model cannot be
+    re-declared.
+    Tradeoff:
+    a provider is all-or-nothing on the configuration path,
+    so without the
+    fallback one unregisterable model would keep every superseded model in that provider
+    visible.
+5.  Isolate each registration in its own `try` and report the caught value.
+    Tradeoff:
+    a failed provider is logged rather than fatal,
+    so a partial pass is the
+    normal failure mode and the warning lines are the only evidence.
 
 Awaiting `ModelRegistry.refresh({ allowNetwork: false })` before reading is cheap and
 matches pi's own instruction on that method (`dist/core/model-registry.d.ts:25`,
@@ -494,46 +494,46 @@ because the override for that provider no longer exists in the local `models.jso
 Default policy is not to file,
 and all six constraints are not met.
 
-1. Really upstream's fault?
-   Mostly no. The event contracts,
-   the `registerProvider`
-   replacement semantics,
-   and the `models`-required fields are documented behaviour,
-   and
-   `docs/extensions.md` names the exported declarations as the contract.
-   The genuine gap
-   is narrow:
-   an extension can replace a provider's models but cannot read them at the
-   only point where replacing them is early enough.
-2. Could upstream fix it?
-   Yes,
-   by exposing a registry read on `ExtensionAPI`,
-   or by firing
-   an event with the registry before model resolution.
-3. Are they supporting this use case?
-   Partly.
-   `docs/virtual-models.md` and the
-   `registerProvider` examples cover adding and routing models,
-   not removing them,
-   and no
-   bundled example filters a catalog.
-   `examples/extensions/model-status.ts` observes
-   `model_select` for a status bar only.
-4. Would the repo welcome a contribution?
-   Not established.
-   No `CONTRIBUTING.md` check was
-   run for this doc,
-   and no policy search was performed,
-   so this constraint is unverified
-   rather than passed.
-5. Would they likely fix it?
-   No signal either way;
-   no tracker search was run.
-6. Is there a prototyped minimal fix compatible with their architecture?
-   No. The
-   workaround lives entirely on this side of the boundary,
-   and no patch against pi was
-   written.
+1.  Really upstream's fault?
+    Mostly no. The event contracts,
+    the `registerProvider`
+    replacement semantics,
+    and the `models`-required fields are documented behaviour,
+    and
+    `docs/extensions.md` names the exported declarations as the contract.
+    The genuine gap
+    is narrow:
+    an extension can replace a provider's models but cannot read them at the
+    only point where replacing them is early enough.
+2.  Could upstream fix it?
+    Yes,
+    by exposing a registry read on `ExtensionAPI`,
+    or by firing
+    an event with the registry before model resolution.
+3.  Are they supporting this use case?
+    Partly.
+    `docs/virtual-models.md` and the
+    `registerProvider` examples cover adding and routing models,
+    not removing them,
+    and no
+    bundled example filters a catalog.
+    `examples/extensions/model-status.ts` observes
+    `model_select` for a status bar only.
+4.  Would the repo welcome a contribution?
+    Not established.
+    No `CONTRIBUTING.md` check was
+    run for this doc,
+    and no policy search was performed,
+    so this constraint is unverified
+    rather than passed.
+5.  Would they likely fix it?
+    No signal either way;
+    no tracker search was run.
+6.  Is there a prototyped minimal fix compatible with their architecture?
+    No. The
+    workaround lives entirely on this side of the boundary,
+    and no patch against pi was
+    written.
 
 Constraints 4,
 5,

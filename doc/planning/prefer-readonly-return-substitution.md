@@ -188,7 +188,7 @@ declares an undiscovered one,
 
 ### Open questions
 
-`callersAllResolve` proves every *enumerable* usage resolves,
+`callersAllResolve` proves every **enumerable** usage resolves,
  and module export is a
 deliberate over-approximation of reachable-from-outside.
 Narrowing it to published entry points was measured and rejected;
@@ -679,14 +679,14 @@ Probed after the stake above,
  because "build caller-side substitution" is a large description and a
 large description is worth checking against what already runs.
 
-A callable returning one receiver *element* already records the fact and the caller already uses it:
+A callable returning one receiver **element** already records the fact and the caller already uses it:
 
 ```text
 pickElement(rows)  { return rows.at(0,); }        returned=[0]
 drivePickElement   { pickElement(rows,)?.label = x }  referentMutated=[0]
 ```
 
-A callable returning a *container* of receiver elements records nothing,
+A callable returning a **container** of receiver elements records nothing,
  and the caller attributes
 nothing:
 
@@ -7659,7 +7659,7 @@ It compiles clean,
  directive been unused,
  TS2578 would have said so.
 
-So a `void` return annotation on a callable *type* constrains nothing about what the callable returns,
+So a `void` return annotation on a callable **type** constrains nothing about what the callable returns,
  while a `string` one does.
  That asymmetry is the whole basis,
  and it is now measured.

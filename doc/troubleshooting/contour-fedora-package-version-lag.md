@@ -214,29 +214,29 @@ Fedora's package pull requests contain an exact existing update:
 [Fedora 44 pull request 17][fedora-pr-17].
 There is nothing additive to post because it already changes the correct version and checksum.
 
-1. Is it really upstream's fault?
-   No.
-   Contour released `0.7.0.8982`,
-   Fedora correctly serves its currently published `0.6.3.8249` package,
-   and rpm-ostree correctly installs the newest package available from that repository.
-2. Can upstream fix it?
-   Fedora's package maintainers can merge the existing update,
-   build it,
-   and publish it.
-3. Are they supporting this use case?
-   Yes.
-   Fedora packages Contour for Fedora 44,
-   and Packit generated a Fedora 44 update pull request for this release.
-4. Would the repository welcome our contribution?
-   The Fedora package repository exposes a pull-request workflow and contains the Packit contribution configuration.
-   No repository-local prohibition on external or AI-assisted contributions was found.
-5. Will they likely fix it?
-   The generated update and the package's history of version bumps are positive signals,
-   but no merge or published build exists yet.
-6. Have we prototyped a minimal fix compatible with their architecture?
-   No separate prototype is needed.
-   The existing Packit pull request is already the minimal package metadata update,
-   and constraint 1 fails because this is publication timing rather than a defect.
+1.  Is it really upstream's fault?
+    No.
+    Contour released `0.7.0.8982`,
+    Fedora correctly serves its currently published `0.6.3.8249` package,
+    and rpm-ostree correctly installs the newest package available from that repository.
+2.  Can upstream fix it?
+    Fedora's package maintainers can merge the existing update,
+    build it,
+    and publish it.
+3.  Are they supporting this use case?
+    Yes.
+    Fedora packages Contour for Fedora 44,
+    and Packit generated a Fedora 44 update pull request for this release.
+4.  Would the repository welcome our contribution?
+    The Fedora package repository exposes a pull-request workflow and contains the Packit contribution configuration.
+    No repository-local prohibition on external or AI-assisted contributions was found.
+5.  Will they likely fix it?
+    The generated update and the package's history of version bumps are positive signals,
+    but no merge or published build exists yet.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+    No separate prototype is needed.
+    The existing Packit pull request is already the minimal package metadata update,
+    and constraint 1 fails because this is publication timing rather than a defect.
 
 No new issue or comment draft is retained.
 Repeating that `0.7.0.8982` exists would not advance the existing Fedora 44 update pull request.

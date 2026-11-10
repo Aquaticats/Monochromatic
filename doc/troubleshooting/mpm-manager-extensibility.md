@@ -381,30 +381,30 @@ The current behavior is documented and the user question is answered by existing
 
 ### Upstream filing decision
 
-1. Upstream fault:
-   no.
-   MPM deliberately provides bounded TOML definitions and full-power shipped classes.
-2. Upstream fixability:
-   yes in principle.
-   MPM could add external class discovery or extend the TOML schema,
-   but neither is required to correct a defect.
-3. Supported use case:
-   yes for trusted config-defined managers and upstream class contributions;
-   no stated support for separately installed full-power plugins.
-4. Contribution policy:
-   `docs/contributing.md`,
-   `.claude/skills/add-manager/SKILL.md`,
-   `claude.md`,
-   and the issue templates invite manager reports and pull requests.
-   No AI-assistance prohibition was found.
-5. Likely upstream action:
-   not established for schema expansion,
-   and historically negative for external plugins.
-   [Issue 276][issue-276] records the maintainer's preference for a monolithic tested manager set.
-6. Minimal prototype:
-   not applicable because this report proposes no upstream change and constraints 1,
-   3,
-   and 5 do not support filing an external-plugin feature request.
+1.  Upstream fault:
+    no.
+    MPM deliberately provides bounded TOML definitions and full-power shipped classes.
+2.  Upstream fixability:
+    yes in principle.
+    MPM could add external class discovery or extend the TOML schema,
+    but neither is required to correct a defect.
+3.  Supported use case:
+    yes for trusted config-defined managers and upstream class contributions;
+    no stated support for separately installed full-power plugins.
+4.  Contribution policy:
+    `docs/contributing.md`,
+    `.claude/skills/add-manager/SKILL.md`,
+    `claude.md`,
+    and the issue templates invite manager reports and pull requests.
+    No AI-assistance prohibition was found.
+5.  Likely upstream action:
+    not established for schema expansion,
+    and historically negative for external plugins.
+    [Issue 276][issue-276] records the maintainer's preference for a monolithic tested manager set.
+6.  Minimal prototype:
+    not applicable because this report proposes no upstream change and constraints 1,
+    3,
+    and 5 do not support filing an external-plugin feature request.
 
 `.out-of-scope/` contains no MPM-specific exemption.
 Tracker searches for `manager plugin`,

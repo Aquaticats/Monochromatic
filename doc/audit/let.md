@@ -196,18 +196,18 @@ Sample purposes (from a 30-line sample):
 
 Alternatives:
 
-- **Closure factory**:
+- Closure factory:
    replace with a memoizing closure returned at module init.
   Adds indirection;
    loses module-scope identity that some test fixtures rely on.
-- **`memoize` from `module-es`**:
+- `memoize` from `module-es`:
    directly addresses caching patterns.
   Currently used only once in the entire monorepo,
   despite at least 20 module-level caches that fit its signature.
-- **`Map` / `WeakMap`**:
+- `Map` / `WeakMap`:
    replaces a single mutable slot with a mutable container of `const`.
   Lint-clean but still mutable.
-- **Accept as-is**:
+- Accept as-is:
    module scope is intended;
    nothing to "tighten".
   Document each with TSDoc explaining the cache invariant.
@@ -271,17 +271,17 @@ the pattern is established but rare.
 
 Only three sites use an `oxlint-disable` for `prefer-const` or `no-let`:
 
-1. `webapp-productivity/done-h-css-test/src/client/components/task-detail-autofill.ts:100`:
-   `using _loadingGuard = { ... }` declared via `using` binding (TS5 explicit-resource-management).
-   `using` is structurally `let`-like per spec;
-    the disable preserves the keyword.
-2. `module/es/src/types/.../backends.ts:69`:
-   `let defaultBackendsBuilder: DefaultBackendsBuilder | undefined`,
-   commented "Intentional:
-    configured once at module load by platform entry.
-   "
-3. `module/es/src/types/.../customParsers.dispatch.ts:29`:
-   Same module-init pattern.
+1.  `webapp-productivity/done-h-css-test/src/client/components/task-detail-autofill.ts:100`:
+    `using _loadingGuard = { ... }` declared via `using` binding (TS5 explicit-resource-management).
+    `using` is structurally `let`-like per spec;
+     the disable preserves the keyword.
+2.  `module/es/src/types/.../backends.ts:69`:
+    `let defaultBackendsBuilder: DefaultBackendsBuilder | undefined`,
+    commented "Intentional:
+     configured once at module load by platform entry.
+    "
+3.  `module/es/src/types/.../customParsers.dispatch.ts:29`:
+    Same module-init pattern.
 
 The `AGENTS.md` rule "comment any deviation from immutability" is universally unmet across the other 782 declarations.
 
@@ -302,10 +302,10 @@ and would not trip a new `no-let` rule.
 
 Replacements:
 
-- **Iterate the source collection directly**:
+- Iterate the source collection directly:
    when the body reads `coll[i]`,
   switch to `for (const item of coll)` or `coll.forEach(...)`.
-- **`for (const i of range(n))`**:
+- `for (const i of range(n))`:
    requires a `range` helper;
   `module-es` already has one (used once for `range` in `module/es/src/types/...range/...`).
 - **`Array.from({ length: n }, (_, i) => ...)`** when the result is collected into an array.
@@ -388,11 +388,11 @@ Alternatives:
    the call site gets `const rule = ...`.
   Bonus:
    the parser becomes unit-testable in isolation.
-- **IIFE wrap**:
+- IIFE wrap:
    keeps the code structurally similar but tightens scope.
   Less testable than a named function;
    useful when the parsed value is used only locally.
-- **`reduce` over the scanned lines**:
+- `reduce` over the scanned lines:
    clean for simple field-collection,
   awkward when the scan logic involves nested loops or lookahead.
 
@@ -567,21 +567,21 @@ For each option,
  applying refactor,
  verifying tests pass):
 
-- **Option A blanket ban**:
+- Option A blanket ban:
    8 to 16 hours.
   Many trivial changes (disable comment per for-loop counter)
   plus ~50 real refactors hidden in the noise.
   Significant noise added to the codebase.
-- **Option B function-body-root**:
+- Option B function-body-root:
    4 to 8 hours.
   Each catch is a real scope-leak case worth fixing structurally.
   Touches ~150 declarations.
-- **Option C module-level**:
+- Option C module-level:
    2 to 4 hours.
   92 declarations,
    almost all of which are caches that route to `memoize`
   or one-shot init slots that route to factory functions.
-- **Option D pattern-targeted**:
+- Option D pattern-targeted:
    similar to Option C plus marginal cost per added rule.
 
 These are estimates from declaration count and per-case complexity;
@@ -594,26 +594,26 @@ they have not been calibrated against actually doing a sample slice.
 
 Reasoning:
 
-1. The current `prefer-const: 'warn'` already enforces "don't mutate what you don't have to.
-   "
-   The remaining 785 lets are genuinely reassigned;
-   none are accidentally mutable.
-2. The user's IIFE point identifies the actual concern:
-   not mutability per se,
-    but mutable variables leaking past their useful lifetime
-   into the rest of a function's scope.
-   Option B's AST selector directly targets that.
-3. Option C (module-level) is a separate cleanup
-   that benefits from a dedicated audit and migration to `memoize` independent of any new lint rule.
-   Most module-level lets have undocumented cache invariants;
-   migrating them to `memoize` simultaneously documents intent and removes the `let`.
-4. Option A (blanket ban) generates hundreds of low-value disable comments
-   for cases (loop counters,
-    intentional state machine state)
-   that have no better alternative.
-   The noise floor argues against it.
-5. Option D rules are useful as a follow-up to refine specific catch sets
-   once Option B reveals which scope-leak shapes recur in practice.
+1.  The current `prefer-const: 'warn'` already enforces "don't mutate what you don't have to.
+    "
+    The remaining 785 lets are genuinely reassigned;
+    none are accidentally mutable.
+2.  The user's IIFE point identifies the actual concern:
+    not mutability per se,
+     but mutable variables leaking past their useful lifetime
+    into the rest of a function's scope.
+    Option B's AST selector directly targets that.
+3.  Option C (module-level) is a separate cleanup
+    that benefits from a dedicated audit and migration to `memoize` independent of any new lint rule.
+    Most module-level lets have undocumented cache invariants;
+    migrating them to `memoize` simultaneously documents intent and removes the `let`.
+4.  Option A (blanket ban) generates hundreds of low-value disable comments
+    for cases (loop counters,
+     intentional state machine state)
+    that have no better alternative.
+    The noise floor argues against it.
+5.  Option D rules are useful as a follow-up to refine specific catch sets
+    once Option B reveals which scope-leak shapes recur in practice.
 
 A one-shot audit-and-refactor pass for the ~50 to 150 highest-value cases
 (module-level caches,
@@ -633,19 +633,19 @@ deciding on the permanent rule is easier with the refactored codebase as the sta
    visits `FunctionDeclaration` and `FunctionExpression`;
    reports each `let` declared as a direct child of the function body.
    Two AST-level allowlists:
-  1. **IIFE callee**:
-      the function's `parent.type === 'CallExpression' && parent.callee === fn`.
-      Covers both named-function IIFEs `(function () { let x; })()`
-      and arrow IIFEs `(() => { let x; })()` (the latter still trips `no-arrow-function`;
-      prefer the named form).
-  2. **Helper-function shape**:
-      the function body ends with `return <Identifier>` where the identifier resolves to a function-body-root binding
-      (`let`,
-      `const`,
-      or `function`).
-      `concat()` in `package/webapp-forge/stress/src/scenarios/force-push.ts` is the paradigm.
-      Conservative on purpose:
-      `return total * 2` or `return { a, b }` does NOT match.
+  1.  **IIFE callee**:
+       the function's `parent.type === 'CallExpression' && parent.callee === fn`.
+       Covers both named-function IIFEs `(function () { let x; })()`
+       and arrow IIFEs `(() => { let x; })()` (the latter still trips `no-arrow-function`;
+       prefer the named form).
+  2.  **Helper-function shape**:
+       the function body ends with `return <Identifier>` where the identifier resolves to a function-body-root binding
+       (`let`,
+       `const`,
+       or `function`).
+       `concat()` in `package/webapp-forge/stress/src/scenarios/force-push.ts` is the paradigm.
+       Conservative on purpose:
+       `return total * 2` or `return { a, b }` does NOT match.
 - `no-module-root-let` (`src/rules/no-module-root-let.ts`):
    visits `Program`;
    reports each `let` declared at the top level,
@@ -715,7 +715,7 @@ Two structural moves silence the report without disable comments:
    Best when the mutation block has clear inputs and one returned value.
    Bonus:
    the helper is unit-testable in isolation.
-- **Wrap with a named-function IIFE**:
+- Wrap with a named-function IIFE:
    `const x = (function compute () { let acc = init; /* ... */ return acc; })();`.
    Best when the mutation block is tightly coupled to surrounding statements and cannot be cleanly extracted.
 
