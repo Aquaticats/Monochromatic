@@ -156,18 +156,18 @@ Tracker searches for checksum freshness found Cargo issue 14136,
 whose discussion already covers stale artifacts under fixed timestamps and content-aware remedies.
 There is nothing additive to file from this trial.
 
-1.   Fault attribution:
+1.  Fault attribution:
      the demonstrated error is our cache composition relying on an invalid timestamp assumption.
      Cargo's documented timestamp behavior explains it.
-2.   Fixability:
+2.  Fixability:
      upstream already has a content-based implementation under development.
-3.   Supported scope:
+3.  Supported scope:
      ordinary timestamp tracking does not promise content identity after arbitrary timestamp restoration.
-4.   Contribution policy:
+4.  Contribution policy:
      no upstream submission is proposed,
      so contribution-policy eligibility was not established.
-5.   Maintainer direction:
+5.  Maintainer direction:
      issue 14136 requests testing and names unresolved build-script and performance concerns.
-6.   Prototype:
+6.  Prototype:
      the consumer invalidation prototype was exercised locally;
      no new Cargo patch is necessary to demonstrate this integration failure.

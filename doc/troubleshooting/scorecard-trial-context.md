@@ -113,20 +113,20 @@ The `.out-of-scope/` search found no Scorecard-specific exemption.
 The source establishes an intentional context restriction;
 this investigation has not established an upstream defect.
 
-1.   Upstream fault:
+1.  Upstream fault:
      not established.
      The adapter needs explicit default-branch semantics.
-2.   Fix feasibility:
+2.  Fix feasibility:
      branch selection is configurable in principle,
      but changing its supported contract is outside this trial.
-3.   Supported use case:
+3.  Supported use case:
      the README labels manual dispatch experimental;
      it does not promise arbitrary non-default-branch remote analysis.
-4.   Contribution policy:
+4.  Contribution policy:
      not evaluated because no upstream defect is proposed.
-5.   Maintainer disposition:
+5.  Maintainer disposition:
      not evaluated for the same reason.
-6.   Upstream prototype:
+6.  Upstream prototype:
      none.
      The consumer adaptation is isolated and has not yet executed its conditional analysis path.
 

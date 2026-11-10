@@ -100,21 +100,21 @@ which is a different boundary.
 Its comments do not invalidate the completed-job REST workaround.
 No upstream message was sent.
 
-1.   Fault attribution:
+1.  Fault attribution:
      the source establishes a command-path restriction;
      this trial does not establish a defect in the job-log endpoint or output guard.
-2.   Fixability:
+2.  Fixability:
      a different command implementation could retrieve completed jobs independently,
      as the existing REST command already does.
-3.   Supported scope:
+3.  Supported scope:
      the REST endpoint supports the completed-job operation used by the monitor.
-4.   Contribution policy:
+4.  Contribution policy:
      no upstream change is proposed,
      so submission eligibility was not established.
-5.   Maintainer direction:
+5.  Maintainer direction:
      issue 11157 discusses a different feature request;
      no claim about willingness to change this gate follows from it.
-6.   Prototype:
+6.  Prototype:
      the native REST command is the exercised consumer workaround;
      no upstream patch was needed.
 
