@@ -187,5 +187,15 @@ pub mod merge_isolation_merge_tree;
 /// The questions an isolated merge asks Git and the terminal.
 pub mod merge_isolation_git_reads;
 
+/// The editor a merge opens for its message when the checkout holds the person's own work:
+/// the file it reads,
+/// the program Git resolves,
+/// and the message that comes back.
+pub mod merge_isolation_editor;
+
+/// The words of the editor command,
+/// which no shell makes.
+pub mod merge_isolation_editor_words;
+
 /// The values an isolated merge passes between its steps.
 pub mod merge_isolation_run_types;

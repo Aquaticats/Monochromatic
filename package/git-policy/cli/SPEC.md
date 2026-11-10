@@ -3444,7 +3444,10 @@ and work already handed over stays on disk and the next run finishes it.
   power loss or a reboot;
 - a corrupt repository (missing objects,
   a broken index) caused by a disk fault or another tool;
-- the person's signer failing (gpg or ssh-agent).
+- the person's signer failing (gpg or ssh-agent);
+- the person's editor failing (it exits nonzero),
+  leaving an empty message,
+  or resolving to no program at all.
 
 Not outside,
 so designed out:
@@ -3624,6 +3627,31 @@ and "never discard user data"):
   A kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
   The carry is a function of the captured blobs and the merge commit,
   so recovery converges on the same bytes from any step.
+
+A merge over that work that would open an editor opens it here
+(`default_edit_option`,
+`builtin/merge.c`;
+`src/native/merge/merge_isolation_editor.rs`):
+the message Git writes is put in `<git-dir>/MERGE_MSG` with the help lines Git adds under it,
+the program `git var GIT_EDITOR` names runs on it with this command's terminal and no ceiling,
+and its arguments are the words of that command line made here as a shell makes them,
+because the wrapper starts no shell and writes no shell text (`merge_isolation_editor_words.rs`);
+a line that asks for an expansion,
+a tilde,
+a glob,
+a control operator or a comment is not guessed and stays native Git's whole,
+and what it leaves is cleaned with `git stripspace --strip-comments`,
+which is `COMMIT_MSG_CLEANUP_ALL`.
+A comment character other than `#` opens the message alone,
+because the help lines would not be stripped then.
+The message is written once per command,
+so a round made again on a moved branch keeps what the person typed.
+`--no-edit` and `-m` keep the editor shut,
+as in Git,
+and a merge over a checkout whose own paths are clean that would open an editor stays
+native Git's whole,
+as does one started with `--edit`.
+A message left empty and an editor that fails are refusals that change nothing and exit 1.
 
 A path whose worktree entry is a directory,
 and an index that holds unmerged entries,

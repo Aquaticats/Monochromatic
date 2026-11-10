@@ -2142,11 +2142,13 @@ when all of these hold:
   cherry-pick or revert is in progress,
   and the settings `merge.autostash`,
    `merge.verifySignatures` and `branch.<name>.mergeOptions` are unset;
-- the merge would not open an editor:
-  pass `--no-edit`,
-  or set `GIT_MERGE_AUTOEDIT=no`
-   (a merge started from a terminal opens one by default,
-  and then native Git runs it as before).
+- the merge would not open an editor,
+  unless the checkout holds the person's own work in the paths the merge changes:
+  that merge is completed with the editor (see "The editor a carried merge opens").
+  A merge over a clean checkout that would open an editor,
+  and one started with `--edit`,
+  is native Git's whole,
+  as before.
 
 The merge tree comes from `git merge-tree --write-tree`,
 the commit from `git commit-tree`,
@@ -2217,7 +2219,6 @@ Now the merge runs and the person's work is carried across it:
 
 A merge over a checkout whose own paths are clean runs exactly as it did.
 The refusals that change nothing are:
-
 - The merge conflicts textually,
   and the word-level second merge pass cannot resolve every conflicted file.
   The finding `merge-isolation/merge-conflict` names the conflicting paths.
@@ -2229,8 +2230,59 @@ The refusals that change nothing are:
   or the index holds an unmerged entry.
   The command is native Git's whole,
   which refuses such a checkout itself.
+- A merge over that work that would open an editor ends without one:
+  the editor exits with a failure
+  (`there was a problem with the editor '<editor>'`),
+  leaves an empty message,
+  or is one this environment resolves to nothing.
+  The command exits 1 and nothing in the repository changes;
+  run the merge again to write the message.
 
 A merge killed while it runs is finished or discarded by the next invocation (see "State on disk").
+
+#### The editor a carried merge opens
+
+A merge started from a terminal opens the person's editor for its message
+(`default_edit_option` in Git's `builtin/merge.c`).
+Native Git performs the merge before the editor opens,
+so over the person's own work it refuses before anything is edited;
+this wrapper opens the editor itself:
+
+- The message is written to `<git-dir>/MERGE_MSG`,
+  with the help lines Git writes under it.
+  A comment character other than `#` (`core.commentChar`,
+  `core.commentString`) opens the message alone,
+  because those help lines would not be stripped then.
+- The program is the one `git var GIT_EDITOR` names,
+  and its arguments are the words of that command line,
+  made here as a shell makes them:
+  blanks separate them,
+  single quotes hold their bytes,
+  double quotes hold
+  theirs,
+  and a backslash escapes the next byte (`merge_isolation_editor_words.rs`).
+  No shell is started,
+  since the wrapper writes no shell text,
+  so `code --wait` and `emacsclient -nw` work as under Git.
+  A line that asks for an expansion,
+  a tilde,
+  a glob,
+  a control operator or a comment is not guessed:
+  that merge is native Git's whole.
+  The editor gets this command's terminal,
+  and no ceiling.
+- What it leaves is cleaned the way a commit that opens an editor cleans it
+  (`git stripspace --strip-comments`),
+  and it is the merge's message.
+  `--no-edit` and `-m` keep the merge away from the editor,
+  as under Git.
+- The message is written once,
+  so a round made again because the branch moved never asks the person to type it twice.
+
+A merge whose editor left nothing,
+  or one whose editor failed,
+  exits 1 with the reason and changes nothing;
+  the message file goes either way.
 
 #### A pull that merges
 
