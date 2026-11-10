@@ -14,7 +14,6 @@
 
 import type {
   Level,
-  Logger,
   LogRecord,
 } from '@monochromatic-dev/logger-core/ts';
 import {
@@ -29,6 +28,7 @@ import {
   journalArgumentsFor,
   reportExpectedFailure,
 } from './syslog.ts';
+import { recordingLogger, } from './test-fixtures.ts';
 
 //region Fixtures
 
@@ -77,72 +77,6 @@ const RECORD: LogRecord = {
   message: 'capture complete',
   timestamp: 0,
 };
-
-/**
- One record a recording logger captured, kept apart from the logger so a case can assert on it.
- */
-type RecordedRecord = {
-  readonly level: Level;
-  readonly message: string;
-};
-
-/**
- Builds a logger that keeps every record in `records` instead of filing it, so a case observes what
- a call site reported without writing to the host journal.
-
- @param records - list every emitted record is appended to
-
- @returns logger recording each level, with a flush that records nothing
-
- @example
- ```ts
- const records: RecordedRecord[] = [];
- reportExpectedFailure({ error, l: recordingLogger({ records }), operation: 'pkill' });
- ```
- */
-function recordingLogger({ records, }: Readonly<{ records: RecordedRecord[]; }>,): Logger {
-  return {
-    debug: function debug(message: string,): void {
-      records.push({
-        level: 'debug',
-        message,
-      },);
-    },
-    error: function error(message: string,): void {
-      records.push({
-        level: 'error',
-        message,
-      },);
-    },
-    fatal: function fatal(message: string,): void {
-      records.push({
-        level: 'fatal',
-        message,
-      },);
-    },
-    info: function info(message: string,): void {
-      records.push({
-        level: 'info',
-        message,
-      },);
-    },
-    trace: function trace(message: string,): void {
-      records.push({
-        level: 'trace',
-        message,
-      },);
-    },
-    warn: function warn(message: string,): void {
-      records.push({
-        level: 'warn',
-        message,
-      },);
-    },
-    flush: function flush(): Promise<void> {
-      return Promise.resolve();
-    },
-  };
-}
 
 /**
  Sentinel {@link thrownBy} returns when the call it ran threw nothing.
@@ -229,13 +163,13 @@ await describe({
           name: 'files the caught value of a failure the call site expected',
           fn: async function testExpectedFailureIsFiled(): Promise<void> {
             /**
-             Records the logger captured, asserted on below.
+             Recording logger the failure is reported through, asserted on below.
              */
-            const records: RecordedRecord[] = [];
+            const { logger, records, } = recordingLogger();
 
             reportExpectedFailure({
               error: new Error('pkill exited 1',),
-              l: recordingLogger({ records, },),
+              l: logger,
               operation: 'pkill',
             },);
 
@@ -251,9 +185,9 @@ await describe({
           name: 'rethrows a caught value that is not an Error, so an unplanned throw stays fatal',
           fn: async function testNonErrorIsRethrown(): Promise<void> {
             /**
-             Records the logger captured; the case proves nothing reached it.
+             Recording logger the failure would be reported through; the case proves nothing reached it.
              */
-            const records: RecordedRecord[] = [];
+            const { logger, records, } = recordingLogger();
 
             /**
              Value the call rethrows; captured rather than asserted with `toThrow`, because the
@@ -263,7 +197,7 @@ await describe({
               run: function reportUnexpected(): void {
                 reportExpectedFailure({
                   error: 'not an Error',
-                  l: recordingLogger({ records, },),
+                  l: logger,
                   operation: 'pkill',
                 },);
               },

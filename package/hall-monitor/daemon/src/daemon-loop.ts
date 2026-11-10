@@ -1,5 +1,6 @@
 /**
- The daemon's between-cycle wait, and the loop that runs it.
+ The daemon's run loop, the shutdown signal that ends it, and the detached
+ shutdown the signal handlers start.
 
  `shutdown` used to flip a flag and leave the pending `setTimeout` armed, so the
  event loop stayed alive until the five-minute interval fired: systemd's default
@@ -10,6 +11,9 @@
 
  @module
  */
+
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 /**
  Cancellable shutdown signal and the between-cycle wait that listens to it.
@@ -159,3 +163,71 @@ export async function runDaemonLoop({
 }
 
 //endregion Loop
+
+//region Detached shutdown
+
+/**
+ Starts one shutdown from a synchronous signal handler.
+
+ A signal handler cannot await, so it discards the promise this starts, and a
+ discarded promise that rejects ends the process as an unhandled rejection. The
+ started promise therefore never rejects: a failed shutdown is reported and
+ flushed, and the records that explain it survive the exit.
+
+ @param shutdown - shutdown work to run
+
+ @param l - logger the failure is reported through, and flushed afterwards
+
+ @example
+ ```ts
+ process.on('SIGTERM', function onSignal() {
+   runDetachedShutdown({ shutdown, l });
+ });
+ ```
+ */
+export function runDetachedShutdown({
+  shutdown,
+  l,
+}: Readonly<{
+  shutdown: () => Promise<void>;
+  l: Logger;
+}>): void {
+  void reportShutdownFailure({
+    l,
+    shutdown,
+  },);
+}
+
+/**
+ Runs one shutdown, reporting and flushing a failure instead of letting it end
+ the process.
+
+ @param shutdown - shutdown work to run
+
+ @param l - logger the failure is reported through, and flushed afterwards
+
+ @example
+ ```ts
+ await reportShutdownFailure({ shutdown, l });
+ ```
+ */
+async function reportShutdownFailure({
+  shutdown,
+  l,
+}: Readonly<{
+  shutdown: () => Promise<void>;
+  l: Logger;
+}>): Promise<void> {
+  try {
+    await shutdown();
+  }
+  catch (error: unknown) {
+    l.error(`Shutdown failed: ${caughtValueText(error,)}`,);
+    // The records filed before the failure are what explain it, so they are flushed before the
+    // process is left to exit on its own.
+    await l.flush();
+    process.exitCode = 1;
+  }
+}
+
+//endregion Detached shutdown

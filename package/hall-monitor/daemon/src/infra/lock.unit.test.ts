@@ -1,32 +1,21 @@
 /**
- Takeover tests for `signalProcess`.
+ Lock tests: the whitespace splitter and the takeover signal.
 
- The single-instance takeover signals a PID it looked up earlier, so the owner
- may already have exited by the time the signal is sent. These cases prove the
- live case still delivers, and that the already-gone case is reported instead of
- thrown, which is what lets the takeover fall through to the lock retry loop.
+ `splitOnWhitespace` cases capture the pre-refactor behavior of the splitter so
+ the linear single-pass rewrite stays behavior-identical: empty input, all
+ whitespace, a single token, leading and trailing separators dropped, consecutive
+ separators collapsed, every whitespace kind treated as a break, the realistic
+ `/proc/net/unix` field-extraction case, and long repeated runs that the prior
+ recursive O(n) stack and O(n^2) array-spread walker could not handle.
+
+ `signalProcess` cases cover the other end of the takeover: it signals a PID it
+ looked up earlier, so the owner may already have exited by the time the signal
+ is sent, and the already-gone case must be reported rather than thrown so the
+ takeover falls through to the lock retry loop.
 
  @module
  */
 
-/**
- Equivalence tests for `splitOnWhitespace`.
- 
- Capture the pre-refactor behavior of the whitespace splitter so the
- linear single-pass rewrite stays behavior-identical: empty input, all
- whitespace, a single token, leading and trailing separators dropped,
- consecutive separators collapsed, every whitespace kind treated as a
- break, the realistic `/proc/net/unix` field-extraction case, and long
- repeated runs that the prior recursive O(n) stack and O(n^2) array-spread
- walker could not handle.
- 
- @module
- */
-
-import type {
-  Level,
-  Logger,
-} from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
@@ -37,6 +26,7 @@ import {
   signalProcess,
   splitOnWhitespace,
 } from './lock.ts';
+import { recordingLogger, } from './test-fixtures.ts';
 
 /** Run length for the long-input cases; large enough to overflow the prior recursion, fast to compare. */
 const LONG_RUN = 100_000;
@@ -51,66 +41,6 @@ const INODE_FIELD_INDEX = 6;
  */
 const UNREACHABLE_PID = (2 ** 31) - 1;
 
-/**
- One record a recording logger captured.
- */
-type RecordedRecord = {
-  readonly level: Level;
-  readonly message: string;
-};
-
-/**
- Builds a logger that keeps every record in `records` instead of filing it, so a
- case observes what a call site reported without writing to the host journal.
-
- @param records - list every emitted record is appended to
-
- @returns logger recording each level, with a flush that records nothing
- */
-function recordingLogger({ records, }: Readonly<{ records: RecordedRecord[]; }>,): Logger {
-  return {
-    debug: function debug(message: string,): void {
-      records.push({
-        level: 'debug',
-        message,
-      },);
-    },
-    error: function error(message: string,): void {
-      records.push({
-        level: 'error',
-        message,
-      },);
-    },
-    fatal: function fatal(message: string,): void {
-      records.push({
-        level: 'fatal',
-        message,
-      },);
-    },
-    info: function info(message: string,): void {
-      records.push({
-        level: 'info',
-        message,
-      },);
-    },
-    trace: function trace(message: string,): void {
-      records.push({
-        level: 'trace',
-        message,
-      },);
-    },
-    warn: function warn(message: string,): void {
-      records.push({
-        level: 'warn',
-        message,
-      },);
-    },
-    flush: function flush(): Promise<void> {
-      return Promise.resolve();
-    },
-  };
-}
-
 await describe({
   name: '',
   children: [
@@ -121,12 +51,12 @@ await describe({
           name: 'delivers a signal to a live process and reports nothing',
           fn: async () => {
             /**
-             Records the logger captured; a delivered signal must produce none.
+             Recording logger; a delivered signal must report nothing through it.
              */
-            const records: RecordedRecord[] = [];
+            const { logger, records, } = recordingLogger();
 
             expect(signalProcess({
-              logger: recordingLogger({ records, },),
+              logger,
               pid: process.pid,
               signal: 0,
             },),).toBe(true,);
@@ -138,12 +68,12 @@ await describe({
           name: 'reports an owner that already exited instead of throwing',
           fn: async () => {
             /**
-             Records the logger captured; the already-gone case must file one.
+             Recording logger; the already-gone case must file one record through it.
              */
-            const records: RecordedRecord[] = [];
+            const { logger, records, } = recordingLogger();
 
             expect(signalProcess({
-              logger: recordingLogger({ records, },),
+              logger,
               pid: UNREACHABLE_PID,
               signal: 'SIGTERM',
             },),).toBe(false,);

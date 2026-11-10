@@ -24,9 +24,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { recordingLogger, } from './infra/test-fixtures.ts';
 import {
   createShutdownSignal,
   runDaemonLoop,
+  runDetachedShutdown,
 } from './daemon-loop.ts';
 
 //region Fixtures
@@ -71,6 +73,14 @@ const PENDING = 'pending';
  Time a case gives the loop to start waiting before it requests a shutdown.
  */
 const LOOP_START_GRACE_MS = 50;
+
+/**
+ Time a case gives a detached shutdown to report before it checks the logger.
+
+ The report happens after the shutdown it started settles, which is one microtask
+ away, so this is a margin rather than a wait for work.
+ */
+const DETACHED_REPORT_GRACE_MS = 50;
 
 /**
  Races one wait against a window, so a case can observe both outcomes.
@@ -165,6 +175,74 @@ await describe({
               wait: signal.waitForNextCycle({ ms: LONG_INTERVAL_MS, },),
             },),).toBe(SETTLED,);
             expect(signal.requested(),).toBe(true,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: runDetachedShutdown.name,
+      children: [
+        it({
+          name: 'starts the shutdown and reports nothing when it succeeds',
+          fn: async () => {
+            /**
+             Recording logger the shutdown would report through.
+             */
+            const { logger, records, } = recordingLogger();
+            /**
+             Shutdowns the detached call started.
+             */
+            const started: string[] = [];
+
+            runDetachedShutdown({
+              l: logger,
+              shutdown: async function succeed(): Promise<void> {
+                started.push('shutdown',);
+              },
+            },);
+            await delay(DETACHED_REPORT_GRACE_MS,);
+
+            expect(started.length,).toBe(1,);
+            expect(records,).toEqual([],);
+          },
+        },),
+
+        it({
+          name: 'reports and flushes a failed shutdown instead of letting it end the process',
+          fn: async () => {
+            /**
+             Recording logger the failure is reported through.
+             */
+            const { logger, records, flushCount, } = recordingLogger();
+            /**
+             Exit code this case restores, because a failed shutdown sets it.
+             */
+            const previousExitCode = process.exitCode;
+            /**
+             Restores the exit code however this case ends.
+             */
+            await using _restoreExitCode = {
+              async [Symbol.asyncDispose](): Promise<void> {
+                process.exitCode = previousExitCode;
+              },
+            } as AsyncDisposable;
+
+            runDetachedShutdown({
+              l: logger,
+              shutdown: async function fail(): Promise<void> {
+                throw new Error('the lock socket would not close',);
+              },
+            },);
+            await delay(DETACHED_REPORT_GRACE_MS,);
+
+            expect(records,).toEqual([
+              {
+                level: 'error',
+                message: 'Shutdown failed: the lock socket would not close',
+              },
+            ],);
+            expect(flushCount(),).toBe(1,);
           },
         },),
       ],

@@ -11,6 +11,7 @@ import { cycle, } from './cycle.ts';
 import {
   createShutdownSignal,
   runDaemonLoop,
+  runDetachedShutdown,
 } from './daemon-loop.ts';
 import {
   acquireLock,
@@ -87,10 +88,20 @@ async function shutdown(): Promise<void> {
 }
 
 /**
- Synchronous signal-listener wrapper; fires the async {@link shutdown} without awaiting.
+ Synchronous signal-listener wrapper.
+
+ A signal handler cannot await, so the promise {@link shutdown} returns is
+ discarded, and {@link runDetachedShutdown} is what keeps a failed shutdown from
+ ending the process as an unhandled rejection before its records are flushed.
  */
 function onSignal(): void {
-  void shutdown();
+  runDetachedShutdown({
+    l: tagged({
+      l: log,
+      tag: onSignal.name,
+    },),
+    shutdown,
+  },);
 }
 
 process.on(
