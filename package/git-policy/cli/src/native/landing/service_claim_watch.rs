@@ -97,12 +97,18 @@ pub type ReadFile<'a> = &'a dyn Fn(&Path) -> std::io::Result<Vec<u8>>;
 ///  that could not be written,
 /// or a store that could not be read,
 /// is tried again until it works.
+/// The watch is cloned into a job of the blocking pool when the loop that owns it is a task,
+/// because a job
+///  may not borrow it;
+/// the job hands the changed watch back and the clone is dropped,
+/// so only one watch is ever the
+///  owner's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class ClaimWatch { store?: string; instance?: string; known: string[]; unwritten: string[]; unread: boolean; failures: number; }
 /// ```
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ClaimWatch {
     /// The directory the watch files are kept in;
     /// nothing for a watch kept in memory only.

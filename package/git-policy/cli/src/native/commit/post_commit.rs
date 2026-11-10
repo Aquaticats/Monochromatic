@@ -32,6 +32,9 @@ use crate::policy_checks::shipped_checks;
 use crate::policy_content::LifecycleContent;
 use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
 use crate::policy_events::PolicyEvent;
+/// The effective severity of a finding,
+/// and the registry row that names a policy the way the person configures it.
+use crate::policy_registry::{Severity, policy_descriptor};
 use crate::policy_pass::run_policy_pass;
 use crate::policy_trigger::Trigger;
 use crate::repository_facts::git_facts;
@@ -182,6 +185,60 @@ fn run_staged_gate(
     let pass = run_policy_pass(&stage, &mut checks);
     return (pass.events, pass.end);
 }
+
+/// What:
+///  The words the automatic push and every command's notice give for a gate that kept the commit local.
+/// Why:
+///   The person has to know which check refused the commit and what it found,
+/// because the automatic push
+///  stops at that commit until it is off the branch's way out.
+///  Only the events that block are named,
+/// in the order the gate produced them:
+/// an error finding names its policy,
+/// a fixed transform
+///  that rejected the command names itself,
+/// and a pass that could not finish says that on its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = (events) => events.filter(blocking).map(describe).join('; ').replace(/\s+/g, ' ');
+/// ```
+pub fn blocked_reason(events: &[PolicyEvent]) -> String {
+    let mut said: Vec<String> = Vec::new();
+    for event in events {
+        match event {
+            PolicyEvent::Finding(finding) if finding.severity == Severity::Error => {
+                said.push(format!("{}: {}", policy_descriptor(finding.policy).name, finding.message));
+            }
+            PolicyEvent::CoreFinding { core_id, message, .. } => {
+                said.push(format!("{core_id}: {message}"));
+            }
+            PolicyEvent::EngineFailure { policy, message, .. } => {
+                said.push(match policy {
+                    Some(known) => format!("{}: {message}", policy_descriptor(*known).name),
+                    None => String::from(message.as_str()),
+                });
+            }
+            PolicyEvent::Finding(_) | PolicyEvent::WarnUnsafe { .. } | PolicyEvent::FixSummary { .. } | PolicyEvent::CommitLanded { .. } | PolicyEvent::WordMerged { .. } => {}
+        }
+    }
+    // A gate that stopped without a blocking event still has a cause in its own words; the caller words that case.
+    let joined: String = said.join("; ");
+    return joined.split_whitespace().collect::<Vec<&str>>().join(" ");
+}
+
+/// What:
+///  The reason a gate that produced no blocking event is reported with.
+/// Why:
+///   A pass can end without an event that blocks (an empty finding list and a stage that did not finish),
+/// and the
+///  notice must still name something the person can act on rather than an empty clause.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NO_CAUSE = 'the post-commit check did not finish';
+/// ```
+pub const NO_BLOCKING_CAUSE: &str = "its post-commit check did not finish";
 
 /// Post-commit gate behavior is controlled in the test module.
 #[cfg(test)]

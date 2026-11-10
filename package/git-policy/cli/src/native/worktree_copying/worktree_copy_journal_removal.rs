@@ -44,15 +44,31 @@ pub fn prepare_stage_removal(stage_container: &Path) -> Result<(), WorktreeCopyE
         if !metadata.is_dir() {
             continue;
         }
-        std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o700))
-            .map_err(raw_failure_of)?;
-        for listed in
-            std::fs::read_dir(directory.as_path()).map_err(raw_failure_of)?
-        {
-            let child: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
-            let child_type: std::fs::FileType = child
-                .file_type()
-                .map_err(raw_failure_of)?;
+        // A directory another command removed at the same moment is already as writable as it needs to be.
+        match std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o700)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(raw_failure(&error)),
+        }
+        // In a walk of one stage no entry can point back,
+        // and a directory a link names is never entered: only a directory's own entries
+        // are read, so a stage whose directory another command emptied is walked no further.
+        let listing = match std::fs::read_dir(directory.as_path()) {
+            Ok(listing) => listing,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(raw_failure(&error)),
+        };
+        for listed in listing {
+            let child: std::fs::DirEntry = match listed {
+                Ok(child) => child,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(raw_failure(&error)),
+            };
+            let child_type: std::fs::FileType = match child.file_type() {
+                Ok(kind) => kind,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(raw_failure(&error)),
+            };
             if child_type.is_dir() {
                 pending.push(child.path());
             }
@@ -170,7 +186,12 @@ fn remove_subtrees_until_none_is_left((cursor, subtrees): (Arc<std::sync::atomic
         let Some(subtree) = subtrees.get(index) else {
             return Ok(());
         };
-        std::fs::remove_dir_all(subtree.as_path())?;
+        // A subtree another command removed at the same moment is already gone, which is what this removal wanted.
+        match std::fs::remove_dir_all(subtree.as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
     }
 }
 
@@ -259,11 +280,31 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
     for depth in 0..REMOVAL_SPLIT_DEPTH {
         let mut next: Vec<PathBuf> = Vec::new();
         for directory in &level {
-            for listed in std::fs::read_dir(directory)? {
-                let entry: std::fs::DirEntry = listed?;
+            // A directory another command removed at the same moment holds nothing to remove here.
+            let listing = match std::fs::read_dir(directory) {
+                Ok(listing) => listing,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error),
+            };
+            for listed in listing {
+                let entry: std::fs::DirEntry = match listed {
+                    Ok(entry) => entry,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                    Err(error) => return Err(error),
+                };
                 let child: PathBuf = entry.path();
-                if !entry.file_type()?.is_dir() {
-                    std::fs::remove_file(child.as_path())?;
+                let kind: std::fs::FileType = match entry.file_type() {
+                    Ok(kind) => kind,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                    Err(error) => return Err(error),
+                };
+                if !kind.is_dir() {
+                    // The entry may be gone already: a removal that finds nothing is the removal that was wanted.
+                    match std::fs::remove_file(child.as_path()) {
+                        Ok(()) => {}
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(error) => return Err(error),
+                    }
                 } else if depth + 1 == REMOVAL_SPLIT_DEPTH {
                     subtrees.push(child);
                 } else {
@@ -280,7 +321,11 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
         outcome?;
     }
     for directory in shallow.iter().rev() {
-        std::fs::remove_dir(directory.as_path())?;
+        match std::fs::remove_dir(directory.as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
     }
     return Ok(());
 }

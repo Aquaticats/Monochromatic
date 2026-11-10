@@ -188,7 +188,7 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         common_dir: Some(layout.common_dir.clone()),
     };
     // From the top of the worktree, so the paths of the stages mean what they say.
-    let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: layout.worktree_root.as_path(), without_prefix: false, object_directory: None, environment: Vec::new() };
+    let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: layout.worktree_root.as_path(), without_prefix: false, repository: Vec::new(), object_directory: None, environment: Vec::new() };
     // A rule file the merge left conflicted is Git's marker file in the worktree, so no rule of it can be read: the pass re-merges nothing rather than trust a line between the markers.
     let mut attributes_conflict: bool = false;
     for path in conflicted_paths(entries.as_slice()) {

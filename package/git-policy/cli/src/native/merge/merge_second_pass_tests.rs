@@ -88,7 +88,7 @@ pub(crate) fn world(name: &str, base: &[(&str, &[u8])], ours: &[(&str, Change<'_
 
 /// The runner over the fixture repository.
 pub(crate) fn runner<'a>(context: &'a GitContext, repo: &'a Path) -> ContextRunner<'a> {
-    return ContextRunner { context, cwd: repo, without_prefix: false, object_directory: None, environment: Vec::new() };
+    return ContextRunner { context, cwd: repo, without_prefix: false, repository: Vec::new(), object_directory: None, environment: Vec::new() };
 }
 
 /// The tree and the conflicts of `git merge-tree` over the two branches.

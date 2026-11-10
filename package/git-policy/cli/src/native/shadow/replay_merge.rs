@@ -122,7 +122,9 @@ pub fn merge_replay_tree(
     // No worktree is read, so the landed tip's `.gitattributes` is the one the merge applies (the `union` line included).
     let process_environment: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
     let variables = environment_with_overlay(process_environment.as_slice(), context.overlay.as_slice());
-    let probing = ContextRunner { context, cwd: worktree_root, without_prefix: true, object_directory: None, environment: Vec::new() };
+    // The attribute read keeps none of the caller's other options, and the repository the line named is carried here.
+    let repository = crate::repository_selection::from_global_options(worktree_root, context.global_prefix.as_slice());
+    let probing = ContextRunner { context, cwd: worktree_root, without_prefix: true, repository, object_directory: None, environment: Vec::new() };
     let probe = AttributeProbe { directory: worktree_root, global_prefix: &[], variables: variables.as_slice(), runner: &probing };
     request.environment.extend(attribute_tree_variables_on_the_runtime(current, &probe));
     let output = match run_git(context, &request) {

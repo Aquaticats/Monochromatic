@@ -537,6 +537,19 @@ On the three findings left on that landing:
 "yes,
 when we finish the kimi trial."
 
+The round ran on 2026-11-10 with Kimi K3.1 Pro,
+and its report is `${HOME}/temp/agent/kimi-reviews/landing-stat-data-round-7/review.md`.
+It named one new finding from reading,
+which it could not reproduce on this host's btrfs:
+on a filesystem with whole-second timestamps,
+a same-size edit whose modification time is restored inside one second can be recorded as clean.
+The agent `kimi-trial-findings-on-main` takes that one.
+The three older findings were judged and left,
+veto open:
+swapping two settled directories between the reads
+and a writable shared mapping of `.gitattributes` both need another program to set a trap inside a small window,
+and a read a stopped FUSE server never answers is the step the owner's "Keep waiting and say so" covers.
+
 ### A late mode or owner change during a conversion
 
 "accepted risk."

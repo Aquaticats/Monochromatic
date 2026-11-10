@@ -131,9 +131,9 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
             "To get copies of staged files without touching the worktree, write them elsewhere: git checkout-index --prefix=<directory>/ --all (allowed).",
         ),
         GuardedCommand::ReadTree => return (
-            "git read-tree --reset",
-            "it replaces the index, and with -u the worktree files, discarding local entries",
-            "To merge a tree into the index use git read-tree -m (allowed), or run the reset in a clean linked worktree (git worktree add <path> HEAD).",
+            "git read-tree",
+            "it replaces the index and, with -u, the worktree files, so staged entries and the worktree content they carried are gone",
+            "To see what a read would change without writing anything, run git read-tree --dry-run with the same arguments (allowed). To look at a tree without touching the index, use git ls-tree or git cat-file (allowed). To replace the index on purpose, run it in a clean linked worktree (git worktree add <path> HEAD).",
         ),
         GuardedCommand::AbortMerge => return (
             "git merge --abort",
