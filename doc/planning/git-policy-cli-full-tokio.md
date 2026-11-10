@@ -9540,22 +9540,29 @@ and its steps are awaited:
   and a file whose braces still do not balance is an error rather than a file the scan skips.
   Every `.rs` file of the crate (1,779) balances under the reader's rules.
 - The eight rules:
-  `thread-start` (`thread::spawn`, `thread::Builder`, `thread::scope`, `spawn_scoped`),
-  `blocking-sleep` (`thread::sleep`, `park_timeout`, `thread::park`),
+  `thread-start` (`thread::spawn`,
+  `thread::Builder`,
+  `thread::scope`,
+  `spawn_scoped`),
+  `blocking-sleep` (`thread::sleep`,
+  `park_timeout`,
+  `thread::park`),
   `unretried-start` (a start of a `Command` in a function that builds one),
   `unretried-built-start` (a start chained onto `git_command(...)`),
   `storage-read-on-a-task` (a read,
   write,
   rename,
   removal or sync of a file inside a task),
-  `blocking-wait-on-a-task` (`recv_timeout`, a sleeping clock, a futex wait,
+  `blocking-wait-on-a-task` (`recv_timeout`,
+  a sleeping clock,
+  a futex wait,
   a `Condvar`,
   or a `.wait()` that is neither awaited nor a `select!` arm),
   `plain-tokio-fs` (which panics where no thread can start) and
   `block-in-place` (which panics on the current-thread runtime the system's refusals select).
 - What the guards found,
   and what was fixed:
-  the sixteen findings below are named by the guard on the tree before the fix,
+  the seven findings below are named by the guard on the tree before the fix,
   and gone from it after.
   The four unretried starts (`947297a8c7`):
   the LFS query's `git` (`lfs/lfs_interactive.rs`),
@@ -9563,7 +9570,8 @@ and its steps are awaited:
   the process-identity inspector (`process/process_identity.rs`) and
   the package repair's tool (`repair/package_repair_command.rs`,
   which now awaits `spawn_retrying_without_blocking`).
-  The two storage calls of the walk in a task (`50aa12d788`, `f0eefdfc8c`):
+  The walk's two storage calls inside a task (`50aa12d788`,
+  `f0eefdfc8c`):
   the split removal walks a stage on the blocking pool now
   (`worktree_copying/worktree_copy_journal_removal.rs`),
   and runs the walk in turn where the system refuses a thread,
@@ -9594,7 +9602,8 @@ and its steps are awaited:
   seven files of the merge's carry and second pass do one metadata look,
   read or removal of a known small file inside a task;
   and two files start a child on macOS or Windows only,
-  which the owner's "Ignore Win and mac until I say so." keeps unconverted.
+  which the owner's "Ignore Win and mac until I say so."
+  keeps unconverted.
   An entry whose code is gone fails the suite,
   so the list shrinks as the move lands.
 - What the guards do not see:
