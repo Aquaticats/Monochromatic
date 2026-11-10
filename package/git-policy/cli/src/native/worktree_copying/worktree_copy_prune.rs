@@ -26,6 +26,7 @@
 
 /// The prefix of every stage container any rung makes beside its destination.
 use crate::worktree_copy_selection::{STAGE_PREFIX, is_separator_byte};
+use crate::worktree_trash_manifest::is_trash_name;
 
 /// What:
 ///  Whether the records of earlier runs (logs,
@@ -154,21 +155,34 @@ fn names_checkout_marker(child_names: &[Vec<u8>]) -> bool {
 }
 
 /// What:
-///  Whether a path is the place a snapshot's leave-out makes its trash at,
+///  Whether a path is a trash directory the wrapper made,
 /// or anything below it.
 /// Why:
-///   Every worktree keeps that place ignored for the same reason,
-/// and the directories below it are what an add set aside,
-/// so a copy that
-///  carried them would put another command's trash inside the new worktree with no manifest that names it.
+///   A worktree keeps the trash parent out of every commit,
+/// so a person may keep files the repository ignores there;
+///  only a directory named the way the wrapper names a trash is a trash,
+/// and the person's own directories below the parent are state of the
+///  source.
+/// A copy that took the whole parent for trash dropped those files from the new worktree,
+/// and a snapshot took
+///  them into this add's trash,
+/// where the service deleted them.
+/// The path is anchored at the source root,
+/// so a directory
+///  of that name deeper down is not what the wrapper leaves out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const namesTheTrashParent = (path) => path === '.claude/cli-git-trash' || path.startsWith('.claude/cli-git-trash/');
+/// const namesAWrappersTrash = (path) => { const [below, ...rest] = splitFirst(path, '/.claude/cli-git-trash/'); return isTrashName(below); };
 /// ```
-fn names_the_trash_parent(relative_path: &[u8]) -> bool {
+fn names_a_wrappers_trash(relative_path: &[u8]) -> bool {
     let parent: &[u8] = crate::worktree_trash::TRASH_PARENT.as_bytes();
-    return relative_path == parent || (relative_path.starts_with(parent) && relative_path.get(parent.len()) == Some(&b'/'));
+    let Some(below_parent) = relative_path.strip_prefix(parent) else { return false };
+    let Some(below_slash) = below_parent.strip_prefix(b"/") else { return false };
+    let mut components = below_slash.split(is_separator_byte);
+    let Some(component) = components.next() else { return false };
+    let Ok(name) = std::str::from_utf8(component) else { return false };
+    return is_trash_name(name);
 }
 
 /// What:
@@ -230,10 +244,10 @@ impl Prune {
         if names_a_private_stage(relative_path) {
             return true;
         }
-        // A trash an earlier add left is no state of the source either: the commit service empties it after that add returns,
-        //  and until then it holds directories nothing of this copy's names, so carrying it would put an unrecorded trash of
-        //  another command inside the new worktree.
-        if names_the_trash_parent(relative_path) {
+        // A trash a wrapper command made and recorded is no state of the source either: what it holds is another add's left-out
+        //  directory, and a copy that carried it would put a trash nothing names inside the new worktree. A directory below the
+        //  trash parent that is not named like one is the person's own state, and is copied.
+        if names_a_wrappers_trash(relative_path) {
             return true;
         }
         let components: Vec<&[u8]> = relative_path.split(is_separator_byte).collect();

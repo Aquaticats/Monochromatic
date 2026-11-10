@@ -31,6 +31,7 @@ use super::{Aside, TRASH_PARENT, Trash};
 use crate::fs_beneath::open_directory_at;
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_path_failure_message::path_failure;
+use crate::worktree_trash_manifest::is_trash_name;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt as _;
@@ -179,13 +180,21 @@ fn is_dir_kind(kind: std::fs::FileType) -> bool {
 /// and the walk skips the trash parent so that this add's own trash is
 ///  not moved into itself;
 /// naming them from the parent's listing is what tells the two apart.
-/// The parent is reached through the
-///  held handle of the snapshot and listed once,
-/// so a name that is not text is carried by its bytes.
+/// Only a directory named the
+///  way the wrapper names a trash is one:
+/// the parent is kept out of every commit,
+/// so a person may keep their own
+///  directories there,
+/// and taking those for an earlier add's trash moved them into this add's trash,
+/// where the
+///  service deleted them.
+/// The parent is reached through the held handle of the snapshot and listed once,
+/// so a name
+///  that is not text is carried by its bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readdir(join(stage, TRASH_PARENT)).filter((name) => name !== trash?.name).map((name) => join(TRASH_PARENT, name));
+/// readdir(join(stage, TRASH_PARENT)).filter((name) => isTrashName(name) && name !== trash?.name).map((name) => join(TRASH_PARENT, name));
 /// ```
 pub(super) fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec<PathBuf>, String> {
     let parent: PathBuf = stage.join(TRASH_PARENT);
@@ -200,6 +209,11 @@ pub(super) fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec
         let entry: std::fs::DirEntry = path_failure(listed_entry, parent.as_path(), "cannot be listed")?;
         let name: OsString = entry.file_name();
         if own == name.to_str() || !is_directory_entry(&entry) {
+            continue;
+        }
+        // A name that is not the wrapper's shape of a trash is the person's own directory, and the snapshot carries it into the new
+        //  worktree as it is.
+        if !name.to_str().is_some_and(is_trash_name) {
             continue;
         }
         found.push(Path::new(TRASH_PARENT).join(name));

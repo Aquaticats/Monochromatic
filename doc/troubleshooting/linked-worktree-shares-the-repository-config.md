@@ -93,22 +93,20 @@ and that push is the proof the repair took.
 
 ## The rule that follows
 
-A copy to experiment in is a real clone,
+`AGENTS.md` rule `APQ` states where the push URL may be disabled:
+in a `git clone --no-hardlinks` of your own,
+never in any `git worktree add` folder of this repo,
+which is the wording the owner approved.
+
+A copy to experiment in is therefore a real clone,
 made under the run folder,
-and the push URL is disabled inside it:
+with the push URL disabled inside it:
 
 ```console
 git clone --no-hardlinks <path to this repository> ${HOME}/temp/agent/<name>
 git -C ${HOME}/temp/agent/<name> remote set-url --push origin DISABLED
 ```
 
-`AGENTS.md` states it twice,
-and both rules apply to every worktree of this repository:
-
-- `GCW`:
-  never write Git config in any worktree of this repository,
-  because every linked worktree shares one `.git/config`,
-  so one write changes the main checkout and every agent's commands.
-- `APQ`:
-  disable auto-push in a `git clone --no-hardlinks` of your own,
-  never in a path `git worktree add` made.
+The owner also chose a refusal in the wrapper for those commands in a worktree of this repository,
+so a mistyped one ends there instead of changing the shared configuration;
+another agent is building it.

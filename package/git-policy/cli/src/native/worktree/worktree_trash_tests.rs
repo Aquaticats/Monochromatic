@@ -119,7 +119,7 @@ fn btrfs_a_snapshot_of_main_sets_aside_exactly_what_the_rule_leaves_out() {
     let trash: PathBuf = trash_of(stage.as_path()).expect("a trash directory");
     assert!(is_trash_name(trash.file_name().expect("name").to_str().expect("utf8")));
     let aside: Vec<String> = std::fs::read_dir(&trash).expect("trash listing").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
-    assert_eq!(aside.len(), 6, "{aside:?}: the ordinary worktree, the clone, and four left-out directories");
+    assert_eq!(aside.len(), 8, "{aside:?}: the ordinary worktree, the clone, four left-out directories, the worktree folder whose stand-in went with it, and the snapshot's own .git");
     // The pointer of the copied ordinary worktree is gone before anything else could use it.
     for entry in std::fs::read_dir(&trash).expect("trash listing").flatten() {
         let pointer: PathBuf = entry.path().join(".git");
@@ -285,7 +285,8 @@ fn btrfs_a_snapshot_of_a_linked_worktree_sets_another_commands_stage_aside() {
 /// what keeps it out of the index is the repository's own exclude line,
 /// never an emptying the person waits for
 ///  (`worktree_trash_exclude_line.rs`).
-/// The add's own work is the record, and the emptying belongs to the service that runs
+/// The add's own work is the record,
+/// and the emptying belongs to the service that runs
 ///  it one trash at a time for the repository.
 ///
 /// In TS you'd write (pseudocode):
@@ -303,7 +304,7 @@ fn the_add_hands_the_trash_over_and_leaves_it_standing() {
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", common_dir.join("worktrees").join("topic").display())).expect(".git file");
     let name: String = "a".repeat(40);
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 2);
-    let pending_trash: PendingTrash = PendingTrash { destination: worktree.clone(), common_dir: common_dir.clone(), manifest: manifest.clone(), quiet: false };
+    let pending_trash: PendingTrash = PendingTrash { destination: worktree.clone(), common_dir: common_dir.clone(), manifest: manifest.clone(), taken_over: 0, quiet: false };
     let mut notices: Vec<u8> = Vec::new();
     let _why: String = hand_over_with(&git_context(), &pending_trash, &mut notices, &Reach { router: &|_git: &Path, _directory: &Path| return None, provisioner: &|_host: &crate::service_provision::ProvisionHost| return Ok(()), start_wait: std::time::Duration::from_millis(400) })
         .expect_err("a session with no service is reported to the caller");
