@@ -1951,6 +1951,26 @@ and a landing that finds the marker still flushing takes the lock the ordinary w
 The same agent builds it.
 Say "undo" to publish without the flush instead.
 
+### A push URL changed from a worktree (asked 2026-11-10)
+
+Agent `stuck-step-notice-review-findings` made a worktree of this repository with `git worktree add` outside the repository folder,
+then ran `git remote set-url --push origin DISABLED` in it as if it were a separate clone.
+Every worktree shares one `.git/config`,
+so every push of `main` failed from the landing of `e5e689c8a5` on,
+until the coordinator removed that one entry.
+Asked whether the wrapper should guard against this,
+the owner chose:
+"Refuse in worktrees (Recommended)".
+In a linked worktree the wrapper refuses commands that change the repository's shared remote settings
+(`git remote set-url`, `add`, `remove` and `rename`, and `git config` writes to `remote.*`),
+says the setting is shared by every worktree,
+and suggests a real clone;
+the main checkout is unaffected.
+Asked whether to tighten `AGENTS.md` rule `APQ`,
+the owner chose:
+"Use the proposed text (Recommended)",
+so `APQ` now says "never in any `git worktree add` folder of this repo".
+
 ## Answered in the question tool, recorded 2026-11-10T09:54:58-05:00
 
 ### The btrfs host run before a release

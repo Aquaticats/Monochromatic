@@ -8961,7 +8961,10 @@ and cannot be disabled or assigned a severity through repository config.
   an explicit-path commit names one file of the worktree that an ignore rule matches while no index entry tracks it,
   so the private staging would refuse it.
   It is decided from the selection's own elements before any `git add` runs,
-  the commit is not made,
+  and the index it asks about is the real one,
+  read in process:
+  a commit whose named paths the index all holds asks Git nothing.
+  The commit is not made,
   nothing is staged by it,
   and the message names every rejected path with both ways forward:
   leave the file out of the commit's paths,
@@ -11600,10 +11603,15 @@ For injected commit-only semantics:
     where native Git refuses the pathspec,
     and a path that an ignore rule matches and that no index stages is refused before that staging runs,
     with the finding `explicit-path-commit/named-path-ignored` (see "Core finding event"):
-    the selection's own elements that name one file are asked of
-    `git check-ignore -z --stdin` under the real index,
+    the real index is read in process,
+    and the selection's own elements that name one file and that the index holds no entry at are asked of
+    `git check-ignore -z --stdin` under the real index in one start,
     so nothing depends on the words of a Git message and a path the real index tracks is left out,
     as `git add` leaves it out.
+    A commit whose named paths the index all holds starts no Git for this question,
+    which the spawn budget of `binary_budget_tests.rs` counts;
+    a reader that declines the index leaves every name to Git,
+    as before.
     The commit is not made,
     nothing is staged by it,
     and the message names every rejected path with both ways forward:
