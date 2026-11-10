@@ -27,6 +27,11 @@ import { callableReturnsBinding, } from './readonly-returned-binding.ts';
 import { configuredProjectConfigFileName, } from './semantic-file-name.ts';
 import { isWorkspaceSourceFileName, } from './workspace-source-path.ts';
 
+//region Location vocabulary
+// The workspace marker locations are shortened against, the display roots
+// already found per project, the sentinel for a boundary with no stable name,
+// and the eager origin description.
+
 /**
  Workspace marker used to shorten producer locations.
  */
@@ -51,6 +56,11 @@ export type ReadonlyTypeOrigin = {
   readonly name?: string;
   readonly location: string;
 };
+
+//endregion Location vocabulary
+
+//region Resolving the display root
+// The repository display root of one configured project.
 
 /**
  Finds repository display root for configured project.
@@ -99,6 +109,12 @@ function displayRoot(configFileName: string,): string {
   );
   return selected.value;
 }
+
+//endregion Resolving the display root
+
+//region Normalizing a boundary
+// The reader-facing producer boundary a declaration stands for, and its stable
+// local name.
 
 /**
  Normalizes declaration to reader-facing producer boundary.
@@ -232,6 +248,12 @@ function originName(
     .text;
 }
 
+//endregion Normalizing a boundary
+
+//region Wording and formatting
+// The boundary kind a diagnostic names, and the repository-relative location it
+// renders.
+
 /**
  Classifies normalized origin boundary for diagnostic wording.
  
@@ -300,6 +322,12 @@ function originLocation({
     .line + 1;
   return `${relativePath}:${String(line,)}`;
 }
+
+//endregion Wording and formatting
+
+//region Editable origin
+// Whether a declaration's source is editable workspace source, and the eager
+// origin one resolved declaration becomes.
 
 /**
  Tests whether declaration source is editable workspace source.
@@ -395,3 +423,4 @@ export function readonlyTypeOrigin({
     },),
   };
 }
+//endregion Editable origin

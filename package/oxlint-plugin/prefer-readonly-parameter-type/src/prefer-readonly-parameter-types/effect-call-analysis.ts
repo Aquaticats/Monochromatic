@@ -122,6 +122,10 @@ export function inspectEffectCall({
   readonly externalEffectResolver: ExternalCallableEffectResolver;
   readonly body?: Node;
 },): void {
+//region Callback invocation
+// A call whose callee is a parameter has no signature to resolve: the callback
+// parameter origins it invokes are the whole answer.
+
   /**
    Caller parameter roots corresponding to call arguments.
    */
@@ -256,6 +260,12 @@ export function inspectEffectCall({
     return;
   }
 
+//endregion Callback invocation
+
+//region The resolved callee
+// The signature a call resolved to, and the declaration it stands for, including
+// the collection member it selected.
+
   /**
    Selected call signature for overload-aware declaration resolution.
    */
@@ -339,6 +349,12 @@ export function inspectEffectCall({
    * The subclass need not exist in this project either, so enumerating overrides cannot settle
    * it. Treating the call as unresolved is what the rule already does everywhere it cannot see
    * the body that runs. */
+//endregion The resolved callee
+
+//region The owned callee
+// Whether a resolved declaration can be overridden, whether it is an owned
+// callable, and the callee an edge is added for.
+
   /**
    Whether the resolved declaration is an instance method a subclass may override.
    */
@@ -432,3 +448,4 @@ export function inspectEffectCall({
     receiverDerived: collectionCoverage === COLLECTION_CALL_RECEIVER_DERIVED,
   },);
 }
+//endregion The owned callee

@@ -13,6 +13,10 @@ import {
 } from './effect-cache-envelope.ts';
 import type { ExternalOmissionRecord, } from './effect-external-omission.ts';
 
+//region Omission logger and report state
+// The module logger, and the restored external omissions this process has
+// already reported so one omission is reported once.
+
 /**
  Omission lifecycle logger.
  */
@@ -28,6 +32,12 @@ const l = tagged({ tag: 'effect-summary-omission', },);
  warm run would repeat the line once per dependent source.
  */
 const reportedExternalOmissions = new Set<string>();
+
+//endregion Omission logger and report state
+
+//region Recording and reporting fresh omissions
+// Recording one fresh omission without stack noise at warning level, and the one
+// concise warning a source's fresh omissions produce.
 
 /**
  Records one fresh direct-summary omission without exposing stack noise at warning level.
@@ -118,6 +128,12 @@ export function reportDirectSummaryOmissions({
   );
 }
 
+//endregion Recording and reporting fresh omissions
+
+//region Restored omissions
+// Restoring cached omission identities with their own single warning, and
+// forgetting what was reported.
+
 /**
  Restores cached omission identities and emits one concise warning.
  
@@ -174,6 +190,12 @@ export function clearReportedExternalOmissions(): void {
   reportedExternalOmissions.clear();
 }
 
+//endregion Restored omissions
+
+//region External omissions of a restored source
+// Reporting omissions recorded from installed package implementations that a
+// restored source depends on.
+
 /**
  Reports omissions recorded from installed package implementations that a restored source depends on.
  
@@ -206,3 +228,4 @@ export function restoreExternalOmissions(records: readonly ExternalOmissionRecor
     );
   },);
 }
+//endregion External omissions of a restored source

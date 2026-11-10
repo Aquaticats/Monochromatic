@@ -60,6 +60,9 @@ import {
 import { exposedCaptureOrigins, } from './effect-unresolved-capture.ts';
 import type { ExternalCallableEffect, } from './external-callable-effect.ts';
 
+//region Capture opacity
+// Opacity for every capture an external formal's actual exposes.
+
 /**
  Records opacity for every capture an external formal's actual exposes.
  
@@ -135,6 +138,12 @@ export function recordExternalCaptureOpacity({
     },);
 }
 
+//endregion Capture opacity
+
+//region Exposed formals
+// The external formals whose handling can expose what a callable in that
+// position hands back.
+
 /**
  Names the external formals whose handling can expose what a callable in that position hands back.
  
@@ -172,6 +181,12 @@ function exposingFormals(externalEffect: ExternalCallableEffect,): readonly numb
       .opaqueParameterIndexes,
   ];
 }
+
+//endregion Exposed formals
+
+//region Formal-to-actual positions
+// Mapping actual expressions from argument positions onto external formal
+// positions, shared with the origin map.
 
 /**
  Maps actual expressions from argument positions onto external formal positions.
@@ -215,3 +230,4 @@ function formalActualExpressions({
       },);
     },);
 }
+//endregion Formal-to-actual positions

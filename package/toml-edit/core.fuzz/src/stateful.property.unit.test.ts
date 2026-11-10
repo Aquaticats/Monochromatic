@@ -257,6 +257,8 @@ function modelDelete(
     cursors.at(-1) ?? tree,
     path.at(-1) ?? '',
   );
+  // The walk climbs backwards through `cursors` and reads the parent at each
+  // depth, so the index is the position rather than an element of a collection.
   for (let depth = cursors.length - 1; depth >= 1; depth--) {
     if (Object.keys(cursors[depth] ?? {},).length
       > 0)

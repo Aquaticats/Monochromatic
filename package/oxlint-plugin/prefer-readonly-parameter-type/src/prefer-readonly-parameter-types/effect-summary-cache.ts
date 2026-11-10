@@ -22,6 +22,10 @@ import {
   writePersistentEffectSummaries,
 } from './effect-summary-persistent-cache.ts';
 
+//region Cache shapes
+// The sentinel for a two-layer miss, one source's cached direct summaries, a
+// layered hit, and the identity both layers address a source by.
+
 /**
  Sentinel when neither process nor persistent layer proves an exact hit.
  */
@@ -70,6 +74,12 @@ type LayeredSourceIdentity = {
   readonly cacheRootOverride?: string;
 };
 
+//endregion Cache shapes
+
+//region Process memory layer
+// The direct summary map keyed by project and source path, the mutable counters
+// the regression tests read, and the exported stats shape.
+
 /**
  Direct summary cache keyed by configured project and source path.
  */
@@ -101,6 +111,12 @@ export type EffectSummaryCacheStats = {
   readonly sharedSourceCacheHitCount: number;
   readonly persistentCacheWriteCount: number;
 };
+
+//endregion Process memory layer
+
+//region Addressing and cloning
+// The persistent address of one source, and the clones that keep fixed-point
+// propagation from mutating what the cache holds.
 
 /**
  Builds the persistent address of one source.
@@ -212,6 +228,12 @@ function cloneSummaries(
       },),
   );
 }
+
+//endregion Addressing and cloning
+
+//region Storing and reading
+// Storing summaries in the process layer and both layers, and reading them back
+// as clones.
 
 /**
  Stores summaries and edges in the process memory layer.
@@ -446,6 +468,12 @@ export function storeCreatedSummariesForSource({
     recordSharedStore('write',);
 }
 
+//endregion Storing and reading
+
+//region Eviction, stats, and reset
+// Dropping cached files a project no longer has, the activity counters, and the
+// reset the lifecycle tests use.
+
 /**
  Removes cached files no longer present in configured project.
  
@@ -507,3 +535,4 @@ export function clearEffectSummaryCache(): void {
   counters.sharedSourceCacheHitCount = 0;
   counters.persistentCacheWriteCount = 0;
 }
+//endregion Eviction, stats, and reset

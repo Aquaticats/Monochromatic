@@ -111,7 +111,10 @@ export async function writeScratchManifest(scratch: string,): Promise<void> {
   const dependencies = {
     ...OTHER_DEPENDENCIES,
     ...Object.fromEntries(Object.entries(TYPESCRIPT_RELEASES,)
-      .map(function asAlias([alias, version,],) {
+      .map(function asAlias([alias, version,]: readonly [
+        string,
+        string
+      ],) {
         return [
           alias,
           `npm:typescript@${version}`,
@@ -342,8 +345,14 @@ export function diagnosticCounts(output: string,): readonly (readonly [
     }
   }
   return [...counts,].toSorted(function byKey(
-    [left,],
-    [right,],
+    [left,]: readonly [
+      string,
+      number
+    ],
+    [right,]: readonly [
+      string,
+      number
+    ],
   ) {
     return left.localeCompare(right,);
   },);

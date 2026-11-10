@@ -22,6 +22,9 @@ import {
   NO_TSDOC,
 } from '../tsdoc-utils.ts';
 
+//region Node kind labels
+// The diagnostic wording for every AST node type the TSDoc rules report on.
+
 /**
  Human-readable labels for AST node types that require TSDoc.
  */
@@ -37,6 +40,12 @@ export const NODE_KIND_LABELS: Readonly<Record<string, string>> = {
   PropertyDefinition: 'property',
   Property: 'accessor',
 };
+
+//endregion Node kind labels
+
+//region Reading a named child
+// The sentinel for a child that carries no string name, its params type, and
+// the accessor that reads one.
 
 /**
  Absence marker for {@link readNamedChild} meaning "child is not an
@@ -96,6 +105,12 @@ function readNamedChild({
   return (typeof name)
     === 'string' ? name : NO_NAMED_CHILD;
 }
+
+//endregion Reading a named child
+
+//region Names and kinds
+// The two values a diagnostic message needs about a node: what it is called,
+// and what kind of declaration it is.
 
 /**
  Extracts a human-readable name from an AST node for diagnostic messages,
@@ -210,6 +225,11 @@ export function extractNodeKind(node: ForeignBorrowed<Span>,): string {
     ?? 'declaration';
 }
 
+//endregion Names and kinds
+
+//region Reporting a missing comment
+// The params type and helper that report one node as missing its TSDoc.
+
 /**
  Parameters for {@link reportMissing}.
  */
@@ -255,3 +275,5 @@ export function reportMissing({
     },);
   }
 }
+
+//endregion Reporting a missing comment

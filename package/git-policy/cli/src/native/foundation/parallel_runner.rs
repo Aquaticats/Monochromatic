@@ -172,7 +172,7 @@ impl<R> Cursor<R> {
     /// ```ts
     /// cursor.tell(message, onEvent);
     /// ```
-    pub(crate) fn tell(&mut self, message: Message<R>, on_event: &mut dyn OrderedEvents<R>) {
+    pub(crate) fn tell<E: OrderedEvents<R> + ?Sized>(&mut self, message: Message<R>, on_event: &mut E) {
         match message {
             Message::Line(index, text) => {
                 if index == self.head && self.begun {
@@ -191,7 +191,7 @@ impl<R> Cursor<R> {
     /// its held lines follow,
     /// and a complete head ends and the
     ///  next item becomes the head.
-    pub(crate) fn advance(&mut self, on_event: &mut dyn OrderedEvents<R>) {
+    pub(crate) fn advance<E: OrderedEvents<R> + ?Sized>(&mut self, on_event: &mut E) {
         loop {
             if self.head >= self.finished.len() {
                 return;

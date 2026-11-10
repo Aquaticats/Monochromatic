@@ -2,7 +2,8 @@ import {
   crc32,
   deflateRawSync,
 } from 'node:zlib';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { existsSync, } from 'node:fs';
+import { mkdtempDisposable, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
@@ -438,13 +439,29 @@ await describe({
                 { content: utf8('{}',), name: 'meta.json', },
               ],
             },);
-            const directory = await mkdtemp(join(scratchRoot(), 'figma-kiwi-parse-',),);
-            const path = join(directory, 'fixture.fig',);
+            // The fixture directory removes itself when this test's scope exits, even on a throw, so a failing run
+            // leaves no `figma-kiwi-parse-*` folder behind in the shared scratch root.
+            await using directory = await mkdtempDisposable(join(scratchRoot(), 'figma-kiwi-parse-',),);
+            const path = join(directory.path, 'fixture.fig',);
             await writeFile(path, archive,);
             const file = await parseFigmaFile(path,);
             expect(file.fileType,).toBe('fig',);
             expect(file.canvasVersion,).toBe(CANVAS_VERSION,);
             expect(file.document,).toBeTypeOf('symbol',);
+          },
+        },),
+        it({
+          name: 'removes the fixture directory when the test body throws',
+          fn: async () => {
+            let directoryPath = '';
+            await expect(
+              (async function createAndThrow(): Promise<void> {
+                await using directory = await mkdtempDisposable(join(scratchRoot(), 'figma-kiwi-parse-',),);
+                directoryPath = directory.path;
+                throw new Error('fixture probe',);
+              })(),
+            ).rejects.toThrow('fixture probe',);
+            expect(existsSync(directoryPath),).toBe(false);
           },
         },),
       ],

@@ -38,6 +38,10 @@ import {
 import { snapshotHoldsSource, } from './semantic-snapshot-presence.ts';
 import { sourceWithBOM, } from './semantic-source-text.ts';
 
+//region Adapter logger and inferred project
+// The module logger, and the project-service identity sources outside every
+// configured project are opened under.
+
 /**
  Package logger for semantic bridge lifecycle.
  */
@@ -47,6 +51,12 @@ const l = tagged({ tag: 'prefer-readonly-parameter-types', },);
  TypeScript project-service identity for source outside configured projects.
  */
 const INFERRED_PROJECT_CONFIG = '/dev/null/inferred';
+
+//endregion Adapter logger and inferred project
+
+//region Snapshot derivation
+// The chain that starts from the snapshot the service answers and advances it
+// per open, built once and walked.
 
 /**
  Builds the snapshot derivation chain for one source open.
@@ -106,6 +116,12 @@ function snapshotDerivationChain({
   }
   return deriveSnapshot;
 }
+
+//endregion Snapshot derivation
+
+//region Opening source
+// The open through the live channel that leaves request failures unclassified,
+// so a terminal channel failure surfaces raw.
 
 /**
  Opens source through the live channel without classifying request failures.
@@ -411,6 +427,11 @@ function openSemanticFileUnclassified({
   },);
 }
 
+//endregion Opening source
+
+//region The public open
+// The exported open of current Oxlint source in a reusable snapshot.
+
 /**
  Opens current Oxlint source in reusable TypeScript project snapshot.
  
@@ -458,6 +479,12 @@ export function openSemanticFile({
   }
 }
 
+//endregion The public open
+
+//region Re-exports and cache evidence
+// The types the adapter's callers name, and the cache evidence read without
+// exposing mutable bridge storage.
+
 export type { SemanticBridgeCacheStats, } from './semantic-bridge-cache.ts';
 export type { SemanticFileSession, } from './semantic-file-session.ts';
 
@@ -480,3 +507,4 @@ export function semanticBridgeCacheStats(): SemanticBridgeCacheStats {
     projectDiscoveryCount: bridgeState.projectDiscoveryCount,
   };
 }
+//endregion Re-exports and cache evidence

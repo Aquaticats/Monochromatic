@@ -37,6 +37,10 @@ import {
   type ValueKind,
 } from './type-kind.ts';
 
+//region Evidence vocabulary
+// The module logger for degraded-evidence decisions, and the sentinel for a
+// range the semantic tree has no node of matching extent for.
+
 /**
  Module logger for semantic evidence decisions.
  */
@@ -46,6 +50,12 @@ const l = tagged({ tag: 'no-restricted-syntax/spread-evidence', },);
  Sentinel for an ESTree range with no TypeScript node of identical extent.
  */
 const NO_EXACT_NODE: unique symbol = Symbol('semantic tree lacks a node covering exactly the linted source range',);
+
+//endregion Evidence vocabulary
+
+//region Locating the semantic node
+// Climbing from the deepest TypeScript node at a range start to one covering
+// the range exactly, then opening the linted file in the bridge.
 
 /**
  Walks up from the deepest TypeScript node at a range start to the node whose
@@ -176,6 +186,12 @@ function locateSemanticNode(
   }
 }
 
+//endregion Locating the semantic node
+
+//region Classifying the value
+// The exported classifier, which answers from the bridge when it can and
+// reports `untyped` when the failure is about one source rather than the bridge.
+
 /**
  Classifies the value an expression evaluates to, using the semantic bridge
  when it can answer and `untyped` whenever it cannot.
@@ -262,3 +278,5 @@ export function expressionValueKind(
   rl.debug(`${context.physicalFilename}:${String(node.start,)} classified as ${kind}`,);
   return kind;
 }
+
+//endregion Classifying the value
