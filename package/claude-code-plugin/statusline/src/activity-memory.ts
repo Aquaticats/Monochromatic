@@ -168,6 +168,22 @@ async function writeRememberedWord({
 //region Public reader
 
 /**
+ Reads this render's activity word from a transcript.
+
+ A test replaces it to observe when the two reads of a render start, since only a
+ reader whose start it can see tells a concurrent pair from a sequential one.
+ */
+type FreshWordReader = (input: Readonly<{ transcriptPath: string }>,) => Promise<string>;
+
+/**
+ Reads the activity word an earlier render of the same session kept.
+
+ A test replaces it to observe when the two reads of a render start, since only a
+ reader whose start it can see tells a concurrent pair from a sequential one.
+ */
+type RememberedWordReader = (input: Readonly<{ memoryPath: string }>,) => Promise<string>;
+
+/**
  Reads the activity word, falling back to the word extracted on an earlier render of the same session.
 
  A freshly extracted word replaces the remembered one; the file is only written when the word changed.
@@ -175,6 +191,10 @@ async function writeRememberedWord({
  @param transcriptPath - path to session transcript JSONL
 
  @param home - user home directory holding the memory; defaults to `HOME` so tests can inject a disposable home
+
+ @param readFresh - reads this render's word; injected so tests can see when it starts
+
+ @param readRemembered - reads the earlier render's word; injected so tests can see when it starts
 
  @returns capitalized activity word, or empty string when this session never produced one
 
@@ -186,9 +206,13 @@ async function writeRememberedWord({
 async function readRememberedActivityWord({
   transcriptPath,
   home,
+  readFresh = readActivityWord,
+  readRemembered = readRememberedWord,
 }: Readonly<{
   transcriptPath: string;
   home?: string;
+  readFresh?: FreshWordReader;
+  readRemembered?: RememberedWordReader;
 }>,): Promise<string> {
   /**
    Home from the environment, used when the caller injects none.
@@ -204,11 +228,11 @@ async function readRememberedActivityWord({
   /**
    Word extracted from the transcript tail on this render.
    */
-  const fresh = await readActivityWord({ transcriptPath, },);
+  const fresh = await readFresh({ transcriptPath, },);
   /**
    Word kept from an earlier render.
    */
-  const remembered = await readRememberedWord({ memoryPath, },);
+  const remembered = await readRemembered({ memoryPath, },);
 
   if (fresh.length === 0)
     return remembered;
