@@ -37,6 +37,45 @@ const FAILURE_EXIT_CODE = 7;
 const UNSTARTED_WORDING = 'could not be started';
 
 /**
+ Characters a buffered one-shot runner holds before it ends the child, which is
+ Node's documented default `maxBuffer` for `execFile`.
+ */
+const BUFFER_LIMIT_CHARACTERS = 1024 * 1024;
+
+/**
+ Output the chatty child writes, comfortably over that bound.
+ */
+const CHATTY_OUTPUT_CHARACTERS = 2 * BUFFER_LIMIT_CHARACTERS;
+
+/**
+ Characters one write of the chatty child carries.
+ */
+const CHATTY_CHUNK_CHARACTERS = 64 * 1024;
+
+/**
+ Pause between those writes in milliseconds, so they span several event-loop
+ turns and a bound the parent enforces on output gets the chance to act on a
+ child that is still writing.
+ */
+const CHATTY_CHUNK_PAUSE_MILLISECONDS = 10;
+
+/**
+ Program the chatty child runs: write more stderr than a buffered runner holds,
+ then report the exit status it chose, which it never reaches when the parent
+ ends it first.
+ */
+const CHATTY_CHILD_SCRIPT = `
+  const chunk = 'x'.repeat(${String(CHATTY_CHUNK_CHARACTERS)});
+  let written = 0;
+  while (written < ${String(CHATTY_OUTPUT_CHARACTERS)}) {
+    process.stderr.write(chunk);
+    written += chunk.length;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${String(CHATTY_CHUNK_PAUSE_MILLISECONDS)});
+  }
+  process.exit(${String(FAILURE_EXIT_CODE)});
+`;
+
+/**
  Run one command and return the error it threw, or `undefined` when it resolved.
  
  @param request - Command the test wants run
@@ -121,6 +160,20 @@ await describe({
         });
         expect(caught).toBeInstanceOf(CommandFailedError);
         expect((caught as Error).message).toContain(UNSTARTED_WORDING);
+      },
+    }),
+    it({
+      name: 'reports the exit status of a child that writes more than the diagnostic limit',
+      fn: async () => {
+        /** Error the chatty child produced. */
+        const caught = await failureOf({
+          command: NODE_EXECUTABLE,
+          args: ['-e', CHATTY_CHILD_SCRIPT,],
+        });
+        expect(caught).toBeInstanceOf(CommandFailedError);
+        expect((caught as Error).message).toContain(
+          `exited with code ${String(FAILURE_EXIT_CODE)}`,
+        );
       },
     }),
   ],

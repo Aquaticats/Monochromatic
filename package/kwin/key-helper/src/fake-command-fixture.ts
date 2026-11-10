@@ -69,6 +69,11 @@ export type FakeCommandShape = {
    Text the stand-in writes to stderr, or the empty string to stay silent.
    */
   readonly standardError: string;
+  /**
+   Shell lines the stand-in runs after recording its arguments and before it
+   exits, for cases that need it to produce output or keep running.
+   */
+  readonly extraLines?: readonly string[];
 };
 
 /**
@@ -166,6 +171,8 @@ async function readRecordedArguments({ argumentsPath }: {
  
  @param standardError - Text it writes to stderr, or the empty string
  
+ @param extraLines - Shell lines it runs before exiting, or nothing
+ 
  @returns The installed stand-in and the way to remove it
  
  @example
@@ -177,6 +184,7 @@ export async function installFakeCommand({
   name,
   exitCode,
   standardError,
+  extraLines = [],
 }: FakeCommandShape): Promise<FakeCommand> {
   /**
    Disposable folder holding the stand-in and its recording file.
@@ -201,7 +209,7 @@ export async function installFakeCommand({
   );
   await writeFile(
     executablePath,
-    `${STAND_IN_SCRIPT}exit ${String(exitCode)}\n`,
+    `${STAND_IN_SCRIPT}${extraLines.join('\n')}\nexit ${String(exitCode)}\n`,
     'utf8',
   );
   await chmod(
