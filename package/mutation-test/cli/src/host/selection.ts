@@ -19,6 +19,8 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
  */
 const l = tagged({ tag: 'mutation-test', },);
 
+//region Exclusion rules
+
 /**
  Unit test file suffix.
  */
@@ -32,6 +34,10 @@ const EXCLUDED_SUFFIXES: Readonly<Record<string, string>> = {
   '.bench.ts': 'benchmark file',
   '.d.ts': 'declaration file',
 };
+
+//endregion Exclusion rules
+
+//region Selection shapes
 
 /**
  File selected or skipped during source scanning.
@@ -48,6 +54,10 @@ export type SourceSelection = {
   readonly files: readonly string[];
   readonly excluded: readonly SourceExclusion[];
 };
+
+//endregion Selection shapes
+
+//region Directory scan
 
 /**
  Recursively lists package-relative .ts files under one directory.
@@ -99,6 +109,10 @@ async function listTsFiles(options: {
   ),);
   return nested.flat();
 }
+
+//endregion Directory scan
+
+//region Source selection
 
 /**
  Selects production source files for mutation.
@@ -160,6 +174,10 @@ export async function selectSources(options: {
     excluded,
   };
 }
+
+//endregion Source selection
+
+//region Test selection
 
 /**
  Returns whether a test stem relates to a source stem.
@@ -271,3 +289,5 @@ export async function selectTests(options: {
   ]
     .toSorted();
 }
+
+//endregion Test selection

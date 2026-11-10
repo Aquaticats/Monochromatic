@@ -149,25 +149,42 @@ async function productModules(directory: string,): Promise<readonly string[]> {
 }
 
 /**
+ What one line turned out to be, plus the label that follows a region marker.
+ */
+type MarkerLine = {
+  readonly kind: 'marker' | 'other';
+  readonly label: string;
+};
+
+/**
  Reads a region marker line's label.
  
  @param options - Trimmed line and the marker to look for.
  
- @returns The label, empty when the marker carries none, or `undefined` when the line is no marker.
+ @returns The marker with its label, empty when the marker carries none, or the other-line reading.
  */
 function markerLabel(options: {
   readonly line: string;
   readonly marker: string;
-},): string | undefined {
+},): MarkerLine {
   if (!options.line.startsWith(options.marker,))
-    return undefined;
+    return {
+      kind: 'other',
+      label: '',
+    };
 
   const rest = options.line.slice(options.marker.length,);
 
   if ((rest !== '') && (!rest.startsWith(MARKER_LABEL_SEPARATOR,)))
-    return undefined;
+    return {
+      kind: 'other',
+      label: '',
+    };
 
-  return rest.trim();
+  return {
+    kind: 'marker',
+    label: rest.trim(),
+  };
 }
 
 /**
@@ -197,13 +214,13 @@ function regionFindings(options: RegionScanOptions,): readonly string[] {
       marker: REGION_OPENER,
     },);
 
-    if (opens !== undefined) {
+    if (opens.kind === 'marker') {
       marked = true;
 
-      if (opens === '')
+      if (opens.label === '')
         findings.push(`line ${lineNumber}: region marker gives no label`,);
 
-      open.push(opens,);
+      open.push(opens.label,);
       continue;
     }
 
@@ -212,10 +229,10 @@ function regionFindings(options: RegionScanOptions,): readonly string[] {
       marker: REGION_CLOSER,
     },);
 
-    if (closes === undefined)
+    if (closes.kind === 'other')
       continue;
 
-    const label = closes;
+    const { label, } = closes;
     const opening = open.pop();
 
     if (opening === undefined) {

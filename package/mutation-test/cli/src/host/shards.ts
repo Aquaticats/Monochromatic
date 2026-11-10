@@ -18,6 +18,8 @@ import {
 } from '../shard-schema.ts';
 import type { Mutant, } from '../engine/types.ts';
 
+//region Group shape
+
 /**
  One source file's mutants with their selected tests.
  */
@@ -26,6 +28,10 @@ export type MutantGroup = {
   readonly mutants: readonly Mutant[];
   readonly tests: readonly string[];
 };
+
+//endregion Group shape
+
+//region Chunking
 
 /**
  Splits one array into consecutive chunks of at most size.
@@ -63,6 +69,10 @@ export function chunk<const T,>(options: {
     },
   );
 }
+
+//endregion Chunking
+
+//region Shard composition
 
 /**
  Composes shard manifests from per-file mutant groups.
@@ -105,6 +115,10 @@ export function composeShards(options: {
         },);
     },);
 }
+
+//endregion Shard composition
+
+//region Taint resharding
 
 /**
  Rebuilds manifests for a set of mutant ids at a given shard size,
@@ -180,3 +194,5 @@ export function composeReshard(options: {
     packagePath: options.packagePath,
   },);
 }
+
+//endregion Taint resharding
