@@ -225,6 +225,81 @@ await describe({
     },),
 
     it({
+      name: 'clear leaves a later computation deduplication entry in place',
+      fn: async () => {
+        const firstStart = Promise.withResolvers<void>();
+        const secondStart = Promise.withResolvers<void>();
+        const firstGate = Promise.withResolvers<number>();
+        const secondGate = Promise.withResolvers<number>();
+        const calls: number[] = [];
+        async function firstTwoGatedDoublers(x: number,): Promise<number> {
+          calls.push(x,);
+          if (calls.length
+            === 1) {
+            firstStart.resolve();
+            return await firstGate.promise;
+          }
+          if (calls.length
+            === 2) {
+            secondStart.resolve();
+            return await secondGate.promise;
+          }
+          return x * 2;
+        }
+        const memoized = await memoizeAsync({ fn: firstTwoGatedDoublers, keyFn: String, },);
+
+        const first = memoized({ args: [1,], salt: 'v1', },);
+        await firstStart.promise;
+        await memoized.clear();
+        const second = memoized({ args: [1,], salt: 'v1', },);
+        await secondStart.promise;
+
+        // Settles after the wipe, so its cleanup runs while the second computation is registered.
+        firstGate.resolve(2,);
+        expect(await first,).toBe(2,);
+
+        // Joins the second computation: a dropped deduplication entry would recompute and
+        // answer 2 instead of the second computation's 4.
+        secondGate.resolve(4,);
+        expect(await memoized({ args: [1,], salt: 'v1', },),).toBe(4,);
+        expect(await second,).toBe(4,);
+        expect(calls.length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'clear keeps wiping when a store write it waited for was rejected',
+      fn: async () => {
+        const base = await createStore({ storeId: 'memoize-clear-during-rejected-write', },);
+        await base.set('stale:v1', 99,);
+        const writeGate = Promise.withResolvers<void>();
+        const writeStarted = Promise.withResolvers<void>();
+        const store: Store = {
+          ...base,
+          async set(): Promise<Store> {
+            writeStarted.resolve();
+            await writeGate.promise;
+            throw new Error('cache write rejected',);
+          },
+        };
+        async function doubler(x: number,): Promise<number> {
+          return x * 2;
+        }
+        const memoized = await memoizeAsync({ fn: doubler, keyFn: String, store, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await writeStarted.promise;
+        const clearing = memoized.clear();
+        writeGate.resolve();
+
+        await expect(pending,).rejects.toThrow('cache write rejected',);
+        await clearing;
+        expect(await base.get('stale:v1',),).toBe(ABSENT,);
+        expect(await base.get('1:v1',),).toBe(ABSENT,);
+      },
+    },),
+
+    it({
       name: 'delete waits for a cache write already in progress for that key',
       fn: async () => {
         const base = await createStore({ storeId: 'memoize-delete-during-write', },);
