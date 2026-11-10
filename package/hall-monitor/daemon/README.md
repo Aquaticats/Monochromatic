@@ -3,8 +3,7 @@
 Local,
  privacy-first desktop productivity monitor for Linux.
 Every 5 minutes it captures the screen and webcam,
-feeds both images to a local vision LLM ([LFM2.5-VL-1.6B][] via llama.
-cpp),
+feeds both images to a local vision LLM ([LFM2.5-VL-1.6B][] via llama.cpp),
 and sends a desktop notification after 5 consecutive unproductive cycles.
 
 All computation runs locally;
