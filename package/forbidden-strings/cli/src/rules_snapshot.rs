@@ -78,12 +78,78 @@ fn path_text_of(entry: &ReadEntry) -> String {
 /// Whether the file system still agrees with what one entry held:
 /// the same bytes for a present file,
 /// still absent for a skipped one.
+///
+/// The file is read by `read_rules_file`,
+/// so a name that became a named pipe is answered at once
+/// and is never taken for the text that was read.
 fn holds_what_was_read(entry: &ReadEntry) -> bool {
-    return match (&entry.present, std::fs::read(&entry.path)) {
+    return match (&entry.present, read_rules_file(&entry.path)) {
         (Some(expected), Ok(now)) => expected.bytes == now,
         (None, Err(error)) => error.kind() == std::io::ErrorKind::NotFound,
         _ => false,
     };
+}
+
+/// What:
+///  The bytes of the rules file at `path`,
+///  opened without waiting for a writer.
+/// Why:
+///  A named pipe at a rules name blocks a plain read for ever,
+/// so `git add`,
+/// `git commit` and `check --all`
+///  never ended when one was planted
+/// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
+///  `O_NONBLOCK` answers at once whatever the name holds,
+/// the descriptor's own type then decides whether its
+///  bytes may be read at all,
+/// and a link is followed as the configuration means it.
+///  A directory,
+/// a pipe,
+/// a socket or a device is refused with the words `refused_for_not_being_plain`,
+/// so the caller
+///  fails naming the path instead of scanning with no rule from it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readRulesFile(path) { const file = openSync(path, 'r', 0o666, O_NONBLOCK); if (!fstatSync(file).isFile()) throw notPlain(); return readFileSync(file); }
+/// ```
+#[cfg(unix)]
+fn read_rules_file(path: &Path) -> std::io::Result<Vec<u8>> {
+    /// `OpenOptionsExt` adds `custom_flags`,
+    /// the open flags the standard library has no setting for.
+    use std::os::unix::fs::OpenOptionsExt as _;
+    /// `Read` adds `read_to_end` to the opened file.
+    use std::io::Read as _;
+    let mut opened: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(path)?;
+    if !opened.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, refused_for_not_being_plain()));
+    }
+    let mut bytes: Vec<u8> = Vec::new();
+    opened.read_to_end(&mut bytes)?;
+    return Ok(bytes);
+}
+
+/// The words a rules file that is not a plain file is refused with,
+/// naming the shapes a person may have left there.
+fn refused_for_not_being_plain() -> &'static str {
+    return "it is not a plain file (a named pipe, a device or a directory)";
+}
+
+/// What:
+///  The bytes of the rules file at `path` where the open carries no `O_NONBLOCK`.
+/// Why:
+///  No target without `unix` has a named pipe a person can plant at a path,
+/// so a directory is the one shape
+///  refused before the read.
+/// UNTESTED ON WINDOWS:
+/// no gate runs this branch (`README`,
+/// Requirements).
+#[cfg(not(unix))]
+fn read_rules_file(path: &Path) -> std::io::Result<Vec<u8>> {
+    if !std::fs::metadata(path)?.is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, refused_for_not_being_plain()));
+    }
+    return std::fs::read(path);
 }
 
 /// The `(path, text)` pair of an entry that was present,
@@ -104,6 +170,11 @@ impl RulesSnapshot {
     /// An optional entry whose file is absent is skipped;
     /// [`RulesSnapshot::skipped`] lists it.
     ///
+    /// Each file is read by `read_rules_file`,
+    /// so a named pipe at a rules name ends this read at once naming the path,
+    /// and an optional
+    ///  entry that holds one fails like any other unreadable file instead of counting as absent.
+    ///
     /// # Errors
     ///
     /// Fails on the first entry that cannot be read,
@@ -111,7 +182,7 @@ impl RulesSnapshot {
     pub(crate) fn read(entries: &[RulesEntry]) -> Result<Self> {
         let mut read_entries: Vec<ReadEntry> = Vec::with_capacity(entries.len());
         for entry in entries {
-            match std::fs::read(&entry.path) {
+            match read_rules_file(&entry.path) {
                 Ok(bytes) => {
                     let text: String = match String::from_utf8(bytes.clone()) {
                         Ok(text) => text,

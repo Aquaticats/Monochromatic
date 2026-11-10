@@ -9,8 +9,19 @@
  */
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { Uuid, } from './types.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const uuidLogger = tagged({ tag: 'figma-to-penpot-uuid', },);
+
+//endregion Logging
 
 /**
  Mutable counter cell feeding the synthetic-UUID fallback; a one-key object
@@ -87,7 +98,11 @@ export function nextUuid(): Uuid {
     return crypto.randomUUID();
   }
   catch (error) {
-    console.warn(`[figma-penpot] crypto.randomUUID failed, using deterministic fallback: ${caughtValueText(error,)}`,);
+    tagged({
+      tag: nextUuid.name,
+      l: uuidLogger,
+    },)
+      .warn(`crypto.randomUUID failed, using deterministic fallback: ${caughtValueText(error,)}`,);
     /**
      First 8-hex segment (low 32 bits of the counter).
      */

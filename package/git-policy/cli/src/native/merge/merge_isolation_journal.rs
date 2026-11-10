@@ -226,24 +226,33 @@ pub fn write_merge_intent(git_dir: &Path, intent: &MergeIntent) -> std::io::Resu
 
 /// What:
 ///  Remove an intent record once the merge ended,
-/// and sync the directory.
+/// without flushing the directory.
 /// Why:
-///   A record that outlives its merge would be recovered again.
+///   A record that outlives its merge would be recovered again,
+/// and that is what the next command does with one a power loss
+///  brings back:
+/// it names a merge whose commit the branch already holds,
+/// and `settle_failed_merge` drops it as already
+///  landed,
+/// or a merge whose branch moved,
+/// which it settles as it would settle any such record.
+///  The flush was the third of the merge's fsyncs and it sat on the path the person waits for:
+/// a merge that needs no
+///  resolution took 22 to 41 seconds in a measured disk stall where real Git took 9 to 16 milliseconds
+///  (finding 1 of the merge-and-pull audit of 2026-11-09;
+/// `AGENTS.md`,
+/// `SLW`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await rm(path, { force: true }); await syncDirectory(dirname(path));
+/// await rm(path, { force: true }); // no syncDirectory: the next command settles a record this brought back
 /// ```
 pub fn remove_merge_intent(path: &Path) -> std::io::Result<()> {
-    match std::fs::remove_file(path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    }
-    if let Some(directory) = path.parent() {
-        sync_directory(directory)?;
-    }
-    return Ok(());
+    return match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    };
 }
 
 /// What:

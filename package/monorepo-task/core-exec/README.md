@@ -400,6 +400,27 @@ When set,
  so this env var is the only way to pin threads without
 editing every call site.
 
+**A crashed analysis child fails the run.
+**
+Oxlint's type-aware pass runs helper programs beside itself:
+`tsgolint`
+for the `typescript/*` rules,
+and the TypeScript API server a JavaScript plugin reaches through `typescript/sync`.
+Both are Go programs,
+so a panic inside one kills an analyzer while Oxlint itself carries on and exits on the
+diagnostics the survivors produced.
+A run like that looks clean and is not.
+The wrapper reads the crash report the dying child writes to the inherited standard error
+and throws instead of reporting success,
+so the task fails with a message saying the run's findings are incomplete.
+Recognition needs the crash header together with the Go runtime's goroutine dump or signal
+line,
+so output that merely mentions a panic is not treated as a crash.
+Every pass forwards Oxlint's own output first,
+so the findings that did survive are still shown.
+A `--fix` run is judged by its final convergence pass:
+a crash in an earlier pass that the final pass does not repeat goes unreported.
+
 ## Why task-depends over mise native `depends`
 
 Mise's built-in `depends` has three problems that make it unsuitable for

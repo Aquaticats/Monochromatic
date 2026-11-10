@@ -1,6 +1,19 @@
 // Async iterator that yields complete newline-delimited lines from any async byte source.
 // MCP stdio transport requires messages delimited by newlines with no embedded newlines.
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const lineReaderLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'line-reader',
+},);
+
 /**
  Yields complete lines from a byte stream, buffering partial reads across chunk boundaries.
  Each yielded string has the trailing newline stripped.
@@ -15,7 +28,7 @@
  @example
  ```ts
  for await (const line of readLines(process.stdin)) {
-   console.error('received:', line);
+   handleLine(line);
  }
  ```
  */
@@ -68,10 +81,11 @@ export async function* readLines(
   // but logged so protocol issues are visible during debugging.
   if (buffer.length
     > 0) {
-    console.error(
-      '[mcp-stdio] flushing trailing buffer without newline terminator:',
-      buffer,
-    );
+    tagged({
+      tag: readLines.name,
+      l: lineReaderLogger,
+    },)
+      .debug(`flushing trailing buffer without newline terminator: ${buffer}`,);
     yield buffer;
   }
 }

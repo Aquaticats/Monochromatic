@@ -1,9 +1,8 @@
 import {
   chmod,
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
-  rm,
   stat,
   writeFile,
 } from 'node:fs/promises';
@@ -58,12 +57,14 @@ process.exit(3);
 /**
  Make a scratch tree with the fake programs in it.
 
- @returns the tree, the fake service and the failing service
+ @returns the tree, the fake service and the failing service; the tree removes itself when the caller's scope ends, so
+   a failing assertion leaves no directory behind
  */
 async function scratchTree(): Promise<{
   readonly root: string;
   readonly fake: string;
   readonly failing: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }> {
   await mkdir(
     scratchParent,
@@ -75,10 +76,14 @@ async function scratchTree(): Promise<{
   /**
    The new tree.
    */
-  const root = await mkdtemp(join(
+  const directory = await mkdtempDisposable(join(
     scratchParent,
     'ps-',
   ));
+  /**
+   Path of the tree, which the fixture paths are built from.
+   */
+  const root = directory.path;
   /**
    Path of the fake service.
    */
@@ -113,6 +118,9 @@ async function scratchTree(): Promise<{
     root,
     fake,
     failing,
+    [Symbol.asyncDispose]: async function removeScratchTree(): Promise<void> {
+      await directory.remove();
+    },
   };
 }
 
@@ -199,7 +207,8 @@ await describe({
     it({
       name: 'serves each worktree under the instance name and socket the wrapper derives, and stops them all',
       fn: async () => {
-        const { root, fake, } = await scratchTree();
+        await using tree = await scratchTree();
+        const { root, fake, } = tree;
         await mkdir(join(
           root,
           'home',
@@ -262,19 +271,13 @@ await describe({
         }));
         await service.stop();
         await expect(stat(service.runtime)).rejects.toThrow();
-        await rm(
-          root,
-          {
-            recursive: true,
-            force: true,
-          },
-        );
       },
     }),
     it({
       name: 'fails naming the worktree when its service ends without listening',
       fn: async () => {
-        const { root, failing, } = await scratchTree();
+        await using tree = await scratchTree();
+        const { root, failing, } = tree;
         const gitDir = join(
           root,
           'repo',
@@ -291,19 +294,13 @@ await describe({
         });
         await expect(service.serve(gitDir)).rejects.toThrow(gitDir);
         await service.stop();
-        await rm(
-          root,
-          {
-            recursive: true,
-            force: true,
-          },
-        );
       },
     }),
     it({
       name: 'fails before starting a service whose socket path a socket cannot bind',
       fn: async () => {
-        const { root, fake, } = await scratchTree();
+        await using tree = await scratchTree();
+        const { root, fake, } = tree;
         const deep = join(
           root,
           'x'.repeat(100),
@@ -321,13 +318,6 @@ await describe({
         );
         await expect(service.serve(gitDir)).rejects.toThrow('longer than');
         await service.stop();
-        await rm(
-          root,
-          {
-            recursive: true,
-            force: true,
-          },
-        );
       },
     }),
   ],
@@ -339,7 +329,8 @@ await describe({
     it({
       name: 'passes when the wrapper reports that the worktree service answers, and asks with the run runtime directory',
       fn: async () => {
-        const { root, } = await scratchTree();
+        await using tree = await scratchTree();
+        const { root, } = tree;
         await mkdir(join(
           root,
           'home',
@@ -357,19 +348,13 @@ await describe({
           ),
           directory: root,
         });
-        await rm(
-          root,
-          {
-            recursive: true,
-            force: true,
-          },
-        );
       },
     }),
     it({
       name: 'fails naming the repository and the wrapper words when the service does not answer',
       fn: async () => {
-        const { root, } = await scratchTree();
+        await using tree = await scratchTree();
+        const { root, } = tree;
         await mkdir(join(
           root,
           'home',
@@ -397,13 +382,6 @@ await describe({
         expect(failure).toBeInstanceOf(Error);
         expect((failure as Error).message).toContain(root);
         expect((failure as Error).message).toContain('does not answer here');
-        await rm(
-          root,
-          {
-            recursive: true,
-            force: true,
-          },
-        );
       },
     }),
   ],

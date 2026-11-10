@@ -13,6 +13,12 @@
  constants; splitting would add a module for fewer than 40 lines of code.
  */
 import { chatCompletion, } from '../../lib/ai/client.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
 import { buildAutofillMessages, } from '../../lib/ai/prompts.ts';
 import db from '../../lib/db.ts';
 import { listAllTags, } from '../../lib/db/tasks-queries.ts';
@@ -22,6 +28,18 @@ import {
   type TaskComplexity,
   type TaskPriority,
 } from '../../lib/types.ts';
+
+//region Logging
+
+/**
+ Logger for this module: the autofill endpoint reports a rejected AI response and its own handler failures.
+ */
+const l = tagged({
+  tag: 'done-ai-autofill',
+  l: logger,
+},);
+
+//endregion Logging
 
 //region Types
 
@@ -163,10 +181,7 @@ function parseAutofillResponse(raw: string,): AutofillResult {
   }
   catch (autofillParseError: unknown) {
     // AI output was not valid JSON; log the cause and return the safe empty default.
-    console.error(
-      'parseAutofillResponse could not parse AI JSON output; using empty result:',
-      autofillParseError,
-    );
+    l.warn(`AI JSON output unparsable, so the autofill result stays empty: ${caughtValueText(autofillParseError,)}`,);
     return empty;
   }
 }
@@ -266,10 +281,7 @@ export async function handleAutofill(req: Request,): Promise<Response> {
     },);
 
     if (!result.ok) {
-      console.error(
-        'AI autofill failed:',
-        result.error,
-      );
+      l.error(`AI autofill failed: ${result.error}`,);
       return Response.json({
         tags: [],
         locations: [],
@@ -283,10 +295,7 @@ export async function handleAutofill(req: Request,): Promise<Response> {
     return Response.json(autofill,);
   }
   catch (error) {
-    console.error(
-      'AI autofill handler error:',
-      error,
-    );
+    l.error(`autofill handler failed: ${caughtValueText(error,)}`,);
     return Response.json({
       tags: [],
       locations: [],
