@@ -12,6 +12,8 @@ import {
 
 import { ZipWriter, } from '@monochromatic-dev/zip-writer-core/ts';
 
+//region Archive constants: output path and the directories an install needs
+
 /**
  Output plugin archive path relative to package root.
  
@@ -35,6 +37,10 @@ const ARCHIVE_ROOTS = [
   'theme',
   'scheme',
 ] as const;
+
+//endregion Archive constants
+
+//region Archive entry shapes: a selected file, and that file with its bytes
 
 /**
  File queued for inclusion in plugin archive.
@@ -67,6 +73,10 @@ type ArchiveEntryContent = Readonly<{
   archivePath: string;
   content: Uint8Array;
 }>;
+
+//endregion Archive entry shapes
+
+//region Archive listing helpers: stable order, forward-slash paths, recursive walk
 
 /**
  Sort directory entries by name for deterministic archive entry order.
@@ -187,6 +197,10 @@ async function listArchiveEntries(
   return archiveEntryGroups.flat();
 }
 
+//endregion Archive listing helpers
+
+//region Build flow: list every bundled file, read it, then write one archive
+
 /**
  Archive entries for all plugin roots in deterministic root order.
  */
@@ -232,3 +246,5 @@ await writeFile(
 );
 
 console.info(`Built ${JAR_PATH} with ${archiveEntries.length} files.`,);
+
+//endregion Build flow
