@@ -51,9 +51,9 @@ use std::path::{Path, PathBuf};
 /// const aLiveMergeNames = (merge: string | undefined, live: string[]) => merge !== undefined && live.includes(merge);
 /// ```
 fn a_live_merge_names(merge: Option<&String>, live: &[String]) -> bool {
-    let Some(merge) = merge else { return false };
+    let Some(named) = merge else { return false };
     for key in live {
-        if key == merge {
+        if key == named {
             return true;
         }
     }
