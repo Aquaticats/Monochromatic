@@ -25,7 +25,22 @@ const HEX_RADIX = 16;
 /**
  * Number of hex digits in the pkt-len prefix.
  */
-const PKT_LEN_BYTES = 4;
+export const PKT_LEN_BYTES = 4;
+
+/**
+ * Largest total pkt-line length, prefix included. gitprotocol-common: "The
+ * maximum length of a pkt-line's data component is 65516 bytes. Implementations
+ * MUST NOT send pkt-line whose length exceeds 65520 (65516 bytes of payload + 4
+ * bytes of length data)".
+ */
+const MAX_PKT_LEN_TOTAL = 65_520;
+
+/**
+ * Largest payload one pkt-line may carry; callers with more bytes must split
+ * them across frames, because a longer prefix needs a fifth hex digit and the
+ * frame buffer cannot hold it.
+ */
+export const MAX_PKT_LEN_PAYLOAD = MAX_PKT_LEN_TOTAL - PKT_LEN_BYTES;
 
 /**
  * A flush-pkt is `"0000"`.
@@ -46,6 +61,57 @@ const FLUSH_LEN = 0;
  * Special pkt-len value indicating delim.
  */
 const DELIM_LEN = 1;
+
+/**
+Lowercase hexadecimal digits, indexed by the value each one denotes.
+Each digit of a pkt-len prefix is looked up here so a character outside
+the alphabet fails instead of ending the conversion early.
+*/
+const HEX_DIGITS = '0123456789abcdef';
+
+/**
+Value {@link HEX_DIGITS}.indexOf returns for a character outside the alphabet.
+*/
+const DIGIT_NOT_FOUND = -1;
+
+/**
+Parse one 4-byte pkt-len prefix into the frame length it states.
+
+Every decoder in the server reads its frames through this function, because
+`Number.parseInt` stops at the first character it cannot read: a prefix such as
+`"000z"` would decode as the flush sentinel and silently truncate the rest of
+the frame stream instead of reporting the corrupt frame.
+
+@param prefixText - ASCII text of the length prefix, exactly 4 bytes
+
+@returns frame length including the prefix itself
+
+@throws Error quoting the prefix when it is not four hexadecimal digits
+
+@example
+```ts
+parsePktLenPrefix('0005'); // 5
+```
+*/
+export function parsePktLenPrefix(prefixText: string,): number {
+  /**
+  Frame length accumulated across the prefix's digits.
+  */
+  let length = 0;
+  for (const character of prefixText.toLowerCase()) {
+    /**
+    Position of this character in the digit alphabet, or -1 when it is not one.
+    */
+    const digitValue = HEX_DIGITS.indexOf(character,);
+    if (digitValue === DIGIT_NOT_FOUND) {
+      throw new Error(
+        `pkt-line: length prefix "${prefixText}" is not four hexadecimal digits`,
+      );
+    }
+    length = (length * HEX_RADIX) + digitValue;
+  }
+  return length;
+}
 
 /**
  * Returns the flush-pkt sentinel (`"0000"`).
@@ -78,9 +144,11 @@ export function delimPkt(): Uint8Array {
 /**
  * Encodes one pkt-line: prepends the hex length prefix to `payload`.
  *
- * @param payload - line content (bytes or UTF-8 string)
+ * @param payload - line content (bytes or UTF-8 string); at most 65516 bytes
  *
  * @returns full pkt-line: 4-byte length prefix concatenated with payload
+ *
+ * @throws Error when the payload needs more bytes than one frame can state
  *
  * @example
  * ```ts
@@ -94,6 +162,13 @@ export function encodePkt(payload: Uint8Array | string,): Uint8Array {
   const bytes = ((typeof payload) === 'string')
     ? new TextEncoder().encode(payload,)
     : payload;
+  if (bytes.byteLength > MAX_PKT_LEN_PAYLOAD) {
+    throw new Error(
+      `pkt-line: payload of ${String(bytes.byteLength,)} bytes exceeds the ${
+        String(MAX_PKT_LEN_PAYLOAD,)
+      }-byte maximum; split it across several pkt-lines`,
+    );
+  }
   /**
    * Total frame length includes the length prefix itself per the spec.
    */
@@ -182,12 +257,7 @@ export function decodePktLines(data: Uint8Array,): PktLine[] {
     /**
      * Frame length including the prefix; flush/delim are special low values.
      */
-    const length = Number.parseInt(
-      lengthText,
-      HEX_RADIX,
-    );
-    if (Number.isNaN(length,))
-      throw new Error(`pkt-line decode: invalid length prefix "${lengthText}"`,);
+    const length = parsePktLenPrefix(lengthText,);
     if (length === FLUSH_LEN) {
       out.push(null,);
       offset += PKT_LEN_BYTES;

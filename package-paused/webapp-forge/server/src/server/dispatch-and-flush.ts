@@ -45,6 +45,9 @@ const DEFAULT_BATCH_SIZE = 256;
  * @returns the highest `events.id` processed (`afterEventId` when no
  *          events were drained)
  *
+ * @throws Error naming the storage keys whose write failed; the buffer keeps
+ *          those items queued, so a later flush retries them
+ *
  * @example
  * ```ts
  * const cursor = await dispatchAndFlush({
