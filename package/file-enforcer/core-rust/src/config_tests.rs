@@ -114,6 +114,15 @@ fn a_requirement_names_a_text_from_one_of_the_two_tables() {
 }
 
 #[test]
+fn a_package_text_never_names_the_path_a_shared_text_lands_on() {
+    let text = r#"{"rules": [{"kind": "package-licenses", "id": "p", "manifests": [], "directory": "LICENSES",
+        "texts": {"MIT": "LICENSES/MIT.txt"}, "packageTexts": {"MIT-copy": "LICENSES/MIT.txt"},
+        "requires": []}]}"#;
+    let joined = decode_errors_joined(text);
+    assert!(joined.contains("both name"), "{joined}");
+}
+
+#[test]
 fn two_package_texts_never_name_one_path() {
     let text = r#"{"rules": [{"kind": "package-licenses", "id": "p", "manifests": [], "directory": "L",
         "texts": {}, "packageTexts": {"MIT": "LICENSES/MIT.txt", "MIT-0": "LICENSES/MIT.txt"},

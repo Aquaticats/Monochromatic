@@ -306,6 +306,22 @@
         ],
       },
     },
+    "package text names the path a shared text lands on": {
+      "reason": "JSON Schema cannot compare a member of one object with the path another object's key renders",
+      "config": {
+        "rules": [
+          {
+            "kind": "package-licenses",
+            "id": "p",
+            "manifests": [],
+            "directory": "LICENSES",
+            "texts": { "MIT": "LICENSES/MIT.txt" },
+            "packageTexts": { "MIT-copy": "LICENSES/MIT.txt" },
+            "requires": [],
+          },
+        ],
+      },
+    },
     "requirement names a text in both tables": {
       "reason": "JSON Schema cannot compare array items with the keys of two sibling objects",
       "config": {

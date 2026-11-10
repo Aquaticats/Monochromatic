@@ -141,7 +141,7 @@ fn decode_package_licenses(reader: &mut Reader, object: &Map<String, Value>, poi
     let texts = reader.text_map(object, "texts", pointer);
     let package_texts = reader.optional_text_map(object, "packageTexts", pointer);
     if let Some(map) = &package_texts {
-        check_package_text_paths(reader, map, pointer);
+        check_package_text_paths(reader, &texts, map, &directory, pointer);
     }
     let mut requires: Vec<LicenseRequirement> = Vec::new();
     let items = reader.array(object, "requires", pointer);
@@ -162,25 +162,37 @@ fn decode_package_licenses(reader: &mut Reader, object: &Map<String, Value>, poi
 
 /// What:
 ///  Report a package text whose path stays outside the package,
-///  or two ids that name one path.
+///  or that lands on a path another text already owns.
 /// Why:
 ///  A package text's path is relative to each package directory,
 ///  so an absolute path or a `..` segment would write outside the package,
 ///  and two ids over one path would leave which text owns the file undecided.
+///  A shared text lands at `<directory>/<id>.txt` in each package,
+///  so a package text naming that same file would collide with it silently.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkPackageTextPaths(reader: Reader, packageTexts: Record<string, string>, pointer: string): void
+/// function checkPackageTextPaths(reader: Reader, texts: Record<string, string>, packageTexts: Record<string, string>, directory: string, pointer: string): void
 /// ```
-fn check_package_text_paths(reader: &mut Reader, package_texts: &BTreeMap<String, String>, pointer: &str) {
-    let mut owners: BTreeMap<&str, &str> = BTreeMap::new();
+fn check_package_text_paths(
+    reader: &mut Reader,
+    texts: &BTreeMap<String, String>,
+    package_texts: &BTreeMap<String, String>,
+    directory: &str,
+    pointer: &str,
+) {
+    let mut owners: BTreeMap<String, String> = BTreeMap::new();
+    for license in texts.keys() {
+        let target = format!("{directory}/{license}.txt");
+        owners.insert(target, license.clone());
+    }
     for (license, relative) in package_texts {
         let license_pointer = format!("{pointer}/packageTexts/{}", pointer_segment(license));
         if !is_repo_relative(relative) {
             let message = format!("{relative:?} must be a relative path without empty, . or .. segments");
             reader.error(&license_pointer, &message);
         }
-        if let Some(previous) = owners.insert(relative.as_str(), license.as_str()) {
+        if let Some(previous) = owners.insert(relative.clone(), license.clone()) {
             let message = format!("{previous:?} and {license:?} both name {relative:?}; one path holds one text");
             reader.error(&license_pointer, &message);
         }
@@ -206,7 +218,10 @@ fn check_one_text_source(
     pointer: &str,
 ) {
     let shared = texts.contains_key(license);
-    let per_package = package_texts.is_some_and(|map| return map.contains_key(license));
+    let per_package = match package_texts {
+        Some(map) => map.contains_key(license),
+        None => false,
+    };
     let texts_pointer = format!("{pointer}/texts");
     match (shared, per_package) {
         (true, true) => reader.error(
