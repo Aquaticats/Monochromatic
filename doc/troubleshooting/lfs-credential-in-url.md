@@ -336,26 +336,17 @@ The branch named in the status above changes the Worker and the login tooling;
 the steps below are the coordinator's,
 and the first of them retires the old value
 by writing the first per-machine row.
-The planned steps,
-to run after the owner says to continue:
-
-1.  Choose the helper (below),
-    store the current token through `git credential approve` from stdin.
-2.  Unset `lfs.url` (the committed `.lfsconfig` supplies the plain URL) and unset the `locksverify` key;
-    set the plain
-    `lfs.https://monochromatic-lfs.aquaticat.workers.dev.locksverify false`.
-3.  Run `check:no-credential-in-git-config` and expect `credential-free: yes`;
-    run `git lfs fsck --pointers` and a
-    write-path check.
-4.  Rotate last,
-    once nothing depends on the old value:
-    generate into a 0600 file,
-    `wrangler secret put` from stdin,
-    store in the helper from the file,
-    deploy if the auth design changed,
-    prove old refused and new accepted with
-    bounded requests whose output is redacted,
-    delete the file.
+The order that replaced the four steps this section used to list is the runbook's:
+migrate the table,
+deploy once,
+write the per-machine rows,
+unset the clone's `lfs.url` and `locksverify` keys,
+install the login in the main checkout,
+run `check:no-credential-in-git-config` and `git lfs fsck --pointers`,
+then delete the shared secret and prove the old value refused.
+The old plan rotated the shared secret through `wrangler secret put`;
+that step is gone,
+because per-machine rows replace the secret rather than rotate it.
 
 ## Decisions
 
@@ -368,7 +359,7 @@ No GitHub OIDC verifier was built:
 no workflow in this repository touches LFS,
 and option C remains a superset to add when one does.
 
-What the Worker does today:
+What the Worker did when these options were weighed on 2026-11-07:
 one long-lived shared secret;
 reads are anonymous by design (public repository,
 GitHub's
@@ -410,7 +401,7 @@ Options,
 with pros,
 cons and why each ranks where it does:
 
-#### Option C: per-client revocable tokens plus GitHub OIDC for CI (recommended)
+#### Option C: per-client revocable tokens plus GitHub OIDC for CI (ranked first, not built)
 
 - Each client (this machine,
   any other machine) gets its own random token (at least 128 bits),
@@ -557,6 +548,10 @@ A > F because A exposes only LFS writes while F hands GitHub tokens to the Worke
 F > E because F works with a credential helper and E cannot.
 
 ### Decision 2: do reads stay anonymous?
+
+Answered in practice by the owner's "The custom lfs settings or server should only apply to
+repos where this is configured",
+and by nothing in the migration gating a read.
 
 The owner asked for "read separately from write".
 Reads are anonymous today on purpose:
