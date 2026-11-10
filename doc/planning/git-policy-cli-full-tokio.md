@@ -9377,6 +9377,16 @@ and its steps are awaited:
   (`Finished` of the `dev` profile,
   33.20s),
   after it refused one `clippy::shadow-same` in the new function's receiver.
+- The whole host suite,
+  `native:test:host`,
+  one run at the end:
+  6080 tests run,
+  6080 passed (6 slow),
+  14 skipped,
+  in 509.697 s.
+  The fourteen are the `#[ignore]`d measurement and child probes the crate
+  already had,
+  and the new control is among the 6080.
 - The binary target's own service controls,
   `native:test:binary:host`:
   `service::a_landing_waits_for_the_index_lock_before_the_branch_moves`,
@@ -9396,7 +9406,6 @@ and its steps are awaited:
   (`service_work_run_round.rs` one,
   `service_server_work_loop_awaiting.rs` two).
 - Not run:
-  the whole `native:test:host` suite,
   the container gate,
   `native:perf`
   (nothing of this run is in a forwarded command's path,
