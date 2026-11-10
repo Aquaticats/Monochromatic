@@ -265,38 +265,38 @@ only the 5 top-level `.md` were linted (`markdownlint-cli2 .` -> top-level `*.{m
 Next step is to MEASURE,
  then likely ASK the user (non-measurable scope decision):
 
-1. Build,
-    then run the whole-tree lint ONCE,
-    capturing to a file (it is slow,
-    ~1m+;
-    the user rejected
-   re-running it):
-    `mise run lint:markdownlint > /tmp/md-lint-full.txt 2>&1`.
-    Count errors by rule:
-   `rg " error " /tmp/md-lint-full.txt | sed -E 's/.* error ([a-zA-Z0-9-]+).*/\\1/' | sort | uniq -c | sort -rn`.
-2. If dominated by `no-pipe-tables`,
-    just migrate:
-    `mise run format:markdownlint` (whole-tree --fix)
-   converts pipe tables to HTML.
-    If there is a large body of OTHER-rule violations,
-    surface a scope
-   question:
-    fix all now,
-    or fix only pipe tables this round and defer/triage the rest (e.g. file a
-   tracking issue;
-    the other rules were never enforced on these files before).
-3. Migration review:
-    `git diff` (well-formed tables,
-    alignment,
-    inline-Markdown cells);
-    render a
-   converted doc with `agent-browser` to confirm the HTML table renders;
-    hand-convert any
-   blockquote/indented tables the rule reported without a fix.
-4. Confirm `no-pipe-tables` errors are zero tree-wide;
-    note the runtime;
-    decide if `gitignore: true` is
-   the slow part (see verified-facts note before touching it).
+1.  Build,
+     then run the whole-tree lint ONCE,
+     capturing to a file (it is slow,
+     ~1m+;
+     the user rejected
+    re-running it):
+     `mise run lint:markdownlint > /tmp/md-lint-full.txt 2>&1`.
+     Count errors by rule:
+    `rg " error " /tmp/md-lint-full.txt | sed -E 's/.* error ([a-zA-Z0-9-]+).*/\\1/' | sort | uniq -c | sort -rn`.
+2.  If dominated by `no-pipe-tables`,
+     just migrate:
+     `mise run format:markdownlint` (whole-tree --fix)
+    converts pipe tables to HTML.
+     If there is a large body of OTHER-rule violations,
+     surface a scope
+    question:
+     fix all now,
+     or fix only pipe tables this round and defer/triage the rest (e.g. file a
+    tracking issue;
+     the other rules were never enforced on these files before).
+3.  Migration review:
+     `git diff` (well-formed tables,
+     alignment,
+     inline-Markdown cells);
+     render a
+    converted doc with `agent-browser` to confirm the HTML table renders;
+     hand-convert any
+    blockquote/indented tables the rule reported without a fix.
+4.  Confirm `no-pipe-tables` errors are zero tree-wide;
+     note the runtime;
+     decide if `gitignore: true` is
+    the slow part (see verified-facts note before touching it).
 
 ### Task 5: docs
 

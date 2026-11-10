@@ -1605,48 +1605,48 @@ the pure-logic Kotlin port (the `core` package,
  52 tests green).
  Remaining:
 
-1. Finish the real Media3 variant.
-    DONE:
-    the Compose UI (narrow layout,
-    tap-to-play),
-    the MediaStore library source
-   (`openLibrary(List<Track>)`),
-    the `MediaSessionService` (background/lockscreen/notification),
-    and the SAF
-   chosen-folder source,
-    all verified on device.
-    The SAF source (`SafTreeSource` + `LibraryRoot`) walks an
-   `ACTION_OPEN_DOCUMENT_TREE` grant over `DocumentsContract` (iterative work-stack,
-    visited-guarded,
-    per-directory
-   resilient),
-    persists it via `takePersistableUriPermission`,
-    and feeds the same `openLibrary` with tree-relative
-   `displayPath`s codepoint-sorted to match MediaStore's contract;
-    a held root wins over MediaStore and survives
-   process death,
-    a revoked or moved grant is detected before scanning so it cannot crash the headless service.
-   Verified on the Pixel 6 against `Plain/Music` (3486 files):
-    a loading notice during the multi-second scan,
-   playback from a `content://` document URI,
-    cold-load after force-stop with no re-pick,
-    and loose root files
-   (no-slash display paths,
-    which MediaStore never produces) grouped without breaking.
-    The picker is the one
-   interactive spot that needs a human tap (driven via adb to open it;
-    the folder choice + grant is the user's).
-   DONE since:
-    true-peak as a Media3 `AudioProcessor` (the `GainNormalizationProcessor` gain stage,
-    async
-   measure-on-miss,
-    shared `PeakCacheStore`) and the WorkManager charging sweep (`PeakSweepWorker`,
-    low-priority
-   decode),
-    both verified on device.
-    The media3 variant is now feature-complete;
-    next is the full-Rust variant.
-   Instrument metrics from the start.
+1.  Finish the real Media3 variant.
+     DONE:
+     the Compose UI (narrow layout,
+     tap-to-play),
+     the MediaStore library source
+    (`openLibrary(List<Track>)`),
+     the `MediaSessionService` (background/lockscreen/notification),
+     and the SAF
+    chosen-folder source,
+     all verified on device.
+     The SAF source (`SafTreeSource` + `LibraryRoot`) walks an
+    `ACTION_OPEN_DOCUMENT_TREE` grant over `DocumentsContract` (iterative work-stack,
+     visited-guarded,
+     per-directory
+    resilient),
+     persists it via `takePersistableUriPermission`,
+     and feeds the same `openLibrary` with tree-relative
+    `displayPath`s codepoint-sorted to match MediaStore's contract;
+     a held root wins over MediaStore and survives
+    process death,
+     a revoked or moved grant is detected before scanning so it cannot crash the headless service.
+    Verified on the Pixel 6 against `Plain/Music` (3486 files):
+     a loading notice during the multi-second scan,
+    playback from a `content://` document URI,
+     cold-load after force-stop with no re-pick,
+     and loose root files
+    (no-slash display paths,
+     which MediaStore never produces) grouped without breaking.
+     The picker is the one
+    interactive spot that needs a human tap (driven via adb to open it;
+     the folder choice + grant is the user's).
+    DONE since:
+     true-peak as a Media3 `AudioProcessor` (the `GainNormalizationProcessor` gain stage,
+     async
+    measure-on-miss,
+     shared `PeakCacheStore`) and the WorkManager charging sweep (`PeakSweepWorker`,
+     low-priority
+    decode),
+     both verified on device.
+     The media3 variant is now feature-complete;
+     next is the full-Rust variant.
+    Instrument metrics from the start.
 
 ### Deferred from the MediaSessionService review
 
@@ -1678,60 +1678,60 @@ The adversarial review confirmed two more real findings,
   either return a no-op `AudioEngine` (so the cross-flavor wiring runs end to end) or gate the service on
   `BuildConfig.FLAVOR`.
    Only the `media3` flavor runs today.
-2. Full-Rust variant.
-    The hybrid variant is dropped as a deliverable (owner directive 2026-06-12:
-    a Rust meter over
-   Media3-decoded PCM fixes only the meter,
-    not the decode-bound cost,
-    so it would not move performance enough;
-    the
-   decode is the lever,
-    which only the full-Rust variant pulls).
-    Steps 1 and 2 are DONE:
-    the native toolchain
-   (Task #10,
-    cargo-ndk -> 16KB-aligned arm64 .
-   so -> JNI) and the decode cross-compile (Task #11,
-    libopus + symphonia
-   `all` both cross-compile and run on device,
-    `OK (3 tests)`).
-    Remaining (Task #12):
-    (b) port the desktop
-   `Source`/decode/opus/truepeak/queue logic into the native crate,
-    replace the PipeWire/cpal output with
-   AAudio/AudioTrack,
-    and implement the Kotlin `AudioEngine` seam over JNI;
-    (c) feed `content://` fds via
-   `ContentResolver.openFileDescriptor` (the first real end-to-end decode of a device file).
-    The bridge is raw JNI
-   today (smoke test);
-    raw JNI vs UniFFI for the real engine interface is an OPEN decision (the ADR's UniFFI predates
-   knowing whether UniFFI's JNA dependency behaves on GrapheneOS),
-    to settle when building the real surface.
-3. Verify each variant on device;
-    Maestro for E2E;
-    `androidx.test` pinned `>= 3.7.0`.
-    Compare all metrics and let
-   the user pick the winner.
-4. Finalization (owner directive,
-    2026-06-12):
-    once the app is genuinely finished,
-    bisect `minSdk` downward to the
-   lowest API level that still builds and lints clean WITHOUT any source change (no new compat guards),
-    then set
-   `minSdk` to that floor.
-    minSdk is at 36 now only to avoid old-API contortions during development;
-    the true floor
-   is whatever the APIs actually used permit.
-    Method:
-    lower `minSdk` in `app/build.gradle.kts`,
-    run
-   `mise run //package/music-player/android-app:build` + `:lint` (the `NewApi` lint check is the oracle:
-    it errors
-   when a used API exceeds `minSdk`),
-    and binary-search to the lowest value with zero `NewApi` errors and no edits.
-   Run for every flavor (each pulls in different APIs),
-    and take the maximum of the per-flavor floors.
+2.  Full-Rust variant.
+     The hybrid variant is dropped as a deliverable (owner directive 2026-06-12:
+     a Rust meter over
+    Media3-decoded PCM fixes only the meter,
+     not the decode-bound cost,
+     so it would not move performance enough;
+     the
+    decode is the lever,
+     which only the full-Rust variant pulls).
+     Steps 1 and 2 are DONE:
+     the native toolchain
+    (Task #10,
+     cargo-ndk -> 16KB-aligned arm64 .
+    so -> JNI) and the decode cross-compile (Task #11,
+     libopus + symphonia
+    `all` both cross-compile and run on device,
+     `OK (3 tests)`).
+     Remaining (Task #12):
+     (b) port the desktop
+    `Source`/decode/opus/truepeak/queue logic into the native crate,
+     replace the PipeWire/cpal output with
+    AAudio/AudioTrack,
+     and implement the Kotlin `AudioEngine` seam over JNI;
+     (c) feed `content://` fds via
+    `ContentResolver.openFileDescriptor` (the first real end-to-end decode of a device file).
+     The bridge is raw JNI
+    today (smoke test);
+     raw JNI vs UniFFI for the real engine interface is an OPEN decision (the ADR's UniFFI predates
+    knowing whether UniFFI's JNA dependency behaves on GrapheneOS),
+     to settle when building the real surface.
+3.  Verify each variant on device;
+     Maestro for E2E;
+     `androidx.test` pinned `>= 3.7.0`.
+     Compare all metrics and let
+    the user pick the winner.
+4.  Finalization (owner directive,
+     2026-06-12):
+     once the app is genuinely finished,
+     bisect `minSdk` downward to the
+    lowest API level that still builds and lints clean WITHOUT any source change (no new compat guards),
+     then set
+    `minSdk` to that floor.
+     minSdk is at 36 now only to avoid old-API contortions during development;
+     the true floor
+    is whatever the APIs actually used permit.
+     Method:
+     lower `minSdk` in `app/build.gradle.kts`,
+     run
+    `mise run //package/music-player/android-app:build` + `:lint` (the `NewApi` lint check is the oracle:
+     it errors
+    when a used API exceeds `minSdk`),
+     and binary-search to the lowest value with zero `NewApi` errors and no edits.
+    Run for every flavor (each pulls in different APIs),
+     and take the maximum of the per-flavor floors.
 
 ### Integration seams left by the port (wire these in milestone 2)
 

@@ -42,7 +42,7 @@ use crate::markdown_linter::embedded_linter;
 ///  and its prepared candidates.
 use crate::policy_content::{ContentState, LifecycleContent};
 /// The dependent-version check over the candidate state.
-use crate::policy_dependent_version::check_dependent_version;
+use crate::policy_dependent_version::{DependentCheck, check_dependent_version};
 /// The engine's check interface,
 ///  findings and outcomes.
 use crate::policy_engine::{PolicyChecks, PolicyFinding, PolicyOutcome};
@@ -121,6 +121,17 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// Whether a pass may propose corrections that its caller applies;
     /// the commit path's convergence sets it.
     pub can_apply_patches: bool,
+    /// Whether the forwarded command is `git commit`,
+    ///  which adds a policy's new paths to itself.
+    ///  The commit transaction sets it;
+    ///  `git add` and every other forwarded command keep it false,
+    ///  because they apply no correction.
+    pub forwards_commit: bool,
+    /// The real index a landing writes,
+    ///  when this lifecycle may add a path to what it lands.
+    ///  The commit transaction names the snapshot it read at invocation;
+    ///  every other lifecycle names none.
+    pub real_index: Option<std::path::PathBuf>,
     /// Where repository facts come from.
     pub facts: F,
     /// The command's arguments without wrapper controls;
@@ -184,6 +195,8 @@ pub fn shipped_checks<F: RepositoryFacts>(
 ) -> ShippedChecks<F> {
     return ShippedChecks {
         can_apply_patches: false,
+        forwards_commit: false,
+        real_index: None,
         facts,
         arguments,
         candidates,
@@ -431,12 +444,14 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                 );
             }
             PolicyId::DependentVersionBump => {
-                return check_dependent_version(
-                    &mut self.content,
-                    &self.candidates,
-                    &mut self.facts,
+                return check_dependent_version(DependentCheck {
+                    content: &mut self.content,
+                    lifecycle: &self.candidates,
+                    facts: &mut self.facts,
                     trigger,
-                );
+                    forwards_commit: self.forwards_commit,
+                    real_index: self.real_index.as_deref(),
+                });
             }
             PolicyId::CatalogSpecifiers => {
                 return check_catalog_specifiers(

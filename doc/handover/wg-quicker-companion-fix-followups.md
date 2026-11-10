@@ -42,38 +42,38 @@ unrelated to the resolver change).
 
 ## Follow-ups left open
 
-1. Logger retention hygiene.
-   Root-owned debris in `node_modules/.monochromatic` makes every later sweep
-   report `log retention could not stamp ... EACCES` and skip pruning.
-   Two first-party changes are recorded in
-   `doc/troubleshooting/logger-retention-sweep-root-owned-debris.md`
-   under "Durable fix not landed":
-   privileged runs should log to a root-owned destination,
-   and the sweep should prune around foreign-owned entries.
-   Owning package:
-   `package/logger/core`.
-1. AGENTS.md rename tightening was declined by the maintainer on 2026-10-31,
-   who chose to leave `AGENTS.md` unchanged.
-   The rejected `RNL` code is recorded in `forbidden-strings.append.local.txt`
-   (`local-045`) per the rejected-code convention,
-   so do not re-propose it under that label.
-   The declined proposal was a rule next to `SGD`:
+1.  Logger retention hygiene.
+    Root-owned debris in `node_modules/.monochromatic` makes every later sweep
+    report `log retention could not stamp ... EACCES` and skip pruning.
+    Two first-party changes are recorded in
+    `doc/troubleshooting/logger-retention-sweep-root-owned-debris.md`
+    under "Durable fix not landed":
+    privileged runs should log to a root-owned destination,
+    and the sweep should prune around foreign-owned entries.
+    Owning package:
+    `package/logger/core`.
+1.  AGENTS.md rename tightening was declined by the maintainer on 2026-10-31,
+    who chose to leave `AGENTS.md` unchanged.
+    The rejected `RNL` code is recorded in `forbidden-strings.append.local.txt`
+    (`local-045`) per the rejected-code convention,
+    so do not re-propose it under that label.
+    The declined proposal was a rule next to `SGD`:
 
-   ```text
-   RNL: Rename moves runtime path literals and layout constants with the
-   directories, then runs each touched package's `buildAndTest` before
-   committing; a red suite in a moved package is a stale consumer.
-   ```
+    ```text
+    RNL: Rename moves runtime path literals and layout constants with the
+    directories, then runs each touched package's `buildAndTest` before
+    committing; a red suite in a moved package is a stale consumer.
+    ```
 
-   Evidence it would have caught this incident:
-   `113633b259` renamed the directories,
-   left the literals stale,
-   and its promised follow-up verification never ran
-   `//package/wg/cli-quicker:buildAndTest`,
-   so the suite sat red from 2026-10-29 to `34df734099`.
-   The incident record in
-   `doc/troubleshooting/wg-quicker-exempt-companion-pre-move-paths.md`
-   is the durable home of that lesson.
+    Evidence it would have caught this incident:
+    `113633b259` renamed the directories,
+    left the literals stale,
+    and its promised follow-up verification never ran
+    `//package/wg/cli-quicker:buildAndTest`,
+    so the suite sat red from 2026-10-29 to `34df734099`.
+    The incident record in
+    `doc/troubleshooting/wg-quicker-exempt-companion-pre-move-paths.md`
+    is the durable home of that lesson.
 
 ## Tunnel run result
 

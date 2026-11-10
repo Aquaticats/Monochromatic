@@ -85,8 +85,12 @@ pub mod service_server_shutdown_after_a_stop;
 /// The commit service's loop.
 pub mod service_server;
 
-/// The loop of the commit service's work thread.
+/// The loop of the commit service's after-commit work asked by a thread outside the runtime.
 pub mod service_server_work_loop;
+
+/// The same loop as a task of the runtime,
+/// with the two storage steps only it makes.
+pub mod service_server_work_loop_awaiting;
 
 /// The wait of a thread on a queue the runtime owns:
 /// an item,
