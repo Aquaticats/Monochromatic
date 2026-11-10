@@ -13,6 +13,7 @@ import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
+import { withoutTerminalColors } from './terminal-color-escapes.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
 const only = process.env.usage_only ? new Set(process.env.usage_only.split(',')) : undefined;
@@ -157,7 +158,6 @@ const checks: Record<string, Check> = {
 // Returns the combined compositor and application output once `settled` accepts it, a screenshot, the time from
 // start to the settled output, and what was wrong with the way the session ended, if anything: the caller judges
 // the output first, so a damaged file is reported by its damage and not by a slow exit.
-const plain = (text: string): string => text.replace(/\u001b\[[0-9;]*m/g, '');
 // Distinct colors among every 61st pixel of the compositor's RGBA PNG: a window not yet drawn is one flat color.
 const sampledColors = (png: Buffer): number => {
   const chunks: Buffer[] = [];
@@ -233,7 +233,7 @@ const session = async ({ name, application, cache, config, settled = settledOnSy
   const chunks: Buffer[] = [];
   child.stdout.on('data', chunk => chunks.push(chunk));
   child.stderr.on('data', chunk => chunks.push(chunk));
-  const output = () => plain(Buffer.concat(chunks).toString());
+  const output = () => withoutTerminalColors(Buffer.concat(chunks).toString());
   const exited = once(child, 'exit');
   const control = (line: string): Promise<string> => new Promise((resolveReply, reject) => {
     const connection = createConnection(socket);
@@ -478,7 +478,7 @@ checks['old-cache-folders-removed'] = async () => {
     cwd: base, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 60_000,
     env: { PATH: '/usr/bin', HOME: join(base, 'home'), XDG_CACHE_HOME: join(base, 'cache'), XDG_CONFIG_HOME: join(base, 'config'), XDG_DATA_HOME: join(base, 'data'), XDG_RUNTIME_DIR: base, WAYLAND_DISPLAY: join(base, 'absent-wayland.socket'), SLINT_BACKEND: 'winit', RUST_LOG: 'ide_app=debug,monochromatic_ide=debug' },
   });
-  const output = plain((started.stdout ?? '') + (started.stderr ?? ''));
+  const output = withoutTerminalColors((started.stdout ?? '') + (started.stderr ?? ''));
   writeFileSync(join(base, 'start.log'), output);
   demand({ condition: !started.error, message: 'could not start ' + executable + ': ' + started.error?.message });
   const left = readdirSync(runtimeCache).sort();
