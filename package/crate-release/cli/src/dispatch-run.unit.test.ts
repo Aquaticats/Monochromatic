@@ -489,6 +489,32 @@ await describe({
               },
             }),
             it({
+              name: 'runs the gate through the streaming runner when the caller supplies one, so an hour of controls stays visible',
+              fn: async () => {
+                /**
+                 The call the gate runner received, which is the gate's own command.
+                 */
+                const streamed: ProgramCall[] = [];
+                const printed: string[] = [];
+                const status = await dispatchRelease({
+                  options: { ...options, dispatchGate: gateCall },
+                  run: async function run(call) {
+                    return call.program === 'git' ? answerGit({ call, replies: {} }) : { status: 0, stdout: '', stderr: '' };
+                  },
+                  runGate: async function runGate(call) {
+                    streamed.push(call);
+                    return { status: 0, stdout: '', stderr: '' };
+                  },
+                  print: function print(line) {
+                    printed.push(line);
+                  },
+                });
+                expect(status).toBe(0);
+                expect(streamed).toEqual([gateCall]);
+                expect(printed.at(-1)).toContain('RELEASE STARTED');
+              },
+            }),
+            it({
               name: 'starts the workflow without a gate when the crate names none',
               fn: async () => {
                 const result = await record();

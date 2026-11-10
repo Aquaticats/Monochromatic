@@ -75,10 +75,16 @@ function printLines({
 export async function dispatchRelease({
   options,
   run,
+  runGate = run,
   print,
 }: {
   readonly options: DispatchOptions;
   readonly run: DispatchRunner;
+  /**
+   Runs the crate's gate with the caller's own streams when the caller can stream, so an hour of controls stays visible
+   while it runs; the captured output is then empty and nothing is printed twice.
+   */
+  readonly runGate?: DispatchRunner;
   readonly print: (line: string) => void;
 }): Promise<number> {
   // The workflow builds origin's default branch, not this checkout, and a published crate version can never be taken
@@ -107,7 +113,7 @@ export async function dispatchRelease({
       /**
        How the crate's gate ended.
        */
-      const gate = await run(options.dispatchGate);
+      const gate = await runGate(options.dispatchGate);
       printLines({
         text: gate.stdout,
         print
