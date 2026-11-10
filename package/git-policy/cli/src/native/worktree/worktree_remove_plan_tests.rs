@@ -48,7 +48,8 @@ fn an_empty_operand_names_no_directory() {
 
 /// A name that ends one registered worktree path at a directory boundary names that worktree,
 /// because Git matches the last path components before it reads the name as a path.
-/// ASCII case is ignored, as Git's match does;
+/// ASCII case is ignored,
+/// as Git's match does;
 /// a name two registrations end in is Git's ambiguous case and is left to Git,
 /// and so is a name no registration ends in.
 #[test]

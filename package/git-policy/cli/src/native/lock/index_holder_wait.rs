@@ -12,7 +12,8 @@
 //!  both waited for until `MERGE_LOCK_CEILING` (one minute,
 //! `wait_ceilings.rs`),
 //! which is where the wait names the blocker and ends and the merge is saved on a side ref for a later command to
-//!  finish (`SPEC.md`, "Merges and commits never fail");
+//!  finish (`SPEC.md`,
+//! "Merges and commits never fail");
 //!  the line for the second says what is known and how to remove the lock if no program uses the repository.
 //! A PID file naming
 //!  a process that is gone ends the wait at once with a diagnostic.
@@ -59,7 +60,8 @@ use crate::index_lock_evidence::{
 const MERGE_CONSEQUENCE: &str = "the merge stops waiting and saves itself on a ref of its own for the next command in this worktree to finish";
 
 /// The sentence the notices before that ceiling end on:
-/// the same outcome, said without the stop the ceiling line alone announces.
+/// the same outcome,
+/// said without the stop the ceiling line alone announces.
 const MERGE_NOTICE_ENDING: &str = "the merge is saved on a ref of its own for the next command in this worktree to finish";
 
 /// The sentence a command's dead owner's line ends on when nothing else holds the lock:
@@ -259,7 +261,8 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
 pub const RECOVERY_CONSEQUENCE: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it once that program is done";
 
 /// The sentence the recovery's notices before that ceiling end on:
-/// the same outcome, said without the stop the ceiling line alone announces.
+/// the same outcome,
+/// said without the stop the ceiling line alone announces.
 const RECOVERY_NOTICE_ENDING: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it";
 
 /// What:
