@@ -10,6 +10,7 @@ import { test } from 'node:test';
 
 import {
   NO_VALUE_AFTER_ASSIGNMENT,
+  assignmentHoldsTrue,
   numberAfterAssignment,
   tripleQuotedBodyAfterAssignment,
   valueAfterAssignment,
@@ -222,5 +223,29 @@ for (const [line, key, number] of NUMBER_LINES) {
       key,
       line,
     },), number,);
+  },);
+}
+
+// The lines that carry the report-suppression marker, with the answer the pattern gave for each. A
+// value that only starts with `true` still carries the marker, because the pattern stopped there.
+const TRUE_LINES = [
+  ["skipReport = true", "skipReport", true],
+  ["skipReport=true", "skipReport", true],
+  ["skipReport = trueish", "skipReport", true],
+  ["skipReport =  true", "skipReport", true],
+  ["skipReport = tru", "skipReport", false],
+  ["skipReport = false", "skipReport", false],
+  ["skipReport =", "skipReport", false],
+  ["skipReport", "skipReport", false],
+  ["skipReportx = true", "skipReport", false],
+  [" skipReport = true", "skipReport", false],
+] as const;
+
+for (const [line, key, holdsTrue] of TRUE_LINES) {
+  void test(`the true marker on ${JSON.stringify(line)}`, () => {
+    assert.equal(assignmentHoldsTrue({
+      key,
+      line,
+    },), holdsTrue,);
   },);
 }

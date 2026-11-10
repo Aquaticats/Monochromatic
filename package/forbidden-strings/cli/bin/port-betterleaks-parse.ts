@@ -8,6 +8,7 @@
 
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
+  assignmentHoldsTrue,
   numberAfterAssignment,
   tripleQuotedBodyAfterAssignment,
 } from './port-betterleaks-field-line.ts';
@@ -312,8 +313,10 @@ export function parseRules({ toml, }: { readonly toml: string; },): readonly Raw
         cursor.at += 1;
         continue;
       }
-      // oxlint-disable-next-line no-restricted-syntax/no-regex -- one TOML field line, anchored at `^`, matching a literal key and the literal `true`; the scan is linear and cannot backtrack.
-      if (/^skipReport\s*=\s*true/u.test(rl,)) {
+      if (assignmentHoldsTrue({
+        line: rl,
+        key: 'skipReport',
+      },)) {
         skipReport = true;
         cursor.at += 1;
         continue;

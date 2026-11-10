@@ -254,3 +254,38 @@ export function numberAfterAssignment({
   );
   return Number(digits,);
 }
+
+/**
+ Whether a `field = true` line carries that marker.
+
+ The marker is a prefix of the value, not the whole value, because the replaced pattern tested the
+ literal `true` without anchoring the end of the line.
+
+ @param line - one line of the configuration, as the walker's cursor holds it
+
+ @param key - field name the line must carry, compared as literal text
+
+ @returns whether the value part of the line starts with `true`
+
+ @example
+ ```ts
+ assignmentHoldsTrue({ line: 'skipReport = true', key: 'skipReport' }); // true
+ assignmentHoldsTrue({ line: 'skipReport = false', key: 'skipReport' }); // false
+ ```
+ */
+export function assignmentHoldsTrue({
+  line,
+  key,
+}: {
+  readonly line: string;
+  readonly key: string;
+},): boolean {
+  /**
+   The value part of the line, already past the assignment.
+   */
+  const value = valueAfterAssignment({
+    line,
+    key,
+  },);
+  return ((typeof value) === 'string') && value.startsWith('true',);
+}
