@@ -16,6 +16,12 @@ const zh: Record<Label, string> = {
   langSwitcher: '切换语言',
   published: '发布',
   updated: '更新',
+  brandImageAlt: '头像',
+  alertCaution: '注意',
+  alertImportant: '重要',
+  alertNote: '说明',
+  alertTip: '提示',
+  alertWarning: '警告',
 };
 
 export default zh;

@@ -26,4 +26,10 @@ export type Label =
     | 'themeToggle'
     | 'langSwitcher'
     | 'published'
-    | 'updated';
+    | 'updated'
+    | 'brandImageAlt'
+    | 'alertCaution'
+    | 'alertImportant'
+    | 'alertNote'
+    | 'alertTip'
+    | 'alertWarning';

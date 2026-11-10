@@ -18,6 +18,8 @@ import { dirname, } from 'node:path';
 
 import * as v from 'valibot';
 
+import { locales, } from '../i18n/index.ts';
+
 import {
   type PostFrontmatter,
   postFrontmatterSchema,
@@ -45,6 +47,11 @@ export type CacheEntry = {
   readonly contentHash: string;
   readonly html: string;
   readonly frontmatter: PostFrontmatter;
+  /**
+   Locale the HTML was rendered in. Rendered output depends on it, because MDX
+   components render localized chrome, so an entry for another locale is a miss.
+   */
+  readonly lang: string;
 };
 
 /**
@@ -54,6 +61,7 @@ const cacheEntrySchema = v.object({
   contentHash: v.string(),
   html: v.string(),
   frontmatter: postFrontmatterSchema,
+  lang: v.picklist(locales,),
 },);
 
 /**
@@ -202,11 +210,13 @@ export async function writeCache(manifest: BuildManifest,): Promise<void> {
  
  @param contentHash - SHA-256 of the current file contents
  
- @returns cached entry if the content hash matches, otherwise {@link CACHE_MISS}
+ @param lang - locale the current build would render the file in
+ 
+ @returns cached entry if the hash and locale match, otherwise {@link CACHE_MISS}
  
  @example
  ```ts
- const entry = getCachedEntry({ manifest, filePath: 'en/hello.mdx', contentHash: hash });
+ const entry = getCachedEntry({ manifest, filePath: 'en/hello.mdx', contentHash: hash, lang: 'en' });
  ```
  */
 export function getCachedEntry(
@@ -214,10 +224,12 @@ export function getCachedEntry(
     manifest,
     filePath,
     contentHash,
+    lang,
   }: {
     readonly manifest: Readonly<BuildManifest>;
     readonly filePath: string;
     readonly contentHash: string;
+    readonly lang: string;
   },
 ): CacheEntry | typeof CACHE_MISS {
   /**
@@ -229,6 +241,10 @@ export function getCachedEntry(
 
   if (entry.contentHash
     !== contentHash)
+    return CACHE_MISS;
+
+  if (entry.lang
+    !== lang)
     return CACHE_MISS;
 
   return entry;
@@ -243,11 +259,13 @@ export function getCachedEntry(
  
  @param frontmatter - validated frontmatter data
  
+ @param lang - locale the HTML was rendered in
+ 
  @returns cache entry ready for insertion into the manifest
  
  @example
  ```ts
- const entry = createCacheEntry({ contentHash: hash, html: '<p>Hello</p>', frontmatter: data });
+ const entry = createCacheEntry({ contentHash: hash, html: '<p>Hello</p>', frontmatter: data, lang: 'en' });
  ```
  */
 export function createCacheEntry(
@@ -255,16 +273,19 @@ export function createCacheEntry(
     contentHash,
     html,
     frontmatter,
+    lang,
   }: {
     readonly contentHash: string;
     readonly html: string;
     readonly frontmatter: CacheEntry['frontmatter'];
+    readonly lang: string;
   },
 ): CacheEntry {
   return {
     contentHash,
     html,
     frontmatter,
+    lang,
   };
 }
 

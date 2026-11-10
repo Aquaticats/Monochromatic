@@ -136,6 +136,7 @@ await Promise.all(loadedPosts.map(async function resolveDates(post,) {
         manifest: effectiveCache,
         filePath: cacheKey,
         contentHash: post.contentHash,
+        lang: post.lang,
       },);
     if (cached !== CACHE_MISS) {
       /**
@@ -221,6 +222,7 @@ const processResults = await Promise.all(posts.map(async function processPost(
       manifest: effectiveCache,
       filePath: cacheKey,
       contentHash: post.contentHash,
+      lang: post.lang,
     },);
 
   if (cached !== CACHE_MISS) {
@@ -237,9 +239,14 @@ const processResults = await Promise.all(posts.map(async function processPost(
         ...cached.frontmatter,
         published: post.data
           .published,
+        publishedOffsetMinutes: post.data
+          .publishedOffsetMinutes,
         updated: post.data
           .updated,
+        updatedOffsetMinutes: post.data
+          .updatedOffsetMinutes,
       },
+      lang: cached.lang,
     };
     return {
       contentKey: `${post.lang}/${post.name}`,
@@ -252,7 +259,10 @@ const processResults = await Promise.all(posts.map(async function processPost(
   /**
    Freshly rendered post body when no cache hit applies.
    */
-  const html = await renderMdx(post.body,);
+  const html = await renderMdx({
+    body: post.body,
+    lang: post.lang,
+  },);
   /**
    New manifest entry persisted for future builds.
    */
@@ -260,6 +270,7 @@ const processResults = await Promise.all(posts.map(async function processPost(
     contentHash: post.contentHash,
     html,
     frontmatter: post.data,
+    lang: post.lang,
   },);
   return {
     contentKey: `${post.lang}/${post.name}`,

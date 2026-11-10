@@ -16,6 +16,12 @@ const ca: Record<Label, string> = {
   langSwitcher: 'Canvia d\'idioma',
   published: 'Publicat',
   updated: 'Actualitzat',
+  brandImageAlt: 'Avatar',
+  alertCaution: 'Compte',
+  alertImportant: 'Important',
+  alertNote: 'Nota',
+  alertTip: 'Consell',
+  alertWarning: 'Avís',
 };
 
 export default ca;

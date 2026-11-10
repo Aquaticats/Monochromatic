@@ -135,7 +135,10 @@ export function html(
                 tag: 'img',
                 attrs: {
                   src: '/favicon.svg',
-                  alt: 'avatar',
+                  alt: i18n.label(
+                    lang,
+                    'brandImageAlt',
+                  ),
                 },
               },),
               h({

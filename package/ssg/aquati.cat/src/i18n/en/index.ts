@@ -16,6 +16,12 @@ const en: Record<Label, string> = {
   langSwitcher: 'Switch language',
   published: 'Published',
   updated: 'Updated',
+  brandImageAlt: 'Avatar',
+  alertCaution: 'Caution',
+  alertImportant: 'Important',
+  alertNote: 'Note',
+  alertTip: 'Tip',
+  alertWarning: 'Warning',
 };
 
 export default en;

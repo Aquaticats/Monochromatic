@@ -58,6 +58,26 @@ export {
 export { css as calloutAlertCss, } from './component/callout-alert.ts';
 
 /**
+ Alert callout component, for its localized indicator label.
+
+ @internal
+ */
+export {
+  CalloutAlert,
+  type CalloutAlertProps,
+} from './component/callout-alert.ts';
+
+/**
+ MDX component map, for asserting which labels a locale reaches.
+
+ @internal
+ */
+export {
+  createMdxComponents,
+  type MdxComponents,
+} from './component/index.ts';
+
+/**
  Language switcher styles.
 
  @internal
@@ -111,11 +131,14 @@ export {
 } from './component/site-footer.ts';
 
 /**
- Header styles.
+ Header markup and styles.
 
  @internal
  */
-export { css as siteHeaderStyles, } from './component/site-header.ts';
+export {
+  css as siteHeaderStyles,
+  html as siteHeaderHtml,
+} from './component/site-header.ts';
 
 /**
  Search widget styles.
@@ -187,6 +210,26 @@ export {
  @internal
  */
 export type { SafeHtml, } from './lib/jsx-to-html.ts';
+
+/**
+ Build cache lookup and entry construction.
+
+ @internal
+ */
+export {
+  CACHE_MISS,
+  createCacheEntry,
+  getCachedEntry,
+  type BuildManifest,
+  type CacheEntry,
+} from './lib/cache.ts';
+
+/**
+ MDX rendering, for asserting the localized chrome a post body produces.
+
+ @internal
+ */
+export { renderMdx, } from './lib/markdown.ts';
 
 /**
  Cache-invalidation glob naming the pipeline sources.
