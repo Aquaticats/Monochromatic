@@ -177,11 +177,11 @@ fn names_checkout_marker(child_names: &[Vec<u8>]) -> bool {
 /// ```
 fn names_a_wrappers_trash(relative_path: &[u8]) -> bool {
     let parent: &[u8] = crate::worktree_trash::TRASH_PARENT.as_bytes();
-    let Some(below) = relative_path.strip_prefix(parent) else { return false };
-    let Some(below) = below.strip_prefix(b"/") else { return false };
-    let mut components = below.split(is_separator_byte);
-    let Some(name) = components.next() else { return false };
-    let Ok(name) = std::str::from_utf8(name) else { return false };
+    let Some(below_parent) = relative_path.strip_prefix(parent) else { return false };
+    let Some(below_slash) = below_parent.strip_prefix(b"/") else { return false };
+    let mut components = below_slash.split(is_separator_byte);
+    let Some(component) = components.next() else { return false };
+    let Ok(name) = std::str::from_utf8(component) else { return false };
     return is_trash_name(name);
 }
 
