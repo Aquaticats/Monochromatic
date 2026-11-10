@@ -103,7 +103,7 @@ called `Result::unwrap()` on an `Err` value: "/no-such-fixture/\xFF-worker"
 `Codex worker limits: Every argument must be UTF-8 text.` diagnostic,
 which `tests/validation.rs` covers as `refuses_arguments_that_are_not_utf8`.
 Refusing at the argument boundary also means the `to_str` guards at
-`src/limits.rs:94` and `src/protocol.rs:89` can no longer fail for these paths,
+`src/limits.rs:94` and `src/protocol.rs:69` can no longer fail for these paths,
 because a path decoded from an argument is UTF-8 by then.
 They stay as defence for a future caller that builds a path from another source.
 
