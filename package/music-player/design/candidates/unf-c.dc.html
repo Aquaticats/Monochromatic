@@ -139,8 +139,8 @@ class Component extends DCLogic {
       deckLeft: side === "left",
       deckRight: side !== "left",
       caption: side === "left"
-        ? "UNF-C — 852×883dp. Deck under the folders (left half); tracks take the whole right half. " + s.total + " folders, A–Z strip pinned above the deck."
-        : "UNF-B — 852×883dp. Folders + pinned A–Z strip left; tracks + deck right. " + s.total + " folders in two columns of 48dp rows; tap a letter to jump.",
+        ? "UNF-C: 852×883dp. Deck under the folders (left half); tracks take the whole right half. " + s.total + " folders, A to Z strip pinned above the deck."
+        : "UNF-B: 852×883dp. Folders + pinned A to Z strip left; tracks + deck right. " + s.total + " folders in two columns of 48dp rows; tap a letter to jump.",
       groups: s.groups.map((g) => ({
         letter: g.letter, count: g.count,
         rows: g.names.map((n) => {

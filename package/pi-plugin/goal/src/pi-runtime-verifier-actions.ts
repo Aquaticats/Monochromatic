@@ -7,6 +7,8 @@
 import type { ExtensionRuntime, } from '@earendil-works/pi-coding-agent';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Runtime message contracts
+
 /**
  Custom message and delivery metadata observed through real loader runtime.
  */
@@ -41,6 +43,10 @@ type ExtensionRuntimeSessionManager = {
     details?: unknown,
   ) => string;
 };
+
+//endregion Runtime message contracts
+
+//region Message capture
 
 /**
  Capture and persist one visible custom message.
@@ -89,6 +95,10 @@ function captureDisposableMessage(
     message.details,
   );
 }
+
+//endregion Message capture
+
+//region Action binding
 
 /**
  Bind stateful actions used by built goal extension after package discovery.
@@ -142,6 +152,8 @@ function bindRuntimeActions(
     },);
   };
 }
+
+//endregion Action binding
 
 export { bindRuntimeActions, };
 export type { CapturedRuntimeMessage, };

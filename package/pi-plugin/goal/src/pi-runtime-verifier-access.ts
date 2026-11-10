@@ -16,6 +16,8 @@ import type {
   RuntimeHandler,
 } from './pi-runtime-verifier-harness.ts';
 
+//region Handler and command access
+
 /**
  Retrieve loaded handlers for one lifecycle event as sequential composite.
  
@@ -135,6 +137,10 @@ function getGoalCommand(harness: GoalRuntimeHarness,): RuntimeCommand {
   return invokeLoadedCommand;
 }
 
+//endregion Handler and command access
+
+//region Assertions
+
 /**
  Require verifier condition with focused diagnostic.
  
@@ -192,6 +198,10 @@ function requireCount(
   if (actual !== expected)
     throw new Error(`${message}: expected ${expected}, received ${actual}`,);
 }
+
+//endregion Assertions
+
+//region Event emission and settlement
 
 /**
  Drive one real-loader event callback.
@@ -265,6 +275,8 @@ async function settleGoalRun(
     event: { type: 'agent_settled', },
   },);
 }
+
+//endregion Event emission and settlement
 
 export {
   emitGoalEvent,

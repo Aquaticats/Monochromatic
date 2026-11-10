@@ -2,7 +2,7 @@
 //
 // The rail adapts to the library (D28): only writing systems actually present get a
 // section, and within a section the cells are single letters / kana rows. There is
-// deliberately NO sub-letter segmentation — the CA / CH / CL–CO split is dead (D17),
+// deliberately NO sub-letter segmentation, the CA / CH / CL to CO split is dead (D17),
 // in every presentation, including a rail accordion.
 import { scriptOf, SCRIPT_LABEL } from "./artists.js";
 
