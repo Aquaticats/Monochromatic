@@ -1402,6 +1402,66 @@ The fix,
  if the ordering is judged worth enforcing rather than documenting,
  belongs in the `lint:types` task definition.
 
+## A package's unit suites import its built bundle, so a stale `dist` fails them
+
+### Symptom
+
+`mise run //package/<path>:test:unit` reports failing suites in a checkout whose
+`dist/` is older than `src/`,
+and the same command passes after `mise run //package/<path>:build` with no
+source change in between.
+Nothing in the output names the stale bundle,
+so the failure reads as a regression on `main`.
+
+Observed 2026-11-10 in `package/logger/core`:
+six of its unit files failed.
+`src/sink/record-buffer.unit.test.ts` reported
+`AssertionError: expected 1 to equal +0`
+from two assertions counting page lifecycle listeners,
+whose passing form needs the source's current rule that a buffer holds those
+listeners only while records wait.
+The `dist/` in that worktree was built 2026-11-01,
+its sources were last written 2026-11-09,
+and the same command exited 0 once `mise run //package/logger/core:build` had
+run.
+
+### Root cause
+
+These suites import the package by name:
+
+```ts
+// package/logger/core/src/sink/record-buffer.unit.test.ts
+import { _createRecordBuffer as createRecordBuffer, } from '@monochromatic-dev/logger-core';
+```
+
+Inside the package that name resolves through the workspace symlink in the root
+`node_modules` to the package's own `exports` map,
+whose `.` entry names the built bundle under the `node` condition:
+
+```sh
+# run in package/logger/core
+$ node --input-type=module -e "console.log(import.meta.resolve('@monochromatic-dev/logger-core'))"
+file:///…/package/logger/core/dist/final/node/index.mjs
+```
+
+So a suite exercises whatever `dist/` held at its last build,
+not the source beside it,
+and a stale bundle fails assertions the current source would satisfy.
+The `./ts` subpath of the same map names `./src/index.ts`
+for callers that want the source instead.
+
+### Workaround
+
+Build before running a package's suites:
+
+```sh
+mise run //package/logger/core:build
+mise run //package/logger/core:test:unit
+```
+
+Neither `test:unit` nor `lint:types` declares `build` as a dependency,
+so the ordering stays the caller's.
+
 ## `using` downlevel helpers: 2381 bytes inlined per emitted file, and a `null` `Symbol.asyncDispose` guard that diverges from the spec
 
 ### Problem

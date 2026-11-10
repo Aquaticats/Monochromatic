@@ -33,6 +33,8 @@ use std::time::Instant;
 use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::service_retry::RETRY_SLACK;
 use crate::service_server::work_loop;
+use crate::service_server_work_loop_awaiting::work_loop_awaiting;
+use crate::lazy_runtime::spawn_on_runtime;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -350,6 +352,65 @@ fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers
     let (sender, mut receiver) = unbounded_channel::<Wake>();
     let running = scope.spawn(move || { work_loop(&mut receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::in_memory()); });
     return (sender, running);
+}
+
+/// What:
+///  Run the after-commit work as a task of the process's runtime,
+/// as the service does,
+/// and give the way to wake it;
+/// dropping the sender stops it.
+/// Why:
+///   A loop that is a task holds no thread of its own,
+/// and the face it asks is the awaited one,
+/// because the synchronous face enters the runtime,
+///  which a task may not do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [wake, running] = startTheLoopInATask(handlers, plans, busy);
+/// ```
+fn start_the_loop_in_a_task(handlers: GitHandlers, plans: PathBuf, busy: Arc<AtomicUsize>) -> (UnboundedSender<Wake>, tokio::task::JoinHandle<()>) {
+    let (sender, mut receiver) = unbounded_channel::<Wake>();
+    let running = spawn_on_runtime(async move {
+        work_loop_awaiting(&mut receiver, &handlers, &busy, PushRetries::restored(PAUSE, plans.as_path()), ClaimWatch::in_memory()).await;
+    })
+    .expect("the runtime starts the after-commit work as a task");
+    return (sender, running);
+}
+
+/// What:
+///  The wake the service's acceptor sends is drained by the after-commit work's task:
+/// the commit the wake's repository held is pushed,
+///  and the loop ends when its queue is closed.
+/// Why:
+///   The loop that runs a round from a task is refused there,
+/// where a round of the service's work waits on storage,
+/// on a child and on its lanes,
+///  so a loop that is a task must ask the awaited faces.
+/// The delivery is what proves the round ran:
+/// the wake names the repository and
+///  nothing else starts the push.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [wake, running] = startTheLoopInATask(...); wake.send([gitDir, null]); await delivered; drop(wake);
+/// ```
+#[test]
+fn the_after_commit_work_drains_a_wake_as_a_task_of_the_runtime() {
+    let stage: Stage = stage_with("loop-as-a-task", "never-run");
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let (wake, running) = start_the_loop_in_a_task(GitHandlers::new(git_context()), plans, Arc::clone(&busy));
+    wake.send((git_dir, None)).expect("the after-commit work takes the wake");
+    assert!(
+        wait_until(&|| { return remote_tip(&stage) == stage.landed; }),
+        "the after-commit work's task pushed the commit the wake named"
+    );
+    drop(wake);
+    assert!(wait_until(&|| { return running.is_finished(); }), "the after-commit work ends when its queue is closed");
+    assert_eq!(notices(&stage), 0, "a push that went through leaves the person no record of a failure");
+    remove(stage.root.as_path());
 }
 
 /// A service that is stopped while a push waits for a new try does not take the plan with it:

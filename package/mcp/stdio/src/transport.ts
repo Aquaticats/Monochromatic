@@ -423,11 +423,20 @@ export async function serve(
     // Validate step: ensure the parsed value is a valid JSON-RPC 2.0 message
     // before dispatching. Catches non-object values, missing jsonrpc field, etc.
     if (!isJsonRpcMessage(parsed,)) {
+      // The rejected text is the client's payload, tool arguments included, so the frame
+      // itself is reported only when logging is asked to be verbose: a warn record
+      // reaches stderr by default, and copying an arbitrary payload there is what issue
+      // 1754 reported. The warning below keeps the diagnostic and drops the payload.
       tagged({
         tag: serve.name,
         l: transportLogger,
       },)
-        .warn(`stdin frame is not a JSON-RPC message: ${JSON.stringify(parsed,)}`,);
+        .debug(`rejected frame text: ${line}`,);
+      tagged({
+        tag: serve.name,
+        l: transportLogger,
+      },)
+        .warn('stdin frame is not a JSON-RPC message',);
       /**
        Shape-error response when the message parsed as JSON but is not a JSON-RPC message.
        Uses invalid-request rather than parse-error: the text was valid JSON, so `JSON.parse`

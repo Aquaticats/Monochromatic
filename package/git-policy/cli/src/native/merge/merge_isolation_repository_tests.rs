@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::forwarded_command::ResolvedCommand;
+use crate::child_environment::environment_with_overlay;
 use crate::merge_isolation_git_reads::unsaved_paths;
 use crate::merge_isolation_journal::{MergeIntent, write_merge_intent};
 use crate::transaction_owner::current_transaction_owner;
@@ -223,7 +224,10 @@ fn attempted_with(
         // A merge reached here runs no shell alias.
         shell_command: None,
     };
-    let overlay: Vec<(OsString, OsString)> = isolated_overlay();
+    // The variables of the command reach its Git children as the person's own environment does,
+    // so a control that names an editor
+    //  names the editor the merge resolves.
+    let overlay: Vec<(OsString, OsString)> = environment_with_overlay(environment, isolated_overlay().as_slice());
     return run_isolated_merge(&IsolatedMergeInput {
         real_git,
         overlay: overlay.as_slice(),
@@ -392,36 +396,49 @@ fn an_attempt_recovers_a_dead_merge_before_it_checks_the_staged_work() {
     remove(parent.as_path());
 }
 
-/// `--no-edit` settles the question of the editor whatever `GIT_MERGE_AUTOEDIT` says,
-/// and without it the variable
-/// decides:
-/// `yes` forwards with the notice,
-/// `no` completes the merge.
+/// What:
+///  A merge that opens an editor takes its message from the person's editor,
+/// and every option that settles the question keeps
+///  the merge away from it.
+/// Why:
+///   `--no-edit` declines the editor and `-m` gives the message (`prepare_to_commit`,
+/// `builtin/merge.c`);
+/// without
+///  either,
+/// `GIT_MERGE_AUTOEDIT` or a terminal decides.
+/// The staged work is carried in every case,
+/// which is what native
+///  Git cannot do.
 #[test]
 fn the_editor_decision_follows_no_edit_then_the_environment() {
-    let variable = |value: &str| -> Vec<(OsString, OsString)> {
-        return vec![(OsString::from("GIT_MERGE_AUTOEDIT"), OsString::from(value))];
+    let variable = |value: &str, editor: &Path| -> Vec<(OsString, OsString)> {
+        return vec![
+            (OsString::from("GIT_MERGE_AUTOEDIT"), OsString::from(value)),
+            (OsString::from("GIT_EDITOR"), editor.as_os_str().to_owned()),
+        ];
     };
-    for (name, arguments, value, completes) in [
-        ("no-edit-over-yes", ["merge", "--no-edit", "feature"], "yes", true),
-        ("no-edit-over-no", ["merge", "--no-edit", "feature"], "no", true),
-        ("yes", ["merge", "--verbose", "feature"], "yes", false),
-        ("no", ["merge", "--verbose", "feature"], "no", true),
+    for (name, arguments, value, writes) in [
+        ("no-edit-over-yes", ["merge", "--no-edit", "feature"], "yes", false),
+        ("no-edit-over-no", ["merge", "--no-edit", "feature"], "no", false),
+        ("message-over-yes", ["merge", "--message=given by -m", "feature"], "yes", false),
+        ("yes", ["merge", "--verbose", "feature"], "yes", true),
+        ("no", ["merge", "--verbose", "feature"], "no", false),
     ] {
         let (parent, repo): (PathBuf, PathBuf) =
             diverged_with_staged_work(format!("merge-attempt-edit-{name}").as_str());
         let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-        let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &arguments, variable(value).as_slice());
-        if completes {
-            assert!(is_completed(&outcome), "{name}: {outcome:?}");
-            assert_ne!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{name}: merged");
-        } else {
-            let IsolatedMerge::Forward { notice: Some(notice) } = outcome else {
-                panic!("{name}: the merge would open an editor, so it is forwarded with the notice: {outcome:?}");
-            };
-            assert!(notice.contains("would open an editor"), "{name}: {notice}");
-            assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{name}: not merged");
-        }
+        let editor: PathBuf = parent.join("editor");
+        crate::test_support::executable(editor.as_path(), b"#!/bin/sh\nprintf 'written in the editor\\n' >> \"$1\"\n");
+        let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &arguments, variable(value, editor.as_path()).as_slice());
+        assert!(is_completed(&outcome), "{name}: the staged work is carried: {outcome:?}");
+        assert_ne!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{name}: merged");
+        let message: String = git_text(repo.as_path(), &["log", "-1", "--format=%B"]);
+        assert_eq!(message.contains("written in the editor"), writes, "{name}: the message the merge carries: {message:?}");
+        assert_eq!(
+            git_text(repo.as_path(), &["status", "--porcelain=v1", "--", "u.txt"]),
+            "M  u.txt",
+            "{name}: the work the index held is still staged"
+        );
         remove(parent.as_path());
     }
 }

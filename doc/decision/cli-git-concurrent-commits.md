@@ -168,6 +168,15 @@ broad when absent.
   (open holder matched by device and inode,
   or a PID file naming a live process started no later than the lock's ctime)
   gets an unbounded wait with one line naming the holder.
+  (Changed 2026-11-10T05:40:16-05:00,
+  the owner's answer "Amend the record (Recommended)":
+  this wait is bounded,
+  following the owner's later "nothing should ever wait forever or indefinitely".
+  A merge waits at most `MERGE_LOCK_CEILING` and a landing at most `LANDING_LOCK_CEILING`,
+  one minute at this date,
+  both in `package/git-policy/cli/src/native/service/wait_ceilings.rs`.
+  A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
+  ten minutes at this date (`package/git-policy/cli/SPEC.md`).)
 - A dead or evidence-free owner gets Git-style quadratic backoff with jitter
   up to `indexLock.unprovenOwnerTimeoutMs`
   (default 1000),
@@ -207,6 +216,10 @@ repository,
 because the person's own `git commit` with its editor open holds `index.lock` with no proof and would otherwise make
 ours fail;
 `indexLock.unprovenOwnerTimeoutMs` stays retired because nothing reads configuration at that point.
+
+Superseded 2026-11-10T05:40:16-05:00 by the owner's answer "Amend the record (Recommended)":
+neither wait in the preceding paragraph is unbounded any more.
+The bounds are named in the "Locks" list and quote the owner's "nothing should ever wait forever or indefinitely".
 
 ## Auto-push
 

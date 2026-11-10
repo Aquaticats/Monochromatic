@@ -1,8 +1,8 @@
-//! Controls for the findings of the cross-vendor review of the leave-out and its disposal:
+//! Controls for the findings of the cross-vendor review of the leave-out and its emptying:
 //! what pruning may move,
-//! what a
-//!  disposal may delete,
-//! and what a failed cleanup must report.
+//! what the
+//!  emptying may delete,
+//! and what a failed emptying must report.
 
 use super::*;
 use crate::fs_btrfs_ioctl::snapshot_create_at;
@@ -117,7 +117,7 @@ fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// put(repo, `${TRASH_PARENT}/${earlier}/d0/payload`, 'token'); put(repo, `.claude/${earlier}/keep`, 'mine');
-/// const { manifest } = await snapshotOf(repo); await disposePendingTrash(...);
+/// const { manifest } = await snapshotOf(repo); await emptyTrash(itemOf(stage, commonDir, manifest));
 /// expect(existsSync(join(stage, TRASH_PARENT, earlier))).toBe(false); expect(existsSync(join(stage, '.claude', earlier, 'keep'))).toBe(true);
 /// ```
 #[test]
@@ -135,9 +135,8 @@ fn btrfs_an_earlier_adds_trash_is_emptied_with_this_adds() {
     let git_dir: PathBuf = root.join("admin");
     std::fs::create_dir_all(&git_dir).expect("admin");
     std::fs::write(stage.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect("pointer");
-    let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash(&git_context(), stage.as_path(), git_dir.as_path(), Some(&manifest), &mut notices).expect("emptied here");
-    assert!(!parent.exists(), "both trashes are emptied");
+    assert_eq!(empty_trash(&item_of(stage.as_path(), git_dir.as_path(), &manifest)), Verdict::Done, "the handler empties what the leave-out recorded");
+    assert!(!parent.exists(), "this add's trash and the one it took over go together");
     assert!(stage.join(".claude").join(&earlier).join("keep").exists(), "a directory with that name outside the trash parent is untouched");
     remove(root.as_path());
 }
@@ -290,6 +289,51 @@ fn a_trash_a_record_accounts_for_is_not_named() {
 }
 
 /// What:
+///  A trash whose record nothing ever claimed is named to the person once one claim lease has passed,
+/// and left alone.
+/// Why:
+///   The add writes the record and wakes the service,
+/// but a wake that failed,
+/// or an add killed between the two,
+/// leaves a
+///  record no service ever read;
+/// a service claims a record within the wake that asked it to,
+/// so a pending record older than
+///  the lease the drain keeps is one nobody will look at,
+/// and naming it is the only way the person learns of it.
+/// The file's age is what says so,
+/// so the control moves the record's modification time back instead of waiting it out.
+#[test]
+fn a_pending_record_no_service_took_is_named_after_one_claim_lease() {
+    let name: String = "f".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-pending-stale", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    age_by(&pending, std::time::Duration::from_secs(600));
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "a record nothing claimed is named with its trash: {said}");
+    assert!(pending.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
+    remove(root.as_path());
+}
+
+/// Move a file's modification time into the past,
+/// so a control can read a record as one that waited.
+fn age_by(path: &Path, back: std::time::Duration) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let past: libc::time_t = (std::time::SystemTime::now() - back).duration_since(std::time::SystemTime::UNIX_EPOCH).expect("after the epoch").as_secs() as libc::time_t;
+    let times: [libc::timespec; 2] = [libc::timespec { tv_sec: past, tv_nsec: 0 }, libc::timespec { tv_sec: past, tv_nsec: 0 }];
+    // SAFETY: `name` is a NUL-terminated string that outlives the call, and `times` holds the two timestamps it reads.
+    let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), 0) };
+    assert_eq!(result, 0, "age {}", path.display());
+}
+
+/// What:
 ///  A trash whose record the commit service gave up on is named to the person and left alone.
 /// Why:
 ///   The service settles a trash item it cannot empty as failed and never claims it again,
@@ -385,17 +429,15 @@ fn the_handler_does_not_follow_a_link_at_the_claude_directory() {
 }
 
 /// Finding 12:
-/// the foreground fallback does not follow a link at the trash parent either,
+/// the emptying does not follow a link at the trash parent either,
 /// and says so.
 #[test]
-fn the_foreground_fallback_does_not_follow_a_link_at_the_trash_parent() {
+fn the_emptying_does_not_follow_a_link_at_the_trash_parent() {
     let name: String = "e".repeat(40);
     let (root, worktree, git_dir, outside, manifest) = worktree_with_trash_moved_out("trash-link-parent", name.as_str());
     std::os::unix::fs::symlink(outside.join("cli-git-trash"), worktree.join(TRASH_PARENT)).expect("link");
-    let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
-    let reason: String = outcome.expect_err("a trash reached through a link is not emptied");
-    assert!(reason.contains("cli-git-trash"), "the reason names the path: {reason}");
+    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest).expect_err("a trash reached through a link is not emptied");
+    assert!(left.reason.contains("cli-git-trash"), "the reason names the path: {}", left.reason);
     assert!(outside.join("cli-git-trash").join(&name).join("d0/file").exists(), "what the link points at is untouched");
     remove(root.as_path());
 }
@@ -570,13 +612,13 @@ fn btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named() {
 }
 
 /// Finding 14:
-/// a worktree whose path is not UTF-8 has its trash emptied here,
-/// by the bytes of the path,
-/// and nothing
-///  names another path.
+/// a worktree whose path is not UTF-8 cannot be named by a record,
+/// so the hand-over says so and writes none,
+/// and the
+///  emptying still works by the bytes of the path.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_non_utf8_worktree_is_emptied_by_its_path_bytes() {
+fn a_non_utf8_worktree_is_named_by_no_record_and_emptied_by_its_path_bytes() {
     let name: String = "9".repeat(40);
     let root: PathBuf = fixture("trash-hand-over-bytes");
     let worktree: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"topic-\xff"));
@@ -585,10 +627,20 @@ fn a_non_utf8_worktree_is_emptied_by_its_path_bytes() {
     std::fs::create_dir_all(&worktree).expect("worktree");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
+    let pending = PendingTrash { destination: worktree.clone(), common_dir: git_dir.clone(), manifest: manifest.clone(), quiet: false };
     let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices).expect("emptied here");
-    assert!(!worktree.join(TRASH_PARENT).exists(), "the trash was emptied by the path's bytes");
+    let reason: String = hand_over_with(&git_context(), &pending, &mut notices, &no_service_reach()).expect_err("no record can name this path");
+    assert!(reason.contains("not valid UTF-8") && reason.contains("no record names them"), "the reason says why nothing will empty it later: {reason}");
+    assert!(!state_directory(work_directory(git_dir.as_path()).as_path(), "pending").exists(), "no record is written for a path a record cannot spell");
+    assert_eq!(empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest)), Verdict::Done, "the emptying works by the path's bytes");
+    assert!(!worktree.join(TRASH_PARENT).exists(), "so the trash is emptied all the same");
     remove(root.as_path());
+}
+
+/// A reach with no service and a provisioner that sets nothing up,
+/// for the controls that never want a service touched.
+fn no_service_reach<'a>() -> Reach<'a> {
+    return Reach { router: &|_git: &Path, _directory: &Path| return None, provisioner: &|_host: &crate::service_provision::ProvisionHost| return Ok(()), start_wait: std::time::Duration::from_millis(400) };
 }
 
 /// Restores the mode of a directory when dropped,
@@ -605,117 +657,87 @@ impl Drop for RestoreMode {
 }
 
 /// What:
-///  A trash that cannot be emptied is reported with its path and the reason,
-/// and the line says what is
-///  true of it:
-/// it stays,
-/// it is the person's to remove,
-/// and nothing else will empty it.
+///  A trash that cannot be emptied is reported with its path and the reason it stays,
+/// so the service's line and
+///  every later command name the same directory.
 /// Why:
-///   This path writes no work item and keeps no durable record of the manifest,
-/// so a line promising that
-///  the commit service names it later would promise work that never runs;
-/// the person is the only one who will
-///  empty it,
-/// and the line gives the command that does,
-/// quoted for their shell.
-/// It also says that no work item exists,
-/// which is the fact the old sentence got wrong.
+///   The add no longer empties anything,
+/// so the only report of a trash that stays is the one the emptying gives
+///  when the service runs it;
+/// the reason must name what is there and never promise the person a command that
+///  removes more than the snapshot made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const reason = await disposePendingTrash(...); expect(reason).toContain(`rm --recursive --force -- '${join(worktree, TRASH_PARENT, name)}'`); expect(reason).not.toContain('commit service');
+/// const left = await deleteTrash({ repository, gitDir, manifest }); expect(left.reason).toContain(name);
 /// ```
 #[test]
-fn a_trash_that_cannot_be_emptied_here_is_reported_as_the_persons_to_remove() {
+fn a_trash_that_cannot_be_emptied_is_reported_with_its_path_and_reason() {
     let name: String = "7".repeat(40);
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-unremovable", name.as_str(), 1);
     let parent: PathBuf = worktree.join(TRASH_PARENT);
     // A parent nobody may write to: the contents can go, the trash directory itself cannot.
     std::fs::set_permissions(&parent, std::os::unix::fs::PermissionsExt::from_mode(0o555)).expect("read-only parent");
     let restore: RestoreMode = RestoreMode { path: parent.clone() };
-    let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
-    let reason: String = outcome.expect_err("the failure is returned, not swallowed");
-    let trash_path: PathBuf = worktree.join(TRASH_PARENT).join(&name);
-    let quoted: String = crate::shell_quote::shell_quote(trash_path.as_os_str().as_bytes());
-    assert!(reason.contains(quoted.as_str()), "the reason names the trash the way the person's shell reads it: {reason}");
-    assert!(reason.contains("stays inside the worktree") && reason.contains("only you will remove it"), "the reason says what is true of it: {reason}");
-    assert!(reason.contains(format!("rm --recursive --force -- {quoted}").as_str()), "the reason gives the command that removes it: {reason}");
-    assert!(!reason.contains("commit service"), "and promises no service that would never see it: {reason}");
+    assert!(matches!(&empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest)), Verdict::Failed(reason) if reason.contains(&name)), "the handler reports the trash it could not empty");
     assert!(parent.join(&name).exists(), "the trash directory could not be removed from a read-only parent");
-    let record: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(!record.exists(), "no work item is written, so a later command does not report a trash it never made");
     drop(restore);
     remove(root.as_path());
 }
 
 /// Review round 5,
 /// finding 3:
-/// a trash that was replaced under the recorded name is not handed to the person with the command that removes
-///  a recursive tree,
-/// because that command would delete the directory standing there now.
+/// a trash that was replaced under the recorded name is left where it is,
+/// with the reason it gives.
 /// Why:
-///   The emptying refused to delete it precisely because it is not the object the snapshot made;
-/// a line that still
-///  ends in `rm --recursive --force` overrides that refusal and tells the person to delete somebody else's
-///  data.
-/// The line names the path,
-/// says what stands there instead,
-/// and gives no removal command.
+///   The emptying refuses to delete it precisely because it is not the object the snapshot made;
+/// what stands
+///  there now is somebody else's,
+/// and the reason names the path and says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// rename(join(worktree, TRASH_PARENT, name), movedAway); put(join(worktree, TRASH_PARENT, name), 'theirs/file', 'x');
-/// const reason = await disposePendingTrash(...); expect(reason).toContain('not the directory the snapshot made'); expect(reason).not.toContain('rm --recursive --force');
+/// const left = await deleteTrash({ repository, gitDir, manifest }); expect(left.reason).toContain('not the directory the snapshot made');
 /// ```
 #[test]
-fn a_trash_that_is_not_the_snapshots_is_not_given_a_removal_command() {
+fn a_trash_that_is_not_the_snapshots_is_left_alone_with_its_reason() {
     let name: String = "8".repeat(40);
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-replaced-message", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     std::fs::rename(&trash, worktree.join(TRASH_PARENT).join("moved-away")).expect("move the real trash away");
     put(trash.as_path(), "theirs/file", b"somebody else's data\n");
-    let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
-    let reason: String = outcome.expect_err("a trash that is not the snapshot's is left alone");
-    let quoted: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
-    assert!(reason.contains(quoted.as_str()), "the reason names the path that stays: {reason}");
-    assert!(reason.contains("not the directory the snapshot made"), "the reason says why it was left: {reason}");
-    assert!(!reason.contains("rm --recursive --force"), "no removal command is given for a directory the snapshot did not make: {reason}");
+    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest).expect_err("a trash that is not the snapshot's is left alone");
+    assert!(left.reason.contains(trash.display().to_string().as_str()), "the reason names the path that stays: {}", left.reason);
+    assert!(left.reason.contains("not the directory the snapshot made"), "the reason says why it was left: {}", left.reason);
     assert!(trash.join("theirs/file").exists(), "what stands there is untouched");
     remove(root.as_path());
 }
 
 /// Review round 5,
 /// finding 3:
-/// a trash that holds a file the snapshot did not put there is not handed to the person with the command that removes
-///  a recursive tree either.
+/// a trash that holds a file the snapshot did not put there keeps the whole trash directory,
+/// and the reason names
+///  the file.
 /// Why:
-///   The emptying emptied the recorded entry and then left the whole trash directory because of that file;
-/// the file
-///  is deliberately kept,
-/// so a command that removes the trash recursively deletes exactly what the refusal
-///  preserved.
-/// The line names the path and the file and gives no removal command.
+///   The emptying empties the recorded entry and then leaves the trash directory because of that file;
+/// the file is
+///  kept deliberately,
+/// so the reason says what stayed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// put(join(worktree, TRASH_PARENT, name, 'unrecorded/file'), 'not ours');
-/// const reason = await disposePendingTrash(...); expect(reason).toContain('unrecorded'); expect(reason).not.toContain('rm --recursive --force');
+/// const left = await deleteTrash({ repository, gitDir, manifest }); expect(left.reason).toContain('unrecorded');
 /// ```
 #[test]
-fn a_trash_holding_what_was_not_moved_there_is_not_given_a_removal_command() {
+fn a_trash_holding_what_was_not_moved_there_keeps_its_directory() {
     let name: String = "c".repeat(40);
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-extra-message", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     put(trash.as_path(), "unrecorded/file", b"not ours\n");
-    let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
-    let reason: String = outcome.expect_err("a trash holding what the snapshot did not put there is left alone");
-    let quoted: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
-    assert!(reason.contains(quoted.as_str()) && reason.contains("unrecorded"), "the reason names the path and what it kept: {reason}");
-    assert!(!reason.contains("rm --recursive --force"), "no removal command is given for a directory holding what the emptying kept: {reason}");
+    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest).expect_err("a trash holding what the snapshot did not put there is left alone");
+    assert!(left.reason.contains(trash.display().to_string().as_str()) && left.reason.contains("unrecorded"), "the reason names the path and what it kept: {}", left.reason);
     assert!(trash.join("unrecorded/file").exists(), "the file the emptying kept is untouched");
     remove(root.as_path());
 }
@@ -723,31 +745,28 @@ fn a_trash_holding_what_was_not_moved_there_is_not_given_a_removal_command() {
 /// Review round 5,
 /// finding 3:
 /// a trash entry that is no longer the object the snapshot moved there is deliberately left,
-/// so the line that
-///  reports it gives no removal command for the trash either.
+/// and the reason names
+///  it.
 /// Why:
 ///   The emptying compares each entry's identity and skips the ones that changed;
-/// those are the entries the
-///  person would lose by following a recursive removal of the trash,
-/// and the line must not suggest one.
+/// what stands under that name
+///  now is somebody else's,
+/// and the reason says which entry it could not empty.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// rename(join(trash, 'd0'), join(worktree, 'moved-away')); put(join(trash, 'd0/precious'), 'theirs');
-/// const reason = await disposePendingTrash(...); expect(reason).toContain('d0'); expect(reason).not.toContain('rm --recursive --force');
+/// const left = await deleteTrash({ repository, gitDir, manifest }); expect(left.reason).toContain('d0');
 /// ```
 #[test]
-fn a_trash_entry_that_was_replaced_is_not_given_a_removal_command() {
+fn a_trash_entry_that_was_replaced_is_left_alone_with_its_reason() {
     let name: String = "e".repeat(40);
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-entry-message", name.as_str(), 1);
     let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
     std::fs::rename(trash.join(entry_name(0).as_str()), worktree.join("moved-away")).expect("move the recorded entry away");
     put(trash.as_path(), format!("{}/precious", entry_name(0)).as_str(), b"somebody else's directory\n");
-    let mut notices: Vec<u8> = Vec::new();
-    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
-    let reason: String = outcome.expect_err("an entry that changed is left where it is");
-    assert!(reason.contains(entry_name(0).as_str()), "the reason names the entry it kept: {reason}");
-    assert!(!reason.contains("rm --recursive --force"), "no removal command is given for a directory whose entry stayed: {reason}");
+    let left: TrashLeft = delete_trash(worktree.as_path(), git_dir.as_path(), &manifest).expect_err("an entry that changed is left where it is");
+    assert!(left.reason.contains(entry_name(0).as_str()), "the reason names the entry it kept: {}", left.reason);
     assert!(trash.join(entry_name(0).as_str()).join("precious").exists(), "the entry that changed is untouched");
     remove(root.as_path());
 }
