@@ -335,7 +335,10 @@ so `bun test <file>` reports `0 pass / 0 fail` even when every test passed.
 
 The subcommand is read after program wrappers are stripped,
 with the same wrapper table the real-Git guard uses,
-so `env bun test`, `timeout 10 bun test`, `nohup bun test`, `nice bun test`,
+so `env bun test`,
+`timeout 10 bun test`,
+`nohup bun test`,
+`nice bun test`,
 and `command bun test` are the same invocation as `bun test`.
 A `bun` word carrying a path (`/usr/local/bin/bun test`) is read by its last segment.
 
