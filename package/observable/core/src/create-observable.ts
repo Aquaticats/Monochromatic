@@ -73,11 +73,12 @@ export function createObservable<T,>(
     getValue: store.getValue,
     setValue: function setValue(newValue: T,): void {
       /**
-       The store already holds the new value when it reports the one it replaced.
+       Value being replaced; the store already holds the new one when it reports this.
        */
+      const previous = store.replaceValue(newValue,);
       onChange(
         newValue,
-        store.replaceValue(newValue,),
+        previous,
       );
     },
   };

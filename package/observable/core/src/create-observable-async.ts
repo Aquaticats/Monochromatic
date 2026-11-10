@@ -87,11 +87,12 @@ export async function createObservableAsync<T,>(
     getValue: store.getValue,
     setValue: async function setValue(newValue: T,): Promise<void> {
       /**
-       The store already holds the new value when it reports the one it replaced.
+       Value being replaced; the store already holds the new one when it reports this.
        */
+      const previous = store.replaceValue(newValue,);
       await onChange(
         newValue,
-        store.replaceValue(newValue,),
+        previous,
       );
     },
   };
