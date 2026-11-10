@@ -2005,7 +2005,10 @@ Each alternative is run through the built executable by `src/native/binary/binar
    `git diff <commit>` compares,
    `git worktree add <path> <commit>` gives a clean copy.
 - `git reset` in the default or `--mixed` mode:
-   `git commit --message <message> -- <paths>` commits only the named paths and ignores other staged entries,
+   `git commit --message <message> -- <paths>` commits only the named paths and ignores other staged entries;
+   a directory or a wildcard takes the tracked paths and staged additions it matches,
+  as native Git does,
+   while a path that names one file takes that file even when nothing staged it,
    `git diff --cached --name-only` lists what is staged.
 - `git restore --staged` (unstaging):
    the same two commands as `git reset`.
