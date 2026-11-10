@@ -19,8 +19,8 @@
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
-use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_skip};
-use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
+use crate::push_failure_notice::record_push_skip;
+use crate::push_retry::{RetryChange, Retrying, pause_before};
 use crate::service_instance::GitDirUnreachable;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use crate::service_claim_renewal::HeldClaims;
@@ -102,6 +102,20 @@ pub trait WorkHandlers {
     }
     /// Review one landed commit into the repository's shadow log.
     fn review(&self, item: &WorkItem) -> Verdict;
+    /// The same review,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The round's items are tasks,
+    /// and a review's wait for its contained job is the runtime's there;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reviewAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn review_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.review(item)));
+    }
     /// Empty the directory of left-out files a snapshot-made worktree set aside;
     /// a handler that does not know it skips.
     fn trash(&self, _item: &WorkItem) -> Verdict {
@@ -231,6 +245,42 @@ pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
         }
     }
     return matches!(last_entry(entries.as_slice(), "core.bare"), Some(entry) if parse_bool(entry.value.as_deref()) == Some(true));
+}
+
+/// What:
+///  The common directory a linked worktree's Git directory names in its `commondir` file,
+/// or nothing for any other directory.
+/// Why:
+///   The drains of directories and the rounds that call them both need this answer
+/// (`service_work.rs`,
+/// `service_work_drains_awaiting.rs`),
+/// so it sits in the file that uses neither.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// commonDirectoryOf(gitDir) ?? undefined
+/// ```
+pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
+    let text: String = std::fs::read_to_string(git_dir.join("commondir")).ok()?;
+    let named: &Path = Path::new(text.trim_end_matches(['\n', '\r']));
+    if named.as_os_str().is_empty() {
+        return None;
+    }
+    // Resolved by the text alone, so the result spells the path the way the worktree's own Git directory does, which is how the
+    //  records name their directory.
+    let mut resolved: PathBuf = PathBuf::new();
+    for part in git_dir.join(named).components() {
+        match part {
+            std::path::Component::ParentDir => {
+                if !resolved.pop() {
+                    return None;
+                }
+            }
+            std::path::Component::CurDir => {}
+            other => resolved.push(other.as_os_str()),
+        }
+    }
+    return Some(resolved);
 }
 
 /// What:
@@ -484,79 +534,4 @@ pub(crate) fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, 
         }
     }
     return Drained { wait: None, changes: replanning.changes };
-}
-
-/// What:
-///  Push again every branch of this Git directory whose pause is over,
-/// with no new commit needed.
-/// Why:
-///   The work loop looks at the repository when `drain` tells it to (the wait it returns),
-/// and this is what the look does for
-///  a push the service stopped:
-/// it lands and the person's failure record goes,
-/// it is planned again with a longer pause,
-/// or it
-///  is given up on because a conflict needs the person.
-/// The due pushes come with the directory's request,
-/// taken from the plan
-///  by the service loop before the round.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const due of request.due.filter((d) => d.gitDir === gitDir)) await settleRetry(await handlers.push([due.item]));
-/// ```
-pub(crate) fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, candidates: &[Due], replanning: &mut Replanning) {
-    for due in candidates {
-        if due.git_dir != git_dir {
-            continue;
-        }
-        let branch: &str = due.item.branch_ref.as_str();
-        let commit: &str = due.item.oid.as_str();
-        if !is_acceptable(&due.item, git_dir) {
-            crate::service_warn!("the push of {branch} is not tried again: its repository or branch record is no longer acceptable");
-            replanning.forget(git_dir, branch);
-            continue;
-        }
-        let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
-        let began: Instant = Instant::now();
-        let verdict: Verdict = handlers.push(std::slice::from_ref(&due.item));
-        match verdict {
-            Verdict::Done => {
-                clear_push_failures_before(git_dir, branch, pushing_since);
-                replanning.forget(git_dir, branch);
-                crate::service_log!("the push of {branch:?} landed on try {} push_ms={}", due.attempt + 1, began.elapsed().as_millis());
-            }
-            Verdict::Retry(text) => {
-                // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
-                let (said, outcome): (String, PushOutcome) = match replanning.first {
-                    Some(first) => {
-                        let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str());
-                        // The framing promises a retry only when the plan the words speak of exists.
-                        let outcome: PushOutcome = if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry };
-                        (planned.words, outcome)
-                    }
-                    None => {
-                        replanning.forget(git_dir, branch);
-                        (text, PushOutcome::UnfinishedWithNoRetry)
-                    }
-                };
-                if let Err(reason) = record_push_failure(git_dir, branch, commit, outcome, said.as_str()) {
-                    crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
-                }
-            }
-            Verdict::Failed(text) => {
-                crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, text.lines().next().unwrap_or_default());
-                replanning.forget(git_dir, branch);
-                if let Err(reason) = record_push_failure(git_dir, branch, commit, PushOutcome::Refused, text.as_str()) {
-                    crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
-                }
-            }
-            Verdict::Skipped(text) => {
-                replanning.forget(git_dir, branch);
-                if !text.is_empty() && let Err(reason) = record_push_skip(git_dir, branch, commit, text.as_str()) {
-                    crate::service_error!("the skipped push of {commit} could not be recorded for the person: {reason}");
-                }
-            }
-        }
-    }
 }

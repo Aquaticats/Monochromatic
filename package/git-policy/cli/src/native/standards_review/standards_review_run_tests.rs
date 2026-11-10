@@ -493,3 +493,49 @@ fn a_review_whose_append_was_cut_short_is_reviewed_again() {
     assert_eq!(after, format!("{fragment}\n{entry}"), "the fragment keeps its line and the whole entry follows it on the next one");
     remove(directory.as_path());
 }
+
+/// The awaited runner answers what the synchronous one answers:
+/// a value,
+/// a panic,
+/// a ceiling and a closed runner are the same outcomes whichever way the wait is made,
+/// and the wait is a task's.
+/// The positive control is
+/// the synchronous wait being refused where the awaited one answers.
+#[test]
+fn the_awaited_runner_answers_what_the_synchronous_one_answers() {
+    static OWN: Containment = Containment::new();
+    let roomy: Duration = Duration::from_secs(3600);
+    let synchronous_value: Contained<u8> = run_contained_in(&OWN, || return 7_u8, roomy);
+    let awaited_value: Contained<u8> = crate::merge_second_pass::tests::await_it(run_contained_in_awaiting(&OWN, || return 7_u8, roomy));
+    assert_eq!(awaited_value, synchronous_value, "a job's value is the same answer either way");
+    assert_eq!(awaited_value, Contained::Finished(7));
+    let synchronous_panic: Contained<u8> = run_contained_in(&OWN, || -> u8 { panic!("job failure") }, roomy);
+    let awaited_panic: Contained<u8> = crate::merge_second_pass::tests::await_it(run_contained_in_awaiting(&OWN, || -> u8 { panic!("job failure") }, roomy));
+    assert_eq!(awaited_panic, synchronous_panic, "a panicking job is contained either way");
+    assert_eq!(awaited_panic, Contained::Panicked);
+    // A ceiling is the same reading of the clock on both faces, and the job is left to end on its own.
+    let ceiling: Duration = Duration::from_millis(400);
+    let (release, blocked) = mpsc::channel::<()>();
+    let awaited_ceiling: Contained<u8> = crate::merge_second_pass::tests::await_it(run_contained_in_awaiting(
+        &OWN,
+        move || {
+            let _ = blocked.recv();
+            return 1_u8;
+        },
+        ceiling,
+    ));
+    assert_eq!(awaited_ceiling, Contained::CeilingReached(ceiling), "a job still running at the ceiling is not waited for");
+    assert_eq!(OWN.outstanding(), 1, "the abandoned job is still counted while it runs");
+    drop(release);
+    let waiting_since: std::time::Instant = std::time::Instant::now();
+    while OWN.outstanding() > 0 {
+        assert!(waiting_since.elapsed() < Duration::from_secs(20), "the abandoned job never ended");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // A runner whose one job is running admits nothing, whichever face asks.
+    let admitted: u64 = OWN.admit().expect("an idle runner admits");
+    let awaited_busy: Contained<u8> = crate::merge_second_pass::tests::await_it(run_contained_in_awaiting(&OWN, || return 2_u8, roomy));
+    assert_eq!(awaited_busy, Contained::Busy, "a running job closes the runner to the awaited face too");
+    assert!(OWN.change(admitted, RUNNING, IDLE));
+    assert_eq!(crate::merge_second_pass::tests::await_it(run_contained_in_awaiting(&OWN, || return 3_u8, roomy)), Contained::Finished(3));
+}

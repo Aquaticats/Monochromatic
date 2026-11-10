@@ -34,6 +34,7 @@ use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::service_retry::RETRY_SLACK;
 use crate::service_server::work_loop;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -43,7 +44,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// the worker's changes
 /// go back into it,
 /// and the wait is when to look at the directory again.
-fn round_of<H: WorkHandlers + Sync>(git_dir: &Path, handlers: &H, retries: &mut PushRetries) -> Option<Duration> {
+fn round_of<H: WorkHandlers + Sync + Send + 'static>(git_dir: &Path, handlers: &Arc<H>, retries: &mut PushRetries) -> Option<Duration> {
     let asked: Vec<(PathBuf, Duration)> = run_planned_round(&HostResources::read(), &[git_dir.to_path_buf()], handlers, retries, &ClaimTime::read());
     return asked.into_iter().find(|(directory, _)| { return directory == git_dir; }).map(|(_, wait)| { return wait; });
 }
@@ -149,7 +150,7 @@ fn notices(stage: &Stage) -> usize {
 fn a_stopped_push_is_tried_again_without_a_new_commit_and_lands() {
     let stage: Stage = stage("push-retry-stall-once");
     let git_dir: PathBuf = stage.repo.join(".git");
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let first: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
     assert_ne!(remote_tip(&stage), stage.landed, "the first push stalled and was stopped");
@@ -197,7 +198,7 @@ const SCRIPTED_PAUSE: Duration = Duration::from_millis(300);
 
 /// A directory standing for a repository,
 /// with a push item written for it.
-fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Scripted, PushRetries) {
+fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Arc<Scripted>, PushRetries) {
     let root: PathBuf = fixture(name);
     let git_dir: PathBuf = root.join("common");
     let worktree: PathBuf = root.join("worktree");
@@ -214,7 +215,7 @@ fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Scri
         tries: 0,
     };
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueue");
-    let handlers: Scripted = Scripted { verdicts: Mutex::new(verdicts), pushes: AtomicUsize::new(0) };
+    let handlers: Arc<Scripted> = Arc::new(Scripted { verdicts: Mutex::new(verdicts), pushes: AtomicUsize::new(0) });
     return (root, git_dir, handlers, PushRetries::with_first_pause(SCRIPTED_PAUSE));
 }
 
@@ -227,7 +228,7 @@ fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Scri
 #[test]
 fn a_push_that_keeps_failing_is_tried_again_with_longer_pauses_until_it_lands() {
     // The script is read from the end: two failures, then success.
-    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Scripted, PushRetries) =
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) =
         scripted_world("push-retry-grows", vec![Verdict::Done, Verdict::Retry(String::from("Could not resolve host")), Verdict::Retry(String::from("Could not resolve host"))]);
     let first: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("a retry is planned");
     // That each pause is twice the one before is controlled in `push_retry_tests.rs`. Here only the pause's own figure is asked
@@ -257,7 +258,7 @@ fn a_push_that_keeps_failing_is_tried_again_with_longer_pauses_until_it_lands() 
 /// and the person's record stays.
 #[test]
 fn a_conflict_is_not_tried_again() {
-    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Scripted, PushRetries) =
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) =
         scripted_world("push-retry-conflict", vec![Verdict::Failed(String::from("merging origin/main into main conflicts in: a.txt")), Verdict::Retry(String::from("stalled"))]);
     let first: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("a retry is planned");
     std::thread::sleep(first);
@@ -272,7 +273,7 @@ fn a_conflict_is_not_tried_again() {
 /// a push that lands needs no retry.
 #[test]
 fn a_push_that_lands_cancels_the_plan_of_its_branch() {
-    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Scripted, PushRetries) = scripted_world("push-retry-cancelled", vec![Verdict::Retry(String::from("stalled"))]);
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) = scripted_world("push-retry-cancelled", vec![Verdict::Retry(String::from("stalled"))]);
     assert!(round_of(git_dir.as_path(), &handlers, &mut retries).is_some());
     retries.forget(git_dir.as_path(), "refs/heads/main");
     assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None);
@@ -375,7 +376,7 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     let stage: Stage = stage("push-retry-restart");
     let git_dir: PathBuf = stage.repo.join(".git");
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]));
     let commits_before: String = git_text(stage.repo.as_path(), &["rev-list", "--count", "--all"]);
     let busy: AtomicUsize = AtomicUsize::new(0);
     std::thread::scope(|scope| {
@@ -447,7 +448,7 @@ fn the_wait_for_a_service_push_holds_past_five_stall_windows() {
 #[test]
 fn a_push_of_a_branch_the_person_deleted_settles_with_one_notice() {
     let (root, git_dir, work, item, gone): (PathBuf, PathBuf, PathBuf, WorkItem, String) = deleted_branch_world("push-deleted-branch", false);
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "nothing is planned for a branch that is gone");
     assert_eq!(settled_names(work.as_path()), vec![item.id()], "the push settles as done, not as a failure to retry");
@@ -472,7 +473,7 @@ fn a_push_of_a_branch_the_person_deleted_settles_with_one_notice() {
 #[test]
 fn a_push_of_a_commit_no_ref_holds_says_so() {
     let (root, git_dir, work, item, gone): (PathBuf, PathBuf, PathBuf, WorkItem, String) = deleted_branch_world("push-deleted-branch-everywhere", true);
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "nothing is planned for a branch that is gone");
     assert_eq!(settled_names(work.as_path()), vec![item.id()], "the push settles as done");
@@ -525,7 +526,7 @@ fn a_failed_push_of_a_branch_that_exists_is_not_settled_as_a_gone_branch() {
         tries: 0,
     };
     enqueue(work.as_path(), &item).expect("enqueue");
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     assert!(round_of(git_dir.as_path(), &handlers, &mut retries).is_some(), "the push is planned again, because main is still there");
     assert!(names_in(work.as_path(), crate::work_item::DONE).is_empty(), "and it is not settled as done");
@@ -566,7 +567,7 @@ fn a_notice_of_a_gone_branch_says_when_the_refs_could_not_be_read() {
         tries: 0,
     };
     enqueue(work.as_path(), &item).expect("enqueue");
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "the branch is gone, so nothing is planned");
     let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).map(|entries| { return entries.flatten().map(|entry| { return std::fs::read_to_string(entry.path()).unwrap_or_default(); }).collect::<String>(); }).unwrap_or_default();
@@ -685,7 +686,7 @@ fn point_remote_at(stage: &Stage, url: &str) {
 /// One round of the service over the stage's repository with real Git,
 /// the way the work loop runs it.
 fn round_with_real_git(stage: &Stage, retries: &mut PushRetries) -> Option<Duration> {
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
     return round_of(stage.repo.join(".git").as_path(), &handlers, retries);
 }
 
@@ -805,7 +806,7 @@ fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program()
     point_remote_at(&stage, format!("http://{}/r.git", server.address).as_str());
     let log: PathBuf = stage.root.join("askpass.log");
     let program: PathBuf = recorder(stage.root.as_path(), log.as_path());
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let wake: Option<Duration> = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries);
     assert_eq!(prompts_recorded(log.as_path()), "", "nothing asked a person for a name or a password");
@@ -841,7 +842,7 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
         format!("#!/bin/sh\nprintf '%s' \"$GIT_TERMINAL_PROMPT\" > '{}'\nasker=\"${{GIT_ASKPASS-$SSH_ASKPASS}}\"\nif [ -n \"$asker\" ]; then \"$asker\" 'Username for \"http://127.0.0.1\"' > /dev/null; fi\nexit 2\n", seen.display()).as_bytes(),
     );
     let path: String = format!("{}:/usr/bin:/bin", bin.display());
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]));
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: stage.repo.to_path_buf(),
@@ -910,7 +911,7 @@ fn a_failed_push_whose_output_names_a_url_with_a_password_leaves_it_in_no_file_t
     std::fs::remove_file(planted.as_path()).expect("the planted file goes");
     let direct = crate::test_support::git_output(stage.repo.as_path(), &["push", "origin", "main"]);
     assert!(String::from_utf8_lossy(direct.stderr.as_slice()).contains(SENTINEL_URL_USERINFO), "Git's own words carry the credentials, so the scan below is not vacuous");
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let entries = crate::service_timing::capture::entries_of(|| { let _wake = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries); });
     let record: String = notice_text(&stage);
@@ -964,7 +965,7 @@ fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
     };
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
     let mut verdict: Option<Verdict> = None;
     let entries = crate::service_timing::capture::entries_of(|| { verdict = Some(handlers.push(std::slice::from_ref(&item))); });
     assert!(matches!(verdict, Some(Verdict::Retry(_))), "{verdict:?}");
@@ -1045,7 +1046,7 @@ fn a_claim_left_by_a_killed_service_is_run_by_its_successor_with_no_wake() {
     let_pushes_through(&stage);
     let store: PathBuf = watched_by_an_earlier_service(&stage);
     let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), crate::service_work::CLAIM_LEASE - Duration::from_secs(2));
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     let busy: AtomicUsize = AtomicUsize::new(0);
     std::thread::scope(|scope| {
@@ -1070,7 +1071,7 @@ fn a_wake_writes_the_repository_down_for_the_next_service() {
     let git_dir: PathBuf = stage.repo.join(".git");
     let store: PathBuf = stage.root.join("journal").join(WATCH_DIRECTORY);
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let busy: AtomicUsize = AtomicUsize::new(0);
     assert!(ClaimWatch::restored(store.as_path(), None).directories().is_empty(), "a new journal watches nothing");
     std::thread::scope(|scope| {
@@ -1111,7 +1112,7 @@ fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
     };
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueue");
     let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), Duration::ZERO);
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     let busy: AtomicUsize = AtomicUsize::new(0);
     std::thread::scope(|scope| {
@@ -1159,7 +1160,7 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
         tries: 0,
     };
     crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: planned, attempt: 1 }).expect("the plan is kept");
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let busy: AtomicUsize = AtomicUsize::new(0);
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching_with(scope, &handlers, FAR_PLAN_PAUSE, plans.as_path(), store.as_path(), &busy);
@@ -1194,7 +1195,7 @@ fn a_note_that_could_not_be_written_is_written_after_the_fault_is_mended() {
     let git_dir: PathBuf = stage.repo.join(".git");
     let (blocker, store): (PathBuf, PathBuf) = block_the_notes(&stage);
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let busy: AtomicUsize = AtomicUsize::new(0);
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
@@ -1221,7 +1222,7 @@ fn a_store_that_could_not_be_listed_at_the_start_is_listed_again_and_its_claim_i
     let (blocker, store): (PathBuf, PathBuf) = block_the_notes(&stage);
     let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), crate::service_work::CLAIM_LEASE - Duration::from_secs(2));
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
-    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
     let busy: AtomicUsize = AtomicUsize::new(0);
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
@@ -1250,7 +1251,7 @@ fn away(from: &Path, to: &Path) {
 /// the push is not forgotten and never runs anywhere else.
 #[test]
 fn a_push_plan_whose_directory_is_away_keeps_its_doubling_pause_and_runs_nothing_until_it_is_back() {
-    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Scripted, PushRetries) =
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) =
         scripted_world("push-retry-away", vec![Verdict::Done, Verdict::Retry(String::from("Could not resolve host"))]);
     let first: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("a retry is planned");
     let aside: PathBuf = root.join("common-away");
@@ -1275,17 +1276,17 @@ fn a_push_plan_whose_directory_is_away_keeps_its_doubling_pause_and_runs_nothing
 /// and runs once the directory is back.
 #[test]
 fn a_wake_for_a_directory_that_is_away_leaves_its_work_for_the_next_command() {
-    let (root, git_dir, handlers, _retries): (PathBuf, PathBuf, Scripted, PushRetries) = scripted_world("push-retry-away-wake", vec![Verdict::Done]);
+    let (root, git_dir, handlers, _retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) = scripted_world("push-retry-away-wake", vec![Verdict::Done]);
     let aside: PathBuf = root.join("common-away");
     away(git_dir.as_path(), aside.as_path());
-    let drained: Drained = drain_planned(git_dir.as_path(), &handlers, &ClaimTime::read(), &Retrying::none());
+    let drained: Drained = drain_planned(git_dir.as_path(), handlers.as_ref(), &ClaimTime::read(), &Retrying::none());
     assert_eq!(handlers.pushes.load(Ordering::SeqCst), 0, "nothing ran while the directory was away");
     assert_eq!(drained.wait, None);
     assert!(drained.changes.is_empty());
     assert!(aside.exists(), "the directory was not recreated at its old path: {}", git_dir.exists());
     assert!(!git_dir.exists(), "no directory was made at the old path");
     away(aside.as_path(), git_dir.as_path());
-    let _wait: Drained = drain_planned(git_dir.as_path(), &handlers, &ClaimTime::read(), &Retrying::none());
+    let _wait: Drained = drain_planned(git_dir.as_path(), handlers.as_ref(), &ClaimTime::read(), &Retrying::none());
     assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "the work ran once the directory was back");
     remove(root.as_path());
 }
@@ -1309,7 +1310,7 @@ fn a_wake_for_a_directory_that_is_away_leaves_its_work_for_the_next_command() {
 fn a_stopped_push_whose_reference_landed_is_settled_by_its_retry_and_claims_nothing() {
     let stage: Stage = stage_with("push-retry-post-receive-once", "post-receive");
     let git_dir: PathBuf = stage.repo.join(".git");
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", STALL_SECONDS)]));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let first: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
     assert_eq!(remote_tip(&stage), stage.landed, "the remote wrote the reference before its hook stalled");
@@ -1351,7 +1352,7 @@ fn a_due_push_with_no_retry_plan_left_is_worded_as_one_nothing_tries_again() {
     let git_dir: PathBuf = root.join("common");
     std::fs::create_dir_all(git_dir.as_path()).expect("common directory");
     std::fs::create_dir_all(root.join("worktree").as_path()).expect("worktree directory");
-    let handlers: Scripted = Scripted { verdicts: Mutex::new(vec![Verdict::Retry(String::from("Could not resolve host"))]), pushes: AtomicUsize::new(0) };
+    let handlers: Arc<Scripted> = Arc::new(Scripted { verdicts: Mutex::new(vec![Verdict::Retry(String::from("Could not resolve host"))]), pushes: AtomicUsize::new(0) });
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: root.join("worktree"),
@@ -1365,7 +1366,7 @@ fn a_due_push_with_no_retry_plan_left_is_worded_as_one_nothing_tries_again() {
     let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
     // A round that keeps no plan: no first pause, and this push due again.
     let round: Retrying = Retrying { first: None, due: vec![due], plans: None };
-    let drained: Drained = drain_planned_with(git_dir.as_path(), &handlers, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
+    let drained: Drained = drain_planned_with(git_dir.as_path(), handlers.as_ref(), &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
     assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "the due push ran");
     assert!(
         drained.changes.iter().any(|change| { return matches!(change, RetryChange::Forget { .. }); }),
@@ -1399,7 +1400,7 @@ fn a_due_push_with_a_kept_plan_is_worded_as_one_the_service_keeps_trying() {
     let git_dir: PathBuf = root.join("common");
     std::fs::create_dir_all(git_dir.as_path()).expect("common directory");
     std::fs::create_dir_all(root.join("worktree").as_path()).expect("worktree directory");
-    let handlers: Scripted = Scripted { verdicts: Mutex::new(vec![Verdict::Retry(String::from("Could not resolve host"))]), pushes: AtomicUsize::new(0) };
+    let handlers: Arc<Scripted> = Arc::new(Scripted { verdicts: Mutex::new(vec![Verdict::Retry(String::from("Could not resolve host"))]), pushes: AtomicUsize::new(0) });
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: root.join("worktree"),
@@ -1413,7 +1414,7 @@ fn a_due_push_with_a_kept_plan_is_worded_as_one_the_service_keeps_trying() {
     let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
     // A round that keeps a plan: this push due again, and the first pause to plan the next try with.
     let round: Retrying = Retrying { first: Some(PAUSE), due: vec![due], plans: None };
-    let drained: Drained = drain_planned_with(git_dir.as_path(), &handlers, &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
+    let drained: Drained = drain_planned_with(git_dir.as_path(), handlers.as_ref(), &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
     assert!(
         drained.changes.iter().any(|change| { return matches!(change, RetryChange::Plan { .. }); }),
         "a new try was planned"
@@ -1473,7 +1474,7 @@ fn the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers() {
     std::fs::create_dir_all(root.as_path()).expect("the fixture's folder");
     let (thread_repo, thread_remote, thread_landed) = repository_with_a_landed_commit(root.as_path(), "thread");
     let (task_repo, task_remote, task_landed) = repository_with_a_landed_commit(root.as_path(), "task");
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
     let from_a_thread: Verdict = handlers.push(std::slice::from_ref(&push_item(thread_repo.as_path(), thread_landed.as_str())));
     let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(
         handlers.push_awaiting(std::slice::from_ref(&push_item(task_repo.as_path(), task_landed.as_str()))),
@@ -1492,7 +1493,7 @@ fn the_awaited_maintenance_of_the_handlers_answers_what_the_synchronous_one_answ
     std::fs::create_dir_all(root.as_path()).expect("the fixture's folder");
     let (thread_repo, _thread_remote, thread_landed) = repository_with_a_landed_commit(root.as_path(), "thread");
     let (task_repo, _task_remote, task_landed) = repository_with_a_landed_commit(root.as_path(), "task");
-    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT);
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
     let from_a_thread: Verdict = handlers.maintenance(&push_item(thread_repo.as_path(), thread_landed.as_str()));
     let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(
         handlers.maintenance_awaiting(&push_item(task_repo.as_path(), task_landed.as_str())),

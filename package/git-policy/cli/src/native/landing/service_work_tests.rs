@@ -1226,3 +1226,72 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
     assert_eq!(state_names(common.as_path(), DONE).len(), HANDED_OVER.len(), "the push and the upkeep ran");
     remove(root.as_path());
 }
+
+/// A repository with the tracked shadow log in place and one commit for a review to read,
+/// with the `review` work item of that commit.
+fn a_repository_to_review(parent: &Path, name: &str) -> (PathBuf, PathBuf, WorkItem) {
+    use crate::standards_review_input::TRACKED_LOG_RELATIVE;
+    use crate::test_support::{git, git_text, repository};
+    let root: PathBuf = repository(parent, name);
+    let log: PathBuf = root.join(TRACKED_LOG_RELATIVE);
+    std::fs::create_dir_all(log.parent().expect("parent")).expect("directories");
+    std::fs::write(log.as_path(), "# Log\n").expect("log");
+    std::fs::create_dir_all(root.join("src")).expect("source directory");
+    std::fs::write(root.join("src/a.ts"), format!("export const a = '{name}'\n").as_str()).expect("code");
+    git(root.as_path(), &["add", "--", TRACKED_LOG_RELATIVE, "src/a.ts"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=feat(a): add a"]);
+    let git_dir: PathBuf = root.join(".git");
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Review,
+        repository: root.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: BRANCH.to_string(),
+        oid: git_text(root.as_path(), &["rev-parse", "HEAD"]),
+        parent: String::new(),
+        created: String::from("2026-01-01T00:00:00.000Z"),
+        tries: 0,
+    };
+    return (root, git_dir, item);
+}
+
+/// The handlers' review answers the same verdict whether a task or a plain thread asks it,
+/// and each writes its own repository's entry.
+/// The awaited face is the one a round of tasks may ask:
+/// the synchronous one waits for its contained job on the
+///  caller's thread.
+#[test]
+fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers() {
+    use crate::standards_review_input::shared_log_path;
+    use crate::standards_review_mock::{Answer, Mock, http_reply};
+    use crate::test_support::{git_context, repository as repository_at};
+    const ANSWER: &str = r#"{"answers":[{"choice":"no","probabilities":[{"value":"no","probability":1}]}]}"#;
+    let root: PathBuf = fixture("handlers-awaiting-review");
+    std::fs::create_dir_all(root.as_path()).expect("the fixture's folder");
+    let (thread_root, _thread_common, thread_item) = a_repository_to_review(root.as_path(), "thread");
+    let (task_root, _task_common, task_item) = a_repository_to_review(root.as_path(), "task");
+    let thread_mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
+    let task_mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
+    // The credential a wake brings is held for the round, as the service holds it: without one the review records that it
+    //  had no key and asks nothing.
+    let key = |item: &WorkItem| -> std::collections::HashMap<PathBuf, ReviewKey> { return std::collections::HashMap::from([(item.git_dir.clone(), ReviewKey::new("test-key-not-a-secret").expect("a key"))]); };
+    let thread_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint(thread_mock.url.as_str()).for_round(key(&thread_item));
+    let task_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint(task_mock.url.as_str()).for_round(key(&task_item));
+    let from_a_thread: Verdict = thread_handlers.review(&thread_item);
+    let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(task_handlers.review_awaiting(&task_item));
+    thread_mock.finish();
+    task_mock.finish();
+    assert_eq!(from_a_thread, Verdict::Done, "the review of a plain thread answers");
+    assert_eq!(from_a_task, from_a_thread, "the two faces answer one review the same way");
+    for (name, root_of) in [("thread", &thread_root), ("task", &task_root)] {
+        let written: String = std::fs::read_to_string(shared_log_path(root_of.join(".git").as_path())).expect("the live log");
+        assert!(written.contains("cost_verdict: no"), "the review of {name} wrote its entry: {written}");
+    }
+    // The positive control of the two faces: the review of a repository with no shadow log answers Done and reads nothing,
+    //  whichever face asks it.
+    let plain: PathBuf = repository_at(root.as_path(), "plain");
+    let plain_item: WorkItem = WorkItem { kind: WorkKind::Review, repository: plain.clone(), git_dir: plain.join(".git"), ..task_item.clone() };
+    let plain_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint("http://127.0.0.1:9");
+    assert_eq!(crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)), Verdict::Done, "no shadow log means no review");
+    assert_eq!(plain_handlers.review(&plain_item), Verdict::Done, "the synchronous face answers the same");
+    remove(root.as_path());
+}
