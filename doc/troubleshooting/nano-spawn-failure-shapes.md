@@ -6,14 +6,16 @@ A caller that forwards a child's captured output and status must decide what a
 caught spawn value is.
 Two outcomes look alike and are not:
 
-- a command that ran and failed, which reports `exitCode` or `signalName`
+- a command that ran and failed,
+  which reports `exitCode` or `signalName`
   plus the captured streams;
-- a command that never started, which reports neither a status nor a signal,
+- a command that never started,
+  which reports neither a status nor a signal,
   so a caller that renders only those three fields prints nothing at all while
   the failure is real.
 
-`task-depends` shows the second case as silence, run against a source file the
-output never catches up with:
+`task-depends` shows the second case as silence,
+run against a source file whose output check always reports staleness:
 
 ```text
 $ task-depends -s 'src.txt' -o 'sh:echo -Infinity' -- no-such-command-for-the-probe-8f3a
@@ -21,9 +23,12 @@ $ echo $?
 1
 ```
 
-Nothing is printed, on either stream, and the process still exits 1.
+Nothing is printed,
+on either stream,
+and the process still exits 1.
 
-A timed-out child is a third case, one layer up:
+A timed-out child is a third case,
+one layer up:
 `package/monorepo-task/core-exec/src/depends-bounded-wait.ts` wraps the
 subprocess error in `BoundedWaitTimeoutError.cause`,
 so a caller that reads the thrown value's own fields sees no captured output
@@ -40,11 +45,14 @@ whose instance is always a `SubprocessError`
 
 - a non-zero status or an ending signal throws a `SubprocessError` directly
   ([`source/result.js:34-42`][nano-result-failure]);
-- a start failure, a stream error, or any other rejection is wrapped in one
+- a start failure,
+  a stream error,
+  or any other rejection is wrapped in one
   ([`source/spawn.js:32`][nano-spawn-start],
   [`source/result.js:19-22`][nano-result-catch]).
 
-So a caller never catches a primitive, and never catches a bare Node error.
+So a caller never catches a primitive,
+and never catches a bare Node error.
 It also never catches anything else that carries a subprocess shape.
 
 ### A failed start has no status to report
@@ -60,12 +68,20 @@ const getErrorOutput = ({exitCode, signalCode}) => ({
 });
 ```
 
-A child that never started has `exitCode` undefined, so the key is dropped,
-and `signalCode` null, so the signal key is dropped too.
-What is left is `message` (`Command failed: <command>`), `cause` (the `ENOENT`
-error), empty `stdout`/`stderr`, and `isCanceled`.
-A consumer that reads only `exitCode`, `signalName`, `stdout` and `stderr`
-therefore has nothing to show, and the failure text sits in fields it never
+A child that never started has `exitCode` undefined,
+so the key is dropped,
+and `signalCode` null,
+so the signal key is dropped too.
+What is left is `message` (`Command failed: <command>`),
+`cause` (the `ENOENT`
+error),
+empty `stdout`/`stderr`,
+and `isCanceled`.
+A consumer that reads only `exitCode`,
+`signalName`,
+`stdout` and `stderr`
+therefore has nothing to show,
+and the failure text sits in fields it never
 prints.
 
 ### The bound keeps the subprocess error one level down
@@ -80,17 +96,22 @@ throw new BoundedWaitTimeoutError({
 },);
 ```
 
-`BoundedWaitTimeoutError` declares only `timeoutMs`, so the captured output the
+`BoundedWaitTimeoutError` declares only `timeoutMs`,
+so the captured output the
 subprocess error holds is not on the value a caller catches.
 
 ## Verification
 
-Environment: nano-spawn 2.1.0 (catalog range `>=2.1.0` in
-`pnpm-workspace.yaml`), Node 26.13.0, Linux x86_64.
+Environment:
+nano-spawn 2.1.0 (catalog range `>=2.1.0` in
+`pnpm-workspace.yaml`),
+Node 26.13.0,
+Linux x86_64.
 
 The probe imports
 `package/monorepo-task/core-exec/src/depends-exec.ts` directly and runs real
-children through `executeWithCollapsedOutput`, capturing both process streams
+children through `executeWithCollapsedOutput`,
+capturing both process streams
 and `process.exitCode`:
 
 ```json
@@ -102,51 +123,78 @@ and `process.exitCode`:
 {"case":"timeout after output","exitCode":1,"stdout":[],"stderr":["[task-depends] timed out …"]}
 ```
 
-The last two cases are the point: the signal-ended child is reported, and the
+The last two cases are the point:
+the signal-ended child is reported,
+and the
 child that printed before its bound ended has its text dropped rather than
 dumped.
 
 `package/monorepo-task/core-exec/src/depends-exec.unit.test.ts` now pins the
-reachable branches: success discards output, a failed child dumps it and keeps
-its status, `allowFailure` leaves the status alone, a failed start and a bound
-both end the process as failed, and a signal is named.
-The timeout line's note names the flag; its status is the failed-start status,
+reachable branches:
+success discards output,
+a failed child dumps it and keeps
+its status,
+`allowFailure` leaves the status alone,
+a failed start and a bound
+both end the process as failed,
+and a signal is named.
+The timeout line's note names the flag;
+its status is the failed-start status,
 because the bound's error carries no subprocess status of its own.
 
 ## Verified workarounds
 
-Read the failure through a guard, not through a cast of the caught value.
+Read the failure through a guard,
+not through a cast of the caught value.
 `package/monorepo-task/core-exec/src/tool-failure.ts` already supplies one:
 `isCapturedSubprocessFailure` accepts a value that carries a numeric
-`exitCode` or a string `signalName`, and refuses a failed start.
+`exitCode` or a string `signalName`,
+and refuses a failed start.
 `depends-exec.ts` uses it to dump output when there is any and to end the
 process as failed when there is not.
 
-To report a failed start, read what the start failure does carry: `message` for
-the command line, or `cause.code` (`ENOENT`, `EACCES`) for the reason.
-`task-depends` does not, so it stays silent; that is a diagnostic gap with
-today's behaviour, not an unreachable branch.
+To report a failed start,
+read what the start failure does carry:
+`message` for
+the command line,
+or `cause.code` (`ENOENT`,
+`EACCES`) for the reason.
+`task-depends` does not,
+so it stays silent;
+that is a diagnostic gap with
+today's behaviour,
+not an unreachable branch.
 
-To keep a timed-out child's captured output, unwrap the bound's `cause` before
+To keep a timed-out child's captured output,
+unwrap the bound's `cause` before
 reading the streams.
 
 ## What does not work
 
 - Guarding on `error !== null && typeof error === 'object'` and printing a
-  fallback message in the else: the else never runs, because every rejection is
+  fallback message in the else:
+  the else never runs,
+  because every rejection is
   the object above.
-- Reading `message` alone for a failed start: it names the command line without
+- Reading `message` alone for a failed start:
+  it names the command line without
   saying the executable was missing.
-- Relying on the catalog range for this shape: the wrapping is a documented
-  implementation detail, not a contract, so re-run the probe when the resolved
+- Relying on the catalog range for this shape:
+  the wrapping is a documented
+  implementation detail,
+  not a contract,
+  so re-run the probe when the resolved
   version changes.
 
 ## Upstream filing decision
 
 Nothing to file.
-The wrapper is deliberate: one error class for callers, with the original error
+The wrapper is deliberate:
+one error class for callers,
+with the original error
 in `cause`.
-The missing diagnostic is the consumer's, and this repository's consumer now
+The missing diagnostic is the consumer's,
+and this repository's consumer now
 handles the failed start instead of assuming it arrives with a status.
 
 [nano-result-catch]: https://github.com/sindresorhus/nano-spawn/blob/cc231e2/source/result.js#L19-L22
