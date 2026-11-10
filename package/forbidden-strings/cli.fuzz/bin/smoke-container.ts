@@ -316,4 +316,8 @@ const fixture = await snapshot({
  */
 await using removal = removalOf(fixture.context);
 void removal;
-await (clippy ? clippyRun(fixture) : fuzzRun(fixture));
+/**
+ The fuzzer or Clippy run, whichever the mode selects.
+ */
+const chosenRun = clippy ? clippyRun : fuzzRun;
+await chosenRun(fixture,);
