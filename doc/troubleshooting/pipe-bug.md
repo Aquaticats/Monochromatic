@@ -34,35 +34,35 @@ on the eval command.
 
 ### What happens step by step
 
-1. The outer eval receives arguments:
-    `source $SNAPSHOT && ... && eval "$USER_CMD"`,
-    `<`,
-    `/dev/null`,
-    `&&`,
-    `pwd -P`,
-    `>|`,
-    `/tmp/cwd-XXX`
-2. The `<` and `/dev/null` are literal string arguments,
-    not a redirect on the outer eval
-3. The inner `eval` builtin receives three arguments:
-    `$USER_CMD`,
-    `<`,
-    `/dev/null`
-4. `eval` joins its arguments with spaces:
-    `$USER_CMD < /dev/null`
-5. When `$USER_CMD` is `echo hello | cat`,
-    this becomes:
-    `echo hello | cat < /dev/null`
-6. `< /dev/null` is parsed as a redirect on `cat` (the last simple command in the pipeline)
+1.  The outer eval receives arguments:
+     `source $SNAPSHOT && ... && eval "$USER_CMD"`,
+     `<`,
+     `/dev/null`,
+     `&&`,
+     `pwd -P`,
+     `>|`,
+     `/tmp/cwd-XXX`
+2.  The `<` and `/dev/null` are literal string arguments,
+     not a redirect on the outer eval
+3.  The inner `eval` builtin receives three arguments:
+     `$USER_CMD`,
+     `<`,
+     `/dev/null`
+4.  `eval` joins its arguments with spaces:
+     `$USER_CMD < /dev/null`
+5.  When `$USER_CMD` is `echo hello | cat`,
+     this becomes:
+     `echo hello | cat < /dev/null`
+6.  `< /dev/null` is parsed as a redirect on `cat` (the last simple command in the pipeline)
 
 In `execute_disk_command()` (execute_cmd.
 c:
 5770),
  the child process for `cat`:
 
-1. `do_piping()` at line 5870 correctly sets fd 0 to the pipe read end via `dup2(pipe_in, 0)`
-2. `do_redirections()` at line 5884 applies the `< /dev/null` redirect,
-    overwriting fd 0 with `/dev/null`
+1.  `do_piping()` at line 5870 correctly sets fd 0 to the pipe read end via `dup2(pipe_in, 0)`
+2.  `do_redirections()` at line 5884 applies the `< /dev/null` redirect,
+     overwriting fd 0 with `/dev/null`
 
 The pipe data from `echo hello` arrives at the pipe write end,
  but `cat` reads from `/dev/null` and gets EOF immediately.
@@ -238,19 +238,19 @@ a redirect on `cat` (the rightmost simple command in the pipeline).
 
 Two bugs to fix:
 
-1. **`oAD` shell-quotes `<` as a literal argument** instead of emitting it as
-   a redirect operator.
-    The heredoc/multiline branch already does this correctly
-   (`${L} < /dev/null` with unquoted `<`).
-    The normal branch should do the same:
-   `return ID([H]) + " < /dev/null"` (like `odH` does).
+1.  **`oAD` shell-quotes `<` as a literal argument** instead of emitting it as
+    a redirect operator.
+     The heredoc/multiline branch already does this correctly
+    (`${L} < /dev/null` with unquoted `<`).
+     The normal branch should do the same:
+    `return ID([H]) + " < /dev/null"` (like `odH` does).
 
-2. **`HLD` is gated on `!q.useSandbox`**,
-    so the pipe-aware redirect insertion
-   never runs inside the sandbox.
-    Remove the `!q.useSandbox` condition,
-    or fix
-   `oAD` so that the redirect doesn't interfere with pipes regardless.
+2.  **`HLD` is gated on `!q.useSandbox`**,
+     so the pipe-aware redirect insertion
+    never runs inside the sandbox.
+     Remove the `!q.useSandbox` condition,
+     or fix
+    `oAD` so that the redirect doesn't interfere with pipes regardless.
 
 The purpose of `< /dev/null` is to prevent user commands from reading Claude Code's
 IPC socket (which is the shell's stdin).

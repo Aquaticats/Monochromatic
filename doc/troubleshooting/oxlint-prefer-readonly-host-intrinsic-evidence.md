@@ -176,34 +176,34 @@ Imported and global callable application honors the same exact call-arity guards
 without that guard,
 `spawn(command, args, options)` incorrectly inherited the two-argument options effect for `args`.
 
-1. TypeScript 7 resolves exact declaration provenance,
-   owner,
-   and member.
-2. `IntrinsicEffectEntry.authority` records pinned standard source plus algorithm or exact Node source plus
-   callable-definition identity.
-3. Catalog targets and whole entries can require semantic argument-type conditions;
-   unknown,
-   union,
-   or mismatched types fail closed rather than inheriting another overload's effects.
-4. `intrinsicEffect()` rejects every non-package entry without available authority.
-5. Node entries additionally gate on declaration major,
-   runtime version,
-   source module,
-   and source digest.
-6. Callback invocation remains separate from referent effects.
-   For example,
-   `setTimeout` records handler invocation and an unresolved relation to forwarded arguments;
-   it does not claim those arguments are proven mutated.
-7. Retention,
-   option inspection,
-   and host-maintained dependency relations use opaque targets rather than referent mutation.
-   `AbortController.abort(reason)`,
-   `AbortSignal.any(signals)`,
-   and EventTarget listener registration therefore require uncertainty documentation without claiming direct mutation.
-8. Unlisted,
-   native,
-   dynamic,
-   or unsupported host calls retain uncertainty and require complete `@mutates` documentation.
+1.  TypeScript 7 resolves exact declaration provenance,
+    owner,
+    and member.
+2.  `IntrinsicEffectEntry.authority` records pinned standard source plus algorithm or exact Node source plus
+    callable-definition identity.
+3.  Catalog targets and whole entries can require semantic argument-type conditions;
+    unknown,
+    union,
+    or mismatched types fail closed rather than inheriting another overload's effects.
+4.  `intrinsicEffect()` rejects every non-package entry without available authority.
+5.  Node entries additionally gate on declaration major,
+    runtime version,
+    source module,
+    and source digest.
+6.  Callback invocation remains separate from referent effects.
+    For example,
+    `setTimeout` records handler invocation and an unresolved relation to forwarded arguments;
+    it does not claim those arguments are proven mutated.
+7.  Retention,
+    option inspection,
+    and host-maintained dependency relations use opaque targets rather than referent mutation.
+    `AbortController.abort(reason)`,
+    `AbortSignal.any(signals)`,
+    and EventTarget listener registration therefore require uncertainty documentation without claiming direct mutation.
+8.  Unlisted,
+    native,
+    dynamic,
+    or unsupported host calls retain uncertainty and require complete `@mutates` documentation.
 
 This is intentionally demand-driven at lookup time.
 The repository does not generate a complete catalog of every host API.

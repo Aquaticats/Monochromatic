@@ -460,69 +460,69 @@ their architecture.
 
 Walking the five constraints against the morph-compact hook design:
 
-1. **Is it really upstream's fault?
-   ** Yes.
-    The hook unconditionally
-   runs `npm install` on every `SessionStart` and `PreCompact` event.
-   `session-start.js` imports only Node built-ins and `./lib/state.js`
-   (which also only uses built-ins).
-    The install on `SessionStart`
-   does no useful work.
-    The install on `PreCompact` is needed only
-   once per plugin install,
-    not per event.
+1.  **Is it really upstream's fault?
+    ** Yes.
+     The hook unconditionally
+    runs `npm install` on every `SessionStart` and `PreCompact` event.
+    `session-start.js` imports only Node built-ins and `./lib/state.js`
+    (which also only uses built-ins).
+     The install on `SessionStart`
+    does no useful work.
+     The install on `PreCompact` is needed only
+    once per plugin install,
+     not per event.
 
-2. **Can upstream fix it?
-   ** Yes;
-    a 2-line edit to `hooks/hooks.json`.
-   See the patch in "Suggested fix" below.
-    No code-level changes
-   required.
+2.  **Can upstream fix it?
+    ** Yes;
+     a 2-line edit to `hooks/hooks.json`.
+    See the patch in "Suggested fix" below.
+     No code-level changes
+    required.
 
-3. **Are they supporting this use case?
-   ** Yes.
-    The plugin's stated
-   value proposition is "Intercepts Claude Code's context compaction
-   and replaces it with Morph's compaction service"
-   (`.claude-plugin/plugin.json` description).
-    Claude Code SessionStart
-   hooks are explicitly an extension point Claude Code documents.
-    The
-   plugin is actively maintained:
-    latest commit `06f96f0`
-   ("chore:
-    bump version to 0.2.8") landed this month;
-    PRs merged
-   include refactors from TypeScript to plain JS (`a62ce8d`) and from
-   bun to node (`f4e9daf`),
-    both during 2026-Q2.
+3.  **Are they supporting this use case?
+    ** Yes.
+     The plugin's stated
+    value proposition is "Intercepts Claude Code's context compaction
+    and replaces it with Morph's compaction service"
+    (`.claude-plugin/plugin.json` description).
+     Claude Code SessionStart
+    hooks are explicitly an extension point Claude Code documents.
+     The
+    plugin is actively maintained:
+     latest commit `06f96f0`
+    ("chore:
+     bump version to 0.2.8") landed this month;
+     PRs merged
+    include refactors from TypeScript to plain JS (`a62ce8d`) and from
+    bun to node (`f4e9daf`),
+     both during 2026-Q2.
 
-4. **Will they likely fix it?
-   ** Plausibly.
-    Project velocity is healthy
-   (eight version bumps from 0.2.0 to 0.2.8 in two months,
-    multiple PRs
-   merged) and the fix is a 2-line gate.
-    Risk:
-    maintainers may push
-   back on the gate semantics ("what if the lockfile changes mid-
-   session?
-   "),
-    but the cache-per-version directory layout means a
-   version bump already invalidates the gate via fresh
-   `${CLAUDE_PLUGIN_ROOT}`.
+4.  **Will they likely fix it?
+    ** Plausibly.
+     Project velocity is healthy
+    (eight version bumps from 0.2.0 to 0.2.8 in two months,
+     multiple PRs
+    merged) and the fix is a 2-line gate.
+     Risk:
+     maintainers may push
+    back on the gate semantics ("what if the lockfile changes mid-
+    session?
+    "),
+     but the cache-per-version directory layout means a
+    version bump already invalidates the gate via fresh
+    `${CLAUDE_PLUGIN_ROOT}`.
 
-5. **Have we prototyped a minimal fix?
-   ** Yes.
-    Cloned upstream HEAD
-   `06f96f0` into a fresh `mktemp -d`,
-    applied the patch below,
-   verified `session-start.js` runs without `node_modules` (cold:
-   38 ms),
-    verified `PreCompact` still installs on first run with no
-   `node_modules` (1.36 s) and skips the install on subsequent runs
-   (0.16 s).
-    The full diff is reproduced below.
+5.  **Have we prototyped a minimal fix?
+    ** Yes.
+     Cloned upstream HEAD
+    `06f96f0` into a fresh `mktemp -d`,
+     applied the patch below,
+    verified `session-start.js` runs without `node_modules` (cold:
+    38 ms),
+     verified `PreCompact` still installs on first run with no
+    `node_modules` (1.36 s) and skips the install on subsequent runs
+    (0.16 s).
+     The full diff is reproduced below.
 
 All five constraints hold.
  The draft below is fileable;
@@ -711,30 +711,30 @@ index d2fcc24..352e61b 100644
 
 ## Why we do not file the npm half upstream
 
-1. **Is it really upstream's fault?
-   ** Yes,
-    npm's relative-symlink
-   resolution under `--prefix` is the proximate cause.
-2. **Can upstream fix it?
-   ** Probably.
-    The fix is to call `realpath` on
-   the prefix before computing relative `node_modules/<pkg>` paths.
-3. **Are they supporting this use case?
-   ** No documented signal that
-   `--prefix` is expected to work cleanly through relative symlinks.
-   OSTree's relative `/home -> var/home` is unusual;
-    most distros use
-   a real directory.
-4. **Will they likely fix it?
-   ** Unknown.
-    npm has a large surface and a
-   complex backlog.
-    Not investigated here.
-5. **Have we prototyped a minimal fix?
-   ** No. Patching npm's
-   path-resolution involves the package-arborist core;
-    out of scope
-   for a Claude Code troubleshooting doc.
+1.  **Is it really upstream's fault?
+    ** Yes,
+     npm's relative-symlink
+    resolution under `--prefix` is the proximate cause.
+2.  **Can upstream fix it?
+    ** Probably.
+     The fix is to call `realpath` on
+    the prefix before computing relative `node_modules/<pkg>` paths.
+3.  **Are they supporting this use case?
+    ** No documented signal that
+    `--prefix` is expected to work cleanly through relative symlinks.
+    OSTree's relative `/home -> var/home` is unusual;
+     most distros use
+    a real directory.
+4.  **Will they likely fix it?
+    ** Unknown.
+     npm has a large surface and a
+    complex backlog.
+     Not investigated here.
+5.  **Have we prototyped a minimal fix?
+    ** No. Patching npm's
+    path-resolution involves the package-arborist core;
+     out of scope
+    for a Claude Code troubleshooting doc.
 
 We fail constraints 3,
  4,

@@ -36,14 +36,14 @@ The rules below are read from `setup.c` in `git/git` at tag `v2.56.0`
 From the working directory upward,
 per directory:
 
-1. A `.git` **file**:
-   read it and stop if it names a valid Git directory.
-2. A `.git` **directory**:
-   use it when it is a Git directory,
-   else keep
-   walking upward.
-3. A directory that is itself a bare Git directory:
-   Git stops there too.
+1.  A `.git` **file**:
+    read it and stop if it names a valid Git directory.
+2.  A `.git` **directory**:
+    use it when it is a Git directory,
+    else keep
+    walking upward.
+3.  A directory that is itself a bare Git directory:
+    Git stops there too.
 
 ### Reading a `.git` file
 

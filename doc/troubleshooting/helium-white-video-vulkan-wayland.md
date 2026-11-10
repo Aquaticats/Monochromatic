@@ -582,43 +582,43 @@ Two Helium reports are related but not duplicates:
 No matching Chromium report was found.
 The six filing constraints are:
 
-1. **Is it really upstream's fault?**
-   No for a reportable default-path defect.
-   The failure requires forcing a feature that Chromium itself declares incompatible with Wayland.
-2. **Can upstream fix it?**
-   Yes technically.
-   Chromium could reject browser-wide Vulkan on Wayland or add the missing backing compatibility,
-   but this does not overcome the unsupported-use-case result.
-3. **Are they supporting this use case?**
-   No.
-   Chromium's source emits the incompatibility warning,
-   refuses Graphite on Linux,
-   and blocklists interop on this AMD device unless forced.
-4. **Would the repo welcome the contribution?**
-   Chromium permits AI-assisted work when the human understands it and personally answers human feedback under its
-   [AI coding policy][chromium-ai-policy].
-   Helium's `CONTRIBUTING.md:17-20` directs Linux issues to `helium-linux`
-   and prohibits AI-generated issue or pull-request descriptions:
+1.  **Is it really upstream's fault?**
+    No for a reportable default-path defect.
+    The failure requires forcing a feature that Chromium itself declares incompatible with Wayland.
+2.  **Can upstream fix it?**
+    Yes technically.
+    Chromium could reject browser-wide Vulkan on Wayland or add the missing backing compatibility,
+    but this does not overcome the unsupported-use-case result.
+3.  **Are they supporting this use case?**
+    No.
+    Chromium's source emits the incompatibility warning,
+    refuses Graphite on Linux,
+    and blocklists interop on this AMD device unless forced.
+4.  **Would the repo welcome the contribution?**
+    Chromium permits AI-assisted work when the human understands it and personally answers human feedback under its
+    [AI coding policy][chromium-ai-policy].
+    Helium's `CONTRIBUTING.md:17-20` directs Linux issues to `helium-linux`
+    and prohibits AI-generated issue or pull-request descriptions:
 
-   ```md
-   - For platform-specific issues or features, open the issue or PR in the
-     related platform repository instead of this one.
-   - Do not use AI to generate issue or PR descriptions. You will get banned
-     for spam without review. We want contributions from people, not bots.
-   ```
+    ```md
+    - For platform-specific issues or features, open the issue or PR in the
+      related platform repository instead of this one.
+    - Do not use AI to generate issue or PR descriptions. You will get banned
+      for spam without review. We want contributions from people, not bots.
+    ```
 
-   This constraint therefore fails for posting this generated draft to Helium.
-5. **Will they likely fix it?**
-   No supporting signal was found for browser-wide Vulkan on Wayland.
-   The explicit incompatibility and safety guards point away from supporting this forced combination.
-6. **Have we prototyped a minimal architectural fix?**
-   No.
-   Constraints 1,
-   3,
-   and 5 fail for Chromium,
-   while constraint 4 also fails for Helium.
-   The automatic prototype requirement therefore does not apply.
-   The configuration workaround solves the user-facing problem without changing upstream source.
+    This constraint therefore fails for posting this generated draft to Helium.
+5.  **Will they likely fix it?**
+    No supporting signal was found for browser-wide Vulkan on Wayland.
+    The explicit incompatibility and safety guards point away from supporting this forced combination.
+6.  **Have we prototyped a minimal architectural fix?**
+    No.
+    Constraints 1,
+    3,
+    and 5 fail for Chromium,
+    while constraint 4 also fails for Helium.
+    The automatic prototype requirement therefore does not apply.
+    The configuration workaround solves the user-facing problem without changing upstream source.
 
 The result is **do not file upstream** unless the white surface later reproduces
 with **Vulkan** at **Default** in a clean profile.

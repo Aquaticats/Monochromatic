@@ -63,11 +63,11 @@ error log for the failed fetch.
 Affected pattern:
  any module that
 
-1. Is statically imported (directly or transitively) into a
-   client-side entry point.
-2. Contains dynamic `import('node:...')` calls,
-    even inside
-   try/catch.
+1.  Is statically imported (directly or transitively) into a
+    client-side entry point.
+2.  Contains dynamic `import('node:...')` calls,
+     even inside
+    try/catch.
 
 The module-es logger file sink (`t sink/t file`) was the first
 instance.
@@ -196,28 +196,28 @@ browser targets:
 
 ## Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. tsdown is correctly
-   preserving the dynamic import the source asked for.
-    Browsers are
-   correctly refusing to fetch the `node:` scheme.
-    Neither side
-   misbehaves.
-2. **Can upstream fix it?
-   ** They could heuristically warn when a
-   client-target bundle contains `import('node:...')`,
-    but the
-   warning would have to permit legitimate cases (server bundles,
-   isomorphic libraries) and the heuristic is noisy.
-3. **Are they supporting this use case?
-   ** Both tsdown and the
-   browser are doing what they are configured to do.
-    The "support"
-   here is the documentation that explains the constraint.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** No. tsdown is correctly
+    preserving the dynamic import the source asked for.
+     Browsers are
+    correctly refusing to fetch the `node:` scheme.
+     Neither side
+    misbehaves.
+2.  **Can upstream fix it?
+    ** They could heuristically warn when a
+    client-target bundle contains `import('node:...')`,
+     but the
+    warning would have to permit legitimate cases (server bundles,
+    isomorphic libraries) and the heuristic is noisy.
+3.  **Are they supporting this use case?
+    ** Both tsdown and the
+    browser are doing what they are configured to do.
+     The "support"
+    here is the documentation that explains the constraint.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.

@@ -498,32 +498,32 @@ The GUI can still be launched manually.
 
 ### The 6-constraint check
 
-1. Is it upstream's fault?
-   No. The kernel documents the per-client contract and the
-   non-double-accounting requirement in [drm-usage-stats-rst];
-   the failure is in
-   consumers that aggregate per fd.
-2. Can upstream fix it?
-   Not applicable:
-   nothing in the interface is broken.
-   An aggregate
-   key or client-name enforcement would be an extension,
-   not a fix.
-3. Are they supporting this use case?
-   Yes:
-   the doc states the output exists to enable
-   "top(1) like userspace monitoring tools".
-4. Would the repo welcome our contribution?
-   Not evaluated:
-   nothing is being filed.
-5. Will they likely fix it?
-   Not evaluated:
-   nothing is being filed.
-6. Minimal fix prototype?
-   None:
-   the corrected aggregation lives in consumer code
-   (the harness above),
-   which is where the bug is.
+1.  Is it upstream's fault?
+    No. The kernel documents the per-client contract and the
+    non-double-accounting requirement in [drm-usage-stats-rst];
+    the failure is in
+    consumers that aggregate per fd.
+2.  Can upstream fix it?
+    Not applicable:
+    nothing in the interface is broken.
+    An aggregate
+    key or client-name enforcement would be an extension,
+    not a fix.
+3.  Are they supporting this use case?
+    Yes:
+    the doc states the output exists to enable
+    "top(1) like userspace monitoring tools".
+4.  Would the repo welcome our contribution?
+    Not evaluated:
+    nothing is being filed.
+5.  Will they likely fix it?
+    Not evaluated:
+    nothing is being filed.
+6.  Minimal fix prototype?
+    None:
+    the corrected aggregation lives in consumer code
+    (the harness above),
+    which is where the bug is.
 
 Outcome:
 nothing to add upstream.

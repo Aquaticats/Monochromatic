@@ -16,19 +16,19 @@ session.v4.jsonl.zstd) (gateway/internal)
 
 Trigger patterns and their variants:
 
-1. Any stored `session.v4.jsonl.zstd` containing an event whose `type` is outside the
-   released vocabulary `KNOWN_SESSION_EVENT_TYPES` and whose envelope lacks `ignorable: true`.
-   The refusal names the first offending event by type and seq and quotes the raw-log path.
-   Concretely,
-   this repo's `@monochromatic-dev/dsh-plugin-advisor` wrote one `advisor/operation` event
-   for every FAILED Advisor operation,
-   so one failed review sealed its whole session.
-2. A different variant,
-   not covered here,
-   is the corruption refusal
-   `stored session "..." failed validation: Error: session event "user/message" sourceEventSeqs
-   must densely contain non-negative safe integers`.
-   See "Adjacent refusals not covered here".
+1.  Any stored `session.v4.jsonl.zstd` containing an event whose `type` is outside the
+    released vocabulary `KNOWN_SESSION_EVENT_TYPES` and whose envelope lacks `ignorable: true`.
+    The refusal names the first offending event by type and seq and quotes the raw-log path.
+    Concretely,
+    this repo's `@monochromatic-dev/dsh-plugin-advisor` wrote one `advisor/operation` event
+    for every FAILED Advisor operation,
+    so one failed review sealed its whole session.
+2.  A different variant,
+    not covered here,
+    is the corruption refusal
+    `stored session "..." failed validation: Error: session event "user/message" sourceEventSeqs
+    must densely contain non-negative safe integers`.
+    See "Adjacent refusals not covered here".
 
 ## Root cause
 
@@ -169,125 +169,125 @@ Raw-log catalog,
  measured on 2026-10-29 with
  `zstd -dc <log> | node <validator harness>` against `validateStoredEvents`:
 
-1. Failing pattern (before repair):
-   `~/.dsh/sessions/--var-home-user-Monochromatic--/session-61a73d26-2266-44fa-bf73-a7a6edd855ac/
-   session.v4.jsonl.zstd`,
-   one `advisor/operation` event at seq 550,
-   refused with the verbatim symptom message.
-   A scan of all 264 stored logs found exactly this one log with an unknown-type offender.
-2. Working patterns (same scan):
-   263 of 264 logs validate cleanly beside it,
-   264 of 264 after the repair,
-   including live logs of the same workspace,
-   which shows the refusal tracks the offending event and not the store,
-   the workspace,
-   or the compression format.
-3. After the envelope repair below,
-   the repaired log validates cleanly with its 662 events and the ledger payload intact;
-   its 317 Zstandard frames keep the original layout
-   (header frame byte-identical,
-   one payload frame changed),
-   and the file mode stays `0600`.
+1.  Failing pattern (before repair):
+    `~/.dsh/sessions/--var-home-user-Monochromatic--/session-61a73d26-2266-44fa-bf73-a7a6edd855ac/
+    session.v4.jsonl.zstd`,
+    one `advisor/operation` event at seq 550,
+    refused with the verbatim symptom message.
+    A scan of all 264 stored logs found exactly this one log with an unknown-type offender.
+2.  Working patterns (same scan):
+    263 of 264 logs validate cleanly beside it,
+    264 of 264 after the repair,
+    including live logs of the same workspace,
+    which shows the refusal tracks the offending event and not the store,
+    the workspace,
+    or the compression format.
+3.  After the envelope repair below,
+    the repaired log validates cleanly with its 662 events and the ledger payload intact;
+    its 317 Zstandard frames keep the original layout
+    (header frame byte-identical,
+    one payload frame changed),
+    and the file mode stays `0600`.
 
 ## Verified workarounds
 
-1. **Write plugin-owned records through `appendPluginRecord`.**
-   The landed fix (`package/dsh-plugin/advisor/src/session-event.ts:61`) calls
+1.  **Write plugin-owned records through `appendPluginRecord`.**
+    The landed fix (`package/dsh-plugin/advisor/src/session-event.ts:61`) calls
 
-   ```ts
-   appendPluginRecord(session, 'plugin:advisor/operation', operation);
-   ```
+    ```ts
+    appendPluginRecord(session, 'plugin:advisor/operation', operation);
+    ```
 
-   with the payload declared in `PluginRecordMap`.
-   Tradeoffs:
-   the record is ignorable by contract,
-   so a migration or a reader that lacks the plugin may drop it
-   while still interpreting the rest of the log correctly;
-   the owning plugin reads it back with `pluginRecordOf`,
-   which only matches `plugin:` types.
-   This is the intended durability class for failure accounting.
+    with the payload declared in `PluginRecordMap`.
+    Tradeoffs:
+    the record is ignorable by contract,
+    so a migration or a reader that lacks the plugin may drop it
+    while still interpreting the rest of the log correctly;
+    the owning plugin reads it back with `pluginRecordOf`,
+    which only matches `plugin:` types.
+    This is the intended durability class for failure accounting.
 
-2. **Repair an already-sealed log by renaming the envelope.**
-   For each event line with `type` `advisor/operation` and no `ignorable` marker,
-   rewrite the envelope to the plugin-record form,
-   keeping `seq`,
-   `time`,
-   and `data` byte-for-byte:
+2.  **Repair an already-sealed log by renaming the envelope.**
+    For each event line with `type` `advisor/operation` and no `ignorable` marker,
+    rewrite the envelope to the plugin-record form,
+    keeping `seq`,
+    `time`,
+    and `data` byte-for-byte:
 
-   ```js
-   // envelope mapping applied to the offending JSONL line
-   JSON.stringify({
-     type: 'plugin:advisor/operation',
-     seq: record.seq,
-     time: record.time,
-     data: record.data,
-     ignorable: true,
-   })
-   ```
+    ```js
+    // envelope mapping applied to the offending JSONL line
+    JSON.stringify({
+      type: 'plugin:advisor/operation',
+      seq: record.seq,
+      time: record.time,
+      data: record.data,
+      ignorable: true,
+    })
+    ```
 
-   Rebuild the artifact FRAME-FAITHFULLY:
-   the persistence reader requires the independent first Zstandard frame to
-   contain exactly one header line
-   (`assertZstdHeaderFrame`,
-   `dsh-session-persistence-jsonl@0.2.1-rc.4/lib/index.js:2298`),
-   so a whole-file recompression makes every read and every session listing
-   fail before the first record parses.
-   Copy every untouched frame byte-identical,
-   recompress only the frame carrying the rewritten line,
-   keep the original file mode (`0600`),
-   and validate the candidate (frame contract plus `validateStoredEvents`)
-   BEFORE it replaces the original.
-   Keep a backup of the original.
-   This mirrors the harness's own v3-to-v4 normalization for unknown ignorable events
-   (`@deepseek-ai/dsh-session-format-v3-to-v4@0.2.1-rc.4/lib/index.js:1302`:
+    Rebuild the artifact FRAME-FAITHFULLY:
+    the persistence reader requires the independent first Zstandard frame to
+    contain exactly one header line
+    (`assertZstdHeaderFrame`,
+    `dsh-session-persistence-jsonl@0.2.1-rc.4/lib/index.js:2298`),
+    so a whole-file recompression makes every read and every session listing
+    fail before the first record parses.
+    Copy every untouched frame byte-identical,
+    recompress only the frame carrying the rewritten line,
+    keep the original file mode (`0600`),
+    and validate the candidate (frame contract plus `validateStoredEvents`)
+    BEFORE it replaces the original.
+    Keep a backup of the original.
+    This mirrors the harness's own v3-to-v4 normalization for unknown ignorable events
+    (`@deepseek-ai/dsh-session-format-v3-to-v4@0.2.1-rc.4/lib/index.js:1302`:
 
-   `type: `plugin:${event.type}`, ignorable: true`).
-   Tradeoffs:
-   readers that specifically look for the old bare type name no longer match;
-   the data payload is preserved and becomes readable through `pluginRecordOf`;
-   the operation ledger itself remains failure-only,
-   so completed operations still carry their diagnostics only in the tool JSON value.
+    `type: `plugin:${event.type}`, ignorable: true`).
+    Tradeoffs:
+    readers that specifically look for the old bare type name no longer match;
+    the data payload is preserved and becomes readable through `pluginRecordOf`;
+    the operation ledger itself remains failure-only,
+    so completed operations still carry their diagnostics only in the tool JSON value.
 
 ## What does not work
 
-1. **Augmenting `SessionEventMap` from a plugin.**
-   It type-checks the write and nothing else.
-   The runtime vocabulary is generated from the harness repository's own declarations
-   and intentionally rejects registration,
-   because a name alone cannot say whether omission is safe.
-2. **Passing an `ignorable` flag to `Session.append`.**
-   The method takes only surface metadata options
-   (`sourceEventSeqs`,
-   `surfaceOp`),
-   so every appended event is required.
-3. **Marking the event ignorable after the fact inside the log without renaming.**
-   A bare `advisor/operation` event with `ignorable: true` is retained and skipped,
-   but `pluginRecordOf` cannot read it back because the name fails the `plugin:` grammar,
-   so the owner loses its own record.
-4. **GUI-level verification from an agent.**
-   The web launch token is random per process
-   (`processLaunchToken` at
-   `@deepseek-ai/dsh-client-connection@0.2.1-rc.4/lib/index.js:294`),
-   printed only to the launching terminal,
-   and the API operator cookie requires that token in `/connect`
-   (`BrowserAuth.authorizeConnect`).
-   The exported `DSH_WEB_URL` carries no token.
-   This is a product boundary,
-   not a fault;
-   the human holding the terminal confirms the banner is gone by reopening the session.
-5. **Whole-file recompression of a repaired log.**
-   The first repair attempt of this incident rewrote the JSONL and compressed it
-   as ONE Zstandard frame.
-   Content validation passed,
-   but `assertZstdHeaderFrame` requires the first frame to be exactly one header
-   line,
-   so the backend failed before parsing any record and the session disappeared
-   from the GUI session list entirely
-   (a worse symptom than the original banner).
-   "Session missing from the list" is not an obvious consequence of a framing
-   change,
-   so the chain is recorded here;
-   the frame-faithful rebuild in the workaround above restores it.
+1.  **Augmenting `SessionEventMap` from a plugin.**
+    It type-checks the write and nothing else.
+    The runtime vocabulary is generated from the harness repository's own declarations
+    and intentionally rejects registration,
+    because a name alone cannot say whether omission is safe.
+2.  **Passing an `ignorable` flag to `Session.append`.**
+    The method takes only surface metadata options
+    (`sourceEventSeqs`,
+    `surfaceOp`),
+    so every appended event is required.
+3.  **Marking the event ignorable after the fact inside the log without renaming.**
+    A bare `advisor/operation` event with `ignorable: true` is retained and skipped,
+    but `pluginRecordOf` cannot read it back because the name fails the `plugin:` grammar,
+    so the owner loses its own record.
+4.  **GUI-level verification from an agent.**
+    The web launch token is random per process
+    (`processLaunchToken` at
+    `@deepseek-ai/dsh-client-connection@0.2.1-rc.4/lib/index.js:294`),
+    printed only to the launching terminal,
+    and the API operator cookie requires that token in `/connect`
+    (`BrowserAuth.authorizeConnect`).
+    The exported `DSH_WEB_URL` carries no token.
+    This is a product boundary,
+    not a fault;
+    the human holding the terminal confirms the banner is gone by reopening the session.
+5.  **Whole-file recompression of a repaired log.**
+    The first repair attempt of this incident rewrote the JSONL and compressed it
+    as ONE Zstandard frame.
+    Content validation passed,
+    but `assertZstdHeaderFrame` requires the first frame to be exactly one header
+    line,
+    so the backend failed before parsing any record and the session disappeared
+    from the GUI session list entirely
+    (a worse symptom than the original banner).
+    "Session missing from the list" is not an obvious consequence of a framing
+    change,
+    so the chain is recorded here;
+    the frame-faithful rebuild in the workaround above restores it.
 
 ## Adjacent false alarm (corrected on 2026-10-29)
 
@@ -353,33 +353,33 @@ Candidate kept for the record:
  the refusal wording attributes the cause only to newer harnesses
  and does not point plugin authors at the `ignorable`/`PluginRecordMap` contract.
 
-1. **Is it really upstream's fault?**
-   Partial.
-   The refusal itself is correct,
-   documented behavior;
-   the incident is this repo's plugin writing outside its contract.
-   Only the message wording is upstream's,
-   and its causal claim is incomplete.
-2. **Can upstream fix it?**
-   Yes for the wording,
-   a message-text change in `validateStoredEvents`.
-3. **Are they supporting this use case?**
-   Yes.
-   `PluginRecordMap` and the `ignorable` mechanism exist specifically for
-   downstream plugin records.
-4. **Would the repo welcome our contribution?**
-   No for patches.
-   `CONTRIBUTING.md` states
-   `We are sorry that we cannot accept external pull requests at the moment`
-   and routes bug reports to GitHub Discussions.
-5. **Will they likely fix it?**
-   Unknown.
-   No tracker thread exists,
-   and the project is early stage.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No.
-   Nothing in this incident requires an upstream code change,
-   so no prototype was made in their repository.
+1.  **Is it really upstream's fault?**
+    Partial.
+    The refusal itself is correct,
+    documented behavior;
+    the incident is this repo's plugin writing outside its contract.
+    Only the message wording is upstream's,
+    and its causal claim is incomplete.
+2.  **Can upstream fix it?**
+    Yes for the wording,
+    a message-text change in `validateStoredEvents`.
+3.  **Are they supporting this use case?**
+    Yes.
+    `PluginRecordMap` and the `ignorable` mechanism exist specifically for
+    downstream plugin records.
+4.  **Would the repo welcome our contribution?**
+    No for patches.
+    `CONTRIBUTING.md` states
+    `We are sorry that we cannot accept external pull requests at the moment`
+    and routes bug reports to GitHub Discussions.
+5.  **Will they likely fix it?**
+    Unknown.
+    No tracker thread exists,
+    and the project is early stage.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No.
+    Nothing in this incident requires an upstream code change,
+    so no prototype was made in their repository.
 
 Decision:
  **do not file**.

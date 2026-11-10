@@ -749,33 +749,33 @@ Duplicate searches found:
 
 The six filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   Yes for the missing stable XML and sandbox-safe Venus launch path.
-   The current builds expose the features,
-   but the default libvirt security policy cannot start Venus.
-2. **Can upstream fix it?**
-   Yes.
-   QEMU can accept a pre-opened render-server descriptor,
-   and libvirt can model both the descriptor and GPU properties.
-3. **Are they supporting this use case?**
-   Yes.
-   Dedicated open QEMU,
-   libvirt,
-   and virt-manager issues cover each management layer.
-4. **Would the repositories welcome a contribution?**
-   Yes.
-   The issue text invites patches,
-   and the checked contribution files do not exclude this feature class.
-5. **Will they likely fix it?**
-   Plausible,
-   but not promised.
-   The issues remain open and include a prior server-descriptor patch design.
-6. **Have we prototyped a minimal upstream fix?**
-   No.
-   This work verifies the failure,
-   driver-wide workaround,
-   and end-user behavior,
-   but it does not implement the server-descriptor or stable-schema changes.
+1.  **Is it really upstream's fault?**
+    Yes for the missing stable XML and sandbox-safe Venus launch path.
+    The current builds expose the features,
+    but the default libvirt security policy cannot start Venus.
+2.  **Can upstream fix it?**
+    Yes.
+    QEMU can accept a pre-opened render-server descriptor,
+    and libvirt can model both the descriptor and GPU properties.
+3.  **Are they supporting this use case?**
+    Yes.
+    Dedicated open QEMU,
+    libvirt,
+    and virt-manager issues cover each management layer.
+4.  **Would the repositories welcome a contribution?**
+    Yes.
+    The issue text invites patches,
+    and the checked contribution files do not exclude this feature class.
+5.  **Will they likely fix it?**
+    Plausible,
+    but not promised.
+    The issues remain open and include a prior server-descriptor patch design.
+6.  **Have we prototyped a minimal upstream fix?**
+    No.
+    This work verifies the failure,
+    driver-wide workaround,
+    and end-user behavior,
+    but it does not implement the server-descriptor or stable-schema changes.
 
 No new issue or comment was posted.
 QEMU issue 3156 already describes the exact missing sandbox mechanism,

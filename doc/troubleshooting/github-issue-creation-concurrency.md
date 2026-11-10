@@ -262,19 +262,19 @@ rg --line-number \
 
 The selected adapter design follows both provider instructions:
 
-1. Create one Issue at a time.
-2. Wait at least one second before starting the next Issue-creation request.
-3. Do not add `p-limit` to the adapter package for Issue creation.
-4. Permit at most three retries after an initial retryable failure.
-5. Honor GitHub rate-limit headers;
-   otherwise use exponential delays starting at sixty seconds for rate limits
-   and one second for network,
-   timeout,
-   or `5xx` failures.
-6. Reconcile ambiguous failures against Issue or pull request numbers above a pre-request high-water mark.
-7. Stop instead of retrying if the reconciliation query fails.
-8. Stop scheduling new Issues after a retry-exhausted failure.
-9. Invoke each REST operation through non-paginated `gh api --include`.
+1.  Create one Issue at a time.
+2.  Wait at least one second before starting the next Issue-creation request.
+3.  Do not add `p-limit` to the adapter package for Issue creation.
+4.  Permit at most three retries after an initial retryable failure.
+5.  Honor GitHub rate-limit headers;
+    otherwise use exponential delays starting at sixty seconds for rate limits
+    and one second for network,
+    timeout,
+    or `5xx` failures.
+6.  Reconcile ambiguous failures against Issue or pull request numbers above a pre-request high-water mark.
+7.  Stop instead of retrying if the reconciliation query fails.
+8.  Stop scheduling new Issues after a retry-exhausted failure.
+9.  Invoke each REST operation through non-paginated `gh api --include`.
 10. Pass each JSON request body through a private named file with `--input`,
     never through standard input or process arguments.
 11. Parse returned status,
@@ -336,25 +336,25 @@ but current 7.3.1 types already state the active-task boundary.
 
 The filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   No.
-   GitHub documents the accepted request schedule,
-   and `p-limit` documents that it limits concurrency rather than pacing or canceling active tasks.
-2. **Can upstream fix it?**
-   Not applicable as a defect.
-   The consumer must choose a schedule compatible with the destination API.
-3. **Are they supporting this use case?**
-   GitHub supports Issue creation and publishes the relevant rate-limit practices.
-   `p-limit` supports bounded concurrency,
-   not provider-specific pacing.
-4. **Would the repo welcome our contribution?**
-   Not evaluated because there is no missing or incorrect upstream contract to change.
-5. **Will they likely fix it?**
-   Not applicable;
-   the observed behavior is documented and intentional.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Not applicable because constraints one and two fail.
-   The selected fix is consumer-side serialization.
+1.  **Is it really upstream's fault?**
+    No.
+    GitHub documents the accepted request schedule,
+    and `p-limit` documents that it limits concurrency rather than pacing or canceling active tasks.
+2.  **Can upstream fix it?**
+    Not applicable as a defect.
+    The consumer must choose a schedule compatible with the destination API.
+3.  **Are they supporting this use case?**
+    GitHub supports Issue creation and publishes the relevant rate-limit practices.
+    `p-limit` supports bounded concurrency,
+    not provider-specific pacing.
+4.  **Would the repo welcome our contribution?**
+    Not evaluated because there is no missing or incorrect upstream contract to change.
+5.  **Will they likely fix it?**
+    Not applicable;
+    the observed behavior is documented and intentional.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Not applicable because constraints one and two fail.
+    The selected fix is consumer-side serialization.
 
 There is nothing additive to file or comment upstream.
 

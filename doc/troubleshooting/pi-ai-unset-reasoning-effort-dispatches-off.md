@@ -528,48 +528,48 @@ not a new issue.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   Yes,
-   with nuance.
-   pi-ai's
-   empty-selection dispatch is a deliberate convention (omit means off),
-   but it
-   gives callers no way to say "let the endpoint decide",
-   and
-   `dsh-llm-pi-ai` both deletes the one value that could say it (`off`) and
-   documents a map shape its own mapping never emits.
-2. **Can upstream fix it?**
-   Yes.
-   The one-hunk prototype above proves it.
-3. **Are they supporting this use case?**
-   Yes.
-   `dsh-agent/lib/index.js:150`
-   names "the selected model's provider/default behavior" as the intent for an
-   absent effort,
-   and the two issues above treat the off-wire dispatch as a bug.
-4. **Would the repo welcome our contribution?**
-   Not as an open filing today.
-   pi's `CONTRIBUTING.md` auto-closes all new-contributor issues and PRs,
-   requires issue text in the author's own voice with any LLM text clearly
-   labeled,
-   gates PRs behind a maintainer `lgtm`,
-   and threatens account blocks
-   for agent-generated issue spam.
-   `deepseek-ai/deepseek-harness`
-   `CONTRIBUTING.md` states "we cannot accept external pull requests at the
-   moment" and routes reports to GitHub Discussions.
-5. **Will they likely fix it?**
-   Unknown.
-   No maintainer signal either way;
-   [#8454](https://github.com/earendil-works/pi/issues/8454) sits unactioned
-   and its contributor fix branch is unmerged.
-6. **Prototyped?**
-   Yes,
-   in a disposable clone (`mktemp` under `~/temp/agent`,
-   origin verified as `https://github.com/earendil-works/pi.git`,
-   commit
-   `d5b3de2`),
-   verified by Harness B with the recorded differential.
+1.  **Is it really upstream's fault?**
+    Yes,
+    with nuance.
+    pi-ai's
+    empty-selection dispatch is a deliberate convention (omit means off),
+    but it
+    gives callers no way to say "let the endpoint decide",
+    and
+    `dsh-llm-pi-ai` both deletes the one value that could say it (`off`) and
+    documents a map shape its own mapping never emits.
+2.  **Can upstream fix it?**
+    Yes.
+    The one-hunk prototype above proves it.
+3.  **Are they supporting this use case?**
+    Yes.
+    `dsh-agent/lib/index.js:150`
+    names "the selected model's provider/default behavior" as the intent for an
+    absent effort,
+    and the two issues above treat the off-wire dispatch as a bug.
+4.  **Would the repo welcome our contribution?**
+    Not as an open filing today.
+    pi's `CONTRIBUTING.md` auto-closes all new-contributor issues and PRs,
+    requires issue text in the author's own voice with any LLM text clearly
+    labeled,
+    gates PRs behind a maintainer `lgtm`,
+    and threatens account blocks
+    for agent-generated issue spam.
+    `deepseek-ai/deepseek-harness`
+    `CONTRIBUTING.md` states "we cannot accept external pull requests at the
+    moment" and routes reports to GitHub Discussions.
+5.  **Will they likely fix it?**
+    Unknown.
+    No maintainer signal either way;
+    [#8454](https://github.com/earendil-works/pi/issues/8454) sits unactioned
+    and its contributor fix branch is unmerged.
+6.  **Prototyped?**
+    Yes,
+    in a disposable clone (`mktemp` under `~/temp/agent`,
+    origin verified as `https://github.com/earendil-works/pi.git`,
+    commit
+    `d5b3de2`),
+    verified by Harness B with the recorded differential.
 
 Constraint 4 does not hold,
 so the default policy applies:

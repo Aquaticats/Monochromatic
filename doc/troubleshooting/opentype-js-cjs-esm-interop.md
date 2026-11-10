@@ -384,66 +384,66 @@ than disabling the rule package-wide.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-    Yes.
-    `opentype.js` already builds a
-   correct,
-    working ESM file (`dist/opentype.mjs`,
-    confirmed by the direct
-   prototype below) but never routes Node's native `import` resolution to it,
-   because `package.json` has no `"exports"` field and relies on the
-   bundler-only `"module"` convention instead.
-2. **Can upstream fix it?**
-    Yes.
-    The prototype below is a two-file,
-   sub-20-line change:
-    add an `"exports"` map and add a matching `export
-   default` to the ESM source so the previously-documented default-import
-   usage keeps working too.
-3. **Are they supporting this use case?**
-    Yes.
-    The README documents all
-   three import styles as supported npm usage
-   (`README.md:56-60`,
-    checked at commit
-   `e2eaedebfa6187c1b435a87e6b7b02e6f1ba1b48`):
+1.  **Is it really upstream's fault?**
+     Yes.
+     `opentype.js` already builds a
+    correct,
+     working ESM file (`dist/opentype.mjs`,
+     confirmed by the direct
+    prototype below) but never routes Node's native `import` resolution to it,
+    because `package.json` has no `"exports"` field and relies on the
+    bundler-only `"module"` convention instead.
+2.  **Can upstream fix it?**
+     Yes.
+     The prototype below is a two-file,
+    sub-20-line change:
+     add an `"exports"` map and add a matching `export
+    default` to the ESM source so the previously-documented default-import
+    usage keeps working too.
+3.  **Are they supporting this use case?**
+     Yes.
+     The README documents all
+    three import styles as supported npm usage
+    (`README.md:56-60`,
+     checked at commit
+    `e2eaedebfa6187c1b435a87e6b7b02e6f1ba1b48`):
 
-   ```js
-   const opentype = require('opentype.js');
-   import opentype from 'opentype.js'
-   import { load } from 'opentype.js'
-   ```
+    ```js
+    const opentype = require('opentype.js');
+    import opentype from 'opentype.js'
+    import { load } from 'opentype.js'
+    ```
 
-   Only the first of these three documented forms is reliable in plain Node
-   today;
-    the prototype fixes all three (see Verification of the prototype).
-4. **Would the repo welcome our contribution?**
-    No ban found.
-    Checked
-   `.github/ISSUE_TEMPLATE.md`,
-    `.github/PULL_REQUEST_TEMPLATE.md`,
-    and the
-   README's `## Contribute` section (`README.md:65-77`):
-    standard fork/PR
-   workflow,
-    no AI-disclosure restriction,
-    no statement against external
-   contributions.
-5. **Will they likely fix it?**
-    Soft yes.
-    Upstream issue
-   [opentypejs/opentype.js#836](https://github.com/opentypejs/opentype.js/issues/836)
-   is open (filed 2026-05-04) and covers the same root defect from a
-   different angle (a Rollup consumer's `"default" is not exported by
-   ".../opentype.mjs"` build error).
-    Maintainers (`ILOVEPIE`,
-    `Jolg42`) and a
-   reporter (`z3dev`) are actively discussing packaging/build-format tradeoffs
-   there as of 2026-05-19,
-    with no consensus yet and no stated won't-fix.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes,
-    see below.
+    Only the first of these three documented forms is reliable in plain Node
+    today;
+     the prototype fixes all three (see Verification of the prototype).
+4.  **Would the repo welcome our contribution?**
+     No ban found.
+     Checked
+    `.github/ISSUE_TEMPLATE.md`,
+     `.github/PULL_REQUEST_TEMPLATE.md`,
+     and the
+    README's `## Contribute` section (`README.md:65-77`):
+     standard fork/PR
+    workflow,
+     no AI-disclosure restriction,
+     no statement against external
+    contributions.
+5.  **Will they likely fix it?**
+     Soft yes.
+     Upstream issue
+    [opentypejs/opentype.js#836](https://github.com/opentypejs/opentype.js/issues/836)
+    is open (filed 2026-05-04) and covers the same root defect from a
+    different angle (a Rollup consumer's `"default" is not exported by
+    ".../opentype.mjs"` build error).
+     Maintainers (`ILOVEPIE`,
+     `Jolg42`) and a
+    reporter (`z3dev`) are actively discussing packaging/build-format tradeoffs
+    there as of 2026-05-19,
+     with no consensus yet and no stated won't-fix.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes,
+     see below.
 
 Decision:
  **do not open a new issue**;

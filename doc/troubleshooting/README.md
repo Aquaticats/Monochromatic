@@ -462,7 +462,7 @@ For common issues:
 
 When adding new troubleshooting content:
 
-1. Choose the most appropriate category file
-2. Follow the existing format with clear problem/solution structure
-3. Include reproduction steps and root cause analysis when possible
-4. Update this index file if adding new categories
+1.  Choose the most appropriate category file
+2.  Follow the existing format with clear problem/solution structure
+3.  Include reproduction steps and root cause analysis when possible
+4.  Update this index file if adding new categories

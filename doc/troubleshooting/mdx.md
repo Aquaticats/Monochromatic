@@ -34,17 +34,17 @@ Expected output (if the component function had been invoked):
 MDX intentionally distinguishes three JSX shapes in
 `recma-jsx-rewrite`:
 
-1. Capitalised identifier (`<Foo>`):
-    treated as a component
-   reference.
-2. Explicit lowercase JSX written by the author
-   (`<callout-alert>`):
-    preserved as a literal tag name;
-    no
-   components lookup.
-3. Tags generated from markdown (`# x` -> `<h1>`):
-    rewritten
-   to look up `_components.h1`.
+1.  Capitalised identifier (`<Foo>`):
+     treated as a component
+    reference.
+2.  Explicit lowercase JSX written by the author
+    (`<callout-alert>`):
+     preserved as a literal tag name;
+     no
+    components lookup.
+3.  Tags generated from markdown (`# x` -> `<h1>`):
+     rewritten
+    to look up `_components.h1`.
 
 The discriminator is the `data._mdxExplicitJsx` flag set
 during the remark phase.
@@ -233,32 +233,32 @@ project chose this approach because the alternative
 
 ## Why we would file this upstream (documentation only)
 
-1. **Is it really upstream's fault?
-   ** No (behaviour);
-    yes
-   (documentation gap).
-    The behaviour is intentional and
-   correct;
-    the user-facing docs do not call out the
-   distinction.
-2. **Can upstream fix it?
-   ** Yes;
-    the fix is a documentation
-   change to the "Components" section of mdxjs.
-   com.
-3. **Are they supporting this use case?
-   ** Yes;
-    custom
-   components are explicitly supported via capitalised
-   identifiers.
-4. **Will they likely fix it?
-   ** Plausible;
-    documentation PRs
-   are routinely accepted.
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    the draft below
-   proposes the exact text.
+1.  **Is it really upstream's fault?
+    ** No (behaviour);
+     yes
+    (documentation gap).
+     The behaviour is intentional and
+    correct;
+     the user-facing docs do not call out the
+    distinction.
+2.  **Can upstream fix it?
+    ** Yes;
+     the fix is a documentation
+    change to the "Components" section of mdxjs.
+    com.
+3.  **Are they supporting this use case?
+    ** Yes;
+     custom
+    components are explicitly supported via capitalised
+    identifiers.
+4.  **Will they likely fix it?
+    ** Plausible;
+     documentation PRs
+    are routinely accepted.
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     the draft below
+    proposes the exact text.
 
 Decision:
  worth filing as a docs improvement (not a code

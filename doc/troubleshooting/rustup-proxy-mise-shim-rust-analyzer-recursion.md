@@ -32,16 +32,16 @@ The window now states them in the reason of the failed start and in the `languag
 This is the chain the output shows,
 not a source trace of rustup or mise:
 
-1. `PATH` resolves `rust-analyzer` to the rustup proxy.
-2. The toolchain rustup selects has no `rust-analyzer` component.
-   `RUSTUP_TOOLCHAIN` selects it;
-   the user's systemd session sets `RUSTUP_TOOLCHAIN=1.98.1`,
-   and the default `nightly-x86_64-unknown-linux-gnu` lacks it too.
-3. rustup prints the fallback line naming the mise shim.
-4. The loop then closes through the shim:
-   the output repeats the two `info` lines before the error.
-   What the shim does between the two lines was not traced.
-5. rustup reports `infinite recursion detected` and exits.
+1.  `PATH` resolves `rust-analyzer` to the rustup proxy.
+2.  The toolchain rustup selects has no `rust-analyzer` component.
+    `RUSTUP_TOOLCHAIN` selects it;
+    the user's systemd session sets `RUSTUP_TOOLCHAIN=1.98.1`,
+    and the default `nightly-x86_64-unknown-linux-gnu` lacks it too.
+3.  rustup prints the fallback line naming the mise shim.
+4.  The loop then closes through the shim:
+    the output repeats the two `info` lines before the error.
+    What the shim does between the two lines was not traced.
+5.  rustup reports `infinite recursion detected` and exits.
 
 The IDE's confinement passes `RUSTUP_TOOLCHAIN`,
 `RUSTUP_HOME`,

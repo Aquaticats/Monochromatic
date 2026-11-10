@@ -337,55 +337,55 @@ We evaluated dropping `typesafe-i18n` entirely.
 
 ### Top alternatives (for the file-this-when-it-stalls case)
 
-1. **`i18next`** with default `{{ }}` syntax.
-    Interpolation
-   regex is `/{{(.+?)}}/g`:
-    non-greedy,
-    no nested-brace
-   alternation,
-    and does not match single `{` or `}` at all.
-   Empirically 0 matches in 0.16 ms on our JSON-with-3-levels
-   input.
-    Literal `{` needs no escaping.
-    Type safety via
-   `i18next-resources-for-ts` (less first-class than
-   `typesafe-i18n`,
-    but workable).
-    Two historical XSS CVEs
-   (CVE-2017-16008,
-    CVE-2017-16010),
-    both fixed.
-   Lowest-friction migration.
-2. **`@lingui/core`**.
-    Translations compiled to a token array
-   at build time;
-    the runtime never regex-scans `{...}`.
-   Best security posture of any candidate
-   (Crowdin-backed,
-    248 contributors,
-    SLSA provenance
-   attestations on npm,
-    smallest gzip ~2 kB).
-    Downside:
-    ICU
-   MessageFormat requires single-quote escape for literal `{`
-   / `}`:
-    same escaping problem at compile time instead of
-   runtime.
-3. **`@inlang/paraglide-js`**.
-    Only runtime that needs zero
-   escaping for `{`:
-    translations are compiled to JS template
-   literals (e.g. `` `Hello ${name}` ``),
-    so the literal text
-   never round-trips through any parser.
-    Downside:
-    heavier
-   transitive build deps (`@inlang/sdk`,
-    `@lix-js/sdk`,
-   `kysely`,
-    `sqlite-wasm-kysely`),
-    effectively two-maintainer.
+1.  **`i18next`** with default `{{ }}` syntax.
+     Interpolation
+    regex is `/{{(.+?)}}/g`:
+     non-greedy,
+     no nested-brace
+    alternation,
+     and does not match single `{` or `}` at all.
+    Empirically 0 matches in 0.16 ms on our JSON-with-3-levels
+    input.
+     Literal `{` needs no escaping.
+     Type safety via
+    `i18next-resources-for-ts` (less first-class than
+    `typesafe-i18n`,
+     but workable).
+     Two historical XSS CVEs
+    (CVE-2017-16008,
+     CVE-2017-16010),
+     both fixed.
+    Lowest-friction migration.
+2.  **`@lingui/core`**.
+     Translations compiled to a token array
+    at build time;
+     the runtime never regex-scans `{...}`.
+    Best security posture of any candidate
+    (Crowdin-backed,
+     248 contributors,
+     SLSA provenance
+    attestations on npm,
+     smallest gzip ~2 kB).
+     Downside:
+     ICU
+    MessageFormat requires single-quote escape for literal `{`
+    / `}`:
+     same escaping problem at compile time instead of
+    runtime.
+3.  **`@inlang/paraglide-js`**.
+     Only runtime that needs zero
+    escaping for `{`:
+     translations are compiled to JS template
+    literals (e.g. `` `Hello ${name}` ``),
+     so the literal text
+    never round-trips through any parser.
+     Downside:
+     heavier
+    transitive build deps (`@inlang/sdk`,
+     `@lix-js/sdk`,
+    `kysely`,
+     `sqlite-wasm-kysely`),
+     effectively two-maintainer.
 
 ### Order if we ever switch
 
@@ -400,47 +400,47 @@ problem in a different shape.
 
 All 5 constraints hold:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    the regex is
-   pathological for an input class the library is meant to
-   accept.
-2. **Can upstream fix it?
-   ** Yes;
-    the catastrophic-
-   backtracking shape is eliminated by reshaping the regex
-   itself so that the inner alternation no longer has a
-   shared left-factor with a nested quantifier.
-    One-line
-   change to `package/parser/src/basic.mts:117`.
-3. **Are they supporting this use case?
-   ** Yes;
-    the library
-   accepts arbitrary translation strings.
-4. **Will they likely fix it?
-   ** Codingcommons revival is
-   focused on plumbing;
-    no bug-fix commits since the revival.
-   Possible but not assured.
-5. **Have we prototyped a minimal fix?
-   ** Yes.
-    One-line
-   regex change at `package/parser/src/basic.mts:117`.
-   Preserves matching contract:
-    45/45 parser tests,
-    122/122
-   runtime tests,
-    100/100 generator tests pass on a fresh
-   `codingcommons/typesafe-i18n` clone at tag `5.27.1`
-   (commit `462f7118`).
-    Pre-patch:
-    `chapterInstruction`
-   reproducer does not return within 30 s under Node 26 /
-   V8 14.6 (exit 124).
-    Post-patch:
-    0.055 ms on the same
-   input.
-    Patch inline below.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     the regex is
+    pathological for an input class the library is meant to
+    accept.
+2.  **Can upstream fix it?
+    ** Yes;
+     the catastrophic-
+    backtracking shape is eliminated by reshaping the regex
+    itself so that the inner alternation no longer has a
+    shared left-factor with a nested quantifier.
+     One-line
+    change to `package/parser/src/basic.mts:117`.
+3.  **Are they supporting this use case?
+    ** Yes;
+     the library
+    accepts arbitrary translation strings.
+4.  **Will they likely fix it?
+    ** Codingcommons revival is
+    focused on plumbing;
+     no bug-fix commits since the revival.
+    Possible but not assured.
+5.  **Have we prototyped a minimal fix?
+    ** Yes.
+     One-line
+    regex change at `package/parser/src/basic.mts:117`.
+    Preserves matching contract:
+     45/45 parser tests,
+     122/122
+    runtime tests,
+     100/100 generator tests pass on a fresh
+    `codingcommons/typesafe-i18n` clone at tag `5.27.1`
+    (commit `462f7118`).
+     Pre-patch:
+     `chapterInstruction`
+    reproducer does not return within 30 s under Node 26 /
+    V8 14.6 (exit 124).
+     Post-patch:
+     0.055 ms on the same
+    input.
+     Patch inline below.
 
 ```diff
 --- a/packages/parser/src/basic.mts

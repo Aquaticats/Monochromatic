@@ -174,30 +174,30 @@ Add `/etc/fstab` entries:
 
 ## Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    The
-   single-window-per-workspace identification is an explicit product
-   choice;
-    many users prefer it.
-    The Remote-WSL extension's lack of
-   an override is the actual friction point.
-2. **Can upstream fix it?
-   ** Yes,
-    by exposing a setting such as
-   `remote.WSL.allowMultipleWindows` that disables the path-based
-   dedup for WSL workspaces.
-    The change is local to the extension.
-3. **Are they supporting this use case?
-   ** Not directly;
-    the docs
-   recommend reorganising work to fit a single window.
-4. **Will they likely fix it?
-   ** Unknown.
-    The bind-mount workaround is
-   well known on the GitHub tracker.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     The
+    single-window-per-workspace identification is an explicit product
+    choice;
+     many users prefer it.
+     The Remote-WSL extension's lack of
+    an override is the actual friction point.
+2.  **Can upstream fix it?
+    ** Yes,
+     by exposing a setting such as
+    `remote.WSL.allowMultipleWindows` that disables the path-based
+    dedup for WSL workspaces.
+     The change is local to the extension.
+3.  **Are they supporting this use case?
+    ** Not directly;
+     the docs
+    recommend reorganising work to fit a single window.
+4.  **Will they likely fix it?
+    ** Unknown.
+     The bind-mount workaround is
+    well known on the GitHub tracker.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.

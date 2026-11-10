@@ -266,14 +266,14 @@ The `.mjs` row isolates the native ESM cache failure.
 
 The real session sequence was:
 
-1. Start Pi with the old ask-user `.mjs` extension and old helper.
-2. Rebuild both files with the new required `editorCommand` protocol.
-3. Run `/reload`.
-4. Call `ask_user_question`.
-5. Observe `Answer helper request editorCommand must be a nonempty string array.`
-6. Restart Pi completely.
-7. Call `ask_user_question` again.
-8. Submit two lines from Nano.
+1.  Start Pi with the old ask-user `.mjs` extension and old helper.
+2.  Rebuild both files with the new required `editorCommand` protocol.
+3.  Run `/reload`.
+4.  Call `ask_user_question`.
+5.  Observe `Answer helper request editorCommand must be a nonempty string array.`
+6.  Restart Pi completely.
+7.  Call `ask_user_question` again.
+8.  Submit two lines from Nano.
 
 After the restart,
 the tool returned exactly:
@@ -383,32 +383,32 @@ No separate issue should be opened.
 
 The six constraints are:
 
-1. **Is it really upstream's fault?**
-   Yes for Jiti.
-   Its documented `moduleCache: false` contract says changed code can be imported repeatedly,
-   but `.mjs` takes the exact native URL path and remains cached.
-   Pi exposes the defect but does not create Node's cache behavior.
-2. **Can upstream fix it?**
-   Yes.
-   The prototype changes one loader decision and preserves cached native ESM when `moduleCache` remains enabled.
-3. **Are they supporting this use case?**
-   Yes.
-   Jiti documents repeated imports after editing as the purpose of disabling `moduleCache`.
-4. **Would the repository welcome the contribution?**
-   Probably.
-   The Jiti 2.7.0 clone contains no `CONTRIBUTING.md`,
-   issue template,
-   pull-request template,
-   or AI-contribution ban.
-   Issue [#418][] remains open and a maintainer explicitly requested a minimal Jiti reproduction.
-5. **Will they likely fix it?**
-   Plausibly.
-   The issue is labeled `bug` and has no rejection or wont-fix statement.
-6. **Have we prototyped a minimal compatible fix?**
-   Yes.
-   The saved patch adds the `.ts` positive control and `.mjs` regression row,
-   fails before the source change,
-   and passes all targeted tests after it.
+1.  **Is it really upstream's fault?**
+    Yes for Jiti.
+    Its documented `moduleCache: false` contract says changed code can be imported repeatedly,
+    but `.mjs` takes the exact native URL path and remains cached.
+    Pi exposes the defect but does not create Node's cache behavior.
+2.  **Can upstream fix it?**
+    Yes.
+    The prototype changes one loader decision and preserves cached native ESM when `moduleCache` remains enabled.
+3.  **Are they supporting this use case?**
+    Yes.
+    Jiti documents repeated imports after editing as the purpose of disabling `moduleCache`.
+4.  **Would the repository welcome the contribution?**
+    Probably.
+    The Jiti 2.7.0 clone contains no `CONTRIBUTING.md`,
+    issue template,
+    pull-request template,
+    or AI-contribution ban.
+    Issue [#418][] remains open and a maintainer explicitly requested a minimal Jiti reproduction.
+5.  **Will they likely fix it?**
+    Plausibly.
+    The issue is labeled `bug` and has no rejection or wont-fix statement.
+6.  **Have we prototyped a minimal compatible fix?**
+    Yes.
+    The saved patch adds the `.ts` positive control and `.mjs` regression row,
+    fails before the source change,
+    and passes all targeted tests after it.
 
 No external comment was posted.
 The additive comment draft is ready for a human to review and post to [#418][]:

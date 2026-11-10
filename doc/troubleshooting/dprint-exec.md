@@ -28,25 +28,25 @@ annotation that multi-plugin chaining produces.
 dprint's plugin name resolution has two paths (source:
 `crates/dprint/src/plugins/name_resolution.rs:54-88`):
 
-1. **Associations path** (lines 57-64):
-    iterates all plugins
-   with `associations` globs,
-    collects every match into a
-   vector,
-    and returns the full list.
-    This is the only path
-   that enables multi-plugin chaining.
-2. **Extension fallback** (lines 77-84):
-    when no association
-   matches,
-    looks up the file extension and returns the
-   **first** plugin that registered that extension.
-    The loop
-   body returns a single-element vector immediately:
+1.  **Associations path** (lines 57-64):
+     iterates all plugins
+    with `associations` globs,
+     collects every match into a
+    vector,
+     and returns the full list.
+     This is the only path
+    that enables multi-plugin chaining.
+2.  **Extension fallback** (lines 77-84):
+     when no association
+    matches,
+     looks up the file extension and returns the
+    **first** plugin that registered that extension.
+     The loop
+    body returns a single-element vector immediately:
 
-   ```rust
-   return vec![plugin_name.clone()];
-   ```
+    ```rust
+    return vec![plugin_name.clone()];
+    ```
 
 When multiple plugins claim the same extension (e.g. `malva`
 and `exec` both claim `.css`),
@@ -155,25 +155,25 @@ The annotation is emitted at
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline;
-    the
-   extension fallback's "first wins" rule is documented but
-   unintuitive when chaining is the goal.
-2. **Can upstream fix it?
-   ** They could warn when extension
-   fallback masks chaining;
-    non-trivial change.
-3. **Are they supporting this use case?
-   ** Yes;
-    chaining is
-   the documented feature.
-4. **Will they likely fix it?
-   ** No movement noticed;
-    the
-   workaround is documented.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline;
+     the
+    extension fallback's "first wins" rule is documented but
+    unintuitive when chaining is the goal.
+2.  **Can upstream fix it?
+    ** They could warn when extension
+    fallback masks chaining;
+     non-trivial change.
+3.  **Are they supporting this use case?
+    ** Yes;
+     chaining is
+    the documented feature.
+4.  **Will they likely fix it?
+    ** No movement noticed;
+     the
+    workaround is documented.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.
@@ -220,17 +220,17 @@ Source citations (exec plugin source 0.6.0):
 
 - `handler.rs:162-253`:
    format flow:
-  1. Spawns the command with `stdin: Stdio::null()` and
-     `stdout: Stdio::piped()`.
-  2. Captures the command's stdout as formatted content.
-  3. Waits for the child process to exit.
-  4. If exit code is 0:
-      returns captured stdout as the new
-     file content.
-  5. If exit code is non-zero:
-      returns an error,
-      discarding
-     everything.
+  1.  Spawns the command with `stdin: Stdio::null()` and
+      `stdout: Stdio::piped()`.
+  2.  Captures the command's stdout as formatted content.
+  3.  Waits for the child process to exit.
+  4.  If exit code is 0:
+       returns captured stdout as the new
+      file content.
+  5.  If exit code is non-zero:
+       returns an error,
+       discarding
+      everything.
 - `handler.rs:299-314`:
    exit-code check:
 
@@ -243,33 +243,33 @@ Source citations (exec plugin source 0.6.0):
 
 This creates three incompatibilities with `oxlint --fix`:
 
-1. **Output destination**:
-    `oxlint` writes fixes to the file
-   on disk and writes diagnostic messages to stdout/stderr.
-   The exec plugin captures diagnostic text from stdout and
-   treats it as the "formatted" file content,
-    corrupting
-   the file.
-2. **Exit-code semantics**:
-    `oxlint` exits 1 when any
-   unfixable errors remain,
-    even after successfully
-   auto-fixing others.
-    exec requires exit code 0;
-    there is no
-   option to accept non-zero exit codes.
-3. **In-memory chaining**:
-    when multiple plugins chain
-   (e.g. typescript formatter then exec),
-    dprint passes the
-   in-memory formatted result from the previous plugin to
-   the next.
-    In file mode,
-    the command receives a
-   `{{file_path}}` that still points to the **original
-   on-disk content**;
-    the previous plugin's output is
-   invisible.
+1.  **Output destination**:
+     `oxlint` writes fixes to the file
+    on disk and writes diagnostic messages to stdout/stderr.
+    The exec plugin captures diagnostic text from stdout and
+    treats it as the "formatted" file content,
+     corrupting
+    the file.
+2.  **Exit-code semantics**:
+     `oxlint` exits 1 when any
+    unfixable errors remain,
+     even after successfully
+    auto-fixing others.
+     exec requires exit code 0;
+     there is no
+    option to accept non-zero exit codes.
+3.  **In-memory chaining**:
+     when multiple plugins chain
+    (e.g. typescript formatter then exec),
+     dprint passes the
+    in-memory formatted result from the previous plugin to
+    the next.
+     In file mode,
+     the command receives a
+    `{{file_path}}` that still points to the **original
+    on-disk content**;
+     the previous plugin's output is
+    invisible.
 
 ### Verification
 
@@ -350,25 +350,25 @@ written to stdout.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline;
-    the
-   stdin/file-mode dichotomy is documented but does not
-   cover "modify on disk".
-2. **Can upstream fix it?
-   ** Yes;
-    add an "in-place" mode that
-   re-reads the file after the command exits.
-    Non-trivial
-   API change.
-3. **Are they supporting this use case?
-   ** Not currently;
-   only stdin-based formatters.
-4. **Will they likely fix it?
-   ** Unknown;
-    depends on demand.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline;
+     the
+    stdin/file-mode dichotomy is documented but does not
+    cover "modify on disk".
+2.  **Can upstream fix it?
+    ** Yes;
+     add an "in-place" mode that
+    re-reads the file after the command exits.
+     Non-trivial
+    API change.
+3.  **Are they supporting this use case?
+    ** Not currently;
+    only stdin-based formatters.
+4.  **Will they likely fix it?
+    ** Unknown;
+     depends on demand.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report;
@@ -477,24 +477,24 @@ that this is expected;
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline;
-    the
-   `null` per-command output is correct given the
-   implementation,
-    but presents as confusing.
-2. **Can upstream fix it?
-   ** Yes;
-    preserve the hash in the
-   serialised output or omit the field rather than emit
-   `null`.
-3. **Are they supporting this use case?
-   ** The `cacheKey` at
-   the top is the supported answer.
-4. **Will they likely fix it?
-   ** Unknown.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline;
+     the
+    `null` per-command output is correct given the
+    implementation,
+     but presents as confusing.
+2.  **Can upstream fix it?
+    ** Yes;
+     preserve the hash in the
+    serialised output or omit the field rather than emit
+    `null`.
+3.  **Are they supporting this use case?
+    ** The `cacheKey` at
+    the top is the supported answer.
+4.  **Will they likely fix it?
+    ** Unknown.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.

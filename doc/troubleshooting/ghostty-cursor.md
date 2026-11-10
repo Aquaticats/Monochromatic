@@ -8,12 +8,12 @@ shows a bar cursor.
  Launching `claude` (Claude Code CLI) replaces
 the cursor in the input area with a solid block:
 
-1. Set `cursor-style = bar` in `~/.config/ghostty/config`.
-2. Confirm the shell prompt shows a bar cursor.
-3. Launch `claude`.
-4. Observe a solid block at the `>` input prompt,
-    regardless of
-   Ghostty's configured cursor style.
+1.  Set `cursor-style = bar` in `~/.config/ghostty/config`.
+2.  Confirm the shell prompt shows a bar cursor.
+3.  Launch `claude`.
+4.  Observe a solid block at the `>` input prompt,
+     regardless of
+    Ghostty's configured cursor style.
 
 On exiting Claude Code,
  the bar cursor returns to the shell prompt.
@@ -146,32 +146,32 @@ for a Claude Code update that supports cursor-style customisation
 This is a known limitation tracked in multiple Claude Code issues.
 Walking the 5 constraints:
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    Ink's
-   inverse-video cursor is a deliberate cross-terminal design that
-   trades native cursor support for layout reliability.
-    Claude
-   Code inherits that design.
-2. **Can upstream fix it?
-   ** Yes;
-    emit DECSCUSR sequences in the
-   TextInput component when the terminal advertises support,
-    or
-   expose a config flag that switches between visual and native
-   cursor.
-    Both are plausible but require Ink-level changes.
-3. **Are they supporting this use case?
-   ** Several open issues
-   request customisation;
-    Anthropic has acknowledged the friction
-   but not committed to a fix.
-4. **Will they likely fix it?
-   ** Unknown;
-    the multiple open issues
-   suggest demand exists but has not been prioritised.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     Ink's
+    inverse-video cursor is a deliberate cross-terminal design that
+    trades native cursor support for layout reliability.
+     Claude
+    Code inherits that design.
+2.  **Can upstream fix it?
+    ** Yes;
+     emit DECSCUSR sequences in the
+    TextInput component when the terminal advertises support,
+     or
+    expose a config flag that switches between visual and native
+    cursor.
+     Both are plausible but require Ink-level changes.
+3.  **Are they supporting this use case?
+    ** Several open issues
+    request customisation;
+     Anthropic has acknowledged the friction
+    but not committed to a fix.
+4.  **Will they likely fix it?
+    ** Unknown;
+     the multiple open issues
+    suggest demand exists but has not been prioritised.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no new upstream report.
@@ -217,88 +217,88 @@ definition.
 
 ### Upstream filing audit (Ghostty)
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    `Se` should encode
-   "reset to default" (`\E[0 q`),
-    not "steady block".
-2. **Can upstream fix it?
-   ** Yes;
-    one-line value change at
-   `src/terminfo/ghostty.zig:116`.
-3. **Are they supporting this use case?
-   ** Yes;
-    Ghostty's mission
-   includes accurate terminfo.
-4. **Will they likely fix it?
-   ** Yes (already accepted;
-    see
-   "Upstream status" below).
-5. **Have we prototyped a minimal fix?
-   ** Yes.
-    The minimal patch is
-   the one-line value swap below,
-    identical to the upstream
-   commit `6c68650920804a202a3208d7d355368c9dd28a46`:
+1.  **Is it really upstream's fault?
+    ** Yes;
+     `Se` should encode
+    "reset to default" (`\E[0 q`),
+     not "steady block".
+2.  **Can upstream fix it?
+    ** Yes;
+     one-line value change at
+    `src/terminfo/ghostty.zig:116`.
+3.  **Are they supporting this use case?
+    ** Yes;
+     Ghostty's mission
+    includes accurate terminfo.
+4.  **Will they likely fix it?
+    ** Yes (already accepted;
+     see
+    "Upstream status" below).
+5.  **Have we prototyped a minimal fix?
+    ** Yes.
+     The minimal patch is
+    the one-line value swap below,
+     identical to the upstream
+    commit `6c68650920804a202a3208d7d355368c9dd28a46`:
 
-   ```diff
-   --- a/src/terminfo/ghostty.zig
-   +++ b/src/terminfo/ghostty.zig
-   @@ -112,8 +112,8 @@ pub const ghostty: Source = .{
-            // Cursor styles
-            .{ .name = "Ss", .value = .{ .string = "\\E[%p1%d q" } },
+    ```diff
+    --- a/src/terminfo/ghostty.zig
+    +++ b/src/terminfo/ghostty.zig
+    @@ -112,8 +112,8 @@ pub const ghostty: Source = .{
+             // Cursor styles
+             .{ .name = "Ss", .value = .{ .string = "\\E[%p1%d q" } },
 
-   -        // Cursor style reset
-   -        .{ .name = "Se", .value = .{ .string = "\\E[2 q" } },
-   +        // Cursor style reset (to user configured default)
-   +        .{ .name = "Se", .value = .{ .string = "\\E[0 q" } },
+    -        // Cursor style reset
+    -        .{ .name = "Se", .value = .{ .string = "\\E[2 q" } },
+    +        // Cursor style reset (to user configured default)
+    +        .{ .name = "Se", .value = .{ .string = "\\E[0 q" } },
 
-            // OSC 52 Clipboard
-            .{ .name = "Ms", .value = .{ .string = "\\E]52;%p1%s;%p2%s\\007" } },
-   ```
+             // OSC 52 Clipboard
+             .{ .name = "Ms", .value = .{ .string = "\\E]52;%p1%s;%p2%s\\007" } },
+    ```
 
-   Verification:
-    the patch changes only the user-defined extended
-   capability `Se`,
-    which round-trips byte-for-byte through `tic` to
-   a binary terminfo database and back through `infocmp -L -x`.
-    This
-   was checked at the terminfo-source level rather than via the full
-   `build_data_exe +terminfo` pipeline because the changed line is
-   exactly one capability value in
-   `Source.encode()`'s output;
-    nothing in the encoder,
-    tic compiler,
-   or infocmp decoder transforms the value string.
-    The targeted
-   harness was a minimal `.ti` file with the broken vs fixed `Se`
-   plus the `Ss` parameterised setter (so `tic` accepts both as a
-   pair):
+    Verification:
+     the patch changes only the user-defined extended
+    capability `Se`,
+     which round-trips byte-for-byte through `tic` to
+    a binary terminfo database and back through `infocmp -L -x`.
+     This
+    was checked at the terminfo-source level rather than via the full
+    `build_data_exe +terminfo` pipeline because the changed line is
+    exactly one capability value in
+    `Source.encode()`'s output;
+     nothing in the encoder,
+     tic compiler,
+    or infocmp decoder transforms the value string.
+     The targeted
+    harness was a minimal `.ti` file with the broken vs fixed `Se`
+    plus the `Ss` parameterised setter (so `tic` accepts both as a
+    pair):
 
-   ```sh
-   $ tic -x -o "$DB" broken.ti  # ghostty-broken with Se=\E[2 q
-   $ tic -x -o "$DB" fixed.ti   # ghostty-fixed   with Se=\E[0 q
-   $ diff \
-       <(TERMINFO="$DB" infocmp -1 -x ghostty-broken) \
-       <(TERMINFO="$DB" infocmp -1 -x ghostty-fixed)
-   1,3c1,3
-   < #     Reconstructed via infocmp from file: .../db/./g/ghostty-broken
-   < ghostty-broken|Ghostty before Se fix,
-   <       Se=\E[2 q,
-   ---
-   > #     Reconstructed via infocmp from file: .../db/./g/ghostty-fixed
-   > ghostty-fixed|Ghostty after Se fix,
-   >       Se=\E[0 q,
-   ```
+    ```sh
+    $ tic -x -o "$DB" broken.ti  # ghostty-broken with Se=\E[2 q
+    $ tic -x -o "$DB" fixed.ti   # ghostty-fixed   with Se=\E[0 q
+    $ diff \
+        <(TERMINFO="$DB" infocmp -1 -x ghostty-broken) \
+        <(TERMINFO="$DB" infocmp -1 -x ghostty-fixed)
+    1,3c1,3
+    < #     Reconstructed via infocmp from file: .../db/./g/ghostty-broken
+    < ghostty-broken|Ghostty before Se fix,
+    <       Se=\E[2 q,
+    ---
+    > #     Reconstructed via infocmp from file: .../db/./g/ghostty-fixed
+    > ghostty-fixed|Ghostty after Se fix,
+    >       Se=\E[0 q,
+    ```
 
-   The only inter-file difference is exactly the byte the patch
-   changes;
-    the existing Ghostty `stream_handler.zig:874-888` handler
-   already maps `\E[0 q` to "restore `default_cursor_style` from
-   config" (cited in the Verification section above),
-    so the cursor
-   behaviour on real terminals follows from the terminfo emission
-   without a separate runtime probe.
+    The only inter-file difference is exactly the byte the patch
+    changes;
+     the existing Ghostty `stream_handler.zig:874-888` handler
+    already maps `\E[0 q` to "restore `default_cursor_style` from
+    config" (cited in the Verification section above),
+     so the cursor
+    behaviour on real terminals follows from the terminfo emission
+    without a separate runtime probe.
 
 Decision:
  already fixed upstream;

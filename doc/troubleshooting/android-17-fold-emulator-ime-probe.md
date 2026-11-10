@@ -839,28 +839,28 @@ returned no matching GitHub issues,
 but GitHub is not the Gboard issue tracker.
 No upstream report is ready:
 
-1. **Upstream fault:**
-   Unknown.
-   A disposable AVD running the same updated
-   Gboard build drew split/full-width keys;
-   the original differs in user data
-   and settings,
-   so the floating mode is not an isolated regression.
-2. **Fixability:**
-   Unknown without the responsible path.
-3. **Supported use case:**
-   Android documents custom IMEs and soft-keyboard use,
-   but that does not identify a Gboard regression.
-4. **Contribution policy:**
-   Gboard is not an identified public source repository
-   with reviewed contribution or AI-assistance policy for this path.
-5. **Expected upstream response:**
-   No comparable maintainer signal was established.
-6. **Tested upstream fix:**
-   None.
-   The custom IME is a consumer-side measurement
-   workaround,
-   not a patch for Gboard.
+1.  **Upstream fault:**
+    Unknown.
+    A disposable AVD running the same updated
+    Gboard build drew split/full-width keys;
+    the original differs in user data
+    and settings,
+    so the floating mode is not an isolated regression.
+2.  **Fixability:**
+    Unknown without the responsible path.
+3.  **Supported use case:**
+    Android documents custom IMEs and soft-keyboard use,
+    but that does not identify a Gboard regression.
+4.  **Contribution policy:**
+    Gboard is not an identified public source repository
+    with reviewed contribution or AI-assistance policy for this path.
+5.  **Expected upstream response:**
+    No comparable maintainer signal was established.
+6.  **Tested upstream fix:**
+    None.
+    The custom IME is a consumer-side measurement
+    workaround,
+    not a patch for Gboard.
 
 ### Draft, do not file as-is
 

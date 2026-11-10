@@ -178,55 +178,55 @@ Fails:
 
 The remediation landed in `package/done/app` and `done-postcss`.
 
-1. Replace the FTS5 virtual table plus sync triggers plus backfill with one native
-   index,
-    and open the connection with `experimental: ['index_method']`:
+1.  Replace the FTS5 virtual table plus sync triggers plus backfill with one native
+    index,
+     and open the connection with `experimental: ['index_method']`:
 
-   ```sql
-   CREATE INDEX IF NOT EXISTS tasks_fts ON tasks USING fts (title, description, tags);
-   ```
+    ```sql
+    CREATE INDEX IF NOT EXISTS tasks_fts ON tasks USING fts (title, description, tags);
+    ```
 
-   Tradeoff:
-    search becomes token-exact (no substring or stemming),
-    a behavior
-   change from a `LIKE '%q%'` scan.
-    Acceptable here because the FTS5 path never
-   actually ran on this build.
+    Tradeoff:
+     search becomes token-exact (no substring or stemming),
+     a behavior
+    change from a `LIKE '%q%'` scan.
+     Acceptable here because the FTS5 path never
+    actually ran on this build.
 
-2. Query with `fts_match` for the predicate and `fts_score` for ranking,
-    reusing
-   `?1`,
-    with `updated_at` as a deterministic tiebreaker:
+2.  Query with `fts_match` for the predicate and `fts_score` for ranking,
+     reusing
+    `?1`,
+     with `updated_at` as a deterministic tiebreaker:
 
-   ```sql
-   SELECT tasks.*, CASE WHEN blocked_by != '[]' THEN 1 ELSE 0 END AS is_blocked
-   FROM tasks
-   WHERE fts_match(title, description, tags, ?1)
-   ORDER BY fts_score(title, description, tags, ?1) DESC, tasks.updated_at DESC;
-   ```
+    ```sql
+    SELECT tasks.*, CASE WHEN blocked_by != '[]' THEN 1 ELSE 0 END AS is_blocked
+    FROM tasks
+    WHERE fts_match(title, description, tags, ?1)
+    ORDER BY fts_score(title, description, tags, ?1) DESC, tasks.updated_at DESC;
+    ```
 
-   Tradeoff:
-    because `fts_score` is unreliable today (frequently `0` or tied across
-   multiple matches),
-    ordering is effectively recency-only;
-    genuine relevance ordering
-   activates for free once upstream scoring is fixed.
+    Tradeoff:
+     because `fts_score` is unreliable today (frequently `0` or tied across
+    multiple matches),
+     ordering is effectively recency-only;
+     genuine relevance ordering
+    activates for free once upstream scoring is fixed.
 
-3. Guard index creation so a build lacking the index method degrades instead of
-   crashing (`src/lib/db-migrations.ts`,
-    `tryEnableFts`):
-    wrap the `CREATE INDEX` in
-   try/catch,
-    log a warning,
-    and skip it,
-    letting `searchTasks` fall back to its
-   existing `LIKE` query.
+3.  Guard index creation so a build lacking the index method degrades instead of
+    crashing (`src/lib/db-migrations.ts`,
+     `tryEnableFts`):
+     wrap the `CREATE INDEX` in
+    try/catch,
+     log a warning,
+     and skip it,
+     letting `searchTasks` fall back to its
+    existing `LIKE` query.
 
-   Tradeoff:
-    on a build without `index_method`,
-    search silently loses relevance and
-   uses substring matching;
-    the warning is the only signal.
+    Tradeoff:
+     on a build without `index_method`,
+     search silently loses relevance and
+    uses substring matching;
+     the warning is the only signal.
 
 ## What does not work
 
@@ -285,33 +285,33 @@ Default policy is do not file.
 
 6-constraint check:
 
-1. **Upstream's fault?**
-    The FTS5 gap is a deliberate architecture choice,
-    not a bug.
-   The `fts_score` = 0 behavior is a real gap but already filed.
-2. **Can upstream fix it?**
-    Adding FTS5 is a large feature (#346);
-    `fts_score` scoring
-   is engine work.
-    Both fixable in principle.
-3. **Supporting this use case?**
-    Native FTS is supported and tested;
-    FTS5 explicitly is
-   not yet (#346 `help wanted`).
-4. **Would the repo welcome a contribution?**
-    Not assessed;
-    moot given constraint 6.
-5. **Will they likely fix it?**
-    #346 is open with `help wanted`;
-    the `fts_score` issues
-   are open and recent.
-    No won't-fix signal.
-6. **Prototyped a minimal fix?**
-    No. Implementing FTS5 or Turso's scoring is deep
-   engine work,
-    out of scope for this consumer-side task,
-    and the relevant behaviors
-   are already tracked.
+1.  **Upstream's fault?**
+     The FTS5 gap is a deliberate architecture choice,
+     not a bug.
+    The `fts_score` = 0 behavior is a real gap but already filed.
+2.  **Can upstream fix it?**
+     Adding FTS5 is a large feature (#346);
+     `fts_score` scoring
+    is engine work.
+     Both fixable in principle.
+3.  **Supporting this use case?**
+     Native FTS is supported and tested;
+     FTS5 explicitly is
+    not yet (#346 `help wanted`).
+4.  **Would the repo welcome a contribution?**
+     Not assessed;
+     moot given constraint 6.
+5.  **Will they likely fix it?**
+     #346 is open with `help wanted`;
+     the `fts_score` issues
+    are open and recent.
+     No won't-fix signal.
+6.  **Prototyped a minimal fix?**
+     No. Implementing FTS5 or Turso's scoring is deep
+    engine work,
+     out of scope for this consumer-side task,
+     and the relevant behaviors
+    are already tracked.
 
 Decision:
  **do not file,

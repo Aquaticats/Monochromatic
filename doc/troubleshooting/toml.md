@@ -19,12 +19,12 @@ When evaluating TOML for workspace configuration,
  four distinct
 classes of failure mode surfaced:
 
-1. Array-of-tables `[[thing]]` headers silently shift context.
-2. Dotted keys and explicit `[table]` headers conflict
-   asymmetrically.
-3. Major parsers disagree on edge cases that the spec leaves
-   underspecified.
-4. No mechanism for value reuse or interpolation across sections.
+1.  Array-of-tables `[[thing]]` headers silently shift context.
+2.  Dotted keys and explicit `[table]` headers conflict
+    asymmetrically.
+3.  Major parsers disagree on edge cases that the spec leaves
+    underspecified.
+4.  No mechanism for value reuse or interpolation across sections.
 
 A common misconception worth dismissing up front:
  repeating

@@ -400,27 +400,27 @@ The pull request records clear-path self-healing and tests.
 
 The filing constraints resolve as follows:
 
-1. **Upstream fault:
-   ** No for this repository's requirement.
-   Upstream 0.17.0 source inspected on 2026-07-17 intentionally retains stopped-goal blocking,
-   while this repository deliberately forbids any goal-state blocker.
-2. **Upstream can fix it:
-   ** Yes technically,
-   by narrowing or removing the handler,
-   but that would change upstream policy.
-3. **Supported use case:
-   ** Partly.
-   Upstream supports autonomous goals,
-   but its current source and tests support a different stopped-goal policy.
-4. **Contribution welcome:
-   ** No explicit external-contribution or AI-assisted-contribution ban was found
-   in `README.md` or `.github/`.
-5. **Likely upstream action:
-   ** No evidence supports removing the intentional current policy.
-   The maintainer already fixed the distinct stale-clear bug in pull request 133.
-6. **Compatible prototype:
-   ** The repository-owned replacement is implemented and verified,
-   but it is a separate product contract rather than an upstream patch.
+1.  **Upstream fault:
+    ** No for this repository's requirement.
+    Upstream 0.17.0 source inspected on 2026-07-17 intentionally retains stopped-goal blocking,
+    while this repository deliberately forbids any goal-state blocker.
+2.  **Upstream can fix it:
+    ** Yes technically,
+    by narrowing or removing the handler,
+    but that would change upstream policy.
+3.  **Supported use case:
+    ** Partly.
+    Upstream supports autonomous goals,
+    but its current source and tests support a different stopped-goal policy.
+4.  **Contribution welcome:
+    ** No explicit external-contribution or AI-assisted-contribution ban was found
+    in `README.md` or `.github/`.
+5.  **Likely upstream action:
+    ** No evidence supports removing the intentional current policy.
+    The maintainer already fixed the distinct stale-clear bug in pull request 133.
+6.  **Compatible prototype:
+    ** The repository-owned replacement is implemented and verified,
+    but it is a separate product contract rather than an upstream patch.
 
 Constraints one and five do not pass,
 so no upstream patch prototype or new issue is warranted.

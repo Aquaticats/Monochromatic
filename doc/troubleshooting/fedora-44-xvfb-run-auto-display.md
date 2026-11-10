@@ -265,24 +265,24 @@ No `.out-of-scope/` entry names Fedora Xvfb or this option mismatch.
 but that does not search Fedora's own issue tracker.
 No upstream communication was sent.
 
-1. **Upstream fault:**
-    The installed Fedora script's help and parser disagree.
-2. **Fixability:**
-    Adding the missing long option to `getopt` appears sufficient;
-   this has not been patched and rerun against the exact installed script.
-3. **Supported use case:**
-    Its own help advertises the option.
-4. **Contribution policy:**
-    The exact Fedora package source repository and
-   its contribution requirements were not audited.
-   The older GitHub mirror is not equivalent evidence.
-5. **Expected response:**
-    No maintainer signal was established.
-6. **Tested upstream fix:**
-    None.
-   The project's script policy forbids authoring a shell-script patch for
-   this unrelated package;
-    the consumer-side `-d` workaround was tested.
+1.  **Upstream fault:**
+     The installed Fedora script's help and parser disagree.
+2.  **Fixability:**
+     Adding the missing long option to `getopt` appears sufficient;
+    this has not been patched and rerun against the exact installed script.
+3.  **Supported use case:**
+     Its own help advertises the option.
+4.  **Contribution policy:**
+     The exact Fedora package source repository and
+    its contribution requirements were not audited.
+    The older GitHub mirror is not equivalent evidence.
+5.  **Expected response:**
+     No maintainer signal was established.
+6.  **Tested upstream fix:**
+     None.
+    The project's script policy forbids authoring a shell-script patch for
+    this unrelated package;
+     the consumer-side `-d` workaround was tested.
 
 ### Draft, do not file as-is
 

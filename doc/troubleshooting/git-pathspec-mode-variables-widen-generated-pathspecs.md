@@ -236,30 +236,30 @@ and no `--no-...` flag has to be written after the forwarded prefix.
 Nothing filed.
 The six constraints walked:
 
-1. Upstream's fault:
-   partly.
-   Git documents the mode variables and the two-magic refusals,
-   and `ls-tree`'s
-   mask is a deliberate per-command capability list.
-   Only the *lack of a negating option for the icase
-   variable* reads as a gap.
-2. Upstream could fix it:
-   yes,
-   a `--no-icase-pathspecs` setting the variable to `0` beside `git.c:286-289`.
-3. Supporting this use case:
-   not shown.
-   The variables are described as settings for the user's own
-   pathspecs,
-   not for programs that generate them.
-4. Welcome a contribution:
-   not checked against `Documentation/SubmittingPatches` and the list's policy for
-   this run.
-5. Likely to fix:
-   no signal either way;
-   the tracker was not searched for this run.
-6. Prototyped fix:
-   none.
-   The consumer-side fix above removes the need for the wrapper.
+1.  Upstream's fault:
+    partly.
+    Git documents the mode variables and the two-magic refusals,
+    and `ls-tree`'s
+    mask is a deliberate per-command capability list.
+    Only the *lack of a negating option for the icase
+    variable* reads as a gap.
+2.  Upstream could fix it:
+    yes,
+    a `--no-icase-pathspecs` setting the variable to `0` beside `git.c:286-289`.
+3.  Supporting this use case:
+    not shown.
+    The variables are described as settings for the user's own
+    pathspecs,
+    not for programs that generate them.
+4.  Welcome a contribution:
+    not checked against `Documentation/SubmittingPatches` and the list's policy for
+    this run.
+5.  Likely to fix:
+    no signal either way;
+    the tracker was not searched for this run.
+6.  Prototyped fix:
+    none.
+    The consumer-side fix above removes the need for the wrapper.
 
 Constraints 3 to 6 are unverified,
 so the default policy of filing nothing applies.

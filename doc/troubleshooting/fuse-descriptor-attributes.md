@@ -410,32 +410,32 @@ so the count of its own descriptors of a lock is the same on every mount type.
 Nothing is filed.
 Walk of the six constraints:
 
-1. **Is it really upstream's fault?**
-   No. The `d_revalidate` in the walk is by design,
-   `statx(2)` documents `AT_STATX_DONT_SYNC` as "on a network filesystem,
-   it may not involve a round trip",
-   and the kernel offers the descriptor route that answers without a walk.
-   This is behaviour of the interface,
-   not a defect in it.
-2. **Can upstream fix it?**
-   It could add a flag that forbids dentry revalidation,
-   but nothing is broken that a fix would repair,
-   so this constraint is not reached.
-3. **Are they supporting this use case?**
-   Yes:
-   `AT_STATX_DONT_SYNC` exists for callers that must not wait,
-   and `pidfd_getfd(2)` exists for callers that need another process's open file.
-4. **Would the repo welcome our contribution?**
-   Not reached,
-   since there is nothing to contribute.
-5. **Do we have a reproduction they can run?**
-   The harness above is ours,
-   it needs a private mount namespace,
-   a `fuse-overlayfs` build and a stopped server,
-   and it reproduces a documented behaviour rather than a bug.
-6. **Is a filing in the public interest?**
-   No.
-   It would report a design as a bug.
+1.  **Is it really upstream's fault?**
+    No. The `d_revalidate` in the walk is by design,
+    `statx(2)` documents `AT_STATX_DONT_SYNC` as "on a network filesystem,
+    it may not involve a round trip",
+    and the kernel offers the descriptor route that answers without a walk.
+    This is behaviour of the interface,
+    not a defect in it.
+2.  **Can upstream fix it?**
+    It could add a flag that forbids dentry revalidation,
+    but nothing is broken that a fix would repair,
+    so this constraint is not reached.
+3.  **Are they supporting this use case?**
+    Yes:
+    `AT_STATX_DONT_SYNC` exists for callers that must not wait,
+    and `pidfd_getfd(2)` exists for callers that need another process's open file.
+4.  **Would the repo welcome our contribution?**
+    Not reached,
+    since there is nothing to contribute.
+5.  **Do we have a reproduction they can run?**
+    The harness above is ours,
+    it needs a private mount namespace,
+    a `fuse-overlayfs` build and a stopped server,
+    and it reproduces a documented behaviour rather than a bug.
+6.  **Is a filing in the public interest?**
+    No.
+    It would report a design as a bug.
 
 The durable lesson is ours:
 never read a descriptor's file through the path of its `/proc` link,

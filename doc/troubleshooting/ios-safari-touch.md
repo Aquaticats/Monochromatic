@@ -259,27 +259,27 @@ reports from every iPhone user.
 
 Already filed (multiple times across twelve years).
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    WebKit fires
-   `pointercancel` in violation of the W3C Pointer Events spec.
-2. **Can upstream fix it?
-   ** Yes.
-    The change would land in
-   WebKit's gesture-recognition layer.
-3. **Are they supporting this use case?
-   ** Documented support
-   exists since iOS 13;
-    the gap is enforcement,
-    not API
-   surface.
-4. **Will they likely fix it?
-   ** History suggests no. The
-   tracking bug has been open for twelve years;
-    closed as
-   "CONFIGURATION CHANGED" rather than "FIXED".
-5. **Have we prototyped a minimal fix?
-   ** No (closed source).
+1.  **Is it really upstream's fault?
+    ** Yes;
+     WebKit fires
+    `pointercancel` in violation of the W3C Pointer Events spec.
+2.  **Can upstream fix it?
+    ** Yes.
+     The change would land in
+    WebKit's gesture-recognition layer.
+3.  **Are they supporting this use case?
+    ** Documented support
+    exists since iOS 13;
+     the gap is enforcement,
+     not API
+    surface.
+4.  **Will they likely fix it?
+    ** History suggests no. The
+    tracking bug has been open for twelve years;
+     closed as
+    "CONFIGURATION CHANGED" rather than "FIXED".
+5.  **Have we prototyped a minimal fix?
+    ** No (closed source).
 
 Decision:
  no new upstream report from us.

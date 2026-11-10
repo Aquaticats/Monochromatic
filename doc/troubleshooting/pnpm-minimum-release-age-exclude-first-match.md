@@ -357,50 +357,50 @@ entries.
 
 Six-constraint check:
 
-1. **Really upstream's fault?
-   ** Yes.
-    `evaluateVersionPolicy` returns on the
-   first name match and silently ignores later same-name rules,
-    with no
-   warning,
-    and pnpm's own `audit --fix` generates the multiple-same-name shape.
-2. **Can upstream fix it?
-   ** Yes,
-    and the fix is small and localized:
-    merge
-   rules with the same package name in `createPackageVersionPolicy` (concatenate
-   their `exactVersions`,
-    with any empty set meaning all versions),
-    or emit a
-   duplicate-name warning.
-    (Prototype below.
-   )
-3. **Supporting this use case?
-   ** Yes.
-    `minimumReleaseAgeExclude` is a supported,
-   documented setting and `audit --fix` populates it.
-4. **Would the repo welcome the contribution?
-   ** Likely yes.
-    `CONTRIBUTING.md`
-   exists;
-    PR #12010 in this same area disclosed LLM assistance and was merged
-   by the lead maintainer;
-    no AI-filing ban was found in CONTRIBUTING or the
-   issue templates checked.
-    A filing must disclose AI assistance and name the
-   reproduction,
-    source trace,
-    prototype,
-    and workaround a human verified.
-5. **Will they likely fix it?
-   ** Plausible.
-    The area is actively maintained
-   (multiple 2026 PRs touching `minimumReleaseAgeExclude`),
-    related issues are
-   open,
-    and no won't-fix or non-goal signal was found.
-6. **Prototyped minimal fix?
-   ** See "Prototype" below.
+1.  **Really upstream's fault?
+    ** Yes.
+     `evaluateVersionPolicy` returns on the
+    first name match and silently ignores later same-name rules,
+     with no
+    warning,
+     and pnpm's own `audit --fix` generates the multiple-same-name shape.
+2.  **Can upstream fix it?
+    ** Yes,
+     and the fix is small and localized:
+     merge
+    rules with the same package name in `createPackageVersionPolicy` (concatenate
+    their `exactVersions`,
+     with any empty set meaning all versions),
+     or emit a
+    duplicate-name warning.
+     (Prototype below.
+    )
+3.  **Supporting this use case?
+    ** Yes.
+     `minimumReleaseAgeExclude` is a supported,
+    documented setting and `audit --fix` populates it.
+4.  **Would the repo welcome the contribution?
+    ** Likely yes.
+     `CONTRIBUTING.md`
+    exists;
+     PR #12010 in this same area disclosed LLM assistance and was merged
+    by the lead maintainer;
+     no AI-filing ban was found in CONTRIBUTING or the
+    issue templates checked.
+     A filing must disclose AI assistance and name the
+    reproduction,
+     source trace,
+     prototype,
+     and workaround a human verified.
+5.  **Will they likely fix it?
+    ** Plausible.
+     The area is actively maintained
+    (multiple 2026 PRs touching `minimumReleaseAgeExclude`),
+     related issues are
+    open,
+     and no won't-fix or non-goal signal was found.
+6.  **Prototyped minimal fix?
+    ** See "Prototype" below.
 
 ### Prototype
 

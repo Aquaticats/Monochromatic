@@ -244,24 +244,24 @@ The constraint is a Cloudflare procurement policy,
  not a defect.
 Walking the 5 constraints anyway:
 
-1. **Is it really upstream's fault?
-   ** No. Plan gating is a
-   business decision.
-2. **Can upstream fix it?
-   ** Yes,
-    by opening partial setup to free
-   tier.
-    They will not,
-    because partial setup is the documented
-   conversion path to paid plans.
-3. **Are they supporting this use case?
-   ** Yes for paid tiers,
-    no
-   for free.
-4. **Will they likely fix it?
-   ** No.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. Plan gating is a
+    business decision.
+2.  **Can upstream fix it?
+    ** Yes,
+     by opening partial setup to free
+    tier.
+     They will not,
+     because partial setup is the documented
+    conversion path to paid plans.
+3.  **Are they supporting this use case?
+    ** Yes for paid tiers,
+     no
+    for free.
+4.  **Will they likely fix it?
+    ** No.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.
