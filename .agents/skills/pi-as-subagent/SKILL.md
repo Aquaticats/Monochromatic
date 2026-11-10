@@ -298,6 +298,12 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     fix anything wrong with further commits,
     regenerate anything `file-enforcer` owns,
     and merge a worktree's branch into `main`.
+    The owner wrote "I don't think you'd need to rerun the same lints or tests another agent did, do you?":
+    read which suites the agent's report names instead of running them again.
+    After merging `main` into the branch,
+    run only the compile or type check,
+    which is what the agent could not have run on the combined tree,
+    and skip that too when `main` was already in the branch.
 
 ## Protocol
 
