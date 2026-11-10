@@ -31,11 +31,6 @@ const INCOMMENSURABLE_DIGIT_GAP = 2;
  */
 export const UNORDERED: unique symbol = Symbol('model ids carry no ordering evidence',);
 
-/**
- Index `findIndex` returns when no inspected position matched.
- */
-const NO_DIFFERING_POSITION = -1;
-
 //endregion Constants
 
 //region Types
@@ -173,37 +168,36 @@ function compareSharedComponents(
       .length,
   );
   /**
-   First position both vectors cover at which their components differ, or
-   {@link NO_DIFFERING_POSITION} when they agree at every one.
+   Left components the shared positions cover.
    */
-  const differingPosition = left.versionParts
+  const sharedParts = left.versionParts
     .slice(
-      0,
-      shared,
-    )
-    .findIndex(function differsAtPosition(leftPart: number, position: number,): boolean {
-      /**
-       Right component at this position.
-       */
-      const rightPart = nonNullishOrThrow(right.versionParts[position],);
-      return leftPart !== rightPart;
+    0,
+    shared,
+    );
+  for (const [position, leftPart,] of sharedParts.entries()) {
+    /**
+     Right component at this position.
+     */
+    const rightPart = nonNullishOrThrow(right.versionParts[position],);
+    if (leftPart === rightPart)
+      continue;
+    /**
+     Comparison at the first differing position.
+     */
+    const outcome = compareComponentAt({
+      left,
+      right,
+      index: position,
     },);
-  if (differingPosition === NO_DIFFERING_POSITION)
-    return { kind: 'tied', };
-  /**
-   Comparison at the first differing position.
-   */
-  const outcome = compareComponentAt({
-    left,
-    right,
-    index: differingPosition,
-  },);
-  if ((outcome === 'left') || (outcome === 'right'))
-    return {
-      kind: 'decided',
-      recency: outcome,
-    };
-  return { kind: 'unordered', };
+    if ((outcome === 'left') || (outcome === 'right'))
+      return {
+        kind: 'decided',
+        recency: outcome,
+      };
+    return { kind: 'unordered', };
+  }
+  return { kind: 'tied', };
 }
 
 //endregion Component comparison
@@ -233,14 +227,7 @@ function compareDateSequences(
     readonly rightDates: readonly string[];
   },
 ): Recency {
-  /**
-   First position at which the two sequences differ, or
-   {@link NO_DIFFERING_POSITION} when every date matches.
-   */
-  const differingPosition = leftDates.findIndex(function differsAtPosition(
-    leftDate: string,
-    position: number,
-  ): boolean {
+  for (const [position, leftDate,] of leftDates.entries()) {
     /**
      Left date at this position.
      */
@@ -253,23 +240,11 @@ function compareDateSequences(
     const right = Math.trunc(
       Number(nonNullishOrThrow(rightDates[position],),),
     );
-    return left !== right;
-  },);
-  if (differingPosition === NO_DIFFERING_POSITION)
-    return UNORDERED;
-  /**
-   Left date at the first differing position.
-   */
-  const left = Math.trunc(
-    Number(nonNullishOrThrow(leftDates[differingPosition],),),
-  );
-  /**
-   Right date at the first differing position.
-   */
-  const right = Math.trunc(
-    Number(nonNullishOrThrow(rightDates[differingPosition],),),
-  );
-  return left > right ? 'left' : 'right';
+    if (left === right)
+      continue;
+    return left > right ? 'left' : 'right';
+  }
+  return UNORDERED;
 }
 
 /**
