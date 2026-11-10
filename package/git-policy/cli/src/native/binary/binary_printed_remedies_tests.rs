@@ -26,6 +26,7 @@ use super::support::{
     Fixture, Observed, dead_copy_owner, fixture, git, observe_raw, porcelain, remove, repository,
     run_wrapped, stderr_of, wrapped,
 };
+use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use git_policy_cli::worktree_copy_stage_claim::claim_stage_for_add_as;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -84,10 +85,25 @@ fn shell_words(command: &str) -> Vec<String> {
     return words;
 }
 
-/// Run one printed command, as printed, through the wrapper from `directory`.
+/// What:
+///  Run one printed command, as printed, through the wrapper from `directory`.
+/// Why:
+///  The printed line starts with the `git` a person types,
+///  and a shell resolves that word to the wrapper on the
+///  fixture's `PATH`,
+///  so the program word is the wrapper itself and the rest are its arguments.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runAsPrinted(fixture: Fixture, directory: string, printed: string): Observed;
+/// ```
 fn run_as_printed(fixture: &Fixture, directory: &Path, printed: &str) -> Observed {
     let words: Vec<String> = shell_words(printed);
-    return observe_raw(wrapped(fixture).current_dir(directory).args(words), b"");
+    let arguments: &[String] = match words.first().map(String::as_str) {
+        Some("git") => &words[1..],
+        _ => words.as_slice(),
+    };
+    return observe_raw(wrapped(fixture).current_dir(directory).args(arguments), b"");
 }
 
 /// Whether the wrapper's own policy refused the run.
@@ -105,20 +121,34 @@ fn repository_with_a_tracked_file(fixture: &Fixture, name: &str) -> PathBuf {
     return repo;
 }
 
-/// A repository with `tracked.txt` committed and the branch `topic`,
-/// and a worktree registered there whose checkout never ran,
-/// which is the shape a kill between Git's registration and its checkout leaves.
-fn worktree_whose_checkout_never_ran(fixture: &Fixture) -> (PathBuf, PathBuf) {
+/// What:
+///  A repository,
+///  a worktree registered there whose checkout never ran
+///  (the shape a kill between Git's registration and its checkout leaves),
+///  and a second linked worktree to run commands from.
+/// Why:
+///   Only a command in a linked worktree or a bare repository runs the recovery that reports the
+///  worktree,
+///  which is where the person reads the line;
+///  the main worktree bypasses it by design.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, destination, watcher } = worktreeWhoseCheckoutNeverRan(fixture);
+/// ```
+fn worktree_whose_checkout_never_ran(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
     let repo: PathBuf = repository_with_a_tracked_file(fixture, "repo");
     let destination: PathBuf = fixture.root.join("half-added");
     let shown: &str = destination.to_str().expect("the fixture path is text");
     git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", shown, "topic"]);
+    let watcher: PathBuf = fixture.root.join("watcher");
+    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "--detach", watcher.to_str().expect("text")]);
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     // The record the wrapper's own add writes before real Git runs; its owner is a process that is gone, which is what
     // an add killed between the registration and the checkout leaves.
     let _claim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner())
         .expect("the destination record of an add");
-    return (repo, destination);
+    return (repo, destination, watcher);
 }
 
 /// The command that finishes an interrupted add's checkout runs as printed,
@@ -126,15 +156,15 @@ fn worktree_whose_checkout_never_ran(fixture: &Fixture) -> (PathBuf, PathBuf) {
 #[test]
 fn the_interrupted_adds_finish_command_runs_as_printed() {
     let fixture: Fixture = fixture("printed-interrupted-add");
-    let (repo, destination): (PathBuf, PathBuf) = worktree_whose_checkout_never_ran(&fixture);
-    // Every later command in the repository reports the worktree the interrupted add left.
-    let noticed: Observed = run_wrapped(&fixture, repo.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    let (repo, destination, watcher): (PathBuf, PathBuf, PathBuf) = worktree_whose_checkout_never_ran(&fixture);
+    // Every later command in a linked worktree reports the worktree the interrupted add left.
+    let noticed: Observed = run_wrapped(&fixture, watcher.as_path(), &["rev-parse", "--is-inside-work-tree"]);
     let text: String = stderr_of(&noticed);
     assert!(text.contains("an interrupted `git worktree add` left"), "{text}");
     let printed: Vec<String> = backticked_commands(text.as_str());
     let finish: &String = printed
         .iter()
-        .find(|one| one.contains(" reset "))
+        .find(|one| return one.contains(" reset "))
         .unwrap_or_else(|| panic!("the report names the command that finishes the checkout: {text}"));
     let ran: Observed = run_as_printed(&fixture, repo.as_path(), finish.as_str());
     assert!(
@@ -194,7 +224,7 @@ fn the_clean_ignored_reports_delete_runs_as_printed() {
     let printed: Vec<String> = backticked_commands(text.as_str());
     let delete: &String = printed
         .iter()
-        .find(|one| one.contains("clean") && one.contains("-f") && one.contains("-d"))
+        .find(|one| return one.contains(" clean ") && one.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH))
         .unwrap_or_else(|| panic!("the report names a clean that deletes untracked files only: {text}"));
     let ran: Observed = run_as_printed(&fixture, repo.as_path(), delete.as_str());
     assert!(!refused_by_policy(&ran), "the command the report prints was refused: {delete}\n{}", stderr_of(&ran));

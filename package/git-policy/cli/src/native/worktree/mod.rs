@@ -210,6 +210,10 @@ pub mod worktree_ladder;
 #[cfg(target_os = "linux")]
 pub mod shell_quote;
 
+/// The commands a message prints to finish or remove a worktree an interrupted `git worktree add` left.
+#[cfg(target_os = "linux")]
+pub mod worktree_finish_commands;
+
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 /// resumably.
 #[cfg(target_os = "linux")]
