@@ -288,6 +288,7 @@ export { FONT_WEIGHT_EMPHASIS, } from './style/constants.ts';
 export {
   PRIMARY_DARK,
   PRIMARY_LIGHT,
+  darkModeTokenStyles,
   tokenStyles,
 } from './style/tokens.ts';
 
