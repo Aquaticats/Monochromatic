@@ -275,22 +275,32 @@ export function insertBefore({
 }
 
 /**
- Drops one trailing empty line, which is what a Markdown block written as a template ends with.
+ Gives a block exactly one trailing empty line,
+ which is what separates it from the heading that follows.
  
  @param lines - Lines to trim.
  
- @returns The lines without a last line that is empty.
+ @returns The lines without their trailing empty lines, plus one.
  
  @example
  ```ts
- const block = withoutTrailingEmptyLine({ lines: ['## Answered', ''] });
+ const block = withTrailingBlankLine({ lines: ['## Answered', '', ''] });
  ```
  */
-function withoutTrailingEmptyLine({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
-  return lines.at(-1,) === '' ? lines.slice(
-    0,
-    -1,
-  ) : lines;
+function withTrailingBlankLine({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
+  /**
+   Index of the last line that holds anything.
+   */
+  const lastContentIndex = lines.findLastIndex(function isContent(line,): boolean {
+    return line !== '';
+  },);
+  return [
+    ...lines.slice(
+      0,
+      lastContentIndex + 1,
+    ),
+    '',
+  ];
 }
 
 /**
@@ -367,7 +377,7 @@ export function recordAnswers({
   /**
    Block lines, without the trailing empty line a template ends with.
    */
-  const block = withoutTrailingEmptyLine({ lines: answers.record
+  const block = withTrailingBlankLine({ lines: answers.record
     .split('\n',), },);
   /**
    File with the block inserted.

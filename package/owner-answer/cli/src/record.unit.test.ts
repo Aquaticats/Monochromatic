@@ -413,7 +413,7 @@ await describe({
       name: recordAnswers.name,
       children: [
         it({
-          name: 'removes the answered section, drops the trailing empty block line, and inserts the record',
+          name: 'removes the answered section, keeps one blank line after the block, and inserts the record',
           fn: async () => {
             /**
              Rewrite under test.
@@ -428,6 +428,7 @@ await describe({
             expect(result.text,).not.toContain('### A question, asked 2026-11-09T01:16:11-05:00',);
             expect(result.text,).toContain('### Another question, asked 2026-11-09T02:00:00-05:00',);
             expect(result.text,).toContain('### An older answer',);
+            expect(result.text,).toContain('"the owner\'s words"\n\n## Answered in the question tool, recorded',);
             expect(result.text.endsWith('\n',),).toBe(true,);
           },
         },),
