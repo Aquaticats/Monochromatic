@@ -96,7 +96,7 @@ body {
   width: var(--pane-width);
 }
 
-.pane.active {
+.pane[data-active] {
   border-color: #4a90d9;
 }
 
@@ -166,11 +166,11 @@ body {
   white-space: nowrap;
 }
 
-.entry-dir {
+.entry[data-kind='directory'] {
   color: #8ab4f8;
 }
 
-.entry.selected {
+.entry[data-selected] {
   background-color: #26436b;
 
   color: #fff;
