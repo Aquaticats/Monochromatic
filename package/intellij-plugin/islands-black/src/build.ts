@@ -1,16 +1,14 @@
-import type { Dirent, } from 'node:fs';
 import {
   readFile,
-  readdir,
   writeFile,
 } from 'node:fs/promises';
-import {
-  join,
-  relative,
-  sep,
-} from 'node:path';
 
 import { ZipWriter, } from '@monochromatic-dev/zip-writer-core/ts';
+
+import {
+  type ArchiveEntry,
+  listArchiveEntries,
+} from './archive-entries.ts';
 
 //region Archive constants: output path and the directories an install needs
 
@@ -40,23 +38,7 @@ const ARCHIVE_ROOTS = [
 
 //endregion Archive constants
 
-//region Archive entry shapes: a selected file, and that file with its bytes
-
-/**
- File queued for inclusion in plugin archive.
- 
- @example
- ```ts
- const entry: ArchiveEntry = {
-   archivePath: 'META-INF/plugin.xml',
-   diskPath: 'META-INF/plugin.xml',
- };
- ```
- */
-type ArchiveEntry = Readonly<{
-  archivePath: string;
-  diskPath: string;
-}>;
+//region Archive entry shapes: the listing helpers return entries, the writer takes bytes
 
 /**
  File content ready to copy into plugin archive.
@@ -75,129 +57,6 @@ type ArchiveEntryContent = Readonly<{
 }>;
 
 //endregion Archive entry shapes
-
-//region Archive listing helpers: stable order, forward-slash paths, recursive walk
-
-/**
- Sort directory entries by name for deterministic archive entry order.
- 
- @param left - Directory entry compared before right entry
- 
- @param right - Directory entry compared after left entry
- 
- @returns Sort order for left relative to right
- 
- @example
- ```ts
- compareDirentNames({ left, right, });
- ```
- */
-function compareDirentNames(
-  {
-    left,
-    right,
-  }: Readonly<{
-    left: Readonly<Dirent>;
-    right: Readonly<Dirent>;
-  }>,
-): number {
-  if (left.name < right.name)
-    return -1;
-  if (left.name > right.name)
-    return 1;
-  return 0;
-}
-
-/**
- Convert platform-native package path to ZIP-standard forward-slash path.
- 
- @param diskPath - Package-relative path needing archive normalization
- 
- @returns Archive entry path using forward slash separators
- 
- @example
- ```ts
- toArchivePath({ diskPath: join('META-INF', 'plugin.xml',), });
- ```
- */
-function toArchivePath(
-  { diskPath, }: Readonly<{ diskPath: string; }>,
-): string {
-  return relative(
-    '.',
-    diskPath,
-  )
-    .split(sep,)
-    .join('/',);
-}
-
-/**
- Recursively list regular files under root directory for archive inclusion.
- 
- @param root - Directory path whose regular files enter archive
- 
- @returns Archive entries sorted by package-relative path
- 
- @throws When input tree contains unsupported special files
- 
- @example
- ```ts
- const entries = await listArchiveEntries({ root: 'META-INF', },);
- ```
- */
-async function listArchiveEntries(
-  { root, }: Readonly<{ root: string; }>,
-): Promise<readonly ArchiveEntry[]> {
-  /**
-   Directory entries found immediately under current root.
-   */
-  const directoryEntries = await readdir(
-    root,
-    { withFileTypes: true, },
-  );
-  /**
-   Directory entries sorted before traversal to keep archive deterministic.
-   */
-  const sortedDirectoryEntries = directoryEntries.toSorted(function compareDirectoryEntries(
-    left: Readonly<Dirent>,
-    right: Readonly<Dirent>,
-  ): number {
-    return compareDirentNames({
-      left,
-      right,
-    },);
-  },);
-  /**
-   Per-entry archive fragments, flattened before returning.
-   */
-  const archiveEntryGroups = await Promise.all(
-    sortedDirectoryEntries.map(function archiveEntriesForDirent(
-      dirent: Readonly<Dirent>,
-    ): Promise<readonly ArchiveEntry[]> {
-      /**
-       Package-relative disk path for current directory entry.
-       */
-      const diskPath = join(
-        root,
-        dirent.name,
-      );
-      if (dirent.isDirectory())
-        return listArchiveEntries({ root: diskPath, },);
-      if (dirent.isFile()) {
-        return Promise.resolve([
-          {
-            archivePath: toArchivePath({ diskPath, },),
-            diskPath,
-          },
-        ],);
-      }
-      throw new Error(`Unsupported plugin archive input: ${diskPath}`,);
-    },),
-  );
-  return archiveEntryGroups.flat();
-}
-
-//endregion Archive listing helpers
 
 //region Build flow: list every bundled file, read it, then write one archive
 
