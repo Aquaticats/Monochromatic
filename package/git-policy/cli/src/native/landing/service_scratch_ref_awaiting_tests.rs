@@ -122,13 +122,17 @@ fn the_awaited_clearing_answers_what_the_synchronous_one_answers() {
     let (root, repo, _journal, context, head) = a_repository_with_a_dropped_batch("scratch-ref-faces");
     let synchronous: ScratchRefRemoval = clear_after_dropped_batch(&context, repo.as_path(), THE_BATCH);
     let synchronous_kept: RefValue = kept_after(&context, repo.as_path());
-    let (awaited_root, awaited_repo, _awaited_journal, awaited_context, _awaited_head) = a_repository_with_a_dropped_batch("scratch-ref-faces-awaited");
+    let (awaited_root, awaited_repo, _awaited_journal, awaited_context, awaited_head) = a_repository_with_a_dropped_batch("scratch-ref-faces-awaited");
     let awaited: ScratchRefRemoval = crate::lazy_runtime::run_on_runtime(clear_after_dropped_batch_awaiting(&awaited_context, awaited_repo.as_path(), THE_BATCH))
         .expect("the runtime");
     assert_eq!(synchronous, ScratchRefRemoval::Removed, "a batch that did not land has its scratch reference removed once its commit is kept");
     assert_eq!(awaited, synchronous, "both faces answer one thing about the same batch");
-    assert_eq!(synchronous_kept, RefValue::Names(head.clone()), "the commit of the batch is kept where the person is told to look");
-    assert_eq!(kept_after(&awaited_context, awaited_repo.as_path()), RefValue::Names(head), "the awaited face keeps the same commit as the synchronous one");
+    assert_eq!(synchronous_kept, RefValue::Names(head), "the commit of the synchronous face's batch is kept where the person is told to look");
+    assert_eq!(
+        kept_after(&awaited_context, awaited_repo.as_path()),
+        RefValue::Names(awaited_head),
+        "the awaited face keeps the commit of its own batch, which is the one the person is told to look at there"
+    );
     remove(root.as_path());
     remove(awaited_root.as_path());
 }
