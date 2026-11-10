@@ -1187,3 +1187,18 @@ Why:
   move the missing-helper and qualified-invocation fixtures into `Verification`,
   add `What does not work` for the documentation-only remedy the owner rejected,
   and add `Upstream filing artifact` naming issues 1768 and 575 with its six-constraint decision.
+
+- `#4408`:
+  the two citations the `#1907` entry also names,
+  in the same decision record,
+  and resolved by the same two notes;
+  this entry adds the check the issue asks for.
+ `doc/decision/private-npm-registry.md:167` names the deleted
+ `package/git-policy/cli/src/policy-engine/apply-policy-patches.ts` for the commit transaction's target rule,
+  and `:183` names the deleted runner
+ `package/git-policy/repository/src/bump-dependents.ts` for the shared edge and publishability rules,
+  so both behaviours the owner decision extends are described through files no reader can open.
+ `package/git-policy/repository` is not a directory on `main`,
+  and the commit transaction,
+  the direct fix and the ripple rules are the three modules the `#1907` notes name.
+ The proposal is the two blocks in the `#1907` entry.
