@@ -1004,6 +1004,10 @@ fn a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache
         synced_files.iter().any(|path| return path.ends_with("install-log.jsonl")),
         "the install log's own file sync is still recorded: {synced_files:?}"
     );
+    assert!(
+        synced_files.iter().any(|path| return path.ends_with("monochromatic-git-policy-cli-copy-owner")),
+        "the registration's owner file's own sync is still recorded: {synced_files:?}"
+    );
     remove(root.as_path());
 }
 

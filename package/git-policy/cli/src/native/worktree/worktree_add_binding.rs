@@ -490,7 +490,9 @@ pub enum RegistrationOwner {
 ///  the rest read its token;
 /// nothing waits and no lock file exists.
 /// The flush of the file goes through the process's durability answer,
-/// so a control that keeps its writes in the page cache does not wait for a filesystem commit here either.
+/// so a control that keeps its writes in the page cache does not wait for a filesystem commit here either;
+/// `admin_path` names the file in the record that answer keeps,
+/// so a control whose subject is the order of the flushes still reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

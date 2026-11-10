@@ -366,8 +366,8 @@ Every sync is still recorded (`record_file_sync`,
 so a control whose subject is the order of the flushes reads them as before.
 
 The first control then made no flush at all and ran in 0.22 s,
-the second in 0.26 s on the same host
-(0.05 s for each in the parallel run that follows).
+the second in 0.26 s on the same host,
+and 0.092 s and 0.095 s inside the whole library suite.
 
 ### Verification
 
@@ -388,7 +388,33 @@ the second in 0.26 s on the same host
   `merge_isolation_journal` and `shadow_refs`:
   `464 tests run: 464 passed` in 12.4 s,
   which is the same set that reads the sync records.
-- The whole library suite is the run recorded below.
+- The whole library suite (`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`):
+  `6080 tests run: 6080 passed (1 slow), 14 skipped` in 156.762 s,
+  the slow one the push control that is slow on purpose
+  (`push::push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`),
+  run while another session was using the host.
+- `cargo build --bin monochromatic-git-policy-cli` (`native:build`),
+  which compiles the `#[cfg(not(test))]` arm where `syncing_is_faithful` is the constant `true`.
+
+### What is not claimed
+
+- The switch is a control's process,
+  not its test:
+  a run that puts several tests in one process (libtest,
+  as an `strace` probe does)
+  carries it from one test to the next.
+  Every task of this package runs the binary through `nextest`,
+  which is one test per process.
+- The records of the syncs are per thread (`private_storage_syncs_test_support.rs`),
+  so a sync site that moved onto a worker thread would move its record with it and the record assertions here would
+  have to follow.
+- The flush count after the change is measured by `strace`;
+  no control counts them,
+  because nothing in the process sees a flush that happened.
+  The records are what the controls read,
+  and the new control asserts the records of all three writers that keep one (the journal root directory,
+  the install log,
+  and the registration's owner file).
 
 ### What does not work
 
