@@ -5,15 +5,121 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { createOpfsSink, } from '@monochromatic-dev/logger-core/browser';
 
-// Node/Bun has no `navigator.storage`, so this file exercises the
-// unavailable-backend fallback that the browser test (which runs where OPFS
-// exists) never reaches: `getDirectory` throws and is caught, and drained
-// batches hit the unset-stream guard. The available path lives in
-// `opfs.browser.test.ts`; the shared buffering policy is covered in
-// `record-buffer.unit.test.ts`. The factory is reached through the
-// `./browser` subpath because the root entry no longer exports it.
+/**
+ Installs an in-memory origin private file system as `navigator.storage`,
+ restoring the previous `navigator` descriptor when the returned guard leaves
+ `using` scope.
+ 
+ The fake publishes bytes the way the real backend does: a writable opened
+ without `keepExistingData` starts from an empty file, and `close` is what the
+ next `getFile()` reads.
+
+ @returns Disposable exposing the fake's files by name.
+ */
+function installFakeOpfs(): Disposable & { readonly files: Map<string, string>; } {
+  const original = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'navigator',
+  );
+  const files = new Map<string, string>();
+
+  /**
+   Handle for one file of the fake file system.
+   
+   @param name - File name inside the fake root.
+   
+   @returns File handle exposing the writable and snapshot operations the sink uses.
+   */
+  function createFileHandle(name: string,) {
+    return {
+      createWritable: async function createWritable(options?: { readonly keepExistingData?: boolean; },) {
+        if (options?.keepExistingData !== true)
+          files.set(name, '',);
+        return {
+          close: async function close(): Promise<void> {},
+          write: async function write(data: string,): Promise<void> {
+            files.set(
+              name,
+              (files.get(name,) ?? '') + data,
+            );
+          },
+        };
+      },
+      getFile: async function getFile() {
+        return {
+          text: async function text(): Promise<string> {
+            return files.get(name,) ?? '';
+          },
+        };
+      },
+    };
+  }
+
+  /**
+   Fake origin private file system root.
+   */
+  const root = {
+    getFileHandle: async function getFileHandle(
+      name: string,
+      options?: { readonly create?: boolean; },
+    ) {
+      if ((!files.has(name,)) && (options?.create !== true))
+        throw new DOMException(
+          `no entry named ${name}`,
+          'NotFoundError',
+        );
+      if (!files.has(name,))
+        files.set(name, '',);
+      return createFileHandle(name,);
+    },
+    removeEntry: async function removeEntry(name: string,): Promise<void> {
+      if (!files.delete(name,))
+        throw new DOMException(
+          `no entry named ${name}`,
+          'NotFoundError',
+        );
+    },
+  };
+
+  Object.defineProperty(
+    globalThis,
+    'navigator',
+    {
+      configurable: true,
+      value: {
+        storage: {
+          getDirectory: async function getDirectory() {
+            return root;
+          },
+        },
+      },
+    },
+  );
+  return {
+    files,
+    [Symbol.dispose](): void {
+      if (original === undefined)
+        Reflect.deleteProperty(globalThis, 'navigator',);
+      else
+        Object.defineProperty(
+          globalThis,
+          'navigator',
+          original,
+        );
+    },
+  };
+}
+
+// Node/Bun has no `navigator.storage`, so the absent-backend fallback (a caught
+// `getDirectory` throw and drained batches hitting the unset-stream guard) is
+// covered here against a fake file system, and the real-backend differences
+// live in `opfs.browser.test.ts`. The shared buffering policy is covered in
+// `record-buffer.unit.test.ts`. The factory is reached through the `./browser`
+// subpath because the root entry no longer exports it.
+// Serial because the fake backend replaces the process-global `navigator`.
 await describe({
-  name: 'OPFS sink (node fallback)',
+  name: 'OPFS sink',
+  concurrency: 1,
   children: [
     it({
       name: 'verify resolves false when OPFS is absent',
@@ -67,6 +173,61 @@ await describe({
         const result = await sink.flush?.();
         expect(result,)
           .toBeUndefined();
+      },
+    },),
+
+    it({
+      name: 'verification leaves only JSONL log records in the file it opens',
+      fn: async () => {
+        using opfs = installFakeOpfs();
+        const sink = createOpfsSink();
+        expect(await sink.verify(),)
+          .toBe(true,);
+
+        await sink.write({
+          level: 'warn',
+          message: 'urgent',
+          timestamp: 1,
+        },);
+        await sink.flush?.();
+
+        /**
+         Every file the sink left behind, so probe residue is visible too.
+         */
+        const names = [...opfs.files.keys(),];
+        /**
+         The one log file this run appends to.
+         */
+        const logNames = names.filter(function isLogFile(name: string,): boolean {
+          return name.endsWith('.log.jsonl',);
+        },);
+        expect(logNames,)
+          .toHaveLength(1,);
+        const [logName,] = logNames;
+        if (logName === undefined)
+          throw new Error('Verified OPFS sink created no log file',);
+
+        /**
+         Lines of that log file; an appended probe record would appear here as an extra line.
+         */
+        const lines = (opfs.files.get(logName,) ?? '').trimEnd()
+          .split('\n',);
+        expect(lines,)
+          .toHaveLength(1,);
+        const [line,] = lines;
+        if (line === undefined)
+          throw new Error('Verified OPFS sink wrote no record',);
+        expect(JSON.parse(line,),)
+          .toEqual({
+            level: 'warn',
+            message: 'urgent',
+            timestamp: 1,
+          },);
+        // Verification cleans up its own probe file rather than leaving residue.
+        expect(names.filter(function isProbe(name: string,): boolean {
+          return name.endsWith('.probe.tmp',);
+        },),)
+          .toEqual([],);
       },
     },),
   ],

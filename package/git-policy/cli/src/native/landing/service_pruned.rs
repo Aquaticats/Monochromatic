@@ -63,6 +63,9 @@ static STAGED_REACHED: AtomicU64 = AtomicU64::new(0);
 /// Counts how often this process reached `ServicePrepared`.
 static PREPARED_REACHED: AtomicU64 = AtomicU64::new(0);
 
+/// Counts how often this process reached `ServiceSentBack`.
+static SENT_BACK_REACHED: AtomicU64 = AtomicU64::new(0);
+
 /// What:
 ///  Whether an event says the content to check was removed:
 /// an engine failure that the content is unavailable,
@@ -353,7 +356,12 @@ pub fn batch_content_missing(common_dir: &Path, requests: &[&CommitRequest]) -> 
 /// await reachServicePhase('service-staged')
 /// ```
 pub fn reach_service_phase(phase: Phase) -> Result<(), PhaseMarkerError> {
-    let counter: &AtomicU64 = if phase == Phase::ServiceStaged { &STAGED_REACHED } else { &PREPARED_REACHED };
+    // One counter per phase, so a number always counts the arrivals at that phase and nothing else.
+    let counter: &AtomicU64 = match phase {
+        Phase::ServiceStaged => &STAGED_REACHED,
+        Phase::ServiceSentBack => &SENT_BACK_REACHED,
+        Phase::MergeIntent | Phase::MergeApplied | Phase::ServicePrepared => &PREPARED_REACHED,
+    };
     let number: u64 = counter.fetch_add(1, Ordering::SeqCst) + 1;
     return reach_transaction_phase(phase, Some(number));
 }

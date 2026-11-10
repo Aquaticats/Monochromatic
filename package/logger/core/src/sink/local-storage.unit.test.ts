@@ -155,6 +155,52 @@ await describe({
     },),
 
     it({
+      name: 'two interleaved verifications over one shared store both keep their sink',
+      fn: async () => {
+        using _document = installFakeDocument();
+        /**
+         The other tab's sink; its probe lands inside the first tab's probe write,
+         which is how two tabs of one origin interleave on a shared store.
+         */
+        const otherTab = createLocalStorageSink();
+        /**
+         Probes the other tab started while the first tab was mid-probe, awaited
+         below so both verdicts are checked.
+         */
+        const otherProbes: Promise<boolean>[] = [];
+        /**
+         Whether the other tab's probe already ran, so its own write does not start it again.
+         */
+        let otherTabStarted = false;
+        const fake = createFakeStorage();
+        /**
+         The store's own write, kept so the interleaving wrapper still stores the value.
+         */
+        const storeValue = fake.setItem.bind(fake,);
+        fake.setItem = function setItemWithOtherTab(key: string, value: string,): void {
+          storeValue(key, value,);
+          if (otherTabStarted)
+            return;
+          otherTabStarted = true;
+          otherProbes.push(otherTab.verify(),);
+        };
+        using _storage = installFakeLocalStorage(fake,);
+        const firstTab = createLocalStorageSink();
+
+        expect(await firstTab.verify(),)
+          .toBe(true,);
+        // One interleaved probe ran, and it kept its own sink.
+        expect(otherProbes,)
+          .toHaveLength(1,);
+        expect(await Promise.all(otherProbes,),)
+          .toEqual([true,],);
+        // Both probes removed their own key, so the store holds no residue.
+        expect(fake.backing.size,)
+          .toBe(0,);
+      },
+    },),
+
+    it({
       name: 'a warn record lands buffered records as one run-scoped JSONL batch',
       fn: async () => {
         using _document = installFakeDocument();
