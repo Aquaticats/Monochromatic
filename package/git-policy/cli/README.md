@@ -4142,6 +4142,13 @@ mise run //package/git-policy/cli:native:test:container
   (`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
+  The test run and Clippy start together,
+  one container each,
+  and the gate waits for both:
+  a Clippy compile behind the suite was a fifth of the gate's wall time while the two checks had nothing to say to each
+  other,
+  and either one still fails the gate on its own
+  (`bin/native-gate-checks.ts`).
   Before it copies or builds anything it runs `lint:sidecar-locks`,
   so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
   instead of surfacing later in the sidecar's own build.
@@ -4547,6 +4554,13 @@ Every container the verification tasks start is bounded.
 The defaults are 2 GiB of memory,
 2 CPUs and 512 processes,
 defined once in `bin/container-limits.ts`.
+`native:test:container` is the one task that starts from its own CPU count:
+four CPUs,
+from `bin/native-gate-container-limits.ts`,
+because a release waits on that gate and its suite is what the CPUs shorten
+(`doc/planning/git-policy-cli-cachyos-test-containers.md` records the paired measurement).
+The gate's memory and process bounds stay the defaults,
+and an option a person passes still wins over the gate's own.
 Each task accepts overrides after the `--` of `mise run`,
 with these exact option names:
 

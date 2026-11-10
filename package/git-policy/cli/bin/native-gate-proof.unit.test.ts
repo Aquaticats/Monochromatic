@@ -13,11 +13,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  defaultContainerLimits,
   diskWeightArguments,
   lowestDiskWeight,
   runLimitArguments,
 } from './container-limits.ts';
+import { gateContainerLimits, } from './native-gate-container-limits.ts';
 import {
   gatePassedRecord,
   passingGateEvidence,
@@ -34,14 +34,14 @@ const image = 'a'.repeat(64);
 const otherImage = 'b'.repeat(64);
 
 /**
- Container arguments of a gate run at the defaults, as the gate's manifest records them.
+ Container arguments of a gate run, as the gate's manifest records them.
  */
 const gateLimits = [
   '--rm',
   '--init',
   '--network=none',
   ...runLimitArguments({
-    limits: defaultContainerLimits,
+    limits: gateContainerLimits,
     withPidsLimit: true,
   }),
 ];

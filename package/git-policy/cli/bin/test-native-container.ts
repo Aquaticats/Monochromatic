@@ -23,6 +23,8 @@ import {
   gateImageTagOf,
   nativeTestImageRepository,
 } from './native-gate-image-tag.ts';
+import { runGateChecks, } from './native-gate-checks.ts';
+import { gateContainerLimitOptions, } from './native-gate-container-limits.ts';
 import { gatePassedRecord, } from './native-gate-proof.ts';
 import {
   imageRootDirectory,
@@ -78,8 +80,12 @@ const {
   limits: containerLimits,
   rest: unknownOptions,
 } = parseContainerLimitOptions({
-  options: process.argv
-    .slice(2),
+  // The gate's own bounds come first, so a person's option after them wins: the parser keeps the last repeat.
+  options: [
+    ...gateContainerLimitOptions,
+    ...process.argv
+      .slice(2),
+  ],
   acceptPidsLimit: true,
 });
 if (unknownOptions.length > 0)
@@ -292,16 +298,8 @@ await writeFile(
   )}\n`,
 );
 console.log(`Native wrapper verification evidence: ${evidence}`);
-await runCommand({
-  command: 'podman',
-  args: [
-    'run',
-    ...limits,
-    image,
-  ],
-});
 /**
- Result of asking the host's `rustc` for its sysroot.
+ Result of asking the host's `rustc` for its sysroot, which the Clippy container mounts read-only.
  */
 const sysroot = await runCommand({
   command: 'rustc',
@@ -316,31 +314,51 @@ const sysroot = await runCommand({
  */
 const compiler = sysroot.stdout
   .trim();
-await runCommand({
-  command: 'podman',
-  args: [
-    'run',
-    ...limits,
-    '--security-opt',
-    'label=disable',
-    '--volume',
-    `${compiler}:/toolchain:ro`,
-    '--env',
-    'PATH=/toolchain/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-    '--env',
-    'RUSTC=/toolchain/bin/rustc',
-    '--env',
-    'RUSTDOC=/toolchain/bin/rustdoc',
-    image,
-    '/toolchain/bin/cargo',
-    'clippy',
-    '--offline',
-    '--locked',
-    '--all-targets',
-    '--',
-    '-D',
-    'warnings',
-  ],
+// The suite and Clippy start together and the gate waits for both: a clean Clippy is silent, and a Clippy compile
+// behind the suite cost a fifth of the gate's wall time while both checks had nothing to say to each other.
+await runGateChecks({
+  testRun: function runTheWholeSuite() {
+    return runCommand({
+      command: 'podman',
+      args: [
+        'run',
+        ...limits,
+        image,
+      ],
+    });
+  },
+  // Its diagnostics are captured rather than streamed, so the run stays the one stream a person reads and a refused
+  // Clippy still quotes what Clippy said.
+  clippyRun: function runClippy() {
+    return runCommand({
+      command: 'podman',
+      args: [
+        'run',
+        ...limits,
+        '--security-opt',
+        'label=disable',
+        '--volume',
+        `${compiler}:/toolchain:ro`,
+        '--env',
+        'PATH=/toolchain/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        '--env',
+        'RUSTC=/toolchain/bin/rustc',
+        '--env',
+        'RUSTDOC=/toolchain/bin/rustdoc',
+        image,
+        '/toolchain/bin/cargo',
+        'clippy',
+        '--offline',
+        '--locked',
+        '--all-targets',
+        '--',
+        '-D',
+        'warnings',
+      ],
+      capture: true,
+      allowFailure: true,
+    });
+  },
 });
 await writeFile(
   join(
