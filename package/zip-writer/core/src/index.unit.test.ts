@@ -218,7 +218,8 @@ await describe({
           name: 'clamps dates after 2107 to the last representable DOS timestamp',
           fn: async () => {
             const date = new Date(Date.UTC(2_108, 0, 1,),);
-            expect(decodeDosTimestamp(dosDateTime(date,),),)
+            const encoded = dosDateTime(date,);
+            expect(decodeDosTimestamp(encoded,),)
               .toEqual({
                 year: 2_107,
                 month: 12,
@@ -233,7 +234,8 @@ await describe({
           name: 'clamps dates before the DOS epoch to 1980-01-01, not only the year',
           fn: async () => {
             const date = new Date(Date.UTC(1_979, 5, 15, 12, 30, 30,),);
-            expect(decodeDosTimestamp(dosDateTime(date,),),)
+            const encoded = dosDateTime(date,);
+            expect(decodeDosTimestamp(encoded,),)
               .toEqual({
                 year: 1_980,
                 month: 1,
