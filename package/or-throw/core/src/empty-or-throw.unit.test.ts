@@ -12,6 +12,8 @@ import {
 
 import { emptyOrThrow, } from '@monochromatic-dev/or-throw-core';
 
+import { createCallerOwnedRecord, } from './caller-owned-record.test-fixture.ts';
+
 await describe({
   name: emptyOrThrow.name,
   children: [
@@ -50,6 +52,17 @@ await describe({
         expect(() => emptyOrThrow(true,)).toThrow('sized container',);
         expect(() => emptyOrThrow(1n,)).toThrow('sized container',);
         expect(() => emptyOrThrow(Symbol('non container symbol value',),)).toThrow('sized container',);
+      },
+    },),
+
+    it({
+      name: 'throws when an object is not a plain object',
+      fn: async () => {
+        expect(() => emptyOrThrow(new WeakSet(),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(new WeakMap(),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(new Date(),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(new Object('ab',),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(createCallerOwnedRecord(),)).toThrow('sized container',);
       },
     },),
   ],
