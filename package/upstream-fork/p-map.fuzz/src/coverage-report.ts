@@ -302,13 +302,24 @@ function checkBaseline({
 //region Entry
 
 /**
+ Command line both guards quote, naming the two accepted modes.
+ */
+const USAGE = 'usage: node coverage-report.ts <check|write> <coverageDir> <baselinePath>';
+
+/**
  Run mode, coverage directory, and baseline path from the command line.
  */
 const [mode, coverageDir, baselinePath] = process.argv
   .slice(2,);
 if ((mode === undefined) || (coverageDir === undefined)
   || (baselinePath === undefined))
-  throw new Error('usage: node coverage-report.ts <check|write> <coverageDir> <baselinePath>',);
+  throw new Error(USAGE,);
+/**
+ Reject any other spelling before the coverage is read, so a mistyped `write`
+ or `check` reports the usage error instead of running the check gate.
+ */
+if ((mode !== 'check') && (mode !== 'write'))
+  throw new Error(`unknown mode ${mode}; ${USAGE}`,);
 
 /**
  Covered-function counts from this run.
