@@ -8,8 +8,6 @@ const ca: Record<Label, string> = {
   siteDescription: 'Canviant el món, un disseny a la vegada',
   chooseALang: 'tria un idioma',
   searchPlaceholder: 'Cerca paraula clau, tema, text',
-  noResults: 'Sense resultats',
-  page: 'pàgina',
   postNotInLang: 'La publicació no existeix en l\'idioma especificat',
   redirectingToLangChooser: 'Tria un idioma per a',
   themeToggle: 'Inverteix el tema',

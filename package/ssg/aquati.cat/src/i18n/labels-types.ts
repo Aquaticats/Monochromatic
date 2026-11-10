@@ -19,8 +19,6 @@ export type Label =
     | 'siteDescription'
     | 'chooseALang'
     | 'searchPlaceholder'
-    | 'noResults'
-    | 'page'
     | 'postNotInLang'
     | 'redirectingToLangChooser'
     | 'themeToggle'
