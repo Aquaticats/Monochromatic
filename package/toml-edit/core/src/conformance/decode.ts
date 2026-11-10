@@ -145,32 +145,19 @@ function parseToTree(
 }
 
 /**
- Run the decoder adapter end to end.
- 
- @example
- ```ts
- await main();
- ```
+ Strict UTF-8 decode of stdin.
  */
-async function main(): Promise<void> {
-  /**
-   Strict UTF-8 decode of stdin.
-   */
-  const decoded = decodeUtf8({ bytes: await readStdin(), },);
-  if (!decoded.ok) {
-    failAdapter({ message: decoded.message, },);
-    return;
-  }
+const decoded = decodeUtf8({ bytes: await readStdin(), },);
+if (!decoded.ok)
+  failAdapter({ message: decoded.message, },);
+else {
   /**
    Parse and projection result.
    */
   const result = parseToTree({ source: decoded.source, },);
-  if (!result.ok) {
+  if (!result.ok)
     failAdapter({ message: result.message, },);
-    return;
-  }
-  process.stdout
-    .write(JSON.stringify(result.tree,),);
+  else
+    process.stdout
+      .write(JSON.stringify(result.tree,),);
 }
-
-await main();

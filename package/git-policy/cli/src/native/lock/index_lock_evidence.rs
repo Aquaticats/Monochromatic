@@ -369,13 +369,20 @@ fn quoted_prefix(text: &str) -> String {
 ///  the text is read with replacement characters as `'utf8'` does,
 ///  and what the number is now comes from the caller's read of the process table,
 ///  so a control decides it without one.
+///  The read is the bounded plain-file one,
+///  opened without waiting and refused when the path is not a plain file:
+///  a named pipe left at the path would otherwise hold the landing lock's wait,
+///  and its configured ceiling could never expire while a writer that may never come is waited for
+///  (`SPEC.md`,
+///  "Every wait has a bound";
+///  a trial reviewer's finding).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function readPidFileEvidence({ pidPath, readProcess }): Promise<PidFileEvidence>;
 /// ```
 pub fn read_pid_file_evidence(pid_path: &Path, resolve: fn(i64) -> PidProcess) -> PidFile {
-    let text: String = match std::fs::read(pid_path) {
+    let text: String = match crate::plain_file::read_plain_file(pid_path, crate::plain_file::SMALL_FILE_LIMIT) {
         Ok(bytes) => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
         Err(error) if is_missing(&error) => return PidFile::Absent,
         Err(error) => return PidFile::Unreadable(error.to_string()),

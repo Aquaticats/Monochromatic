@@ -72,6 +72,11 @@ pub enum Recovery {
     /// The batch never landed;
     /// forget the intent.
     Drop,
+    /// A reference lock keeps the batch off its branch,
+    /// and its record says so:
+    /// nothing is decided about it until the lock goes
+    /// (`held_commit_settle.rs`).
+    Hold,
     /// The batch landed;
     /// make sure the index shows it,
     /// then remember the identities.

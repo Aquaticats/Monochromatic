@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  Independently validate exact guard failure causes on the already tested immutable guard images.
+ Throws `ScannerVerificationError` when arguments are given or an observation fails
  */
 import { createHash } from 'node:crypto';
 import {
@@ -361,62 +362,48 @@ async function observeVariant({
   if (!expected) throw new ScannerVerificationError(`Exact guard observation failed: ${variant}; inspect ${evidence}.`);
 }
 
+if (process.argv
+  .length
+  !== 2) throw new ScannerVerificationError('This task accepts no arguments.');
+await mkdir(
+  scratchBase,
+  { recursive: true },
+);
 /**
- Host hooks are counted per operation; both executable cases and real parallel CLI fault paths run independently.
-
- @throws ScannerVerificationError when arguments are given or an observation fails
-
- @example
- ```ts
- await main();
- ```
+ Directory holding the retained control evidence.
  */
-async function main(): Promise<void> {
-  if (process.argv
-    .length
-    !== 2) throw new ScannerVerificationError('This task accepts no arguments.');
-  await mkdir(
-    scratchBase,
-    { recursive: true },
-  );
-  /**
-   Directory holding the retained control evidence.
-   */
-  const root = resolve(
+const root = resolve(
+  import.meta.dirname,
+  '../target/verification',
+);
+/**
+ The consumer test the controls ran.
+ */
+const original = await readFile(
+  join(
     import.meta.dirname,
-    '../target/verification',
-  );
-  /**
-   The consumer test the controls ran.
-   */
-  const original = await readFile(
-    join(
-      import.meta.dirname,
-      'guard-fixture.rs.txt',
-    ),
-    'utf8',
-  );
-  /**
-   The observer test appended to it.
-   */
-  const observer = await readFile(
-    join(
-      import.meta.dirname,
-      'guard-observer.rs.txt',
-    ),
-    'utf8',
-  );
-  await mapInSequence({
-    items: guardVariants,
-    run: function observeOf(variant) {
-      return observeVariant({
-        variant,
-        root,
-        original,
-        observer,
-      });
-    },
-  });
-}
-
-await main();
+    'guard-fixture.rs.txt',
+  ),
+  'utf8',
+);
+/**
+ The observer test appended to it.
+ */
+const observer = await readFile(
+  join(
+    import.meta.dirname,
+    'guard-observer.rs.txt',
+  ),
+  'utf8',
+);
+await mapInSequence({
+  items: guardVariants,
+  run: function observeOf(variant) {
+    return observeVariant({
+      variant,
+      root,
+      original,
+      observer,
+    });
+  },
+});

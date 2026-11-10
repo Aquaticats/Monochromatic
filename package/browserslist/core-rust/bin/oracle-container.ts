@@ -9,6 +9,7 @@
  repository-relative paths under `/repo`, with `/repo/node_modules/@monochromatic-dev/caught-value-core` a symlink to
  the mounted package, so the workspace import below resolves to a real path outside any `node_modules` directory
  (Node.js does not strip types from files under one).
+ Throws `Error` when `cases.json` is not a list of cases, or the installed package lacks the expected members
  */
 import {
   mkdir,
@@ -405,82 +406,68 @@ async function versionOf(name: string,): Promise<string> {
   return manifest.version;
 }
 
+process.env
+  .BROWSERSLIST_DISABLE_CACHE = '1';
+await installBrowserslist();
+await swapInTarball({
+  packageName: 'caniuse-lite',
+  tarballPrefix: 'caniuse-lite',
+},);
+await swapInTarball({
+  packageName: 'node-releases',
+  tarballPrefix: 'node-releases',
+},);
 /**
- Install browserslist with the locked data and write `out.json`.
-
- @throws Error when `cases.json` is not a list of cases, or the installed package lacks the expected members
-
- @example
- ```ts
- await main();
- ```
+ The installed package, loaded through a require function rooted in the install directory.
  */
-async function main(): Promise<void> {
-  process.env
-    .BROWSERSLIST_DISABLE_CACHE = '1';
-  await installBrowserslist();
-  await swapInTarball({
-    packageName: 'caniuse-lite',
-    tarballPrefix: 'caniuse-lite',
-  },);
-  await swapInTarball({
-    packageName: 'node-releases',
-    tarballPrefix: 'node-releases',
-  },);
-  /**
-   The installed package, loaded through a require function rooted in the install directory.
-   */
-  const browserslist: unknown = createRequire(`${INSTALL_DIRECTORY}/`,)('browserslist',);
-  if (!isBrowserslist(browserslist,))
-    throw new Error('the installed browserslist lacks parseConfig or nodeVersions',);
-  /**
-   The parsed `cases.json`.
-   */
-  const input: unknown = JSON.parse(await readFile(
-    `${WORK_DIRECTORY}/cases.json`,
-    'utf8',
-  ),);
-  if (!isCasesFile(input,))
-    throw new Error('cases.json is not an object with a list of cases',);
-  /**
-   What the document records.
-   */
-  const output = {
-    browserslist: await versionOf('browserslist',),
-    caniuseLite: await versionOf('caniuse-lite',),
-    nodeReleases: await versionOf('node-releases',),
-    npmFirefoxEsr: browserslist(
-      ['Firefox ESR',],
-      {
-        path: false,
-        stats: {},
-      },
-    )[0],
-    cases: input.cases
-      .map(function answerCase(testCase,) {
-        return {
-          ...testCase,
-          npm: ask({
-            browserslist,
-            testCase,
-            dropNodePrereleases: false,
-          },),
-          npmPrereleaseFiltered: ask({
-            browserslist,
-            testCase,
-            dropNodePrereleases: true,
-          },),
-        };
-      },),
-  };
-  await writeFile(
-    `${WORK_DIRECTORY}/out.json`,
-    `${JSON.stringify(
-      output,
-      null,
-      JSON_INDENT,
-    )}\n`,
-  );
-}
-
-await main();
+const browserslist: unknown = createRequire(`${INSTALL_DIRECTORY}/`,)('browserslist',);
+if (!isBrowserslist(browserslist,))
+  throw new Error('the installed browserslist lacks parseConfig or nodeVersions',);
+/**
+ The parsed `cases.json`.
+ */
+const input: unknown = JSON.parse(await readFile(
+  `${WORK_DIRECTORY}/cases.json`,
+  'utf8',
+),);
+if (!isCasesFile(input,))
+  throw new Error('cases.json is not an object with a list of cases',);
+/**
+ What the document records.
+ */
+const output = {
+  browserslist: await versionOf('browserslist',),
+  caniuseLite: await versionOf('caniuse-lite',),
+  nodeReleases: await versionOf('node-releases',),
+  npmFirefoxEsr: browserslist(
+    ['Firefox ESR',],
+    {
+      path: false,
+      stats: {},
+    },
+  )[0],
+  cases: input.cases
+    .map(function answerCase(testCase,) {
+      return {
+        ...testCase,
+        npm: ask({
+          browserslist,
+          testCase,
+          dropNodePrereleases: false,
+        },),
+        npmPrereleaseFiltered: ask({
+          browserslist,
+          testCase,
+          dropNodePrereleases: true,
+        },),
+      };
+    },),
+};
+await writeFile(
+  `${WORK_DIRECTORY}/out.json`,
+  `${JSON.stringify(
+    output,
+    null,
+    JSON_INDENT,
+  )}\n`,
+);

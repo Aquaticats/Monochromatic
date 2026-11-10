@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  Build instrumented targets with a read-only compiler, then fuzz without host mounts.
+ Throws when an option other than `--build-only` is given, the compiler is not nightly, or a step fails.
  */
 import {
   cp,
@@ -45,101 +46,88 @@ async function rustc(args: readonly string[]): Promise<string> {
     .trim();
 }
 
+if (process.argv
+  .slice(2)
+  .some(function isUnknown(argument) {
+    return argument !== '--build-only';
+  }))
+  throw new FuzzVerificationError('Only --build-only is accepted.');
 /**
- Build and run within explicit container limits and retain discoveries before cleanup.
-
- @throws FuzzVerificationError when an option other than `--build-only` is given, the compiler is not nightly or a
- step fails
-
- @example
- ```ts
- await main();
- ```
+ Whether to stop after the instrumented build.
  */
-async function main(): Promise<void> {
-  if (process.argv
-    .slice(2)
-    .some(function isUnknown(argument) {
-      return argument !== '--build-only';
-    }))
-    throw new FuzzVerificationError('Only --build-only is accepted.');
-  /**
-   Whether to stop after the instrumented build.
-   */
-  const buildOnly = process.argv
-    .includes('--build-only');
-  /**
-   The fuzz sidecar directory, which is the working directory of the task.
-   */
-  const source = process.cwd();
-  /**
-   The host compiler's sysroot.
-   */
-  const compiler = await rustc([
-    '--print',
-    'sysroot',
-  ]);
-  /**
-   The host compiler's version text.
-   */
-  const compilerVersion = await rustc(['--version']);
-  if (!compilerVersion.includes('nightly'))
-    throw new FuzzVerificationError('Fuzz instrumentation requires the repository-managed nightly Rust toolchain.');
-  await mkdir(
-    scratchBase,
+const buildOnly = process.argv
+  .includes('--build-only');
+/**
+ The fuzz sidecar directory, which is the working directory of the task.
+ */
+const source = process.cwd();
+/**
+ The host compiler's sysroot.
+ */
+const compiler = await rustc([
+  '--print',
+  'sysroot',
+]);
+/**
+ The host compiler's version text.
+ */
+const compilerVersion = await rustc(['--version']);
+if (!compilerVersion.includes('nightly'))
+  throw new FuzzVerificationError('Fuzz instrumentation requires the repository-managed nightly Rust toolchain.');
+await mkdir(
+  scratchBase,
+  { recursive: true },
+);
+/**
+ The disposable build context.
+ */
+await using context = await mkdtempDisposable(join(
+  scratchBase,
+  'monochromatic-lint-fuzz-',
+));
+/**
+ Directory that holds one evidence directory per campaign.
+ */
+const outputRoot = join(
+  source,
+  'target',
+  'verification',
+);
+await mkdir(
+  outputRoot,
+  { recursive: true },
+);
+/**
+ The evidence directory of this campaign.
+ */
+const evidence = await mkdtemp(join(
+  outputRoot,
+  'campaign-',
+));
+await prepareBuildContext({
+  source,
+  context: context.path,
+});
+await buildInstrumented({
+  context: context.path,
+  evidence,
+  compiler,
+  compilerVersion,
+});
+if (buildOnly) {
+  await cp(
+    join(
+      context.path,
+      'bin',
+    ),
+    join(
+      evidence,
+      'bin',
+    ),
     { recursive: true },
   );
-  /**
-   The disposable build context.
-   */
-  await using context = await mkdtempDisposable(join(
-    scratchBase,
-    'monochromatic-lint-fuzz-',
-  ));
-  /**
-   Directory that holds one evidence directory per campaign.
-   */
-  const outputRoot = join(
-    source,
-    'target',
-    'verification',
-  );
-  await mkdir(
-    outputRoot,
-    { recursive: true },
-  );
-  /**
-   The evidence directory of this campaign.
-   */
-  const evidence = await mkdtemp(join(
-    outputRoot,
-    'campaign-',
-  ));
-  await prepareBuildContext({
-    source,
-    context: context.path,
-  });
-  await buildInstrumented({
-    context: context.path,
-    evidence,
-    compiler,
-    compilerVersion,
-  });
-  if (buildOnly) {
-    await cp(
-      join(
-        context.path,
-        'bin',
-      ),
-      join(
-        evidence,
-        'bin',
-      ),
-      { recursive: true },
-    );
-    console.log(`Instrumented binaries: ${evidence}`);
-    return;
-  }
+  console.log(`Instrumented binaries: ${evidence}`);
+} else {
   await buildRunImage({
     context: context.path,
     source,
@@ -147,5 +135,3 @@ async function main(): Promise<void> {
   console.log(`Fuzz evidence: ${evidence}`);
   await fuzzTargets(evidence);
 }
-
-await main();
