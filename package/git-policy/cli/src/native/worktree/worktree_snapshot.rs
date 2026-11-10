@@ -27,6 +27,7 @@
 //! ```
 
 use crate::add_timing::{begin_step, end_step};
+use crate::diagnostic_log::warn;
 use crate::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_file_at, open_root, plain_components, remove_at, rename_at};
 use crate::fs_btrfs_ioctl::snapshot_create_at;
 use crate::subvolume_remove::remove_tree;
@@ -42,6 +43,9 @@ use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+
+/// The tag every line this module logs carries.
+const TAG: &str = "worktreeSnapshot";
 
 /// What:
 ///  Whether an error says the entry is already gone.
@@ -288,6 +292,33 @@ fn replace_git_pointer(stage: &Path, pointer: &[u8], source: &SnapshotSource, ha
 }
 
 /// What:
+///  Records the identity of the object this snapshot made,
+///  saying so in the log when the record cannot be written.
+/// Why:
+///  The claim of an add names its stage before the stage exists,
+/// so nothing but this identity proves what the wrapper made there,
+///  and a kill can come at any moment once the object stands;
+/// the record is written as soon as the object exists,
+/// and raised again
+///  once the wrapper's last write into it is done.
+/// A record that cannot be written never fails the add:
+/// the add is whole either way,
+///  and a stage a kill leaves is then reported instead of removed,
+/// which is the safe answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordStageMadeObject({ commonDir: source.commonDir, container: stage, object: made });
+/// ```
+pub fn record_made_of_the_stage(source: &SnapshotSource, stage: &Path, made: Option<ObjectId>) {
+    let Some(object) = made else { return };
+    let recorded: Result<(), crate::worktree_copy_error::WorktreeCopyError> = crate::worktree_copy_stage_made_object::record_made(source.common_dir.as_path(), stage, object);
+    if let Err(error) = recorded {
+        warn(TAG, format!("monochromatic-git-policy-cli: the object of the stage {} could not be recorded ({}); a stage a kill leaves behind will be reported and not removed", stage.display(), error.0).as_str());
+    }
+}
+
+/// What:
 ///  Take the snapshot at `stage` and make it the new worktree there;
 /// the caller destroys `stage` on an error.
 /// Why:
@@ -308,8 +339,10 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     if let Err(error) = snapshot_ioctl_outcome {
         return Err(SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None });
     }
-    // From here the stage exists and this process made it; its identity is what a later removal checks.
+    // From here the stage exists and this process made it; its identity is what a later removal checks, so it is recorded
+    // before the next step can be killed.
     let made: Option<ObjectId> = identity_of_name(stage);
+    record_made_of_the_stage(source, stage, made);
     failing(subject_failure(std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)), &"the stage", "cannot be made private"), made)?;
     // The snapshot's own index is read before its `.git` goes: it is the index of the same instant as the files.
     let own_index: Option<Vec<u8>> = if source.dirty.is_some() {

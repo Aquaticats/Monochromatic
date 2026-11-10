@@ -47,6 +47,10 @@ pub mod discard_audit_facts;
 /// and its line as JSON.
 pub mod discard_audit_record;
 
+/// Whether one audit generation names a saved copy still on disk,
+/// which keeps it past the bound every log shares.
+pub mod discard_audit_pins;
+
 /// The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`.
 pub mod config_discarded;
 

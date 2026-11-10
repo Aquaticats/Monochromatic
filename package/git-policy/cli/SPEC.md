@@ -2474,8 +2474,19 @@ and the person reads the same shape here.
 The same limit covers an index written by such a process and filled by a copy of
 every file,
 which the proof also cannot separate from a checkout Git finished.
-The stage is the person's to remove,
-and its claim goes with it.
+A stage such a kill left is removed by the next command that runs the recovery,
+because it can be a whole snapshot of the checkout with its credentials and a copy of `.git`:
+the owner chose "Next command deletes it (Recommended)",
+with the words
+"The next command deletes a stage only when the wrapper's own record proves it made that stage and its owner is dead,
+and prints what it removed."
+The two proofs are the record written beside the stage's claim
+(`<identifier>.made`,
+`worktree_copy_stage_made_object.rs`)
+and that record's own accounting of the folder
+(`worktree_copy_stage_entries_the_record_accounts_for.rs`).
+The claim goes with the stage it names,
+and with the records of the add once the destination settles.
 When the worktree's administrative directory holds `index.lock`
 (the shape a kill inside the index install leaves),
 that file is named first,
@@ -2983,8 +2994,16 @@ because the release installed before the bytes line wrote a container path verba
 a destination parent holding a line break then spelled lines of the record itself.
 A claim of any other shape is refused and kept,
 never acted on.
+The record of the object a stage's creation made is `<identifier>.made` beside the claim:
+the container's bytes,
+the object's identity and the instant after which nothing of the wrapper's is written into that folder,
+one `key=value` field per line,
+written atomically like a claim.
+A record of any other shape proves nothing,
+and a folder it names is kept and reported rather than removed.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
-with the suffix appended to the item's own path bytes and never to a spelling of them.
+with the suffix appended to the item's own path bytes and never to a spelling of them,
+so a killed write of this record is a file of that shape and is swept when its writer is dead.
 
 Every root a copy record holds is written as its bytes.
 The journal carries `destinationRootHex`,
@@ -3105,11 +3124,6 @@ a claim whose owner lives is a copy between claiming and journaling and is left 
 so a copy that died while staging (a signal,
 the out-of-memory killer,
 a power loss) left it.
-A claim with a destination record beside it was made by an add,
-and its stage is reported and never removed (`38e01bcd33`):
-the claim names a stage by its path alone,
-which proves nothing about what stands there now,
-so the notice names the stage and says to remove it once nothing needs it.
 For a claim no add recorded,
 recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
 stage prefix,
@@ -3117,40 +3131,98 @@ and the container to be a private directory owned by the user,
 removes it with its read-only subdirectories,
 writes one notice line naming it,
 and removes the claim.
+A claim with a destination record beside it was made by an add,
+and its stage is removed only with both proofs:
+the record `<identifier>.made` beside the claim names the container whose creation it recorded,
+its three lines being `stage=<the container's bytes in lowercase hexadecimal>`,
+`object=<device:inode:birth seconds:birth nanoseconds>` and
+`written=<seconds>.<nanoseconds>`,
+and the object at the container's name is still that identity,
+and no entry of the folder is born after the record's `written` instant
+except the ones the wrapper itself writes there after that instant:
+the trash parent `.claude/cli-git-trash` with everything below it,
+`.claude` itself,
+and `.git` with everything below it.
+A record that is absent,
+that does not read as this release writes it,
+that names another container,
+or that is not the identity at the name keeps the stage:
+the notice names the stage,
+the reason nothing in it was changed,
+and the commands that remove it (`btrfs subvolume delete` for a snapshot,
+`rm -r` otherwise).
+A folder holding an entry born after the recorded instant that is not one of the wrapper's own is kept the same way and
+named by the entry,
+because nothing there says whether the wrapper's own interrupted write or a person's copy put it there,
+and only a person can tell;
+the wrapper's own writes after the record are the trash the leave-out makes and Git's index and pointer,
+and a write of the difference between the trees (`read-tree -u`) creates entries the record cannot account for,
+so a kill during that step leaves a stage the next command reports rather than removes.
+The record is written right after the snapshot exists (`take_snapshot`,
+`worktree_snapshot.rs`),
+because a kill can come at any moment after that,
+and raised once the ladder's last write into the stage is done,
+right before the swap,
+so a kill after the wrapper's own writes removes the folder cleanly.
+The accounting reads every entry of the folder before the removal and opens no file and follows no link,
+so a stage of a whole checkout costs one lookup per entry on the command that finds the dead claim,
+and never a wait;
+the removal it decides is the destroy of a subvolume where the mount allows it.
+A record that cannot be written never fails the add:
+the add is whole,
+and the stage a kill leaves is reported instead of removed.
+A release removes the record first,
+then the destination record,
+the completion marker and the claim,
+so a command killed in between leaves a claim whose stage is reported,
+never a record nothing names.
+A record whose claim nothing keeps is removed by the same sweep,
+because it proves nothing about any folder once no claim names one.
+Two commands that sweep one dead claim at the same moment remove nothing twice and neither fails:
+a step that finds an entry another command already removed treats it as removed,
+a claim or a record that vanished while it was read is skipped,
+and the words that say what went are written by every sweep that still found the folder.
 A claim whose container was never created is removed without a notice.
 
-Two sites remove a stage container by the path a record names:
+Three sites remove a stage container by the path a record names:
 finishing a transaction (`remove_pending_journal`,
-`worktree_copy_journal_removal.rs`)
-and reaping an abandoned copy's stage (`reap_judged_stages`,
+`worktree_copy_journal_removal.rs`),
+reaping an abandoned copy's stage,
+and reaping the stage an add left (`reap_judged_stages`,
 `worktree_copy_stage_claim_reaping.rs`).
-Both check the recorded path before the removal:
+The first two check the recorded path before the removal:
 the transaction's stage was validated as a private directory owned by the user with its payload present,
-and the abandoned stage is put through `assert_private_path` immediately before `remove_stage`.
+and the abandoned copy's stage is put through `assert_private_path` immediately before `remove_stage`.
 Neither check establishes that the directory at that path is the one the copy created.
 Another process that renames the original stage elsewhere and puts a private directory of its own at the same path
 inside that window makes recovery delete its data,
 while the original stage survives at its new location,
 and neither ownership nor private permissions tell the two apart.
 
-No cheap identity check exists at either site today.
-The journal records the container's path,
+The stage an add left is the one site where the object itself is proven (`provenance_of`,
+`worktree_copy_stage_claim_reaping.rs`):
+the record beside the claim names the container's device,
+inode and birth time (`worktree_copy_stage_made_object.rs`,
+the identity `worktree_copy_rollback.rs` compares for entries the install log holds),
+and the reaping compares it with what stands at the name before the removal.
+That record is the second durable record this specification said a claim would need,
+written right after the snapshot exists rather than before it,
+and it is written only where the object is one a snapshot made,
+because a copy's stage is a private directory its own claim names and nothing else could be.
+Nothing records the object of a copy's stage:
+the journal records the container's path,
 its payload path,
 the destination,
 the source,
 and the identities of the entries it installed there (`created_entries`),
 and a claim records the container's path alone,
-written before the container exists;
-nothing records the container's device and inode,
-which is the identity `worktree_copy_rollback.rs` compares for entries the install log holds.
+written before the container exists.
 Recording it would need a new journal field,
-read only by this release onward,
-and for a claim a second durable record written after the container is created,
-because the claim precedes it;
-and even a recorded identity would narrow rather than close the window,
+read only by this release onward.
+Even a recorded identity narrows rather than closes the window,
 because the removal resolves the recorded path again after any check.
-The removal is therefore left as it is,
-and the window is recorded here as a known limit.
+The removal of a copy's stage is therefore left as it is,
+and that window is recorded here as a known limit.
 
 A removal that closed the window would take the directory from a descriptor instead:
 opened once with `O_DIRECTORY` and `O_NOFOLLOW`,
@@ -3409,6 +3481,18 @@ returns `2`,
 and emits `commit-landed` after the causal events.
 Once the landed OID is known,
 repository-root or candidate-fact setup failure emits `content-unavailable` plus the same explicit landed state.
+The refusal is kept as a verdict in the work queue's `blocked` state,
+and it holds four things:
+the branch reference the commit landed on,
+the commit,
+the blocking event's own words
+(the policy's configuration name and its message,
+a fixed transform's name and message,
+or an engine failure's message,
+as one line),
+and the durable fact that this commit may not be published.
+A verdict outlives the command that wrote it,
+because the queue pushes a branch and not one commit (see "Auto-push").
 
 ### Auto-push
 
@@ -3437,6 +3521,60 @@ free,
 staying under its claim otherwise,
 where a later command finds it once this one is gone
 (`Notice::show`).
+
+#### A blocked commit is never published
+
+Owner answer (question tool,
+verbatim):
+"Hold the push at A (Recommended)",
+for the option
+"The automatic push stops at the commit before the blocked one,
+and every command says which commit is holding the branch back and why.
+A person's own git push is unchanged."
+So a branch that holds a verdict (see "Post-commit") is pushed only up to the commit before the blocked one:
+the refspec's source is the merge base of the blocked commits' first parents,
+never the branch's tip.
+Which verdicts are on the branch's way out is asked of the repository and never remembered:
+a verdict's commit must be an ancestor of the branch,
+and must not be an ancestor of the branch's upstream tracking ref,
+because Git already holding it in the branch's remote means no push of this branch publishes it.
+A verdict on another branch decides nothing,
+and one whose commit this repository no longer holds decides nothing either,
+since no push can publish an object it does not have.
+The base is the newest commit no verdict forbids,
+so the commits below the deepest blocked one still reach GitHub in the same push.
+
+Limits.
+A blocked commit that is a merge publishes only the first-parent side below it until it is fixed,
+because one refspec names one commit and no commit is invented for the other side;
+a blocked commit with no parent has nothing below it,
+so that push sends nothing.
+A push under `push.default=matching` names no refspec at all,
+so a stop cannot be expressed there and the push sends nothing.
+The upstream tracking ref can lag the remote,
+so a verdict already on the remote but not yet fetched still holds the branch back;
+that costs a push that could have run and publishes nothing it should not.
+
+A held-back push is never reconciled:
+the merge a reconcile publishes is made above the local tip,
+so it would carry the blocked commit.
+The push therefore stays a plain fast-forward of the base,
+and the service keeps trying the branch on its own retry plan,
+so the branch resumes without waiting for the next commit once the blocked commit is off its way out.
+
+Every command reads the same verdicts and asks the same questions,
+so the line it prints and the push that happened cannot disagree.
+For one verdict the line is
+"<branch> is held back by the commit <OID>,
+because <the verdict's words>.
+The automatic push stops before it,
+a person's own git push still sends it,
+and the push resumes once it is off <branch>'s way out.",
+and for several it names each commit with its words and says the push publishes nothing past them.
+A question Git cannot answer sends nothing and says so instead of naming a commit it could not place.
+A commit whose command died before its post-commit gate ran has no verdict,
+so it holds nothing back and the next push of the branch carries it,
+as it did before this rule.
 
 #### Merges and commits never fail
 
@@ -3497,6 +3635,9 @@ everything not listed above.
 Refusals that may still end a commit or merge with an error:
 policy errors at error severity,
 an empty message,
+a named path an ignore rule matches while no index entry tracks it
+(the `explicit-path-commit/named-path-ignored` finding,
+"Core finding event"),
 and a content
 conflict no resolver settles (the merge stops with the conflict recorded).
 A commit that names a conflicted path is not a refusal:
@@ -3554,6 +3695,21 @@ as Git stops on a conflict
 with the conflicting paths named,
 only where no resolution exists.
 The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
+
+The owner on 2026-11-10:
+"Dozens of agents at once is normal operation."
+That is the load every command is built for,
+not an exception to plan around.
+A `git worktree add`,
+commit,
+merge or push that slows down,
+waits on another command,
+or fails because dozens of agents run Git in this repository at once has a defect in the wrapper;
+the number of agents is never the explanation.
+An add or a commit whose own work grows with the number of other worktrees,
+adds or commits is such a defect.
+The owner said the same day that unblocking these jams means fixing the wrapper:
+"By "prioritize on unblocking jams" I also meant fix the wrapper."
 
 A `git pull` that is stated to merge (`--no-rebase`,
 `pull.rebase` or `branch.<name>.rebase` false,
@@ -5871,7 +6027,7 @@ would stop it the same way.
 
 Every ending of the trigger leaves one line in `monochromatic-git-policy-cli-push-trigger.jsonl` in the common Git directory (size-capped like
 the commit timing file,
-moved aside to `.1`),
+its generations kept under the next free number),
 and a debug line under `MONOCHROMATIC_VERBOSE=true`;
 the terminal is told
 nothing except a service that cannot be reached.
@@ -8594,14 +8750,17 @@ export type CoreFindingEvent = EventBase & {
   readonly coreId:
     | 'commit-only'
     | 'commit-normalization'
-    | 'concurrent-commit';
+    | 'concurrent-commit'
+    | 'explicit-path-commit';
   readonly code:
     | 'commit-only/all-flag'
     | 'commit-only/pathspec-required'
     | 'commit-only/staged-changes-ignored'
+    | 'commit-only/staged-deletion-worktree-present'
     | 'commit-normalization/no-change'
     | 'concurrent-commit/replay-conflict'
-    | 'concurrent-commit/already-committed';
+    | 'concurrent-commit/already-committed'
+    | 'explicit-path-commit/named-path-ignored';
   readonly message: string;
 };
 ```
@@ -8623,6 +8782,23 @@ and cannot be disabled or assigned a severity through repository config.
 - `concurrent-commit/already-committed`:
   the captured change merged onto the branch equals the branch,
   because a commit that landed meanwhile already holds it.
+- `commit-only/staged-deletion-worktree-present`:
+  an explicit-path commit names a path whose deletion the real index stages while an entry still exists at that
+  worktree path,
+  so the pathspec cannot record the deletion.
+  The message names the paths and both ways forward
+  (`commit_staged_deletions.rs`).
+- `explicit-path-commit/named-path-ignored`:
+  an explicit-path commit names one file of the worktree that an ignore rule matches while no index entry tracks it,
+  so the private staging would refuse it.
+  It is decided from the selection's own elements before any `git add` runs,
+  the commit is not made,
+  nothing is staged by it,
+  and the message names every rejected path with both ways forward:
+  leave the file out of the commit's paths,
+  or stage it with `git add --force -- <path>` when it is meant to become tracked
+  (`commit_named_ignored_files.rs`;
+  issue 6278).
 
 Every `concurrent-commit` finding leaves ref,
 real index,
@@ -8800,6 +8976,24 @@ and a socket that could not be stopped is left to `service stop-units-of-removed
 Nothing starts a unit.
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 
+The repository is the one the command line names.
+`-C` moves the wrapper,
+and `--git-dir`,
+`--work-tree` and `--bare` (or `GIT_DIR` and `GIT_WORK_TREE`) select the repository,
+resolved from the directory the `-C` chain reaches,
+as Git resolves them
+(`src/native/invocation/repository_selection.rs`).
+Every Git of the commit keeps that selection:
+the capture's own reports,
+each private-index start,
+and the landing,
+which names the Git directory and work tree the request or the journal record holds.
+A commit therefore lands in the repository the command named,
+and the repository its process directory belongs to gains no object,
+no scratch directory and no commit.
+The wrapper's own Git starts run in the directory the `-C` chain reached,
+so they receive the caller's other global options without that `-C`.
+
 Each commit passes through three phases:
 
 1.  Preparation:
@@ -8947,6 +9141,17 @@ blocks,
 so a blocked gate keeps the commit local,
 and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
 behind").
+A blocked record is not deleted:
+it is moved into the queue's `blocked` state with the branch and the gate's words,
+and it is what makes the next push of that branch stop before that commit (see "A blocked commit is never
+published").
+A record an earlier release wrote holds the word `blocked` alone,
+so its commit,
+its branch and its reason are read from the file's name and from nothing else;
+the commit is judged for every branch,
+which can stop a push that verdict never concerned,
+and no line names it,
+because no branch can be named.
 
 A held record is settled when Git proves its commit reached the remote.
 The question is put to the local repository alone,
@@ -10197,6 +10402,16 @@ One configuration listing read at that moment serves every later decision of the
 A worktree whose `HEAD` leaves the recorded branch before the landing fails the commit with a plain message
 and the message the person typed saved in a file.
 
+The capture's own `rev-parse` report names the repository the caller selected
+(`--git-dir`,
+`--work-tree`,
+`--bare`,
+or the `GIT_DIR` and `GIT_WORK_TREE` variables),
+and the in-process layout reader answers only a plain layout,
+which is the one found from its own directory:
+a command line that names a repository is answered by Git,
+because a Git directory beside its work tree is not the one the reader would find.
+
 ### Private preparation
 
 Preparation never mutates the real index,
@@ -10328,15 +10543,20 @@ with inherited stdio,
 as:
 
 ```text
-git <caller global options> --git-dir=<shadow>
+git <caller global options, without a directory change or a repository selection> --git-dir=<shadow>
     -c core.hooksPath=/dev/null/cli-git-no-hooks
     commit <private commit args>
 ```
 
 with `GIT_INDEX_FILE=<scratch directory>/commit.index`.
-`--work-tree` names the same absolute worktree root as the shadow's `core.worktree`;
-the command-line value takes precedence for this process,
-and `core.worktree` covers a Git process that a hook starts with the shadow as `GIT_DIR`
+The globals the shadow command keeps are the caller's own except `-C`,
+`--git-dir`,
+`--work-tree` and `--bare`:
+the wrapper has already applied every directory change,
+and the shadow names its own repository,
+so forwarding one of them would move Git away from the shadow or name the real repository beside it.
+The shadow's `core.worktree` is the absolute worktree root,
+which covers a Git process that a hook starts with the shadow as `GIT_DIR`
 but without `GIT_WORK_TREE`.
 The child environment drops a caller-set `GIT_DIR`,
 `GIT_WORK_TREE`,
@@ -10759,7 +10979,8 @@ these private entries:
 - `COMMIT_EDITMSG`,
   which native `git commit` rewrites during every commit,
   so concurrent preparations never share one message file.
-- The copied conclusion state
+- The copied conclusion state,
+  which is made only when the worktree holds some
   (see "Sequencer conclusion state").
 - `monochromatic-git-policy-cli`,
   which is never linked.
@@ -10771,6 +10992,12 @@ such as `info`,
 `lfs`,
 and `modules`,
 is a symbolic link to the real entry by default.
+A lock,
+and the file a command stages a lock in
+(`<lock name>.cli-git-marker-<pid>.<pid namespace>-<batch>-<token>`),
+is never linked:
+a shadow Git that wrote one would collide with the real holder,
+and every command of a repository stages a marker of its own while it runs.
 A per-worktree entry that Git resolves in the owning worktree's Git directory,
 such as a linked worktree's `info/sparse-checkout`,
 is copied;
@@ -10820,6 +11047,67 @@ The shadow `config` has this layout:
 
 Cli-git writes the file itself,
 quoting every path value under git-config value syntax at the final interpolation.
+
+#### A shadow taken from the pool
+
+The creation of a shadow is about forty calls that create a directory entry on the volume a commit already waits on,
+and the owner chose to stop paying it on every commit
+(`doc/handover/questions-for-the-owner.md`,
+"May a commit take its private repository from a pool made ahead?",
+"Pool made ahead (Recommended),
+We don't need to build a shadow for every commit.
+Be smarter.").
+So a commit takes a finished shadow from a pool when the pool holds one this invocation can use,
+and makes its creation exactly as it did before when it does not:
+an empty pool is not a failure,
+and nothing about a claim can fail a commit.
+
+The pool lives in `<common-dir>/monochromatic-git-policy-cli-scratch/shadow-pool/<worktree>`,
+one folder per worktree because a member's `config` names the worktree root the commit runs in.
+A member is everything the creation makes that does not depend on the commit:
+the skeleton,
+the private mode,
+the `config`,
+`objects/info/alternates`,
+the links and the copied `config.worktree`.
+It holds no ref store and no conclusion state,
+which a commit adds after it takes one,
+from this invocation's own capture.
+
+- A claim is one `rename` of a member onto the commit's `<scratch>/shadow`,
+  which fails for the second claimant,
+  so no lock is taken and no commit waits for another
+  (`AGENTS.md`,
+  `NLK`).
+- A claimed member is checked before it is used,
+  and everything the check reads is a read:
+  its `config` must be the text this invocation's creation would write,
+  its alternates must name this invocation's object directory,
+  its `HEAD` must be the creation's own placeholder,
+  every directory of the skeleton must be there,
+  every shared entry must be a link to this repository's own entry,
+  it must hold no entry a creation does not make,
+  and no pack and no ref.
+  A member that fails the check is removed and the next one is tried,
+  and a pool with none left leaves the commit making its creation.
+- A reftable repository and a linked worktree that keeps its own `info` are never pooled:
+  Git writes those shadows' own tables and entries,
+  so their commit makes its creation.
+- The resident service fills the pool beside the landing loop,
+  never on a committing person's path:
+  it reads a repository's format facts and object directory the way an invocation's capture does,
+  makes one member into a folder named as a fill,
+  publishes it whole with one `rename`,
+  and stops at two members for a worktree.
+- A fill that a stop interrupts leaves a folder named as a fill,
+  which no claim takes and the next fill of that pool removes once it is fifteen minutes old.
+  The wrapper's own sweep of the repository scratch folder removes a pool that has gone unused for longer,
+  and the next landing fills it again.
+
+`buildParts` names the claim `shadow pool`:
+a build that took a member names no `shadow skeleton`,
+`shadow config` or `shadow links` stretch,
+so a reading of the record can tell the one route from the other.
 
 #### Private `HEAD` shape
 
@@ -11141,8 +11429,23 @@ For injected commit-only semantics:
     It is staged with `git add -- <element>`,
     so `git commit -- <file>` records a file nothing staged,
     where native Git refuses the pathspec,
-    and a path that an ignore rule matches and that no index stages is refused with the message that says
-    to stage it with `git add --force` first.
+    and a path that an ignore rule matches and that no index stages is refused before that staging runs,
+    with the finding `explicit-path-commit/named-path-ignored` (see "Core finding event"):
+    the selection's own elements that name one file are asked of
+    `git check-ignore -z --stdin` under the real index,
+    so nothing depends on the words of a Git message and a path the real index tracks is left out,
+    as `git add` leaves it out.
+    The commit is not made,
+    nothing is staged by it,
+    and the message names every rejected path with both ways forward:
+    leave the file out of the commit's paths,
+    or stage it with `git add --force -- <path>` when it is meant to become tracked.
+    Real Git 2.56.0 on a disposable repository refuses the same command line either way:
+    `git commit -- <untracked ignored path>` exits 1,
+    its pathspec matching no file Git knows,
+    and `git add -- <the same path>` exits 1 with
+    "The following paths are ignored by one of your .gitignore files"
+    and the force-add hint.
     A backslash is Git's escape and not a pattern character:
     `a\b.txt` names the file whose pathname spells it when one is there.
     Every other element is a directory,
@@ -11226,6 +11529,15 @@ The landing removes the same state from the worktree exactly as native Git remov
 each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
 A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
+
+The copies folder is made only when the worktree holds conclusion state:
+a commit that concludes nothing has nothing the folder could hold,
+the landing answers an absent folder as no conclusion state at all
+(`reproduce_conclusion_cleanup`),
+and the one `mkdir` it used to make was the largest stretch of a build in the records
+(`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+"What each part of a commit's private repository is for,
+and how many commits need it").
 
 ### The amend a moved branch makes
 
@@ -12509,43 +12821,62 @@ and a build that stops inside itself closes the phase where the command stops,
 so its time is stated by `buildMs` and never left to `otherMs`.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
-The file moves to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,
+The file moves to the next free generation (`monochromatic-git-policy-cli-commit-timing.jsonl.1`,
+then `.2`,
+and on) at one mebibyte,
 and a failed write never changes the command's result.
-All three JSONL files (timing,
+All five logs (commit timing,
+worktree-add timing,
 push trigger,
-audit) are written by one appender with one `write` per line and no lock.
+audit and the standards-review shadow log) are written by one appender:
+one `write` per line or entry,
+and no lock.
 It moves the file aside only when the path still names the file it opened,
-so two writers that both see a full file cannot put the new small file over the history in `.1`,
+so two writers that both see a full file cannot take the new small file in place of the history,
 and a file that ends without a newline (a write a full disk or a signal cut short) gets the next line on a fresh line,
 so one torn line is lost alone.
 A reader skips empty lines and lines that are not JSON.
-The three kinds of file differ in what a rotation keeps.
-The timing files and the push trigger file keep one generation:
-the rotated file is `.1` and the next rotation replaces it,
-because they are diagnostics.
-At the rate measured on 2026-11-03 (760,605 bytes of commit timing in about 30 hours),
-one mebibyte of commit timing is about two days,
-so the two files together keep three to four days of timing.
-The audit file keeps every rotated file under the next free number (`.1`,
+Every log keeps its rotated files under the next free number (`.1`,
 `.2`,
 and on;
 the highest is the newest),
 claimed with a hard link,
 which fails when the name is taken,
 so two writers never take one number,
-nothing is replaced and no lock is held.
-After a rotation the writer removes the oldest generations until the generations that name no saved copy still on disk,
-together with any file a killed rotation left at its private name,
-total at most four mebibytes.
-A generation that holds a `saved-conflict` line whose copy place exists is never removed,
-and neither is one that cannot be read,
+nothing is replaced and no lock is held;
+a name that is not a regular file ends the numbering with an error rather than counting up for ever.
+The generations of one log may take `LOG_HISTORY_BYTES` (32 MiB) together,
+the live file aside,
+and the oldest go first,
+never the newest.
+A reader of the standards-review log reads the log and every generation of it,
+so a commit whose entry rotated away is not reviewed a second time.
+The owner answered on 2026-11-10 in the question tool,
+"Keep more,
+capped (Recommended)":
+32 MiB per log,
+and an audit line naming a saved copy that still exists is never dropped.
+The bound is six days of commit timing at the pace measured on 2026-11-10
+(1,143,526 bytes of 229 records in 5.4 hours)
+and the whole history of an ordinary audit log
+(782,685 bytes in 1,619 lines over twenty days).
+The audit log's generations are the only ones whose lines name something outside the log,
+so before the pass removes one it reads it,
+and a generation holding a `saved-conflict` line whose copy place exists stays past the bound;
+so does one that cannot be read,
 one with a `saved-conflict` line that cannot be parsed,
-or one that names a place the line could not show as text,
+and one that names a place the line could not show as text,
 because a wrong answer in that direction costs disk and the other costs the only account of a copy.
 A file left at a private name by a killed rotation is counted and kept,
 and a second name left for a generation by a kill between the link and the removal is removed.
+The reading that decides whether a generation pins happens on a thread of its own,
+never on the path of the command that rotated the log,
+because it was measured at a median of 369 ms and a 99th percentile of 432 ms where every generation
+pinned,
+against 385 us and 580 us for the rotation that schedules it
+(`foundation/log_rotation_cost_measurement_tests.rs`).
 The audit measurement,
-the derivation of the four mebibytes and the choice
+the derivation of the 32 MiB and the choice
 (a pick the coordinator made under the owner's delegation,
 open to the owner's veto)
 are in `doc/planning/cli-git-shipped-limits-audit.md`.
@@ -12983,17 +13314,45 @@ mixed and default modes,
 `switch` with a force or discard option,
 `rm` and `mv` with force,
 `checkout-index` with force,
-`read-tree` with reset,
+every `read-tree` form Git accepts,
 and the abort forms of `merge`,
 `rebase`,
 `cherry-pick`,
 `revert` and `am`.
+Read-tree is read from its own option table,
+because every form Git accepts writes the index and,
+with `-u`,
+the worktree:
+`git read-tree -m -u HEAD` reverts a staged edit and deletes a staged new file from the worktree,
+and a plain `git read-tree HEAD` or `git read-tree --empty` replaces the staged entries.
+The two forms that write nothing pass:
+`-n` or `--dry-run`,
+and `--debug-unpack`,
+which returns before Git writes the index (`read-tree.c`).
+A region Git refuses,
+like `-u` without `-m`,
+`--reset` or `--prefix`,
+is the refusal and passes.
 The word this reading reads is the word Git will run.
 An ordinary alias (`alias.<name>`,
 either spelling) is expanded the way Git expands it,
 up to 16 expansions,
 and the guard decides on the expansion,
 which is also the argument list the wrapper forwards and the audit record names.
+One `git config --null --list` answers which value Git keeps:
+`config_alias_cb` overwrites what it kept on every matching variable,
+so when a repository holds both `alias.<name>` and `[alias "<name>"] command`,
+the last one in config order runs,
+and a plain name matches whatever its case while a subsection matches byte for byte.
+A matching variable with no value is Git's own `missing value` refusal,
+so the wrapper leaves that alias to Git and Git prints it.
+The value is split as `split_cmdline` splits it,
+on space,
+TAB,
+LF and CR only (Git's `GIT_SPACE`),
+so a vertical tab or a form feed stays inside one word,
+and a value that ends with one of those four characters keeps the empty last word Git gives it,
+which is what makes `git -c 'alias.x=status ' x` fail as `git status ''` does.
 Two aliases are left unexpanded and forwarded as the caller typed them,
 because the expansion the wrapper read is not the command that runs:
 one whose value moves the directory or sets an environment variable,
@@ -13726,8 +14085,9 @@ The line also has `time` (the ISO form),
 which `worktree` the kind word does not name).
 The file moves aside at one mebibyte to the next free generation,
 `monochromatic-git-policy-cli-audit.jsonl.<number>`,
-and generations that name no saved copy on disk are kept up to four mebibytes
-(see "Timing logs").
+and the generations are kept up to 32 MiB together.
+A generation that names a saved copy still on disk is never removed,
+even past that bound (see "Timing logs").
 A failed write never changes the command's result.
 
 After an explicit-path landing computes its post-index,

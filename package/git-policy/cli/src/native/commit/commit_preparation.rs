@@ -147,7 +147,11 @@ pub struct PreparedCommit {
 ///
 /// The error of writing the file the configuration travels in.
 fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>, PreparationError> {
-    let mut arguments: Vec<OsString> = request.global_args.iter().map(OsString::from).collect();
+    // The caller's directory changes already applied when the wrapper placed the shadow, and the shadow names its own repository:
+    //  forwarding a `-C`, `--git-dir`, `--work-tree` or `--bare` would move Git away from the shadow or name the real repository
+    //  beside it. The configuration options the caller wrote stay, because they are the person's settings for the commit.
+    let own_globals: Vec<OsString> = request.global_args.iter().map(OsString::from).collect();
+    let mut arguments: Vec<OsString> = crate::repository_selection::without_repository_selection(own_globals.as_slice());
     arguments.push(OsString::from(format!("--git-dir={}", request.shadow.display())));
     let configuration: Vec<OsString> = crate::native_commit_configuration::native_commit_configuration(
         request.capture.layout.config_snapshot.as_ref(),

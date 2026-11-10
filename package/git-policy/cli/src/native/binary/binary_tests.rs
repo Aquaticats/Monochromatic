@@ -485,6 +485,13 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// A commit whose command line names the repository:
+/// `--git-dir` with `--work-tree`,
+/// `GIT_DIR` with `GIT_WORK_TREE`,
+/// and a relative `-C`.
+#[path = "binary_repository_naming_commit_tests.rs"]
+mod repository_naming_commit;
+
 /// A commit whose branch another command moved while it was prepared:
 /// a first commit on a branch that did not exist yet,
 /// a `--patch` selection,
@@ -541,6 +548,12 @@ mod push_queued_after_a_killed_wrapper;
 /// so no command says the opposite of `git status`.
 #[path = "binary_held_push_carried_by_a_later_push_tests.rs"]
 mod held_push_carried_by_a_later_push;
+
+/// A commit a post-commit gate refused:
+/// it stays local past the next commit of its branch,
+/// and every command names the commit and the check that hold the branch back.
+#[path = "binary_push_stops_before_a_refused_commit_tests.rs"]
+mod push_stops_before_a_refused_commit;
 
 /// The report a reconcile owes when it published a merge but could not move the local branch,
 /// or moved it beside uncommitted work,

@@ -86,6 +86,38 @@ fn a_created_log_is_private() {
     remove(root.as_path());
 }
 
+/// A receipt in an older generation is still a receipt:
+/// a rotation keeps every entry,
+/// so a commit whose entry moved aside is never reviewed again.
+#[test]
+fn a_receipt_in_an_older_generation_is_still_a_receipt() {
+    let root: PathBuf = fixture("append-generation-receipt");
+    let log: PathBuf = absent_log(root.as_path());
+    std::fs::create_dir_all(log.parent().expect("parent")).expect("the live log's folder");
+    std::fs::write(root.join("monochromatic-git-policy-cli").join("standards-review-shadow.md.2"), format!("\n{}", entry("aaa"))).expect("an older generation");
+    assert!(names_commit(log.as_path(), sha("aaa").as_str()), "the generation holds this commit's entry");
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::AlreadyThere));
+    assert!(!log.exists(), "nothing is appended for a commit the history already names");
+    remove(root.as_path());
+}
+
+/// A live log past the size limit moves aside to the next free generation and a new file starts,
+/// as every other log of the wrapper does,
+/// so the live log never grows without a bound.
+#[test]
+fn a_full_standards_log_moves_aside_to_a_generation() {
+    let root: PathBuf = fixture("append-rotate");
+    let log: PathBuf = absent_log(root.as_path());
+    std::fs::create_dir_all(log.parent().expect("parent")).expect("the live log's folder");
+    let mut filler: Vec<u8> = vec![b'x'; crate::log_lines_appended_without_a_lock::ROTATE_AT_BYTES as usize];
+    filler[crate::log_lines_appended_without_a_lock::ROTATE_AT_BYTES as usize - 1] = b'\n';
+    std::fs::write(log.as_path(), filler.as_slice()).expect("a full live log");
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::Appended));
+    assert_eq!(std::fs::read(root.join("monochromatic-git-policy-cli").join("standards-review-shadow.md.1")).expect("the generation"), filler);
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("the live log"), format!("\n{}", entry("aaa")));
+    remove(root.as_path());
+}
+
 /// Delivering the same commit again adds nothing,
 /// even when its entry was reflowed by another tool in between.
 #[test]

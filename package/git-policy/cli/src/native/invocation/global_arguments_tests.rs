@@ -228,3 +228,37 @@ fn command_tokens_split_after_the_global_options() {
         );
     }
 }
+
+/// What:
+///  A `-C` and its directory leave the prefix the wrapper starts its own Git with,
+///  and every other option keeps its place and its value.
+/// Why:
+///  The wrapper runs each Git in the directory the `-C` chain reached,
+///  so forwarding `-C` moves it twice.
+#[test]
+fn a_directory_change_and_its_directory_leave_the_prefix() {
+    let kept = |values: &[&str]| -> Vec<String> {
+        return crate::global_arguments::without_directory_changes(arguments(values).as_slice())
+            .iter()
+            .map(|token| { return token.to_string_lossy().into_owned(); })
+            .collect();
+    };
+    assert_eq!(kept(&[]), Vec::<String>::new());
+    assert_eq!(kept(&["-C", ".."]), Vec::<String>::new());
+    assert_eq!(kept(&["-C", "..", "-C", "."]), Vec::<String>::new(), "every one of them, not the first");
+    assert_eq!(kept(&["-C", "", "status"]), vec![String::from("status")], "an empty directory moves Git nowhere");
+    assert_eq!(kept(&["-C"]), Vec::<String>::new(), "a value Git itself refuses");
+    assert_eq!(
+        kept(&["-C", "..", "--git-dir=../cfg.git", "--work-tree", ".", "-c", "user.name=X", "--no-pager"]),
+        vec![
+            String::from("--git-dir=../cfg.git"),
+            String::from("--work-tree"),
+            String::from("."),
+            String::from("-c"),
+            String::from("user.name=X"),
+            String::from("--no-pager"),
+        ],
+        "the repository selection and the configuration stay, in the order they were written"
+    );
+    assert_eq!(kept(&["-c", "-C"]), vec![String::from("-c"), String::from("-C")], "the value of -c is not a directory change");
+}

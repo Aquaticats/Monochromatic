@@ -109,6 +109,10 @@ pub mod commit_index;
 /// and the two `git add` starts that stage them.
 pub mod commit_selection_staging;
 
+/// The named files an ignore rule refuses,
+/// decided from the selection before any `git add` runs (issue 6278).
+pub mod commit_named_ignored_files;
+
 /// The one read of the real index that every private copy of a commit is written from.
 pub mod commit_index_bytes;
 
