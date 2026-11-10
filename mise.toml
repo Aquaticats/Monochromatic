@@ -242,6 +242,17 @@ const parseUsageArgs = (raw) => {
 is_inactive_test = """
 const isInactiveTest = (file) => file.includes('/deprecated/') || file.startsWith('package-deprecated/') || file.includes('/package-deprecated/') || file.startsWith('package-paused/') || file.includes('/package-paused/')
 """
+# The packages whose whole tree holds no unit test file, and the reason each truly has none. The shared `test:unit`
+# template refuses a run that would execute nothing (issue 1761: a green run over zero files is the false green `TRV`
+# names), so a package with no unit tests states itself here instead of passing silently. The key is the package path
+# relative to the monorepo root, spelled `package/<category>/<name>`; the value is why that package has no unit tests.
+# The template also refuses an entry whose package does hold unit test files, so an exemption cannot outlive its reason.
+# Interpolated into the `test:unit` template, which reads the map declared here.
+unit_test_exempt_packages = """
+const unitTestExemptPackages = new Map([
+  ['package/pi-plugin/auto-mode', 'the module is a placeholder that exports nothing until the ground-up rebuild lands'],
+])
+"""
 # Runs test files from their nearest package task root as `node [nodeArgs] <file>`
 # subprocesses, bounded to availableParallelism(), and lists non-zero exits.
 # Every subprocess gets MONOCHROMATIC_LOG_DIRECTORY pointed at one per-run
