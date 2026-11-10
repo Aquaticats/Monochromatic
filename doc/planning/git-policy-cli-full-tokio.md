@@ -7984,6 +7984,9 @@ which is the test's own controlled wait.
 The controls also conflict four files instead of forty:
 the gate is what puts the edit inside the pass,
 so the count no longer buys a window.
+Every start the stand-in takes is appended to `starts.log`,
+so the gate's own control can say the stand-in was the run's Git instead of assuming it,
+and `reached.marker` can be read once the run ended.
 
 ### What each control still proves, and the plants that showed it
 
@@ -8006,16 +8009,36 @@ the control failed at 10.739 s with "the other command's bytes survive" as its w
 and the 'R'-filled file gone.
 Restored,
 and it passes.
+- `word_merge_pass_gate_guard::a_command_that_never_asks_for_the_attribute_wakes_the_control`:
+a forwarded `rev-parse --git-dir` starts the stand-in Git and never asks for the merge attribute,
+so the control must be woken with `false` by the command's own end,
+and the start record must name the command,
+while `reached.marker` stays absent.
+Planted by leaving that word unsaid (`held_run` in `binary_word_merge_pass_gate.rs`):
+the control waited,
+and nextest's own bound ended the test
+(`TIMEOUT` at 300.007 s),
+which is the hang the word exists to prevent.
+Restored,
+and it passes in 1.004 s.
 
 ### What this change ran
 
 - `//package/git-policy/cli:native:test:host -- word_merge merge_second_pass`:
-57 of 57 passed in 1.987 s.
+57 of 57 passed in 1.987 s,
+and 57 of 57 again in 2.349 s at the final commit.
 - `//package/git-policy/cli:native:test:binary:host -- word_merge merge_second_pass`:
 39 of 39 passed in 23.251 s,
 with the pair at 1.186 s and 1.224 s
 under a load average of 148 on 8 CPUs,
 and again 39 of 39 in 30.851 s at a load average of 68 with the pair at 1.297 s and 1.313 s.
+At the final commit the same selection is 40 controls
+(the gate's own control joined them)
+and 40 of 40 passed in 138.881 s at a load average of 57,
+six of them slow,
+with the pair at 1.004 s and 1.020 s:
+the whole selection follows the host,
+the pair no longer does.
   One run of the same selection failed,
   and it is recorded here because it is not this pair:
   with the scope's memory held to 8 GiB instead of the 16 GiB of the passing runs,

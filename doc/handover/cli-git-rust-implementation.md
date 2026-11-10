@@ -6352,7 +6352,13 @@ are in append mode now).
   57 of 57 `word_merge` and `merge_second_pass` controls of the library,
   39 of 39 of the binary target with the pair at 1.186 s and 1.224 s under a load average of 148,
   and 39 of 39 again in 30.851 s at a load average of 68,
+  and 40 of 40 at the final commit,
+  the gate's own control included,
+  in 138.881 s with the pair at 1.004 s and 1.020 s,
   and Clippy clean on every target.
+  The gate's own control is planted as well:
+  with the command's own end never spoken it waited until nextest's bound ended the test
+  (`TIMEOUT` at 300.007 s).
   One run of the same binary selection at an 8 GiB scope memory cap had
   `word_merge_finish::a_cherry_pick_range_is_resolved_and_continued`
   ended by the supervisor's five-second idle rule while the commit service took 5,140 ms to land;
