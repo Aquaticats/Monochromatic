@@ -19,7 +19,7 @@ import {
   scpPushArgs,
   sshBaseOpts,
   sshExecArgs,
-} from '@monochromatic-dev/mvm-cli/ts/backend/hetzner/ssh.ts';
+} from '../../../dist/final/node/index.mjs';
 
 /**
  Adversarial fragments: shell metacharacters, quotes, substitution, newline,
