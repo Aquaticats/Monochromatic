@@ -618,9 +618,17 @@ Facts the scan does not settle:
   they convert code in files this table places.
   The owner's answer 8 ("All tokio now") runs them on today's layout,
   so the table is rescanned again after them.
-- `Cargo.toml` says 0.6.0 and the crates.io API lists `monochromatic-git-policy-cli` 0.6.0 updated 2026-11-07
+- `Cargo.toml` said 0.6.0 and the crates.io API listed `monochromatic-git-policy-cli` 0.6.0 updated 2026-11-07
   (fetched 2026-11-07 for this section).
-  Whether that is the release step 0 asks for was not checked.
+  Whether that is the release step 0 asks for was not checked then.
+  Checked 2026-11-10 against the crates.io versions list:
+  0.6.0,
+  published 2026-11-07T13:10:36Z,
+  is the newest plain-number version,
+  every version after it is an `-alpha.N` one,
+  and `Cargo.toml` now says 0.6.1-alpha.8.
+  So crates.io holds the last plain-number release of the unsplit crate,
+  which is what step 0 asks for before the split depends on a crate crates.io does not hold.
 
 ## The crate split
 
@@ -5298,3 +5306,16 @@ the tokio steps still to come land,
 the rescan runs again,
 and steps 2 to 6 of the move order start,
 each on its own branch.
+
+Progress,
+2026-11-10T19:05:00Z:
+step 0's release is in place (the crates.io check in section "Cargo packaging facts that bear on the tree");
+step 2's `copy_file_exclusive` item landed,
+red commit `6f5a74db22` and fix commit `36affbb3ec`,
+and the copy stage words the failure exactly as before.
+Not started:
+the other four items of step 2,
+the loop breaks of step 3,
+the call changes of step 4,
+and the rescan of step 1,
+which waits for the tokio steps T6 to T13 to land.
