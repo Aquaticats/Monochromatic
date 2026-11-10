@@ -23,6 +23,10 @@ import {
 import { isSerializedEffectSummaries, } from './effect-summary-cache-validation.ts';
 import type { SerializedEffectSummaries, } from './effect-summary-serialization.ts';
 
+//region Envelope shapes
+// The sentinel for an unprovable hit, the re-exported identity helpers, and the
+// two records an envelope and its current program state are written as.
+
 /**
  Sentinel returned when envelope validation cannot prove an exact hit.
  */
@@ -82,6 +86,12 @@ export type PersistentEffectDependencyState = {
   readonly sourceDigests: ReadonlyMap<string, string>;
 };
 
+//endregion Envelope shapes
+
+//region JSON record predicates
+// Whether a parsed JSON value is a record at all, and whether every value in it
+// is a string.
+
 /**
  Tests whether unknown JSON value is property-bearing record.
  
@@ -110,6 +120,12 @@ function isStringRecord(value: unknown,): value is Readonly<Record<string, strin
       return (typeof entry) === 'string';
     },);
 }
+
+//endregion JSON record predicates
+
+//region Omission identities
+// Whether the parsed omission keys are bounded unique strings, and whether their
+// reason categories agree with the keys being present at all.
 
 /**
  Tests whether parsed omission identities are bounded unique cache strings.
@@ -190,6 +206,12 @@ function omissionReasonsMatch({
   return (keys.length === 0) === (reasons.length === 0);
 }
 
+//endregion Omission identities
+
+//region Surface and scope matching
+// Whether the parsed surfaces equal the current whole-scope surfaces, and
+// whether the entry's scope is the one requested.
+
 /**
  Tests whether parsed surfaces match current whole-scope surfaces exactly.
  
@@ -252,6 +274,12 @@ function scopeMatches({
       surfaces,
     },);
 }
+
+//endregion Surface and scope matching
+
+//region Dependency digests and validation
+// Whether every snapshot dependency still matches, and the validation that ties
+// identity, program state, and digests together.
 
 /**
  Tests whether every snapshot dependency digest matches current program.
@@ -377,3 +405,5 @@ export function validatePersistentEnvelope({
     payload: value.payload,
   };
 }
+
+//endregion Dependency digests and validation

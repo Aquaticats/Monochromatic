@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { findTypeAnnotations, } from './type-annotations.ts';
+import { findTypeAnnotations, } from '../../dist/final/node/index.mjs';
 
 /** Count of repeated annotations used to exercise the scan on long input. */
 const LONG_RUN = 1_000;

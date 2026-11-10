@@ -43,6 +43,10 @@ import {
 import { recordReadonlyViewApplications, } from './effect-readonly-view-application.ts';
 import { recordResultApplication, } from './effect-result-substitution.ts';
 
+//region Coverage vocabulary
+// The three coverage sentinels, from nothing answered to the whole call
+// answered, and the union they form.
+
 /**
  Nothing about the call was answered, so both sides stay opaque.
  */
@@ -71,6 +75,11 @@ export type CollectionCallCoverage =
   | typeof COLLECTION_CALL_UNDERIVED
     | typeof COLLECTION_CALL_RECEIVER_DERIVED
     | typeof COLLECTION_CALL_DERIVED;
+
+//endregion Coverage vocabulary
+
+//region Receiver claim answerability
+// Whether the receiver claim alone is answerable for this member.
 
 /**
  Tests whether the receiver claim alone is answerable for this member.
@@ -182,6 +191,12 @@ function receiverClaimAnswerable({
       call,
     },) !== RESULT_NOT_RECEIVER_STATE);
 }
+
+//endregion Receiver claim answerability
+
+//region Recording both claims
+// Recording the receiver and argument claims of one default-library collection
+// call, kept independent because a member can restructure one and not the other.
 
 /**
  Records both claims for one default-library collection call.
@@ -327,3 +342,5 @@ export function recordCollectionMemberEffect({
     ? COLLECTION_CALL_RECEIVER_DERIVED
     : COLLECTION_CALL_UNDERIVED;
 }
+
+//endregion Recording both claims

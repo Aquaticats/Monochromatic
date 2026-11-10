@@ -39,6 +39,10 @@ import {
 } from './package-implementation-resolution.ts';
 import { configuredProjectConfigFileName, } from './semantic-file-name.ts';
 
+//region Logger and sentinel
+// The module logger, and the sentinel for an external callable whose effect
+// cannot be proved from its implementation.
+
 /**
  External implementation inference logger.
  */
@@ -50,6 +54,12 @@ const l = tagged({ tag: 'external-callable-effect', },);
 export const EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE: unique symbol = Symbol(
   'external package callable effect could not be inferred',
 );
+
+//endregion Logger and sentinel
+
+//region Resolver shapes
+// The proven effect with its package provenance, the builder callback that
+// reuses the effect engine, and the resolver handed to direct scans.
 
 /**
  Proven external callable effect and exact package provenance.
@@ -76,6 +86,12 @@ export type ExternalCallableEffectResolver = (options: {
   readonly call: CallExpression;
   readonly declaration: Node;
 }) => ExternalCallableEffect | typeof EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE;
+
+//endregion Resolver shapes
+
+//region Memoization state
+// The process cache by implementation and export identity, the recursive keys
+// being analysed, and the reset at the semantic lifecycle boundary.
 
 /**
  One memoized inference with the omissions met inside the implementation while making it.
@@ -110,6 +126,12 @@ export function clearExternalCallableEffectCache(): void {
   effectByImplementation.clear();
   activeInferenceKeys.clear();
 }
+
+//endregion Memoization state
+
+//region Inferring from the implementation
+// The exported inference of one external package callable's effects from the
+// implementation it ships.
 
 /**
  Infers external package callable effects from shipped implementation.
@@ -313,3 +335,4 @@ export function externalCallableEffect({
     return EXTERNAL_CALLABLE_EFFECT_UNAVAILABLE;
   }
 }
+//endregion Inferring from the implementation

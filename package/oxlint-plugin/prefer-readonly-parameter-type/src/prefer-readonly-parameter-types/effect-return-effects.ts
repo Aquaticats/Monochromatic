@@ -33,6 +33,9 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Recording a return
+// Everything one returned expression contributes to the summary.
+
 /**
  Records everything one returned expression contributes.
  
@@ -157,6 +160,12 @@ export function recordReturnEffects({
     },);
   }
 }
+//endregion Recording a return
+
+//region Return ownership
+// Whether one return statement belongs to the callable being summarised rather
+// than to a nested callable scanned inline.
+
 /**
  Tests whether one return statement belongs to the callable being summarised.
  
@@ -199,3 +208,4 @@ export function returnBelongsToCallable({
   }
   return true;
 }
+//endregion Return ownership

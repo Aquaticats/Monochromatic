@@ -28,6 +28,10 @@ import {
   isPropertyAccessExpression,
 } from 'typescript/ast/is';
 
+//region Absence and empty values
+// The sentinel for an expression root outside callable parameters, and the shared
+// empty slot set most identifiers resolve to.
+
 /**
  Sentinel when expression root does not resolve to a callable slot.
  */
@@ -54,6 +58,12 @@ export type SlotOrigins = ReadonlySet<EffectSlot>;
  back to `Set<EffectSlot>` anywhere would let one caller poison every other.
  */
 export const NO_SLOT_ORIGIN: SlotOrigins = new Set<EffectSlot>();
+
+//endregion Absence and empty values
+
+//region Model shapes
+// The callable declaration a summary covers, and the relations, uses, edges, and
+// ownership the summary is made of.
 
 /**
  Sentinel when semantic call target has no owned callable declaration.
@@ -195,6 +205,12 @@ export type CallEdge = {
   )[];
 };
 
+//endregion Model shapes
+
+//region Mutable summary and identities
+// The summary while the fixed point is computed, plus the stable declaration and
+// call-site identities that key it.
+
 /**
  Which parameter owns each slot of one callable.
  
@@ -280,6 +296,12 @@ export function callSiteKey(call: Node,): string {
   const sourceFile = call.getSourceFile();
   return `${sourceFile.fileName}:${String(call.pos,)}:${String(call.end,)}`;
 }
+
+//endregion Mutable summary and identities
+
+//region Effect-set and AST helpers
+// Adding slots and their origins to an effect set, collecting descendants over a
+// work stack, and stripping access layers.
 
 /**
  Adds one slot to an effect set.
@@ -412,3 +434,4 @@ export function expressionRoot(node: Node,): Node {
   }
   return cursor.current;
 }
+//endregion Effect-set and AST helpers

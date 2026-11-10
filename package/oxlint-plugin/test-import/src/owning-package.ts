@@ -27,6 +27,10 @@ import {
 } from './package-manifest.ts';
 import { toPosixPath, } from './posix-path.ts';
 
+//region Discovery vocabulary
+// The manifest filename that marks a package root, the sentinel for a file no
+// package claims, and the facts derived once per owning package.
+
 /**
  Logger for package discovery.
  */
@@ -70,6 +74,12 @@ export type OwningPackage = {
   readonly artifactDirectories: readonly string[];
 };
 
+//endregion Discovery vocabulary
+
+//region Lookup cache
+// One memoized entry per directory: the owning package, or the sentinel for a
+// walk that found none.
+
 /**
  Memoized lookups keyed by the directory the walk started from.
  
@@ -78,6 +88,12 @@ export type OwningPackage = {
  valid for a whole lint run and must not be cleared between files.
  */
 const packageByDirectory = new Map<string, OwningPackage | typeof PACKAGE_UNRESOLVED>();
+
+//endregion Lookup cache
+
+//region Reading one package root
+// Reading a candidate manifest and deriving everything the rule needs from a
+// directory that turns out to be a package root.
 
 /**
  Reads one candidate manifest, treating an unreadable file as empty.
@@ -160,6 +176,12 @@ function readPackageAt({ directory, }: {
     },),
   };
 }
+
+//endregion Reading one package root
+
+//region Ancestor walk
+// The walk state held in one holder, so the exported lookup can record every
+// directory it visits without a `let` of its own.
 
 /**
  Ancestor walk state, held in one holder so the function root needs no `let`.
@@ -252,3 +274,5 @@ export function owningPackage({ fileName, }: {
 
   return walk.result;
 }
+
+//endregion Ancestor walk

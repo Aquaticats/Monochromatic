@@ -10,10 +10,14 @@
  ```typescript
  // oxlint.config.ts (monorepo root)
  import { defineConfig } from 'oxlint';
- import base from '\@monochromatic-dev/config-oxlint';
+ import base from '\@monochromatic-dev/config-oxlint/ts';
  
  export default defineConfig({ ...base });
  ```
+
+ The `/ts` subpath, not the bare package name: the bare name resolves to the built
+ bundle, which is publishing output rather than the source a repository lint should
+ track (rule ST3, `doc/decision/workspace-ts-source-imports.md`).
  */
 
 import {

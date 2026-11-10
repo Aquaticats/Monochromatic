@@ -33,6 +33,10 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Activating reachable callables
+// Turning callables reached through escaped expression containers and aliases
+// into ones the enclosing callable can actually run.
+
 /**
  Activates callables reachable through escaped expression containers and aliases.
  
@@ -120,6 +124,12 @@ function activateEscapedCallables({
   }
 }
 
+//endregion Activating reachable callables
+
+//region Nested-closure enclosure
+// Whether a node sits only inside active nested closures, so its effects stay
+// attributed to the callable that can run it.
+
 /**
  Tests that node is enclosed only by active nested closures.
  
@@ -174,6 +184,11 @@ function insideOnlyActiveClosures({
   }
   return true;
 }
+
+//endregion Nested-closure enclosure
+
+//region Body node selection
+// The outer body nodes plus the nested closures that may execute or escape.
 
 /**
  Selects outer body nodes plus nested closures that may execute or escape.
@@ -297,6 +312,12 @@ export function activeCallableBodyNodes({
     },);
   },);
 }
+
+//endregion Body node selection
+
+//region Callables the enclosing callable can run
+// The activation of every callable reachable from a site the enclosing
+// callable can run.
 
 /**
  Activates every callable reachable from a site the enclosing callable can actually run.
@@ -445,6 +466,11 @@ function activationSites({
   },);
 }
 
+//endregion Callables the enclosing callable can run
+
+//region Assigned values
+// Every value assigned to one binding anywhere in the scanned body.
+
 /**
  Names every value assigned to one binding anywhere in the scanned body.
  
@@ -496,3 +522,5 @@ function assignedValues({
     return assigned?.id === symbol.id ? [node.right,] : [];
   },);
 }
+
+//endregion Assigned values

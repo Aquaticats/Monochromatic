@@ -47,10 +47,19 @@ import {
 import { reachableValueSources, } from './effect-result-reach.ts';
 import { expressionRoot, } from './effect-summary-model.ts';
 
+//region Absent result sites
+// The empty site set a binding holds when it holds no result.
+
 /**
  Call sites a binding can be holding the result of, empty when it holds none.
  */
 const NO_RESULT_SITE: ReadonlySet<string> = new Set<string>();
+
+//endregion Absent result sites
+
+//region Reachable call sites
+// The call sites reachable from one expression through its access layers and
+// wrappers.
 
 /**
  Call sites reachable from one expression, through its access layers and wrappers.
@@ -164,6 +173,11 @@ function expressionResultSites({
     : resultSitesBySymbolId.get(symbol.id,) ?? NO_RESULT_SITE;
 }
 
+//endregion Reachable call sites
+
+//region Recording per binding
+// Recording every call site one binding name can be holding a result of.
+
 /**
  Records every call site one binding name can be holding a result of.
  
@@ -240,6 +254,12 @@ function registerResultSites({
   );
   return known.size !== knownBefore;
 }
+
+//endregion Recording per binding
+
+//region Resolving every binding
+// The fixed-point pass that decides which call's result each local binding can
+// hold.
 
 /**
  Resolves which call's result every local binding can be holding.
@@ -359,6 +379,12 @@ export function discoverResultBindings({
   }
 }
 
+//endregion Resolving every binding
+
+//region Write targets and pattern leaves
+// The call sites a write target can hold, and every binding a pattern
+// introduces.
+
 /**
  Reads the call sites a write or store target can be holding a result of.
  
@@ -419,3 +445,4 @@ function patternLeaves({ name, }: { readonly name: Node; },): readonly Node[] {
       },);
   return [];
 }
+//endregion Write targets and pattern leaves

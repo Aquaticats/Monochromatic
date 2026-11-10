@@ -241,6 +241,18 @@ and the run goes on with the next session instead of ending without a report.
   keep each failure's evidence,
   print the table and summary,
   and apply the filter.
+- `src/library-folders.ts` reads the folder shape of the scratch library it built:
+   one entry per top-level folder with the tracks it holds,
+   the fullest folder,
+   and the step bound of a walk through the folder list.
+- `src/folder-choice.ts` opens a folder by its name through the folder list's own keys
+   (`Alt+1`,
+   the first letter,
+   `Down` rows,
+  `Enter`),
+   waiting for the app to report the folder it shows.
+  Naming the folder keeps a check independent of a row position,
+   of the window size and of the font size.
 - `src/wide-interaction.ts` and `src/narrow-interaction.ts` hold the click-through checks:
    while Search covers the player,
   a click on its empty area changes nothing under it (wide and narrow window),
@@ -250,6 +262,9 @@ and the run goes on with the next session instead of ending without a report.
    or toggles play on the selected one,
    or changes the mode,
    once the page or the toast is gone).
+  The wide checks need a track row under every click point,
+   so they open the library's fullest folder by name before they click,
+   and the failure text names that folder and its track count.
 - `src/wide-select.ts` holds the select-only checks (D124,
   D127,
   D128):
@@ -287,4 +302,9 @@ The unit tests cover everything that needs no display:
  the routing proof with allowed and rejected graphs,
  the unit and process guards,
  the report and the summary file.
+The folder selection,
+ the library folder count and the session loop
+ (a session that stops is recorded as `session/<name>` and the run goes on;
+ a safety stop ends the run at once)
+ are unit tested too.
 The scenarios and the session start-up run only in the real end-to-end run.

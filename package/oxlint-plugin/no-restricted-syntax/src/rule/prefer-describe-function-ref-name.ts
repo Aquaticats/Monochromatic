@@ -20,10 +20,20 @@ import {
   isAllCapsSnakeName,
 } from './prefer-describe-function-ref-name.export-scan.ts';
 
+//region Imported source cache
+// One text per resolved absolute path, so the export scan reads an imported
+// module once however many suites reference it.
+
 /**
  Imported source text cache keyed by resolved absolute path.
  */
 const sourceTextByPath = new Map<string, string>();
+
+//endregion Imported source cache
+
+//region Reading an imported module
+// The read that treats an unreadable file as empty text, and the scan that
+// classifies one exported name as a function, a class, or something else.
 
 /**
  Reads imported source text, returning an empty string when the file cannot
@@ -133,6 +143,12 @@ function classifyExportedName(
     name,
   },);
 }
+
+//endregion Reading an imported module
+
+//region Callable bindings
+// Whether the binding behind a reference is callable at all, which is what
+// makes its `.name` a meaningful suite name.
 
 /**
  Determines whether the binding behind a {@link Variable} is callable in
@@ -278,6 +294,12 @@ function isCallableBinding(
   }
   return false;
 }
+
+//endregion Callable bindings
+
+//region The rule
+// The exported rule, preferring the function reference over a repeated string
+// literal in `describe({ name })`.
 
 /**
  Prefers `describe({ name: myFn.name, ... })` over
@@ -451,3 +473,5 @@ export const preferDescribeFunctionRefName: CreateOnceRule = {
     };
   },
 };
+
+//endregion The rule

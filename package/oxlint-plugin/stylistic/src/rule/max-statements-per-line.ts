@@ -15,6 +15,10 @@ import {
 } from '../utility/range.ts';
 import { isOnlyWhitespaceOrSeparator, } from '../utility/source-filler.ts';
 
+//region Statement tallies
+// Which nodes count as a statement, and which parents absorb their single child
+// into the parent's tally.
+
 /**
  Parent node types that allow a single inline child statement
  (the inner statement does not count toward this line's tally).
@@ -64,6 +68,11 @@ const STATEMENT_TYPES = [
   'ExportDefaultDeclaration',
   'ExportAllDeclaration',
 ];
+//endregion Statement tallies
+
+//region Rule
+// The exported rule: its metadata, its two callbacks, and the visitor that
+// wires every statement type to them.
 
 /**
  Enforces at most one statement per source line.
@@ -120,6 +129,9 @@ export const maxStatementsPerLine: CreateOnceRule = {
    ```
    */
   createOnce(context: ForeignBorrowed<Context>,): VisitorWithHooks {
+    //region Collecting statements per line
+    // Every statement type lands in a bucket keyed by its start line.
+
     /**
      Statements counted per start-line, in source order.
      */
@@ -177,6 +189,11 @@ export const maxStatementsPerLine: CreateOnceRule = {
         bucket,
       );
     }
+    //endregion Collecting statements per line
+
+    //region Reporting excess statements
+    // One report per statement past the first on a line, fixed by inserting a
+    // newline and the line's own indent unless a comment or nesting intervenes.
 
     /**
      On program exit, walks every line bucket and reports each statement
@@ -279,6 +296,10 @@ export const maxStatementsPerLine: CreateOnceRule = {
       }
       perLine.clear();
     }
+    //endregion Reporting excess statements
+
+    //region Visitor wiring
+    // Every statement type is tracked, and the tally is reported on program exit.
 
     /**
      Build the visitor: each statement type plus the Program:exit hook.
@@ -300,3 +321,5 @@ export const maxStatementsPerLine: CreateOnceRule = {
     return visitor;
   },
 };
+//endregion Visitor wiring
+//endregion Rule

@@ -6,6 +6,7 @@
 //! and the host budget bounds the overlap.
 
 use super::*;
+use std::sync::Arc;
 use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE};
 use crate::service_work::{Verdict, work_directory};
 use crate::test_support::{fixture, remove};
@@ -62,20 +63,69 @@ fn repositories(name: &str, count: usize) -> (PathBuf, Vec<Repository>) {
 
 /// Handlers that run `on_push` for every push and answer done;
 /// they hold only what several threads may share.
-struct Handlers<'a> {
-    /// Called with the Git directory of the pushed repository.
-    on_push: Box<dyn Fn(&Path) + Sync + 'a>,
+struct Handlers {
+    /// Called with the Git directory of the pushed repository,
+    /// shared so a job of the blocking pool may carry it.
+    on_push: Arc<dyn Fn(&Path) + Sync + Send + 'static>,
     /// The Git directories pushed,
-    /// in the order the pushes began.
-    began: Mutex<Vec<PathBuf>>,
+    /// in the order the pushes began,
+    /// shared with the control that reads them after the round took the handlers.
+    began: Arc<Mutex<Vec<PathBuf>>>,
+    /// The point the awaited push waits at,
+    /// when the control measures the lanes rather than the pool.
+    /// Nothing means the waiting is a job of the blocking pool,
+    /// as a handler that knows nothing of the runtime waits.
+    gate: Option<Arc<tokio::sync::Barrier>>,
 }
 
-impl WorkHandlers for Handlers<'_> {
+impl WorkHandlers for Handlers {
     fn push(&self, items: &[WorkItem]) -> Verdict {
         let directory: PathBuf = items.last().map(|item: &WorkItem| { return item.git_dir.clone(); }).unwrap_or_default();
         self.began.lock().expect("the order of the pushes").push(directory.clone());
         (self.on_push)(directory.as_path());
         return Verdict::Done;
+    }
+
+    /// What:
+    ///  The same push,
+    /// its wait on the runtime when the control gave it a point there,
+    /// else on the blocking pool.
+    /// Why:
+    ///   A control's push may wait on a point several pushes must reach
+    /// together,
+    /// and where that wait sits decides what the control proves:
+    /// a point on the
+    ///  blocking pool is passed only as far as the process's room for blocking
+    /// jobs reaches (two jobs in the gate's container,
+    /// whatever the CPUs a
+    /// control states for its own budget),
+    /// while a point on the runtime is passed by every lane task,
+    /// because an await frees the worker it waited on.
+    /// The shipped handlers await their Git on the runtime,
+    /// so a lane control measures the round with a point there,
+    /// and a control of the pool's own bound keeps the pool.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async pushAwaiting(items) { began.push(dir); if (gate) await gate.wait(); else await offTheWorkers(() => onPush(dir)); return DONE; }
+    /// ```
+    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let directory: PathBuf = items.last().map(|item: &WorkItem| { return item.git_dir.clone(); }).unwrap_or_default();
+            self.began.lock().expect("the order of the pushes").push(directory.clone());
+            if let Some(gate) = self.gate.as_ref() {
+                // Every lane must arrive for the round to go on, so a round that runs its lanes in turn never finishes.
+                gate.wait().await;
+                return Verdict::Done;
+            }
+            let on_push: Arc<dyn Fn(&Path) + Sync + Send + 'static> = Arc::clone(&self.on_push);
+            crate::blocking_job::run_blocking_job(move || {
+                (on_push)(directory.as_path());
+            })
+            .await
+            .expect("a thread of the pool runs the push of this control");
+            return Verdict::Done;
+        });
     }
 
     fn maintenance(&self, _item: &WorkItem) -> Verdict {
@@ -88,7 +138,7 @@ impl WorkHandlers for Handlers<'_> {
 }
 
 /// Drain `repositories` on `host` with `handlers` and return the retry list.
-fn round(repositories: &[Repository], host: &HostResources, handlers: &Handlers<'_>) -> Vec<(PathBuf, Duration)> {
+fn round(repositories: &[Repository], host: &HostResources, handlers: Arc<Handlers>) -> Vec<(PathBuf, Duration)> {
     let directories: Vec<Assignment> = repositories.iter().map(|repository: &Repository| { return Assignment::plain(repository.common.clone()); }).collect();
     return drain_directories(&RoundDrain { directories: directories.as_slice(), handlers, now: &ClaimTime::read(), host }).waits;
 }
@@ -98,25 +148,49 @@ fn settled(repository: &Repository) -> usize {
     return std::fs::read_dir(state_directory(work_directory(repository.common.as_path()).as_path(), DONE)).map_or(0, |listing| { return listing.flatten().count(); });
 }
 
-/// The pushes of all the repositories start before any has finished:
-/// a point that needs all of them at once is passed only by
-///  parallel work,
-/// and a serial round waits there until its patience ends.
+/// What:
+///  The pushes of all the repositories are under way at the same time,
+/// so no repository waits for another,
+/// and every item is settled.
+/// Why:
+///   The round hands each repository to a lane of tasks and takes the answers
+/// back in order,
+/// so a lane that waited for another would
+///  lose the person's backup behind a slow push of another repository.
+/// The point is on the runtime,
+/// where the shipped
+///  handlers wait for their Git:
+/// a point on the blocking pool is passed only as far as the process's room
+/// for blocking jobs
+///  reaches,
+/// which is two jobs in the gate's container whatever the CPUs a control states
+/// for its own budget,
+/// and a control that
+///  measured that would prove the pool's bound rather than the round's.
+/// A round that ran its lanes in turn never brings all of them to the point,
+/// so it never finishes,
+/// and the control fails by name
+///  instead of passing on a patience.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ran = finishedWithin(PATIENCE, () => drainDirectories({ directories, handlers, now, host })); // every lane reached the barrier
+/// ```
 #[test]
 fn repositories_are_drained_side_by_side() {
     let (root, made) = repositories("round-overlap", REPOSITORIES);
-    let point: Rendezvous = Rendezvous::new(REPOSITORIES);
-    let met: AtomicUsize = AtomicUsize::new(0);
-    let handlers: Handlers<'_> = Handlers {
-        on_push: Box::new(|_directory: &Path| {
-            if point.arrive() {
-                met.fetch_add(1, Ordering::SeqCst);
-            }
-        }),
-        began: Mutex::new(Vec::new()),
-    };
-    round(made.as_slice(), &LARGE_HOST, &handlers);
-    assert_eq!(met.load(Ordering::SeqCst), REPOSITORIES, "every push met the others while it ran");
+    let shared: Arc<Handlers> = Arc::new(Handlers {
+        on_push: Arc::new(|_directory: &Path| {}) as Arc<dyn Fn(&Path) + Sync + Send>,
+        began: Arc::new(Mutex::new(Vec::new())),
+        gate: Some(Arc::new(tokio::sync::Barrier::new(REPOSITORIES))),
+    });
+    // The directories the round drains, so the control can still read what it settled after the closure took them.
+    let directories: Vec<PathBuf> = made.iter().map(|repository: &Repository| { return repository.common.clone(); }).collect();
+    let ran = crate::test_support::finished_within_at(PATIENCE, move || {
+        let assignments: Vec<Assignment> = directories.iter().map(|directory: &PathBuf| { return Assignment::plain(directory.clone()); }).collect();
+        return drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: shared, now: &ClaimTime::read(), host: &LARGE_HOST });
+    });
+    assert!(ran.is_some(), "the round brought every repository to the point within {PATIENCE:?}, so its lanes ran side by side");
     assert!(made.iter().all(|repository: &Repository| { return settled(repository) == 1; }), "every item was settled as done");
     remove(root.as_path());
 }
@@ -129,20 +203,22 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     let host: HostResources = HostResources { parallelism: 3, memory_available: None };
     let allowed: usize = worker_budget(&BudgetRequest { items: REPOSITORIES * 2, per_item_memory: REPOSITORY_MEMORY, ceiling: None, cap: None, host: &host });
     assert!(allowed > 1 && allowed < REPOSITORIES, "the control needs a bound between one and the repositories: {allowed}");
-    let running: AtomicUsize = AtomicUsize::new(0);
-    let busiest: AtomicUsize = AtomicUsize::new(0);
+    let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     // The patience bounds only how long a run that never reaches the bound waits before it fails.
-    let point: Rendezvous = Rendezvous::impatient(allowed, PATIENCE);
-    let handlers: Handlers<'_> = Handlers {
-        on_push: Box::new(|_directory: &Path| {
-            let now: usize = running.fetch_add(1, Ordering::SeqCst) + 1;
-            busiest.fetch_max(now, Ordering::SeqCst);
-            point.arrive_at_the_bound(allowed);
-            running.fetch_sub(1, Ordering::SeqCst);
-        }),
-        began: Mutex::new(Vec::new()),
+    let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(allowed, PATIENCE));
+    let (counting, most, waiting) = (Arc::clone(&running), Arc::clone(&busiest), Arc::clone(&point));
+    let handlers: Handlers = Handlers {
+        on_push: Arc::new(move |_directory: &Path| {
+            let now: usize = counting.fetch_add(1, Ordering::SeqCst) + 1;
+            most.fetch_max(now, Ordering::SeqCst);
+            waiting.arrive_at_the_bound(allowed);
+            counting.fetch_sub(1, Ordering::SeqCst);
+        }) as Arc<dyn Fn(&Path) + Sync + Send>,
+        began: Arc::new(Mutex::new(Vec::new())),
+        gate: None,
     };
-    round(made.as_slice(), &host, &handlers);
+    round(made.as_slice(), &host, Arc::new(handlers));
     assert_eq!(busiest.load(Ordering::SeqCst), allowed);
     remove(root.as_path());
 }
@@ -170,18 +246,21 @@ fn the_retry_list_keeps_the_order_the_directories_were_named() {
         enqueue(work_directory(repository.common.as_path()).as_path(), &foreign).expect("enqueue");
         crate::work_item::claim_next_of(work_directory(repository.common.as_path()).as_path(), &ClaimTime::read(), &[WorkKind::Review]).expect("claimed").expect("a claim");
     }
-    let first_done: Rendezvous = Rendezvous::impatient(REPOSITORIES - 1, PATIENCE);
-    let handlers: Handlers<'_> = Handlers {
-        on_push: Box::new(|directory: &Path| {
-            if directory == made[0].common.as_path() {
-                assert!(first_done.wait_for_target(), "the other repositories were drained while the first waited");
+    let first_done: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(REPOSITORIES - 1, PATIENCE));
+    let first_common: PathBuf = made[0].common.clone();
+    let waiting: Arc<Rendezvous> = Arc::clone(&first_done);
+    let handlers: Handlers = Handlers {
+        on_push: Arc::new(move |directory: &Path| {
+            if directory == first_common.as_path() {
+                assert!(waiting.wait_for_target(), "the other repositories were drained while the first waited");
             } else {
-                first_done.arrive_without_waiting();
+                waiting.arrive_without_waiting();
             }
-        }),
-        began: Mutex::new(Vec::new()),
+        }) as Arc<dyn Fn(&Path) + Sync + Send>,
+        began: Arc::new(Mutex::new(Vec::new())),
+        gate: None,
     };
-    let retries = round(made.as_slice(), &LARGE_HOST, &handlers);
+    let retries = round(made.as_slice(), &LARGE_HOST, Arc::new(handlers));
     let named: Vec<&PathBuf> = retries.iter().map(|(directory, _wait)| { return directory; }).collect();
     let expected: Vec<&PathBuf> = made.iter().map(|repository: &Repository| { return &repository.common; }).collect();
     assert_eq!(named, expected);
@@ -210,25 +289,28 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
         tries: 0,
     };
     enqueue(work_directory(linked.as_path()).as_path(), &pending).expect("enqueue");
-    let running: AtomicUsize = AtomicUsize::new(0);
-    let busiest: AtomicUsize = AtomicUsize::new(0);
-    let overlapped: AtomicUsize = AtomicUsize::new(0);
+    let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let overlapped: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     // A drain waits here for a second drain of the same repository: a lane rule that gives each directory a lane of its
     // own brings one, and a lane rule that holds them one after another cannot.
-    let together: Rendezvous = Rendezvous::impatient(2, SERIAL_PATIENCE);
-    let handlers: Handlers<'_> = Handlers {
-        on_push: Box::new(|_directory: &Path| {
-            busiest.fetch_max(running.fetch_add(1, Ordering::SeqCst) + 1, Ordering::SeqCst);
-            if together.arrive_and_give_back() {
-                overlapped.fetch_add(1, Ordering::SeqCst);
+    let together: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(2, SERIAL_PATIENCE));
+    let (counting, most, seen, meeting) = (Arc::clone(&running), Arc::clone(&busiest), Arc::clone(&overlapped), Arc::clone(&together));
+    let handlers: Handlers = Handlers {
+        on_push: Arc::new(move |_directory: &Path| {
+            most.fetch_max(counting.fetch_add(1, Ordering::SeqCst) + 1, Ordering::SeqCst);
+            if meeting.arrive_and_give_back() {
+                seen.fetch_add(1, Ordering::SeqCst);
             }
-            running.fetch_sub(1, Ordering::SeqCst);
-        }),
-        began: Mutex::new(Vec::new()),
+            counting.fetch_sub(1, Ordering::SeqCst);
+        }) as Arc<dyn Fn(&Path) + Sync + Send>,
+        began: Arc::new(Mutex::new(Vec::new())),
+        gate: None,
     };
     let directories: Vec<Assignment> = vec![Assignment::plain(made[0].common.clone()), Assignment::plain(linked.clone())];
-    drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: &handlers, now: &ClaimTime::read(), host: &LARGE_HOST });
-    assert_eq!(handlers.began.lock().expect("pushes").len(), 2, "both directories were drained");
+    let began: Arc<Mutex<Vec<PathBuf>>> = Arc::clone(&handlers.began);
+    drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: Arc::new(handlers), now: &ClaimTime::read(), host: &LARGE_HOST });
+    assert_eq!(began.lock().expect("pushes").len(), 2, "both directories were drained");
     assert_eq!(overlapped.load(Ordering::SeqCst), 0, "a drain of one repository began while another was inside its push");
     assert_eq!(busiest.load(Ordering::SeqCst), 1);
     remove(root.as_path());
@@ -263,8 +345,9 @@ const LEASE_READING_SLACK: Duration = Duration::from_secs(5);
 /// and which record the Git directory of every push in the order they began.
 struct CouldPass {
     /// The Git directories pushed,
-    /// in the order the pushes began.
-    began: Mutex<Vec<PathBuf>>,
+    /// in the order the pushes began,
+    /// shared with the control that reads them after the round took the handlers.
+    began: Arc<Mutex<Vec<PathBuf>>>,
 }
 
 impl WorkHandlers for CouldPass {
@@ -359,11 +442,9 @@ fn rendered(answer: &RoundAnswer, directories: &[Assignment]) -> Vec<String> {
 /// const serial = drainOneAfterAnother(directories, handlers, now);
 /// ```
 fn drain_one_after_another(directories: &[Assignment], handlers: &CouldPass, now: &ClaimTime) -> RoundAnswer {
-    let work: DrainEachDirectory<'_, CouldPass> = DrainEachDirectory { handlers, now };
     let mut answer: RoundAnswer = RoundAnswer::default();
-    let mut lines: Vec<String> = Vec::new();
-    for (index, assignment) in directories.iter().enumerate() {
-        let (wait, changes): (Option<Duration>, Vec<RetryChange>) = work.run(index, assignment, &mut lines);
+    for assignment in directories.iter() {
+        let (wait, changes): (Option<Duration>, Vec<RetryChange>) = crate::merge_second_pass::tests::await_it(drain_one(handlers, now, assignment));
         if let Some(lease_wait) = wait {
             answer.waits.push((assignment.directory.clone(), lease_wait));
         }
@@ -391,10 +472,10 @@ fn drain_one_after_another(directories: &[Assignment], handlers: &CouldPass, now
 fn the_answer_of_a_round_is_the_one_a_drain_of_one_directory_after_another_gives() {
     let (round_root, assignments) = planned_world("round-answer-parallel", REPOSITORIES);
     let (serial_root, serial_assignments) = planned_world("round-answer-serial", REPOSITORIES);
-    let round_handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
-    let serial_handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
+    let round_handlers: CouldPass = CouldPass { began: Arc::new(Mutex::new(Vec::new())) };
+    let serial_handlers: CouldPass = CouldPass { began: Arc::new(Mutex::new(Vec::new())) };
     let now: ClaimTime = ClaimTime::read();
-    let parallel: RoundAnswer = drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: &round_handlers, now: &now, host: &LARGE_HOST });
+    let parallel: RoundAnswer = drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: Arc::new(round_handlers), now: &now, host: &LARGE_HOST });
     let serial: RoundAnswer = drain_one_after_another(serial_assignments.as_slice(), &serial_handlers, &now);
     assert_eq!(rendered(&parallel, assignments.as_slice()), rendered(&serial, serial_assignments.as_slice()));
     assert!(!parallel.waits.is_empty(), "the control needs a claim another instance holds, so the answer carries a wait");
@@ -439,63 +520,97 @@ fn a_lane_drains_its_directories_in_the_order_they_were_named() {
         tries: 0,
     };
     enqueue(work_directory(linked.as_path()).as_path(), &pending).expect("enqueue");
-    let handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
+    let handlers: CouldPass = CouldPass { began: Arc::new(Mutex::new(Vec::new())) };
     let directories: Vec<Assignment> = vec![
         Assignment { directory: made[0].common.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), ..Retrying::default() } },
         Assignment { directory: linked.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), ..Retrying::default() } },
     ];
-    drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: &handlers, now: &ClaimTime::read(), host: &LARGE_HOST });
-    let began: Vec<PathBuf> = handlers.began.lock().expect("the order of the pushes").clone();
+    let began_log: Arc<Mutex<Vec<PathBuf>>> = Arc::clone(&handlers.began);
+    drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: Arc::new(handlers), now: &ClaimTime::read(), host: &LARGE_HOST });
+    let began: Vec<PathBuf> = began_log.lock().expect("the order of the pushes").clone();
     assert_eq!(began, vec![made[0].common.clone(), linked.clone()], "the lane drained its directories in the order they were named");
     remove(root.as_path());
 }
 
 /// What:
-///  A thread the system refuses partway through a round loses no directory:
-/// every one is drained,
-/// on the
-///  calling thread,
-/// and the answer is the one a round with every thread gives.
+///  A lane that stops partway through a round says so,
+/// runs no item after the one it stopped in,
+/// and loses nothing:
+/// the record it was inside keeps its claim,
+/// the record behind it stays pending,
+/// and a repository of another lane is drained.
 /// Why:
-///   The owner's rule is that a thread is only a way to do the work sooner
-/// (`foundation/scoped_start.rs`),
-/// and a refusal that lost a directory would lose the person's push with it.
-/// This is
-///  the seam a refusal can be measured through:
-/// `RefusedStarts` makes every scoped start from this thread fail,
-/// as a process at its
-///  limit does.
+///   The round's items are tasks,
+/// so a lane stops where a task panics or the pool refuses a thread,
+/// and the
+///  caller that is told nothing reads the silence as a refresh that covered every directory.
+/// The plan says what the round must answer
+///  instead of a full answer:
+/// `OrderedRunError`,
+/// with the claims of the stopped lane left to their lease (`service_work::CLAIM_LEASE`),
+///  which is the next round of the work loop's to find.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const refused = withRefusedStarts(() => round(dirs)); // every lane ran here
+/// const [answer, stopped] = await drainDirectoriesAwaiting({ dirs }); // stopped is Panicked, the record behind stays pending
 /// ```
 #[test]
-fn a_refused_thread_partway_through_a_round_leaves_no_directory_undrained() {
-    let (refused_root, refused_assignments) = planned_world("round-refused-thread", REPOSITORIES);
-    let (threaded_root, threaded_assignments) = planned_world("round-threaded", REPOSITORIES);
-    let refused_handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
-    let threaded_handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
-    let now: ClaimTime = ClaimTime::read();
-    let threaded: RoundAnswer = drain_directories(&RoundDrain {
-        directories: threaded_assignments.as_slice(),
-        handlers: &threaded_handlers,
-        now: &now,
-        host: &LARGE_HOST,
-    });
-    let refused: RoundAnswer = {
-        let _refused: crate::scoped_start::RefusedStarts = crate::scoped_start::RefusedStarts::here();
-        drain_directories(&RoundDrain { directories: refused_assignments.as_slice(), handlers: &refused_handlers, now: &now, host: &LARGE_HOST })
+fn a_lane_that_panics_stops_its_lane_and_the_round_says_so() {
+    let (root, made) = repositories("round-lane-panics", 2);
+    let linked: PathBuf = made[0].root.join("linked");
+    std::fs::create_dir_all(linked.as_path()).expect("linked directory");
+    std::fs::write(linked.join("commondir"), "../common\n").expect("commondir");
+    let behind: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: made[0].root.join("worktree").to_path_buf(),
+        git_dir: linked.clone(),
+        branch_ref: BRANCH.to_string(),
+        oid: format!("{:040x}", 0xbeef),
+        parent: String::new(),
+        created: String::from("2026-01-01T00:00:00.000Z"),
+        tries: 0,
     };
-    assert_eq!(rendered(&refused, refused_assignments.as_slice()), rendered(&threaded, threaded_assignments.as_slice()), "the answer a refused thread gives is the one a round with every thread gives");
-    let began: Vec<PathBuf> = refused_handlers.began.lock().expect("the order of the pushes").clone();
-    assert_eq!(
-        began,
-        refused_assignments.iter().map(|assignment: &Assignment| { return assignment.directory.clone(); }).collect::<Vec<PathBuf>>(),
-        "every directory was drained in the order it was named, on the thread that could not start the others"
-    );
-    remove(refused_root.as_path());
-    remove(threaded_root.as_path());
+    enqueue(work_directory(linked.as_path()).as_path(), &behind).expect("enqueue");
+    let handlers: PanicsOn = PanicsOn { when: made[0].common.clone() };
+    let directories: Vec<Assignment> = vec![Assignment::plain(made[0].common.clone()), Assignment::plain(linked.clone()), Assignment::plain(made[1].common.clone())];
+    let (answered, stopped) = crate::merge_second_pass::tests::await_it(drain_directories_awaiting(&RoundDrain {
+        directories: directories.as_slice(),
+        handlers: Arc::new(handlers),
+        now: &ClaimTime::read(),
+        host: &LARGE_HOST,
+    }));
+    let why: crate::parallel_runner_on_the_runtime::OrderedRunError = stopped.expect("the round says it did not finish");
+    assert!(why.to_string().contains("panicked"), "the round names a step that panicked: {why}");
+    assert_eq!(answered.changes.len(), 0, "the lane that stopped planned nothing: {:?}", answered.changes);
+    assert_eq!(settled(&made[1]), 1, "the repository of another lane was drained");
+    let claimed: usize = std::fs::read_dir(state_directory(work_directory(made[0].common.as_path()).as_path(), crate::work_item::CLAIMED)).map_or(0, |listing| { return listing.flatten().count(); });
+    assert_eq!(claimed, 1, "the record the lane was inside keeps its claim, which its lease ends");
+    let pending: usize = std::fs::read_dir(state_directory(work_directory(linked.as_path()).as_path(), crate::work_item::PENDING)).map_or(0, |listing| { return listing.flatten().count(); });
+    assert_eq!(pending, 1, "the record behind the one that stopped was not run and stays pending");
+    remove(root.as_path());
+}
+
+/// Handlers that panic on the push of one repository and answer done for every other,
+/// with the Git directory of the push that stops them.
+struct PanicsOn {
+    /// The Git directory whose push panics.
+    when: PathBuf,
+}
+
+impl WorkHandlers for PanicsOn {
+    fn push(&self, items: &[WorkItem]) -> Verdict {
+        let directory: PathBuf = items.last().map(|item: &WorkItem| { return item.git_dir.clone(); }).unwrap_or_default();
+        assert!(directory != self.when, "the push of this repository panics, which is what the control measures");
+        return Verdict::Done;
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
 }
 
 /// What:

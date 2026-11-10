@@ -4,6 +4,9 @@
  @module
  */
 
+//region Usage wording
+// The subject and verb a diagnostic builds from authored input binding names.
+
 /**
  Builds subject plus verb from authored input binding names.
  
@@ -39,6 +42,11 @@ function usageSubject(names: readonly string[],): string {
     .join(', ',);
   return `The function inputs named ${leadingNames}, and ${finalName} are`;
 }
+
+//endregion Usage wording
+
+//region Bindings of one input
+// The binding names belonging to one semantic input index.
 
 /**
  Collects binding names belonging to one semantic input index.
@@ -85,6 +93,12 @@ function parameterNames({
    * reader's ability to find the input. */
   return affected.length === 0 ? names : affected;
 }
+
+//endregion Bindings of one input
+
+//region Describing the inputs
+// The wording for identifiers belonging to one function input, and the narrower
+// wording for those used as receivers of unknown method calls.
 
 /**
  Describes identifier names that belong to one function input.
@@ -179,6 +193,12 @@ export function inputMethodUsageSubject({
     : narrowed,);
 }
 
+//endregion Describing the inputs
+
+//region Unknown-call receivers
+// The names used as the receiver of at least one unknown call, and whether every
+// unknown call is a method called on the current input.
+
 /**
  Keeps the names used as the receiver of at least one unknown call.
  
@@ -242,3 +262,4 @@ export function everyBoundaryIsInputMethod({
     return false;
   },);
 }
+//endregion Unknown-call receivers

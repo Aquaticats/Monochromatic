@@ -315,6 +315,45 @@ Workaround:
  which brings the failure back while the exposed `git` wrapper predates
  `monochromatic-git-policy-cli` 0.2.9.
 
+### The trial's cmake and slopo Mise warnings came from the retired `[tools]` block, checked 2026-11-10
+
+Surface:
+the cloud trial's runtime installation of 2026-10-16T00:57:05Z,
+whose step log is GitHub run 38832349057,
+and any later `mise install` against a worktree carrying the pre-cutover tool declarations.
+
+Messages:
+
+```text
+mise WARN  preserving unavailable dependency sidecar: dependency sidecar .mise/locks/pipx-slopo/0.9.0: No such file or directory (os error 2); run `mise lock` to repair it
+mise WARN  failed to load vfox plugin metadata deps for cmake: runtime error: crates/vfox/src/plugin.rs:357:2: module 'metadata' not found
+```
+
+Cause:
+both tools were Mise tool declarations of the era,
+`cmake = "latest"` at `mise.toml:169` and `"pipx:slopo" = "latest"` at `mise.toml:309` of the trial commit.
+`mise.toml` declared them in a `[tools]` block that commit `a5cdc3158d` (2026-10-26)
+removed for `doc/decision/mpm-toolchain-adoption.md`,
+and commit `4cb480344f` deleted `mise.lock`.
+The sidecar itself was never tracked:
+`git check-ignore --verbose .mise/locks/pipx-slopo/0.9.0/uv.lock` answered `.gitignore:47:locks/`,
+so a fresh checkout never had it.
+The cmake warning is the same superseded `vfox:cmake` backend recorded in
+`doc/troubleshooting/mise-2026-10-19-cmake-lock-resolution.md`.
+
+State now:
+`rg '^\[tools\]' --glob '**/mise*.toml'` finds no declaration in the repository,
+and neither tool comes from Mise:
+
+- `cmake` is `github:Kitware/CMake@latest` with the `archive` route in `toolchain.plan.jsonc`.
+- `pipx:slopo` is `pipx:slopo@latest` with the `mpm-uvx` route in `toolchain.plan.jsonc`.
+
+`mise run toolchain:install` installs both from `toolchain.lock.json` through `mpm-shadow`,
+so no Mise lockfile,
+no dependency sidecar and no vfox plugin takes part.
+Both warnings therefore describe a configuration this repository no longer has;
+no lockfile was regenerated and no ignore rule was changed.
+
 ### The tool environment named the JDK's version directory, not the JDK, 2026-11-08T16:10:00-05:00
 
 Surface:

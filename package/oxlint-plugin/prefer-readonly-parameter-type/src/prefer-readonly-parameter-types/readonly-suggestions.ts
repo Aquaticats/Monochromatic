@@ -17,6 +17,10 @@ import { readonlyCollectionSuggestions, } from './readonly-collection-suggestion
 import type { ReadonlySuggestion, } from './readonly-suggestion.ts';
 import { typeFestResolvesFrom, } from './type-fest-reachability.ts';
 
+//region Offset conversion
+// The TypeScript to Oxlint offset conversion every fix range below goes
+// through.
+
 /**
  Converts TypeScript offset to Oxlint offset after BOM stripping.
  
@@ -38,6 +42,12 @@ function oxlintOffset({
     offset - 1,
   ) : offset;
 }
+
+//endregion Offset conversion
+
+//region Suggestion text
+// The verified deep-readonly array type, and the `type-fest` `ReadonlyDeep`
+// form for mutable structural data.
 
 /**
  Builds verified deep-readonly array type suggestion.
@@ -241,6 +251,11 @@ function readonlyDeepSuggestions({
   ];
 }
 
+//endregion Suggestion text
+
+//region The suggestions
+// The exported builder of the verified readonly type suggestions.
+
 /**
  Builds verified readonly type suggestions.
  
@@ -289,3 +304,4 @@ export function readonlyParameterSuggestions({
     project,
   },);
 }
+//endregion The suggestions

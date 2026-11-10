@@ -19,6 +19,10 @@ import {
 
 import type { EffectCallableDeclaration, } from './effect-summary-model.ts';
 
+//region Absence and contract shapes
+// The sentinel for a callable with no attached TSDoc comment, and the mutation
+// contracts one declaration carries.
+
 /**
  Sentinel when callable has no attached TSDoc comment.
  */
@@ -42,6 +46,11 @@ export const MUTATION_CONTRACT_UNAVAILABLE: unique symbol = Symbol(
 export type CallableMutationContracts = {
   readonly commentStartOffset: number;
   readonly commentEndOffset: number;
+//endregion Absence and contract shapes
+
+//region Comment delimiters
+// The JSDoc opening delimiter and the widths of both block-comment delimiters.
+
   readonly commentBodyStartOffset: number;
   readonly blocks: readonly ParsedMutationContractBlock[];
 };
@@ -60,6 +69,11 @@ const COMMENT_OPEN_WIDTH = 2;
  Block-comment closing delimiter width.
  */
 const COMMENT_CLOSE_WIDTH = 2;
+
+//endregion Comment delimiters
+
+//region Reading the contracts
+// The shared mutation blocks of a callable's final attached JSDoc comment.
 
 /**
  Reads shared mutation blocks from callable's final attached JSDoc comment.
@@ -130,6 +144,12 @@ export function mutationContractsForDeclaration({
     blocks: parseMutationContractBlocks({ commentValue, },),
   };
 }
+
+//endregion Reading the contracts
+
+//region Parameter indexes
+// The index every identifier in one binding name maps to, and the map for a
+// whole declaration.
 
 /**
  Maps every identifier in parameter binding name to parameter index.
@@ -214,3 +234,4 @@ export function mutationTargetIndexes({
     },);
   return targetIndexes;
 }
+//endregion Parameter indexes

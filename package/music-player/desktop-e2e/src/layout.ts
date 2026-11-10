@@ -89,14 +89,6 @@ export const WIDE_POINTS = {
  */
 export const WIDE_CLICK_POINTS = {
   /**
-   The folder of thirty tracks in the folder list (the third name, under the letter G), which fills the track pane to its bottom
-   so that a track row sits under every click point below.
-   */
-  longFolder: {
-    x: 135,
-    y: 220,
-  },
-  /**
    Points over the track rows of the right pane, which the Search page covers while it is open.
    */
   underSearch: [
@@ -122,6 +114,43 @@ export const WIDE_CLICK_POINTS = {
     y: 680,
   },
 } as const;
+
+/**
+ Vertical distance between the click point of one track row and the next, in pixels: a row is about 72 px tall with its
+ supporting line, and the second row spans the 70 px to 140 px below the first row's top edge.
+ */
+export const TRACK_ROW_STEP_PX = 90;
+
+/**
+ The click point of the second track row, in pixels: one row below the first.
+ */
+const SECOND_ROW_POINT_Y: number = WIDE_POINTS.trackRow
+  .y
+  + TRACK_ROW_STEP_PX;
+
+/**
+ The vertical position of every click-through point that lands on a track row, in pixels.
+ */
+const CLICK_THROUGH_POINT_Y: readonly number[] = [
+  SECOND_ROW_POINT_Y,
+  ...WIDE_CLICK_POINTS.underSearch
+    .map(function pointY(point,): number {
+      return point.y;
+    },),
+  WIDE_CLICK_POINTS.toastBody
+    .y,
+];
+
+/**
+ How many track rows the click-through points reach, derived from the lowest of them: the first row's click point is
+ `WIDE_POINTS.trackRow.y`, and each row below it sits `TRACK_ROW_STEP_PX` further down, so the lowest point needs the row
+ it lands in and every row above it.
+ */
+export const CLICK_THROUGH_TRACK_ROWS: number = Math.ceil(
+  (Math.max(...CLICK_THROUGH_POINT_Y,)
+    - WIDE_POINTS.trackRow
+      .y) / TRACK_ROW_STEP_PX,
+) + 1;
 
 /**
  Pointer targets of the click-through check in the narrow window (443 by 900), in pixels.

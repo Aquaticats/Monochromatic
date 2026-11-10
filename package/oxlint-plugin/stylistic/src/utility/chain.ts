@@ -5,6 +5,10 @@ import type {
   Span,
 } from '@oxlint/plugins';
 
+//region Structural AST view
+// The node fields the chain walk reads; `parent` is the walker link and every
+// other field is optional because one shape covers every node kind.
+
 /**
  AST node fields the chain walk reads.
  
@@ -59,6 +63,11 @@ export type ChainNode = Span & {
    */
   readonly parent?: ChainNode;
 };
+//endregion Structural AST view
+
+//region Grouping parentheses
+// oxlint strips parentheses from the AST, so grouping is read back from the
+// token stream around a node.
 
 /**
  Parameters for {@link parenIsolated}.
@@ -120,6 +129,11 @@ export function parenIsolated({
     && (after.value
       === ')');
 }
+//endregion Grouping parentheses
+
+//region Transparent wrappers
+// `ChainExpression` and the TypeScript `!`, `as`, and `satisfies` expressions
+// enclose a chain without being one, so the walk steps through them.
 
 /**
  Parameters for {@link wrapsChild}.
@@ -197,6 +211,12 @@ export function effectiveTop(node: ForeignBorrowed<ChainNode>,): ChainNode {
   }
   return node;
 }
+//endregion Transparent wrappers
+
+//region Chain roots
+// A node is laid out only when no larger chain absorbs it, and grouping
+// parentheses isolate it exactly as `no-mixed-operators` treats a
+// parenthesised subexpression.
 
 /**
  Parameters for {@link isChainRoot}.
@@ -272,6 +292,11 @@ export function isChainRoot({
     return false;
   return true;
 }
+//endregion Chain roots
+
+//region Reflowable comments
+// Only a comment inside the collapsible head is moved by the autofix, so only
+// that one is asked about.
 
 /**
  Parameters for {@link hasReflowableComment}.
@@ -328,3 +353,4 @@ export function hasReflowableComment({
         < firstBreak;
     },);
 }
+//endregion Reflowable comments
