@@ -11406,9 +11406,13 @@ A merged tree equal to the branch ends with `concurrent-commit/already-committed
 A commit sent back to be prepared again reads the private index of the attempt that captured its change,
 so that attempt's scratch tree belongs to the command until it has read it:
 the service removes the tree of a request it answered as landed,
-and leaves the tree of a request it answered as not landed to the command,
-which removes it once the change is captured
-(`the_tree_goes_back_to_this_process` in `src/native/landing/service_commit_tree_ownership.rs`).
+records the identity of every request it answered without landing it,
+and leaves those trees where they are
+(`handed_back` in `src/native/service/service_server_land_group.rs`,
+`remove_the_trees` in `src/native/service/service_server.rs`).
+The command releases such a tree beside itself once the answer's arm has read the change it captured
+(`release_beside_the_command` and `HandedBackTree` in `src/native/landing/service_prepare_ready_shapes.rs`),
+so the recursive removal never makes the command wait.
 The tree is named after the request and the attempt,
 so the next attempt never shares a directory with one a removal is taking,
 and a tree whose removal never ran is collected by the age sweep of the repository scratch directory.

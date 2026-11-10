@@ -18,8 +18,9 @@
 //!  where the sweep of a later command removes it.
 //!  A tree of a request the landing answered as not landed is not removed here:
 //!  that request's command still reads the private index of the attempt that captured its change,
-//!  so it is the command's to remove
-//!  (`service_commit_tree_ownership.rs`).
+//!  so it is the command's to release beside itself
+//!  (`service_prepare_ready_shapes.rs`,
+//!  `release_beside_the_command`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
