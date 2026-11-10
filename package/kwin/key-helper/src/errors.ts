@@ -5,6 +5,8 @@
  @module
  */
 
+//region Base error
+
 /**
  Base class for every error the daemon throws, letting a single `instanceof`
  check catch all daemon-originated failures.
@@ -42,6 +44,10 @@ export class UnknownKeyError extends KeyHelperError {
     this.name = 'UnknownKeyError';
   }
 }
+
+//endregion Base error
+
+//region Failure kinds
 
 /**
  Thrown when a command the daemon ran did not exit successfully: it exited
@@ -142,3 +148,5 @@ export class InstallError extends KeyHelperError {
     this.name = 'InstallError';
   }
 }
+
+//endregion Failure kinds

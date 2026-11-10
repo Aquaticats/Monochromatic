@@ -322,6 +322,8 @@ export async function reconcileKwinScriptLink({
 
 //endregion KWin script link
 
+//region Install
+
 /**
  Install everything the daemon needs to start at login: the KWin script
  symlink, the autostart entry, and the KWin script's enablement.
@@ -383,3 +385,5 @@ export async function installKeyHelper({
   },)
     .info('enabled the KWin script in kwinrc',);
 }
+
+//endregion Install

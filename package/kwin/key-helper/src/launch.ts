@@ -31,6 +31,8 @@ const launchLogger = tagged({ tag: 'kwin-key-helper-launch', },);
 
 //endregion Logging
 
+//region New-window overrides
+
 /**
  Lowercased resource class to the exact command (and args) that launches a new,
  independent instance. First element is the executable, the rest are its args.
@@ -110,6 +112,10 @@ export const NEW_WINDOW_OVERRIDES: Record<string, readonly [
   ],
 };
 
+//endregion New-window overrides
+
+//region Command selection
+
 /**
  A resolved launch command.
  
@@ -185,6 +191,10 @@ export function selectLaunchCommand({
   throw new NoAppIdentityError();
 }
 
+//endregion Command selection
+
+//region Launching
+
 /**
  Launch a new instance of the app identified by the focused window, logging
  (never throwing) so a failed launch cannot crash the daemon.
@@ -240,3 +250,5 @@ export async function launchNewInstance({
       .error(`launch failed: ${message}`,);
   }
 }
+
+//endregion Launching

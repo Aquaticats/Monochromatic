@@ -18,6 +18,8 @@ import { launchNewInstance } from './launch.ts';
 import { sendNvimInput } from './nvim.ts';
 import { setActiveWindowClass } from './state.ts';
 
+//region Method implementation
+
 /**
  Implementation bridging KWin script commands to actuation the KWin script
  cannot perform (spawning processes, injecting keys, RPC to Neovim). Method
@@ -78,6 +80,10 @@ export const keyHelperInterface: DbusExportedObject = {
   },
 };
 
+//endregion Method implementation
+
+//region D-Bus signatures
+
 /**
  D-Bus signatures for {@link keyHelperInterface}, passed to `exportInterface`.
  Each entry is `[inSignature, outSignature, inArgNames, outArgNames]`; every
@@ -126,3 +132,5 @@ export const keyHelperInterfaceDescriptor: DbusInterfaceDescriptor = {
     ],
   },
 };
+
+//endregion D-Bus signatures

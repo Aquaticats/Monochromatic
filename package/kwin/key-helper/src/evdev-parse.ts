@@ -14,6 +14,8 @@
 
 import { DOUBLE_TAP_MS } from './constants.ts';
 
+//region Constants
+
 /**
  Bits per space-separated word in a sysfs hex capability bitmap.
  */
@@ -28,6 +30,10 @@ const VALUE_PRESS = 1;
  evdev `value` for a key release.
  */
 const VALUE_RELEASE = 0;
+
+//endregion Constants
+
+//region Bitmap parsing
 
 /**
  Parse a sysfs hex capability bitmap into the set of bit positions it sets.
@@ -72,6 +78,10 @@ export function parseBitmap(hex: string): ReadonlySet<number> {
   }
   return result;
 }
+
+//endregion Bitmap parsing
+
+//region Double-shift detector
 
 /**
  Immutable double-shift detector state.
@@ -327,3 +337,5 @@ export function reduceShiftEvent({
     doubleShift: false,
   };
 }
+
+//endregion Double-shift detector

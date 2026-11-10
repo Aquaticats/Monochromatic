@@ -18,7 +18,7 @@ import { promisify } from 'node:util';
 
 import { CommandFailedError } from './errors.ts';
 
-//region Running
+//region Promisified exec
 
 /**
  Specialized promisified `execFile`, typed through Node's own adapter contract.
@@ -33,7 +33,7 @@ const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promis
  */
 const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFile);
 
-//endregion Running
+//endregion Promisified exec
 
 //region Reporting
 
@@ -253,6 +253,8 @@ function failureTextOf({
 
 //endregion Reporting
 
+//region Running
+
 /**
  Run one command to completion, throwing unless it exited successfully.
  
@@ -288,3 +290,5 @@ export async function runCommand({
     },));
   }
 }
+
+//endregion Running

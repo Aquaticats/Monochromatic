@@ -44,6 +44,8 @@ const keyHelperLogger = tagged({ tag: 'kwin-key-helper-index', },);
 
 //endregion Logging
 
+//region Constants
+
 /**
  `RequestName` reply code meaning this connection became primary owner of the
  requested well-known name.
@@ -54,6 +56,10 @@ const DBUS_NAME_PRIMARY_OWNER = 1;
  `RequestName` flags value requesting the name with no special queueing.
  */
 const DBUS_NAME_NO_FLAGS = 0;
+
+//endregion Constants
+
+//region Daemon
 
 /**
  Fire F20 on double-shift, but only while Neovide is focused.
@@ -123,3 +129,5 @@ async function main(): Promise<void> {
 
 // A startup failure ends the process through the throw, so Node prints the message and the stack, and the status is one.
 await main();
+
+//endregion Daemon

@@ -36,6 +36,8 @@ const nvimLogger = tagged({ tag: 'kwin-key-helper-nvim', },);
 
 //endregion Logging
 
+//region Constants
+
 /**
  msgpack-rpc message type for a request.
  */
@@ -127,6 +129,10 @@ function sessionSocketDirectory(): string {
     perUserRuntimeDirectory: uid === undefined ? '' : `${PER_USER_RUNTIME_ROOT}/${String(uid)}`,
   });
 }
+
+//endregion Constants
+
+//region Discovery
 
 /**
  Mutable holder for the monotonically increasing msgpack-rpc message id, a
@@ -263,6 +269,10 @@ export async function findNewestNvimSocket({
   return newest;
 }
 
+//endregion Discovery
+
+//region Input
+
 /**
  Write one `nvim_input` request to one Neovim socket and wait for its reply.
  
@@ -374,3 +384,5 @@ export async function sendNvimInput(keys: string): Promise<boolean> {
     return false;
   }
 }
+
+//endregion Input
