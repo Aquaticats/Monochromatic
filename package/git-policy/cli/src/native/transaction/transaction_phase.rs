@@ -48,15 +48,25 @@ const RELEASE_POLL: Duration = Duration::from_millis(20);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TestPhase = 'merge-intent' | 'merge-applied' | 'service-staged' | 'service-prepared';
+/// type TestPhase = 'merge-carried' | 'merge-cleared' | 'merge-intent' | 'merge-applied' | 'merge-carried-back' | 'service-staged' | 'service-prepared';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Phase {
+    /// An isolated merge wrote its intent record,
+    /// and the bytes of the person's own work in its paths are objects on a ref of their own,
+    /// and no byte of the checkout has changed.
+    MergeCarried,
+    /// The paths that held the person's own work are back to the branch's content,
+    /// so Git's own update of the checkout can take them.
+    MergeCleared,
     /// An isolated merge wrote its intent record and has not yet asked the checkout to be updated.
     MergeIntent,
     /// The checkout was updated and the branch moved for an isolated merge,
     /// whose intent record is still on disk.
     MergeApplied,
+    /// The person's own work is merged with the merge and written back to the index and the worktree,
+    /// and the record of the merge is still on disk.
+    MergeCarriedBack,
     /// A commit headed for the service has staged its content in a private index and has not yet read it back for the
     ///  policies;
     /// repeatable,
@@ -78,9 +88,12 @@ pub enum Phase {
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 5] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 8] = [
+    Phase::MergeCarried,
+    Phase::MergeCleared,
     Phase::MergeIntent,
     Phase::MergeApplied,
+    Phase::MergeCarriedBack,
     Phase::ServiceStaged,
     Phase::ServicePrepared,
     Phase::ServiceSentBack,
@@ -99,7 +112,10 @@ impl Phase {
     /// ```
     pub fn name(self) -> &'static str {
         match self {
+            Phase::MergeCarried => return "merge-carried",
+            Phase::MergeCleared => return "merge-cleared",
             Phase::MergeIntent => return "merge-intent",
+            Phase::MergeCarriedBack => return "merge-carried-back",
             Phase::MergeApplied => return "merge-applied",
             Phase::ServiceStaged => return "service-staged",
             Phase::ServicePrepared => return "service-prepared",
