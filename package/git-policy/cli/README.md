@@ -2587,6 +2587,92 @@ the rules:
 `SPEC.md`,
 "Word-level second merge pass".
 
+### A commit held behind a reference lock
+
+The owner,
+asked what a commit should do when a killed Git's branch lock is still there (2026-11-09),
+chose
+"Make it,
+hold until lock goes (Recommended)":
+the commit is written and kept on a side ref,
+the command exits `0`,
+says the branch has not moved yet and names the lock,
+and the next command that finds the lock gone moves the branch.
+This is the answer to "Commits should never fail."
+No reference lock is removed,
+by this or by anything else,
+because no proof ties one to a Git that has ended.
+
+A commit that meets a lock nothing proves gone is therefore made and kept,
+on `refs/worktree/cli-git-service/<batch>`,
+and the command exits `0` with one line that names the branch,
+the lock and the exact `rm -- <path>` to run when no Git process is using the repository.
+Nothing of the person's is lost:
+the captured change is the commit's,
+the worktree keeps its bytes,
+and the index catches up when the branch moves.
+
+While a commit is held,
+every command in that worktree says so on standard error:
+one heading with the number of held commits,
+then one line for each,
+naming the branch,
+the commit and the lock it waits for.
+Held commits never collect without that line,
+and a command whose output a program reads prints none of it.
+
+The first command that finds the lock gone moves the branch,
+by one compare-and-swap from the value the batch was prepared on.
+The batch's index entries are installed under Git's index lock,
+taken before the move,
+so nothing another program staged is overwritten,
+and the record of the hold is removed once the branch and the index show the commit.
+If the index lock is another program's at that instant,
+the entries are left to the record of what the batch owes,
+which the next commit in the worktree settles first (`SPEC.md`,
+"Recovery").
+
+The branch can move while the lock stands.
+The commit then lands on the branch as it is now,
+with the rule a commit that lost a landing race already follows
+(`SPEC.md`,
+"Retry after a moved branch"):
+its change is merged onto the current tip from the base it was prepared on,
+and the commit is written again with its own authorship,
+committer and message,
+its one parent the tip.
+The other session's work stays.
+A change that does not combine with the branch as it is now is not landed:
+the record stays,
+the commit stays on its side ref,
+and the line names the paths that conflict,
+so nothing of either session is discarded.
+
+Three states are kept and named instead of carried over,
+because a command that resumes a commit cannot do what a command that makes one can:
+
+- a commit that concludes a merge,
+  whose other parents cannot be kept on another head;
+- a commit prepared for a branch that did not exist and that another session created meanwhile;
+- a signed commit,
+  which would have to be signed again by a program that may ask for a key,
+  and no command starts a wait like that on its own.
+
+Nothing released such a commit's push:
+the command that made it had already ended,
+so no post-commit gate ran,
+and the line says so.
+The next commit or push from that branch carries the commit,
+and the held push notice says which commit waits for that.
+
+One state still ends such a commit with `1`:
+the record of the hold cannot be written,
+so the commit cannot be made durable.
+The message then names the lock,
+what is known about its holder,
+and the exact `rm -- <path>` that clears it,
+and says that nothing in the repository changed.
+
 ### What can still end a commit with a nonzero status
 
 The owner's rule (2026-11-03):
@@ -2649,6 +2735,10 @@ none is waited out or retried on the moved head yet:
   and nothing lands later by itself;
    run the
    commit again.
+- The record of a held commit cannot be written,
+  so a commit whose branch write a reference lock refuses cannot be made durable
+  (see "A commit held behind a reference lock").
+  A reference lock that nothing proves gone is otherwise no longer one of these.
 - The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
 - A named path an ignore rule matches while no index entry tracks it.
   The commit is not made,
@@ -3997,6 +4087,7 @@ mise run //package/git-policy/cli:native:build
 mise run //package/git-policy/cli:native:test:host -- <test name filter>
 mise run //package/git-policy/cli:native:test:binary:host -- <test name filter>
 mise run //package/git-policy/cli:native:test:host:btrfs -- <test name filter>
+mise run //package/git-policy/cli:native:release:host-controls
 mise run //package/git-policy/cli:native:test:container
 ```
 
@@ -4026,6 +4117,29 @@ mise run //package/git-policy/cli:native:test:container
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- A real wrapper release waits for that run:
+  `native:release` dispatches nothing until `native:release:host-controls`
+  (`bin/native-release-host-controls.ts`) reports that every control passed on this host,
+  and that task is what the crate's entry in `package/crate-release/cli/releasable-crates.json` names as its
+  `dispatchGate`,
+  so the dispatch runs it after every refusal that costs nothing and before it starts the workflow
+  (`package/crate-release/cli/README.md`).
+  It runs `native:test:host:btrfs` with its own deadline of three hours,
+  three times the 3286 seconds a full run took on this host on 2026-11-10,
+  and it refuses the release when a test failed,
+  when a control printed `BTRFS CONTROL NOT RUN` for any reason but needing a filesystem that is not btrfs,
+  when the deadline stopped the run,
+  or when the run holds no passing status line for a control the gate requires by name
+  (the ioctls,
+  the migration,
+  and one binary-level control).
+  The refusal names what refused
+  and what a person does on a host that has no btrfs filesystem to run the controls on.
+  `--dry-run` skips the controls and says so,
+  because a dry run runs nothing their evidence would cover.
+  A control that needs a filesystem that is not btrfs does print that line on this host,
+  which is the one such line a green release run holds
+  (`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Before it copies or builds anything it runs `lint:sidecar-locks`,
