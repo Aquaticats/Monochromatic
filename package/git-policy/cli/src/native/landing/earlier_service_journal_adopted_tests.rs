@@ -35,6 +35,23 @@ fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Path) -
 /// quotes and a newline.
 const AWKWARD_STATE: &str = "state with 'quotes' and \"more\"\nand a break";
 
+/// Writes what a landing of this release has written at a moment these controls look at the earlier journals:
+/// the intent of a batch,
+/// and its record that the index was installed when `indexed` names the commit.
+/// The writes are made inside a landing of its own that publishes,
+/// as every landing of the service makes them,
+/// so each flush is queued for the background thread instead of being waited for on the disk this host shares.
+fn write_as_a_landing_in_progress(journal: &Path, intent: &crate::service_journal::Intent, indexed: Option<&str>) {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let deferral = crate::service_durable::begin(false);
+        write_intent(journal, intent).expect("the intent of a landing in progress");
+        if let Some(new) = indexed {
+            mark_indexed(journal, intent.seq, new).expect("a record the landing wrote");
+        }
+        deferral.settle(true);
+    });
+}
+
 /// The instance of the world's worktree.
 pub(super) fn instance_for(world: &World) -> String {
     return instance_of(world.repo.join(".git").as_path());
@@ -196,6 +213,30 @@ fn a_command_line_that_cannot_be_read_in_time_counts_as_may_be_running() {
     remove(world.root.as_path());
 }
 
+/// The batch these controls leave open is landed the way the service lands one:
+/// it waits for no flush of a record it writes,
+/// because each is queued for the background thread.
+/// Why:
+///  One flush of this repository on a host other sessions fill takes seconds to tens of seconds
+/// (measured 2026-11-09,
+/// 8 flushes of one setup landing took 65 s of a 79.6 s control),
+///  so a control that waits for them passes alone and reaches the runner's bound inside a larger run.
+/// The setup landing is the subject here;
+/// the adoption that finishes the batch is the product's own path and is checked by the controls above.
+#[test]
+fn the_batch_these_controls_leave_open_is_landed_without_waiting_for_a_flush() {
+    let (world, _state) = world_with_earlier_journal("adopt-quiet-landing", "state");
+    crate::service_fault::hooks::take_events();
+    let landed: CommitRequest = request(&world, "quiet", "quiet.txt", "quiet\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    let waited: Vec<&String> = events.iter().filter(|event| { return event.starts_with("sync-waited:"); }).collect();
+    assert!(waited.is_empty(), "the setup landing waited for a flush: {waited:?}");
+    assert!(events.iter().any(|event| { return event.starts_with("sync-queued:"); }), "positive control: the landing queues its records: {events:?}");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}
+
 /// The case the owner named:
 /// the earlier helper was killed after the branch moved and before the index update,
 /// and only the new
@@ -315,8 +356,7 @@ fn the_intent_of_a_landing_that_has_not_moved_the_branch_yet_is_left_on_disk() {
     intent.seq = 2;
     intent.old = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     intent.new = "f".repeat(40);
-    write_intent(world.context.journal.as_path(), &intent).expect("the intent of a landing in progress");
-    mark_indexed(world.context.journal.as_path(), 2, intent.new.as_str()).expect("a record the landing wrote");
+    write_as_a_landing_in_progress(world.context.journal.as_path(), &intent, Some(intent.new.as_str()));
     let held = try_acquire(intent.index.as_path(), 2).expect("the landing's index lock");
     let context: LandContext = new_context(&world, state.as_path());
     let reports: Vec<RecoveryReport> = adopt_open_batches(&context, instance_for(&world).as_str(), empty_proc(&world).as_path());
@@ -482,7 +522,7 @@ fn the_adoption_says_what_it_did_with_each_batch() {
     intent.seq = 2;
     intent.old = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     intent.new = "f".repeat(40);
-    write_intent(world.context.journal.as_path(), &intent).expect("the intent of a landing in progress");
+    write_as_a_landing_in_progress(world.context.journal.as_path(), &intent, None);
     let context: LandContext = new_context(&world, state.as_path());
     let instance: String = instance_for(&world);
     let held = try_acquire(intent.index.as_path(), 1).expect("a lock that keeps batch 1 open");

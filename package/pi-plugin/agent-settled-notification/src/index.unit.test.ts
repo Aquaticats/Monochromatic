@@ -4,7 +4,6 @@
  @module
  */
 
-import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
 import {
   describe,
   expect,
@@ -20,103 +19,13 @@ import agentSettledNotification, {
   type NotificationInvocation,
   type NotificationProcessInput,
 } from '../dist/final/node/index.mjs';
-
-//region Test harness
-
-/** Minimal event handler shape needed to drive the registered Pi lifecycle callback. */
-type EventHandler = (
-  event: unknown,
-  context: unknown,
-) => unknown;
-
-/** Fake Pi API and captured lifecycle registrations. */
-type FakePiHarness = {
-  /** API supplied to the extension under test. */
-  readonly api: ExtensionAPI;
-
-  /** Handlers grouped by lifecycle event name. */
-  readonly handlersByEvent: ReadonlyMap<string, readonly EventHandler[]>;
-};
-
-/**
- Creates a fake Pi extension API that records lifecycle subscriptions.
- 
- @returns fake API and captured event handlers
- 
- @example
- ```ts
- const harness = createFakePiHarness();
- ```
- */
-function createFakePiHarness(): FakePiHarness {
-  /** Mutable registrations populated through the fake `on()` method. */
-  const handlersByEvent = new Map<string, EventHandler[]>();
-
-  /** Fake Pi API implementing only the event-registration surface under test. */
-  const api = {
-    on(
-      event: string,
-      handler: EventHandler,
-    ): void {
-      /** Existing handlers registered for this lifecycle event. */
-      const existingHandlers = handlersByEvent.get(event,)
-        ?? [];
-      handlersByEvent.set(
-        event,
-        [
-          ...existingHandlers,
-          handler,
-        ],
-      );
-    },
-  } as unknown as ExtensionAPI;
-
-  return {
-    api,
-    handlersByEvent,
-  };
-}
-
-/**
- Retrieves the only handler registered for an event.
- 
- @param handlersByEvent - captured Pi registrations
- 
- @param event - lifecycle event whose callback is needed
- 
- @returns registered lifecycle callback
- 
- @throws when registration is absent or duplicated
- 
- @example
- ```ts
- getOnlyHandler({ handlersByEvent: new Map(), event: 'agent_settled' });
- ```
- */
-function getOnlyHandler(
-  {
-    handlersByEvent,
-    event,
-  }: {
-    readonly handlersByEvent: ReadonlyMap<string, readonly EventHandler[]>;
-    readonly event: string;
-  },
-): EventHandler {
-  /** Captured handlers for the requested event. */
-  const handlers = handlersByEvent.get(event,);
-  if (handlers === undefined)
-    throw new Error(`Missing handler registration: ${event}`,);
-  if (handlers.length !== 1)
-    throw new Error(`Expected one handler for ${event}, received ${handlers.length}`,);
-
-  /** Sole handler registered for the requested lifecycle event. */
-  const [handler,] = handlers;
-  if (handler === undefined)
-    throw new Error(`Missing handler registration: ${event}`,);
-  return handler;
-}
-
-//endregion Test harness
+import {
+  createAgentSettledEvent,
+  createExtensionContext,
+  createFakePiHarness,
+  createRecordingLogger,
+  getOnlyHandler,
+} from './test-fixtures.ts';
 
 await describe({
   name: '',
@@ -148,7 +57,7 @@ await describe({
       name: registerAgentSettledNotification.name,
       children: [
         it({
-          name: 'delivers one static notification for each settled event',
+          name: 'delivers one static notification for completed and aborted settlements',
           fn: async () => {
             /** Fake Pi registration harness. */
             const harness = createFakePiHarness();
@@ -170,8 +79,14 @@ await describe({
               handlersByEvent: harness.handlersByEvent,
               event: 'agent_settled',
             },);
-            await handler({}, {},);
-            await handler({}, {},);
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+            await handler(
+              createAgentSettledEvent({ aborted: true, },),
+              createExtensionContext(),
+            );
 
             expect(invocations,).toEqual([
               {
@@ -183,6 +98,78 @@ await describe({
                 args: NOTIFICATION_ARGUMENTS,
               },
             ],);
+          },
+        },),
+
+        it({
+          name: 'logs delivered settlements at debug without warning',
+          fn: async () => {
+            /** Fake Pi registration harness. */
+            const harness = createFakePiHarness();
+            /** Recording logger standing in for the module root logger. */
+            const recording = createRecordingLogger();
+
+            registerAgentSettledNotification({
+              pi: harness.api,
+              l: recording.logger,
+              invoke: function acceptNotification(): Promise<void> {
+                return Promise.resolve();
+              },
+            },);
+
+            /** Settled-event callback registered by the extension. */
+            const handler = getOnlyHandler({
+              handlersByEvent: harness.handlersByEvent,
+              event: 'agent_settled',
+            },);
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+
+            expect(recording.calls.warn,).toEqual([],);
+            expect(recording.calls.debug,).toHaveLength(1,);
+            expect(recording.calls.debug[0],).toContain('sent settled-agent desktop notification',);
+          },
+        },),
+
+        it({
+          name: 'warns once about unavailable delivery and logs repeats at debug',
+          fn: async () => {
+            /** Fake Pi registration harness. */
+            const harness = createFakePiHarness();
+            /** Recording logger standing in for the module root logger. */
+            const recording = createRecordingLogger();
+            /** Delivery failure returned by an unavailable desktop-notification executable. */
+            const unavailable = new Error('notify-send unavailable',);
+
+            registerAgentSettledNotification({
+              pi: harness.api,
+              l: recording.logger,
+              invoke: async function rejectNotification(): Promise<void> {
+                throw unavailable;
+              },
+            },);
+
+            /** Settled-event callback registered by the extension. */
+            const handler = getOnlyHandler({
+              handlersByEvent: harness.handlersByEvent,
+              event: 'agent_settled',
+            },);
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+
+            expect(recording.calls.warn,).toHaveLength(1,);
+            expect(recording.calls.warn[0],).toContain('settled-agent desktop notification unavailable',);
+            expect(recording.calls.warn[0],).toContain(unavailable.message,);
+            expect(recording.calls.debug,).toHaveLength(1,);
+            expect(recording.calls.debug[0],).toContain('settled-agent desktop notification remains unavailable',);
           },
         },),
       ],
