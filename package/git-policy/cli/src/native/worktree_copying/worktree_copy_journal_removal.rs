@@ -281,7 +281,10 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
     for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
         outcome?;
     }
-    return remove_shallow_directories_on_the_pool(shallow).await;
+    // The directories above the split depth hold nothing now, so this is a handful of known removals rather than a
+    //  walk: it stays on the caller, where the sweep that kills the copy at each `rmdir` still traces the wrapper's own
+    //  thread (`binary/binary_fault_trace_tests.rs`, `copy_flow`).
+    return remove_shallow_directories(shallow.as_slice());
 }
 
 /// What:
@@ -314,29 +317,6 @@ async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Ve
             "the walk to the split depth below {} did not run ({other})",
             path.display()
         ))),
-    };
-}
-
-/// What:
-///  `remove_shallow_directories` as a job of the blocking pool,
-/// run on this task where the system refuses a thread.
-/// Why:
-///  The same rule as the walk beside it:
-/// a removal that can wait on storage is a job where a thread starts,
-///  and runs in turn where none does.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function removeShallowDirectoriesOnThePool(shallow: string[]): void
-/// ```
-async fn remove_shallow_directories_on_the_pool(shallow: Vec<PathBuf>) -> std::io::Result<()> {
-    let removing: Vec<PathBuf> = shallow.clone();
-    return match crate::blocking_job::run_blocking_job(move || { return remove_shallow_directories(removing.as_slice()); }).await {
-        Ok(removed) => removed,
-        Err(BlockingJobError::NoThreadToStart | BlockingJobError::MayStillRunAfterItsThreadWasRefused) => {
-            return remove_shallow_directories(shallow.as_slice());
-        }
-        Err(other) => Err(std::io::Error::other(format!("the directories above the split depth were not removed ({other})"))),
     };
 }
 

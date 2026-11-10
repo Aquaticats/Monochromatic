@@ -25,9 +25,10 @@
 //! The scan is textual,
 //! and it says where it is coarse:
 //! it reads one file at a time,
-//!  it follows no call into another file,
-//!  and a fork of one line across two lines is read only where the
-//!  next line is joined to it.
+//!  it follows no call at all,
+//!  not even one to a helper of the same file,
+//!  and a fork of one line across two lines is read
+//!  only where the next line is joined to it.
 //!  Everything else the crate can see in one file is covered:
 //!  the file's code lines,
 //!  the
