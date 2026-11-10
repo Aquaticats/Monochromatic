@@ -27,6 +27,8 @@
  @module
  */
 
+import type { Dirent, } from 'node:fs';
+
 import {
   readdir,
   readFile,
@@ -645,10 +647,12 @@ async function productModules(directory: string,): Promise<readonly string[]> {
     { withFileTypes: true, },
   );
   /**
-   Product module files found so far, relative to {@link SOURCE_DIRECTORY}.
+   Module files each entry contributes: a nested folder's own modules, or the
+   entry's name when it is a product module file, gathered in parallel.
    */
-  const found: string[] = [];
-  for (const entry of entries) {
+  const perEntry = await Promise.all(entries.map(async function namesIn(
+    entry: Dirent,
+  ): Promise<readonly string[]> {
     /**
      Path of the entry relative to {@link SOURCE_DIRECTORY}.
      */
@@ -656,14 +660,15 @@ async function productModules(directory: string,): Promise<readonly string[]> {
       ? entry.name
       : `${directory}${PATH_SEPARATOR}${entry.name}`;
     if (entry.isDirectory()) {
-      if (entry.name !== DEPENDENCY_DIRECTORY)
-        found.push(...await productModules(relativePath,),);
-      continue;
+      return (entry.name === DEPENDENCY_DIRECTORY)
+        ? []
+        : await productModules(relativePath,);
     }
     if (entry.name.endsWith(MODULE_FILE_SUFFIX,) && (!(entry.name.endsWith(TEST_FILE_SUFFIX,))))
-      found.push(relativePath,);
-  }
-  return found;
+      return [relativePath,];
+    return [];
+  },),);
+  return perEntry.flat();
 }
 
 /**
