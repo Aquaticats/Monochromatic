@@ -1140,16 +1140,25 @@
   }
 
   // src/cdn.ts
-  var REACT_URL = "https://unpkg.com/react@18.3.1/umd/react.production.min.js";
-  var REACT_SRI = "sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z";
-  var REACT_DOM_URL = "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js";
-  var REACT_DOM_SRI = "sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1";
-  var BABEL_URL = "https://unpkg.com/@babel/standalone@7.29.0/babel.min.js";
-  var BABEL_SRI = "sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y";
-  function cdnScriptFor(url, sri) {
+  // The UMD builds sit beside this runtime instead of on a content delivery network, so a page answers from the
+  // checkout it was opened from. A host editor may still substitute its own build through `window.__resources`,
+  // keyed by the relative path asked for here.
+  var VENDOR_BASE = "../vendor/";
+  var REACT_BUILD = "react-18.3.1.production.min.js";
+  var REACT_DOM_BUILD = "react-dom-18.3.1.production.min.js";
+  var BABEL_BUILD = "babel-standalone-7.29.0.min.js";
+  function runtimeScriptUrl() {
+    const current = document.currentScript;
+    if (current && current.src) return current.src;
+    const tagged = document.querySelector('script[src$="support.js"]');
+    if (tagged && tagged.src) return tagged.src;
+    return document.baseURI;
+  }
+  var vendorBaseUrl = new URL(VENDOR_BASE, runtimeScriptUrl());
+  function vendorScriptFor(build) {
     const res = window.__resources;
-    const v = res ? res[url] : void 0;
-    return typeof v === "string" && v ? { src: v } : { src: url, integrity: sri };
+    const v = res ? res[build] : void 0;
+    return typeof v === "string" && v ? v : new URL(build, vendorBaseUrl).href;
   }
 
   // src/external.ts
@@ -1176,14 +1185,9 @@
     function ensureBabel() {
       if (window.Babel) return Promise.resolve();
       if (babelLoading) return babelLoading;
-      const babel = cdnScriptFor(BABEL_URL, BABEL_SRI);
       babelLoading = new Promise((res, rej) => {
         const s = document.createElement("script");
-        s.src = babel.src;
-        if (babel.integrity) {
-          s.integrity = babel.integrity;
-          s.crossOrigin = "anonymous";
-        }
+        s.src = vendorScriptFor(BABEL_BUILD);
         s.onload = () => res();
         s.onerror = rej;
         document.head.appendChild(s);
@@ -1820,15 +1824,11 @@
     s.textContent = "x-dc{display:none!important}";
     document.head.appendChild(s);
   }
-  function loadScript(src, integrity) {
+  function loadScript(src) {
     return new Promise((resolve2, reject) => {
       //! nosemgrep: create-script-element
       const s = document.createElement("script");
       s.src = src;
-      if (integrity) {
-        s.integrity = integrity;
-        s.crossOrigin = "anonymous";
-      }
       s.async = false;
       s.onload = () => resolve2();
       s.onerror = () => reject(new Error(`failed to load ${src}`));
@@ -1838,11 +1838,9 @@
   function loadReactUmd() {
     const w = window;
     if (w.React && w.ReactDOM) return Promise.resolve();
-    const react = cdnScriptFor(REACT_URL, REACT_SRI);
-    const reactDom = cdnScriptFor(REACT_DOM_URL, REACT_DOM_SRI);
     return Promise.all([
-      loadScript(react.src, react.integrity),
-      loadScript(reactDom.src, reactDom.integrity)
+      loadScript(vendorScriptFor(REACT_BUILD)),
+      loadScript(vendorScriptFor(REACT_DOM_BUILD))
     ]).then(() => void 0);
   }
   function init() {
