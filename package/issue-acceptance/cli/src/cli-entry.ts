@@ -142,7 +142,8 @@ async function runSettle({
     tracker,
     apply,
     write: function writeLine(line,) {
-      request.streams.write(`${line}\n`,);
+      request.streams
+        .write(`${line}\n`,);
     },
   },);
   return report.failed ? EXIT_FAILED : EXIT_OK;

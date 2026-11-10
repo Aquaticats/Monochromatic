@@ -443,7 +443,8 @@ export function parseArguments({ tokens, }: { readonly tokens: readonly string[]
    */
   const rest: ParsedArguments = {
     values: parsed.values,
-    positionals: parsed.positionals.slice(1,),
+    positionals: parsed.positionals
+      .slice(1,),
   };
   if (subcommand === 'settle') {
     return readSettle({
