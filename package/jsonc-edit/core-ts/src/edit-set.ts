@@ -4,7 +4,10 @@ import type {
   ReadonlyDeep,
 } from 'type-fest';
 import { jsToNode, } from './edit-convert.ts';
-import type { JsoncPath, } from './edit-navigate.ts';
+import {
+  isArrayIndex,
+  type JsoncPath,
+} from './edit-navigate.ts';
 import type { JsoncEditState, } from './edit-state.ts';
 import {
   JsoncPathNotFoundError,
@@ -107,11 +110,11 @@ function setAtPath({
     throw new JsoncPathNotFoundError({ path, },);
   }
   if ((node.kind === 'array') && ((typeof segment) === 'number')) {
-    if (!Number.isInteger(segment,))
+    if (!isArrayIndex({ segment, },))
       throw new JsoncPathNotFoundError({ path, },);
-    if ((segment >= 0) && (segment
+    if (segment
       < node.elements
-        .length)) {
+        .length) {
       /**
        Matched element rebuilt while siblings retain identity.
        */
@@ -200,7 +203,10 @@ export function jsoncSet({
 /**
  Rebuilds `node` with the path target removed. At the final segment the matching
  record entries (all, since duplicates are undefined behavior) or the array
- element are dropped; earlier segments are descended.
+ element are dropped; earlier segments are descended. Deleting an address that
+ holds nothing (a missing key, an index past the length) returns the node
+ unchanged, so a delete is idempotent, while a segment that names no array
+ element (negative, fractional, or not finite) throws.
  
  @param node - Current node being descended.
  
@@ -210,7 +216,7 @@ export function jsoncSet({
  
  @returns Rebuilt node.
  
- @throws JsoncPathNotFoundError when an intermediate segment is missing.
+ @throws JsoncPathNotFoundError when a segment is missing or does not index an array element.
  
  @throws JsoncTypeError when a segment cannot index the node's kind.
  
@@ -279,7 +285,7 @@ function deleteAtPath({
     };
   }
   if ((node.kind === 'array') && ((typeof segment) === 'number')) {
-    if (!Number.isInteger(segment,))
+    if (!isArrayIndex({ segment, },))
       throw new JsoncPathNotFoundError({ path, },);
     if (isLast)
       return {
@@ -292,9 +298,9 @@ function deleteAtPath({
             return index !== segment;
           },),
       };
-    if ((segment < 0) || (segment
+    if (segment
       >= node.elements
-        .length))
+        .length)
       throw new JsoncPathNotFoundError({ path, },);
     /**
      Matched element rebuilt while siblings retain identity.
@@ -319,7 +325,9 @@ function deleteAtPath({
 }
 
 /**
- Deletes the value at a path, returning a fresh state.
+ Deletes the value at a path, returning a fresh state. A path whose address holds
+ nothing is left unchanged, so deleting a missing key or an index past the array
+ length is a no-op.
  
  @param state - Edit state.
  
@@ -329,7 +337,7 @@ function deleteAtPath({
  
  @throws JsoncTypeError when the path is empty or a segment cannot index a node.
  
- @throws JsoncPathNotFoundError when an intermediate segment is missing.
+ @throws JsoncPathNotFoundError when a segment is missing or names no array element.
  
  @example
  ```ts
