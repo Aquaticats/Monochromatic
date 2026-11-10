@@ -110,15 +110,14 @@ fn state(action: Action, row: &ServerStatus) -> Option<String> {
         ServerState::Exited => Some(format!(
             "{server} stopped. Press {key} again to start it again."
         )),
-        ServerState::RootOutsideProject { root } => Some(format!(
-            "{server} was not started because it would treat {}, which is outside this project, as its workspace. Open the IDE on that directory to use it.",
-            root.display()
-        )),
+        // The diagnostics entry states this cause too, so the state owns the sentence.
+        ServerState::RootOutsideProject { .. } => row.state.shared_cause(server),
         ServerState::WrongWorkingDirectory { directory } => Some(format!(
             "Language servers cannot start because the working directory {} does not contain the project. Restart the application.",
             directory.display()
         )),
-        ServerState::NotStarted { reason } => Some(format!("{server} was not started: {reason}.")),
+        // The diagnostics entry states this cause too, so the state owns the sentence.
+        ServerState::NotStarted { .. } => row.state.shared_cause(server),
         ServerState::Starting => Some(format!(
             "{server} is still starting. Try again in a moment."
         )),

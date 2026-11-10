@@ -16,8 +16,9 @@
 use super::diagnostics::{Diagnostic, DiagnosticsSnapshot, Freshness, Severity, SourceGroup};
 /// The entry names the file generation and revision it describes.
 use super::identity::{DocumentStamp, ServerIdentity};
-/// What the servers of the displayed file are doing.
-use super::status::{DocumentState, LanguageStatus, ServerState, ServerStatus};
+/// What the servers of the displayed file are doing,
+///  and the one owner that ends a sentence.
+use super::status::{DocumentState, LanguageStatus, ServerState, ServerStatus, sentence};
 
 /// The source named in the entry's message row,
 ///  for example `Information (language support): ...`.
@@ -30,27 +31,6 @@ mod trouble;
 pub(super) use trouble::Trouble;
 /// The wording of a kept failure.
 use trouble::failure_text;
-
-/// What:
-///  End a sentence with a period unless it already ends with one.
-///  `String` is returned owned.
-/// Why:
-///  Reasons come from several places;
-///  some end with a sentence,
-///  some with a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function sentence(text: string): string
-/// ```
-fn sentence(text: &str) -> String {
-    let trimmed = text.trim_end();
-    // A text that ends with lines a server wrote is left as it is: a period would join the last of them.
-    if trimmed.ends_with('.') || trimmed.contains('\n') {
-        return trimmed.to_string();
-    }
-    return format!("{trimmed}.");
-}
 
 /// What:
 ///  The line that explains one server that is not usable for the displayed file,
@@ -82,17 +62,14 @@ fn problem(row: &ServerStatus) -> Option<String> {
         ServerState::Unsynchronized => Some(format!(
             "{server} cannot follow changes made to this file outside the IDE, so it is not asked about it. Open the file again to give it the current text."
         )),
-        ServerState::RootOutsideProject { root } => Some(format!(
-            "{server} was not started because it would treat {}, which is outside this project, as its workspace. Open the IDE on that directory to use it.",
-            root.display()
-        )),
+        // The cause reads the same in the action message, so the state owns this sentence.
+        ServerState::RootOutsideProject { .. } => row.state.shared_cause(server),
         ServerState::WrongWorkingDirectory { directory } => Some(format!(
             "{server} cannot start because the working directory {} does not contain the project. Restart the application.",
             directory.display()
         )),
-        ServerState::NotStarted { reason } => {
-            Some(sentence(&format!("{server} was not started: {reason}")))
-        }
+        // The cause reads the same in the action message, so the state owns this sentence.
+        ServerState::NotStarted { .. } => row.state.shared_cause(server),
         ServerState::Starting | ServerState::Ready => None,
     };
 }

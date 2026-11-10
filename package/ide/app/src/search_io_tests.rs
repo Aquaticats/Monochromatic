@@ -1,7 +1,7 @@
 //! Protocol limits are checked before unbounded allocation and stderr remains drained after truncation.
 
 /// Private helpers are exercised with the same async read traits used for child-process pipes.
-use super::{MAX_DIAGNOSTIC_BYTES, diagnostic, record};
+use super::{MAX_DIAGNOSTIC_BYTES, diagnostic, record, truncation_marker};
 /// Shared limit defines the exact accepted and rejected record boundary.
 use crate::search::MAX_SEARCH_RECORD;
 
@@ -61,7 +61,8 @@ async fn diagnostics_are_bounded_and_fully_drained() {
     let captured = diagnostic(&mut source).await.expect("bounded diagnostic");
     assert!(source.is_empty());
     assert!(captured.starts_with(&"x".repeat(MAX_DIAGNOSTIC_BYTES)));
-    assert!(captured.ends_with("truncated after 65536 bytes."));
+    // The marker states the bound the reader's text was cut at, never a literal of its own.
+    assert!(captured.ends_with(&truncation_marker(MAX_DIAGNOSTIC_BYTES)));
     let exact = vec![b'y'; MAX_DIAGNOSTIC_BYTES];
     assert_eq!(
         diagnostic(exact.as_slice())
@@ -75,5 +76,15 @@ async fn diagnostics_are_bounded_and_fully_drained() {
             .await
             .expect("non-UTF-8 diagnostic"),
         "bad\u{fffd}"
+    );
+}
+
+/// A marker built for another bound states that bound,
+///  so a changed retention bound changes the reader-facing message with it.
+#[test]
+fn the_truncation_marker_states_the_bound_it_is_given() {
+    assert_eq!(
+        truncation_marker(1_000),
+        "\nRipgrep diagnostic output was truncated after 1000 bytes."
     );
 }

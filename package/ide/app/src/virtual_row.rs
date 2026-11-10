@@ -344,6 +344,37 @@ fn wrap_gapped(line: &str, limit: usize) -> Vec<(String, Option<&'static str>)> 
 }
 
 /// What:
+///  The rows of one message cut to [`MESSAGE_ROWS`],
+///  the last of which then counts the rows left out.
+/// Why:
+///  A diagnostic message is drawn twice:
+///  as the virtual rows of its line,
+///  and as the rows an annotation block draws after a narrow width breaks them again.
+///  One function keeps the kept-row count,
+///  the hidden count,
+///  and the wording from drifting apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function capMessageRows(rows: MessageRow[]): MessageRow[];
+/// ```
+pub(crate) fn cap_message_rows(rows: &[MessageRow]) -> Vec<MessageRow> {
+    if rows.len() <= MESSAGE_ROWS {
+        return rows.to_vec();
+    }
+    let mut capped = rows[..MESSAGE_ROWS - 1].to_vec();
+    // `format!` builds the text from a template, like a TS template literal.
+    capped.push(MessageRow {
+        start: rows[0].start,
+        continued: true,
+        severity: rows[0].severity,
+        gap: None,
+        text: format!("… {} more lines", rows.len() + 1 - MESSAGE_ROWS),
+    });
+    return capped;
+}
+
+/// What:
 ///  The rows of one message:
 ///  its text as [`describe`] spells it,
 ///  each line wrapped,
@@ -367,20 +398,8 @@ fn rows_of(problem: &Problem) -> Vec<MessageRow> {
         // `extend` appends every wrapped row of this message line.
         texts.extend(wrap_gapped(line.trim_end(), WRAP_COLUMNS));
     }
-    let total = texts.len();
     let mut rows = Vec::new();
     for (index, (text, gap)) in texts.into_iter().enumerate() {
-        if total > MESSAGE_ROWS && index + 1 == MESSAGE_ROWS {
-            rows.push(MessageRow {
-                start: problem.mark.start,
-                continued: true,
-                severity: problem.mark.severity,
-                gap: None,
-                // `format!` builds the text from a template, like a TS template literal.
-                text: format!("… {} more lines", total + 1 - MESSAGE_ROWS),
-            });
-            break;
-        }
         rows.push(MessageRow {
             start: problem.mark.start,
             continued: index > 0,
@@ -389,7 +408,7 @@ fn rows_of(problem: &Problem) -> Vec<MessageRow> {
             text,
         });
     }
-    return rows;
+    return cap_message_rows(&rows);
 }
 
 /// What:
@@ -427,3 +446,10 @@ pub fn message_rows(problems: &[&Problem]) -> Vec<MessageRow> {
     }
     return rows;
 }
+
+/// The cap that cuts one message keeps the same kept rows,
+///  hidden count,
+///  and wording for every caller.
+#[cfg(test)]
+#[path = "virtual_row_tests.rs"]
+mod tests;
