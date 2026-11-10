@@ -2306,3 +2306,105 @@ B "still lacks a valid safety proof").
   `fast-import` and the other steps that cannot run twice,
   which
   the clients behind them are told about after `NEVER_ENDED_STEP_SLOW_AFTER` and which end for each client at its own `ANSWER_CEILING`.
+
+## The watch and the wait for the output on one deadline, 2026-11-09T22:53:51-05:00
+
+The release gate on `cfce0bc84e`
+(`~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-cfce0bc84e-20261109T215524-0500.log`)
+failed `push::child_watch::tests::a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling`
+once in 6,909,
+asserting `is_ceiling(&error)` over this sentence:
+
+```text
+a quiet step ran for 0 seconds, the longest the wrapper lets one step run, and was ended. Its watch could not end
+it: nothing proved which process to stop. Hint: check with `ps` what the step waits for, and run the command again.
+```
+
+Nothing in that control refused the watch anything,
+so the reason it gave was false,
+and the error was not a `CeilingReached`.
+
+### The cause, measured
+
+`push/child_watch.rs` gave the watch the step's ceiling (`ChildWatch::within`)
+and gave the wait for the step's output the same ceiling as its backstop
+(`carried_for`),
+measured from the same moment in all but the microseconds
+between the begin mark and the read.
+Both run on the process's runtime,
+the watch as a task,
+so whichever was scheduled first won,
+and a watch that was a little late was passed by the backstop that exists for it.
+
+The watch writes a due notice before it judges the ceiling,
+and that write runs on the blocking pool,
+so the notice is one measured place the watch is held back:
+`a_step_whose_watch_is_held_back_is_still_ended_at_its_ceiling`
+holds it there,
+deterministically and with no load on the host,
+and the wait then reaches the deadline first.
+That control failed on the code before the fix in 0.79 s with the sentence above,
+and passes in 19.9 s after it.
+
+What the wrong answer cost,
+beyond the control:
+
+- A step that may be run again (`transaction_git.rs`,
+  `transaction_git_awaiting.rs`) was run again after a ceiling it had already
+  met,
+  which doubles the wait for a step that is too slow and tells the person
+  it "showed no sign of work",
+  which it had not.
+- The landing (`landing/service_land_git_steps_and_import_stream.rs`) answered
+  `Unavailable` instead of `StepTooSlow`,
+  so the commit the landing had built was
+  not kept on `refs/cli-git/kept/<n>`,
+  the step was not named,
+  and the scratch
+  ref holding that commit was removed.
+  That is the case to look at first:
+  a step
+  that may not be repeated loses the record of what it built when its ending is
+  misread.
+
+### The fix
+
+Three changes,
+each with a control:
+
+- The wait's backstop is the ceiling plus `THE_WATCH_HAS_ITS_ENDING`,
+  which is
+  `WATCHER_END_BOUND`:
+  the bound the drop of a watch already gives its task,
+  itself the owner's "3x worst case" over the 6.03 s delay measured here plus a
+  second,
+  24 times the 41.68 ms tail measured after the kill
+  (`foundation/worst_delay_seen_on_this_host.rs`,
+  `push/child_watch_running_task.rs`).
+  A wait that is only the backstop never
+  takes the ending from a watch that is still at it.
+- Only a watch whose pin proves which process to stop gets that room.
+  A watch
+  that can signal nothing (`Pinned::Unproven`) and one that never started leave
+  the whole ending to the wait,
+  at the ceiling itself,
+  with the sentences that
+  say so.
+  `ChildWatch::what_watches_the_step` is the one place that answers
+  which of the three it is (`TheWatchOfAStep`).
+- The error of a step the wait ends at that ceiling is the ceiling's own when a
+  watch was what should have ended it,
+  and the wait's sentence when nothing
+  could:
+  `CarriedCeiling::ending`.
+  A watch that proved no process ends nothing,
+  so neither of its two readings (`ceiling_hit`,
+  `expired`) is taken as the
+  step's ending (`ending_of_a_watched_step`).
+
+No wait became unbounded:
+the backstop is still a deadline,
+later by one
+measured bound.
+`only_a_watch_that_can_end_the_step_puts_the_backstop_behind_its_ceiling` pins
+the three backstops.
