@@ -197,8 +197,6 @@ const catalog = parsedCatalog.defaultCatalog;
 if (Object.keys(catalog,)
   .length
   === 0) {
-  console.error('No catalog found in pnpm-workspace.yaml',);
-  process.exitCode = 1;
   throw new Error('No catalog found in pnpm-workspace.yaml',);
 }
 
