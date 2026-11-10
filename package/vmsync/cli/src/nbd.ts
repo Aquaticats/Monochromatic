@@ -386,6 +386,66 @@ async function transferRegion(
     readonly rl: Logger;
   },
 ): Promise<void> {
+  /**
+   dd arguments copying exactly this region.
+   */
+  const args = ddTransferArgs({
+    sourceDevice,
+    targetDevice,
+    region,
+  },);
+
+  rl.debug(
+    `dd: offset=${String(region.start,)} bytes=${String(region.length,)}`,
+  );
+
+  await spawn({
+    command: 'dd',
+    args,
+  },);
+}
+
+/**
+ Builds the dd argument list that copies one changed region.
+ 
+ `qemu-img map` reports regions at qcow2 cluster boundaries, so a region
+ start is routinely a multiple of 64 KiB and rarely a multiple of the 1 MiB
+ block size. Byte-offset operands (`iflag=skip_bytes,count_bytes` and
+ `oflag=seek_bytes`) let dd take the exact byte range with a 1 MiB I/O block
+ size, instead of a fractional block count that dd rejects and a rounded-up
+ count that reads past the region end.
+ 
+ @param sourceDevice - Source NBD device
+ 
+ @param targetDevice - Target NBD device
+ 
+ @param region - {@link QemuMapRegion} descriptor from the block map
+ 
+ @returns dd arguments copying exactly this region
+ 
+ @throws Error when the region is not sector-aligned
+ 
+ @example
+ ```ts
+ const args = ddTransferArgs({
+   sourceDevice: '/dev/nbd0',
+   targetDevice: '/dev/nbd1',
+   region: mapRegion, // start 65_536, length 524_288
+ });
+ // args includes 'skip=65536', 'seek=65536', 'count=524288'
+ ```
+ */
+export function ddTransferArgs(
+  {
+    sourceDevice,
+    targetDevice,
+    region,
+  }: {
+    readonly sourceDevice: string;
+    readonly targetDevice: string;
+    readonly region: QemuMapRegion;
+  },
+): readonly string[] {
   if (((region.start
     % SECTOR_SIZE) !== 0) || ((region.length
       % SECTOR_SIZE) !== 0)) {
@@ -396,33 +456,18 @@ async function transferRegion(
     );
   }
 
-  /**
-   Number of dd-sized blocks, rounding up for partial final blocks.
-   */
-  const blockCount = Math.ceil(region.length
-    / DD_BLOCK_SIZE,);
-  /**
-   Byte offset for dd skip/seek.
-   */
-  const byteOffset = region.start;
-
-  rl.debug(
-    `dd: offset=${String(byteOffset,)} blocks=${String(blockCount,)}`,
-  );
-
-  await spawn({
-    command: 'dd',
-    args: [
-      `if=${sourceDevice}`,
-      `of=${targetDevice}`,
-      `bs=${String(DD_BLOCK_SIZE,)}`,
-      `skip=${String(byteOffset / DD_BLOCK_SIZE,)}`,
-      `seek=${String(byteOffset / DD_BLOCK_SIZE,)}`,
-      `count=${String(blockCount,)}`,
-      'conv=notrunc',
-      'status=none',
-    ],
-  },);
+  return [
+    `if=${sourceDevice}`,
+    `of=${targetDevice}`,
+    `bs=${String(DD_BLOCK_SIZE,)}`,
+    'iflag=skip_bytes,count_bytes',
+    'oflag=seek_bytes',
+    `skip=${String(region.start,)}`,
+    `seek=${String(region.start,)}`,
+    `count=${String(region.length,)}`,
+    'conv=notrunc',
+    'status=none',
+  ];
 }
 
 //endregion Block-level patching
