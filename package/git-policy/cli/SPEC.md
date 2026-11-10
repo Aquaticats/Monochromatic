@@ -3368,7 +3368,7 @@ A verdict on another branch decides nothing,
 and one whose commit this repository no longer holds decides nothing either,
 since no push can publish an object it does not have.
 The base is the newest commit no verdict forbids,
-so every commit older than the deepest blocked one still reaches GitHub in the same push.
+so the commits below the deepest blocked one still reach GitHub in the same push.
 
 Limits.
 A blocked commit that is a merge publishes only the first-parent side below it until it is fixed,
