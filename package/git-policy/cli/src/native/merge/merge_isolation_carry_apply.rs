@@ -68,51 +68,9 @@ use std::path::Path;
 pub use crate::merge_isolation_carry_reads::{changes_between, changes_between_awaiting};
 /// Why a carry stopped.
 pub use crate::merge_isolation_carry_writes::{CarryFailure, LockWait};
-
-/// What:
-///  What Git's own update left at each path the merge changes,
-///  as the file system names it,
-///  read at the instant the checkout moved.
-/// Why:
-///   A carry decides from a path's bytes whether the file standing there is the merge's own,
-///  and a person's save whose
-///  bytes happen to equal the merge's file answers yes;
-/// the identity of the file Git wrote answers it too,
-///  and only
-///  the identity tells the two apart
-///  (a cross-vendor review of the second round,
-/// its second finding).
-/// A path this list does not name is read by its bytes,
-///  which is all a recovery of a killed
-///  merge has.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Landed = { path: Uint8Array; identity?: FileIdentity }[];
-/// ```
-pub type Landed = [(Vec<u8>, Option<FileIdentity>)];
-
-/// What:
-///  Whether the file standing at a path is still the one Git's own update wrote there.
-/// Why:
-///   The identity is the device,
-/// the inode,
-/// the size,
-/// the mode and the modification time of the entry the file system hands out,
-///  so a save from an editor is a different entry even when it accepts every line the merge brought.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const theFileGitLanded = (landed, path, identity) => landed.find((left) => sameBytes(left.path, path))?.identity === identity ?? true;
-/// ```
-fn the_file_git_landed(landed: &Landed, path: &[u8], identity: Option<FileIdentity>) -> bool {
-    for (left, found) in landed {
-        if left == path {
-            return *found == identity;
-        }
-    }
-    return true;
-}
+/// What Git's own update left at each path,
+/// which tells the merge's own file from a save that accepts it.
+pub use crate::merge_isolation_carry_landed::{LandedFile, landed_file_at, the_file_git_landed};
 
 /// What:
 ///  Whether a worktree state is one the capture or the change explains.
@@ -348,7 +306,7 @@ pub fn carry(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
-    landed: &Landed,
+    landed: &[LandedFile],
     transaction_id: &str,
     wait: LockWait,
     out: &mut dyn std::io::Write,
@@ -378,7 +336,7 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
-    landed: &Landed,
+    landed: &[LandedFile],
     transaction_id: &str,
     wait: LockWait,
     out: &mut W,
@@ -394,7 +352,8 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         let location: std::path::PathBuf = worktree_path(root, entry.path.as_slice());
         // The identity is read before the content, so a file written in between does not match the judgement and is never
         //  replaced, and the write step reads it again before it writes anything.
-        let identity: Option<FileIdentity> = file_identity(location.as_path());
+        let standing: LandedFile = landed_file_at(location.as_path(), entry.path.as_slice());
+        let identity: Option<FileIdentity> = standing.identity;
         let state: WorktreeState = worktree_state_awaiting(&rooted(context), root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
         let merged_object: Option<&str> = new_oid_of(change);
@@ -406,8 +365,8 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         //  a layer somebody else wrote keeps their bytes while the other layer is still carried. Where the identity of what
         //  Git's own update left is known, the file must still be that one: a save whose bytes accept the whole merge is the
         //  person's newer decision, not this carry's own write.
-        let worktree_is_ours: bool = explained(&state, &[captured_object, merged_object, target.as_deref()])
-            && the_file_git_landed(landed, entry.path.as_slice(), identity);
+        let worktree_is_ours: bool =
+            explained(&state, &[captured_object, merged_object, target.as_deref()]) && the_file_git_landed(landed, &standing);
         let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let merged_entry: Option<(&str, &str)> = new_entry_of(change);

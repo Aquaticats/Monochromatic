@@ -151,6 +151,10 @@ pub mod merge_isolation_carry_apply;
 /// and the raw changes between two commits.
 pub mod merge_isolation_carry_reads;
 
+/// What Git's own update left at each path of a merge,
+/// which tells its own file from a save that accepts it.
+pub mod merge_isolation_carry_landed;
+
 /// What a carry writes:
 /// the index records of a batch,
 /// one file through a private name and a rename,

@@ -377,7 +377,7 @@ fn a_save_whose_bytes_accept_the_whole_merge_is_not_replaced_by_the_captured_lay
     git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
     let location: PathBuf = repo.join("a.txt");
     // What Git's own update left, read where the merge lands and before any save can arrive.
-    let landed: Vec<(Vec<u8>, Option<FileIdentity>)> = vec![(b"a.txt".to_vec(), file_identity(location.as_path()))];
+    let landed: Vec<LandedFile> = crate::merge_isolation_carry_landed::landed_of(repo.as_path(), &[b"a.txt".to_vec()]);
     let saved: Vec<u8> = std::fs::read(location.as_path()).expect("the file Git wrote");
     // The editor saves its buffer, which holds the merge's version and no longer the person's older line.
     std::fs::write(location.as_path(), saved.as_slice()).expect("the save");

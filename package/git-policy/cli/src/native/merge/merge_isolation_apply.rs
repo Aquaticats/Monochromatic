@@ -32,14 +32,17 @@ use crate::merge_isolation_apply_findings::failure_text;
 /// the carry after it,
 /// and the ref that keeps their bytes.
 use crate::merge_isolation_carry::drop_capture_ref;
-use crate::merge_isolation_carry_apply::{CarryFailure, Landed, LockWait, carry, changes_between, clear};
+use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, changes_between, clear};
+/// What Git's own update left at each path,
+/// and the read of it.
+use crate::merge_isolation_carry_landed::{LandedFile, landed_of};
 use crate::merge_isolation_carry_notice::report_lines;
 /// The words a merge that could not be finished now prints,
 /// which its own file holds so this one stays inside the code-line limit.
 use crate::merge_isolation_apply_findings::{a_carry_that_stopped, a_deferred_save_finding, a_merge_that_could_not_be_saved};
 use crate::merge_isolation_apply_stops::{a_clear_that_met_newer_bytes, settle_a_failed_step};
 /// The raw differences between the two commits of the merge.
-use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, worktree_path};
+use crate::merge_isolation_changes::Change;
 /// The command-line reading.
 use crate::merge_options::{MergeShape, Signing};
 /// Marker phases for the crash controls.
@@ -279,11 +282,12 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     }
     // The file the file system hands out at every path Git just wrote, read before the marker a control pauses at: a save that
     //  arrives afterwards is a different entry, so the carry after the merge never replaces it with the person's older layer.
-    let mut landed_paths: Vec<(Vec<u8>, Option<FileIdentity>)> = Vec::with_capacity(changes.len());
+    let mut written_paths: Vec<Vec<u8>> = Vec::with_capacity(changes.len());
     for change in &changes {
-        landed_paths.push((change.path.clone(), file_identity(worktree_path(root, change.path.as_slice()).as_path())));
+        written_paths.push(change.path.clone());
     }
-    let landed: &Landed = landed_paths.as_slice();
+    let landed_paths: Vec<LandedFile> = landed_of(root, written_paths.as_slice());
+    let landed: &[LandedFile] = landed_paths.as_slice();
     reach_phase(Phase::MergeApplied)?;
     // The merge's own paths hold the merge now, and the person's two layers are merged with it: an edit away from the merge's
     //  lines comes back where it was, a staged edit stays staged, and an edit of the merge's own lines keeps both sides between
