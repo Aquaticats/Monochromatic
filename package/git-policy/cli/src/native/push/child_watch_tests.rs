@@ -744,6 +744,85 @@ fn a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling() {
     assert!(began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
 }
 
+/// What:
+///  A sink that holds the watch inside its first notice until the control lets it go.
+/// Why:
+///  The watch writes a due notice before it judges the ceiling,
+/// on a thread of the blocking pool,
+/// so the notice is one
+///  place the watch can be held back while the wait for the step's output reaches its own deadline.
+/// Holding it here is
+///  how the control below puts the two on the same deadline without any load on the host.
+struct AWriteTheControlHolds {
+    /// Told once the watch is inside the write.
+    began: std::sync::mpsc::Sender<()>,
+    /// Waited on until the control drops its other end.
+    let_go: std::sync::mpsc::Receiver<()>,
+}
+
+impl Write for AWriteTheControlHolds {
+    /// Tell the control the watch is here, then wait for it to be let go.
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let _told = self.began.send(());
+        let _released = self.let_go.recv();
+        return Ok(bytes.len());
+    }
+
+    /// Nothing is buffered.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A step whose watch is held back is still ended at its ceiling,
+/// and the error is the ceiling's.
+/// Why:
+///   The watch and the wait for a step's output each had the step's ceiling as a deadline of their own,
+/// so a watch that was
+///  a moment late lost to its own backstop:
+/// the wait then ended the step and reported that its watch could not end it,
+///  and that reason was false,
+/// while its error was not the ceiling's (`is_ceiling`),
+/// which a caller decides a rerun by
+///  and the landing decides keeping a built commit by.
+///  The watch is held inside the write of its first notice here,
+/// so the wait certainly reaches the deadline first,
+///  and nothing else is started to make it happen.
+#[test]
+fn a_step_whose_watch_is_held_back_is_still_ended_at_its_ceiling() {
+    let (began, held): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+    let (let_go, release): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+    let watch_terms: WatchTerms = WatchTerms {
+        limit: Duration::from_millis(200),
+        cadence: QUICK,
+        notices: Box::new(AWriteTheControlHolds { began, let_go: release }),
+    };
+    let (answer, the_end) = std::sync::mpsc::channel::<std::io::Result<Output>>();
+    let step = std::thread::Builder::new().name(String::from("child-watch-held-back-control")).spawn(move || {
+        let mut command: Command = Command::new("sleep");
+        command.arg("600").stdin(Stdio::null());
+        let _sent = answer.send(output_watched_within(
+            &mut command,
+            "a step whose watch is held back",
+            "a step whose watch is held back",
+            watch_terms,
+            true,
+            StepBound::EndAt(Duration::from_millis(700)),
+        ));
+    });
+    held.recv_timeout(Duration::from_secs(30)).expect("the watch reached the write of its first notice");
+    let result: std::io::Result<Output> = the_end.recv_timeout(Duration::from_secs(120)).expect("the step ended; a wait that never ends is reported here");
+    // The watch goes on now; what the wait answered was decided while the watch was still held here.
+    drop(let_go);
+    let _joined = step.expect("the control's thread").join();
+    let error: std::io::Error = result.expect_err("a step past its ceiling is not an answer");
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
+    assert!(is_ceiling(&error), "{error}");
+    assert!(error.to_string().contains("the longest the wrapper lets one step run"), "{error}");
+    assert!(!error.to_string().contains("nothing proved which process to stop"), "nothing refused the watch its proof: {error}");
+}
+
 /// A step with no ceiling (a write in place that is not safe to run twice) is waited for as long as it lives,
 /// though a ceiling of the
 /// length that ended the control above would have ended it,
