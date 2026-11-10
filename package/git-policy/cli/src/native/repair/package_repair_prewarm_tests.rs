@@ -83,18 +83,26 @@ fn a_payload_of_nothing_is_refused() {
 }
 
 /// What:
-///  Two worktrees of the same commit are told apart by their object names.
+///  Two worktrees of the same commit,
+/// and two hand-overs of one worktree at different moments,
+/// are told apart by their object names.
 /// Why:
 ///   A record's id is its idempotency key,
-/// so a shared object name would drop the second worktree's filling as already known,
-/// and a work item's object name must be forty hexadecimal digits to be acted on.
+/// so a shared object name would drop a second worktree's filling as already known,
+/// and a worktree removed and added again at the same path must not be answered by the record the
+///  earlier one settled.
+/// A work item's object name must be forty hexadecimal digits to be acted on.
 #[test]
 fn two_worktrees_get_their_own_object_name() {
-    let first: String = object_name_of(Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/one"));
-    let second: String = object_name_of(Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/two"));
+    let moment: &str = "2026-11-10T18:00:00.000Z";
+    let later: &str = "2026-11-10T18:05:00.000Z";
+    let one: &Path = Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/one");
+    let two: &Path = Path::new("/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/two");
+    let first: String = object_name_of(one, moment);
     assert_eq!(first.len(), 40, "{first}");
     assert!(first.as_bytes().iter().all(u8::is_ascii_hexdigit), "{first}");
-    assert_ne!(first, second);
+    assert_ne!(first, object_name_of(two, moment), "two worktrees of one commit are told apart by their paths");
+    assert_ne!(first, object_name_of(one, later), "two hand-overs of one path are told apart by when they were asked for");
 }
 
 /// What:
@@ -117,7 +125,7 @@ fn the_record_names_the_worktree_the_common_directory_and_the_payload() {
     assert_eq!(item.repository, destination);
     assert_eq!(item.git_dir, common);
     assert_eq!(item.branch_ref, PREWARM_REFERENCE);
-    assert_eq!(item.oid, object_name_of(destination.as_path()));
+    assert_eq!(item.oid, object_name_of(destination.as_path(), item.created.as_str()), "the object name is the worktree's path and the moment the record was written");
     assert_eq!(decode(item.parent.as_str()).expect("the entries"), entries);
     remove(root.as_path());
 }
@@ -142,7 +150,10 @@ fn a_hand_over_with_no_service_leaves_the_record_and_says_why() {
     let told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
     let reason: String = told.expect_err("a session with no service is reported");
     assert!(reason.contains("no commit service can be started from this session"), "{reason}");
-    let record: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING).join(format!("prewarm-{}", object_name_of(destination.as_path())));
+    let queued: Vec<String> = records_in(work_directory(common.as_path()).as_path(), PENDING);
+    assert_eq!(queued.len(), 1, "one record is queued: {queued:?}");
+    assert!(queued[0].starts_with("prewarm-"), "the record is a prewarm's: {queued:?}");
+    let record: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING).join(&queued[0]);
     let text: String = std::fs::read_to_string(record.as_path()).expect("the record the hand-over wrote");
     let item: WorkItem = WorkItem::decode(text.as_str()).expect("the record is a work item");
     assert_eq!(item.kind, WorkKind::Prewarm);
