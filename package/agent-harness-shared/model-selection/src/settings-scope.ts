@@ -5,9 +5,11 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 import * as v from 'valibot';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { cleanModelPatterns, } from './model-pattern-cleaning.ts';
 
 /**
  Sentinel returned by internal {@link loadSettingsFile} when a settings file is
@@ -117,7 +119,7 @@ export async function loadSettingsScopePatterns(
   if ((project !== NO_SETTINGS_FILE) && (project.enabledModels
     !== undefined)) {
     return {
-      patterns: cleanPatterns(project.enabledModels,),
+      patterns: cleanModelPatterns(project.enabledModels,),
       sourcePath: paths.projectPath,
     };
   }
@@ -125,7 +127,7 @@ export async function loadSettingsScopePatterns(
   if ((global !== NO_SETTINGS_FILE) && (global.enabledModels
     !== undefined)) {
     return {
-      patterns: cleanPatterns(global.enabledModels,),
+      patterns: cleanModelPatterns(global.enabledModels,),
       sourcePath: paths.globalPath,
     };
   }
@@ -160,11 +162,14 @@ export function getSettingsPaths(
    */
   const { HOME: envHome, } = env;
   /**
-   Home directory used by pi for global settings.
+   Home directory used by pi for global settings: an explicit option wins, then
+   `HOME`, then the runtime user's home. A service environment without `HOME`
+   still reads the real global file instead of a literal `~` directory, which
+   `join` never expands and whose read fails as an absent file.
    */
   const home = options.home
     ?? envHome
-    ?? '~';
+    ?? homedir();
   return {
     globalPath: join(
       home,
@@ -269,25 +274,6 @@ async function readJsonFile(
       { cause: error, },
     );
   }
-}
-
-/**
- Remove empty pattern strings.
- 
- @param patterns - raw model patterns
- 
- @returns cleaned model patterns
- */
-function cleanPatterns(
-  patterns: readonly string[],
-): string[] {
-  return patterns
-    .map(function trimPattern(pattern,) {
-      return pattern.trim();
-    },)
-    .filter(function keepPattern(pattern,) {
-      return pattern !== '';
-    },);
 }
 
 /**

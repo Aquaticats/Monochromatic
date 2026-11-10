@@ -1533,6 +1533,65 @@ and the direction of finding 2 in which a measured age past the patience refuses
 answer of 2026-11-04,
 now worded as this host's reading of the record.
 
+### A sent-back commit keeps its private index, and a reference lock is named (2026-11-09T19:30:00-05:00)
+
+Branch `fix/git-policy-cli-commit-survives-dead-ref-lock-and-a-moved-branch`,
+from the Sonnet audit `~/temp/agent/sonnet-audits/commit-kills-and-concurrency/` (`final.md`, `findings.md`).
+Two findings,
+each with its control and its fix:
+a commit the service sent back to be prepared again read the private index of the attempt that captured it
+while the service removed that tree beside its landing loop,
+so the read failed with "No such file or directory",
+or,
+when only the index file was gone,
+wrote the empty tree and reported `concurrent-commit/replay-conflict` against paths the commit never changed
+(`dee00ebb43`,
+`725a0c4996`,
+and the tree's ownership moved to main's mechanism when
+`fix/git-policy-cli-merge-commit-lands-on-a-moved-branch` landed as `1fc10f5026`:
+the service records the identities it did not land
+(`handed_back`,
+`src/native/service/service_server_land_group.rs`)
+and leaves those trees to their commands,
+which release them beside themselves
+(`release_beside_the_command` and `HandedBackTree`,
+`src/native/landing/service_prepare_ready_shapes.rs`);
+this branch's own return value and client-side guard were removed in the merge,
+and its guard against reading an empty tree for a missing private index stayed);
+and a branch write refused by a reference lock was read as a branch that moved,
+so three refusals later the commit ended with "the branch changed 3 times" while the branch had not changed,
+and the lock that refused it was never named
+(`b2dbcffc90`,
+`eb28cf7988`).
+Both are recorded in `SPEC.md`
+("Retry after a moved branch",
+"A landing whose branch write a lock refuses").
+Measured on this branch before the fixes and after them,
+with the release build and the audit's own harness:
+`commit -a` failed 1 of 6 and 2 of 6 rounds before and 0 of 6 after,
+`commit --no-only` 5 of 6 before and 0 of 6 after,
+and the killed `update-ref` case ended the next commit after 6.8 s with the false sentence before,
+and after 7.4 s with the locks and one `rm --` named after.
+
+Open for the owner:
+the second fix ends such a commit,
+naming the locks,
+what is known about their holders,
+and the `rm --` that clears them,
+because the proof set of `SPEC.md`
+("Reference locks left by a Git that was killed") holds no proof
+that ties a reference lock to a holder that has ended,
+and the owner's rule is that commits never fail.
+Making such a commit land needs either an owner decision that reverses cross-vendor findings 1 to 3 of 2026-11-09,
+or a proof about the holder that this repository does not have.
+Native Git fails the same commit at once and names the file,
+so the wrapper is not worse than Git here,
+and the audit holds one such incident.
+The owner decision in force ("Reference-lock removal (the ninth design review's R9-S)",
+"Keep narrowed removal (Recommended)") is unchanged by this branch:
+nothing here removes a reference lock,
+and the one removal the judgement still performs is the orphan staging file of the packed references.
+
 ### Work waiting for a free Pi slot (2026-11-08T16:24:14-05:00)
 
 The owner:
@@ -6373,6 +6432,44 @@ are in append mode now).
   the new control would now name that as `limit=stall` instead of as a clock,
   which is what a
   reproduction would need.
+- `word_merge::an_edit_made_while_the_pass_merges_is_not_replaced` and
+  `word_merge::a_same_length_resolution_with_a_restored_time_is_not_replaced`
+  failed under host load at their own fifteen-second window:
+  at `c0bb93d036` the first failed at 16.06 s,
+  and on another branch the second at 16.29 s with the same assertion,
+  each passing alone.
+  Cause:
+  each control found the pass's own `git check-attr` by walking `/proc` for that child inside a window,
+  so the window,
+  and not the pass,
+  was what a loaded host ran out of.
+  Fixed on `test/git-policy-cli-word-merge-controls-wait-on-a-marker` (`76b18e0f3b`,
+  `3e9133dbd5`,
+  `47f4caf239`):
+  a stand-in Git on the run's `PATH` holds the pass at that one query and reads the control's word on a pipe
+  before it goes on (`binary_word_merge_pass_gate.rs`),
+  so the control waits on the pass and no clock is involved.
+  Planted,
+  each control against the guard it pins:
+  a baseline read at install time fails the first at 4.160 s with
+  "the other command's bytes survive",
+  and a length comparison instead of a byte comparison fails the second at 10.739 s.
+  Checks:
+  57 of 57 `word_merge` and `merge_second_pass` controls of the library,
+  39 of 39 of the binary target with the pair at 1.186 s and 1.224 s under a load average of 148,
+  and 39 of 39 again in 30.851 s at a load average of 68,
+  and 40 of 40 at the final commit,
+  the gate's own control included,
+  in 138.881 s with the pair at 1.004 s and 1.020 s,
+  and Clippy clean on every target.
+  The gate's own control is planted as well:
+  with the command's own end never spoken it waited until nextest's bound ended the test
+  (`TIMEOUT` at 300.007 s).
+  One run of the same binary selection at an 8 GiB scope memory cap had
+  `word_merge_finish::a_cherry_pick_range_is_resolved_and_continued`
+  ended by the supervisor's five-second idle rule while the commit service took 5,140 ms to land;
+  both of this pair passed in that run,
+  and the planning doc's section records it.
 
 ### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
 
