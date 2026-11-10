@@ -3,6 +3,7 @@ import type { JsoncComment, } from './comment.ts';
 import type { JsoncEditState, } from './edit-state.ts';
 import {
   findNode,
+  isArrayIndex,
   type JsoncPath,
   NODE_ABSENT,
 } from './edit-navigate.ts';
@@ -101,11 +102,11 @@ function transformAtPath({
     };
   }
   if ((node.kind === 'array') && ((typeof segment) === 'number')) {
-    if (!Number.isInteger(segment,))
+    if (!isArrayIndex({ segment, },))
       throw new JsoncPathNotFoundError({ path, },);
-    if ((segment < 0) || (segment
+    if (segment
       >= node.elements
-        .length))
+        .length)
       throw new JsoncPathNotFoundError({ path, },);
     /**
      Matched element rebuilt while siblings retain identity.

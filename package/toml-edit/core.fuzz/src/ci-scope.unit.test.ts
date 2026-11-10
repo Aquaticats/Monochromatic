@@ -183,6 +183,22 @@ await describe({
       state.commit();
       expectDecision({ result: state.run(), run: true, },);
     }, },)),
+    it({ name: 'reads the path lists a calling workflow supplies, which replace the toml-edit defaults', fn: async () => {
+      using state = fixture();
+      /** A second workflow names its own package roots and contract files. */
+      const supplied = {
+        SCOPE_PACKAGE_PREFIXES: 'package/other/thing/\n',
+        SCOPE_CONTRACT_PATHS: 'other-lock.yaml\n',
+      };
+      state.put('package/other/thing/file.ts',);
+      state.commit();
+      expectDecision({ result: state.run(supplied,), run: true, },);
+      using other = fixture();
+      /** The toml-edit default a supplied list does not name stays out of scope. */
+      other.put('package/toml-edit/core/file.ts',);
+      other.commit();
+      expectDecision({ result: other.run(supplied,), run: false, },);
+    }, },),
     ...[
       'unrelated.txt',
       'package/toml-edit/core-editor/file.ts',
