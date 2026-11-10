@@ -1,21 +1,22 @@
 //! What:
-//!  The history of `monochromatic-git-policy-cli-audit.jsonl`:
+//!  The history of each log of the wrapper:
 //! where a rotated file goes,
 //! which generations may be removed,
 //! and the pass that
 //!  removes them.
 //! Why:
-//!  The audit lines name the saved copies of conflicted files,
-//! and with a single `.1` the second rotation dropped the lines
-//!  that named copies still on disk.
-//! Each rotation now keeps its file under a new number;
-//! a pass after the rotation removes the
-//!  oldest generations that name no copy still on disk until those fit the bound `AUDIT_HISTORY_BYTES`;
-//! a generation that
-//!  names a copy on disk is never removed (the delegated pick 11,
-//! option C,
-//! in
-//!  `doc/planning/cli-git-shipped-limits-audit.md`).
+//!  Every log keeps numbered generations,
+//! so a reader of a log reads its history and not the few lines that came
+//!  after the last rotation.
+//! The owner answered on 2026-11-10 (the question tool,
+//! "Keep more,
+//! capped (Recommended)") that each log keeps up
+//!  to `LOG_HISTORY_BYTES`,
+//! and that an audit line naming a saved copy that still exists is never dropped.
+//! A log that pins its
+//!  generations says so through `LogRetention::pins`,
+//! and its pinned generations stay past the bound
+//!  (`discard_audit_pins.rs`).
 //! No lock is taken:
 //! a number is claimed with a hard link,
 //! which fails when
@@ -30,47 +31,70 @@
 //! ```ts
 //! const taken = await rename(target, privateName);
 //! await installGeneration(taken, target); // link to `${target}.${n}`, n + 1 on EEXIST, then unlink the private name
-//! await trimGenerations(target, AUDIT_HISTORY_BYTES);
+//! await trimGenerations(target, retention);
 //! ```
 
-use super::AUDIT_FILE;
-use super::TAG;
 use crate::diagnostic_log::debug;
-use std::ffi::OsStr;
-use std::io::BufRead;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
-/// What:
-///  How many rotated files a log keeps.
-///  An `enum` is a closed set of named alternatives.
+/// Module tag for diagnostics.
+const TAG: &str = "logGenerations";
+
+/// The bytes every log's generations may take together,
+/// the live file left aside.
+///
+/// The owner's answer of 2026-11-10 in the question tool ("Keep more,
+/// capped (Recommended)") set it at 32 MiB per log,
+/// with an audit generation that names a saved copy still on disk kept past it.
+/// Measured on this host on 2026-11-10T14:31Z:
+/// the commit timing log held 1,143,526 bytes in
+/// 229 records from 2026-11-10T09:08:07Z to 2026-11-10T14:31:41Z,
+/// about 0.21 MiB an hour,
+/// so 32 MiB
+/// is about six days of that log at the pace of the day the answer was given.
+/// The audit log held 782,685 bytes in 1,619 lines
+/// from 2026-10-21 to 2026-11-10,
+/// about 42 KB a day,
+/// so the bound is the whole history of an ordinary repository and only a
+///  repository that discards work continuously reaches it.
+/// The measurement and the earlier four mebibytes are in
+/// `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "The audit and timing logs' history".
+pub const LOG_HISTORY_BYTES: u64 = 32 * 1024 * 1024;
+
+/// What a log keeps when a rotation makes a generation.
+///  A `struct` is a record with named fields.
 /// Why:
-///   The audit file explains saved copies and keeps a history;
-/// the timing logs and the push trigger log are diagnostics that
-///  the next rotation may replace.
+///   Every log is bounded by the same owner-chosen total;
+/// only the audit log's generations can explain a
+///  saved copy that still exists,
+/// so only its `pins` reads a generation before dropping it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Retention = 'oneGeneration' | 'generations';
+/// type LogRetention = { budget: number; pins: (path: string) => boolean };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum Retention {
-    /// The rotated file is `<name>.1`,
-    /// and the next rotation replaces it.
-    OneGeneration,
-    /// The rotated file gets the next free number,
-    /// and the pass in `trim_generations` decides what may go.
-    Generations,
+#[derive(Clone, Copy, Debug)]
+pub struct LogRetention {
+    /// The bytes the generations may take together.
+    pub budget: u64,
+    /// Why one generation must stay,
+    /// whatever its size:
+    /// `Ok(true)` keeps it,
+    /// `Ok(false)` lets it go,
+    /// and an error keeps it,
+    /// because a wrong answer in that direction costs disk and the
+    ///  other costs what a reader needs.
+    pub pins: fn(&Path) -> std::io::Result<bool>,
 }
 
-/// The retention of the log at `target`:
-/// the audit file keeps generations,
-/// every other file one.
-pub(super) fn retention_of(target: &Path) -> Retention {
-    if target.file_name() == Some(OsStr::new(AUDIT_FILE)) {
-        return Retention::Generations;
-    }
-    return Retention::OneGeneration;
+/// A log whose generations explain nothing beyond their own lines.
+pub const UNPINNED_LOG: LogRetention = LogRetention { budget: LOG_HISTORY_BYTES, pins: pins_nothing };
+
+/// The `pins` of a log whose generations name no saved copy.
+fn pins_nothing(_generation: &Path) -> std::io::Result<bool> {
+    return Ok(false);
 }
 
 /// The path of generation `number` of the log at `target`:
@@ -162,13 +186,17 @@ fn list_pieces(target: &Path) -> std::io::Result<Vec<Piece>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (let n = highest + 1; ; n++) { try { await link(taken, `${target}.${n}`); break; } catch (e) { if (e.code !== 'EEXIST') throw e; } }
+/// for (let n = highest + 1; ; n++) { try { await link(taken, `${target}.${n}`); break; } catch (e) { if (e.code !== 'EEXIST' || !isFile(`${target}.${n}`)) throw e; } }
 /// await unlink(taken);
 /// ```
+/// Those words end the numbering: a name that exists but is not a regular file (a
+///  directory a person left there, a socket) will never become free,
+/// so the rotation reports it instead of counting up for
+///  ever.
 ///
 /// # Errors
 /// The system's error when the directory cannot be read or a link cannot be made for a reason other than a taken name.
-pub(super) fn install_generation(taken: &Path, target: &Path) -> std::io::Result<()> {
+pub fn install_generation(taken: &Path, target: &Path) -> std::io::Result<()> {
     let mut highest: u64 = 0;
     for piece in list_pieces(target)? {
         if let Some(number) = piece.number {
@@ -177,9 +205,10 @@ pub(super) fn install_generation(taken: &Path, target: &Path) -> std::io::Result
     }
     let mut number: u64 = highest.saturating_add(1);
     loop {
-        match std::fs::hard_link(taken, numbered(target, number)) {
+        let candidate: PathBuf = numbered(target, number);
+        match std::fs::hard_link(taken, &candidate) {
             Ok(()) => break,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => number = number.saturating_add(1),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && std::fs::symlink_metadata(&candidate).is_ok_and(|found| { return found.is_file(); }) => number = number.saturating_add(1),
             Err(error) => return Err(error),
         }
     }
@@ -189,110 +218,17 @@ pub(super) fn install_generation(taken: &Path, target: &Path) -> std::io::Result
     return Ok(());
 }
 
-/// The words a saved-conflict line carries,
-/// which no other line has.
-const SAVED_CONFLICT_MARK: &[u8] = b"\"outcome\":\"saved-conflict\"";
-
-/// The characters that stand for a byte the line's writer could not show as text:
-/// a place that has one cannot be looked up.
-const REPLACEMENT: char = '\u{FFFD}';
-
 /// The generation number of a piece.
 /// `sort_by_key` takes this function by path.
 fn piece_number(piece: &&Piece) -> Option<u64> {
     return piece.number;
 }
 
-/// Whether a line holds the mark of a `saved-conflict` record anywhere in it.
-fn holds_saved_conflict_mark(line: &[u8]) -> bool {
-    for window in line.windows(SAVED_CONFLICT_MARK.len()) {
-        if window == SAVED_CONFLICT_MARK {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
-///  Whether a `saved-conflict` line names a saved copy that exists,
-/// or might.
-/// Why:
-///   The line lists `<path> => <place>`;
-/// the path is the person's and may hold ` => `,
-/// so every text after such a separator is
-///  tried as a place.
-/// A line the reader cannot parse,
-/// and a place the writer could not show as text,
-/// count as naming a copy:
-///  the generation is kept,
-/// because a wrong answer in that direction costs disk and the other direction costs the only
-///  explanation of a copy.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// line.copies.some((c) => c.split(' => ').slice(1).some((_, i) => existsSync(c.split(' => ').slice(i + 1).join(' => '))))
-/// ```
-fn line_names_a_copy(line: &[u8]) -> bool {
-    let Ok(value) = serde_json::from_slice::<serde_json::Value>(line) else {
-        return true;
-    };
-    let Some(copies) = value.get("copies").and_then(serde_json::Value::as_array) else {
-        return false;
-    };
-    for entry in copies {
-        let Some(copy) = entry.as_str() else {
-            continue;
-        };
-        for (index, _) in copy.match_indices(" => ") {
-            let place: &str = &copy[index + " => ".len()..];
-            if place == "none" {
-                continue;
-            }
-            if place.contains(REPLACEMENT) || std::fs::symlink_metadata(place).is_ok() {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/// What:
-///  Whether a generation holds a `saved-conflict` line that names a copy still on disk,
-/// read in one pass over the file.
-/// Why:
-///   Only that line says where a copy went;
-/// a pruned directory's line records a removal and explains nothing that is still
-///  there.
-/// One line at a time is held,
-/// so the memory is the longest line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for await (const line of readLines(path)) if (line.includes('"outcome":"saved-conflict"') && namesACopy(line)) return true;
-/// return false;
-/// ```
-///
-/// # Errors
-/// The system's error when the file cannot be opened or read.
-fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
-    let mut reader: std::io::BufReader<std::fs::File> = std::io::BufReader::new(std::fs::File::open(path)?);
-    let mut line: Vec<u8> = Vec::new();
-    loop {
-        line.clear();
-        if reader.read_until(b'\n', &mut line)? == 0 {
-            return Ok(false);
-        }
-        if holds_saved_conflict_mark(line.as_slice()) && line_names_a_copy(line.as_slice()) {
-            return Ok(true);
-        }
-    }
-}
-
 /// What:
 ///  Removes the second name of any file that has two,
 /// gives a file left at a private name by a killed rotation the next
 ///  generation number,
-/// and removes the oldest generations that name no copy on disk until the others fit `budget` bytes.
+/// and removes the oldest generations until the others fit the log's budget.
 /// Why:
 ///   Readers go by number,
 /// so a file that stays at a private name is read by nobody:
@@ -303,18 +239,21 @@ fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
 ///  number.
 /// A writer that is not killed but between its take and its install finds its private name gone and reports an error
 ///  that costs nothing:
-/// the record it was appending went to the file it held,
+/// the line it was appending went to the file it held,
 /// which is now the generation.
 /// If two passes did
 ///  give one file two numbers,
 /// the higher name goes,
 /// which loses no line.
-/// The budget counts what explains nothing on disk:
-///  generations without a copy.
-/// A generation that names a copy on disk,
-/// or cannot be read to see,
-/// is outside the budget and
-///  stays.
+/// The oldest goes first,
+/// and a generation the log's `pins` keeps is
+///  skipped:
+/// such a generation stays past the budget,
+/// because its lines explain something still on disk.
+/// A generation is read only when
+///  the budget is already exceeded and only until the others fit,
+/// so a log under its budget costs one listing and no read
+///  at all.
 /// A removal another pass did first is the same result,
 /// and the pass never waits.
 ///
@@ -322,12 +261,12 @@ fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
 /// ```ts
 /// for (const second of secondNames(pieces)) await unlink(second);
 /// for (const orphan of orphans(pieces)) await installGeneration(orphan, target);
-/// for (const g of oldestFirst(generations)) { if (total <= budget) break; if (!(await namesACopyOnDisk(g))) { await unlink(g); total -= g.size; } }
+/// for (const g of oldestFirst(generations)) { if (total <= budget) break; if (!retention.pins(g)) { await unlink(g); total -= g.size; } }
 /// ```
 ///
 /// # Errors
 /// The system's error when the directory cannot be read.
-pub(super) fn trim_generations(target: &Path, budget: u64) -> std::io::Result<()> {
+pub fn trim_generations(target: &Path, retention: &LogRetention) -> std::io::Result<()> {
     let mut pieces: Vec<Piece> = list_pieces(target)?;
     if settle_names(target, pieces.as_slice()) {
         pieces = list_pieces(target)?;
@@ -335,37 +274,61 @@ pub(super) fn trim_generations(target: &Path, budget: u64) -> std::io::Result<()
     let mut generations: Vec<&Piece> = Vec::new();
     let mut total: u64 = 0;
     for piece in &pieces {
+        // A file that could not be given a number stays where it is, and its bytes count against the bound like a generation's.
+        total = total.saturating_add(piece.length);
         if piece.number.is_some() {
             generations.push(piece);
-        } else {
-            // A file that could not be given a number stays where it is, and its bytes count against the bound.
-            total = total.saturating_add(piece.length);
         }
     }
-    generations.sort_by_key(piece_number);
-    let mut candidates: Vec<&Piece> = Vec::new();
-    for generation in generations {
-        match names_a_copy_on_disk(generation.path.as_path()) {
-            Ok(false) => {
-                total = total.saturating_add(generation.length);
-                candidates.push(generation);
-            }
-            Ok(true) => {}
-            Err(error) => debug(TAG, &format!("{} was kept: it could not be read to see which copies it names: {error}", generation.path.display())),
-        }
-    }
-    for candidate in candidates {
-        if total <= budget {
-            break;
-        }
-        match std::fs::remove_file(&candidate.path) {
-            Ok(()) => total = total.saturating_sub(candidate.length),
-            // Another pass removed it first.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => total = total.saturating_sub(candidate.length),
-            Err(error) => debug(TAG, &format!("{} was kept: it could not be removed: {error}", candidate.path.display())),
-        }
+    if total > retention.budget {
+        drop_oldest_generations(generations.as_mut_slice(), total, retention);
     }
     return Ok(());
+}
+
+/// What:
+///  Removes the oldest generations of `generations` until their bytes fit `retention.budget`,
+/// reading a generation only
+///  to ask whether the log's `pins` keeps it,
+/// and never the newest,
+/// the file the rotation that asked for the pass has just made.
+/// Why:
+///   A log under its budget needs no read at all,
+/// and the read of a generation that pins costs disk once,
+///  where every generation read on every rotation would cost the whole history each time.
+/// The sort is by number,
+/// which is the order the rotations
+///  happened in.
+/// Removing the newest would mean a log whose oldest generations all pin loses each new generation as it is made:
+/// the
+///  newest history would be the first to go.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// generations.sort((a, b) => a.number - b.number); for (const g of generations.slice(0, -1)) { if (total <= budget) return; if (retention.pins(g.path)) continue; await unlink(g.path); total -= g.length; }
+/// ```
+fn drop_oldest_generations(generations: &mut [&Piece], mut total: u64, retention: &LogRetention) {
+    generations.sort_by_key(piece_number);
+    let removable: usize = generations.len().saturating_sub(1);
+    for generation in generations.iter().take(removable) {
+        if total <= retention.budget {
+            return;
+        }
+        match (retention.pins)(generation.path.as_path()) {
+            Ok(false) => {}
+            Ok(true) => continue,
+            Err(error) => {
+                debug(TAG, &format!("{} was kept: it could not be read to see which copies it names: {error}", generation.path.display()));
+                continue;
+            }
+        }
+        match std::fs::remove_file(&generation.path) {
+            Ok(()) => total = total.saturating_sub(generation.length),
+            // Another pass removed it first.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => total = total.saturating_sub(generation.length),
+            Err(error) => debug(TAG, &format!("{} was kept: it could not be removed: {error}", generation.path.display())),
+        }
+    }
 }
 
 /// What:

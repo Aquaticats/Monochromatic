@@ -108,8 +108,8 @@ fn a_full_standards_log_moves_aside_to_a_generation() {
     let root: PathBuf = fixture("append-rotate");
     let log: PathBuf = absent_log(root.as_path());
     std::fs::create_dir_all(log.parent().expect("parent")).expect("the live log's folder");
-    let mut filler: Vec<u8> = vec![b'x'; crate::discard_audit::ROTATE_AT_BYTES as usize];
-    filler[crate::discard_audit::ROTATE_AT_BYTES as usize - 1] = b'\n';
+    let mut filler: Vec<u8> = vec![b'x'; crate::log_lines_appended_without_a_lock::ROTATE_AT_BYTES as usize];
+    filler[crate::log_lines_appended_without_a_lock::ROTATE_AT_BYTES as usize - 1] = b'\n';
     std::fs::write(log.as_path(), filler.as_slice()).expect("a full live log");
     assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::Appended));
     assert_eq!(std::fs::read(root.join("monochromatic-git-policy-cli").join("standards-review-shadow.md.1")).expect("the generation"), filler);

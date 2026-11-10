@@ -16,8 +16,8 @@ fn fixture(name: &str) -> PathBuf {
 /// The names the controls fold.
 const NAMES: [KeptName; 3] = [
     KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log { rotates: false } },
-    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
+    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log },
+    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log },
 ];
 
 /// A stop that ends the fold when it has been told of `limit` steps,
