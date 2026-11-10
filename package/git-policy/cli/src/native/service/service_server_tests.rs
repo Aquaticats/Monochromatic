@@ -287,7 +287,8 @@ fn a_request_that_names_a_foreign_directory_names_no_tree() {
 }
 
 /// What:
-///  The trees a group's requests name, minus the ones the service handed back to their clients.
+///  The trees a group's requests name,
+/// minus the ones the service handed back to their clients.
 /// Why:
 ///  A client told to prepare again still reads the tree it named,
 ///  so that one is the client's to remove;
