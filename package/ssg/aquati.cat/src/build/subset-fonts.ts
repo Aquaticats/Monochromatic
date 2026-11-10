@@ -45,6 +45,7 @@ import {
 } from 'woff2-encode-wasm';
 
 import { ICON_CODEPOINTS, } from '../lib/icon/codepoints.ts';
+import { stripBlockComments, } from './project-source-scanning.ts';
 
  // module boundary marker
 
@@ -111,7 +112,7 @@ const ASCII_PRINTABLE_MIN = 0x20;
  */
 const ASCII_PRINTABLE_MAX = 0x7E;
 
-/* oxlint-disable no-restricted-syntax/no-regex -- source-code tokenizer scanning project files for `icon('NAME')` call sites; alphabet is constrained to `[a-z][a-z0-9_]*` and the input is bounded by repo source size. Lazy comment patterns (`[\s\S]*?`) are bounded by the next `*\/` or `\n` and only run over project source. No nested quantifiers; linear in input length. */
+/* oxlint-disable no-restricted-syntax/no-regex -- source-code tokenizer scanning project files for `icon('NAME')` call sites; alphabet is constrained to `[a-z][a-z0-9_]*` and the input is bounded by repo source size. The lazy line comment pattern (`[^\n]*`) is bounded by the next `\n` and only runs over project source. No nested quantifiers; linear in input length. */
 /**
  Matches an `icon('NAME')` or `icon("NAME")` call site in source.
  
@@ -121,11 +122,6 @@ const ASCII_PRINTABLE_MAX = 0x7E;
  in use. The match group is the bare icon name.
  */
 const ICON_CALL_REGEX = /\bicon\(\s*['"](?<iconName>[a-z][a-z0-9_]*)['"]\s*,?\s*\)/gu;
-
-/**
- Matches `/* ... *\/` block comments (non-greedy).
- */
-const BLOCK_COMMENT_REGEX = /\/\*[\s\S]*?\*\//gu;
 
 /**
  Matches `// ...` line comments up to end of line.
@@ -234,11 +230,7 @@ async function collectIconCodepoints(
     /**
      Comment-free text so commented-out `icon('NAME')` calls do not pollute the subset.
      */
-    const stripped = text
-      .replaceAll(
-      BLOCK_COMMENT_REGEX,
-      '',
-      )
+    const stripped = stripBlockComments(text,)
       .replaceAll(
       LINE_COMMENT_REGEX,
       '',

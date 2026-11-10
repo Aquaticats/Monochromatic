@@ -51,6 +51,13 @@ export {
 } from './build/postprocess-excludes.ts';
 
 /**
+ Linear scanners that read icon call sites out of project source text.
+
+ @internal
+ */
+export { stripBlockComments, } from './build/project-source-scanning.ts';
+
+/**
  Component styles and markup the suites assert on.
 
  @internal
