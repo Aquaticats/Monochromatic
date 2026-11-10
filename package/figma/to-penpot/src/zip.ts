@@ -119,11 +119,12 @@ function addPageShapes(
   },
 ): void {
   /**
-   Root-frame shape; written first when it belongs to this page.
+   This page's root frame; Penpot requires one entry per page under the all-zero
+   id, so the document keeps it apart from the page's other shapes.
    */
-  const rootShape = doc.shapes
-    .get(ZERO_UUID,);
-  if ((rootShape !== undefined) && (rootShape.pageId === pageId)) {
+  const rootShape = doc.rootFrames
+    .get(pageId,);
+  if (rootShape !== undefined) {
     addJson({
       zip,
       path: `${pageDir}/${ZERO_UUID}.json`,
@@ -131,7 +132,7 @@ function addPageShapes(
     },);
   }
   for (const [shapeId, shape,] of doc.shapes) {
-    if ((shape.pageId === pageId) && (shapeId !== ZERO_UUID)) {
+    if (shape.pageId === pageId) {
       addJson({
         zip,
         path: `${pageDir}/${shapeId}.json`,

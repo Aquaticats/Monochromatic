@@ -9,17 +9,20 @@ import {
 
 import {
   type FigmaFile as FigmaFileType,
+  extractZipEntries,
   parseFigmaFile,
 } from '@monochromatic-dev/figma-kiwi/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   convertFigmaToPenpot,
   figmaColorToHex,
-  type PenpotDocument,
-  type PenpotFill,
-  type PenpotShape,
   serializePenpotZip,
 } from './index.ts';
+
+/**
+ UUID Penpot reserves for each page's implicit root frame.
+ */
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 type FigmaFile = FigmaFileType;
 
@@ -41,6 +44,49 @@ const FIGMA_EXPORT_DIR = join(
 );
 
 // region Test fixtures
+
+/**
+ Assemble a FigmaFile around a node list.
+ 
+ `meta`, `thumbnail`, and `schema` hold values the conversion never reads, so
+ they stay fixed here; each fixture supplies only what its own scenario
+ exercises.
+ 
+ @param nodeChanges - NodeChange records the fixture exposes
+ 
+ @param fileName - file name the conversion copies into the Penpot file
+ 
+ @param fileType - Figma export kind, which selects canvases or slides as pages
+ 
+ @returns FigmaFile the converter accepts
+ */
+function makeFigmaFile(
+  {
+    nodeChanges,
+    fileName,
+    fileType = 'fig',
+  }: Readonly<{
+    nodeChanges: Record<string, unknown>[];
+    fileName: string;
+    fileType?: FigmaFile['fileType'];
+  }>,
+): FigmaFile {
+  return {
+    fileType,
+    meta: {
+      backgroundColor: { r: 1, g: 1, b: 1, a: 1, },
+      thumbnailSize: { width: 800, height: 600, },
+      renderCoordinates: { x: 0, y: 0, width: 800, height: 600, },
+      fileName,
+      exportedAt: '2025-01-01T00:00:00Z',
+      developerRelatedLinks: [],
+    },
+    thumbnail: new Uint8Array(0,),
+    schema: { definitions: [], enumByName: new Map(), structByName: new Map(), },
+    document: { __type: 'Message', type: 'MessageType.NODE_CHANGES', nodeChanges, },
+    images: new Map(),
+  };
+}
 
 /** Build a minimal FigmaFile for testing without real file I/O. */
 function buildTestFigmaFile(fileType: FigmaFile['fileType'] = 'fig',): FigmaFile {
@@ -97,21 +143,11 @@ function buildTestFigmaFile(fileType: FigmaFile['fileType'] = 'fig',): FigmaFile
     },
   ];
 
-  return {
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Test File',
     fileType,
-    meta: {
-      backgroundColor: { r: 1, g: 1, b: 1, a: 1, },
-      thumbnailSize: { width: 800, height: 600, },
-      renderCoordinates: { x: 0, y: 0, width: 800, height: 600, },
-      fileName: 'Test File',
-      exportedAt: '2025-01-01T00:00:00Z',
-      developerRelatedLinks: [],
-    },
-    thumbnail: new Uint8Array(0,),
-    schema: { definitions: [], enumByName: new Map(), structByName: new Map(), },
-    document: { __type: 'Message', type: 'MessageType.NODE_CHANGES', nodeChanges, },
-    images: new Map(),
-  };
+  },);
 }
 
 /** Build a FigmaFile that simulates a deck with slides. */
@@ -163,21 +199,272 @@ function buildTestDeckFile(): FigmaFile {
     },
   ];
 
-  return {
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Test Deck',
     fileType: 'deck',
-    meta: {
-      backgroundColor: { r: 1, g: 1, b: 1, a: 1, },
-      thumbnailSize: { width: 1_920, height: 1_080, },
-      renderCoordinates: { x: 0, y: 0, width: 1_920, height: 1_080, },
-      fileName: 'Test Deck',
-      exportedAt: '2025-01-01T00:00:00Z',
-      developerRelatedLinks: [],
+  },);
+}
+
+/**
+ Build a FigmaFile whose frame carries a gradient, an image, and a solid paint.
+ 
+ Only the solid paint has a Penpot fill counterpart, so the converted frame
+ exercises the paint-type match in both directions: `PaintType.SOLID` converts
+ while `PaintType.GRADIENT_LINEAR` and `PaintType.IMAGE` are dropped.
+ */
+function buildPaintFixture(): FigmaFile {
+  const nodeChanges: Record<string, unknown>[] = [
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 0, },
+      type: 'NodeType.DOCUMENT',
+      name: 'Document',
+      phase: 'NodePhase.CREATED',
     },
-    thumbnail: new Uint8Array(0,),
-    schema: { definitions: [], enumByName: new Map(), structByName: new Map(), },
-    document: { __type: 'Message', type: 'MessageType.NODE_CHANGES', nodeChanges, },
-    images: new Map(),
-  };
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 1, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 2, },
+      type: 'NodeType.FRAME',
+      name: 'Painted Frame',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '!', },
+      transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0, },
+      size: { x: 10, y: 10, },
+      fillPaints: [
+        {
+          __type: 'Paint',
+          type: 'PaintType.GRADIENT_LINEAR',
+          color: { r: 0, g: 0, b: 1, a: 1, },
+        },
+        {
+          __type: 'Paint',
+          type: 'PaintType.IMAGE',
+          color: { r: 0, g: 0, b: 0, a: 1, },
+        },
+        {
+          __type: 'Paint',
+          type: 'PaintType.SOLID',
+          color: { r: 0, g: 1, b: 0, a: 1, },
+        },
+      ],
+      strokePaints: [{
+        __type: 'Paint',
+        type: 'PaintType.GRADIENT_LINEAR',
+        color: { r: 1, g: 0, b: 0, a: 1, },
+      },],
+      strokeWeight: 1,
+    },
+  ];
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Paint Fixture',
+  },);
+}
+
+/**
+ Build a FigmaFile whose two text nodes pin the text fill policy.
+ 
+ `Unsupported Fill Text` carries only a gradient paint, which has no Penpot
+ fill, so the converter must fall back to opaque black. `Solid Fill Text` carries
+ a solid paint, so the same fallback must not apply.
+ */
+function buildTextFillFixture(): FigmaFile {
+  const nodeChanges: Record<string, unknown>[] = [
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 0, },
+      type: 'NodeType.DOCUMENT',
+      name: 'Document',
+      phase: 'NodePhase.CREATED',
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 1, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 2, },
+      type: 'NodeType.TEXT',
+      name: 'Unsupported Fill Text',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '!', },
+      characters: 'Gradient',
+      fillPaints: [{
+        __type: 'Paint',
+        type: 'PaintType.GRADIENT_LINEAR',
+        color: { r: 0, g: 0, b: 0, a: 1, },
+      },],
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 3, },
+      type: 'NodeType.TEXT',
+      name: 'Solid Fill Text',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '#', },
+      characters: 'Solid',
+      fillPaints: [{
+        __type: 'Paint',
+        type: 'PaintType.SOLID',
+        color: { r: 1, g: 0, b: 1, a: 1, },
+      },],
+    },
+  ];
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Text Fill Fixture',
+  },);
+}
+
+/**
+ Build a two-canvas FigmaFile, one frame on each canvas.
+ 
+ Each canvas becomes a Penpot page, so the fixture carries two pages whose only
+ top-level shapes are `FrameA` and `FrameB`.
+ */
+function buildTwoCanvasFixture(): FigmaFile {
+  const nodeChanges: Record<string, unknown>[] = [
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 0, },
+      type: 'NodeType.DOCUMENT',
+      name: 'Document',
+      phase: 'NodePhase.CREATED',
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 1, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 2, },
+      type: 'NodeType.FRAME',
+      name: 'FrameA',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '!', },
+      transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0, },
+      size: { x: 100, y: 100, },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 3, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 2',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '#', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 4, },
+      type: 'NodeType.FRAME',
+      name: 'FrameB',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 3, }, position: '!', },
+      transform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0, },
+      size: { x: 100, y: 100, },
+    },
+  ];
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Two Canvas Fixture',
+  },);
+}
+
+/**
+ Build a two-slide deck with one text node on each slide.
+ 
+ Slides become Penpot pages, so each text is a top-level shape of its own page.
+ */
+function buildTwoSlideDeck(): FigmaFile {
+  const nodeChanges: Record<string, unknown>[] = [
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 0, },
+      type: 'NodeType.DOCUMENT',
+      name: 'Document',
+      phase: 'NodePhase.CREATED',
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 1, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 2, },
+      type: 'NodeType.SLIDE_GRID',
+      name: 'Presentation',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 29, },
+      type: 'NodeType.SLIDE_ROW',
+      name: 'Slide row',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 2, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 85, },
+      type: 'NodeType.SLIDE',
+      name: 'Slide 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 1, localID: 29, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 86, },
+      type: 'NodeType.TEXT',
+      name: 'Title 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 1, localID: 85, }, position: '!', },
+      characters: 'First',
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 87, },
+      type: 'NodeType.SLIDE',
+      name: 'Slide 2',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 1, localID: 29, }, position: '#', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 1, localID: 88, },
+      type: 'NodeType.TEXT',
+      name: 'Title 2',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 1, localID: 87, }, position: '!', },
+      characters: 'Second',
+    },
+  ];
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Two Slide Deck Fixture',
+    fileType: 'deck',
+  },);
 }
 
 // endregion
@@ -271,11 +558,155 @@ await describe({
           fn: async () => {
             const figmaFile = buildTestFigmaFile();
             const doc = convertFigmaToPenpot({ figmaFile, },);
-            // Only 3 shapes should exist: root frame + frame + text
-            const nonRootShapes = [...doc.shapes.values(),].filter(s =>
-              s.id !== '00000000-0000-0000-0000-000000000000'
+            // Only the frame and its text survive; the document node converts to nothing.
+            expect([...doc.shapes.values(),].length,).toBe(2,);
+          },
+        },),
+      ],
+    },),
+    // endregion
+
+    // region paint conversion
+    describe({
+      name: 'paint conversion',
+      children: [
+        it({
+          name: 'keeps a solid paint and drops gradient and image paints',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildPaintFixture(), },);
+            const frame = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Painted Frame',),
             );
-            expect(nonRootShapes.length,).toBe(2,);
+            expect(frame.fills,).toHaveLength(1,);
+            expect(nonNullishOrThrow(frame.fills[0],).fillColor,).toBe('#00FF00',);
+          },
+        },),
+        it({
+          name: 'drops a gradient stroke paint',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildPaintFixture(), },);
+            const frame = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Painted Frame',),
+            );
+            expect(frame.strokes,).toHaveLength(0,);
+          },
+        },),
+        it({
+          name: 'falls back to opaque black when a text node has no convertible fill',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTextFillFixture(), },);
+            const text = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Unsupported Fill Text',),
+            );
+            expect(
+              JSON.stringify(nonNullishOrThrow(text.content,),),
+            ).toContain('#000000',);
+          },
+        },),
+        it({
+          name: 'keeps a text node solid fill instead of the black fallback',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTextFillFixture(), },);
+            const text = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Solid Fill Text',),
+            );
+            const content = JSON.stringify(nonNullishOrThrow(text.content,),);
+            expect(content,).toContain('#FF00FF',);
+            expect(content,).not.toContain('#000000',);
+          },
+        },),
+      ],
+    },),
+    // endregion
+
+    // region parent linkage
+    describe({
+      name: 'parent linkage',
+      children: [
+        it({
+          name: 'links a nested text to the frame that contains it',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTestFigmaFile(), },);
+            const frame = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'My Frame',),
+            );
+            const text = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Hello',),
+            );
+            expect(text.parentId,).toBe(frame.id,);
+          },
+        },),
+        it({
+          name: 'anchors a canvas child to the page root frame, not to the canvas',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoCanvasFixture(), },);
+            const frames = [...doc.shapes.values(),].filter(shape =>
+              (shape.type === 'frame') && (shape.id !== ZERO_UUID)
+            );
+            expect(frames,).toHaveLength(2,);
+            for (const frame of frames)
+              expect(frame.parentId,).toBe(ZERO_UUID,);
+          },
+        },),
+        it({
+          name: 'anchors a slide child to the page root frame, not to the slide',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoSlideDeck(), },);
+            const texts = [...doc.shapes.values(),].filter(shape => shape.type === 'text');
+            expect(texts,).toHaveLength(2,);
+            for (const text of texts)
+              expect(text.parentId,).toBe(ZERO_UUID,);
+          },
+        },),
+      ],
+    },),
+    // endregion
+
+    // region page root frames
+    describe({
+      name: 'page root frames',
+      children: [
+        it({
+          name: 'keeps one root frame per page, each listing its own children',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoCanvasFixture(), },);
+            const pageIds = [...doc.pages.keys(),];
+            expect(pageIds,).toHaveLength(2,);
+            const rootFrames = pageIds.map(pageId =>
+              nonNullishOrThrow(doc.rootFrames.get(pageId,),)
+            );
+            expect(rootFrames.map(frame => frame.id,),).toEqual([ZERO_UUID, ZERO_UUID,],);
+            expect(rootFrames.map(frame => frame.pageId,),).toEqual(pageIds,);
+            const childIdsByPage = pageIds.map(pageId =>
+              [...doc.shapes.values(),]
+                .filter(shape => shape.pageId === pageId)
+                .map(shape => shape.id)
+            );
+            for (const [index, rootFrame,] of rootFrames.entries())
+              expect(nonNullishOrThrow(rootFrame.shapes,),).toEqual(childIdsByPage[index],);
+          },
+        },),
+        it({
+          name: 'writes every page root frame into the archive',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoCanvasFixture(), },);
+            const entries = await extractZipEntries(serializePenpotZip(doc,),);
+            for (const pageId of doc.pages.keys()) {
+              const rootFramePath = `files/${doc.file.id}/pages/${pageId}/${ZERO_UUID}.json`;
+              expect(entries.has(rootFramePath,),).toBe(true,);
+            }
+          },
+        },),
+        it({
+          name: 'keeps a root frame for every slide page',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoSlideDeck(), },);
+            const pageIds = [...doc.pages.keys(),];
+            expect(pageIds,).toHaveLength(2,);
+            for (const pageId of pageIds) {
+              const rootFrame = nonNullishOrThrow(doc.rootFrames.get(pageId,),);
+              expect(nonNullishOrThrow(rootFrame.shapes,),).toHaveLength(1,);
+            }
           },
         },),
       ],
