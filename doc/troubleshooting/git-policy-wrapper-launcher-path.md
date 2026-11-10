@@ -24,7 +24,7 @@ The shadow-links citation this note also carried moved with the LFS incident int
 Measured inside the running container,
 ordinary `git` resolved to `/usr/bin/git`,
 so the policy wrapper was not on that command's search path at all.
-Commit `8b34f75c03b65edc6fdfc575c48f22e44a9def77` consequently included concurrent documents
+Commit `8b34f75c03b65edc6fdfc575c48f22e44a9def77` included concurrent documents
 that the worker had not named.
 
 ## Root cause
