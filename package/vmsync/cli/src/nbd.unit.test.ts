@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { ddTransferArgs, } from './nbd.ts';
+import { ddTransferArgs, } from '../dist/final/node/testing.mjs';
 
 /**
  Bytes per qcow2 cluster, the alignment `qemu-img map` reports regions at.

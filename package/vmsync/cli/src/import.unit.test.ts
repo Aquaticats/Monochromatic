@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { nameFromPath, } from './import.ts';
+import { nameFromPath, } from '../dist/final/node/testing.mjs';
 
 /**
  First printable ASCII code point, `!`; below it lie control characters only.
