@@ -61,6 +61,16 @@ const CAPTURE_MS: u64 = 11;
 /// How many stretches the controls say were dropped.
 const PREPARE_PARTS_DROPPED: usize = 3;
 
+/// What the controls say the command spent before its first preparation.
+const ROUTE_MS: u64 = 5;
+/// The stretches of the build phase the controls record,
+/// two of one name,
+/// so a sum and its count both show.
+const BRANCH_MS: u64 = 19;
+const SHADOW_LINKS_MS: u64 = 23;
+/// How many stretches of the build the controls say were dropped.
+const BUILD_PARTS_DROPPED: usize = 2;
+
 /// Time the controls give the two costs outside the phases.
 const SCRATCH_REMOVAL_MS: u64 = 47;
 const REMOVALS_THAT_DID_NOT_FINISH: u64 = 2;
@@ -89,6 +99,7 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.reference = Some(String::from("refs/heads/main"));
     timing.outcome = "landed";
     timing.attempts = 2;
+    timing.route = Duration::from_millis(ROUTE_MS);
     timing.prepare = Duration::from_millis(PREPARE_MS);
     timing.build = Duration::from_millis(BUILD_MS);
     timing.provision = Duration::from_millis(PROVISION_MS);
@@ -120,12 +131,18 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
         PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
     ];
     timing.prepare_parts_dropped = PREPARE_PARTS_DROPPED;
+    timing.build_parts = vec![
+        PreparePart { name: String::from("branch"), took: Duration::from_millis(BRANCH_MS) },
+        PreparePart { name: String::from("shadow links"), took: Duration::from_millis(SHADOW_LINKS_MS) },
+        PreparePart { name: String::from("branch"), took: Duration::from_millis(BRANCH_MS) },
+    ];
+    timing.build_parts_dropped = BUILD_PARTS_DROPPED;
     timing.outside = OutsideThePhases {
         scratch_removal: Duration::from_millis(SCRATCH_REMOVAL_MS),
         removals_that_did_not_finish: REMOVALS_THAT_DID_NOT_FINISH,
         standard_error: Duration::from_millis(STANDARD_ERROR_MS),
     };
-    let covered: Duration = timing.prepare + timing.build + timing.provision + timing.submit.total + timing.after_landing + timing.gate + timing.handoff;
+    let covered: Duration = timing.route + timing.prepare + timing.build + timing.provision + timing.submit.total + timing.after_landing + timing.gate + timing.handoff;
     return (timing, covered);
 }
 
@@ -152,6 +169,7 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     assert_eq!(value["outcome"], "landed");
     assert_eq!(value["exitCode"], 3);
     assert_eq!(value["totalMs"], u64::try_from(total.as_millis()).expect("fits"));
+    assert_eq!(value["routeMs"], ROUTE_MS);
     assert_eq!(value["prepareMs"], PREPARE_MS);
     assert_eq!(value["attempts"], 2);
     assert_eq!(value["buildMs"], BUILD_MS);
@@ -194,7 +212,13 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     assert_eq!(value["prepareParts"]["capture"]["ms"], CAPTURE_MS);
     assert_eq!(value["prepareParts"]["capture"]["calls"], 1);
     assert_eq!(value["preparePartsDropped"], PREPARE_PARTS_DROPPED);
-    let phases: u64 = ["prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"]
+    // The build's stretches are stated under their own name, so a build's figure is never read as a preparation's.
+    assert_eq!(value["buildParts"]["branch"]["ms"], BRANCH_MS * 2);
+    assert_eq!(value["buildParts"]["branch"]["calls"], 2);
+    assert_eq!(value["buildParts"]["shadow links"]["ms"], SHADOW_LINKS_MS);
+    assert_eq!(value["buildParts"]["shadow links"]["calls"], 1);
+    assert_eq!(value["buildPartsDropped"], BUILD_PARTS_DROPPED);
+    let phases: u64 = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"]
         .iter()
         .map(|name| { return value[*name].as_u64().expect("a number"); })
         .sum();

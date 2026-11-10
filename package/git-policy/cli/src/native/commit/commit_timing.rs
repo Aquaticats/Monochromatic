@@ -35,6 +35,10 @@ use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_js
 /// as its sites note it.
 use crate::prepare_work_spans::{PrepareSpan, drain_spans, spans_json};
 use crate::commit_prepare_part_durations::{PreparePart, drain_prepare_parts, prepare_parts_json};
+/// The build's own stretches,
+/// by name,
+/// kept apart from the preparation's so neither reading is read as the other.
+use crate::commit_build_part_durations::{build_parts_json, drain_build_parts};
 use crate::time_spent_outside_the_phases::{OutsideThePhases, outside_the_phases};
 use crate::common_directory_of_a_git_directory::common_directory_of;
 /// What the notice of the scratch `git commit` saw while the step ran,
@@ -342,6 +346,15 @@ pub struct CommitTiming {
     /// the tree and the objects of the commit,
     /// summed over the attempts.
     pub prepare: Duration,
+    /// What the command spent before its first preparation began:
+    /// finding the worktree's route to a service,
+    /// this commit's identity,
+    /// the standard input a pathspec file is read from,
+    /// and the client's settings.
+    /// Why:
+    ///  No other phase covers that stretch,
+    ///  so without this field its time is reported as time no phase covers.
+    pub route: Duration,
     /// The message,
     /// the identities,
     /// the tree check and Git's own build of the commit,
@@ -381,6 +394,22 @@ pub struct CommitTiming {
     pub prepare_parts: Vec<PreparePart>,
     /// How many stretches of the preparation came after the list reached its bound.
     pub prepare_parts_dropped: usize,
+    /// How long each stretch of the build phase held no Git child,
+    /// by name,
+    /// in the order the names first appeared,
+    /// taken from the ledger when the record is written.
+    pub build_parts: Vec<PreparePart>,
+    /// How many stretches of the build phase came after the list reached its bound.
+    pub build_parts_dropped: usize,
+    /// When the build phase began,
+    /// while it is running.
+    /// Why:
+    ///  Every ending of the build must state the time it spent,
+    ///  and a stop inside it leaves the phase before the figure is taken,
+    ///  so the open build is closed where the command stops instead.
+    ///  A build that no seam closed is closed when the record is written,
+    ///  so its time is never counted as time no phase covers.
+    build_began: Option<Instant>,
     /// Every Git step this command started,
     /// each with its program and subcommand,
     /// when it began (from the command's start) and how
@@ -422,6 +451,10 @@ impl CommitTiming {
             outside: OutsideThePhases::default(),
             prepare_parts: Vec::new(),
             prepare_parts_dropped: 0,
+            build_parts: Vec::new(),
+            build_parts_dropped: 0,
+            build_began: None,
+            route: Duration::ZERO,
             steps: Vec::new(),
             steps_dropped: 0,
         };
@@ -433,9 +466,76 @@ impl CommitTiming {
         self.place = Some(Place { git_dir: git_dir.to_path_buf(), common_dir: common_directory_of(git_dir), instance: instance_of(git_dir) });
     }
 
+    /// What:
+    ///  States what the command spent before its first preparation,
+    ///  once.
+    /// Why:
+    ///   A rebuild prepares again,
+    ///  and the stretch before the first preparation is the one that belongs to no phase;
+    ///  a later attempt must not overwrite the figure with the time of the attempt before it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// if (timing.route === 0) timing.route = now() - timing.began;
+    /// ```
+    pub fn note_route(&mut self) {
+        if self.route.is_zero() {
+            self.route = self.began.elapsed();
+        }
+    }
+
+    /// What:
+    ///  Starts the build phase's clock.
+    /// Why:
+    ///   The build is closed by `end_build`,
+    ///  by `close_an_open_build` at a stop,
+    ///  and by the record's own writer if neither ran,
+    ///  so the phase states its time however the command ends.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// timing.beginBuild();
+    /// ```
+    pub fn begin_build(&mut self) {
+        self.close_an_open_build();
+        self.build_began = Some(Instant::now());
+    }
+
+    /// What:
+    ///  Ends the build phase and adds what it spent.
+    /// Why:
+    ///   The normal seam: the phase is over when the commit is ready to be sent.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// timing.endBuild();
+    /// ```
+    pub fn end_build(&mut self) {
+        self.close_an_open_build();
+    }
+
+    /// What:
+    ///  Adds the time of a build that is still open,
+    ///  and forgets it.
+    /// Why:
+    ///   A stop inside the build leaves the phase before its figure was taken,
+    ///  and the record used to report that whole stretch as time no phase covers
+    ///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+    ///  "What the build phase waits on, named").
+    ///  Closing it where the command stops keeps the stop's own printing and removal out of it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// timing.closeAnOpenBuild();
+    /// ```
+    pub fn close_an_open_build(&mut self) {
+        let Some(began) = self.build_began.take() else { return };
+        self.build += began.elapsed();
+    }
+
     /// What the phases leave uncovered out of `total`.
     fn other(&self, total: Duration) -> Duration {
-        let covered: Duration = self.prepare + self.build + self.provision + self.submit.total + self.after_landing + self.gate + self.handoff;
+        let covered: Duration = self.route + self.prepare + self.build + self.provision + self.submit.total + self.after_landing + self.gate + self.handoff;
         return total.saturating_sub(covered);
     }
 
@@ -461,7 +561,8 @@ impl CommitTiming {
         return format!(
             "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
              \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
-             \"prepareMs\":{},\"attempts\":{},\"prepareSpans\":{},\"prepareSpansDropped\":{},\"indexBuilds\":{},\"scratchSteps\":{},\"buildMs\":{},\"provisionMs\":{},\
+             \"routeMs\":{},\"prepareMs\":{},\"attempts\":{},\"prepareSpans\":{},\"prepareSpansDropped\":{},\"indexBuilds\":{},\"scratchSteps\":{},\
+             \"buildMs\":{},\"buildParts\":{},\"buildPartsDropped\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
@@ -477,6 +578,7 @@ impl CommitTiming {
             place.map_or_else(null_word, Place::git_dir_json),
             quote(self.outcome),
             total.as_millis(),
+            self.route.as_millis(),
             self.prepare.as_millis(),
             self.attempts,
             spans_json(self.prepare_spans.as_slice()),
@@ -484,6 +586,8 @@ impl CommitTiming {
             index_builds_json(self.index_builds.as_slice()),
             scratch_steps_json(self.scratch_steps.as_slice()),
             self.build.as_millis(),
+            build_parts_json(self.build_parts.as_slice()),
+            self.build_parts_dropped,
             self.provision.as_millis(),
             self.submit.total.as_millis(),
             self.submit.sends,
@@ -535,12 +639,15 @@ impl CommitTiming {
         let target: PathBuf = place.common_dir.join(TIMING_FILE);
         // The ledger holds what this command's Git steps and tools showed; the record takes it and the next command starts empty.
         let mut with_quiet: CommitTiming = self.clone();
+        // A build no seam closed is the phase the command ended in, so its time is stated here rather than left to the remainder.
+        with_quiet.close_an_open_build();
         with_quiet.quiet = drain();
         (with_quiet.steps, with_quiet.steps_dropped) = drain_steps(self.began);
         with_quiet.index_builds = drain_index_builds();
         (with_quiet.prepare_spans, with_quiet.prepare_spans_dropped) = drain_spans();
         with_quiet.outside = outside_the_phases();
         (with_quiet.prepare_parts, with_quiet.prepare_parts_dropped) = drain_prepare_parts();
+        (with_quiet.build_parts, with_quiet.build_parts_dropped) = drain_build_parts();
         with_quiet.scratch_steps = drain_scratch_steps();
         let line: String = with_quiet.line(self.began.elapsed(), exit_code);
         if let Err(error) = append_line(target.as_path(), line.as_bytes()) {

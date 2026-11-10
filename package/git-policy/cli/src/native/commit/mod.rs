@@ -71,6 +71,11 @@ pub mod commit_timing;
 /// for the timing record.
 pub mod commit_prepare_part_durations;
 
+/// How long each stretch of a commit's build phase held no Git child,
+/// by name,
+/// for the timing record.
+pub mod commit_build_part_durations;
+
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
 

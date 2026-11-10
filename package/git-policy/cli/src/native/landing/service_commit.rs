@@ -46,6 +46,8 @@ use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
+/// The build phase's stretches, by name, for that record.
+use crate::commit_build_part_durations::BuildPartClock;
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use crate::diagnostic_log::warn;
 use crate::policy_checks::ShippedChecks;
@@ -163,6 +165,10 @@ pub fn service_commit<F: RepositoryFacts>(
             replay,
         };
         let preparing: Instant = Instant::now();
+        if attempt == 0 {
+            // Everything before the first preparation is the one stretch of the command that belongs to no other phase.
+            timing.note_route();
+        }
         let prepared: Result<Prepared, TransactionStop> = prepare(invocation, checks, request, &inputs);
         timing.prepare += preparing.elapsed();
         timing.attempts += 1;
@@ -183,9 +189,12 @@ pub fn service_commit<F: RepositoryFacts>(
             }
             Prepared::Ready(ready) => ready,
         };
+        // Every stretch of this phase names itself, so a slow build says which of them waited
+        //  (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+        timing.begin_build();
+        let mut clock: BuildPartClock = BuildPartClock::begin("branch");
         // The branch the first preparation found. A worktree that switched since (the service refuses the landing, and a
         //  new preparation would read the new branch) is a failure like native Git's, with the typed message kept in its file.
-        let building: Instant = Instant::now();
         if timing.reference.is_none() {
             timing.reference = Some(ready.reference.clone());
         }
@@ -207,6 +216,7 @@ pub fn service_commit<F: RepositoryFacts>(
         }
         if !decided {
             decided = true;
+            clock.next("message");
             if !ready.needs_native
                 && let Some(parsed) = parse_service_commit(after)
             {
@@ -222,6 +232,7 @@ pub fn service_commit<F: RepositoryFacts>(
         //  now, and the tree of that commit is the replay the preparation already settled in the private index.
         let lands_as_new: bool = amended.is_some() && retry.is_some();
         let mut tree: Option<String> = None;
+        clock.next("amend tree");
         match the_amends_tree(&ready, invocation, native_inputs, embedded.as_ref(), lands_as_new)? {
             AmendsTree::Tree(written) => tree = Some(written),
             // Git says itself that an amend which leaves the replaced commit as it was is empty.
@@ -230,11 +241,15 @@ pub fn service_commit<F: RepositoryFacts>(
         }
         // A request over the line the service reads is refused as too long, and a commit must not fail for the names it
         //  changes: Git builds one that does not fit, as it did before a changed path carried its bytes.
+        clock.next("fitting request");
         embedded = embedded_that_fits(embedded, &ready, native_inputs, id.as_str(), &tree);
         let native: bool = !lands_as_new && (ready.needs_native || embedded.is_none());
         // The embedded commit is used only when the native path is not taken.
         let embedded_in_use: Option<&Embedded> = if native || lands_as_new { None } else { embedded.as_ref() };
         let amendment: Option<&AmendedCommit> = if lands_as_new { amended.as_ref() } else { None };
+        // The request reads the preparation's values and, when Git builds the commit, creates the shadow repository and runs
+        //  Git in it; those stretches name themselves under this clock.
+        clock.next("request");
         let (sent, first_parent, typed): (CommitRequest, String, Option<String>) = the_request_of(RequestOf {
             amendment,
             embedded_in_use,
@@ -244,9 +259,11 @@ pub fn service_commit<F: RepositoryFacts>(
             native_inputs,
             fixed_message: fixed_message.as_deref(),
             id: id.as_str(),
+            clock: &mut clock,
         })?;
         // What an amend carries into the commit a moved branch makes of it, kept once from the attempt that prepared it.
         if amended.is_none() && sent.amend {
+            clock.next("amend fields");
             amended = Some(amended_fields(invocation, &sent, embedded.as_ref())?);
         }
         let mut remembered: Option<String> = typed.clone();
@@ -257,7 +274,8 @@ pub fn service_commit<F: RepositoryFacts>(
         }
         last_message = remembered;
         // A test removes the prepared content here, between the preparation and the landing.
-        timing.build += building.elapsed();
+        drop(clock);
+        timing.end_build();
         reach_service_phase(Phase::ServicePrepared)?;
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.

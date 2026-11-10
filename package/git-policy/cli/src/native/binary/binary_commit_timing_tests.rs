@@ -184,7 +184,7 @@ fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::O
 }
 
 /// The phases the record counts as disjoint stretches of the command.
-const DISJOINT: [&str; 8] = ["prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"];
+const DISJOINT: [&str; 9] = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"];
 
 /// An ordinary commit appends one record to the repository and gets one line from the service,
 /// and neither the terminal nor the
@@ -405,6 +405,114 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
     let slept: u64 = number(sleeping, "seenMs");
     assert!(slept >= (SLOW_STEP_SECONDS - 1) * 1000, "the sleep ran {SLOW_STEP_SECONDS} s: {record}");
     assert!(slept <= SLOW_STEP_SECONDS * 1000, "the sleep cannot be seen longer than it ran: {record}");
+    remove_settled(&fixture);
+}
+
+/// The record names each stretch of the build phase that no Git child covered,
+/// so a build that spent its time before the
+///  first step says where.
+/// Why:
+///  The records of 2026-11-09 held builds of 63 444 ms and 141 560 ms whose longest step was tens of milliseconds:
+/// the shadow
+///  repository's creation is in-process filesystem work, so no step named it and no field explained the build
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+///  The creation's stretches are the ones a slow build must name,
+///  and they are only reached when Git builds the commit, which a configuration key the service
+///  does not embed asks for.
+#[test]
+fn the_record_names_every_stretch_of_the_build_phase() {
+    let fixture: Fixture = fixture("timing-build-parts");
+    let repo: PathBuf = base_repository(&fixture);
+    git_text(&fixture, &repo, &["config", "commit.verbose", "false"]);
+    let name: String = format!("timing-build-parts-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let found: Vec<serde_json::Value> = records(&repo);
+    assert_eq!(found.len(), 1, "{found:?}");
+    let record: &serde_json::Value = &found[0];
+    println!("TIMING RECORD (build parts): {record}");
+    let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
+    // Every stretch of the build the command ran is stated by the name the wrapper compiled into it, and the creation's own
+    //  stages are among them: no name here is a path, a message or an option value.
+    for required in ["branch", "request", "shadow skeleton", "shadow config", "shadow links", "shadow conclusion", "shadow refs", "client build", "commit read back"] {
+        assert!(parts.contains_key(required), "the build states {required}: {record}");
+    }
+    for (part, figure) in parts {
+        assert!(!part.contains('/') && !part.contains(MESSAGE) && !part.contains('='), "a part name is what the wrapper does: {part}");
+        assert!(figure["ms"].is_u64() && figure["calls"].is_u64(), "{part}: {figure}");
+        assert!(number(figure, "ms") <= number(record, "buildMs"), "{part} lies inside the build phase: {record}");
+    }
+    // The Git children are recorded apart, so the stretches and the steps together are no more than the build itself.
+    let steps_in_build: u64 = record["steps"]
+        .as_array()
+        .unwrap_or_else(|| { panic!("the record has no steps: {record}") })
+        .iter()
+        .filter(|step| { return number(step, "offsetMs") >= number(record, "prepareMs") && number(step, "offsetMs") < number(record, "prepareMs") + number(record, "buildMs"); })
+        .map(|step| { return number(step, "durationMs"); })
+        .sum();
+    let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
+    assert!(stated + steps_in_build <= number(record, "buildMs") + ROUNDING_MS, "the stretches and steps lie inside the build ({} + {steps_in_build} of {}): {record}", stated, number(record, "buildMs"));
+    assert_eq!(record["buildPartsDropped"], 0, "{record}");
+    remove_settled(&fixture);
+}
+
+/// The seconds the ceiling of the scratch commit is set to in the control of a stopped build:
+/// far below the stand-in's sleep,
+/// so the stop ends the step and the record still has the build's time to state.
+const STOP_CEILING_SECONDS: &str = "2";
+
+/// A commit whose build is stopped inside its scratch `git commit` still states the build's time,
+/// and names the stretch the stop happened in.
+/// Why:
+///  The record used to add a build's time only on the way out of the build,
+/// and a stop inside it left through the error path:
+/// a stopped record of the live log held `buildMs` 0 and 70 434 ms of time no phase covered,
+/// while its shadow's steps began 70 s after its preparation had ended.
+///  The stop's words and the exit code are the ones the ceiling's control states;
+/// what this one adds is what the record says about the time.
+#[test]
+fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
+    let fixture: Fixture = fixture("timing-build-stopped");
+    let repo: PathBuf = base_repository(&fixture);
+    git_text(&fixture, &repo, &["config", "commit.verbose", "false"]);
+    let name: String = format!("timing-build-stopped-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    let mut path: std::ffi::OsString = slow_commit_git(&fixture, BEYOND_THE_CEILING_SECONDS).into_os_string();
+    path.push(":");
+    path.push(fixture.root.join("bin"));
+    command.env("PATH", path).env(git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE, STOP_CEILING_SECONDS);
+    let served = observe(&mut command, b"");
+    let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
+    assert_eq!(served.code, Some(1), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    println!("TIMING RECORD (build stopped): {record}");
+    assert_eq!(record["outcome"], "stopped", "{record}");
+    // The step was ended at its ceiling, so the build held at least that long; before the change this was 0 and the whole
+    //  stretch was `otherMs`.
+    let ceiling: u64 = STOP_CEILING_SECONDS.parse::<u64>().expect("the control's ceiling") * 1000;
+    assert!(number(record, "buildMs") >= ceiling - ROUNDING_MS, "the stopped build states its time: {record}");
+    assert!(number(record, "otherMs") < number(record, "buildMs"), "the build's time is not left to no phase: {record}");
+    let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
+    assert!(parts.contains_key("client build"), "the stop happened in the client's build: {record}");
+    // The step the ceiling ended is recorded apart, so the stretch around it is the time the build spent outside that step.
+    let steps_in_build: u64 = record["steps"]
+        .as_array()
+        .unwrap_or_else(|| { panic!("the record has no steps: {record}") })
+        .iter()
+        .filter(|step| { return number(step, "offsetMs") >= number(record, "prepareMs") && number(step, "offsetMs") < number(record, "prepareMs") + number(record, "buildMs"); })
+        .map(|step| { return number(step, "durationMs"); })
+        .sum();
+    let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
+    assert!(stated + steps_in_build <= number(record, "buildMs") + ROUNDING_MS, "the stretches and steps lie inside the stopped build ({} + {steps_in_build} of {}): {record}", stated, number(record, "buildMs"));
     remove_settled(&fixture);
 }
 
