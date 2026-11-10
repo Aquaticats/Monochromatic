@@ -30,7 +30,7 @@ use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// The kinds of work the service runs itself.
-pub const SERVICE_KINDS: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
+pub const SERVICE_KINDS: [WorkKind; 5] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -137,6 +137,26 @@ pub trait WorkHandlers {
     /// ```
     fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.trash(item)));
+    }
+    /// Fill a new worktree's Cargo build directory from the build state of the checkout it was copied from;
+    /// a handler that does not know it skips.
+    fn prewarm(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not fill Cargo build directories"));
+    }
+    /// The same filling,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The drain of a round is a task,
+    /// and the filling starts Cargo children and copies a tree,
+    /// which the synchronous face would refuse from inside the runtime;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// prewarmAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.prewarm(item)));
     }
 }
 

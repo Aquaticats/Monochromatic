@@ -35,9 +35,17 @@ and the four authoring packages
 (`package/git-policy/{api,forbidden-strings,markdown-lint,repository}`),
 are deleted from the working tree by the
 retirement commits.
-The last commit that contains them is `f4fc1fa213ece65672e4314983a75266837892f9`.
-Every `src/...ts:NN` and `SPEC.md:NN` citation in this ledger resolves in that commit
-(`git show f4fc1fa213ece65672e4314983a75266837892f9:package/git-policy/cli/src/<path>`),
+The last commit that contains both the wrapper and the four packages is
+`3584fdbc679339aad5dfbe15063db9ac0ac8eb1d` (issue #3189).
+The wrapper's TypeScript source alone lasts one commit longer,
+into `a2b56c548c2f414709bfc8d80e61718abbc037cc`,
+and `642b6d72cb954bc8ea284dc1d0175f4d897d0fdd` deletes it.
+Every `src/...ts:NN` and `SPEC.md:NN` citation in this ledger resolves in
+`f4fc1fa213ece65672e4314983a75266837892f9`,
+the revision the citations are pinned to:
+`git show f4fc1fa213ece65672e4314983a75266837892f9:package/git-policy/cli/src/<path>`.
+It is not the last commit holding that text,
+but it holds all of it,
 including the `SPEC.md` sections that the retirement rewrites.
 
 ## Source and conventions

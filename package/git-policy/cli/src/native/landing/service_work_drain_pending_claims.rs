@@ -99,12 +99,14 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         }
         let mut pushes: Vec<Claimed> = Vec::new();
         let mut trashes: Vec<Claimed> = Vec::new();
+        let mut prewarms: Vec<Claimed> = Vec::new();
         let mut reviews: Vec<Claimed> = Vec::new();
         let mut upkeep: Vec<Claimed> = Vec::new();
         for item in acceptable {
             match item.item.kind {
                 WorkKind::Push => pushes.push(item),
                 WorkKind::Trash => trashes.push(item),
+                WorkKind::Prewarm => prewarms.push(item),
                 WorkKind::Review => reviews.push(item),
                 _ => upkeep.push(item),
             }
@@ -193,6 +195,22 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 };
             }
             match settle_all_awaiting(held, work_dir.as_path(), vec![item], DONE).await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
+        }
+        // A new worktree's Cargo build directory is filled before the left-out files are emptied: the filling is the work
+        //  the add stopped doing, and the sooner it lands the more likely the first build in the worktree finds it.
+        let prewarmed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), prewarms).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in prewarmed {
+            let verdict: Verdict = handlers.prewarm_awaiting(&item.item).await;
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "prewarm").await {
                 Some(back) => held = back,
                 None => break 'round,
             }
@@ -355,6 +373,7 @@ async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed,
         Verdict::Failed(reason) | Verdict::Retry(reason) => {
             match kind {
                 "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent),
+                "prewarm" => crate::service_warn!("the Cargo build directory of {} could not be filled: {reason}", item.item.repository.display()),
                 _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
             }
             return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;
@@ -362,6 +381,7 @@ async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed,
         Verdict::Skipped(reason) => {
             match kind {
                 "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent),
+                "prewarm" => crate::service_log!("the Cargo build directory of {} was left as it is: {reason}", item.item.repository.display()),
                 _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
             }
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;

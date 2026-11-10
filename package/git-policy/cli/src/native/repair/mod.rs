@@ -38,6 +38,18 @@ pub mod package_repair_pnpm;
 #[cfg(target_os = "linux")]
 pub mod package_repair_cargo;
 
+/// The hand-over of a new worktree's Cargo build directories to the commit service,
+/// so the add does not wait for the clone that fills them.
+#[cfg(target_os = "linux")]
+pub mod package_repair_prewarm;
+
+/// The service's filling of those build directories:
+/// clone into a staging directory,
+/// clean the copy,
+/// publish it unless a build got there first.
+#[cfg(target_os = "linux")]
+pub mod package_repair_prewarm_job;
+
 /// The runner that does one job for every item of a list on several threads.
 pub mod package_repair_cargo_concurrent;
 
