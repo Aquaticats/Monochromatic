@@ -9,9 +9,15 @@
 //!  and ages out under the rule the sweep and the preparation share
 //!  (`scratch_location.rs`,
 //! `service_scratch_abandonment.rs`).
+//!  The one entry of that directory a finished commit does not owe a removal of is the pool of finished shadows the
+//!  service fills ahead (`shadow_pool.rs`,
+//!  `kept_on_purpose`):
+//!  the fill is the service's work,
+//!  it stands beside the trees for as long as the worktree has a service,
+//!  and a commit that finds no member makes its own shadow.
 
 use super::commit::{remove_settled, wrapped_commit};
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, fixture, git, kept_on_purpose, repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -56,25 +62,30 @@ fn a_commit_leaves_no_scratch_directory_once_its_landing_is_over() {
 }
 
 /// What:
-///  Whether the repository scratch directory of `repo` is gone or holds no entry at all.
+///  Whether the repository scratch directory of `repo` is gone or holds nothing a finished commit left.
 /// Why:
 ///   The names `left_behind` waits for are the trees the wrapper removes,
 ///  and an entry its two prefixes do not name would end that wait while it is still there:
 ///  the directory has to be counted,
 ///  every entry of it,
 ///  not only the ones a leak would be named by.
+///  The pool of shadows the service fills ahead is kept there on purpose (`kept_on_purpose`),
+///  so it is the one name this count leaves out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const empty = (repo) => (await readdir(scratch(repo))).length === 0;
+/// const empty = (repo) => (await readdir(scratch(repo))).filter(keptOnPurpose).length === 0;
 /// ```
 fn the_scratch_directory_holds_nothing(repo: &Path) -> bool {
     let Some(directory) = scratch_directory(repo) else { return true };
-    return std::fs::read_dir(directory).map(|entries| { return entries.count(); }).unwrap_or(0) == 0;
+    let Ok(entries) = std::fs::read_dir(directory) else { return true };
+    return entries
+        .flatten()
+        .all(|entry| { return kept_on_purpose(entry.file_name().as_os_str()); });
 }
 
 /// The emptiness check the control above ends with is a check:
-/// an entry neither prefix names still means the directory holds something,
+/// an entry neither prefix names and the service does not keep on purpose still means the directory holds something,
 /// so a directory holding one is not reported empty.
 #[test]
 fn a_scratch_directory_that_holds_an_entry_the_prefixes_do_not_name_is_not_empty() {

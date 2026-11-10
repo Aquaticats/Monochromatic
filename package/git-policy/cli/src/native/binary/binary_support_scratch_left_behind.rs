@@ -38,6 +38,22 @@ const REMOVED_BY_THE_WRAPPER: [&str; 2] = [
 ];
 
 /// What:
+///  Whether a name in a repository scratch place is one the wrapper keeps there on purpose.
+/// Why:
+///  The service fills a pool of finished shadow repositories ahead of a commit and keeps it beside the scratch trees
+///  for as long as its worktree has a service (`shadow_pool::SHADOW_POOL_NAME`,
+///  `shadow_pool::pool_root`),
+///  so a control that counts every entry of that place would report the pool for ever,
+///  while a pool standing there is no leak:
+///  a commit that finds no member makes its own shadow,
+///  and the fill replaces nothing a command still reads.
+///  Every other name is a leftover,
+///  whether the wrapper removes it or nothing does.
+pub fn kept_on_purpose(name: &std::ffi::OsStr) -> bool {
+    return name == std::ffi::OsStr::new(git_policy_cli::shadow_pool::SHADOW_POOL_NAME);
+}
+
+/// What:
 ///  Everything the wrapper would have removed and did not,
 ///  in the worktree's Git directory and in the repository scratch directory beside it.
 /// Why:
