@@ -9707,6 +9707,16 @@ and no step of the loop runs storage on a worker:
   as the previous section measured,
   and `reap_abandoned_children` is a `waitpid` with no storage behind it.
   None of them can wait on a filesystem.
+- The other way to answer a job that started after its thread was refused:
+  `run_blocking_job_within_the_budget` could hand the value of such a job
+  back,
+  by having the job store its value before it gives its place back and the
+  caller await that store no longer than the ceiling.
+  Then no caller would ever need an answer like `NoAnswer`.
+  This run did not build it:
+  it changes a helper every command's blocking work goes through,
+  and the two call sites here are answered by keeping their own state.
+  Open to the owner's veto.
 - A `spawn_blocking` job that outlasts `AFTER_COMMIT_STATE_CEILING` keeps
   its place of the process's bound until its work ends
   (`blocking_jobs_within_the_budget.rs`),
