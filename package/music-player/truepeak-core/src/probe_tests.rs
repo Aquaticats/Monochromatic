@@ -2,7 +2,9 @@
 //!  driven by a fake seekable source.
 
 use super::*;
+use crate::probe_selection::{ProbeBins, ProbeGrid, select_probe_bins};
 use crate::source::AudioSpec;
+use std::convert::Infallible;
 
 // A fake decoded mono source over an in-memory buffer, recording its seeks.
 struct FakeSource {
@@ -10,11 +12,13 @@ struct FakeSource {
     rate: u32,
     cursor: usize,
     seeks: Vec<u64>,
+    // Frames per decoded chunk: what one `next_chunk` hands over.
+    chunk_frames: usize,
 }
 
 impl FakeSource {
-    fn new(samples: Vec<f32>, rate: u32) -> FakeSource {
-        return FakeSource { samples, rate, cursor: 0, seeks: Vec::new() }
+    fn new(samples: Vec<f32>, rate: u32, chunk_frames: usize) -> FakeSource {
+        return FakeSource { samples, rate, cursor: 0, seeks: Vec::new(), chunk_frames }
     }
 }
 
@@ -31,7 +35,7 @@ impl TruePeakSource for FakeSource {
         if self.cursor >= self.samples.len() {
             return Ok(Vec::new());
         }
-        let end = (self.cursor + 4).min(self.samples.len());
+        let end = (self.cursor + self.chunk_frames).min(self.samples.len());
         let block = self.samples[self.cursor..end].to_vec();
         self.cursor = end;
         return Ok(block)
@@ -43,6 +47,9 @@ impl TruePeakSource for FakeSource {
         return Ok(())
     }
 }
+
+// Frames one decoded chunk hands over in every test but the agreement one.
+const CHUNK_FRAMES: usize = 4;
 
 // 100 bins of 10 frames at rate 100 (10 s track), base level `base`, with per-bin
 // overrides laid on top.
@@ -60,7 +67,7 @@ fn climb_reads_the_hilltop() {
     // Hill: bins 42..=46 rise to 0.8 at bin 44; the even pass lands on bin 44's edge
     // neighborhood via bin 44 itself only if placement hits it, so put the top off-grid.
     let samples = track(0.1, &[(41, 0.2), (42, 0.4), (43, 0.8), (44, 0.4), (45, 0.2)]);
-    let mut source = FakeSource::new(samples, 100);
+    let mut source = FakeSource::new(samples, 100, CHUNK_FRAMES);
     let plan = ZoomPlan {
         bin_frames: 10,
         total_frames: 1000,
@@ -86,12 +93,12 @@ fn bones_seeds_reach_the_needle() {
         even_coverage_fraction: 0.1,
         bones_hot_bins: None,
     };
-    let mut blind = FakeSource::new(samples.clone(), 100);
+    let mut blind = FakeSource::new(samples.clone(), 100, CHUNK_FRAMES);
     let blind_peak = zoom_probe(&mut blind, 1, &plan_without).expect("probe runs");
     assert!(blind_peak < 0.5, "the even pass must miss the off-grid needle, got {blind_peak}");
     let hot = [70usize];
     let plan_with = ZoomPlan { bones_hot_bins: Some(&hot), ..plan_without };
-    let mut guided = FakeSource::new(samples, 100);
+    let mut guided = FakeSource::new(samples, 100, CHUNK_FRAMES);
     let guided_peak = zoom_probe(&mut guided, 1, &plan_with).expect("probe runs");
     assert!(guided_peak >= 0.9, "bones must reach the needle, got {guided_peak}");
 }
@@ -99,7 +106,7 @@ fn bones_seeds_reach_the_needle() {
 // A silent track probes to zero and stays within budget.
 #[test]
 fn silence_probes_to_zero() {
-    let mut source = FakeSource::new(vec![0.0; 1000], 100);
+    let mut source = FakeSource::new(vec![0.0; 1000], 100, CHUNK_FRAMES);
     let plan = ZoomPlan {
         bin_frames: 10,
         total_frames: 1000,
@@ -115,8 +122,101 @@ fn silence_probes_to_zero() {
 // measure_window reads exactly one window from the current position.
 #[test]
 fn measure_window_reads_one_window() {
-    let mut source = FakeSource::new(track(0.1, &[(1, 0.7)]), 100);
+    let mut source = FakeSource::new(track(0.1, &[(1, 0.7)]), 100, CHUNK_FRAMES);
     source.seek_to_frame(10).expect("seek");
     let peak = measure_window(&mut source, 1, 10).expect("window measures");
     assert!(peak >= 0.7);
+}
+
+/// A bin-peak lookup that records every bin the selection asks for,
+///  the bench's own measurement shape.
+struct RecordingLookup<'peaks> {
+    /// The precomputed peak of each bin.
+    bin_peaks: &'peaks [f32],
+    /// The bins the selection asked for,
+    ///  in the order it asked.
+    visited: Vec<usize>,
+}
+
+impl ProbeBins for RecordingLookup<'_> {
+    type Failure = Infallible;
+
+    /// Records the asked-for bin and answers its precomputed peak.
+    fn bin_peak(&mut self, index: usize) -> Result<f32, Infallible> {
+        self.visited.push(index);
+        return Ok(self.bin_peaks[index])
+    }
+}
+
+/// The samples a synthetic bin corpus decodes to:
+///  bin `index` holds `bin_peaks[index]` for every one of its frames,
+///  so a window over that bin measures exactly that peak.
+fn samples_from_bin_peaks(bin_peaks: &[f32], bin_frames: usize) -> Vec<f32> {
+    let mut samples = Vec::with_capacity(bin_peaks.len() * bin_frames);
+    for &peak in bin_peaks {
+        samples.extend(std::iter::repeat_n(peak, bin_frames));
+    }
+    return samples
+}
+
+/// What:
+///  the production probe and the bench's lookup over a precomputed bin corpus
+///  measure the same bins,
+///  in the same order,
+///  for the same peak and the same count.
+/// Why:
+///  the bench's evidence is only playback's behaviour if both paths come through the
+///  one selection function;
+///  a private copy in the bench would drift silently.
+#[test]
+fn the_production_probe_and_the_bench_lookup_agree_on_a_bin_corpus() {
+    // A corpus with every phase's own shape: a flat floor, a hill the climb walks, a
+    // needle only the bones seed finds, and a quiet tail.
+    let mut bin_peaks = vec![0.05f32; 200];
+    bin_peaks[40] = 0.2;
+    bin_peaks[41] = 0.4;
+    bin_peaks[42] = 0.8;
+    bin_peaks[43] = 0.4;
+    bin_peaks[120] = 0.9;
+    let hot_bins = [120usize];
+    let bin_frames = 10u64;
+    let plan = ZoomPlan {
+        bin_frames,
+        total_frames: bin_peaks.len() as u64 * bin_frames,
+        coverage_fraction: 0.1,
+        even_coverage_fraction: 0.05,
+        bones_hot_bins: Some(&hot_bins),
+    };
+    // One chunk per bin, so a window reads exactly its own bin and both paths see the
+    // same peaks; a real decoder hands over coarser chunks, which changes what a window
+    // reads but not how the selection spends its budget.
+    let mut source = FakeSource::new(
+        samples_from_bin_peaks(&bin_peaks, bin_frames as usize),
+        100,
+        bin_frames as usize,
+    );
+    let production_peak = zoom_probe(&mut source, 1, &plan).expect("probe runs");
+    let production_bins: Vec<usize> = source
+        .seeks
+        .iter()
+        .map(|&frame| return (frame / bin_frames) as usize)
+        .collect();
+
+    // The bench's shape: the same grid, measured by looking the precomputed peak up.
+    let grid = ProbeGrid {
+        bin_count: bin_peaks.len(),
+        coverage_fraction: plan.coverage_fraction,
+        even_coverage_fraction: plan.even_coverage_fraction,
+        bones_hot_bins: plan.bones_hot_bins,
+    };
+    let mut lookup = RecordingLookup { bin_peaks: &bin_peaks, visited: Vec::new() };
+    let selection = match select_probe_bins(grid, &mut lookup) {
+        Ok(selection) => selection,
+        Err(never) => match never {},
+    };
+
+    assert_eq!(production_bins, lookup.visited, "both paths measure the same bins in the same order");
+    assert_eq!(production_peak, selection.peak, "both paths read the same loudest bin");
+    assert_eq!(production_bins.len(), selection.used_bins, "both paths spend the same budget");
+    assert_eq!(selection.peak, 0.9, "the bones seed must reach the needle");
 }

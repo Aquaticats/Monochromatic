@@ -30,6 +30,10 @@ import type {
   ParsedReturnsBlock,
 } from './tsdoc-doc-model.ts';
 
+//region Block vocabulary
+// The block tags that start a new segment at line start, one segment being
+// accumulated, and one finalized segment.
+
 /**
  One block being accumulated as the scanner walks comment lines.
  */
@@ -66,6 +70,12 @@ type Segment = {
   readonly text: string;
 };
 
+//endregion Block vocabulary
+
+//region Content predicates and trimming
+// Whether content carries anything but whitespace, and the leading hyphen
+// separator stripped off before a block's description is read.
+
 /**
  Checks whether `s` contains any non-whitespace character.
  
@@ -96,6 +106,12 @@ function stripLeadingHyphen(s: string,): string {
   const trimmed = s.trimStart();
   return trimmed.startsWith('-',) ? trimmed.slice(1,) : trimmed;
 }
+
+//endregion Content predicates and trimming
+
+//region Per-tag content parsing
+// The `@param` and `@returns` block contents, each reduced to whether it
+// carries a name and a description.
 
 /**
  Parses a `@param` block's content into its name and description presence.
@@ -149,6 +165,12 @@ function parseReturnsSegment(text: string,): ParsedReturnsBlock {
     hasDescription: hasNonWhitespace(stripLeadingHyphen(text,),),
   };
 }
+
+//endregion Per-tag content parsing
+
+//region Segment assembly
+// Walking normalized lines into tag-keyed segments and the presence flags that
+// ride alongside them.
 
 /**
  Groups normalized lines into block segments keyed by their opening tag.
@@ -261,6 +283,12 @@ function collectPresence(normalizedLines: readonly NormalizedLine[],): {
   return found;
 }
 
+//endregion Segment assembly
+
+//region The parsed model
+// The entry point that combines segments and presence flags into the minimal
+// parsed model the rules consume.
+
 /**
  Scans a TSDoc comment into the minimal parsed model the rules consume,
  combining block segments from {@link buildSegments} with tag-presence
@@ -347,3 +375,5 @@ export function splitDocComment({
     hasInternalModifier: presence.internal,
   };
 }
+
+//endregion The parsed model

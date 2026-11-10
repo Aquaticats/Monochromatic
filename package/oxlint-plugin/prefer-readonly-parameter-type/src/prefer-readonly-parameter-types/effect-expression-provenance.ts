@@ -58,6 +58,11 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Operator and passthrough vocabulary
+// Which operators take their value from either operand, which take it from the
+// right alone, the sentinel for an expression that wraps nothing, and every
+// expression form that passes its operand through unchanged.
+
 /**
  Operators whose value may come from either operand.
  
@@ -208,6 +213,12 @@ export function selectedOperandSuccessors(
   }
   return [];
 }
+
+//endregion Operator and passthrough vocabulary
+
+//region Successor expressions
+// The expressions whose origins the current expression inherits, each a strict
+// AST descendant so the walk terminates.
 
 /**
  Successor expressions whose origins the current expression inherits.
@@ -363,6 +374,12 @@ function provenanceSuccessors({
     ? []
     : [receiver,];
 }
+
+//endregion Successor expressions
+
+//region Origin resolution
+// The exported walk, which resolves every callable parameter one expression's
+// value can be reached from, over an explicit stack rather than recursion.
 
 /**
  Resolves every callable parameter one expression's value can be reached from.
@@ -529,3 +546,4 @@ export function expressionValueOrigins({
     ? NO_SLOT_ORIGIN
     : origins;
 }
+//endregion Origin resolution

@@ -37,6 +37,10 @@ import {
 import type { EffectSlot, } from './effect-slot-identity.ts';
 import type { SlotOrigins, } from './effect-summary-model.ts';
 
+//region Registering bindings
+// Registering every identifier one name or destructuring pattern binds against
+// one slot; origins accumulate rather than replace.
+
 /**
  Registers every identifier bound by one name or destructuring pattern against one slot.
  
@@ -126,6 +130,12 @@ export function registerBindingOrigin({
   return changed;
 }
 
+//endregion Registering bindings
+
+//region Seeding parameter bindings
+// One parameter's bindings, each against the slot its own property owns. This is
+// the only place property slots enter a summary.
+
 /**
  Seeds one parameter's bindings, each against the slot its own property owns.
  
@@ -178,6 +188,11 @@ export function seedParameterSlots({
     },);
 }
 
+//endregion Seeding parameter bindings
+
+//region Expression origins
+// Every parameter origin one expression root represents.
+
 /**
  Resolves every parameter origin represented by expression root.
  
@@ -211,6 +226,12 @@ export function expressionOrigins({
     node,
   },);
 }
+
+//endregion Expression origins
+
+//region Merging a source's origins
+// Registering one binding as holding every origin its source can hold, and
+// testing whether an expression root is reachable from any parameter.
 
 /**
  Registers one binding as holding every origin its source can hold.
@@ -302,6 +323,11 @@ export function expressionHasParameterOrigin({
   },);
   return origins.size > 0;
 }
+
+//endregion Merging a source's origins
+
+//region Alias and destructuring discovery
+// Local aliases and destructured bindings, discovered to a fixed point.
 
 /**
  Discovers local aliases and destructured bindings to fixed point.
@@ -467,6 +493,12 @@ export function discoverAliasOrigins({
   }
 }
 
+//endregion Alias and destructuring discovery
+
+//region The origin index
+// The mutable origin set of one binding name, created when absent so a binding's
+// origins can grow after its own index was built.
+
 /**
  Returns the mutable origin set of one binding name, creating it when absent.
  
@@ -525,6 +557,11 @@ export function bindingOriginsFor({
   return created;
 }
 
+//endregion The origin index
+
+//region Pattern flattening
+// Every binding element a pattern introduces, at any depth.
+
 /**
  Names every binding element a pattern introduces, at any depth.
  
@@ -556,3 +593,5 @@ function bindingElementDefaults({ name, }: { readonly name: Node; },): readonly 
         ];
     },);
 }
+
+//endregion Pattern flattening

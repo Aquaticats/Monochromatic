@@ -40,6 +40,11 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region View-call shapes
+// The sentinel for a view call that leaves reachable user code unproven, one
+// argument at its own position, one observer backed by an owned implementation,
+// and the sentinel for a member that describes no argument position.
+
 /**
  Sentinel when a read-only view call leaves reachable user code unproven.
  */
@@ -69,6 +74,12 @@ type OwnedObserver = TypedArgument & {
 const OBSERVED_POSITIONS_UNAVAILABLE: unique symbol = Symbol(
   'member signature does not describe observer parameter positions',
 );
+
+//endregion View-call shapes
+
+//region Observed argument positions
+// The callback parameter positions carrying receiver-reachable state, read from
+// the member's instantiated signature.
 
 /**
  Collects callback parameter positions carrying receiver-reachable state.
@@ -178,6 +189,12 @@ function observedParameterIndexes({
         : [];
     },);
 }
+
+//endregion Observed argument positions
+
+//region Element-flow relations
+// The relations one default-library read-only view call derives, answering only
+// the reachable-user-code question.
 
 /**
  Derives element-flow relations for one default-library read-only view call.
@@ -415,6 +432,11 @@ export function readonlyViewElementApplications({
     },);
 }
 
+//endregion Element-flow relations
+
+//region Recording on a parameter
+// Recording those relations for a view call made on one parameter.
+
 /**
  Records element-flow relations for a read-only view call on a parameter.
  
@@ -523,3 +545,4 @@ export function recordReadonlyViewApplications({
   },);
   return true;
 }
+//endregion Recording on a parameter

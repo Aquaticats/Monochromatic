@@ -24,6 +24,10 @@ import {
   semanticLocation,
 } from './semantic-location.ts';
 
+//region Stale mutation block
+// The report for a mutation block that no longer matches the declaration, with
+// its verified removal suggestion.
+
 /**
  Reports stale mutation block with verified removal suggestion.
  
@@ -100,6 +104,11 @@ function reportStaleContract({
     ],
   },);
 }
+
+//endregion Stale mutation block
+
+//region Policy categories
+// The report of one policy category chosen from the shared callable evidence.
 
 /**
  Reports one policy category from shared callable evidence.
@@ -290,3 +299,4 @@ export function reportReadonlyCallableEvidence({
     }
   },);
 }
+//endregion Policy categories

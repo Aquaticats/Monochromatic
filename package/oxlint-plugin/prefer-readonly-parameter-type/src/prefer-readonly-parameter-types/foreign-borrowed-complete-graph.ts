@@ -38,6 +38,10 @@ import {
 } from './foreign-borrowed-observer-edge.ts';
 import { propagateForeignBorrowed, } from './foreign-borrowed-propagation.ts';
 
+//region Inbound graph logger and sentinel
+// The module logger, and the sentinel for a project whose signature usage
+// TypeScript cannot enumerate.
+
 /**
  Foreign inbound graph logger.
  */
@@ -49,6 +53,11 @@ const l = tagged({ tag: 'foreign-borrowed-complete-graph', },);
 const SIGNATURE_USAGE_UNAVAILABLE: unique symbol = Symbol(
   'TypeScript signature usages could not be enumerated',
 );
+
+//endregion Inbound graph logger and sentinel
+
+//region Signature usage
+// The project-wide usages of one exact callable signature.
 
 /**
  Reads project-wide usages for one exact callable signature.
@@ -77,6 +86,12 @@ function signatureUsages({
     return SIGNATURE_USAGE_UNAVAILABLE;
   }
 }
+
+//endregion Signature usage
+
+//region Unknown inbound edges
+// The ordinary unknown inbound edge that removes inferred provenance, and the
+// once-per-callee record of it.
 
 /**
  Creates ordinary unknown inbound edge that removes inferred provenance.
@@ -188,6 +203,12 @@ function addUnknownInbound({
     unknownInboundSummary(declaration,),
   );
 }
+
+//endregion Unknown inbound edges
+
+//region Guaranteed foreign parameters
+// The exported computation over exact signature inbounds, which is what TypeScript
+// can enumerate where a call-graph walk cannot.
 
 /**
  Computes guaranteed foreign parameters through exact signature inbounds.
@@ -451,3 +472,4 @@ export function completeForeignBorrowedGraph({
   }
   return propagateForeignBorrowed(summaries,);
 }
+//endregion Guaranteed foreign parameters

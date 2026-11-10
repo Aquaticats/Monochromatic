@@ -15,6 +15,10 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import {
+  wait,
+  withTimeout,
+} from '@monochromatic-dev/async-time-core/ts';
 
 import {
   flushLogs,
@@ -26,6 +30,7 @@ import {
 import {
   capturedStandardError,
   installFakeCommand,
+  reportedUntil,
 } from './fake-command-fixture.ts';
 
 /**
@@ -42,6 +47,119 @@ const FAILURE_EXIT_CODE = 3;
  Text the stand-in launcher writes to stderr when it fails.
  */
 const FAILURE_TEXT = 'kstart: no such desktop file';
+
+/**
+ Characters a buffered one-shot runner holds before it ends the child, which is
+ Node's documented default `maxBuffer` for `execFile`.
+ */
+const BUFFER_LIMIT_CHARACTERS = 1_024 * 1_024;
+
+/**
+ Output the chatty launcher writes, comfortably over that bound.
+ */
+const CHATTY_OUTPUT_CHARACTERS = 2 * BUFFER_LIMIT_CHARACTERS;
+
+/**
+ Characters one write of the chatty launcher carries.
+ */
+const CHATTY_CHUNK_CHARACTERS = 64 * 1_024;
+
+/**
+ Pause between those writes in milliseconds, so the writes span several
+ event-loop turns and an output bound the launcher's parent enforces gets the
+ chance to act on a child that is still writing.
+ */
+const CHATTY_CHUNK_PAUSE_MILLISECONDS = 10;
+
+/**
+ How long the held-open launcher runs before it exits, in milliseconds.
+ */
+const HELD_OPEN_MILLISECONDS = 2_000;
+
+/**
+ Deadline for the chatty launcher to record that it reached its last write.
+ */
+const SURVIVAL_DEADLINE_MILLISECONDS = 5_000;
+
+/**
+ Pause between reads of what the stand-in recorded, in milliseconds.
+ */
+const POLL_MILLISECONDS = 20;
+
+/**
+ Longest a case waits for the log line a launched program's failure produces.
+ */
+const REPORT_DEADLINE_MILLISECONDS = 5_000;
+
+/**
+ Shell lines a stand-in runs to write more than a buffered runner holds, in
+ chunks with a pause between them, and then record that it reached the end.
+ */
+const CHATTY_LAUNCHER_LINES: readonly string[] = [
+  'written=0',
+  `while [ "$written" -lt ${String(CHATTY_OUTPUT_CHARACTERS)} ]; do`,
+  `  dd if=/dev/zero bs=${String(CHATTY_CHUNK_CHARACTERS)} count=1 2>/dev/null`,
+  `  written=$((written + ${String(CHATTY_CHUNK_CHARACTERS)}))`,
+  `  sleep ${String(CHATTY_CHUNK_PAUSE_MILLISECONDS / 1_000)}`,
+  'done',
+  `printf 'survived\\n' >> "$KEY_HELPER_FAKE_ARGUMENTS"`,
+];
+
+/**
+ Line the chatty launcher appends once every write succeeded.
+ */
+const SURVIVAL_LINE = 'survived';
+
+/**
+ Read the stand-in's recorded argument vector until it holds a given line, or
+ the deadline passes.
+ 
+ @param readArguments - Read of what the stand-in recorded so far
+ 
+ @param expected - Line the recording must hold
+ 
+ @param deadlineMilliseconds - Longest the case waits for it
+ 
+ @returns The recorded vector, with or without the expected line
+ 
+ @example
+ ```ts
+ await recordedUntil({ readArguments: fake.readArguments, expected: 'survived', deadlineMilliseconds: 5000 });
+ ```
+ */
+async function recordedUntil({
+  readArguments,
+  expected,
+  deadlineMilliseconds,
+}: {
+  readonly readArguments: () => Promise<readonly string[]>;
+  readonly expected: string;
+  readonly deadlineMilliseconds: number;
+}): Promise<readonly string[]> {
+  return await withTimeout({
+    promise: (async function pollUntilRecorded(): Promise<readonly string[]> {
+      /**
+       Longest the poll keeps reading before the deadline above ends it.
+       */
+      const attempts = Math.ceil(deadlineMilliseconds / POLL_MILLISECONDS);
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        /**
+         What the stand-in has recorded so far.
+         */
+        // oxlint-disable-next-line eslint/no-await-in-loop -- each read is of the recording after the writes before it, so a later read supersedes an earlier one; see doc/lint/sequential-awaits.md
+        const recorded = await readArguments();
+        if (recorded.includes(expected)) {
+          return recorded;
+        }
+        // oxlint-disable-next-line eslint/no-await-in-loop -- the interval is the design: the recording is read again after it, never concurrently; see doc/lint/sequential-awaits.md
+        await wait(POLL_MILLISECONDS,);
+      }
+      return await readArguments();
+    })(),
+    ms: deadlineMilliseconds,
+    label: `the launcher recording '${expected}'`,
+  },);
+}
 
 await describe({
   name: '',
@@ -128,12 +246,14 @@ await describe({
             /** Recorder over the daemon's log destination. */
             const standardError = ctx.sinon.spy(process.stderr, 'write');
             await launchNewInstance({ desktopFileName: '', resourceClass: SOME_APP, });
-            await flushLogs();
             /** Log text the failed launch produced. */
-            const reported = capturedStandardError(standardError)
-              .filter(function namesLaunchFailure(line: string): boolean {
+            const reported = await reportedUntil({
+              spy: standardError,
+              matches: function namesLaunchFailure(line: string): boolean {
                 return line.includes(`exited with code ${String(FAILURE_EXIT_CODE)}`);
-              });
+              },
+              deadlineMilliseconds: REPORT_DEADLINE_MILLISECONDS,
+            });
             expect(reported).toHaveLength(1);
             expect(reported[0]).toContain('kstart');
             expect(reported[0]).toContain(FAILURE_TEXT);
@@ -151,6 +271,9 @@ await describe({
             /** Recorder over the daemon's log destination. */
             const standardError = ctx.sinon.spy(process.stderr, 'write');
             await launchNewInstance({ desktopFileName: '', resourceClass: SOME_APP, });
+            // Waiting the same deadline the failing case waits, so silence is a
+            // fact about the launch rather than about how fast the case read.
+            await wait(REPORT_DEADLINE_MILLISECONDS,);
             await flushLogs();
             /** Log lines naming this launcher's failure. */
             const reported = capturedStandardError(standardError)
@@ -158,6 +281,46 @@ await describe({
                 return line.includes('launch failed');
               });
             expect(reported).toEqual([]);
+          },
+        }),
+        it({
+          name: 'returns before a launcher that keeps running has exited',
+          fn: async () => {
+            using _held = await installFakeCommand({
+              name: 'kstart',
+              exitCode: 0,
+              standardError: '',
+              extraLines: [`sleep ${String(HELD_OPEN_MILLISECONDS / 1_000)}`,],
+            });
+            /**
+             When the launch was asked for, so the case can tell a launcher
+             left running from one waited for.
+             */
+            const startedAt = performance.now();
+            await launchNewInstance({ desktopFileName: '', resourceClass: SOME_APP, });
+            expect(performance.now() - startedAt).toBeLessThan(HELD_OPEN_MILLISECONDS / 2);
+          },
+        }),
+        it({
+          name: 'keeps a launcher alive that writes more than a buffered runner holds',
+          fn: async () => {
+            using fake = await installFakeCommand({
+              name: 'kstart',
+              exitCode: 0,
+              standardError: '',
+              extraLines: CHATTY_LAUNCHER_LINES,
+            });
+            await launchNewInstance({ desktopFileName: '', resourceClass: SOME_APP, });
+            /**
+             What the launcher recorded: its arguments, then the line it appends
+             only when every write of its output succeeded.
+             */
+            const recorded = await recordedUntil({
+              readArguments: fake.readArguments,
+              expected: SURVIVAL_LINE,
+              deadlineMilliseconds: SURVIVAL_DEADLINE_MILLISECONDS,
+            });
+            expect(recorded).toEqual([SOME_APP, SURVIVAL_LINE,]);
           },
         }),
       ],

@@ -60,6 +60,12 @@ mod bucketpolicy;
 /// The frontier-zoom probe measuring bins beside the loudest heard so far.
 mod probe;
 
+/// The one owner of the probe's bin selection:
+///  bones seeds,
+///  the even pass,
+///  and the neighbour climb.
+mod probe_selection;
+
 /// FLAC frame-size profiling without decoding:
 ///  the lossless bones channel.
 mod bones;
@@ -116,6 +122,12 @@ pub use crate::inputs::{probe_inputs_from_bytes, probe_inputs_from_file};
 
 /// Re-exports the per-provenance probe dials and the provenance signals.
 pub use crate::bucketpolicy::{BucketProbe, BucketTable, TrackProvenance};
+
+/// Re-exports the one owner of the probe's bin selection,
+///  the measurement contract it asks,
+///  and what one selection measured;
+///  the bench sidecar replays its corpus through them.
+pub use crate::probe_selection::{ProbeBins, ProbeGrid, ProbeSelection, select_probe_bins};
 
 /// Re-exports the lossless bones profiling helpers and their error.
 pub use crate::bones::{BonesError, bones_hot_bins, flac_bones_profile};

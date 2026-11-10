@@ -49,3 +49,20 @@ The same pattern,
 with the same reason,
 is recorded for the repository move tools,
 in `package/repository-move/cli/doc/lint/sequential-awaits.md`.
+
+## Where the wait is for something outside the process
+
+Two test helpers read a fact that another process produces after the call that
+started it has returned:
+`src/fake-command-fixture.ts` `reportedUntil` reads the daemon's log until a
+failure line appears,
+and `src/launch.unit.test.ts` `recordedUntil` reads what a stand-in launcher
+recorded until it appends the line it writes only after its last successful
+output write.
+
+Each read is of the whole fact so far,
+so a later read supersedes an earlier one and reading them together would report
+the state at one instant for every attempt instead of waiting for the change.
+The interval between reads is the design:
+both waits are bounded by one deadline,
+and reading again sooner would only repeat an unchanged read.

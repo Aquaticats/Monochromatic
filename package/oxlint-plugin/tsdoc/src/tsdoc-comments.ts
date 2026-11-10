@@ -20,6 +20,10 @@ import { collectStructuralMessages, } from './tsdoc-structural-messages.ts';
 
 export type { TsdocParseResult, } from './tsdoc-doc-model.ts';
 
+//region Cached comment facts
+// The per-comment parse result, and the bounded text-keyed cache that lets
+// sibling rules share one scan of the same body.
+
 /**
  Parsed comment facts cached independently from declaration ownership.
  */
@@ -43,6 +47,12 @@ const MAX_CACHED_COMMENT_TEXTS = 4_096;
  Bounded content cache shared across rule contexts whose host comment wrappers are not identity-stable.
  */
 const PARSED_COMMENT_FACTS_BY_TEXT = new Map<string, ParsedCommentFacts>();
+
+//endregion Cached comment facts
+
+//region Absence and shape predicates
+// The sentinel standing for "this node has no TSDoc comment", and the check
+// for whether a block comment is TSDoc at all.
 
 /**
  Absence marker meaning "node has no TSDoc comment"; never a real comment
@@ -80,6 +90,12 @@ export function isTsdocBlock(comment: ReadonlyDeep<Comment>,): boolean {
     && comment.value
       .startsWith('*',);
 }
+
+//endregion Absence and shape predicates
+
+//region Comment lookup
+// The node types whose comment attaches to a parent scope, and the lookup that
+// finds a node's comment with that fallback.
 
 /**
  Node types where `getCommentsBefore` may fail to find TSDoc because
@@ -214,6 +230,12 @@ export function findTsdocComment({
   return best;
 }
 
+//endregion Comment lookup
+
+//region Parsing for rules
+// Scanning one comment body once, and resolving the parsed facts for a
+// declaration node.
+
 /**
  Scans one TSDoc body once and reuses facts across sibling plugin rules.
  
@@ -302,3 +324,5 @@ export function parseTsdocForNode({
     ...parseTsdocComment(comment,),
   };
 }
+
+//endregion Parsing for rules

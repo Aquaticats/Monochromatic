@@ -18,6 +18,10 @@ import {
   inputMethodUsageSubject,
 } from './input-diagnostic-description.ts';
 
+//region Uncertainty facts
+// The sorted uncertainty provenance of one parameter with the display text a
+// report can address.
+
 /**
  Sorted uncertainty provenance and display text for one parameter.
  
@@ -44,6 +48,11 @@ export type UncertaintyBoundaries = {
   readonly reportable: boolean;
   readonly retained: boolean;
 };
+
+//endregion Uncertainty facts
+
+//region Reading provenance
+// The stable provenance recorded against one parameter.
 
 /**
  Reads stable uncertainty provenance for one parameter.
@@ -96,6 +105,12 @@ export function uncertaintyBoundaries({
   };
 }
 
+//endregion Reading provenance
+
+//region Boundary wording
+// The member name read out of one recorded boundary, whose authored text is a
+// method call plus a location.
+
 /**
  Reads the member name out of one recorded boundary.
  
@@ -122,6 +137,11 @@ function collectionMemberOf({ boundary, }: { readonly boundary: string; },): str
     .at(-1,)
     ?? '';
 }
+
+//endregion Boundary wording
+
+//region The report
+// The unresolved external effect report for one input.
 
 /**
  Builds unresolved external effect report for one input.
@@ -224,3 +244,4 @@ export function opaqueEffectReport({
     },
   };
 }
+//endregion The report

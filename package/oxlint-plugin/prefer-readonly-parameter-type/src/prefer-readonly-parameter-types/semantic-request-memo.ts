@@ -19,6 +19,10 @@ import type { API, } from 'typescript/sync';
 
 import { SemanticBridgeError, } from './semantic-bridge-error.ts';
 
+//region Request vocabulary
+// The package logger, the release request, the sentinel for a snapshot-less
+// request, and the names whose answers are a pure function of the request.
+
 /**
  Package logger for request memo lifecycle.
  */
@@ -100,6 +104,12 @@ export const MEMOIZED_SNAPSHOT_REQUESTS: ReadonlySet<string> = new Set<string>([
   'isArrayType',
 ],);
 
+//endregion Request vocabulary
+
+//region Memo shapes
+// How many responses one snapshot keeps, the counters it reports, and the two
+// surfaces it wraps and hands back.
+
 /**
  Most responses kept for one snapshot before the oldest is dropped.
 
@@ -156,6 +166,11 @@ export type SnapshotRequestMemo = {
   readonly stats: () => SnapshotRequestMemoStats;
 };
 
+//endregion Memo shapes
+
+//region Reading the request
+// The snapshot a request is addressed to.
+
 /**
  Reads the snapshot a request is addressed to.
 
@@ -183,6 +198,11 @@ function snapshotOf(params: unknown,): number | string | typeof NO_SNAPSHOT {
     return snapshot;
   return NO_SNAPSHOT;
 }
+
+//endregion Reading the request
+
+//region The wrapper
+// A client wrapped so repeated snapshot requests are answered from memory.
 
 /**
  Wraps a client so repeated snapshot requests are answered from memory.
@@ -369,6 +389,12 @@ export function memoizeSnapshotRequests({
   };
 }
 
+//endregion The wrapper
+
+//region Installing
+// Whether a client value exposes the request operation, and the installation on
+// a TypeScript 7 synchronous API.
+
 /**
  Tests whether an unstable client value exposes the request operation the memo replaces.
 
@@ -440,3 +466,4 @@ export function memoizeApiSnapshotRequests({
       maximumResponses,
     },);
 }
+//endregion Installing

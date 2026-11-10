@@ -15,10 +15,19 @@ import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Maintenance logger
+// The module logger for maintenance decisions.
+
 /**
  Cache maintenance logger.
  */
 const l = tagged({ tag: 'effect-summary-cache-maintenance', },);
+
+//endregion Maintenance logger
+
+//region Retained-size and age bounds
+// The unit conversions and the bounds derived from them: bytes retained per
+// dependency root, entry age, and the write interval between full scans.
 
 /**
  Bytes in one kibibyte.
@@ -86,6 +95,12 @@ const MAX_CACHE_ENTRY_AGE_MS = CACHE_RETENTION_DAYS
   * SECONDS_PER_MINUTE
   * MILLISECONDS_PER_SECOND;
 
+//endregion Retained-size and age bounds
+
+//region Maintenance state
+// The write count per cache root since process start, and the immutable cache
+// file record eviction reads.
+
 /**
  Write counts since process start by cache root.
  */
@@ -99,6 +114,12 @@ type CacheFile = {
   readonly bytes: number;
   readonly modifiedAt: number;
 };
+
+//endregion Maintenance state
+
+//region Reading and evicting
+// The cache files under one root, and the removal of expired or overflowing
+// entries without touching the current write.
 
 /**
  Reads immutable cache file metadata under root.
@@ -218,6 +239,11 @@ function evictCacheFiles({
   },);
 }
 
+//endregion Reading and evicting
+
+//region The maintenance entry point
+// The write-counted entry that bounds the persistent entries under one root.
+
 /**
  Periodically bounds persistent entries under dependency root.
  
@@ -257,3 +283,4 @@ export function maintainPersistentEffectCache({
     l.debug(`cache maintenance skipped for ${root}: ${String(error,)}`,);
   }
 }
+//endregion The maintenance entry point

@@ -21,6 +21,10 @@ import {
 import { TYPED_ARRAY_NAMES, } from '../spread-evidence/typed-array-names.ts';
 import { isUndeclaredReference, } from '../spread-evidence/undeclared-reference.ts';
 
+//region Consumer vocabulary
+// The sentinel for an array literal whose parent accepts no arbitrary iterable,
+// and the constructors and static methods whose single argument may be one.
+
 /**
  Sentinel for an array literal whose parent does not accept an arbitrary iterable in its place.
  */
@@ -61,6 +65,12 @@ const ITERABLE_STATIC_METHODS: Readonly<Record<string, readonly string[]>> = {
       },),
   ),
 };
+
+//endregion Consumer vocabulary
+
+//region Naming the consumer
+// Matching the array literal's parent against that vocabulary, so a diagnostic
+// can say which consumer accepts an iterable.
 
 /**
  Names the consumer that accepts an iterable when `array` is its sole argument.
@@ -128,6 +138,12 @@ function iterableConsumerName(
     return NOT_ITERABLE_CONSUMER;
   return (ITERABLE_STATIC_METHODS[object.name] ?? []).includes(method,) ? `${object.name}.${method}` : NOT_ITERABLE_CONSUMER;
 }
+
+//endregion Naming the consumer
+
+//region Reporting
+// The exported report, which fixes the spread away except where a loop needs
+// the snapshot the spread takes.
 
 /**
  Reports `[...x]` passed where any iterable is accepted.
@@ -213,3 +229,5 @@ export function reportIterableConsumer(
   },);
   return true;
 }
+
+//endregion Reporting

@@ -32,6 +32,11 @@ import {
 } from 'typescript/ast/is';
 import type { Project, } from 'typescript/sync';
 
+//region Passthrough operators
+// The operators whose value may be either operand's, exported so the holder
+// walk descends by the same policy, and those whose value is the right
+// operand's alone.
+
 /**
  Operators whose value may be either operand's.
  
@@ -54,6 +59,12 @@ export const RIGHT_OPERAND_PASSES: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.EqualsToken,
   SyntaxKind.CommaToken,
 ],);
+
+//endregion Passthrough operators
+
+//region Ascending to the consumer
+// Whether a node's parent yields this node's own value, and the ascent to the
+// expression that actually consumes it.
 
 /**
  Tests whether a node's parent yields this node's own value.
@@ -153,6 +164,12 @@ export function valueConsumer({ node, }: { readonly node: Node; },): Node {
   return cursor.current;
 }
 
+//endregion Ascending to the consumer
+
+//region Walk steps and containers
+// Whether a walk step produced a node at all, and whether a node sits inside a
+// container node.
+
 /**
  Tests whether a walk step produced a node at all.
  
@@ -231,6 +248,12 @@ function nodeWithin({
   }
   return true;
 }
+
+//endregion Walk steps and containers
+
+//region Bindings inside the callable
+// Whether a declaration is this callable's own parameter, and whether an
+// assignment target is a binding declared inside it.
 
 /**
  Tests whether a declaration is a parameter of the callable owning this body.
@@ -337,6 +360,11 @@ export function targetIsCallableLocal({
     },);
 }
 
+//endregion Bindings inside the callable
+
+//region Escaping stores
+// Whether any assignment on a value's outward path stores it beyond tracking.
+
 /**
  Tests whether any assignment on a value's outward path stores it beyond tracking.
  
@@ -400,3 +428,4 @@ export function assignmentStoreEscapes({
   }
   return false;
 }
+//endregion Escaping stores

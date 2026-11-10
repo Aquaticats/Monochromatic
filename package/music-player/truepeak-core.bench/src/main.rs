@@ -24,6 +24,8 @@ mod proportional;
 mod search;
 /// The bucket-first composite with the FLAC bones-guided probe.
 mod buckets;
+/// The bench's one bridge to the production probe selection.
+mod probe_bins;
 /// The quarter-measure answer's probe:
 ///  even pass one plus frontier zoom.
 mod zoom;

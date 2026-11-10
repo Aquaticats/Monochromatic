@@ -17,6 +17,10 @@ import type { Project, } from 'typescript/sync';
 
 import { declaredConst, } from './effect-binding-initializer.ts';
 
+//region Walk bound and sentinel
+// The pass count that stops the alias walk as a backstop, and the sentinel for
+// a name that declares no symbol the walk can identify.
+
 /**
  Passes the alias walk takes before it stops, a backstop rather than the terminator.
  
@@ -31,6 +35,12 @@ const HOLDER_PASS_LIMIT_MARGIN = 1;
 const NO_BINDING_SYMBOL: unique symbol = Symbol(
   'name declares no resolvable binding symbol',
 );
+
+//endregion Walk bound and sentinel
+
+//region Binding symbols
+// The symbol id a binding name declares, and whether a name already stands for a
+// recorded container binding.
 
 /**
  Reads the symbol id a binding name declares.
@@ -101,6 +111,12 @@ function holderAlready({
     return false;
   return holders.has(symbolId,);
 }
+
+//endregion Binding symbols
+
+//region Container bindings
+// Local bindings whose value is a container this callable constructed, kept
+// apart from the origin map on purpose.
 
 /**
  Collects local bindings whose value is a container this callable constructed.
@@ -235,3 +251,5 @@ export function receiverHoldsConstructedContainer({
     return false;
   return containerLiteralHolders.has(symbolId,);
 }
+
+//endregion Container bindings

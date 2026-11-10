@@ -19,6 +19,10 @@ import {
 import { unwrapExpression, } from '../no-immediate-mutation.syntax.ts';
 import { TYPED_ARRAY_NAMES, } from '../spread-evidence/typed-array-names.ts';
 
+//region Hint shapes
+// What syntax alone proves about a spread argument, the global-identifier
+// predicate the classifier is given, and the recursive classifier signature.
+
 /**
  What syntax alone proves about an expression.
 
@@ -64,6 +68,13 @@ type ValueHintClassifier = (
   },
 ) => SpreadValueHint;
 
+//endregion Hint shapes
+
+//region Classifier vocabulary
+// The method names whose fresh result syntax cannot distinguish from a copy,
+// the hint for an unclassifiable expression, and the sentinel for a call with
+// no unshadowed global receiver.
+
 /**
  Methods returning a fresh value of the receiver's own kind (array, string, typed
  array, or iterator), so syntax cannot tell a useless copy from a conversion.
@@ -93,6 +104,11 @@ const UNKNOWN: SpreadValueHint = { kind: 'unknown', };
  Sentinel for a member call whose receiver is not an unshadowed global identifier.
  */
 const NO_GLOBAL_RECEIVER: unique symbol = Symbol('method call receiver is not an unshadowed global identifier',);
+
+//endregion Classifier vocabulary
+
+//region Global receiver
+// Finding the unshadowed global object a static member call is made on.
 
 /**
  Returns the unshadowed global object name a static member call is made on.
@@ -129,6 +145,12 @@ function globalReceiverName(
     return NO_GLOBAL_RECEIVER;
   return object.name;
 }
+
+//endregion Global receiver
+
+//region Per-expression classification
+// One classifier per expression form: global factories, `new X(...)`, and the
+// conditional that keeps only what both branches agree on.
 
 /**
  Classifies calls on global constructors such as `Array.from(x)`.
@@ -273,6 +295,12 @@ function combineBranchHints(
     return left;
   return UNKNOWN;
 }
+
+//endregion Per-expression classification
+
+//region Calls and entry point
+// Calls inherit a certain receiver kind or fall back to ambiguous, and the
+// exported classifier ties every form together.
 
 /**
  Classifies a call: global factories are certain, fresh-value methods inherit a
@@ -460,3 +488,5 @@ export function valueHint(
     },);
   return UNKNOWN;
 }
+
+//endregion Calls and entry point

@@ -12,6 +12,10 @@ import {
 } from './effect-module-dependencies.ts';
 import type { EffectDependencyClosure, } from './effect-summary-persistent-cache.ts';
 
+//region Closure shapes
+// The recorded closure edges for one source, shared by both cache layers, and
+// the resolver that answers them.
+
 /**
  Recorded closure edges for one source, shared by cache layers.
  */
@@ -34,6 +38,12 @@ export type EffectDependencyClosureResolver = {
   }) => void;
   readonly closureFor: (fileName: string) => EffectDependencyClosure;
 };
+
+//endregion Closure shapes
+
+//region Building the resolver
+// One resolver per index build, seeded with validated persistent entries and
+// resolving fresh edges through them.
 
 /**
  Builds closure resolver for one effect-summary index build.
@@ -240,3 +250,5 @@ export function createDependencyClosureResolver({
     },
   };
 }
+
+//endregion Building the resolver
