@@ -42,7 +42,8 @@ is false.
 ## Keys
 
 A key is any non-empty string.
- An empty key is refused: `set`,
+ An empty key is refused:
+ `set`,
  `get`,
  and `delete` throw
 `EmptyKeyError` before any backend is read or written.

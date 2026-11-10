@@ -655,7 +655,8 @@ the floor when no behavior change is wanted,
 
 #### Empty keys are rejected (2026-11-10T11:21:15-05:00)
 
-The owner chose the first-ranked option: "Reject empty keys (Recommended)".
+The owner chose the first-ranked option:
+"Reject empty keys (Recommended)".
 
 Both variants now refuse an empty key in `set`,
  `get`,
@@ -666,11 +667,11 @@ Both variants now refuse an empty key in `set`,
  `delete` joins the two calls the option named because one
 rule for every key-accepting call is cheaper to hold than a rule covering writes and
 reads but not removals.
- No consumer in the repository passes an empty key, so the
-stricter rule breaks nothing shipped.
+ No consumer in the repository passes an empty key,
+ so the stricter rule breaks nothing shipped.
 
-The async store's content-addressing feature went with the rejection: `set` hashes
-nothing,
+The async store's content-addressing feature went with the rejection:
+ `set` hashes nothing,
  `src/hash.ts` is deleted,
  and both variants store the caller's key verbatim.
 `store-pair-parity.unit.test.ts` asserts the two variants refuse the same three
