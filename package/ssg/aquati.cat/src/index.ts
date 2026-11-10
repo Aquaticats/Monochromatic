@@ -55,7 +55,10 @@ export {
 
  @internal
  */
-export { stripBlockComments, } from './build/project-source-scanning.ts';
+export {
+  stripBlockComments,
+  stripLineComments,
+} from './build/project-source-scanning.ts';
 
 /**
  Component styles and markup the suites assert on.

@@ -4,10 +4,10 @@
  
  The icon charset pass needs the `icon('NAME')` call sites of every source file
  with the comments taken out. This module does that with one character walk per
- step, replacing the three regular expressions the pass used: a block comment
- stripper, a line comment stripper, and the call-site matcher. Each walk resumes
- where the previous match ended, so the whole pass stays linear in the length of
- the text and no backtracking state has to be reasoned about.
+ step rather than a regular expression: a block comment stripper, a line comment
+ stripper, and the call-site matcher. Each walk resumes where the previous match
+ ended, so the whole pass stays linear in the length of the text and no
+ backtracking state has to be reasoned about.
  
  The two strippers keep the order the pass depends on: block comments are
  removed before line comments, because a line comment marker inside a block
@@ -16,7 +16,7 @@
  @module
  */
 
-//region Shared character tests
+//region Delimiters
 
 /**
  Opening delimiter of a block comment.
@@ -28,7 +28,12 @@ const BLOCK_COMMENT_OPENING = '/*';
  */
 const BLOCK_COMMENT_CLOSING = '*/';
 
-//endregion Shared character tests
+/**
+ Opening delimiter of a line comment.
+ */
+const LINE_COMMENT_OPENING = '//';
+
+//endregion Delimiters
 
 //region Block comment removal
 
@@ -89,3 +94,66 @@ export function stripBlockComments(text: string,): string {
 }
 
 //endregion Block comment removal
+
+//region Line comment removal
+
+/**
+ Removes every `//` line comment from source text.
+ 
+ A comment runs to the newline that ends its line, and the newline itself
+ stays: the text keeps its line structure, so a position reported from the
+ stripped text still names the same line. A `//` with no newline after it runs
+ to the end of the text, and markers inside a block comment are ordinary text
+ here, which is why {@link stripBlockComments} runs first.
+ 
+ @param text - source text to strip
+ 
+ @returns the text with every line comment removed
+ 
+ @example
+ ```ts
+ // A commented-out call no longer reaches the icon charset.
+ const stripped = stripLineComments(sourceText,);
+ ```
+ */
+export function stripLineComments(text: string,): string {
+  /**
+   Text runs between comments, joined once at the end so the walk never rebuilds
+   the result character by character.
+   */
+  const kept: string[] = [];
+  for (let cursor = 0;;) {
+    /**
+     Next comment marker at or after the cursor; absent when there is no comment left.
+     */
+    const opening = text.indexOf(
+      LINE_COMMENT_OPENING,
+      cursor,
+    );
+    if (opening === (-1)) {
+      kept.push(text.slice(cursor,),);
+      return kept.join('',);
+    }
+    /**
+     Character before the comment, kept because the marker starts after it.
+     */
+    kept.push(
+      text.slice(
+        cursor,
+        opening,
+      ),
+    );
+    /**
+     Newline that ends the comment; absent when the comment runs to the end of the text.
+     */
+    const newline = text.indexOf(
+      '\n',
+      opening + LINE_COMMENT_OPENING.length,
+    );
+    if (newline === (-1))
+      return kept.join('',);
+    cursor = newline;
+  }
+}
+
+//endregion Line comment removal

@@ -1,11 +1,9 @@
 /**
  Tests for the linear scanners that read icon call sites out of project source.
  
- The expected values were produced by the three regular expressions these
- scanners replaced, run over the same inputs before those patterns were deleted:
- `\/\*[\s\S]*?\*\/` with the `gu` flags for block comments, and one entry per
- case naming the input it came from. A case whose expectation a reader cannot
- derive by hand is wrong, not the scanner.
+ The expected values were produced by the regular expressions each scanner
+ replaced, run over the same inputs before those patterns were deleted. A case
+ whose expectation a reader cannot derive by hand is wrong, not the scanner.
  
  @module
  */
@@ -16,7 +14,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { stripBlockComments, } from '../../dist/final/node/index.mjs';
+import { stripBlockComments, stripLineComments, } from '../../dist/final/node/index.mjs';
 
 /**
  Block comment inputs, each paired with what the deleted `\/\*[\s\S]*?\*\/`
@@ -79,6 +77,73 @@ const BLOCK_COMMENT_CASES = [
   },
 ] as const;
 
+/**
+ Line comment inputs, each paired with what the deleted `\/\/[^\n]*` pattern
+ left of them.
+ */
+const LINE_COMMENT_CASES = [
+  {
+    name: 'a comment after a call',
+    text: "icon('a'); // note\nicon('b');",
+    expected: "icon('a'); \nicon('b');",
+    reason: 'the comment goes and the newline that ended it stays',
+  },
+  {
+    name: 'a comment with nothing before it',
+    text: '//only',
+    expected: '',
+    reason: 'a comment that starts the text and no newline after it',
+  },
+  {
+    name: 'a comment at the end of a line',
+    text: 'a//b',
+    expected: 'a',
+    reason: 'no newline, so the comment runs to the end of the text',
+  },
+  {
+    name: 'comments on several lines',
+    text: 'a//b\nc//d\ne',
+    expected: 'a\nc\ne',
+    reason: 'each search resumes at the newline the previous comment stopped at',
+  },
+  {
+    name: 'three markers in a row',
+    text: 'a///b',
+    expected: 'a',
+    reason: 'the character class matched the third slash too',
+  },
+  {
+    name: 'a trailing newline',
+    text: 'a//b\n',
+    expected: 'a\n',
+    reason: 'the newline is outside the comment',
+  },
+  {
+    name: 'block comment delimiters',
+    text: '/* a */',
+    expected: '/* a */',
+    reason: 'line comment markers are the only ones this stripper knows',
+  },
+  {
+    name: 'a carriage return before the newline',
+    text: 'a//b\r\nc',
+    expected: 'a\nc',
+    reason: 'the character class excluded only the newline, so the carriage return was consumed with the comment',
+  },
+  {
+    name: 'no markers',
+    text: "icon('a');",
+    expected: "icon('a');",
+    reason: 'nothing to remove',
+  },
+  {
+    name: 'empty text',
+    text: '',
+    expected: '',
+    reason: 'no marker to find',
+  },
+] as const;
+
 await describe({
   name: '',
   children: [
@@ -89,6 +154,17 @@ await describe({
           name: `strips ${name} (${reason})`,
           fn: async function stripsBlockComment(): Promise<void> {
             expect(stripBlockComments(text,),).toBe(expected,);
+          },
+        },);
+      },),
+    },),
+    describe({
+      name: stripLineComments.name,
+      children: LINE_COMMENT_CASES.map(function lineCommentCase({ name, text, expected, reason, },) {
+        return it({
+          name: `strips ${name} (${reason})`,
+          fn: async function stripsLineComment(): Promise<void> {
+            expect(stripLineComments(text,),).toBe(expected,);
           },
         },);
       },),
