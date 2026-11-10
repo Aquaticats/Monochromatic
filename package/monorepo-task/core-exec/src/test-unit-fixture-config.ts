@@ -52,6 +52,8 @@ ${variableSection('is_inactive_test',)}
 ${variableSection('run_test_files',)}
 ${variableSection('unit_test_exempt_packages',)}
 ${templateSection('test:unit',)}
+[tasks."test:unit"]
+extends = "test:unit"
 `;
 
 //endregion Configuration extraction

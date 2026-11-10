@@ -15,7 +15,10 @@ import { join, } from 'node:path';
 import { text, } from 'node:stream/consumers';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
-import { fixtureEnvironment, resolveMise, } from './build-and-test-fixture.ts';
+import {
+  fixtureEnvironment,
+  resolveMise,
+} from './build-and-test-fixture.ts';
 import { testUnitFixtureConfig, } from './test-unit-fixture-config.ts';
 
 /**
@@ -28,7 +31,8 @@ const CHILD_TIMEOUT_MS = 20_000;
  */
 export type TestUnitFixture = {
   /**
-   Package path relative to the fixture root, which is the key the shared template matches exemptions on.
+   Package path relative to the fixture root, which is the key the shared template matches exemptions on; an empty
+   path runs the root aggregate over the whole fixture repository.
    */
   readonly packagePath: string;
   /**
@@ -91,12 +95,16 @@ export async function runTestUnitFixture({
    */
   const mise = await resolveMise();
   /**
-   The package the template judges, at the path its exemption list is keyed on.
+   The config root the template judges, at the path its exemption list is keyed on.
    */
-  const packageRoot = join(
+  const configRoot = packagePath === '' ? root : join(
     root,
     packagePath,
   );
+  /**
+   Root aggregate tasks keep their own name, and package tasks take the monorepo form.
+   */
+  const taskName = packagePath === '' ? '//:test:unit' : `//${packagePath}:test:unit`;
   /**
    Trace file the fixture test files append to, created before the run so an empty trace is readable.
    */
@@ -105,7 +113,7 @@ export async function runTestUnitFixture({
     'events',
   );
   await mkdir(
-    packageRoot,
+    configRoot,
     { recursive: true, },
   );
   await writeFile(
@@ -120,13 +128,13 @@ export async function runTestUnitFixture({
       ),
       testUnitFixtureConfig,
     ),
-    writeFile(
+    ...(packagePath === '' ? [] : [writeFile(
       join(
-        packageRoot,
+        configRoot,
         'mise.toml',
       ),
       '[tasks."test:unit"]\nextends = "test:unit"\n',
-    ),
+    ),]),
     ...unitTestFiles.map(async function writeTestFile(name,): Promise<void> {
       /**
        JSON encoding preserves the destination JavaScript string grammar.
@@ -136,7 +144,7 @@ await appendFile(process.env.FIXTURE_EVENTS, ${JSON.stringify(`${name}\n`,)});
 `;
       await writeFile(
         join(
-          packageRoot,
+          configRoot,
           name,
         ),
         script,
@@ -150,7 +158,7 @@ await appendFile(process.env.FIXTURE_EVENTS, ${JSON.stringify(`${name}\n`,)});
     mise,
     [
       'run',
-      `//${packagePath}:test:unit`,
+      taskName,
     ],
     {
       cwd: root,

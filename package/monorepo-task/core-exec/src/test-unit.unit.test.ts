@@ -52,6 +52,16 @@ await describe({
       },
     },),
     it({
+      name: 'fails the root aggregate when the whole repository holds no unit test file',
+      fn: async (): Promise<void> => {
+        /** The root run is the same discovery path, and its diagnostic names the monorepo root rather than a package. */
+        const result = await runTestUnitFixture({ packagePath: '', unitTestFiles: [], },);
+        expect(result.exitCode,).toBe(1,);
+        expect(result.output,).toContain('no *.unit.test.ts file under the monorepo root',);
+        expect(result.events,).toEqual([],);
+      },
+    },),
+    it({
       name: 'passes a package whose unit test file runs',
       fn: async (): Promise<void> => {
         /** Positive control: the same fixture reports success and the file's own trace when a file exists. */
@@ -69,7 +79,7 @@ await describe({
         /** An exemption is a loud skip, never a silent one. */
         const result = await runTestUnitFixture({ packagePath: LISTED_PACKAGE, unitTestFiles: [], },);
         expect(result.exitCode,).toBe(0,);
-        expect(result.output,).toContain('exempted',);
+        expect(result.output,).toContain('is exempt in',);
         expect(result.output,).toContain(LISTED_PACKAGE,);
         expect(result.events,).toEqual([],);
       },
