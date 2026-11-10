@@ -233,15 +233,42 @@ so each is unit-tested without a container.
 
 ### The mount destination is the spelling the links use
 
-`pnpm store path` reports the store's canonical path,
-`/var/home/user/.local/share/pnpm/store/v11` on this machine,
-while the workspace's `node_modules` links are relative out to
-`/home/user/.local/share/pnpm/store/v11`,
+`$HOME` is `/home/user` here,
+a mount of `/var/home/user`,
+and `realpath` resolves the first to the second.
+`pnpm store path` reports the store in either spelling depending on the
+directory `mise exec` was started from,
+measured on 2026-11-10 with the same command three times each way:
+
+- from the repository root,
+  where `mise run` starts the matrix:
+  `/var/home/user/.local/share/pnpm/store/v11`.
+- from a directory outside the repository:
+  `/home/user/.local/share/pnpm/store/v11`.
+
+The workspace's `node_modules` links are relative out to the
+`/home/user/.local/share/pnpm/store/v11` spelling,
 the home the installing shell named.
-Mounting at the canonical path alone therefore still leaves every link
-dangling,
-so the destination is the report re-rooted at `$HOME` when the two differ,
+A container mounted only at
+`/var/home/user/.local/share/pnpm/store/v11` has no `/home/user` at all,
+and the tool's first import fails there:
+
+```text
+$ podman run --rm --read-only --security-opt=label=disable \
+    --tmpfs /tmp:rw --volume "$PWD:/repo:ro" \
+    --volume "/var/home/user/.local/share/pnpm/store/v11:/var/home/user/.local/share/pnpm/store/v11:ro" \
+    --workdir /repo docker.io/library/node:24-slim \
+    node --input-type=module -e 'await import("nano-spawn")'
+ls: cannot access '/home/user': No such file or directory
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'nano-spawn' imported from /repo/[eval1]
+```
+
+So the destination is the report re-rooted at `$HOME` when it names the home's
+canonical path,
 and the report itself otherwise.
+From the repository root,
+where the matrix runs,
+that turns the canonical report into the links' spelling.
 
 ### Measured after the change
 
@@ -266,6 +293,11 @@ Controls through the branch's own `buildPodmanArgs`, one scenario each:
   corepack refuses the command word
   (`While running "pnpm@12.18.0\npnpm-shadow 0.1.3-alpha.1, shadowing pnpm at /opt/pnpm" install ...`),
   exit 1.
+
+The canonical-spelling mount is the podman probe quoted above:
+same image,
+same `/repo` mount,
+and the tool's first import fails.
 
 ## What does not work
 
