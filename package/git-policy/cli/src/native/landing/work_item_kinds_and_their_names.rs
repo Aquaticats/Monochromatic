@@ -35,7 +35,8 @@ pub enum WorkKind {
     Maintenance,
     /// Emptying a directory of left-out files that a snapshot-made worktree set aside.
     Trash,
-    /// Filling a new worktree's Cargo build directory from its source's, which the add no longer waits for.
+    /// Filling a new worktree's Cargo build directory from its source's,
+    /// which the add no longer waits for.
     Prewarm,
 }
 

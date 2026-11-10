@@ -196,7 +196,8 @@ fn publish(staging: &Path, destination: &Path) -> Result<bool, String> {
 pub(crate) enum Filled {
     /// The copy was published under the workspace's build directory name.
     Published,
-    /// The worktree already had a build directory, so nothing was published.
+    /// The worktree already had a build directory,
+    /// so nothing was published.
     Kept,
 }
 

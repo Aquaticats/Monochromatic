@@ -120,7 +120,8 @@ fn text_field(entry: &serde_json::Value, name: &str) -> Option<PathBuf> {
 ///
 /// # Errors
 ///
-/// A path that is not UTF-8, which no record could name back.
+/// A path that is not UTF-8,
+/// which no record could name back.
 pub fn encode(entries: &[PrewarmEntry]) -> Result<String, String> {
     let mut written: Vec<serde_json::Value> = Vec::with_capacity(entries.len());
     for entry in entries {
@@ -266,7 +267,21 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     let config: ClientConfig = managed_client_config(address, host.as_ref());
     // The wake's lines are not the add's: it says once what became of the filling.
     let mut silent: std::io::Sink = std::io::sink();
-    return wake(&config, common_dir, None, &mut silent).map_err(|failure: ClientFailure| return render(&failure));
+    return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
+}
+
+/// What:
+///  The words a client failure is reported with.
+/// Why:
+///   The wake's failure is the person's,
+/// and a named function stands where a closure that only forwarded its argument stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const renderFailure = (failure) => render(failure);
+/// ```
+fn render_failure(failure: ClientFailure) -> String {
+    return render(&failure);
 }
 
 /// The client configuration type the wake takes,
@@ -317,7 +332,10 @@ pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), String> {
 }
 
 /// What a hand-over job reads:
-/// the Git context, the repository's common directory, the new worktree, and the workspaces.
+/// the Git context,
+/// the repository's common directory,
+/// the new worktree,
+/// and the workspaces.
 /// Why:
 ///   A job reads only what it was handed,
 /// so the four travel together as owned values.
