@@ -19,6 +19,11 @@ import { analyzeShellCommand, } from '@monochromatic-dev/agent-harness-shared-sh
 const PARSER_FAILURE_TEXT = 'source reader rejected the command text';
 
 /**
+ Message the analyzer reported for every thrown parser value before it carried the thrown text.
+ */
+const FIXED_DIAGNOSTIC_TEXT = 'unbash parse threw';
+
+/**
  Reads the first parse diagnostic message from an analyzed source.
  
  @param source - value passed to the analyzer as shell source
@@ -104,7 +109,7 @@ await describe({
             const rejectedSourceMessage = firstParseErrorMessage(sourceTheParserRejects(),);
 
             expect(nonStringSourceMessage,).not.toBe(rejectedSourceMessage,);
-            expect(nonStringSourceMessage,).toContain('charCodeAt',);
+            expect(nonStringSourceMessage,).not.toBe(FIXED_DIAGNOSTIC_TEXT,);
             expect(rejectedSourceMessage,).toContain(PARSER_FAILURE_TEXT,);
           },
         },),

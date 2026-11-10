@@ -10,6 +10,10 @@
  and it reports each run of words that begins where a command can begin.
  Anything it cannot classify stays inside the run it was found in,
  so prose such as `echo "bun test` never reads as a command.
+ 
+ A here-document body is read as command text rather than skipped,
+ because this reader never follows the redirect that declares it;
+ a caller reads this fallback as a reason to block, never as proof of what runs.
 
  @module
  */
@@ -205,9 +209,9 @@ function rawCommandWordRuns({ source, }: { readonly source: string; },): readonl
       continue;
     }
     if ((character === BACKSLASH) && (state.openQuote !== SINGLE_QUOTE)) {
+      // The backslash itself is not word text: it makes the next character literal.
+      sealSegment(offset,);
       state.escaped = true;
-      if (state.segmentStart === (-1))
-        state.segmentStart = offset;
       continue;
     }
     if (state.openQuote !== '') {

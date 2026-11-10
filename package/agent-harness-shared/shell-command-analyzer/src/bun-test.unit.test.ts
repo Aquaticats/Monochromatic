@@ -74,9 +74,11 @@ await describe({
           },
         },),
         it({
-          name: 'detects bun test launched through an absolute bun path',
-          fn: async function testBunTestThroughAbsolutePath() {
+          name: 'detects bun test launched through absolute paths',
+          fn: async function testBunTestThroughAbsolutePaths() {
             expect(invokesBunTest('/usr/local/bin/bun test',),).toBe(true,);
+            expect(invokesBunTest('/usr/bin/env bun test',),).toBe(true,);
+            expect(invokesBunTest('/usr/bin/timeout 10 bun test',),).toBe(true,);
           },
         },),
         it({
@@ -94,6 +96,15 @@ await describe({
           },
         },),
         it({
+          name: 'detects bun test a shell runs from its script option',
+          fn: async function testBunTestInShellScript() {
+            expect(invokesBunTest("bash -c 'bun test'",),).toBe(true,);
+            expect(invokesBunTest("env bash -c 'bun test'",),).toBe(true,);
+            expect(invokesBunTest("sh -c 'cd x && bun test'",),).toBe(true,);
+            expect(invokesBunTest("/bin/bash -c 'bun test'",),).toBe(true,);
+          },
+        },),
+        it({
           name: 'detects bun test in a command that fails to parse',
           fn: async function testBunTestInUnparsableCommand() {
             expect(invokesBunTest('bun test "unterminated',),).toBe(true,);
@@ -101,12 +112,14 @@ await describe({
             expect(invokesBunTest('bun --cwd /tmp test "unterminated',),).toBe(true,);
             expect(invokesBunTest('cd x && bun test "unterminated',),).toBe(true,);
             expect(invokesBunTest('echo $(bun test',),).toBe(true,);
+            expect(invokesBunTest(String.raw`bun te\st "unterminated`,),).toBe(true,);
           },
         },),
         it({
           name: 'detects bun test behind a wrapper in a command that fails to parse',
           fn: async function testWrappedBunTestInUnparsableCommand() {
             expect(invokesBunTest('env bun test "unterminated',),).toBe(true,);
+            expect(invokesBunTest('bash -c \'bun test"',),).toBe(true,);
           },
         },),
         it({

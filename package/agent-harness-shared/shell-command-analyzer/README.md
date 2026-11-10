@@ -351,6 +351,8 @@ because an option that table does not know may take that word as its value.
 
 A wrapper that joins its own arguments into shell source runs that source,
 so `eval "bun test"` is refused as well.
+A shell's `-c` argument is that shell's script,
+so `bash -c 'bun test'` and `env sh -c 'cd x && bun test'` are refused too.
 
 ### A command the parser rejects
 
@@ -363,11 +365,18 @@ and the characters Bash reads as command separators,
 and it reads only the runs of words that begin where a command can begin,
 so prose such as `echo "bun test` stays allowed.
 
+A here-document body inside such a command is read as command text rather than skipped,
+because that reader never follows the redirect declaring the body.
+An agent writing a document that quotes the ban,
+in a command that also fails to parse for an unrelated reason,
+is therefore refused.
+
 ### What stays undetected
 
 A spelling this reader never reaches is not refused:
-`bash -c 'bun test'` and `sh -c 'bun test'` (the wrapper table carries no shell `-c` entry),
 `$(command -v bun) test`,
+`su -c 'bun test'` and `script -c 'bun test'` (programs the wrapper table carries no entry for),
+a shell script read from standard input (`bash <<< 'bun test'`),
 and a command line assembled at run time from variables.
 
 ## Pi dependency trust

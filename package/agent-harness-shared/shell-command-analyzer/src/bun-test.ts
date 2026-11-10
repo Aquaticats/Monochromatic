@@ -8,6 +8,7 @@ import { analyzeShellCommand, } from './analyzer.ts';
 import { isBunTestCommandLine, } from './bun-test-command-line.ts';
 import { unwrapWrappers, } from './command-wrapper-words.ts';
 import { rawCommandWordRuns, } from './raw-command-word-runs.ts';
+import { shellScriptPayloads, } from './shell-script-payloads.ts';
 
 //region Constants
 
@@ -45,7 +46,8 @@ const BUN_TEST_BAN_REASON: string = [
  Program wrappers are stripped before the subcommand is read, so `env bun test`,
  `timeout 10 bun test`, and `command bun test` reach the same answer as `bun test`,
  and `bun` global options are read so `bun --cwd /tmp test` does not hide `test` behind
- an option value.
+ an option value. A shell `-c` script string and the source a wrapper such as `eval` joins
+ are read as command lines of their own, so `bash -c 'bun test'` is refused too.
  
  A command the parser rejects is read from its raw words instead of answering "no":
  the visible text is the only evidence there is, and a guard that reads nothing from an
@@ -83,7 +85,15 @@ function invokesBunTest(command: string,): boolean {
       if (isBunTestCommandLine({ words: wrapped.words, },))
         return true;
 
-      return wrapped.payloads
+      /**
+       Command lines this record launches from among its own words.
+       */
+      const payloads = [
+        ...wrapped.payloads,
+        ...shellScriptPayloads({ words: wrapped.words, },),
+      ];
+
+      return payloads
         .some(function payloadIsBunTest(payload,): boolean {
           return rawTextInvokesBunTest({ source: payload, },);
         },);
@@ -134,7 +144,10 @@ function rawTextInvokesBunTest({ source, }: { readonly source: string; },): bool
       const wrapped = unwrapWrappers({ words, },);
       if (isBunTestCommandLine({ words: wrapped.words, },))
         return true;
-      pending.push(...wrapped.payloads,);
+      pending.push(
+        ...wrapped.payloads,
+        ...shellScriptPayloads({ words: wrapped.words, },),
+      );
     }
   }
 
