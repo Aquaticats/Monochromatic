@@ -786,3 +786,76 @@ fn the_handler_reports_a_trash_it_cannot_remove() {
     drop(restore);
     remove(root.as_path());
 }
+
+/// What:
+///  A directory below the trash parent whose name is not one the wrapper gives a trash is the person's own state,
+/// so the
+///  snapshot carries it into the new worktree and never moves it into this add's trash.
+/// Why:
+///  `info/exclude` keeps the trash parent out of every commit,
+/// and a person may keep files the repository ignores
+///  there.
+/// A snapshot that took every directory below the parent for an earlier add's trash moved those files into
+///  the trash of this add,
+/// the hand-over queued them,
+/// and the service deleted them,
+/// though no wrapper command had ever
+///  recorded them.
+/// An earlier add's trash is named with forty lowercase hexadecimal digits,
+/// which is the one thing this
+///  selection may go by,
+/// and a name of another shape is state of the source.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, `${TRASH_PARENT}/personal/important-notes.txt`, 'mine');
+/// const { stage, trash } = await snapshotOf(repo);
+/// expect(existsSync(join(stage, TRASH_PARENT, 'personal/important-notes.txt'))).toBe(true);
+/// expect(findIn(join(stage, TRASH_PARENT, trash.name), 'important-notes.txt')).toEqual([]);
+/// ```
+#[test]
+fn btrfs_a_personal_directory_below_the_trash_parent_is_carried_into_the_new_worktree() {
+    let Some(root) = btrfs_fixture("trash-personal-below-parent") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    put(repo.as_path(), format!("{TRASH_PARENT}/personal/important-notes.txt").as_str(), b"the person's own notes\n");
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    let manifest: TrashManifest = trash.expect("the leave-out made a trash");
+    assert!(stage.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "the person's directory is carried into the new worktree");
+    for index in 0..manifest.entries.len() {
+        assert!(!stage.join(TRASH_PARENT).join(&manifest.name).join(entry_name(index)).join("personal").exists(), "and it is no entry of this add's trash, so nothing will empty it");
+    }
+    assert!(repo.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "the source keeps it too");
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory below the trash parent that is not named like a trash is not named to the person as a trash nothing will
+///  empty,
+/// and nothing in it is deleted.
+/// Why:
+///   Every later command in the worktree names what it cannot account for,
+/// and the line tells the person to
+///  remove it themselves.
+/// A line about a directory the wrapper never made sends a person to delete their own files,
+/// so the
+///  scan names only names the wrapper gives a trash,
+/// which is the same shape the leave-out goes by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(worktree, `${TRASH_PARENT}/personal/important-notes.txt`, 'mine');
+/// const said = nameUnaccountedTrash(gitDir, worktree); expect(said).toContain(`${TRASH_PARENT}/${name}`); expect(said).not.toContain('personal');
+/// ```
+#[test]
+fn a_personal_directory_below_the_trash_parent_is_not_named_as_a_trash() {
+    let name: String = "e".repeat(40);
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-personal-named", name.as_str(), 1);
+    put(worktree.join(TRASH_PARENT).as_path(), "personal/important-notes.txt", b"the person's own notes\n");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(worktree.join(TRASH_PARENT).join(&name).display().to_string().as_str()), "the trash the wrapper made is named: {said}");
+    assert!(!said.contains("personal"), "the person's own directory is not called a trash: {said}");
+    assert!(worktree.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "and nothing touches it");
+    remove(root.as_path());
+}
