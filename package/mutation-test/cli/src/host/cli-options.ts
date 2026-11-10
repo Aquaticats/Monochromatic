@@ -14,6 +14,8 @@ import { cwd, } from 'node:process';
 
 import type { OrchestrateOptions, } from './orchestrate-types.ts';
 
+//region Defaults
+
 /**
  Default mutants per shard; tuned after first benchmarks.
  */
@@ -44,6 +46,10 @@ const DEFAULT_SESSION_TIMEOUT_SECONDS = 1_800;
  */
 const DEFAULT_PIDS_LIMIT = 512;
 
+//endregion Defaults
+
+//region Parsed option shape
+
 /**
  Parsed CLI options plus run mode.
  */
@@ -51,6 +57,10 @@ export type CliOptions = OrchestrateOptions & {
   dryRun: boolean;
   reportFile: string;
 };
+
+//endregion Parsed option shape
+
+//region Flag value reading
 
 /**
  Reads one flag value, throwing when it is missing.
@@ -112,6 +122,10 @@ function positiveInteger(options: {
 
   return parsed;
 }
+
+//endregion Flag value reading
+
+//region Argument parsing
 
 /**
  Parses CLI argv into run options.
@@ -314,3 +328,5 @@ export function parseCliOptions(argv: readonly string[],): CliOptions {
     reportFile: state.reportFile,
   };
 }
+
+//endregion Argument parsing
