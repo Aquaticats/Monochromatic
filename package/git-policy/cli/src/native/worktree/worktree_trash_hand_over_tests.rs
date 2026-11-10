@@ -170,8 +170,8 @@ fn a_hand_over_that_took_over_an_earlier_adds_trash_says_so_once() {
     let _heard: Vec<String> = service.finish();
     let said: String = String::from_utf8(notices).expect("utf8");
     assert_eq!(said.lines().count(), 1, "one line: {said:?}");
-    assert!(said.contains("the 1 directory left out of the new worktree"), "one directory reads in the singular: {said:?}");
-    assert!(said.contains("was handed to the commit service"), "and the sentence agrees with it: {said:?}");
+    assert!(said.contains("took over one directory that an earlier add left"), "the line names the trash an earlier add left: {said:?}");
+    assert!(said.contains("1 directory left out of the new worktree") && said.contains(" was handed to the commit service"), "one directory reads in the singular, and every verb agrees with it: {said:?}");
     assert!(said.contains(worktree.display().to_string().as_str()), "and it names the worktree: {said:?}");
     remove(root.as_path());
 }

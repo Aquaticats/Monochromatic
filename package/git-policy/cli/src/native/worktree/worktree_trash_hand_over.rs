@@ -220,7 +220,9 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     };
     return match told {
         Ok(()) => {
-            if !trash.quiet {
+            // A routine hand-over says nothing: every add hands over the stand-ins and the `.git` copy it made itself, so the
+            //  line is kept for the one trash nothing of this add would ever have emptied.
+            if !trash.quiet && trash.taken_over > 0 {
                 let _told = writeln!(notices, "{}", handed_words(trash));
             }
             Ok(())
@@ -233,21 +235,38 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
 
 
 /// What:
-///  The line that tells the person what became of the directories the add set aside.
+///  The line that tells the person about directories the hand-over took over from trash an earlier add left.
 /// Why:
-///   The add no longer waits for them,
-/// so the person is told where they went and who empties them,
-/// once,
-///  and the line names the worktree because one command can make more than one.
+///   Every add hands the snapshot's stand-ins and its own `.git` copy over,
+/// so a line about the add's own trash
+///  would print on every add and tell nobody anything.
+/// What the person cannot learn anywhere else is a trash an earlier add
+///  left:
+/// nothing of this add would ever have emptied it,
+/// and the line names it,
+/// says where its directories went,
+/// and
+///  who empties them now.
+/// One directory is said in the singular,
+/// and every verb and pronoun agrees with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const handedWords = (trash) => `monochromatic-git-policy-cli: the ${trash.manifest.entries.length} directories left out of the new worktree ${trash.destination} were handed to the commit service, ...`;
+/// const handedWords = (trash) => { const n = trash.manifest.entries.length; const one = n === 1; return `... took over ${trash.takenOver === 1 ? 'one directory' : `${trash.takenOver} directories`} an earlier add left ... The ${n} ${one ? 'directory' : 'directories'} left out of the new worktree ${trash.destination} ${one ? 'was' : 'were'} handed ..., which empties ${one ? 'it' : 'them'} ...`; };
 /// ```
 fn handed_words(trash: &PendingTrash) -> String {
+    let count: usize = trash.manifest.entries.len();
+    let (directories, verb, pronoun): (&str, &str, &str) = match count {
+        1 => ("directory", "was", "it"),
+        _ => ("directories", "were", "them"),
+    };
+    let taken_over: String = match trash.taken_over {
+        1 => String::from("one directory"),
+        many => format!("{many} directories"),
+    };
     return format!(
-        "monochromatic-git-policy-cli: the {} directories left out of the new worktree {} were handed to the commit service, which empties them after this command returns, one trash at a time for this repository and at the lowest I/O priority; the add did not wait for that.",
-        trash.manifest.entries.len(),
+        "monochromatic-git-policy-cli: the new worktree {} took over {taken_over} that an earlier add left in the trash of the source. The {count} {directories} left out of the new worktree {} {verb} handed to the commit service, which empties {pronoun} after this command returns, one trash at a time for this repository and at the lowest I/O priority; the add did not wait for that.",
+        trash.destination.display(),
         trash.destination.display()
     );
 }
