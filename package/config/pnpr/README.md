@@ -101,8 +101,10 @@ This package has no entry points,
 2.   reads each package's published versions anonymously,
 3.   builds (`task-run //<dir>:build` when the package's `task.ts` declares `build`;
       the CI has no mise,
+      and `mise.toml` is read as TOML to decide that,
       so a package that declares `build` only in `mise.toml` fails with a diagnostic
-      instead of publishing a tarball without its `dist`),
+      instead of publishing a tarball without its `dist`,
+      as does a package whose `mise.toml` does not parse),
       packs with pnpm,
       and rewrites the packed manifest for every missing version in dependency order,
 4.   publishes each tarball with a fresh OIDC workload token,
