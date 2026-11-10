@@ -17,6 +17,8 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 
 import type { StructuredReviewMessageSnapshot, } from './types.ts';
 
+//region Types -- provider option contract carrying a forced selector
+
 /**
  Simple options carrying provider-specific forced selector.
 
@@ -34,6 +36,10 @@ type ReviewSimpleStreamOptions = Omit<SimpleStreamOptions, 'toolChoice'> & {
    */
   readonly toolChoice?: unknown;
 };
+
+//endregion Types -- provider option contract carrying a forced selector
+
+//region Isolated request values -- model, tool, and message copies the provider owns
 
 /**
  Clone model data into provider-owned arrays and records.
@@ -217,6 +223,10 @@ function isolateReviewContext(
   },);
 }
 
+//endregion Isolated request values -- model, tool, and message copies the provider owns
+
+//region Provider options -- neutral fields copied into fresh records
+
 /**
  Clone provider options into fresh outer records.
  
@@ -250,6 +260,8 @@ function isolateReviewOptions(
   };
   /* oxlint-enable typescript/no-unsafe-type-assertion */
 }
+
+//endregion Provider options -- neutral fields copied into fresh records
 
 export {
   cloneReviewMessages,

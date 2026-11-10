@@ -61,6 +61,8 @@ type StructuredReviewStreamRequest = {
   readonly testTransport?: ForeignBorrowed<ScriptedStructuredReviewTransport>;
 };
 
+//region Dispatch table -- lazy provider modules keyed by the API each implements
+
 /**
  Lazy Pi AI provider module factory.
  */
@@ -90,6 +92,10 @@ const PROVIDER_STREAMS_BY_API: Readonly<Record<string, LazyProviderStreams>> = {
 const SUPPORTED_APIS: string = Object
   .keys(PROVIDER_STREAMS_BY_API,)
   .join(', ',);
+//endregion Dispatch table -- lazy provider modules keyed by the API each implements
+
+//region Request snapshots -- isolated caller values recorded before dispatch
+
 /**
  Snapshot one known review context without retaining caller-owned arrays.
  
@@ -176,6 +182,10 @@ function snapshotOptions(
   };
 }
 
+//endregion Request snapshots -- isolated caller values recorded before dispatch
+
+//region Scripted transport -- deterministic response script and recorded requests
+
 /**
  Consume one scripted response after recording exact provider request data.
  
@@ -231,6 +241,10 @@ function scriptedStructuredReviewStream(
   transport.nextResponseIndex = index + 1;
   return response;
 }
+
+//endregion Scripted transport -- deterministic response script and recorded requests
+
+//region Public API -- one stream through the module for the selected API
 
 /**
  Dispatch one stream through concrete implementation matching selected API.
@@ -303,5 +317,7 @@ function streamStructuredReview(
     providerOptions,
     );
 }
+
+//endregion Public API -- one stream through the module for the selected API
 
 export { streamStructuredReview, };

@@ -17,10 +17,16 @@ const l = tagged({
   l: packageLogger,
 },);
 
+//region Constants -- bounded diagnostic text
+
 /**
  Maximum reviewer text copied into malformed-output diagnostics.
  */
 const REVIEW_TEXT_DIAGNOSTIC_LIMIT = 200;
+
+//endregion Constants -- bounded diagnostic text
+
+//region Balanced object scan -- string aware slice of reviewer text
 
 /**
  Locate first balanced JSON object while ignoring braces inside strings.
@@ -93,6 +99,10 @@ function findBalancedJsonObject(text: string,): string {
   return '';
 }
 
+//endregion Balanced object scan -- string aware slice of reviewer text
+
+//region Public API -- whole-text parse with balanced fallback
+
 /**
  Parse whole reviewer output or first balanced JSON object.
  
@@ -133,6 +143,8 @@ function extractStructuredJson(text: string,): unknown {
     return JSON.parse(block,);
   }
 }
+
+//endregion Public API -- whole-text parse with balanced fallback
 
 export {
   extractStructuredJson,
