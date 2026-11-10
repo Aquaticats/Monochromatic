@@ -269,6 +269,65 @@ function buildPaintFixture(): FigmaFile {
   },);
 }
 
+/**
+ Build a FigmaFile whose two text nodes pin the text fill policy.
+ 
+ `Unsupported Fill Text` carries only a gradient paint, which has no Penpot
+ fill, so the converter must fall back to opaque black. `Solid Fill Text` carries
+ a solid paint, so the same fallback must not apply.
+ */
+function buildTextFillFixture(): FigmaFile {
+  const nodeChanges: Record<string, unknown>[] = [
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 0, },
+      type: 'NodeType.DOCUMENT',
+      name: 'Document',
+      phase: 'NodePhase.CREATED',
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 1, },
+      type: 'NodeType.CANVAS',
+      name: 'Page 1',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 0, }, position: '!', },
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 2, },
+      type: 'NodeType.TEXT',
+      name: 'Unsupported Fill Text',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '!', },
+      characters: 'Gradient',
+      fillPaints: [{
+        __type: 'Paint',
+        type: 'PaintType.GRADIENT_LINEAR',
+        color: { r: 0, g: 0, b: 0, a: 1, },
+      },],
+    },
+    {
+      __type: 'NodeChange',
+      guid: { sessionID: 0, localID: 3, },
+      type: 'NodeType.TEXT',
+      name: 'Solid Fill Text',
+      phase: 'NodePhase.CREATED',
+      parentIndex: { guid: { sessionID: 0, localID: 1, }, position: '#', },
+      characters: 'Solid',
+      fillPaints: [{
+        __type: 'Paint',
+        type: 'PaintType.SOLID',
+        color: { r: 1, g: 0, b: 1, a: 1, },
+      },],
+    },
+  ];
+  return makeFigmaFile({
+    nodeChanges,
+    fileName: 'Text Fill Fixture',
+  },);
+}
+
 // endregion
 
 await describe({
@@ -394,6 +453,30 @@ await describe({
               [...doc.shapes.values(),].find(shape => shape.name === 'Painted Frame',),
             );
             expect(frame.strokes,).toHaveLength(0,);
+          },
+        },),
+        it({
+          name: 'falls back to opaque black when a text node has no convertible fill',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTextFillFixture(), },);
+            const text = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Unsupported Fill Text',),
+            );
+            expect(
+              JSON.stringify(nonNullishOrThrow(text.content,),),
+            ).toContain('#000000',);
+          },
+        },),
+        it({
+          name: 'keeps a text node solid fill instead of the black fallback',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTextFillFixture(), },);
+            const text = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Solid Fill Text',),
+            );
+            const content = JSON.stringify(nonNullishOrThrow(text.content,),);
+            expect(content,).toContain('#FF00FF',);
+            expect(content,).not.toContain('#000000',);
           },
         },),
       ],

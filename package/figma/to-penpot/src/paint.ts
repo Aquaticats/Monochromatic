@@ -16,6 +16,7 @@ import {
   type FigmaRecord,
   isRecord,
   numberOr,
+  recordArray,
   SKIP,
 } from './read.ts';
 import type {
@@ -146,4 +147,49 @@ export function figmaPaintToStroke(
       fallback: 1,
     },),
   };
+}
+
+/**
+ Map a Figma paint list through a converter, dropping paints with no Penpot
+ counterpart.
+ 
+ One owner for the iterate-convert-drop-{@link SKIP} shape that fills, strokes,
+ and text fills all need; each caller supplies the converter that fits its
+ Penpot target, so a change to that shape reaches every paint list at once.
+ 
+ @typeParam Converted - Penpot fill or stroke the converter produces
+ 
+ @param paints - raw paint list read off a NodeChange (`fillPaints`, `strokePaints`)
+ 
+ @param convert - converter turning one paint into a Penpot value or {@link SKIP}
+ 
+ @returns converted paints in list order, unsupported paints omitted
+ 
+ @example
+ ```ts
+ const fills = collectPaints({ paints: nc.fillPaints, convert: figmaPaintToFill, });
+ ```
+ */
+export function collectPaints<Converted>(
+  {
+    paints,
+    convert,
+  }: Readonly<{
+    paints: unknown;
+    convert: (paint: FigmaRecord,) => Converted | typeof SKIP;
+  }>,
+): Converted[] {
+  /**
+   Converted paints accumulated in list order.
+   */
+  const converted: Converted[] = [];
+  for (const paint of recordArray(paints,)) {
+    /**
+     Penpot counterpart for this paint; {@link SKIP} means the paint type is unsupported.
+     */
+    const result = convert(paint,);
+    if (result !== SKIP)
+      converted.push(result,);
+  }
+  return converted;
 }
