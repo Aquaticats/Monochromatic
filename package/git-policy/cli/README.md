@@ -253,10 +253,11 @@ Read-only commands,
    and lets Git's own fast-forward update move the checkout to it.
   Every staged entry,
   unstaged edit and untracked file that the merge does not change stays byte for byte as it was.
-  A merge that changes a path someone else has staged or modified,
-  or that conflicts,
-   is refused with the paths named and the ways forward,
-  and changes nothing.
+  A merge that changes a path someone else has staged or modified is completed,
+  and that work is carried across it (see "Carrying the person's own work").
+  A merge that conflicts is refused,
+  with the conflicting paths named and the ways forward,
+  only when no resolution settles every one of them.
   Shapes the wrapper cannot make exact (`--squash`,
   `--no-commit`,
   `-s`,
@@ -2172,31 +2173,41 @@ when the index differs from `HEAD`,
 The wrapper completes that merge instead,
 when all of these hold:
 
-- the command is `git merge` with one commit-ish and only the options `-m`,
+- the command is `git merge` with one commit-ish and only the options the wrapper reads exactly,
+  each in the full spelling Git documents or its short one,
+  never an abbreviation:
+  `-m`/`--message` (a value after it,
+  or attached to it),
   `--no-edit`,
   `--ff`,
   `--no-ff`,
-   `-q`,
-  `-v`,
-  `--stat`,
-  `--summary` (Git's synonym for it),
-  `--no-stat`,
-  `--no-summary`,
-  `-n`,
+  `-q`/`--quiet`,
+  `-S`/`--gpg-sign` (with or without a key),
+  `--no-gpg-sign`,
+  `--stat`/`--summary` (Git's synonym for it),
+  `--no-stat`/`--no-summary`/`-n`,
   `--log`,
   `--no-log`,
-  `-S`,
-  `--gpg-sign`,
-  `--no-gpg-sign`,
-   `--no-verify`,
-  `--allow-unrelated-histories` and `--no-progress` (full spellings only);
+  `--allow-unrelated-histories`,
+  and the output-only options that leave the merge commit exactly as it would be without them,
+  which the isolated merge therefore does not carry:
+   `-v`/`--verbose`,
+  `--no-verbose`,
+  `--progress`,
+  `--no-progress`,
+  `--verify`,
+  `--no-verify`,
+  `--no-signoff`,
+  `--no-autostash` and `--no-verify-signatures`
+  (`is_ignorable` in `src/native/merge/merge_options.rs`;
+  `--log` or `--no-log` together with `-m` is native Git's);
 - `HEAD` is not already ahead of or equal to the merged commit
    (native Git fast-forwards and answers "Already up to date" by itself);
 - no merge,
   rebase,
   cherry-pick or revert is in progress,
-  and the settings `merge.autostash`,
-   `merge.verifySignatures` and `branch.<name>.mergeOptions` are unset;
+  neither `merge.autostash` nor `merge.verifySignatures` is true,
+  and no `branch.<name>.mergeOptions` is set;
 - the merge would not open an editor,
   unless the checkout holds the person's own work in the paths the merge changes:
   that merge is completed with the editor (see "The editor a carried merge opens").
@@ -2217,7 +2228,10 @@ That is Git's two-way update:
 The merge commit skips `pre-merge-commit`,
 `prepare-commit-msg` and `commit-msg`,
  like the merge the auto-push makes from objects;
- `post-merge` runs once.
+no hook runs around it at all,
+`post-merge` included,
+for the reason "Hooks" gives:
+every Git the wrapper starts runs with `core.hooksPath` at a directory that cannot exist.
 The branch reflog reads `merge <branch>: Fast-forward`.
 
 #### Carrying the person's own work
@@ -2347,7 +2361,9 @@ A `git pull` that merges is completed the same way when the command line or the 
 or `--ff` or `--no-ff`) and every option
  and operand is one the wrapper reads exactly:
  the wrapper runs the pull's fetch,
- then the merge of `FETCH_HEAD` as a typed `git merge --no-edit FETCH_HEAD` would run.
+ then the merge of `FETCH_HEAD` through the path of a typed `git merge`
+ that carries the pull's own merge options,
+ so the editor opens on a terminal exactly where `git pull` opens it.
 Every other pull is native Git's whole (a rebase,
 `--ff-only`,
 `--autostash`,
@@ -2373,7 +2389,10 @@ or a lock nothing proves held):
  until `MERGE_LOCK_CEILING` (1 minute),
 whether its owner is proven alive or not
  (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository);
- at the bound it names the holder and the merge ends with Git's refusal,
+ at the bound it names the holder and stops waiting:
+ a merge the wrapper completes is saved on `refs/cli-git/kept/<n>` and exits 0
+ (see "A merge saved for a later command"),
+ and a merge native Git runs ends with Git's refusal,
 non-zero,
 with nothing changed.
 The notice names the merge,
@@ -2456,6 +2475,10 @@ Each with its cause:
 - A lock that stays held for the whole wait limit:
   the merge stops,
   changes nothing and leaves the lock.
+  That is the outcome of a merge native Git runs,
+  which fails on the held lock;
+  a merge the wrapper completes is saved on a side ref and exits 0 instead,
+  as "A merge saved for a later command" says.
 - A branch that moved in twenty rounds in a row:
   the merge stops and changes nothing;
   run it again.
@@ -2656,7 +2679,10 @@ none is waited out or retried on the moved head yet:
   2026-11-03:
   "Warn and finish the merge (Recommended)");
   Git's "Committing is not possible because you have unmerged files" no longer ends it.
-  `git commit -a` over unmerged files commits their markers and warns for each file in the same words.
+  `git commit -a` over unmerged files commits their markers and warns for each file in the same words,
+  when the repository's commit-only policy is off:
+  with it on,
+  `-a` is refused before anything is committed (`commit-only/all-flag`).
 
 ### Output and exit status
 
