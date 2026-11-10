@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unsafe-type-assertion -- nano-spawn error type is untyped
 /**
  WOFF2 conversion utility for the Aquaticat font build.
  Uses fonttools via uv to convert OTF to WOFF2 format.
@@ -9,7 +8,28 @@
 import { stat, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
-import spawn from 'nano-spawn';
+import spawn, { SubprocessError, } from 'nano-spawn';
+
+/**
+ Renders the diagnostic a failed conversion carries.
+ 
+ @param error - value the conversion rejected with
+ 
+ @returns the subprocess message and its stderr, or the value's own text
+ 
+ @example
+ ```ts
+ conversionFailureText({ error });
+ ```
+ */
+function conversionFailureText({ error, }: { readonly error: unknown; },): string {
+  if (error instanceof SubprocessError) {
+    return error.stderr === ''
+      ? error.message
+      : `${error.message}\n${error.stderr}`;
+  }
+  return String(error,);
+}
 
 /**
  Converts an OTF font file to WOFF2 format using Python fonttools.
@@ -70,7 +90,7 @@ export async function convertToWoff2({
   }
   catch (error: unknown) {
     throw new Error(
-      `WOFF2 conversion failed for ${otfPath}: ${(error as { stderr: string; }).stderr}`,
+      `WOFF2 conversion failed for ${otfPath}: ${conversionFailureText({ error, },)}`,
       { cause: error, },
     );
   }

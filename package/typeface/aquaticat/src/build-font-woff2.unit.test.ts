@@ -13,9 +13,12 @@
 /* oxlint-disable test-import/require-eventual-artifact -- this package ships src/ (package.json `files`) and builds font binaries rather than a JS artifact, so the modules beside this test are the shipped ones; see doc/planning/oxlint-test-import-eventual-artifact.md, section "Packages that ship source". */
 import {
   mkdtemp,
+  readFile,
   rm,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+
+import { SubprocessError, } from 'nano-spawn';
 
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
@@ -78,7 +81,27 @@ await describe({
 
             expect(caught,).toBeInstanceOf(Error,);
             expect((caught as Error).message,).toContain(otfPath,);
-            expect((caught as Error).cause,).toBeDefined();
+            expect((caught as Error).cause,).toBeInstanceOf(SubprocessError,);
+          },
+        },),
+
+        it({
+          name: 'narrows the caught value instead of asserting its shape',
+          fn: async () => {
+            /**
+             Source of the conversion module.
+             */
+            const source = await readFile(
+              join(
+                import.meta.dirname,
+                'build-font-woff2.ts',
+              ),
+              'utf8',
+            );
+
+            expect(source,).not.toContain('no-unsafe-type-assertion',);
+            expect(source,).not.toContain('as { stderr',);
+            expect(source,).toContain('instanceof SubprocessError',);
           },
         },),
       ],
