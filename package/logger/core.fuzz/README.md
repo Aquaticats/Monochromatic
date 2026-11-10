@@ -71,12 +71,32 @@ Plan and grill record:
    the properties;
    every one imports the built runtime artifact through the package name,
    never the runtime package's source.
+   `dist` is not committed,
+   so a build older than the runtime source runs the reference model against
+   code the source no longer has,
+   and both layers therefore build the runtime first.
+- `src/artifact-freshness.unit.test.ts`:
+   the guard for that import,
+   failing with the build task to run when the artifact is older than any
+   runtime source file it was built from.
 
 ## Running
 
 [`mise.toml`](mise.toml) defines this package's tasks.
 Run one with `mise run //package/logger/core.fuzz:<task>`.
 The unit suite runs each property 60 times by default.
+Both layers build `//package/logger/core` first,
+because the properties compare that build with the reference model:
+`fuzz` builds it in its own script,
+`test:unit` through its `depends`.
+Runs that do not go through this package's `test:unit` task need the build first:
+a bare `node src/orchestration.property.unit.test.ts`,
+or the root `test:unit`,
+which starts each test file directly.
+`src/artifact-freshness.unit.test.ts` names that step when it is missing,
+because a stale build made a property report a model disagreement
+(`no-backend throw agreement`) on 2026-11-10
+that no current source produced.
 The browser property layer runs locally in podman:
 build the bundle with `bundle:browser-properties` first,
 then run `mise run test:browser -- package/logger/core.fuzz/src/browser/properties.browser.test.ts`.
