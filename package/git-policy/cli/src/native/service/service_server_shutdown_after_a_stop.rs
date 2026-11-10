@@ -68,6 +68,11 @@ async fn shut_down_after_a_stop() {
         // A line that cannot be written without waiting is lost: the exit is what matters.
         let _written = send_without_waiting(libc::STDERR_FILENO, line.as_bytes());
     }
+    // The marker made ahead for the next batch is the service's own, and `SPEC.md` "Removing the lock and what is made durable"
+    // says it "is removed when the service ends, whichever way its loop ends". This shutdown ends the process by the signal, so
+    // no destructor of the serve loop runs; the file the landing thread made is removed here, once no landing is in flight, and
+    // before the exit.
+    crate::service_index_prestage::remove_the_file_made_ahead();
     // A wake without a recorded signal cannot happen (the handler records first); nothing is ended for it.
     let Some(signal) = stopping_signal() else {
         return;

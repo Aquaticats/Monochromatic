@@ -328,11 +328,13 @@ fn abbreviates_a_known_option(known: &[&str], name: &str) -> bool {
 /// `-C`,
 ///  `--fixup`,
 /// `--squash`,
-/// `--amend`) cannot be rebuilt that way,
+/// `--amend`) cannot be rebuilt from the message alone,
 /// and an abbreviated option that may be one of the dropped
 ///  ones is not guessed at:
-/// both give nothing,
-/// and the caller saves the message and stops.
+/// both give nothing.
+/// The caller that can supply what such a line borrowed reads it back from the commit Git built
+///  (`service_commit_line_reissued.rs`,
+/// which hands the line over here once it holds nothing of its own).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

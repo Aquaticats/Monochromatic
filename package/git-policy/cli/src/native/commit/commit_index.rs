@@ -33,7 +33,7 @@ use crate::private_index_request::{CaptureIndexes, indexed_request};
 /// Staged additions carried into the explicit-path index,
 /// and the pathspec-file reader.
 use crate::commit_staged_additions::{
-    StagedAddition, carry_additions, explain_ignored_refusal, pathspecs_of_file, staged_additions_selected,
+    StagedAddition, carry_additions, pathspecs_of_file, staged_additions_selected,
 };
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// Commit selection mode of the transaction.
@@ -55,11 +55,8 @@ use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data_when_stale
 /// Which paths this commit stages from the worktree,
 /// so their recorded stat data cannot cost the scratch commit a read.
 use crate::commit_index_stat_staleness::WorktreeStaging;
-/// The selection a commit names,
-/// and the `git add` arguments it stages with.
-use crate::commit_index_selection::selection_arguments;
 pub use crate::commit_index_selection::{IndexSelection, prepare_interactive_selection};
-/// `OsString` is owned operating-system text.
+/// `OsStr`/`OsString` are borrowed/owned operating-system text.
 use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::Path;
@@ -295,7 +292,7 @@ fn stage_into_the_private_index(
         // additions they name have to be carried, or a force-added ignored file the selection names stays out of the
         // commit where native Git records it (`commit_index_copying.rs`).
         if seed == PrivateIndexSeed::Copy && index_equals_base(context, cwd, indexes, selection.base_revision) {
-            return add_selected_paths(context, cwd, indexes, selection);
+            return crate::commit_selection_staging::add_selected_paths(context, cwd, indexes, selection);
         }
         let mut read_tree: Vec<String> = vec![String::from("read-tree")];
         if seed != PrivateIndexSeed::Base {
@@ -311,7 +308,7 @@ fn stage_into_the_private_index(
         )?;
         carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
-    return add_selected_paths(context, cwd, indexes, selection);
+    return crate::commit_selection_staging::add_selected_paths(context, cwd, indexes, selection);
 }
 
 /// What:
@@ -405,39 +402,6 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     // const refresh = statRefreshIfStale({ context, cwd, index: commitIndex, staging: { none: true } });
     // ```
     let _outcome: StatRefresh = refresh_stat_data_when_stale(context, cwd, indexes.commit_index.as_path(), WorktreeStaging::None);
-    return Ok(());
-}
-
-/// What:
-///  Stages the named paths into the private index,
-/// as Git's partial commit does:
-/// what the worktree holds at them,
-/// deletions
-///  included.
-/// Why:
-///   Both ways of making the private index (reset to the base,
-/// or the real index kept as it is) end here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await git(['add', '--all', ...selectionArguments], { index: commitIndex })
-/// ```
-fn add_selected_paths(
-    context: &GitContext,
-    cwd: &Path,
-    indexes: &CaptureIndexes,
-    selection: &IndexSelection,
-) -> Result<(), GitFailure> {
-    let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--all")];
-    arguments.extend(selection_arguments(selection));
-    private_git(
-        context,
-        cwd,
-        indexes.commit_index.as_path(),
-        indexes.object_directory.as_path(),
-        &arguments,
-    )
-    .map_err(explain_ignored_refusal)?;
     return Ok(());
 }
 

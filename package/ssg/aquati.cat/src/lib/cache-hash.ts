@@ -41,7 +41,7 @@ export function sha256(input: string,): string {
  
  @example
  ```ts
- const fingerprint = await computePipelineFingerprint('src/{lib,components,client}/**\/*.ts');
+ const fingerprint = await computePipelineFingerprint('src/{lib,component,client}/**\/*.ts');
  ```
  */
 export async function computePipelineFingerprint(

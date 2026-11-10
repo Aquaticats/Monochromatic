@@ -4,6 +4,7 @@ import {
   parseOpml,
 } from 'feedsmith';
 import * as v from 'valibot';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { getOPMLTexts, } from './opml-text.ts';
@@ -127,7 +128,7 @@ export async function getOutlinesFromOpmls(
         return true;
       }
       catch (error) {
-        innerL.warn(`${xmlUrl} failed validation: ${JSON.stringify(error,)}`,);
+        innerL.warn(`${xmlUrl} failed validation: ${caughtValueText(error,)}`,);
         return false;
       }
     },
@@ -156,7 +157,7 @@ function parseSafe(texts: readonly string[],): ReadonlyDeep<Opml.Document<string
       return [parseOpml(text,),];
     }
     catch (error) {
-      innerL.warn(`OPML parse failed: ${JSON.stringify(error,)}`,);
+      innerL.warn(`OPML parse failed: ${caughtValueText(error,)}`,);
       return [];
     }
   },);

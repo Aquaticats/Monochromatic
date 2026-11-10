@@ -169,7 +169,7 @@ app.get(
 app.post(
   '/api/ignore/new',
   defineHandler(function handleIgnore(event,) {
-    return ignore(event.req,);
+    return ignore({ request: event.req, },);
   },),
 );
 

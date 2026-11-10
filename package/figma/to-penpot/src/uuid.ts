@@ -44,7 +44,7 @@ function nextSyntheticCounter(): number {
   return syntheticCounter.value;
 }
 
-/* oxlint-disable eslint/no-magic-numbers, unicorn/prefer-math-trunc -- UUID v4 bit-layout: the masks, shifts, segment widths, hex radix, and the `>>> 0` uint32 coercion below are the literal RFC 4122 field geometry; Math.trunc would drop the unsigned wrap, and naming each constant would obscure the byte layout */
+/* oxlint-disable eslint/no-magic-numbers -- UUID v4 bit-layout: the masks, shifts, segment widths, hex radix, and the `>>> 0` uint32 coercion below are the literal RFC 4122 field geometry; naming each constant would obscure the byte layout */
 
 /**
  Format `value` as zero-padded lowercase hex of `width` digits.
@@ -152,6 +152,36 @@ export function nextUuid(): Uuid {
 }
 
 /**
+ Build the composite GUID lookup key from session and local id components.
+ 
+ Every GUID-keyed map in the converter (node lookup, parent-to-children,
+ GUID-to-UUID) is keyed by this one format, so a parent reference resolves only
+ while both the writer and the reader spell it here.
+ 
+ @param sessionId - Figma session id
+ 
+ @param localId - Figma local id
+ 
+ @returns `"sessionId:localId"` key
+ 
+ @example
+ ```ts
+ guidKey({ sessionId: 0, localId: 1, }); // "0:1"
+ ```
+ */
+export function guidKey(
+  {
+    sessionId,
+    localId,
+  }: Readonly<{
+    sessionId: number;
+    localId: number;
+  }>,
+): string {
+  return `${sessionId}:${localId}`;
+}
+
+/**
  Generate a stable UUID from a Figma GUID (sessionID + localID).
  
  Deterministic so parents and children resolve to the same id across passes.
@@ -247,4 +277,4 @@ export function guidToUuid(
   );
 }
 
-/* oxlint-enable eslint/no-magic-numbers, unicorn/prefer-math-trunc */
+/* oxlint-enable eslint/no-magic-numbers */

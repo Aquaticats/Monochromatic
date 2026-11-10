@@ -10,6 +10,11 @@ export * from './attempt.ts';
 export * from './fallback.ts';
 export * from './json.ts';
 export {
+  dispatchProviderStream,
+  PROVIDER_STREAMS_BY_API,
+} from './provider-streams.ts';
+export type { LazyProviderStreams, } from './provider-streams.ts';
+export {
   EmptyStructuredReviewTextError,
   StructuredReviewProviderError,
 } from './stream-collection.ts';

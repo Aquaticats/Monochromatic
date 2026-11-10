@@ -26,9 +26,24 @@ const ICO_DIMENSION = 32;
 const ICO_BITS_PER_PIXEL = 32;
 
 /**
+ Byte offset of the image type within the ICO header.
+ */
+const ICO_HEADER_TYPE_OFFSET = 2;
+
+/**
  Byte offset of image count within the ICO header.
  */
 const ICO_HEADER_COUNT_OFFSET = 4;
+
+/**
+ Byte offset of the image width within an ICO directory entry.
+ */
+const ICO_ENTRY_WIDTH_OFFSET = 0;
+
+/**
+ Byte offset of the image height within an ICO directory entry.
+ */
+const ICO_ENTRY_HEIGHT_OFFSET = 1;
 
 /**
  Byte offset of color planes within an ICO directory entry.
@@ -73,43 +88,51 @@ export function createIco({ pngData, }: { readonly pngData: Uint8Array; },): Buf
    ICONDIR header preceding the image directory entries per the ICO spec.
    */
   const header = Buffer.alloc(ICO_HEADER_SIZE,);
+  /* Reserved field is zero; the type field declares this container an ICO. */
   header.writeUInt16LE(
     1,
-    2,
-  ); // type: 1 = ICO
+    ICO_HEADER_TYPE_OFFSET,
+  );
+  /* One directory entry follows, for the single embedded image. */
   header.writeUInt16LE(
     1,
     ICO_HEADER_COUNT_OFFSET,
-  ); // image count
+  );
 
   /**
    ICONDIRENTRY describing the single embedded PNG image.
    */
   const entry = Buffer.alloc(ICO_ENTRY_SIZE,);
+  /* Width in pixels; 32 fits the single-byte field the ICO spec uses. */
   entry.writeUInt8(
     ICO_DIMENSION,
-    0,
-  ); // width
+    ICO_ENTRY_WIDTH_OFFSET,
+  );
+  /* Height in pixels, matching the width for this square icon. */
   entry.writeUInt8(
     ICO_DIMENSION,
-    1,
-  ); // height
+    ICO_ENTRY_HEIGHT_OFFSET,
+  );
+  /* Color planes; 1 for the single-plane PNG payload. */
   entry.writeUInt16LE(
     1,
     ICO_ENTRY_PLANES_OFFSET,
-  ); // color planes
+  );
+  /* Color depth of the embedded PNG. */
   entry.writeUInt16LE(
     ICO_BITS_PER_PIXEL,
     ICO_ENTRY_BPP_OFFSET,
-  ); // bits per pixel
+  );
+  /* Byte size of the embedded PNG payload. */
   entry.writeUInt32LE(
     pngData.length,
     ICO_ENTRY_DATASIZE_OFFSET,
-  ); // image data size
+  );
+  /* Absolute offset where the embedded PNG payload starts. */
   entry.writeUInt32LE(
     ICO_DATA_OFFSET,
     ICO_ENTRY_DATAPTR_OFFSET,
-  ); // data offset
+  );
 
   return Buffer.concat([
     header,

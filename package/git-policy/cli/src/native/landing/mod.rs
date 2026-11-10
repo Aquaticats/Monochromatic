@@ -93,6 +93,10 @@ pub mod service_land_settings;
 /// journaled and moved onto a branch.
 pub mod service_land_batch_body;
 
+/// The reflog message the branch move writes:
+/// the commit's kind in Git's own words and the first line of its message.
+pub mod service_land_reflog;
+
 pub mod service_land_outcomes;
 
 pub mod service_land_take_index_lock;
@@ -227,6 +231,9 @@ pub mod service_commit_args;
 /// Whether a `commit` command line opens an editor.
 pub mod service_commit_args_editor_opening;
 
+/// The command line a commit is built again with once its editor has run and the branch moved.
+pub mod service_commit_line_reissued;
+
 /// The one summary line a landed commit prints,
 /// with the abbreviated name Git would print.
 pub mod landed_summary;
@@ -239,9 +246,6 @@ pub mod service_hold_retry;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
-
-/// What a commit does once the service reports that the branch moved under it.
-pub mod service_commit_after_a_moved_branch;
 
 /// Which end of a commit's scratch tree a submitted request leaves it to.
 pub mod service_commit_tree_ownership;
@@ -330,6 +334,9 @@ pub mod service_claim_renewal_running;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
+
+/// The notice for a push whose branch the person deleted.
+pub mod service_work_branch_is_gone;
 
 /// The kinds,
 /// handlers,

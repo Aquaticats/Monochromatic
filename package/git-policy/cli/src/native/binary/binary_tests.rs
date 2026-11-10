@@ -19,6 +19,11 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// Holding a wrapped commit between its preparation and its landing,
+/// and landing another session's commit in that window.
+#[path = "binary_hold_at_prepare_support.rs"]
+mod hold_at_prepare;
+
 /// The names of the two programs a control starts and the time bound every wrapped command runs under.
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
@@ -223,6 +228,20 @@ mod dependent_version;
 /// and recovery after a kill.
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
+
+/// A merge over the person's own unsaved or staged work in the paths it changes:
+/// the merge lands,
+/// their bytes are carried forward,
+/// a conflict keeps both sides in the file,
+/// and a kill at each step of the carry leaves either the checkout as it was or the whole result.
+#[path = "binary_merge_carries_edits_tests.rs"]
+mod merge_carries_edits;
+
+/// The kill controls of the carry:
+/// one phase per step of the carry,
+/// and the next command's recovery.
+#[path = "binary_merge_carries_edits_kill_tests.rs"]
+mod merge_carries_edits_kill;
 
 /// The word-level second merge pass after a merge,
 /// rebase,
@@ -465,6 +484,13 @@ mod lfs_hang;
 /// compared with native Git.
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
+
+/// A commit whose branch another command moved while it was prepared:
+/// a first commit on a branch that did not exist yet,
+/// a `--patch` selection,
+/// and a line that borrows its message and author.
+#[path = "binary_moved_branch_commit_tests.rs"]
+mod moved_branch_commit;
 
 /// The service as a mode of the one executable:
 /// refused starts,

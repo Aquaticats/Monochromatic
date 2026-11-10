@@ -75,6 +75,9 @@ pub mod forwarding;
 /// Git 2.56.0 global-argument boundaries over unchanged operating-system strings.
 pub mod global_arguments;
 
+/// The pathspec-mode options of a global prefix and the prefix without them.
+pub mod global_arguments_pathspec_modes;
+
 /// The `git monochromatic-git-policy-cli` decision:
 ///  help,
 ///  retired commands,

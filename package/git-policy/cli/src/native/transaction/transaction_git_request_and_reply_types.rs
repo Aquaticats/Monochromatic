@@ -167,7 +167,7 @@ impl GitRequest {
         let mut arguments: Vec<OsString> = Vec::new();
         if !self.without_prefix {
             if self.own_pathspecs {
-                arguments.extend(crate::global_arguments::without_pathspec_mode_options(global_prefix));
+                arguments.extend(crate::global_arguments_pathspec_modes::without_pathspec_mode_options(global_prefix));
             } else {
                 arguments.extend(global_prefix.iter().cloned());
             }
@@ -270,9 +270,27 @@ impl std::fmt::Display for GitFailure {
 /// ```ts
 /// `git ${args.join(' ')}`
 /// ```
+fn names_update_ref(word: &OsString) -> bool {
+    return word == OsStr::new("update-ref");
+}
+
 pub fn command_text(arguments: &[OsString]) -> String {
+    // The reflog message a branch move carries (`update-ref -m <message>`) is the person's commit text: the record of a
+    // step, the waiting notice a client is sent and every failure sentence name the transaction without it, so the shown
+    // command is the same `git update-ref --stdin` it was before the message was passed.
+    let moves_references: bool = arguments.first().is_some_and(names_update_ref);
     let mut text: String = String::from("git");
+    let mut skip_message: bool = false;
     for argument in arguments {
+        if skip_message {
+            skip_message = false;
+            continue;
+        }
+        if moves_references && argument == OsStr::new("-m") {
+            // The option and its message are left out together, so the shown command is the transaction Git reads.
+            skip_message = true;
+            continue;
+        }
         text.push(' ');
         text.push_str(argument.to_string_lossy().as_ref());
     }

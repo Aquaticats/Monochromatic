@@ -356,7 +356,7 @@ fn settle_creation(
     // and its rung settles it, so it is carried forward rather than reserved again. Otherwise one exclusive creation
     // decides the owner, and no other command's Git can be the one whose worktree this command fills.
     let mut made_here: bool = false;
-    let reserved: Reservation = match (copies, ladder.destination_identity()) {
+    let reserved_before_git: Reservation = match (copies, ladder.destination_identity()) {
         (true, Some(identity)) => match invocation.destination.as_deref() {
             Some(destination) => Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: Some(identity) }),
             None => Reservation::NotAttempted,
@@ -402,6 +402,15 @@ fn settle_creation(
     let finished: LadderResult = settled?;
     let git: GitStatus = finished.git;
     let carried: Option<PathBuf> = finished.carried;
+    // A rung that served the add swapped its own snapshot into the destination, so the directory Git made is not there
+    // any more and the object at the path is the one the rung made. The reservation names that object, or every later
+    // question about whose destination it is compares against an object this command moved away itself and answers, wrongly,
+    // that another command replaced it (a service of a snapshot of the main checkout would report no ignored-state copy and
+    // would leave its copy record behind).
+    let reserved: Reservation = match (finished.placed, invocation.destination.as_deref()) {
+        (Some(placed), Some(destination)) => Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: Some(placed) }),
+        _ => reserved_before_git,
+    };
     #[cfg(target_os = "linux")]
     let trash: Option<PendingTrash> = finished.trash;
     // Set when the copy deliberately left the destination unfilled, as a source that is still being filled does.

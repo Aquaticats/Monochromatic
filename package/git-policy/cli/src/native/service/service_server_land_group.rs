@@ -130,7 +130,7 @@ fn waited_since_accepted(queued: &Queued) -> Duration {
 /// Records the identities of the requests whose scratch tree the landing did not read for good,
 /// because the answer sent their client back to read the private index of the attempt it captured
 /// (`service_prepare_ready_shapes.rs`,
-/// `release_beside_the_command`):
+/// `HandedBackTree`):
 /// those trees stay where they are until the client that owns them removes them.
 pub(crate) fn land_group(
     context: &LandContext,
