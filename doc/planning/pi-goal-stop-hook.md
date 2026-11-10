@@ -9,7 +9,8 @@ Status:
 Note 2026-11-09T20:41:24-05:00:
  the package this record names `@monochromatic-dev/pi-goal` is renamed
  `@monochromatic-dev/pi-plugin-goal` so its name equals its path below `package/`
- (rule SGD, issue #1674).
+ (rule SGD,
+ issue #1674).
  This record keeps the name of its time.
 
 Tracking issue:

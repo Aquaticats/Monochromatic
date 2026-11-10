@@ -1,7 +1,9 @@
 # Pre-fix `@monochromatic-dev/pi-goal@0.0.1` hides a final answer beside `goal_complete`
 
 Note 2026-11-09T20:41:24-05:00:
- that package is now `@monochromatic-dev/pi-plugin-goal` (rule SGD, issue #1674).
+ that package is now `@monochromatic-dev/pi-plugin-goal`
+ (rule SGD,
+ issue #1674).
  The incident record below keeps the name and version it observed.
 
 ## Symptom
