@@ -1,0 +1,28 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/fuzz-core",
+  "description": "The one fast-check run budget a fuzz sidecar reads: its own environment variable name, one shared default, and the policy for an override that does not parse.",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "src",
+    "LICENSES"
+  ],
+  "dependencies": {},
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/fuzz/core"
+  },
+  "sideEffects": false
+}
