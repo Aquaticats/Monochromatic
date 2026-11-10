@@ -1,5 +1,6 @@
 // 105 lines: fetch, parse, and sort are a single pipeline; splitting obscures the data flow
 import { mapIterableAsync, } from '@monochromatic-dev/async-iter-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   type AtomFeed,
   type Opml,
@@ -145,7 +146,7 @@ async function fetchAndParseFeeds(
       }
       catch (error) {
         innerL.warn(
-          `text conversion failed for ${outline.xmlUrl}: ${JSON.stringify(error,)}`,
+          `text conversion failed for ${outline.xmlUrl}: ${caughtValueText(error,)}`,
         );
         return DISCARD;
       }
@@ -172,7 +173,7 @@ async function fetchAndParseFeeds(
       },];
     }
     catch (error) {
-      innerL.warn(`parse failed for ${outline.xmlUrl}: ${JSON.stringify(error,)}`,);
+      innerL.warn(`parse failed for ${outline.xmlUrl}: ${caughtValueText(error,)}`,);
       return [];
     }
   },);

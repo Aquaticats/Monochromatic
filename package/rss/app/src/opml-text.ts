@@ -1,4 +1,5 @@
 import { mapIterableAsync, } from '@monochromatic-dev/async-iter-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { readFile, } from 'node:fs/promises';
 import {
   dirname,
@@ -84,7 +85,7 @@ export async function getOPMLTexts(
         }
         catch (error) {
           innerL.warn(
-            `text conversion failed for ${opmlLink}: ${JSON.stringify(error,)}`,
+            `text conversion failed for ${opmlLink}: ${caughtValueText(error,)}`,
           );
           return DISCARD;
         }
@@ -98,7 +99,7 @@ export async function getOPMLTexts(
             );
           }
           catch (error) {
-            innerL.warn(`failed reading ${opmlLink}: ${JSON.stringify(error,)}`,);
+            innerL.warn(`failed reading ${opmlLink}: ${caughtValueText(error,)}`,);
             return DISCARD;
           }
         }
@@ -122,7 +123,7 @@ export async function getOPMLTexts(
         }
         catch (error) {
           innerL.warn(
-            `failed reading ${opmlLink} at ${absPath}: ${JSON.stringify(error,)}`,
+            `failed reading ${opmlLink} at ${absPath}: ${caughtValueText(error,)}`,
           );
           return DISCARD;
         }

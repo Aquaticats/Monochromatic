@@ -6,6 +6,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { indexHtmlStart, } from './asset.ts';
@@ -114,7 +115,7 @@ export async function ignore(request: Request,): Promise<Response> {
     await access(filePath,);
   }
   catch (error) {
-    innerL.debug(`creating api.jsonl: ${JSON.stringify(error,)}`,);
+    innerL.debug(`creating api.jsonl: ${caughtValueText(error,)}`,);
     await mkdir(
       IGNORE_PATH,
       { recursive: true, },
