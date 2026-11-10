@@ -1095,3 +1095,27 @@ Why:
    and the `trust`, `untrust` and `status` commands this decision adopts are retired
    (`package/git-policy/cli/src/native/invocation/management.rs:93`).
 ```
+
+- `#4103`:
+  the claim no longer holds on `main`,
+  and nothing needed changing.
+ `doc/troubleshooting/cli-git-windows-nested-registry-acls.md` was rebuilt in `37d69e10e6`,
+  one of the commits merge `5ac11cf09e` brought in on 2026-11-10.
+  Its dated opening note names `642b6d72cb`,
+  the 112 files of `package/git-policy/cli/src/trust/` and the deleted
+ `.github/workflows/cli-git-trust.yml`,
+  the retired command at `package/git-policy/cli/src/native/invocation/management.rs:71` and `:93`,
+  and states that no registry ACL carrier is left in the tree.
+  `Verified workarounds` and `What does not work` replaced the old headings,
+  and the six numbered constraints of `Upstream filing decision` replaced the one-sentence status.
+ Each of those citations was re-read here:
+  `management.rs:71` is `RetiredCommand::Trust => return "trust",` and `:93` is the signature of
+ `retired_explanation`.
+ `git show --name-status --format='' 642b6d72cb -- package/git-policy/cli/src/trust/` counts 112 deleted files,
+  and the same commit deletes the workflow.
+ `rg` finds `ensureRegistryRoot` and `TrustStorageError` in that record and in the 2026-10-07 cluster ledger under
+ `doc/artifact/`,
+ `ensurePrivateRegistryDirectory` and `AreAccessRulesProtected` only in that record,
+  and none of the four under `package/`.
+ The issue can be closed against `37d69e10e6`.
+ The owner's pause on Windows still governs any new Windows work in that record.
