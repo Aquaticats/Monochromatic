@@ -1,7 +1,7 @@
 // The character classes the inspection scripts' scans share, checked against the pattern classes they replace.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isAsciiDigit, isLineTerminator } from './scan-characters.ts';
+import { isAsciiDigit, isDecimalNumberCharacter, isLineTerminator } from './scan-characters.ts';
 
 const digits = '0123456789';
 
@@ -29,4 +29,13 @@ test('rejects whitespace and characters that are not line terminators', () => {
   for (const character of [' ', '\t', '\u000b', '\f', '\u0085', '\u00a0', 'a', '', '\r\n']) {
     assert.equal(isLineTerminator(character), false, JSON.stringify(character));
   }
+});
+
+test('accepts the digits and the decimal point of a printed number', () => {
+  for (const character of digits) assert.equal(isDecimalNumberCharacter(character), true, character);
+  assert.equal(isDecimalNumberCharacter('.'), true);
+});
+
+test('rejects the characters a printed number never holds', () => {
+  for (const character of [',', '+', '-', 'e', 'E', ' ', '', '..']) assert.equal(isDecimalNumberCharacter(character), false, character);
 });

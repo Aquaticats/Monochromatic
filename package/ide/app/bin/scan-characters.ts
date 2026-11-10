@@ -63,3 +63,23 @@ export function isLineTerminator(character: string): boolean {
     || code === lineSeparatorCodeUnit
     || code === paragraphSeparatorCodeUnit;
 }
+
+/** The decimal point that stands inside a number a report prints as a plain decimal. */
+const decimalPoint = '.';
+
+/**
+ Whether character may stand in a plain decimal number a report prints.
+ 
+ @param character - Single character of the text.
+ 
+ @returns Whether character is an ASCII digit or the decimal point.
+ 
+ @example
+ ```ts
+ isDecimalNumberCharacter('.'); // true
+ isDecimalNumberCharacter(','); // false
+ ```
+ */
+export function isDecimalNumberCharacter(character: string): boolean {
+  return isAsciiDigit(character) || character === decimalPoint;
+}

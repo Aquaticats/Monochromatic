@@ -808,8 +808,8 @@ runCargo(['nextest', 'run', '--test', 'cli_args', '--test', 'cli_process'])
     run: "node bin/check-nextest-config.ts",
   },
   "test:bin": {
-    description: "Check the compositor version reader, the container bound, the frame-pattern analysis, the runtime publishing helpers, the shared character classes, the colour-sequence stripping, the sweep-interval reader, and the inotify watch count of the bin scripts with node:test",
-    run: "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/stress-native-report.test.ts bin/runtime-publish.test.ts bin/scan-characters.test.ts bin/sgr-sequences.test.ts bin/refresh-policy-sweep.test.ts bin/inotify-fdinfo.test.ts",
+    description: "Check the compositor version reader, the container bound, the frame-pattern analysis, the runtime publishing helpers, the shared character classes, the colour-sequence stripping, the sweep-interval reader, the inotify watch count, and the pressure-share reader of the bin scripts with node:test",
+    run: "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/stress-native-report.test.ts bin/runtime-publish.test.ts bin/scan-characters.test.ts bin/sgr-sequences.test.ts bin/refresh-policy-sweep.test.ts bin/inotify-fdinfo.test.ts bin/pressure-shares.test.ts",
   },
   "test:design": {
     description: "Check the PNG flat-frame probe and the settled-screenshot loop the two design capture scripts share with node:test",

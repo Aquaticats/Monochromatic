@@ -15,6 +15,7 @@ import { containerBounds } from './container-bounds.ts';
 import { withoutSgrSequences } from './sgr-sequences.ts';
 import { safetySweepDeclaration } from './refresh-policy-sweep.ts';
 import { inotifyWatchCount } from './inotify-fdinfo.ts';
+import { pressureShares } from './pressure-shares.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
 const containerLimits = containerBounds();
@@ -126,12 +127,8 @@ interface ProcessIo { syscr: number; rchar: number }
 const io = (pid: string): ProcessIo => Object.fromEntries(readFileSync('/proc/' + pid + '/io', 'utf8').trim().split('\n').map(line => line.split(': ')).map(([key, value]) => [key, Number(value)])) as ProcessIo;
 const ticksPerSecond = Number(spawnSync('getconf', ['CLK_TCK'], { encoding: 'utf8' }).stdout.trim());
 // Share of recent time in which some task (`some`) or every task (`full`) waited for the resource.
-const pressure = (): Record<string, number> => Object.fromEntries(['cpu', 'io'].flatMap(resource => readFileSync('/proc/pressure/' + resource, 'utf8').trim().split('\n')
-  .map((line): [string, number] => {
-    const average = line.match(/avg10=([\d.]+)/)?.[1];
-    if (average === undefined) throw new Error('The pressure line has no avg10 value: ' + line);
-    return [resource + '_' + line.split(' ')[0], Number(average)];
-  })));
+const pressure = (): Record<string, number> => ['cpu', 'io'].map(resource => pressureShares({ resource, text: readFileSync('/proc/pressure/' + resource, 'utf8') }))
+  .reduce((all, shares) => ({ ...all, ...shares }), {});
 const control = async ({ socketPath, line }: { socketPath: string; line: string }): Promise<string> => {
   const socket = createConnection(socketPath);
   await once(socket, 'connect');
