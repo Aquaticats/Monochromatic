@@ -14,10 +14,23 @@
 /// The three-way merge by line and by word that resolves a conflict Git's line merge reports.
 pub mod word_merge;
 
+/// The text a word merge of one region may not write,
+/// which keeps that region in conflict.
+pub mod word_merge_invented_text;
+
 /// The conflicted files a merge left,
 /// which of them the word pass may re-merge,
 /// and the lines that list each merged part.
 pub mod merge_second_pass;
+
+/// The line merge Git makes for a conflicted file,
+/// cut into the text it settled and the regions it
+/// left.
+pub mod merge_second_pass_line_regions;
+
+/// The line merge Git makes for one candidate file,
+/// and the word pass over the regions it leaves.
+pub mod merge_second_pass_git_lines;
 
 /// The words that list a merged part and the journal entry for a merged file.
 pub mod merge_second_pass_report;

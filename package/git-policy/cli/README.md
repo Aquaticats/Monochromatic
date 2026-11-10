@@ -2568,6 +2568,33 @@ a path whose mode differs between the sides,
 and a path whose `merge` attribute names a driver,
 `binary` or `-merge`.
 
+The merge is Git's own line merge:
+`git merge-file --zdiff3` over the base,
+your side and the other side,
+so the lines both sides wrote identically stay out of a conflict,
+and the record of each file says which line regions the word pass settled.
+The owner on 2026-11-10:
+"there are still ways you haven't tried to make this happen less often,
+for example,
+using a better algorithm or something."
+Measured on 723 files that both sides of a two-parent merge changed and that plain Git conflicts on,
+from 3,194 merges of this repository,
+`--zdiff3` resolved 130 of them where the pass's own line merge resolved 108,
+and Git's `patience`,
+`histogram` and `minimal` algorithms resolved the same 130 to 129.
+
+A region whose merge would write more than a resolution keeps both sides instead:
+a word written twice in a row that neither side writes twice
+(merge `ef43afe9f9` shipped `return return without_variable == *selected;` that way),
+and,
+where the region spans more than one line on some side,
+a line neither side holds
+(the shape that ran one body into the other mid-sentence).
+A file with such a region stays exactly as Git left it and you resolve it,
+which is what the measured set shows:
+the refusals took both files that wrote a doubled word
+and the 71 lines no side holds that 34 resolved files had joined across lines.
+
 The result can be text neither side wrote:
 two edits of different arguments of one call become one call with both edits.
 Nothing either side added or kept is dropped,

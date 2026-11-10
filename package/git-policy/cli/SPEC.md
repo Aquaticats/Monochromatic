@@ -11797,21 +11797,82 @@ and that the wrapper's own unattended merges
 (the auto-push reconcile merge,
 the commit replay merge) and the isolated merge use the same pass.
 
-The merge is `src/native/merge/word_merge.rs`:
-line hunks first,
-then every line hunk both sides changed is diffed by word
+The merge is `src/native/merge/merge_second_pass_line_regions.rs` and
+`src/native/merge/word_merge.rs`:
+the line merge is Git's own,
+`git merge-file --stdout --object-id --zdiff3` over the three stages,
+whose exit status is the number of conflicts;
+the regions it leaves are then diffed by word
 and by the bytes between words (the `similar` crate,
 Myers algorithm,
 no other feature of it),
 and kept only when every part of
-the hunk resolves;
-a file is resolved only when every hunk resolves.
-The controls hold it to the stored results of Jujutsu 0.46.0 on a corpus of real and measured inputs
+the region resolves;
+a file is resolved only when every region resolves.
+The conflict style is the decision here,
+not the diff algorithm:
+`zdiff3` keeps the lines both sides wrote identically out of a conflict
+(`xdl_refine_conflicts` and `XDL_MERGE_ZEALOUS_DIFF3` in Git 2.56.0's `xdiff/xmerge.c`),
+so the word pass sees only the lines that are a choice.
+Measured on 723 files that both sides of a two-parent merge changed and that plain line merging conflicts on,
+from 3,194 merges of this history (`doc/planning/cli-git-merge-auto-resolution.md`,
+"Measured again on 2026-11-10"):
+this resolved 130 of them where the pass's own line merge resolved 108 under the same refusals,
+with the same refusals and the same 21 lines no side holds,
+and Git's `patience`,
+`histogram` and `minimal` algorithms resolved 130 and 129 of them.
+The word level is still held to the stored results of Jujutsu 0.46.0 on a corpus of real and measured inputs
 (`src/native/merge/word_merge_corpus/`):
-the same verdict on every input and the same bytes on every resolved one.
+the same verdict on every input and the same bytes on every resolved one,
+and on those 41 inputs Git's `--zdiff3` line merge gives the same verdict and the same bytes as the pass's own line merge.
+A region is refused rather than merged when its answer would be more than a resolution of two edits;
+see the refusal below.
+
+A `--zdiff3` answer is cut into the text Git settled and the regions it left,
+and a region's line numbers for the report and the journal are found by searching its text forward from the end
+of the region before it.
+An answer that ends inside a region,
+that nests a region inside another,
+or whose region count differs from the conflict count Git reported is refused,
+and its file stays exactly as Git left it:
+a region read wrongly would lose a side.
+
+Owner decision (2026-11-10),
+verbatim:
+"there are still ways you haven't tried to make this happen less often,
+for example,
+using a better algorithm or something."
+That followed merge `b971df44f5`,
+which carried a record two sides had written,
+and merge `ef43afe9f9`,
+which shipped `return return without_variable == *selected;`
+in `package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`.
+So the pass keeps the decision of 2026-11-03 and refuses a region whose word merge would write more than
+a resolution of two edits:
+a word written twice in a row that none of the three texts writes twice in a row,
+and,
+in a region that spans more than one line on some side,
+a line that none of the three texts holds
+(`refuses_word_merge` in `src/native/merge/word_merge.rs`).
+A refused region keeps both sides,
+so its file stays exactly as Git left it and the person resolves it.
+A resolved file therefore holds only lines one of the three texts holds,
+or the merge of a line all three held,
+which is the one shape the owner accepted on 2026-11-03.
+On the measured set the refusals took both triples that wrote a doubled word
+and the 71 lines no side holds that 34 resolved files had joined across lines,
+leaving the 21 lines that are each the merge of a single line all three held.
+The controls are the three stages of merge `ef43afe9f9`
+and a reduced replica of the two blocks merge `31f72ecf12` left in
+`doc/handover/questions-for-the-owner.md`,
+in `src/native/merge/word_merge_refusals/`;
+that replica is the shape the pass declines,
+and its file stayed a conflict in the merge,
+so the text merge `b971df44f5` carried was written by whoever resolved that conflict by hand.
+
 It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
 which the owner accepted;
-it never drops a byte that either side added or kept,
+it never drops a line both sides kept,
 and it never orders two insertions at one point,
 so both sides appending different text at one place stays a conflict.
 
