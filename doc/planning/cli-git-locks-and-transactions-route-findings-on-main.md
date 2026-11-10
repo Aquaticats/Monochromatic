@@ -60,7 +60,7 @@ for this machinery:
   That owner answer has since been given ("Refuse and name it",
   2026-11-04),
   so expiry now refuses instead of reclaiming;
-  the finding about the patience on this page is about the *record's age* as evidence,
+  the finding about the patience on this page is about the **record's age** as evidence,
   not about what expiry authorizes.
 - the copy route's journals,
   stage claims and owner records,
@@ -173,7 +173,7 @@ whatever it is.
 - Ceiling:
   not a wait.
 - Dead holder:
-  this *is* the dead-holder path,
+  this **is** the dead-holder path,
   and it acts only on the proof above.
 - Removable:
   it removes,
@@ -438,7 +438,7 @@ Where:
   answers `None`,
   and `foreign_owner_standing` maps `None` to `Ok(())`,
   that is,
-  *alive*;
+  **alive**;
 - an age greater than `FOREIGN_OWNER_PATIENCE` (twenty minutes) is refused and named,
   with the `rm`.
 
@@ -707,7 +707,7 @@ nothing to reproduce.
 
 Only the first is a disagreement a reader can be misled by,
 and the brief asked for it explicitly:
-the sentence is true of *another program's* `index.lock` on the forwarded path
+the sentence is true of **another program's** `index.lock` on the forwarded path
 (nothing on `lock/index_holder_wait.rs` removes anything),
 and false of reference locks and of the service's own index lock.
 The record's own "Implemented 2026-11-03" paragraph amends its two neighbouring bullets
@@ -847,7 +847,7 @@ the ordering claims are `path:line` above.
   older generations are removed only by the winner;
   the newest generation is never removed,
   so no claimant can re-create a number another already read.
-  A live owner is judged by PID *and* birth,
+  A live owner is judged by PID **and** birth,
   so a reused PID is not the owner.
 - The birth identity's only gap is across a reboot:
   it is `linux:<start tick>` (`process/process_identity.rs:195`) with no boot ID,
