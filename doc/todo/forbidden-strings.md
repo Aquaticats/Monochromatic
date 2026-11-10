@@ -259,39 +259,39 @@ so the engine sees a single uniform input.
 The deny-list cannot be committed.
 Options considered:
 
-1. **Per-contributor gitignored file.
-   **
-   Each contributor maintains `forbidden-strings.local.txt` themselves.
-   Simplest,
-    fits a small-team or solo repo,
-    no shared-secret distribution problem.
-   Downside:
-    enforcement is uniform only by convention;
-    one contributor's missing rule
-   means CI cannot block that term either,
-    since CI also reads from a configured location.
-2. **Shared deny-list via a private channel.
-   **
-   Distribute via a private git submodule,
-    an encrypted file with the key out-of-band,
-   1Password / a secrets manager,
-    or fetched at hook-runtime from an authenticated endpoint.
-   Stronger consistency,
-    real distribution overhead.
-3. **Hash-based deny-list,
-    committed.
-   **
-   Store SHA-256 of each forbidden literal;
-    scanner hashes candidate substrings
-   and compares against the hash list.
-   Works only for case-sensitive exact literals;
-    breaks regex matching
-   unless the scanner enumerates variants.
-4. **GPG-encrypted deny-list,
-    committed as ciphertext.
-   **
-   Each contributor decrypts at hook-runtime with their own key.
-   Adds a key-management step but lets the file live in the repo.
+1.  **Per-contributor gitignored file.
+    **
+    Each contributor maintains `forbidden-strings.local.txt` themselves.
+    Simplest,
+     fits a small-team or solo repo,
+     no shared-secret distribution problem.
+    Downside:
+     enforcement is uniform only by convention;
+     one contributor's missing rule
+    means CI cannot block that term either,
+     since CI also reads from a configured location.
+2.  **Shared deny-list via a private channel.
+    **
+    Distribute via a private git submodule,
+     an encrypted file with the key out-of-band,
+    1Password / a secrets manager,
+     or fetched at hook-runtime from an authenticated endpoint.
+    Stronger consistency,
+     real distribution overhead.
+3.  **Hash-based deny-list,
+     committed.
+    **
+    Store SHA-256 of each forbidden literal;
+     scanner hashes candidate substrings
+    and compares against the hash list.
+    Works only for case-sensitive exact literals;
+     breaks regex matching
+    unless the scanner enumerates variants.
+4.  **GPG-encrypted deny-list,
+     committed as ciphertext.
+    **
+    Each contributor decrypts at hook-runtime with their own key.
+    Adds a key-management step but lets the file live in the repo.
 
 The recommended starting point is option 1 for both local and CI.
 For CI,
@@ -356,44 +356,44 @@ Invocation shape:
 
 On startup:
 
-1. Parse the rules file (`--rules` arg,
-    or `FORBIDDEN_STRINGS_RULES` env) line-by-line:
-   empty lines and `#` comments are skipped;
-   a line matching `^/.+/[a-z]*$` is parsed as a regex with the trailing letters as flags;
-   every other non-empty line is a case-sensitive literal,
-   escaped to regex source for engine input.
-   Each rule retains its 1-based index from input order.
-2. Build a single combined automaton via resharp from the union of all rule sources.
-   Compile cost is paid once per invocation.
-3. Resolve the file list:
-   in `--all` mode the binary calls `git ls-files -z` itself and reads the result;
-   otherwise it scans the file paths passed as positional arguments.
-   The scanner reads each path from the **working tree** via plain FS reads,
-   not the git index.
-   This is strictly better than staged-blob reads for the threat model:
-   any forbidden term that lands on disk is flagged immediately,
-   even if not yet staged,
-   so a term sitting in an unstaged hunk gets surfaced now rather than slipping through
-   on a future `git add .`.
-   Reading 12.4 MB of tracked content into RAM is sub-millisecond on modern SSDs;
-   any `git cat-file --batch` approach loses to plain reads by orders of magnitude.
-   Loading via mmap or buffered reads is an implementation detail.
+1.  Parse the rules file (`--rules` arg,
+     or `FORBIDDEN_STRINGS_RULES` env) line-by-line:
+    empty lines and `#` comments are skipped;
+    a line matching `^/.+/[a-z]*$` is parsed as a regex with the trailing letters as flags;
+    every other non-empty line is a case-sensitive literal,
+    escaped to regex source for engine input.
+    Each rule retains its 1-based index from input order.
+2.  Build a single combined automaton via resharp from the union of all rule sources.
+    Compile cost is paid once per invocation.
+3.  Resolve the file list:
+    in `--all` mode the binary calls `git ls-files -z` itself and reads the result;
+    otherwise it scans the file paths passed as positional arguments.
+    The scanner reads each path from the **working tree** via plain FS reads,
+    not the git index.
+    This is strictly better than staged-blob reads for the threat model:
+    any forbidden term that lands on disk is flagged immediately,
+    even if not yet staged,
+    so a term sitting in an unstaged hunk gets surfaced now rather than slipping through
+    on a future `git add .`.
+    Reading 12.4 MB of tracked content into RAM is sub-millisecond on modern SSDs;
+    any `git cat-file --batch` approach loses to plain reads by orders of magnitude.
+    Loading via mmap or buffered reads is an implementation detail.
 
-   The only residual imprecision is the inverse case
-   (stage a forbidden term,
-    then edit the working tree to remove it,
-   commit before the next scan),
-   which requires deliberate sequencing and falls under the obfuscation cases
-   the threat model already accepts as out of scope.
-4. For each file,
-    run the combined automaton over the content in one pass,
-   collect all match offsets and the originating rule index.
-5. For each hit,
-    report `path:line:start-col..end-col` plus the opaque rule index
-   on stderr,
-    one finding per line.
-6. Exit `1` if any rule fired,
-    `0` otherwise.
+    The only residual imprecision is the inverse case
+    (stage a forbidden term,
+     then edit the working tree to remove it,
+    commit before the next scan),
+    which requires deliberate sequencing and falls under the obfuscation cases
+    the threat model already accepts as out of scope.
+4.  For each file,
+     run the combined automaton over the content in one pass,
+    collect all match offsets and the originating rule index.
+5.  For each hit,
+     report `path:line:start-col..end-col` plus the opaque rule index
+    on stderr,
+     one finding per line.
+6.  Exit `1` if any rule fired,
+     `0` otherwise.
 
 Columns are 1-based code-unit offsets within the matched line.
 The range is inclusive on both ends;
@@ -447,17 +447,17 @@ hooks {
 
 A single GitHub Actions job on pull_request and push to main:
 
-1. Checkout with full history (`fetch-depth: 0`) so `--from-ref` works
-2. Install mise,
-    run `mise install` to get hk and the Rust toolchain
-3. Build the scanner with `mise run //package/forbidden-strings/cli:build`
-   (cache `target/` keyed on `Cargo.lock` to keep CI fast)
-4. Materialize `forbidden-strings.local.txt` from a repo secret
-   (e.g. `secrets.FORBIDDEN_STRINGS_LIST`);
-   the secret holds the full plain-text deny-list
-5. `hk check --from-ref origin/main`;
-   runs the same steps the local hook runs,
-   scoped to the changed files in the PR
+1.  Checkout with full history (`fetch-depth: 0`) so `--from-ref` works
+2.  Install mise,
+     run `mise install` to get hk and the Rust toolchain
+3.  Build the scanner with `mise run //package/forbidden-strings/cli:build`
+    (cache `target/` keyed on `Cargo.lock` to keep CI fast)
+4.  Materialize `forbidden-strings.local.txt` from a repo secret
+    (e.g. `secrets.FORBIDDEN_STRINGS_LIST`);
+    the secret holds the full plain-text deny-list
+5.  `hk check --from-ref origin/main`;
+    runs the same steps the local hook runs,
+    scoped to the changed files in the PR
 
 The workflow YAML must not echo the secret.
 GitHub masks secret values in logs,
@@ -539,36 +539,36 @@ Make this a required check in branch protection so `--no-verify` locally cannot 
 
 ## Historical rollout
 
-1. Land the Rust crate at `package/forbidden-strings/cli/`
-   with the loader pointing at a `.local.txt` file that contains
-   only an obviously-fake placeholder rule.
-   Verify a `cargo build --release` and that the binary runs end-to-end
-   on a synthetic input that exercises a literal hit,
-    a regex hit,
-    and a no-hit file.
-2. Benchmark the v0 scanner against the full tracked corpus
-   with a synthetic 1k-rule set
-   (700 literals,
-    200 normal regexes,
-    100 catastrophic-shape regexes;
-   resharp's automata-based engine handles all three classes in linear time).
-   Confirm full-repo wall time is well under the 5s budget;
-   if the combined automaton blows up,
-    gate the regex stage behind an AC literal prefilter.
-3. Land hk wired to invoke the binary,
-   verify the local hook fires and the CI job runs green on a no-op PR.
-4. Configure the GitHub Actions secret holding the real plain-text deny-list.
-   Confirm CI fails on a test PR introducing a deny-listed term
-   and that the failure log contains only `path:line:cols` plus rule index,
-    never the term itself.
-5. Distribute the real `forbidden-strings.local.txt` to each contributor via a private channel.
-6. Enable branch protection on `main` to require the CI check.
-7. Document the workflow for adding a new forbidden string in `doc/agent/forbidden-strings.md`
-   (or extend an existing agent doc):
-   how to update the local file,
-    how to update the CI secret,
-   how to format new rules,
-   and how to interpret the opaque rule index in failure messages.
+1.  Land the Rust crate at `package/forbidden-strings/cli/`
+    with the loader pointing at a `.local.txt` file that contains
+    only an obviously-fake placeholder rule.
+    Verify a `cargo build --release` and that the binary runs end-to-end
+    on a synthetic input that exercises a literal hit,
+     a regex hit,
+     and a no-hit file.
+2.  Benchmark the v0 scanner against the full tracked corpus
+    with a synthetic 1k-rule set
+    (700 literals,
+     200 normal regexes,
+     100 catastrophic-shape regexes;
+    resharp's automata-based engine handles all three classes in linear time).
+    Confirm full-repo wall time is well under the 5s budget;
+    if the combined automaton blows up,
+     gate the regex stage behind an AC literal prefilter.
+3.  Land hk wired to invoke the binary,
+    verify the local hook fires and the CI job runs green on a no-op PR.
+4.  Configure the GitHub Actions secret holding the real plain-text deny-list.
+    Confirm CI fails on a test PR introducing a deny-listed term
+    and that the failure log contains only `path:line:cols` plus rule index,
+     never the term itself.
+5.  Distribute the real `forbidden-strings.local.txt` to each contributor via a private channel.
+6.  Enable branch protection on `main` to require the CI check.
+7.  Document the workflow for adding a new forbidden string in `doc/agent/forbidden-strings.md`
+    (or extend an existing agent doc):
+    how to update the local file,
+     how to update the CI secret,
+    how to format new rules,
+    and how to interpret the opaque rule index in failure messages.
 
 ## Historical open questions
 

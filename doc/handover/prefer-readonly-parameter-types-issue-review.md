@@ -547,23 +547,23 @@ Do not use the #427 counts as a current baseline.
 They were measured to demonstrate cache and attribution defects.
 After observer-return retention is separated from opacity:
 
-1. run the extracted rules over the full workspace from a clean persistent cache;
-2. repeat warm and worker-count controls in separate processes;
-3. inventory the stable named-boundary remainder;
-4. resolve each site through code,
-   verified behavior,
-   accurate effect contract,
-   or a reviewed site-specific acceptance manifest;
-5. make manifest entries use stable fingerprints,
-   reject changed sites,
-   and report stale entries;
-6. extend the plugin self-hosting override to all extracted rules;
-7. change the three currently disabled extracted entries,
-   `no-readonly-parameter-mutations`,
-   `no-opaque-parameter-effects`,
-   and `no-invalid-parameter-effect-contracts`,
-   directly from `off` to `error`;
-8. run affected package lint and the complete workspace lint.
+1.  run the extracted rules over the full workspace from a clean persistent cache;
+2.  repeat warm and worker-count controls in separate processes;
+3.  inventory the stable named-boundary remainder;
+4.  resolve each site through code,
+    verified behavior,
+    accurate effect contract,
+    or a reviewed site-specific acceptance manifest;
+5.  make manifest entries use stable fingerprints,
+    reject changed sites,
+    and report stale entries;
+6.  extend the plugin self-hosting override to all extracted rules;
+7.  change the three currently disabled extracted entries,
+    `no-readonly-parameter-mutations`,
+    `no-opaque-parameter-effects`,
+    and `no-invalid-parameter-effect-contracts`,
+    directly from `off` to `error`;
+8.  run affected package lint and the complete workspace lint.
 
 Keep `JSON.stringify` opaque for unproved object graphs.
 ECMAScript property access,
@@ -650,26 +650,26 @@ and exercise a real consuming package through its package lint task before the w
 
 When a maintenance trigger fires:
 
-1. fetch all current issue records and comments,
-   not only open issues;
-2. exclude API records carrying a `pull_request` field;
-3. search title,
-   body,
-   and comment text for the singular package name,
-   the plural rule name,
-   and `readonly parameter`;
-4. read every new comment on the direct issue set;
-5. classify incidental matches explicitly rather than silently dropping them;
-6. compare open-issue claims with current source and tests;
-7. update the review date,
-   source commit,
-   issue states,
-   issue dispositions,
-   current seams,
-   improvement order,
-   and verification evidence;
-8. remove superseded advice instead of appending a second truth;
-9. commit the handover update with the related implementation or issue-tracker work.
+1.  fetch all current issue records and comments,
+    not only open issues;
+2.  exclude API records carrying a `pull_request` field;
+3.  search title,
+    body,
+    and comment text for the singular package name,
+    the plural rule name,
+    and `readonly parameter`;
+4.  read every new comment on the direct issue set;
+5.  classify incidental matches explicitly rather than silently dropping them;
+6.  compare open-issue claims with current source and tests;
+7.  update the review date,
+    source commit,
+    issue states,
+    issue dispositions,
+    current seams,
+    improvement order,
+    and verification evidence;
+8.  remove superseded advice instead of appending a second truth;
+9.  commit the handover update with the related implementation or issue-tracker work.
 
 Useful complete-repository retrieval commands:
 

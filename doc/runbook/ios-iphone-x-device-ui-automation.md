@@ -104,100 +104,100 @@ Bring the machine to this starting state before the steps.
 Status:
  TODO
 
-1. Open **Terminal** on the Mac (**Spotlight** with **Cmd+Space**,
-    type `Terminal`,
-    press **Return**).
-   Expected outcome:
-    a shell prompt.
-2. Accept the Xcode 15.2 license:
-   ```sh
-   sudo /Volumes/MacData/Xcodes/Xcode.app/Contents/Developer/usr/bin/xcodebuild -license accept
-   ```
-   Enter your admin password when prompted.
+1.  Open **Terminal** on the Mac (**Spotlight** with **Cmd+Space**,
+     type `Terminal`,
+     press **Return**).
     Expected outcome:
-    the command returns to the prompt with no output
-   (a license-already-accepted run is also silent).
-3. Install Xcode 15.2's bundled platform and components:
-   ```sh
-   sudo /Volumes/MacData/Xcodes/Xcode.app/Contents/Developer/usr/bin/xcodebuild -runFirstLaunch
-   ```
-   Expected outcome:
-    it prints package-install progress and ends with `** INSTALL SUCCEEDED **` or returns
-   silently;
-    a second run prints `No actions to perform` or returns silently.
-4. Point the active developer toolchain at Xcode 15.2 (so the on-device CoreDevice and instruments daemons use
-   the 15.2 versions,
-    the ones that speak iOS 16.7):
-   ```sh
-   sudo xcode-select -s /Volumes/MacData/Xcodes/Xcode.app/Contents/Developer
-   ```
-   Expected outcome:
-    no output.
-    Verify with `xcode-select -p`,
-    which must print
-   `/Volumes/MacData/Xcodes/Xcode.app/Contents/Developer`.
-5. Confirm Xcode 15.2 now sees the wired device:
-   ```sh
-   xcrun xctrace list devices
-   ```
-   Expected outcome:
-    under `== Devices ==` (not `== Simulators ==`) a line
-   `iPhone X (16.7.16) (9057e2a8c2e70162e35b9ea8bf006f736670877b)`.
-6. If that line is missing or the device later reports unavailable,
-    prepare it once in the GUI:
-    open **Xcode**
-   (the 15.2 copy at `/Volumes/MacData/Xcodes/Xcode.app`),
-    open **Window > Devices and Simulators**
-   (**Shift+Cmd+2**),
-    select the **iPhone X** in the left list,
-    and wait until the status reads **Connected** with
-   no **Preparing device for development** spinner.
-   Expected outcome:
-    the device shows **Connected** and a green dot;
-    re-running the step 5 command now lists it.
-7. Tell the agent to rebuild WebDriverAgent with Xcode 15.2 and run it on the device,
-    or do it yourself.
-    The build
-   (signed by the vet identity,
-    `DEVELOPER_DIR` pointed at Xcode 15.2) ends `** TEST BUILD SUCCEEDED **` and
-   writes a `*.xctestrun` under `/Volumes/MacData/ios-vet/wda-dd152/Build/Products/`.
-    Then launch it on the
-   device:
-   ```sh
-   DEVELOPER_DIR=/Volumes/MacData/Xcodes/Xcode.app/Contents/Developer \
-   xcodebuild test-without-building \
-     -xctestrun /Volumes/MacData/ios-vet/wda-dd152/Build/Products/WebDriverAgentRunner_iphoneos17.2-arm64.xctestrun \
-     -destination "platform=iOS,id=9057e2a8c2e70162e35b9ea8bf006f736670877b"
-   ```
-   Expected outcome:
-    it streams test output and prints a line containing
-   `ServerURLHere->http://192.168.x.x:8100<-ServerURLHere`,
-    then appears to hang.
-    Leave it running;
-    the hang is
-   WDA serving.
-8. In a second **Terminal** tab (**Cmd+T**),
-    forward the port and confirm WDA answers:
-   ```sh
-   iproxy 8100:8100 -u 9057e2a8c2e70162e35b9ea8bf006f736670877b &
-   curl -s http://127.0.0.1:8100/status
-   ```
-   Expected outcome:
-    JSON containing `"state" : "success"` and the device's `"name"`.
-    WDA is now live on the
-   iPhone X.
-9. Hand back to the agent to drive the device:
-    it points Appium at `appium:webDriverAgentUrl=http://127.0.0.1:8100`
-   and re-runs the simulator drive (install a gate app,
-    dump `/source`,
-    tap,
-    re-dump) against the real device,
-   writing the per-app trees as `*.device.xml`.
+     a shell prompt.
+2.  Accept the Xcode 15.2 license:
+    ```sh
+    sudo /Volumes/MacData/Xcodes/Xcode.app/Contents/Developer/usr/bin/xcodebuild -license accept
+    ```
+    Enter your admin password when prompted.
+     Expected outcome:
+     the command returns to the prompt with no output
+    (a license-already-accepted run is also silent).
+3.  Install Xcode 15.2's bundled platform and components:
+    ```sh
+    sudo /Volumes/MacData/Xcodes/Xcode.app/Contents/Developer/usr/bin/xcodebuild -runFirstLaunch
+    ```
     Expected outcome:
-    the agent reports a captured element tree from
-   the iPhone X and,
-    for the Flutter gate,
-    `counter after 2 taps: 2`.
+     it prints package-install progress and ends with `** INSTALL SUCCEEDED **` or returns
+    silently;
+     a second run prints `No actions to perform` or returns silently.
+4.  Point the active developer toolchain at Xcode 15.2 (so the on-device CoreDevice and instruments daemons use
+    the 15.2 versions,
+     the ones that speak iOS 16.7):
+    ```sh
+    sudo xcode-select -s /Volumes/MacData/Xcodes/Xcode.app/Contents/Developer
+    ```
+    Expected outcome:
+     no output.
+     Verify with `xcode-select -p`,
+     which must print
+    `/Volumes/MacData/Xcodes/Xcode.app/Contents/Developer`.
+5.  Confirm Xcode 15.2 now sees the wired device:
+    ```sh
+    xcrun xctrace list devices
+    ```
+    Expected outcome:
+     under `== Devices ==` (not `== Simulators ==`) a line
+    `iPhone X (16.7.16) (9057e2a8c2e70162e35b9ea8bf006f736670877b)`.
+6.  If that line is missing or the device later reports unavailable,
+     prepare it once in the GUI:
+     open **Xcode**
+    (the 15.2 copy at `/Volumes/MacData/Xcodes/Xcode.app`),
+     open **Window > Devices and Simulators**
+    (**Shift+Cmd+2**),
+     select the **iPhone X** in the left list,
+     and wait until the status reads **Connected** with
+    no **Preparing device for development** spinner.
+    Expected outcome:
+     the device shows **Connected** and a green dot;
+     re-running the step 5 command now lists it.
+7.  Tell the agent to rebuild WebDriverAgent with Xcode 15.2 and run it on the device,
+     or do it yourself.
+     The build
+    (signed by the vet identity,
+     `DEVELOPER_DIR` pointed at Xcode 15.2) ends `** TEST BUILD SUCCEEDED **` and
+    writes a `*.xctestrun` under `/Volumes/MacData/ios-vet/wda-dd152/Build/Products/`.
+     Then launch it on the
+    device:
+    ```sh
+    DEVELOPER_DIR=/Volumes/MacData/Xcodes/Xcode.app/Contents/Developer \
+    xcodebuild test-without-building \
+      -xctestrun /Volumes/MacData/ios-vet/wda-dd152/Build/Products/WebDriverAgentRunner_iphoneos17.2-arm64.xctestrun \
+      -destination "platform=iOS,id=9057e2a8c2e70162e35b9ea8bf006f736670877b"
+    ```
+    Expected outcome:
+     it streams test output and prints a line containing
+    `ServerURLHere->http://192.168.x.x:8100<-ServerURLHere`,
+     then appears to hang.
+     Leave it running;
+     the hang is
+    WDA serving.
+8.  In a second **Terminal** tab (**Cmd+T**),
+     forward the port and confirm WDA answers:
+    ```sh
+    iproxy 8100:8100 -u 9057e2a8c2e70162e35b9ea8bf006f736670877b &
+    curl -s http://127.0.0.1:8100/status
+    ```
+    Expected outcome:
+     JSON containing `"state" : "success"` and the device's `"name"`.
+     WDA is now live on the
+    iPhone X.
+9.  Hand back to the agent to drive the device:
+     it points Appium at `appium:webDriverAgentUrl=http://127.0.0.1:8100`
+    and re-runs the simulator drive (install a gate app,
+     dump `/source`,
+     tap,
+     re-dump) against the real device,
+    writing the per-app trees as `*.device.xml`.
+     Expected outcome:
+     the agent reports a captured element tree from
+    the iPhone X and,
+     for the Flutter gate,
+     `counter after 2 taps: 2`.
 
 ## What to check
 
@@ -252,19 +252,19 @@ If step 7 launches the runner but never prints `ServerURLHere` and the process e
 16 outright rather than the toolchain mismatch),
  install an iOS-16-era WebDriverAgent and rebuild it:
 
-1. Swap the Appium xcuitest driver for a v5 line (its bundled WDA 5.
-   x still supports iOS 16):
-   ```sh
-   appium driver uninstall xcuitest
-   appium driver install xcuitest@5.14.2
-   ```
-   Expected outcome:
-    `Driver xcuitest@5.14.2 successfully installed`.
-2. Rebuild WDA from the new bundle at
-   `~/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent` with Xcode 15.2 (the same
-   build command the agent used,
-    `DEVELOPER_DIR` pointed at Xcode 15.2),
-    then repeat from step 7.
-   Expected outcome:
-    `** TEST BUILD SUCCEEDED **`,
-    then `ServerURLHere->http://` on launch.
+1.  Swap the Appium xcuitest driver for a v5 line (its bundled WDA 5.
+    x still supports iOS 16):
+    ```sh
+    appium driver uninstall xcuitest
+    appium driver install xcuitest@5.14.2
+    ```
+    Expected outcome:
+     `Driver xcuitest@5.14.2 successfully installed`.
+2.  Rebuild WDA from the new bundle at
+    `~/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent` with Xcode 15.2 (the same
+    build command the agent used,
+     `DEVELOPER_DIR` pointed at Xcode 15.2),
+     then repeat from step 7.
+    Expected outcome:
+     `** TEST BUILD SUCCEEDED **`,
+     then `ServerURLHere->http://` on launch.

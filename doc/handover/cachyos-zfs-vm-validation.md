@@ -981,21 +981,21 @@ and authenticated-media recovery are complete under tasks 37,
 38,
 and 40.
 
-1. Retain every domain,
+1.  Retain every domain,
 disk,
 source image,
 credential file,
 and evidence artifact.
 
-1. Keep formal finalist scoring separate from the user-authorized CachyOS adoption path.
+1.  Keep formal finalist scoring separate from the user-authorized CachyOS adoption path.
 Tasks 21,
 23,
 24,
 and 25 remain pending.
 
-1. Do not begin physical installation until this recovery milestone is committed and the runbook checks pass.
+1.  Do not begin physical installation until this recovery milestone is committed and the runbook checks pass.
 
-1. Require the protected Samsung SSD to be physically disconnected before the physical installer runs.
+1.  Require the protected Samsung SSD to be physically disconnected before the physical installer runs.
 
 ## Authenticated recovery design
 

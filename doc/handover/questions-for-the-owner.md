@@ -26,596 +26,6 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
-### Does the translation-repair family keep its own character predicates? (issue 1673), asked 2026-11-10T04:28:34-05:00
-
-Issue 1673 asks that nothing outside `@monochromatic-dev/agent-harness-shared-text-scan` declares a character predicate.
-That change is built on a branch for every other package.
-`package/translation-repair/markup/src/ascii-letters.ts` is left:
-it is that family's own owner,
-written 204 times across 41 files,
-and takes an object parameter where the shared owner takes a character.
-This is separate from the import question in issue 1652.
-
-#### A: migrate the family to the shared owner
-
-The issue's acceptance is met as written and one definition remains.
-It changes 41 files mechanically,
-and the `adjudication` package shows the object parameter is no real obstacle.
-
-#### B: keep the family's owner and record the exemption
-
-Nothing changes in 41 files.
-Two owners of the same five predicates remain,
-which is what the issue set out to remove.
-
-Ranking:
-A > B,
-because the migration is mechanical and a second owner is the defect the issue names.
-
-### Which package owns the small helpers that many packages copy?, asked 2026-11-10T01:52:36-05:00
-
-Four small shapes are written out again in package after package,
-and open issues ask for one owner each:
-`isRecord` (issue 1671,
-58 declarations),
-the absence sentinel `unique symbol` (issue 1669,
-76 declarations by the issue's count),
-a named error class setting `this.name` (issue 1668 and its duplicate 666,
-413 sites),
-and `isErrnoException` (issue 1670,
-six implementations).
-Nothing can move until a home is named.
-The families can each take a different answer,
-so "A for `isRecord`,
-C for the sentinel" is valid.
-
-#### A: one new package for these helpers
-
-For example `import { isRecord, isErrnoException } from '@monochromatic-dev/type-guard-core'`.
-Every copy goes,
-and the one definition has a name that says what it holds.
-It adds a package and a workspace dependency to dozens of packages.
-
-#### B: the existing `or-throw` package
-
-`package/or-throw/core` already holds small checks that many packages import,
-so no package is added.
-Its name stops describing its contents,
-because `isRecord` throws nothing.
-
-#### C: keep the copies under one written rule
-
-A written convention fixes the name and spelling of each shape,
-and each copy stays.
-No dependency is added and no package changes shape,
-and build-isolated packages need no exception.
-A defect in the shape still has to be fixed at every copy.
-
-Ranking:
-A > B > C,
-because A gives every family an honest name where B bends one,
-and B still removes the copies that C leaves.
-
-### What does deleting a JSONC array index past the end do?, asked 2026-11-10T01:52:36-05:00
-
-Issue 1409 asks that get,
-set and delete agree on every path.
-Commit `19cdbffeb5` fixed negative and fractional indexes.
-One path is left.
-With `{"list": [1]}`,
-deleting `['list', 5]` leaves the document unchanged in TypeScript,
-and returns `PathNotFound` in the Rust port (`package/jsonc-edit/core-rust/src/edit_spine.rs:450`).
-Both already treat deleting a missing object key as doing nothing.
-
-#### A: Rust does nothing too
-
-Deleting an address that holds nothing is then always a no-op,
-in both languages,
-for keys and indexes alike.
-Get and set still report the missing path where delete does not,
-so the issue's "agree on every path" is met only by amending it.
-
-#### B: TypeScript reports `JsoncPathNotFoundError`
-
-Delete then agrees with get and set on array indexes,
-which is what the issue asked.
-Within delete,
-a missing index throws while a missing key does nothing,
-and a TypeScript caller that deletes defensively starts to fail.
-
-#### C: leave the two languages different
-
-Nothing changes,
-and the difference stays documented.
-The issue stays unmet.
-
-Ranking:
-A > B > C,
-because A gives one rule a caller can rely on in both languages,
-and B at least removes the difference that C keeps.
-
-### May the prose rules be applied inside `doc/decision/`?, asked 2026-11-10T01:52:36-05:00
-
-Issues 1699,
-1700,
-1702,
-1703,
-1704,
-1705 and 1706 report prose-rule breaks such as em-dashes,
-italics,
-unpadded list markers and bold-label bullets.
-The rest of the tree is being fixed,
-and what remains is inside `doc/decision/`,
-which agents may not edit without your approval.
-
-#### A: yes, for the form only
-
-Punctuation,
-emphasis,
-list markers and headings change,
-your quoted words and every other word stay,
-and each file's words are compared before and after.
-The issues can then close.
-The records' history gains one formatting commit each.
-
-#### B: exempt `doc/decision/` from those rules
-
-The records stay as they were written,
-the issues close on a recorded exemption,
-and the linter needs that exemption too.
-
-#### C: fix each record only when it is next edited
-
-No sweep happens.
-The issues stay open for a long time.
-
-Ranking:
-A > B > C,
-because A keeps every record's words and meets the rules,
-and B at least ends the issues where C leaves them open.
-
-### What should kv-store do with `set('')`? (issues 1408 and 1412), asked 2026-11-09T21:18:00-05:00
-
-An async `set('', value)` writes under a hash of the value,
-and `get` and `delete` receive only the key,
-so nothing can read or remove that entry.
-No consumer in the repository calls `set('')`.
-`package/kv-store/core/DECISION.fs-backend.md` Hazard 8 ranks these three and leaves the pick open.
-The empty-key clause of the parity test in 1412 waits on this.
-
-#### A: reject empty keys
-
-`set('', value)` throws and names the key.
-
-- Pro:
-  an entry nothing can reach can no longer be made.
-- Con:
-  drops the documented content-addressed use (`types.ts:301`,
-  README) on a package planned to go public.
-
-#### B: make the derivation symmetric
-
-`get` and `delete` learn to address entries by content.
-
-- Pro:
-  keeps the documented feature.
-- Con:
-  `get('')` has no value to hash,
-  so it needs a new way to name the entry.
-
-#### C: keep it and document the quirk
-
-- Pro:
-  no behaviour change.
-- Con:
-  a write that cannot be read stays possible.
-
-Ranking:
-A > B > C,
-because no consumer uses the feature and A removes the trap outright,
-B needs a new API to keep something nobody calls,
-and C leaves the trap in place.
-
-### How should pnpr tell that a package has a build? (issue 1267), asked 2026-11-09T21:09:20-05:00
-
-The publish job reads `mise.toml` line by line for a literal `[tasks.build]`,
-so `tasks.build = { ... }` or `[tasks.build] # comment` is missed.
-Nothing configured trips this today:
-all 175 packages use the plain header.
-
-#### A: refuse when `package.json` names `dist/` and `task.ts` declares no build
-
-- Pro:
-  no new dependency,
-  and pnpr stops interpreting `mise.toml` at all.
-- Con:
-  it replaces the criterion `doc/decision/mise-free-ci.md:203-232` records,
-  so that record needs your amendment.
-
-#### B: read `mise.toml` with `@monochromatic-dev/toml-edit-core`
-
-- Pro:
-  keeps the recorded criterion.
-- Con:
-  a new dependency for this package,
-  and pnpr keeps a second reading of what `mise.toml` means.
-
-#### C: leave it
-
-- Pro:
-  no work.
-- Con:
-  a differently spelled header would be missed.
-
-Ranking:
-A > B > C,
-because A removes the second reader where B keeps it,
-and B at least handles every spelling where C handles one.
-
-### Should vmsync adopt the shared JSONC parser? (issue 1242), asked 2026-11-09T21:09:20-05:00
-
-vmsync keeps its own comment stripper for `vmsync.jsonc`,
-the only production copy in TypeScript.
-Adopting `@monochromatic-dev/jsonc-edit-core-ts` needs that dependency
-and an export of `toJsValue` from that package.
-This run fixed the stripper's bug in place (`bcc905f030`).
-
-#### A: adopt the shared parser
-
-- Pro:
-  one JSONC reader,
-  and the stripper is deleted.
-- Con:
-  a new dependency and a new export in another package.
-
-#### B: keep the stripper
-
-- Pro:
-  no new edge between packages.
-- Con:
-  a second JSONC reader stays.
-
-Ranking:
-A > B,
-because one reader is what the issue asks for and the cost is one export.
-
-### What should vmsync do with a name that starts badly? (issue 1243), asked 2026-11-09T21:09:20-05:00
-
-`nameFromPath` turns `/tmp/.hidden.img` into `-hidden`,
-and `validateName` rejects a leading `-`,
-so `importImage` refuses the name it derived itself.
-
-#### A: strip leading characters the name may not start with
-
-`/tmp/.hidden.img` becomes `hidden`.
-
-- Pro:
-  the import works with no extra step.
-- Con:
-  two files can derive one name.
-
-#### B: keep refusing, and say which file and which rule
-
-- Pro:
-  nothing is renamed silently.
-- Con:
-  the person must pass a name by hand.
-
-Ranking:
-B > A,
-because a disk image's identity should not change without being asked,
-and the sentence costs little.
-
-### Should the silent stub's decision record be amended?, asked 2026-11-09T21:09:20-05:00
-
-Coordinator pick,
-landed as `fe17472361` under your "nothing should ever wait forever or indefinitely":
-`await stub` now settles,
-and `String(stub)` returns text.
-`doc/decision/proper-lockfile-removal.md:77-104` and `:161-162` still describe the old thenable,
-and say editing the stub to add a carve-out "weakens the stub contract for every other policy entry,
-and is out of scope here".
-The session may not edit that record.
-
-- A:
-  amend it to say the stub no longer hangs.
-- B:
-  undo the change to the stub:
-  say "undo" and it is reverted.
-
-Ranking:
-A > B,
-because a stub that hangs every `await` contradicts your rule,
-and the record's own ranking does not depend on the old behaviour.
-
-### Does `package/vm-builder/cli/README.md` or the code say what you want?, asked 2026-11-09T21:09:20-05:00
-
-The README says `Network: default (NAT via libvirt)` and `Display: SPICE + QXL`.
-The code renders `<interface type="user">` and a virtio video model with `accel3d`.
-Tests now pin what the code renders.
-
-- A:
-  the code is right:
-  correct the README.
-- B:
-  the README is right:
-  change the code to libvirt NAT and SPICE with QXL.
-
-Ranking:
-A > B,
-because the code is what has been running and virtio with 3D is the newer choice.
-
-### Should a package with no unit tests fail `test:unit`? (issue 1761), asked 2026-11-09T21:09:20-05:00
-
-The root task returns success on an empty file list at `mise.toml:298`:
-`mise run //package/pi-plugin/cost-dismissal:test:unit` exits 0 and names no test.
-
-- A:
-  fail,
-  with a documented exemption list for packages that truly have none.
-- B:
-  print a loud skip and pass.
-- C:
-  leave it.
-
-Ranking:
-A > B > C,
-because a green run that ran nothing is the failure `AGENTS.md` `TRV` names,
-B at least shows it,
-and C hides it.
-
-### Should the music player's design pages stop fetching from the network? (issue 1441), asked 2026-11-09T21:09:20-05:00
-
-`support.js` loads React and Babel from `unpkg.com`,
-and 86 pages link Google Fonts,
-so the pages do not render offline.
-`support.js` is generated from a `dc-runtime` source that is not in this repository.
-
-- A:
-  vendor React,
-  ReactDOM and Babel (about 1.5 MB) and swap to the shipped fonts,
-  which changes the typeface of every candidate page.
-- B:
-  leave them online-only.
-
-Ranking:
-B > A,
-because these are review artifacts and A changes what the candidates look like.
-
-### Should the two FLAC profilers stay separate? (issue 1464), asked 2026-11-09T21:09:20-05:00
-
-`flac-bones.mjs` (1121 lines) writes the `out/flac-profiles.jsonl` that `--buckets` reads,
-and the FLAC part of `truepeak-core/src/bones.rs` is about 150 lines.
-The two already differ on SEEKTABLE handling and a trailing ID3v1 tag.
-
-- A:
-  retire the JavaScript and have Rust write the profile file.
-- B:
-  keep both as an independent pair,
-  with a comment saying why.
-- C:
-  generate one from the other.
-
-Ranking:
-A > B > C,
-because one owner ends the drift,
-B at least records it,
-and generating across languages costs the most.
-
-### Should the plural folder names go? (issue 1676), asked 2026-11-09T21:09:20-05:00
-
-Eight plural content folders remain,
-six of them outside `package/ide/app`,
-and the rename touches `doc/decision/slint-ide-0x-scope.md` and `doc/handover/`.
-
-- A:
-  rename them all and amend that record.
-- B:
-  list them as residue in `doc/planning/singular-dir-name-invariant.md`.
-
-Ranking:
-A > B,
-because the invariant is yours and the rename is mechanical.
-
-### Should agents work on packages under `package-paused`?, asked 2026-11-09T20:45:42-05:00
-
-An agent spent a run fixing issues 1482 to 1484 in `package-paused/pi-plugin/morph-compact`,
-because those issues name its old path and the issue sweep filter did not know it had moved.
-The fixes landed as `5340d97ff1`.
-
-Nothing under `package-paused/*/*` can be reached the normal way:
-it is in neither the `packages` list of `pnpm-workspace.yaml` nor `config_roots` in `mise.toml`,
-while `doc/howto/deprecate-package.md` says `package-deprecated/*/*` is in both.
-So `mise run //package-paused/pi-plugin/morph-compact:test:unit` answers `no task ... found`,
-`pnpm install` does not repair its links,
-and `package/config/oxlint/src/config-base.ts:79` ignores the folder,
-so `lint:oxlint` answers `No files found to lint`.
-The agent relinked eight `node_modules` entries by hand to run the tests.
-
-#### A: a pause means no work
-
-The issue sweep leaves out anything whose code now lives under `package-paused`,
-and those issues wait for an unpause.
-
-- Pro:
-  a paused package costs nothing,
-  which is what pausing it asked for.
-- Con:
-  defects in paused code stay open.
-
-#### B: add `package-paused/*/*` to both lists
-
-`mise run //package-paused/pi-plugin/morph-compact:test:unit` then works from the root,
-and `pnpm install` keeps its links.
-
-- Pro:
-  a paused package can be tested when someone does touch it.
-- Con:
-  every install and every task lookup pays for packages nobody is working on.
-- Con:
-  `lint:oxlint` still ignores the folder unless the shared config changes,
-  and changing that needs your approval.
-
-#### C: move morph-compact back to `package/`
-
-- Pro:
-  every tool works on it again.
-- Con:
-  undoes the pause of commit `64046360d2`.
-
-Ranking:
-A > B > C,
-because A is what a pause already means and costs nothing,
-while B adds a standing cost to keep paused code runnable;
-and B keeps the pause,
-which C undoes.
-
-### Where should a shared named error class live? (issues 1668 and 666), asked 2026-11-09T20:45:42-05:00
-
-Custom errors set their own name by hand:
-`git ls-files -- 'package/**' | xargs rg -n "this\.name = "` found 413 such lines in 318 files.
-Issue 666 records the open choice:
-"Decision needed:
-the home package for NamedError".
-Nothing can be derived from until a class exists,
-so issue 1668 is stopped on this.
-
-A concrete example of either home:
-`class ConfParseError extends NamedError {}` replaces a constructor whose only job is `this.name = 'ConfParseError'`.
-
-#### A: a new package holding only that class
-
-- Pro:
-  no dependencies of its own,
-  so every package can depend on it without pulling anything else in.
-- Con:
-  one more package to publish and keep.
-
-#### B: the existing package of throw helpers
-
-Issue 666 names it `module/throws`.
-
-- Pro:
-  no new package.
-- Con:
-  every error class would depend on the helpers beside it.
-
-#### C: leave the hand-written lines
-
-- Pro:
-  no migration across 318 files.
-- Con:
-  the lines stay,
-  and each new error class copies them.
-
-Ranking:
-A > B > C,
-because A costs one small package and spares every consumer a wider dependency,
-and B still removes the lines that C keeps.
-
-### What colours should the aquati.cat quiz verdicts use?, asked 2026-11-09T19:25:35-05:00
-
-Issue 1540:
-the quiz components set literal `green` and `red`,
-which ignore `tokens.ts` and do not follow the dark-mode toggle.
-Their docs promise a `color-mix()` derivation from the link tokens that was never wired.
-The agent `ssg-aquati-cat-ready-bugs` fixed the rest of that package and stopped here,
-because the answer is a design choice.
-Nothing else is waiting on it.
-A later run of that agent built option A on the branch `fix/ssg-aquati-cat-ready-bugs`,
-which is held and not on main.
-Its values are `#15803d` and `#b91c1c` on the light theme,
-and `#4ade80` and `#f87171` on the dark one.
-Answering A lands it as it stands.
-
-#### A: add success and danger colour tokens
-
-Right answers stay green and wrong answers stay red in both themes.
-It costs one more pair of tokens,
-with values you pick or a contrast-checked pair an agent proposes.
-
-#### B: derive verdicts from the link tokens with `color-mix()`, as the docs promise
-
-It adds no tokens and follows the theme by construction.
-The link colour is purple,
-so right and wrong become two purples and lose the green and red meaning.
-
-Ranking:
-A > B,
-because the colour carries the verdict,
-and B gives that up to save a pair of tokens.
-
-### Who should own task definitions, `mise.toml` or `task.ts`? (issues 5500 and 2103), asked 2026-11-09T16:22:51-05:00
-
-Issue 5500 says `mise.toml` should have been deleted where a `task.ts` exists.
-An agent measured 169 folders holding both,
-and the task names agree in all but one:
-`package/fs-path/core` declares `watch:lint:types` in `task.ts` only.
-It compared names,
-not task bodies.
-`doc/decision/mise-free-ci.md` keeps `mise.toml` as the local system and makes each `task.ts` a mirror of it,
-and `doc/planning/task-slice-pants-migration.md` calls that mirror "a stopgap,
-not an owner to extend",
-so deleting either side breaks an accepted rule or a live surface.
-
-- A.
-  Keep both and add a check that fails when the names differ.
-  Pro:
-  it closes the one risk measured,
-  drift,
-  and contradicts no decision.
-  Con:
-  two files stay to keep in step.
-- B.
-  Leave it until the Pants migration decides.
-  Pro:
-  no work now.
-  Con:
-  nothing catches drift meanwhile.
-- C.
-  `mise.toml` stays the source and `task.ts` is generated from it.
-  Pro:
-  one owner.
-  Con:
-  it builds a generator for something the plan calls a stopgap.
-- D.
-  `task.ts` becomes the source and local `mise run //package/...` retires.
-  Pro:
-  one owner with no `mise.toml`.
-  Con:
-  it contradicts `AGENTS.md` rules `CM3` and `CM5`.
-
-Ranking:
-A > B > C > D,
-because A closes the measured risk that B leaves open,
-B costs nothing where C builds for something planned away,
-and C keeps the rules that D breaks.
-Please also say whether `package/fs-path/core` should gain the missing name meanwhile,
-and whether issue 5500 should fold into 2103.
-
-### What should happen to catalog entries only paused packages use? (issue 1667), asked 2026-11-09T16:22:51-05:00
-
-The `pnpm-workspace.yaml` catalog has 22 entries that only manifests under `package-paused/` or `package-deprecated/` reference.
-The entries nothing references are already gone (`6f8dcd1102`).
-
-- A.
-  Keep each,
-  with a one-line comment naming the paused consumer.
-  Pro:
-  unpausing a package needs no version hunt.
-  Con:
-  the catalog keeps entries with no live consumer.
-- B.
-  Drop them and add each back when its package is unpaused.
-  Pro:
-  the catalog lists only what is live.
-  Con:
-  each unpause has to choose versions again.
-
-Ranking:
-A > B,
-because a comment costs one line per entry and B throws away the versions paused packages were last tested with.
-
 ### The Pi limit stays at 20 at most, answered 2026-11-09T01:22:05-05:00
 
 The owner,
@@ -695,159 +105,6 @@ Write "push it" here to overrule this.
 The same fact raises a question that does need you,
 `What should the next push do with a commit its checks blocked?`.
 
-### Should forced checkouts and resets refuse when they would replace an ignored file?
-
-The discarding-commands branch hands a `switch` over an ignored file to Git,
-which refuses.
-Force overrides that:
-the agent measured that `git checkout -f --no-overwrite-ignore other` still replaced `.env`,
-and `git reset --hard` has no such option.
-In a clean linked worktree those forms can still replace an ignored file the target tree carries.
-
-The session will build option A unless you say otherwise,
-because you wrote "never discard user data":
-read the target tree and the ignored paths,
-refuse naming the paths they share.
-The agent estimates that adds 40 to 120 ms,
-only for these forms and only in a linked worktree.
-Option B is to accept it and document it.
-Option C,
-refusing whenever any ignored file exists,
-would refuse every worktree with `node_modules`.
-Ranking:
-A > B > C,
-because A protects the file at a small cost on a rare form,
-B leaves the loss in place,
-and C blocks routine work.
-
-### `git clean -fdx` is now refused in a linked worktree that has ignored files
-
-This is the same branch,
-and agents will notice it.
-`git clean -fdx` deletes ignored files,
-so the guard now counts them,
-and a worktree with `node_modules` is refused.
-`git clean -nx` shows what would go.
-It follows from "never discard user data",
-and it changes a common way of getting a fresh build.
-Write "allow it in linked worktrees" here if you want the old behaviour back.
-
-### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
-
-The session picked the audit's recommendation,
-extending the fixed list,
-because it starts no process and is non-destructive.
-A fix agent is queued for it.
-Write "ask Git" here to change that.
-
-The policy exists so `git add` names the paths it stages
-(`package/git-policy/cli/src/native/command/rule_add_explicit.rs:1-20`).
-It reads the arguments alone and compares each positional pathspec with four
-byte strings,
-`.`,
-`./`,
-`*` and `:/`
-(`package/git-policy/cli/src/native/command/command_add.rs:113`).
-Five spellings that Git resolves to the whole tree pass that list and staged
-every file in a reproduction:
-`:/*`,
-`:/**`,
-`:(top)`,
-`**` and
-`:(glob)**`
-(`doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md`,
-finding 2).
-`:(top)` is the one a person writes expecting a scope rather than a sweep.
-A sixth,
-`:(top)/*`,
-fails inside Git 2.56.0 (`fatal: oops in prep_exclude`) and is reported as
-`content-unavailable`,
-which is Git's own failure and not this choice.
-
-Recommended:
-extend the list with those five and name them in the rejection text,
-because the decision stays argument-only and starts no process before Git
-does,
-and the accidents this policy is about are the common spellings.
-The alternative asks Git what the pathspec selects,
-which catches every form including ones added to Git later,
-at the cost of one Git start per `git add`
-and a decision that no longer follows from the arguments.
-
-### May a moved-path note be added to records in `doc/decision/`?
-
-Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
-Agents may not edit `doc/decision/` without your approval,
-so these open issues are stuck on that alone:
-4365,
-5929,
-6201,
-3279,
-5926,
-5788,
-3191,
-3275,
-5765,
-5766,
-6101 and 4357.
-The note would add a line beside each stale path and change no decision.
-
-Recommended:
-yes,
-for notes of that one kind only,
-because the original words stay and the records stop pointing nowhere.
-The alternative is to leave those issues open,
-and each stays a dead reference.
-
-### Should 30 packages declare a license? (issue 2994)
-
-30 `package/*/*/package.json` files have no `license` field,
-so no license text is due for them and none ships.
-This is a legal choice about your code,
-and nothing about it can be measured.
-Name a license,
-or say these packages stay undeclared.
-
-### Who owns the repository links in `package.json`? (issue 1124)
-
-221 `package.json` files still link to `github.com/Aquaticat/Monochromatic`,
-and 3 link to the current organization.
-No rule owns those fields since the TypeScript tool went away,
-so they drift.
-
-Recommended:
-add a file-enforcer rule for `repository` and `homepage`,
-matching what it already does for `Cargo.toml`,
-so one run corrects them all and they stay correct.
-The alternative is a single rewrite with nothing to keep it true.
-
-### Are the three findings left on the stat-data landing worth another round?
-
-The landing that keeps stat data went through six rounds of cross-vendor review and is on main.
-The sixth review (`${HOME}/temp/agent/reviews/landing-stat-data-round-6-sol.txt`) named three more cases,
-and the coordinator landed it with them open because each needs something unusual:
-
-- Another process swaps two directories by rename in the instant between opening one and reading its `.gitattributes`.
-- Another process holds `.gitattributes` in a shared memory mapping and changes it during the read,
-  which moves no timestamp.
-- A FUSE filesystem leaves a read of a regular file unanswered.
-  That one is the open question about a stalled regular-file read in this file,
-  which also covers every other read of a regular file.
-
-In the first two,
-a file can be recorded as clean when its contents differ.
-Each is reachable only by another process acting in a window of microseconds.
-Say if any of them should get another round.
-
-### Conversion: is a late change of mode or owner a defect or accepted risk?
-
-An audit (`doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`) found that a `chmod` made in a conversion's last window is lost,
-because the comparison that decides the old tree can be deleted does not look at mode,
-owner or extended attributes.
-The coordinator read this as a defect and queued a fix,
-since that comparison exists to catch a late change.
-Say if you would rather accept the risk than pay for the wider comparison.
-
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 
 None of these has been asked yet,
@@ -916,9 +173,6 @@ Each record is cited so the context is one read away.
   and that package has none.
   Should it gain a `dist` build,
   or an exemption?
-- The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
-  Should a systemd timer run it,
-  and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
 - `mpm-shadow` launcher records named a folder carrying the version,
   so any newer install left them dangling (299 of 1051 records at 2026-11-08T18:17:00-05:00).
   The fix on `fix/mpm-shadow-launcher-records-and-lock-warning` records a path that names no version.
@@ -970,6 +224,352 @@ because you have already answered them:
 deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
+
+## Answered in a message, recorded 2026-11-10T09:15:14-05:00
+
+### Container base stays CachyOS
+
+The owner wrote "If cachyos containers are much heavier than arch proper containers, switch to arch proper.",
+and after the sizes,
+"Okay, cachyOS is fine then. It's not as bad as I thought."
+`doc/decision/container-base-distro.md` stands unchanged.
+
+Compressed sizes in the registry from `skopeo inspect` on 2026-11-10:
+`cachyos-v4:latest` 406 MiB,
+`cachyos-v3:latest` 404 MiB,
+`cachyos:latest` 312 MiB,
+`archlinux:base` 128 MiB,
+`archlinux:base-devel` 295 MiB.
+A comparison of what each image installs was stopped when the owner decided,
+so installed sizes and start times were not measured.
+
+## Answered in the question tool, recorded 2026-11-10T10:03:43-05:00
+
+### Who reviews and who audits after the Kimi trial
+
+"Kimi alone" for reviews of a change,
+and "Both side by side (Recommended)" for long audits.
+The evidence and the ranking the owner read are in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
+Rules `KRV` and `LHZ` in `AGENTS.md` carry them,
+and GPT stays only for small audits.
+
+## Answered in the question tool, recorded 2026-11-10T09:48:06-05:00
+
+### Build guard on unit tests that read built output (issue 1658)
+
+"Hold until Pants (Recommended)".
+Branch `fix/pnpr-open-issues` stays unmerged and ready to land,
+and issue 1658 stays open.
+
+### `main()` wrappers (issue 1382)
+
+"Sweep and add a rule (Recommended)".
+An agent removes the wrapper from the files that still end with `await main();`
+and adds `no-main-wrapper` to the repository's own `no-restricted-syntax` lint plugin.
+
+### Picks made for the owner, veto open
+
+These fall under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session."
+
+- Issue 1678 is closed:
+  the logger half is fixed on main,
+  and the remaining matches of its acceptance regex are `console.*` terminal output,
+  which rule `TLG` permits.
+- Issue 1396:
+  a bare `-0` in `@monochromatic-dev/toml-edit-core` emits `-0.0`,
+  so the sign survives a reparse.
+- `catalog-tighten`'s `test:matrix` adopts the passing arm of `doc/troubleshooting/catalog-tighten-matrix-cannot-start.md`:
+  mount the resolved store read-only and take pnpm's first version line.
+- The first trash hand-over in a repository whose service is not running keeps waiting for the service to start,
+  bounded by the commit path's start wait.
+  It measured 12.1 s,
+  once per repository.
+- Whether `node_modules/.monochromatic` can be a subvolume is measured on a throwaway checkout before anything changes:
+  it would remove roughly 165,000 of the 269,000 deletions a snapshot's trash costs,
+  and nothing yet shows that the tools leave a subvolume in place.
+- `MD2` in `AGENTS.md` was reworded by an agent to say the marker width in words,
+  with the same meaning.
+- `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
+  following issue 1579's acceptance and the `hook-type` precedent.
+
+## Answered in the question tool, recorded 2026-11-10T08:24:33-05:00
+
+### Package-local rules
+
+"Add it (Recommended)":
+`AGENTS.md` gains a rule that a rule or fact about one package goes in that package's docs.
+The rule about controls is `WFR` in `package/git-policy/cli/README.md`.
+
+### `cargo-shadow lean` and a record another user's process might hold
+
+"Keep removing and logging (Recommended)".
+
+### Replaying the wrapper's fuzz seeds in normal tests
+
+"Leave them to campaigns".
+
+## Answered in the question tool, recorded 2026-11-10T08:23:02-05:00
+
+### The rule about controls that decide from a sleep
+
+Proposed for `AGENTS.md`;
+the owner:
+"Put it in pkg local docs.
+How many times do I need to say to put things that are package-local in pkg local docs?"
+
+### An unbounded `rg` over a folder that is not a repository (issue 3474)
+
+"Cap its output (Recommended)".
+
+### `SEARCH_SHADOW_ALLOW_WIDE=1` and the refusal of piped `rg`
+
+"Keep no override".
+
+### Credential-named variables in interactive Pi sessions
+
+"Leave them as they are (Recommended)".
+
+## Answered in the question tool, recorded 2026-11-10T08:19:14-05:00
+
+### Packages with no license (issue 2994)
+
+"LGPL-3.0-or-later (Recommended)",
+for the 27 packages that declare none,
+measured 2026-11-10.
+
+### Repository links in `package.json` (issue 1124)
+
+"A file-enforcer rule (Recommended)",
+for `repository` and `homepage`.
+
+### The VM builder's full run
+
+"Run without a copy":
+the full run may overwrite `/var/lib/libvirt/images/monochromatic-dev.qcow2` and force-stop and remove any VM of that name.
+
+### History of the wrapper's own logs
+
+"Keep more,
+capped (Recommended)":
+32 MiB per log,
+and an audit line naming a saved copy that still exists is never dropped.
+
+## Answered in the question tool, recorded 2026-11-10T08:16:10-05:00
+
+### Character checks in the translation-repair family (issue 1673)
+
+No option was selected;
+the owner's note:
+"Migrate it,
+and isAsciiLetter should be in the `const` pkg."
+
+### The aquati.cat quiz verdict colours (issue 1540)
+
+"Green and red tokens (Recommended)":
+the held branch `fix/ssg-aquati-cat-ready-bugs` lands as it stands.
+
+### The music player's design pages (issue 1441)
+
+"Bundle everything":
+React,
+ReactDOM and Babel come along,
+and the fonts switch to the shipped ones.
+
+### The two FLAC profilers (issue 1464)
+
+"Keep only the Rust one (Recommended)".
+
+## Answered in the question tool, recorded 2026-11-10T08:13:03-05:00
+
+### How the publish job tells that a package has a build (issue 1267)
+
+"Parse mise.toml properly":
+read it with the repository's TOML parser.
+
+### A package with no unit tests (issue 1761)
+
+"Fail,
+with exemptions (Recommended)".
+
+### Plural folder names (issue 1676)
+
+"Rename all (Recommended)",
+which amends `doc/decision/slint-ide-0x-scope.md`.
+
+### Catalog entries only paused packages use (issue 1667)
+
+"Keep,
+with a comment (Recommended)".
+
+## Answered in the question tool, recorded 2026-11-10T08:10:46-05:00
+
+### Deleting a JSONC array index past the end (issue 1409)
+
+"TypeScript reports an error":
+`delete(doc, ['list', 5])` throws `JsoncPathNotFoundError` in TypeScript and returns `PathNotFound` in Rust.
+
+### kv-store `set('')` (issues 1408 and 1412)
+
+"Reject empty keys (Recommended)".
+
+### vmsync and a name that starts badly (issue 1243)
+
+"Keep refusing,
+explain (Recommended)".
+
+### vmsync and the shared JSONC parser (issue 1242)
+
+"Adopt the shared parser (Recommended)".
+
+## Answered in the question tool, recorded 2026-11-10T08:08:51-05:00
+
+### Prose rules inside `doc/decision/` (issues 1699 to 1706)
+
+"Yes,
+form only (Recommended)":
+punctuation,
+emphasis,
+list markers and headings change,
+the owner's quoted words and every other word stay,
+and each file's words are compared before and after.
+
+### Moved-path notes inside `doc/decision/`
+
+"Yes,
+notes only (Recommended)",
+for issues 4365,
+5929,
+6201,
+3279,
+5926,
+5788,
+3191,
+3275,
+5765,
+5766,
+6101 and 4357.
+
+### The silent stub's decision record
+
+"Amend the record (Recommended)":
+`doc/decision/proper-lockfile-removal.md` is to say the stub no longer hangs.
+
+### The VM builder's README against its code
+
+"The code is right (Recommended)":
+the README is to be corrected.
+
+## Answered in the question tool, recorded 2026-11-10T08:04:14-05:00
+
+The first two were asked again after the owner wrote "I don't know.
+Try asking better." about each.
+
+### `git clean -fdx` in a linked worktree
+
+"Allow and log (Recommended)":
+"All four are deleted,
+exit 0,
+and the audit log records the command."
+The example held `node_modules/`,
+`dist/`,
+a `.env` copied from main and a hand-written `notes.local.txt`,
+all ignored.
+The main checkout always refuses,
+and that stays.
+
+### A `git add` that selects the whole repository
+
+"However spelled (Recommended)":
+"Any spelling that selects everything is refused,
+and the message says how many files it selected."
+Ordinary named paths skip the check.
+
+### The tests that need a real btrfs disk
+
+"Before each release (Recommended)":
+"A wrapper release waits for that run,
+and a skipped test fails it."
+
+### What the 860 move left behind
+
+"Delete both (Recommended)",
+for the 538 read-only snapshots in `~/repository-move-snapshots` on the NVMe and the 537 read-only copies in `repository/received-read-only/` on the 860.
+
+### Where copied helpers live (issues 1671, 1670 and 1669)
+
+"New small package (Recommended)",
+with the owner's note "adopt remedajs.com",
+then the later message:
+"I changed my mind.
+Instead of adopting remeda,
+adopt sindresorhus/is instead."
+What `@sindresorhus/is` does not hold,
+such as `isErrnoException` and the absence marker,
+is what the new package is for;
+that reading is the session's and is open to correction.
+
+### Where a shared named error class lives (issues 1668 and 666)
+
+"Its own tiny package (Recommended)".
+
+### Packages under `package-paused`
+
+"Pause means no work (Recommended)".
+The issue sweep skips anything whose code now lives under `package-paused`,
+and those issues wait for an unpause.
+
+### Who owns task definitions (issues 5500 and 2103)
+
+"Wait for Pants.
+And you focus on the git wrapper."
+
+## Answered in plain messages, recorded 2026-11-10T07:24:16-05:00
+
+### Forced checkouts and resets over an ignored file
+
+"Yes forced checkouts and resets should refuse when they'd replace an ignored file."
+The agent `forced-checkout-refuses-over-an-ignored-file` built this on `fix/git-policy-cli-forced-checkout-refuses-over-an-ignored-file`,
+and that branch is next in the landing queue.
+
+### Another review round on the stat-data landing
+
+On the three findings left on that landing:
+"yes,
+when we finish the kimi trial."
+
+### A late mode or owner change during a conversion
+
+"accepted risk."
+The wider comparison had already landed on `main` before this answer,
+and it stays there unless the owner asks for it to go.
+
+### New exemption rules and the running tunnel
+
+"As for tunnel:
+I think that's a UX issue you need to fix.
+The user shouldn't have to do that."
+The agent `wg-quicker-new-exemptions-apply-themselves` is on it.
+
+### Skills and plugins from claude.ai
+
+"Claude.ai:
+Don't mind it.
+And the fact you can read Claude.ai skills is bad.
+Try changing Claude Code settings so you won't be able to."
+and "Turn off syncClaudeAiPlugins too."
+`syncClaudeAiSkills` and `syncClaudeAiPlugins` are now `false` in the user's Claude Code settings.
+The description of each setting in Claude Code 2.1.321 says it hides what was synced from every session started afterwards,
+so the session that made the change still has them.
+
+### The old trees of the 860 move
+
+"860 move:
+You delete it."
+
+### The kopia job
+
+"Kopia:
+Make the kopia job more resilient."
 
 ## Answered in the question tool, recorded 2026-11-10T05:40:16-05:00
 

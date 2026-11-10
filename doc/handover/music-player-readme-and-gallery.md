@@ -564,13 +564,13 @@ The full record is `doc/planning/lfs-readme-image-rendering.md`.
 
 ## Next actions
 
-1. Push,
-   run the URL check task,
-   and open the README on github.com in a logged-out browser to confirm that all twenty
-   images load (`naturalWidth` above zero).
-2. Retake the Android gallery after the next visible change,
-   with the facts in "Android captures".
-3. Keep the image store of the extracted repository undecided until the extraction plan settles it.
+1.  Push,
+    run the URL check task,
+    and open the README on github.com in a logged-out browser to confirm that all twenty
+    images load (`naturalWidth` above zero).
+2.  Retake the Android gallery after the next visible change,
+    with the facts in "Android captures".
+3.  Keep the image store of the extracted repository undecided until the extraction plan settles it.
 
 ## References
 

@@ -128,6 +128,50 @@ each failed with `ERR_MODULE_NOT_FOUND: Cannot find package
 The sixteen other dangling
 `1.5.1/<hash>` directories stayed dangling when that run finished.
 
+## A second override hits the same defect
+
+Observed on 2026-11-10T08:57:00-05:00 in worktree
+`.claude/worktrees/pi-open-issues-aquati-cat`.
+The `@ungap/structured-clone` override
+(`link:package/pnpm-override/shim-ungap-structured-clone`)
+was broken in the two store link directories that worktree resolves:
+
+- `links/@/mdast-util-to-hast/13.2.1/053862084a402c679ed21142fe0b4952f00c28390f94bdf41a864fb3c2d206e8/node_modules/@ungap/structured-clone`
+  carried the same fourteen-level climb against the worktree path,
+  so resolution from the real parent landed on `/var/var/mnt/...`
+  and `os.path.exists()` answered `false`;
+- `links/@/rehype-autolink-headings/7.1.0/2020553868367a9104dc5829cd3919ffbc1195a19fb21046f1748959f11ee027/node_modules/@ungap`
+  was empty,
+  so the package simply did not resolve.
+
+Before the repair,
+every unit suite of `package/ssg/aquati.cat` failed with
+`ERR_MODULE_NOT_FOUND: Cannot find package '@ungap/structured-clone'`,
+raised from `mdast-util-to-hast/lib/footer.js`
+and `rehype-autolink-headings/lib/index.js`.
+
+An absolute target that outlives the worktree repairs both entries
+and does not depend on the climb count
+(the empty `@ungap` directory is created first):
+
+```sh
+mkdir -p '<store-link-dir>/node_modules/@ungap'
+ln --symbolic --force --no-dereference \
+  /var/mnt/encrypted/repository/Monochromatic/package/pnpm-override/shim-ungap-structured-clone \
+  '<store-link-dir>/node_modules/@ungap/structured-clone'
+```
+
+`pnpm install --offline --frozen-lockfile` in the worktree answered
+`Already up to date` and changed neither entry.
+`pnpm install --force` was not run here:
+its documented result above writes links into the current worktree,
+which dangles once that worktree is removed,
+and it rewrites store directories other sessions resolve through.
+
+After the repair,
+`mise run //package/ssg/aquati.cat:test:unit` exited 0
+with 31 passing suite lines across the twenty test files.
+
 ## Limits
 
 - The store link directory is machine-global state,

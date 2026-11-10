@@ -254,9 +254,22 @@ pub mod worktree_convert_command;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
 
-/// Disposal of a snapshot's trash:
-/// the work item,
-/// the foreground fallback and the service's handler.
+/// The repository's own exclude line that keeps a standing trash out of every `git add --all`.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_exclude_line;
+
+/// Handing a snapshot's trash to the commit service without waiting for it to be emptied.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_hand_over;
+
+/// Running one stretch of storage work at the lowest I/O priority Linux offers.
+#[cfg(target_os = "linux")]
+pub mod idle_io_priority;
+
+/// Emptying a snapshot's trash:
+/// what a trash is,
+/// the service's handler,
+/// and the trashes nothing will empty.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_dispose;
 
