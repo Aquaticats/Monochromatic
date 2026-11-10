@@ -242,6 +242,8 @@ function shortFileName(filePath: string,): string {
  
  @param cachyosImage - CachyOS image resolved once for the matrix; absent when no entry uses `cachyos`
  
+ @param l - Logger tagged with the caller's scope
+ 
  @returns stdout from the execution
  
  @throws Error when the combination fails or uses an unimplemented protocol
@@ -250,11 +252,20 @@ function executeCombination({
   combination,
   monorepoRoot,
   cachyosImage,
+  l: parentLogger,
 }: {
   readonly combination: Combination;
   readonly monorepoRoot: string;
   readonly cachyosImage?: string;
+  readonly l: Logger;
 },): Promise<string> {
+  /**
+   Logger tagged with this function, so a backend's forwarded stderr line names the dispatch that reached it.
+   */
+  const l: Logger = tagged({
+    tag: executeCombination.name,
+    l: parentLogger,
+  },);
   /**
    Protocol drives the backend choice; parsed once and inspected by each branch.
    */
@@ -262,7 +273,10 @@ function executeCombination({
 
   if (parsed.protocol
     === 'host')
-    return runHost({ combination, },);
+    return runHost({
+      combination,
+      l,
+    },);
 
   if (parsed.protocol
     === 'container') {
@@ -270,6 +284,7 @@ function executeCombination({
       combination,
       monorepoRoot,
       ...(cachyosImage === undefined ? {} : { cachyosImage, }),
+      l,
     },);
   }
 
@@ -475,6 +490,7 @@ export async function matrix({
                   combination,
                   monorepoRoot,
                   ...cachyosOption,
+                  l,
                 },);
                 if (output !== '')
                   l.info(output,);

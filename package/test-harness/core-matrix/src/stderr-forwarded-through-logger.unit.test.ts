@@ -126,6 +126,14 @@ function recordingLogger(messages: string[],): Logger {
 }
 
 /**
+ Disposable that puts a directory first on `PATH` until it is disposed.
+ */
+type PathRestoration = {
+  /** Restores `PATH` to the value the process had */
+  [Symbol.dispose]: () => void;
+};
+
+/**
  Runs one probe with a directory first on `PATH`, and restores the previous value afterwards.
 
  @param directory - directory the probe has to find its program in
@@ -141,19 +149,31 @@ async function withDirectoryFirstOnPath({
   readonly directory: string;
   readonly probe: () => Promise<string>;
 },): Promise<string> {
+  using pathRestoration: PathRestoration = directoryFirstOnPath(directory,);
+
+  return await probe();
+}
+
+/**
+ Puts `directory` first on `PATH` until the returned handle is disposed.
+
+ @param directory - directory a probe has to find its program in
+
+ @returns handle whose `Symbol.dispose` restores `PATH`
+ */
+function directoryFirstOnPath(directory: string,): PathRestoration {
   /**
-   `PATH` as the process had it, restored in the `finally` below.
+   `PATH` as the process had it, restored when the probe is done.
    */
   const previousPath = process.env.PATH ?? '';
 
   process.env.PATH = `${directory}${delimiter}${previousPath}`;
 
-  try {
-    return await probe();
-  }
-  finally {
-    process.env.PATH = previousPath;
-  }
+  return {
+    [Symbol.dispose]: function restorePath(): void {
+      process.env.PATH = previousPath;
+    },
+  };
 }
 
 await describe({

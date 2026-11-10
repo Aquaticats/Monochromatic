@@ -9,6 +9,7 @@
  */
 
 import { stripSourceComments, } from '@monochromatic-dev/container-limit-core/ts/source-text-without-comments.ts';
+import type { Dirent, } from 'node:fs';
 import {
   readdir,
   readFile,
@@ -49,11 +50,28 @@ const NON_LIBRARY_SOURCE_SUFFIXES: readonly string[] = [
  One library source file of this package, with the text a source scan reads.
  */
 export type LibrarySource = {
-  /** Absolute path of the file */
+  /**
+   Absolute path of the file
+   */
   readonly path: string;
-  /** The file's text with its comments blanked */
+  /**
+   The file's text with its comments blanked
+   */
   readonly text: string;
 };
+
+/**
+ Tells whether one file name carries a suffix that marks it as something other than library code.
+
+ @param fileName - name of the file
+
+ @returns whether a non-library suffix ends the name
+ */
+function isNonLibraryName(fileName: string,): boolean {
+  return NON_LIBRARY_SOURCE_SUFFIXES.some(function isNonLibrarySuffix(suffix: string,): boolean {
+    return fileName.endsWith(suffix,);
+  },);
+}
 
 /**
  Lists this package's library source files, each with the text a source scan reads.
@@ -81,13 +99,20 @@ export async function librarySourceTexts(): Promise<readonly LibrarySource[]> {
    Paths of the library sources, in directory order.
    */
   const paths = entries
-    .filter((entry,) => entry.isFile()
-      && entry.name.endsWith(LIBRARY_SOURCE_SUFFIX,)
-      && (!NON_LIBRARY_SOURCE_SUFFIXES.some((suffix,) => entry.name.endsWith(suffix,),)),)
-    .map((entry,) => join(
-      entry.parentPath,
-      entry.name,
-    ),);
+    .filter(function isLibrarySource(entry: Dirent,): boolean {
+      if (!entry.isFile())
+        return false;
+      if (!entry.name
+        .endsWith(LIBRARY_SOURCE_SUFFIX,))
+        return false;
+      return !isNonLibraryName(entry.name,);
+    },)
+    .map(function absolutePath(entry: Dirent,): string {
+      return join(
+        entry.parentPath,
+        entry.name,
+      );
+    },);
 
   return await Promise.all(paths.map(async function readLibrarySource(path: string,): Promise<LibrarySource> {
     return {
