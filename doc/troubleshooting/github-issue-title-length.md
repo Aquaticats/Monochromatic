@@ -180,32 +180,32 @@ that measurement cannot be labeled as GitHub's title-length rule.
 The repository's issue search found no open or closed report matching
 `issue title maxLength` or `256 characters`.
 
-1. **Is it really upstream's fault?**
-   Not yet proven.
-   The schema omits a limit,
-   but no authorized disposable runtime probe established that the REST endpoint enforces one.
-2. **Can upstream fix it?**
-   Yes,
-   if runtime behavior has a stable bound,
-   GitHub can publish matching OpenAPI length metadata and units.
-3. **Are they supporting this use case?**
-   Yes.
-   The description publishes the `issues/create` request schema and accepts schema-inaccuracy reports.
-4. **Would the repo welcome our contribution?**
-   [`CONTRIBUTING.md`][contributing]
-   directs description mismatches to Issues rather than pull requests,
-   and the repository provides a Schema Inaccuracy template.
-   No AI-assistance prohibition was found in the contribution guide,
-   issue template,
-   or sampled recent Schema Inaccuracy discussions.
-5. **Will they likely fix it?**
-   No negative signal was found.
-   Recent completed schema reports show follow-up,
-   but that does not predict action on an unverified limit.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No.
-   The source descriptions are generated artifacts that reject direct pull requests,
-   and the required runtime boundary has not been reproduced.
+1.  **Is it really upstream's fault?**
+    Not yet proven.
+    The schema omits a limit,
+    but no authorized disposable runtime probe established that the REST endpoint enforces one.
+2.  **Can upstream fix it?**
+    Yes,
+    if runtime behavior has a stable bound,
+    GitHub can publish matching OpenAPI length metadata and units.
+3.  **Are they supporting this use case?**
+    Yes.
+    The description publishes the `issues/create` request schema and accepts schema-inaccuracy reports.
+4.  **Would the repo welcome our contribution?**
+    [`CONTRIBUTING.md`][contributing]
+    directs description mismatches to Issues rather than pull requests,
+    and the repository provides a Schema Inaccuracy template.
+    No AI-assistance prohibition was found in the contribution guide,
+    issue template,
+    or sampled recent Schema Inaccuracy discussions.
+5.  **Will they likely fix it?**
+    No negative signal was found.
+    Recent completed schema reports show follow-up,
+    but that does not predict action on an unverified limit.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No.
+    The source descriptions are generated artifacts that reject direct pull requests,
+    and the required runtime boundary has not been reproduced.
 
 Constraints one and six fail.
 There is no upstream filing or comment to make from the current evidence.

@@ -100,28 +100,28 @@ Environment:
 The compositor half is repo-owned,
  so the actionable half is internal.
 
-1. Really upstream's fault?
-    Split:
-    Chromium aborting on a dead Wayland display during an
-   externally initiated teardown is arguably correct-if-loud;
-    the harness-visible flake,
-    if it
-   recurs,
-    is about OUR compositor's exit-code propagation during quit.
-2. Can upstream fix it?
-    Electron/Chromium could downgrade the teardown path;
-    speculative.
-3. Supported use case?
-    A compositor dying under a running client is not a supported Electron
-   scenario anyone documents.
-4. Would the repo welcome the contribution?
-    Not evaluated;
-    constraints 1-3 do not hold
-   cleanly.
-5. Will they likely fix it?
-    No signal.
-6. Prototyped minimal fix?
-    Not applicable without a reproducible failure.
+1.  Really upstream's fault?
+     Split:
+     Chromium aborting on a dead Wayland display during an
+    externally initiated teardown is arguably correct-if-loud;
+     the harness-visible flake,
+     if it
+    recurs,
+     is about OUR compositor's exit-code propagation during quit.
+2.  Can upstream fix it?
+     Electron/Chromium could downgrade the teardown path;
+     speculative.
+3.  Supported use case?
+     A compositor dying under a running client is not a supported Electron
+    scenario anyone documents.
+4.  Would the repo welcome the contribution?
+     Not evaluated;
+     constraints 1-3 do not hold
+    cleanly.
+5.  Will they likely fix it?
+     No signal.
+6.  Prototyped minimal fix?
+     Not applicable without a reproducible failure.
 
 Decision:
  nothing to file externally.

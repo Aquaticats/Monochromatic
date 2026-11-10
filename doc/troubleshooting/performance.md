@@ -38,18 +38,18 @@ emits a diagnostic stack.
 
 ### Performance Optimization Key Takeaways
 
-1. **WSL Environments**:
-    Avoid executing binaries when file system checks suffice
-2. **Logging**:
-    Do not migrate entry `trace` calls to `debug` for a presumed
-    suppressed-console speedup;
-    use the diagnostic level the call requires
-3. **Build Scripts**:
-    Replace shell commands with TypeScript scripts for better performance and cross-platform compatibility
-4. **Caching**:
-    Implement file-based checks before expensive operations
-5. **Process Creation**:
-    Minimize subprocess execution in performance-critical paths
+1.  **WSL Environments**:
+     Avoid executing binaries when file system checks suffice
+2.  **Logging**:
+     Do not migrate entry `trace` calls to `debug` for a presumed
+     suppressed-console speedup;
+     use the diagnostic level the call requires
+3.  **Build Scripts**:
+     Replace shell commands with TypeScript scripts for better performance and cross-platform compatibility
+4.  **Caching**:
+     Implement file-based checks before expensive operations
+5.  **Process Creation**:
+     Minimize subprocess execution in performance-critical paths
 
 ### Common Performance Anti-Patterns
 

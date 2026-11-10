@@ -642,66 +642,66 @@ but the page loads themselves were not exercised here.
 Default policy is do not file.
 The six-constraint walk:
 
-1. Is it really upstream's fault?
-   No defect exists.
-   The `.service` default for abbreviated names is documented in
-   `systemctl(1)`
-   (the excerpt in "The behavior is documented"),
-   the normalized property naming is documented in the same page,
-   and the silent exit-0 for properties mode is a deliberate client choice
-   (the `LOG_DEBUG` branch quoted in "The client exits 0 in properties mode").
-   The behavior is a sharp edge,
-   documented and intended,
-   not a bug.
-   This constraint fails,
-   so there is nothing to file.
-2. Can upstream fix it?
-   A warning or non-zero exit for not-found in properties mode is
-   mechanically possible
-   (the branch already exists),
-   but the question is moot given constraint 1.
-3. Are they supporting this use case?
-   Yes.
-   Transient scopes from `systemd-run` are first-class
-   (the `StartTransientUnit` path in "The real scope does carry the limits"),
-   and abbreviated unit names are a documented input form.
-4. Would the repo welcome the contribution?
-   `docs/CONTRIBUTING.md`
-   (fetched 2026-10-31 from main,
-   [docs/CONTRIBUTING.md](https://github.com/systemd/systemd/blob/main/docs/CONTRIBUTING.md))
-   uses GitHub Issues exclusively for bugs and feature requests,
-   asks for the systemd version,
-   the distribution,
-   and a reproduction,
-   and tracks only the two most recently released non-rc versions;
-   the host build 259.10-1.fc44 would need checking against the current
-   release pair on any filing day.
-   Its LLM policy allows AI assistance with human review and authorship
-   ("You are the author").
-   No ban was found;
-   nothing about this report would be unwelcome as a filing,
-   but there is no defect to file.
-5. Will they likely fix it?
-   No signal either way:
-   the duplicate search below found no issue asking for it.
-   Related evidence:
-   commit `14b1a92e`
-   (2026-06-17)
-   added a strict-mangling flag to `unit_name_mangle_with_suffix` after a
-   systemd-run type-transition confusion,
-   showing the maintainers treat mangling sharp edges as fixable,
-   but scoped to systemd-run,
-   not `systemctl show`;
-   the recent `src/systemctl/systemctl-show.c` commits
-   (`5071cd10`,
-   `ef23a1e3`,
-   `a83a0d2f`,
-   `407358d9`)
-   do not touch the not-found handling.
-6. Has a minimal fix been prototyped?
-   Not reached:
-   constraint 1 fails,
-   so there is no candidate fix to prototype.
+1.  Is it really upstream's fault?
+    No defect exists.
+    The `.service` default for abbreviated names is documented in
+    `systemctl(1)`
+    (the excerpt in "The behavior is documented"),
+    the normalized property naming is documented in the same page,
+    and the silent exit-0 for properties mode is a deliberate client choice
+    (the `LOG_DEBUG` branch quoted in "The client exits 0 in properties mode").
+    The behavior is a sharp edge,
+    documented and intended,
+    not a bug.
+    This constraint fails,
+    so there is nothing to file.
+2.  Can upstream fix it?
+    A warning or non-zero exit for not-found in properties mode is
+    mechanically possible
+    (the branch already exists),
+    but the question is moot given constraint 1.
+3.  Are they supporting this use case?
+    Yes.
+    Transient scopes from `systemd-run` are first-class
+    (the `StartTransientUnit` path in "The real scope does carry the limits"),
+    and abbreviated unit names are a documented input form.
+4.  Would the repo welcome the contribution?
+    `docs/CONTRIBUTING.md`
+    (fetched 2026-10-31 from main,
+    [docs/CONTRIBUTING.md](https://github.com/systemd/systemd/blob/main/docs/CONTRIBUTING.md))
+    uses GitHub Issues exclusively for bugs and feature requests,
+    asks for the systemd version,
+    the distribution,
+    and a reproduction,
+    and tracks only the two most recently released non-rc versions;
+    the host build 259.10-1.fc44 would need checking against the current
+    release pair on any filing day.
+    Its LLM policy allows AI assistance with human review and authorship
+    ("You are the author").
+    No ban was found;
+    nothing about this report would be unwelcome as a filing,
+    but there is no defect to file.
+5.  Will they likely fix it?
+    No signal either way:
+    the duplicate search below found no issue asking for it.
+    Related evidence:
+    commit `14b1a92e`
+    (2026-06-17)
+    added a strict-mangling flag to `unit_name_mangle_with_suffix` after a
+    systemd-run type-transition confusion,
+    showing the maintainers treat mangling sharp edges as fixable,
+    but scoped to systemd-run,
+    not `systemctl show`;
+    the recent `src/systemctl/systemctl-show.c` commits
+    (`5071cd10`,
+    `ef23a1e3`,
+    `a83a0d2f`,
+    `407358d9`)
+    do not touch the not-found handling.
+6.  Has a minimal fix been prototyped?
+    Not reached:
+    constraint 1 fails,
+    so there is no candidate fix to prototype.
 
 Duplicate search (2026-10-31,
 `gh search issues --repo systemd/systemd`,

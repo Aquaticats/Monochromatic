@@ -562,52 +562,52 @@ open) are unrelated gradient defects.
 
 The six constraints:
 
-1. **Is it really upstream's fault?**
-   No.
-   It is a consequence of the architecture (a parallel append whose order is set by atomics,
-   and a floating-point sum
-   in that order),
-   not a malfunction,
-   and Vello's own snapshot tests treat it as expected:
-   `research/vello_research_tests/src/snapshot.rs` compares with a perceptual (FLIP) mean threshold,
-   and its
-   documentation of `assert_mean_less_than` says the value "could potentially be non-zero (i.e. there is a slight
-   difference between the new and previous results) due to e.g. fast math on the GPU or other platform specific
-   factors."
-2. **Can upstream fix it?**
-   Yes in principle:
-   the probe makes 200 renders identical on three adapters.
-   A real fix needs a speed and overflow analysis that I did not do.
-3. **Are they supporting this use case?**
-   No signal.
-   No document promises repeatable pixels,
-   and the compute renderer is described as research.
-4. **Would the repo welcome our contribution?**
-   No ban was found:
-   the repository has no `CONTRIBUTING.md`,
-   issue template,
-   pull request template or code of
-   conduct (`gh api repos/linebender/vello/community/profile`),
-   and a search of its Markdown for AI or LLM policy text
-   found none.
-   Absence of a policy is not a fail.
-5. **Will they likely fix it?**
-   Upstream leans the other way,
-   in its documents:
-   the repository `README.md` calls the compute renderer "an
-   experimental implementation for compute-capable GPUs" and says "Vello GPU is intended to become the primary renderer
-   for production GPU use cases";
-   issue 1871 (closed 2026-09-14) records the agreed direction "Move the current
-   compute-centric renderer to `research/vello_research`";
-   `v0.11.0` is released as "Vello Research v0.11.0".
-   Fixes still land in the research tree (pull request 1992 on `tile_alloc`,
-   merged 2026-10-15),
-   but for defects,
-   not
-   for bit-exactness.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Only as a probe of the cause,
-   not as a proposed change (no speed or overflow analysis).
+1.  **Is it really upstream's fault?**
+    No.
+    It is a consequence of the architecture (a parallel append whose order is set by atomics,
+    and a floating-point sum
+    in that order),
+    not a malfunction,
+    and Vello's own snapshot tests treat it as expected:
+    `research/vello_research_tests/src/snapshot.rs` compares with a perceptual (FLIP) mean threshold,
+    and its
+    documentation of `assert_mean_less_than` says the value "could potentially be non-zero (i.e. there is a slight
+    difference between the new and previous results) due to e.g. fast math on the GPU or other platform specific
+    factors."
+2.  **Can upstream fix it?**
+    Yes in principle:
+    the probe makes 200 renders identical on three adapters.
+    A real fix needs a speed and overflow analysis that I did not do.
+3.  **Are they supporting this use case?**
+    No signal.
+    No document promises repeatable pixels,
+    and the compute renderer is described as research.
+4.  **Would the repo welcome our contribution?**
+    No ban was found:
+    the repository has no `CONTRIBUTING.md`,
+    issue template,
+    pull request template or code of
+    conduct (`gh api repos/linebender/vello/community/profile`),
+    and a search of its Markdown for AI or LLM policy text
+    found none.
+    Absence of a policy is not a fail.
+5.  **Will they likely fix it?**
+    Upstream leans the other way,
+    in its documents:
+    the repository `README.md` calls the compute renderer "an
+    experimental implementation for compute-capable GPUs" and says "Vello GPU is intended to become the primary renderer
+    for production GPU use cases";
+    issue 1871 (closed 2026-09-14) records the agreed direction "Move the current
+    compute-centric renderer to `research/vello_research`";
+    `v0.11.0` is released as "Vello Research v0.11.0".
+    Fixes still land in the research tree (pull request 1992 on `tile_alloc`,
+    merged 2026-10-15),
+    but for defects,
+    not
+    for bit-exactness.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Only as a probe of the cause,
+    not as a proposed change (no speed or overflow analysis).
 
 Constraints 1,
 3 and 5 fail,

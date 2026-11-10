@@ -79,23 +79,23 @@ Environment:
 `.out-of-scope/` was checked:
  no gtk4-rs exemption exists.
 
-1. Really upstream's fault?
-    No;
-    deprecation gating on version features is the intended design,
-   and the replacement exists.
-2. Can upstream fix it?
-    Nothing to fix.
-3. Supported use case?
-    Yes;
-    documented deprecation with named successor.
-4. Would the repo welcome the contribution?
-    Not evaluated;
-    constraint 1 fails.
-5. Will they likely fix it?
-    Nothing to fix.
-6. Prototyped minimal fix?
-    Not applicable;
-    consumer-side one-line rename recorded above.
+1.  Really upstream's fault?
+     No;
+     deprecation gating on version features is the intended design,
+    and the replacement exists.
+2.  Can upstream fix it?
+     Nothing to fix.
+3.  Supported use case?
+     Yes;
+     documented deprecation with named successor.
+4.  Would the repo welcome the contribution?
+     Not evaluated;
+     constraint 1 fails.
+5.  Will they likely fix it?
+     Nothing to fix.
+6.  Prototyped minimal fix?
+     Not applicable;
+     consumer-side one-line rename recorded above.
 
 Decision:
  nothing to file.

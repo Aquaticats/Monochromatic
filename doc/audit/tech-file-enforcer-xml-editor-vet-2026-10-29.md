@@ -875,124 +875,124 @@ X1 `roxmltree` > X2 `quick-xml` > X3 > `twig-doc`
 
 ## Steps remaining, in the skill's order
 
-1. Finish context and freeze:
-   add the screening-gate list to the report and confirm the criteria (done in draft above);
-    refreeze nothing after ratings begin.
-2. Finish discovery:
-   - `rg` this repository (`Cargo.lock`,
-     `Cargo.toml`,
-     `doc/audit`,
-     `doc/decision`) for XML crates and XML vets.
-   - GitHub code,
-     release and organization queries;
-     `lib.rs` keyword and category browse.
-   - Manually review the 372 heuristic survivors (list:
-     `node scripts/survivor-list.ts`,
-     `node scripts/top-xml.ts <regex> <n>`
-      in `/var/home/user/temp/agent/xmlvet`) and the unscreened GitHub names;
-     record terminal discovery result.
-3. Screening hard gates for every survivor with evidence:
-   license (record the `docxtpl-xml` LGPL-2.1-only and
-   `draviavemal-xml_rs` AGPL reasoning),
-   category fit,
-   pure-Rust and provenance,
-   platform support,
-   source inspectability.
-   Re-check `xml`,
-   `xml-rs`,
-   `xmltree`,
-   `xot` against the troubleshooting doc before exiting them.
-4. Clone every serious alternative and finalist under `/var/home/user/temp/agent/<name>-2026-10-29` with
-   `gh repo clone <repo> <path> -- --depth 1`;
-   likely finalists:
-   `roxmltree`,
-   `quick-xml`,
-   `xmlparser`,
-   plus whichever of
-   `uppsala`,
-   `twig-doc`,
-   `xmloxide`,
-   `rxml`,
-   `tree-sitter-xml` survive targeted evidence.
-5. Targeted source audit per finalist:
-   license text,
-   manifest,
-   transitive tree,
-   `build.rs`,
-   `unsafe`,
-   range and position
-   API,
-   entity and DTD handling,
-   error types,
-   tests,
-   CI matrix,
-   fuzz and mutation search,
-   maintenance sample (issues and
-   pull requests updated in the last 12 months,
-   all if 20 or fewer else the ten most recent;
-   maintainer comments versus
-   actions;
-   merge latency;
-   release cadence;
-   maintainer concentration),
-   human-auditability measurements.
-6. Execution manifests,
-   then run each finalist's upstream default `cargo test` and relevant non-default suites in
-   `podman run --memory=2g --cpus=2 --rm` (fetch phase with network,
-   then `--network=none --offline`),
-   reading-only repository
-   mount,
-   private scratch volume;
-   record image digest,
-   commands,
-   exit status,
-   elapsed time.
-7. Consumer-boundary probe (rebuild;
-   the September harness is gone) under `/var/home/user/temp/agent`:
-   one crate with each finalist behind the same splice editor and `monochromatic-jsonc-edit` as a path dependency.
-   Fixtures:
-   the TypeScript `LANGUAGE_XML`,
-   `USER_DEFINED_XML`,
-   `SAMPLE_MAP`,
-   plus synthetic variants with comments inside
-   and between entries,
-   single-quoted attributes,
-   attribute order swap,
-   CRLF,
-   a DOCTYPE with an internal entity,
-   an unknown
-   entity,
-   an unclosed `</entry>`,
-   and multi-line `configurationContent`.
-   Cases:
-   attribute-level set of owned options,
-   whole-entry replace,
-   insert before the last `</map>`,
-   second-run idempotency,
-   malformed rejection with position,
-   output re-parse by the same parser,
-   tab and newline encoded as `&#9;` and `&#10;`.
-   Differential run against the built TypeScript incumbent
-   (`package/file-enforcer/core/dist/final/node/index.mjs` exports `updatedLanguageSettingsXml` and friends) on the same
-   synthetic strings,
-   comparing decoded values.
-   Platform checks:
-   Linux x64 locally;
-   try `cargo check --target aarch64-apple-darwin` and `x86_64-pc-windows-msvc` in the
-   container after a separately inspected `rustup target add`;
-   record the macOS and Windows runtime omission with upstream
-   CI matrix evidence if not run.
-8. Verify the JSON boundary (trailing commas,
-   LSP4IJ reader) as described in the findings.
-9. Score the validated finalists on the frozen criteria,
-   run the full one-at-a-time sensitivity matrix,
-   write pros and
-   cons per finalist,
-   the fully sorted ranking with adjacent reasons,
-   evidence limits,
-   and the recommendation or the
-   terminal outcome;
-   end with an open question only if a tie or the JSON boundary needs an owner decision.
+1.  Finish context and freeze:
+    add the screening-gate list to the report and confirm the criteria (done in draft above);
+     refreeze nothing after ratings begin.
+2.  Finish discovery:
+    - `rg` this repository (`Cargo.lock`,
+      `Cargo.toml`,
+      `doc/audit`,
+      `doc/decision`) for XML crates and XML vets.
+    - GitHub code,
+      release and organization queries;
+      `lib.rs` keyword and category browse.
+    - Manually review the 372 heuristic survivors (list:
+      `node scripts/survivor-list.ts`,
+      `node scripts/top-xml.ts <regex> <n>`
+       in `/var/home/user/temp/agent/xmlvet`) and the unscreened GitHub names;
+      record terminal discovery result.
+3.  Screening hard gates for every survivor with evidence:
+    license (record the `docxtpl-xml` LGPL-2.1-only and
+    `draviavemal-xml_rs` AGPL reasoning),
+    category fit,
+    pure-Rust and provenance,
+    platform support,
+    source inspectability.
+    Re-check `xml`,
+    `xml-rs`,
+    `xmltree`,
+    `xot` against the troubleshooting doc before exiting them.
+4.  Clone every serious alternative and finalist under `/var/home/user/temp/agent/<name>-2026-10-29` with
+    `gh repo clone <repo> <path> -- --depth 1`;
+    likely finalists:
+    `roxmltree`,
+    `quick-xml`,
+    `xmlparser`,
+    plus whichever of
+    `uppsala`,
+    `twig-doc`,
+    `xmloxide`,
+    `rxml`,
+    `tree-sitter-xml` survive targeted evidence.
+5.  Targeted source audit per finalist:
+    license text,
+    manifest,
+    transitive tree,
+    `build.rs`,
+    `unsafe`,
+    range and position
+    API,
+    entity and DTD handling,
+    error types,
+    tests,
+    CI matrix,
+    fuzz and mutation search,
+    maintenance sample (issues and
+    pull requests updated in the last 12 months,
+    all if 20 or fewer else the ten most recent;
+    maintainer comments versus
+    actions;
+    merge latency;
+    release cadence;
+    maintainer concentration),
+    human-auditability measurements.
+6.  Execution manifests,
+    then run each finalist's upstream default `cargo test` and relevant non-default suites in
+    `podman run --memory=2g --cpus=2 --rm` (fetch phase with network,
+    then `--network=none --offline`),
+    reading-only repository
+    mount,
+    private scratch volume;
+    record image digest,
+    commands,
+    exit status,
+    elapsed time.
+7.  Consumer-boundary probe (rebuild;
+    the September harness is gone) under `/var/home/user/temp/agent`:
+    one crate with each finalist behind the same splice editor and `monochromatic-jsonc-edit` as a path dependency.
+    Fixtures:
+    the TypeScript `LANGUAGE_XML`,
+    `USER_DEFINED_XML`,
+    `SAMPLE_MAP`,
+    plus synthetic variants with comments inside
+    and between entries,
+    single-quoted attributes,
+    attribute order swap,
+    CRLF,
+    a DOCTYPE with an internal entity,
+    an unknown
+    entity,
+    an unclosed `</entry>`,
+    and multi-line `configurationContent`.
+    Cases:
+    attribute-level set of owned options,
+    whole-entry replace,
+    insert before the last `</map>`,
+    second-run idempotency,
+    malformed rejection with position,
+    output re-parse by the same parser,
+    tab and newline encoded as `&#9;` and `&#10;`.
+    Differential run against the built TypeScript incumbent
+    (`package/file-enforcer/core/dist/final/node/index.mjs` exports `updatedLanguageSettingsXml` and friends) on the same
+    synthetic strings,
+    comparing decoded values.
+    Platform checks:
+    Linux x64 locally;
+    try `cargo check --target aarch64-apple-darwin` and `x86_64-pc-windows-msvc` in the
+    container after a separately inspected `rustup target add`;
+    record the macOS and Windows runtime omission with upstream
+    CI matrix evidence if not run.
+8.  Verify the JSON boundary (trailing commas,
+    LSP4IJ reader) as described in the findings.
+9.  Score the validated finalists on the frozen criteria,
+    run the full one-at-a-time sensitivity matrix,
+    write pros and
+    cons per finalist,
+    the fully sorted ranking with adjacent reasons,
+    evidence limits,
+    and the recommendation or the
+    terminal outcome;
+    end with an open question only if a tie or the JSON boundary needs an owner decision.
 10. Update this file atomically after each phase (lock,
     temp sibling,
     hash re-check,

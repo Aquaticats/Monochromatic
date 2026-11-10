@@ -239,17 +239,17 @@ The `.out-of-scope/` entries contain no exemption specific to this local
 systemd/PAM setting,
 but no upstream defect is identified:
 
-1. Upstream fault is unproven;
-   both measured ceilings came from local freeze-hardening configuration.
-2. Upstream could change its own behavior,
-   but there is no verified upstream defect to target here.
-3. The emulator supports this AVD use,
-   yet support does not identify the cause of the late thread-creation exit.
-4. Contribution policy for a specific defective upstream path was not assessed
-   because no such path has been established.
-5. Expected maintainer action is unknown;
-   no issue search would turn this local configuration change into an upstream bug.
-6. No upstream patch was proposed or verified;
-   the tested fix is local configuration only.
+1.  Upstream fault is unproven;
+    both measured ceilings came from local freeze-hardening configuration.
+2.  Upstream could change its own behavior,
+    but there is no verified upstream defect to target here.
+3.  The emulator supports this AVD use,
+    yet support does not identify the cause of the late thread-creation exit.
+4.  Contribution policy for a specific defective upstream path was not assessed
+    because no such path has been established.
+5.  Expected maintainer action is unknown;
+    no issue search would turn this local configuration change into an upstream bug.
+6.  No upstream patch was proposed or verified;
+    the tested fix is local configuration only.
 
 Nothing is ready to send upstream.

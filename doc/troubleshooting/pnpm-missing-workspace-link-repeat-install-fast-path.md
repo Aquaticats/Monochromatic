@@ -305,15 +305,15 @@ no credentials,
 10 GiB and 6 CPUs,
 only the disposable clone mounted):
 
-1. Stash the fix (`git stash push -- pnpm/crates/package-manager`) and run the new test.
-2. Run the neighbouring selections with the fix stashed and record the failing test names:
-   `repeat_install` (CLI suite,
-   includes the oracle suites),
-   `install_filters`,
-   `workspace_install`,
-   and `optimistic_repeat_install` in `pnpm-package-manager`.
-3. Restore the fix and repeat both steps.
-4. Compare the failing lists.
+1.  Stash the fix (`git stash push -- pnpm/crates/package-manager`) and run the new test.
+2.  Run the neighbouring selections with the fix stashed and record the failing test names:
+    `repeat_install` (CLI suite,
+    includes the oracle suites),
+    `install_filters`,
+    `workspace_install`,
+    and `optimistic_repeat_install` in `pnpm-package-manager`.
+3.  Restore the fix and repeat both steps.
+4.  Compare the failing lists.
 
 Recorded output of the last run:
 
@@ -472,44 +472,44 @@ and the new test and the source change were not run through pnpm 11's ESLint ste
 Walk of the six constraints,
 with the default policy of not filing.
 
-1. Is it really upstream's fault?
-   Partly.
-   The behavior follows a documented choice ([`modules_dirs.rs:167-168`][pnpm-dangling-doc]:
-   a missing entry is not a broken link because skipped optional and excluded dependencies have none).
-   The gap is that a declared non-optional workspace dependency is treated the same,
-   so the message `Already up to date` is wrong for that case.
-   This is a design trade-off with a narrower correct behavior,
-   not a plain bug.
-2. Can upstream fix it?
-   Yes in principle:
-   the check could ask for a link only for dependencies that are neither optional nor skipped.
-   No architectural blocker was found.
-3. Are they supporting this use case?
-   Workspace links between projects are a core feature,
-   and `repeat_install.rs` and `relocated_install.rs` under `pnpm/crates/cli/tests/suite/` test repeat-install behavior,
-   so a link-repair expectation is plausible but was not confirmed in those tests.
-4. Would the repository welcome our contribution?
-   [`CONTRIBUTING.md`][pnpm-contributing-ai] (section "AI-assisted contributions",
-   lines 325-345) welcomes agent-assisted contributions with a disclosure footer such as `Written by an agent (Claude Code, claude-opus-4-7).`,
-   and warns that unvetted agent output,
-   duplicate PRs and PRs that do not compile may be closed.
-   No ban found.
-5. Will they likely fix it?
-   No signal either way.
-   `gh search issues --repo pnpm/pnpm` for `missing workspace link Already up to date` and for `repeat install missing symlink node_modules not relinked` each returned no issues (checked 2026-10-29).
-6. Have we prototyped a minimal fix compatible with their architecture?
-   Yes,
-   see "Prototype" above:
-   a sibling check next to `direct_dependency_link_dangling` (`workspace_dependency_link_missing`),
-   a new `Stale` variant,
-   and a test.
-   The new test fails without the fix and passes with it,
-   and no other test in the four selections run differs between the two arms.
-   The clean rerun with Node.js installed ran the CLI repeat-install,
-   filter and workspace suites and the package-manager unit tests:
-   the only difference between the arms is the new test.
-   The pnpm 11 fix has its own jest test,
-   failing on the original source and passing on the patched one.
+1.  Is it really upstream's fault?
+    Partly.
+    The behavior follows a documented choice ([`modules_dirs.rs:167-168`][pnpm-dangling-doc]:
+    a missing entry is not a broken link because skipped optional and excluded dependencies have none).
+    The gap is that a declared non-optional workspace dependency is treated the same,
+    so the message `Already up to date` is wrong for that case.
+    This is a design trade-off with a narrower correct behavior,
+    not a plain bug.
+2.  Can upstream fix it?
+    Yes in principle:
+    the check could ask for a link only for dependencies that are neither optional nor skipped.
+    No architectural blocker was found.
+3.  Are they supporting this use case?
+    Workspace links between projects are a core feature,
+    and `repeat_install.rs` and `relocated_install.rs` under `pnpm/crates/cli/tests/suite/` test repeat-install behavior,
+    so a link-repair expectation is plausible but was not confirmed in those tests.
+4.  Would the repository welcome our contribution?
+    [`CONTRIBUTING.md`][pnpm-contributing-ai] (section "AI-assisted contributions",
+    lines 325-345) welcomes agent-assisted contributions with a disclosure footer such as `Written by an agent (Claude Code, claude-opus-4-7).`,
+    and warns that unvetted agent output,
+    duplicate PRs and PRs that do not compile may be closed.
+    No ban found.
+5.  Will they likely fix it?
+    No signal either way.
+    `gh search issues --repo pnpm/pnpm` for `missing workspace link Already up to date` and for `repeat install missing symlink node_modules not relinked` each returned no issues (checked 2026-10-29).
+6.  Have we prototyped a minimal fix compatible with their architecture?
+    Yes,
+    see "Prototype" above:
+    a sibling check next to `direct_dependency_link_dangling` (`workspace_dependency_link_missing`),
+    a new `Stale` variant,
+    and a test.
+    The new test fails without the fix and passes with it,
+    and no other test in the four selections run differs between the two arms.
+    The clean rerun with Node.js installed ran the CLI repeat-install,
+    filter and workspace suites and the package-manager unit tests:
+    the only difference between the arms is the new test.
+    The pnpm 11 fix has its own jest test,
+    failing on the original source and passing on the patched one.
 
 Decision:
 constraints 1 to 6 hold with the caveats written above,

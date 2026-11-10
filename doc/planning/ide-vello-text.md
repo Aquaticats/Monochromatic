@@ -869,96 +869,96 @@ Stages 1 and 2 are reversible by a flag until stage 5.
 Stages 3 and 4 were merged into one,
 and so were stages 5 and 6.
 
-1. Measurement and profile groundwork.
-   Add `[profile.dev.package."*"] opt-level` for dependencies (debug builds are
-   twelve times slower in Slint and Vello).
-   Keep the cadence driver with a positive control (the debug build must show
-   frozen frames).
-   Check:
-   the pattern of changed frames under `scroll` and `drag` for today's pipeline is recorded.
-2. Renderer switch.
-   Enable `renderer-femtovg-wgpu` and `unstable-wgpu-30`,
-   select it in `src/launcher.rs`
-   (`WGPUConfiguration::Automatic` with `Limits::default()`).
-   Check:
-   the existing native tests,
-   the container
-   suite,
-   and a nested-compositor run (done once here:
-   118 of 119 and 120 of 121 frames).
-   Done on 2026-10-20 (section "Stage 2" of `doc/planning/ide-gpu-snapshot-harness.md`),
-   with one change:
-   the launcher
-   opens the device itself (`WGPUConfiguration::Manual`) because `Automatic` can pick a CPU adapter.
-3. and 4.
-   (merged into one stage) The code view on the GPU.
-   A module draws a Parley layout into a Vello scene and a
-   tile texture on the device from the rendering notifier;
-   the tile re-center policy and worker stay,
-   but the worker
-   produces scene data,
-   not pixels.
-   Selection ink,
-   diagnostic underlines,
-   hint and message rows,
-   and the wrap sign are
-   scene content too.
-   Find boxes and selection fills stay Slint rectangles behind the tile,
-   which FemtoVG draws on the
-   GPU already.
-   Delete the tile's CPU painter (`TextRaster::paint`,
-   `wrap_sign.rs` raster);
-   the rest of
-   `text_raster.rs`,
-   `glyph_cache.rs`,
-   `selection_paint.rs`,
-   the `annotation_paint.rs` pixel code and `swash` stay
-   until stage 5 because the minimap picture still uses them (stage 6 deletes them).
-   Check:
-   the structural test that
-   scrolling inside the tile does no scene build and renders nothing,
-   the selection,
-   annotation,
-   find and wrap sign
-   tests rewritten against paint items and GPU readback,
-   a guard per piece that fails a test when the piece is
-   removed,
-   and the cadence run.
-   Done on 2026-10-20 (section "Stages 3 and 4" of `doc/planning/ide-gpu-snapshot-harness.md`).
-5. and 6.
-   (merged into one stage) The minimap as a GPU slice texture,
-   and the end of the CPU pipeline.
-   The worker
-   shapes the lines of the slice with a row cache and encodes them as paint items in chunks of at most 512 rows;
-   the one Vello renderer of the code view renders each chunk and copies it into the slice texture,
-   and the box,
-   pointer,
-   and planning code stay.
-   Deleted:
-   `downscale.rs`,
-   `build.rs`,
-   `render.rs`,
-   `key.rs`,
-   `cache.rs` of the
-   minimap,
-   `text_raster.rs`,
-   `glyph_cache.rs`,
-   `selection_paint.rs`,
-   the pixel code of `annotation_paint.rs`,
-   the
-   `swash` dependency,
-   and the CPU minimap tests.
-   Check:
-   the drag cadence for 489 and 50,000 lines,
-   a crispness
-   comparison against the removed bitmap,
-   `tall_window_minimap_tests`,
-   a guard per thing the minimap draws,
-   and a
-   repository search that no `from_rgba8` or `SharedPixelBuffer` remains in application code.
-   The software renderer
-   feature was already removed from the application in stage 0b (test scaffolding reads GPU snapshots).
-   Done on 2026-10-20 and 2026-10-21 (section "Stages 5 and 6" of `doc/planning/ide-gpu-snapshot-harness.md`).
+1.  Measurement and profile groundwork.
+    Add `[profile.dev.package."*"] opt-level` for dependencies (debug builds are
+    twelve times slower in Slint and Vello).
+    Keep the cadence driver with a positive control (the debug build must show
+    frozen frames).
+    Check:
+    the pattern of changed frames under `scroll` and `drag` for today's pipeline is recorded.
+2.  Renderer switch.
+    Enable `renderer-femtovg-wgpu` and `unstable-wgpu-30`,
+    select it in `src/launcher.rs`
+    (`WGPUConfiguration::Automatic` with `Limits::default()`).
+    Check:
+    the existing native tests,
+    the container
+    suite,
+    and a nested-compositor run (done once here:
+    118 of 119 and 120 of 121 frames).
+    Done on 2026-10-20 (section "Stage 2" of `doc/planning/ide-gpu-snapshot-harness.md`),
+    with one change:
+    the launcher
+    opens the device itself (`WGPUConfiguration::Manual`) because `Automatic` can pick a CPU adapter.
+3.  and 4.
+    (merged into one stage) The code view on the GPU.
+    A module draws a Parley layout into a Vello scene and a
+    tile texture on the device from the rendering notifier;
+    the tile re-center policy and worker stay,
+    but the worker
+    produces scene data,
+    not pixels.
+    Selection ink,
+    diagnostic underlines,
+    hint and message rows,
+    and the wrap sign are
+    scene content too.
+    Find boxes and selection fills stay Slint rectangles behind the tile,
+    which FemtoVG draws on the
+    GPU already.
+    Delete the tile's CPU painter (`TextRaster::paint`,
+    `wrap_sign.rs` raster);
+    the rest of
+    `text_raster.rs`,
+    `glyph_cache.rs`,
+    `selection_paint.rs`,
+    the `annotation_paint.rs` pixel code and `swash` stay
+    until stage 5 because the minimap picture still uses them (stage 6 deletes them).
+    Check:
+    the structural test that
+    scrolling inside the tile does no scene build and renders nothing,
+    the selection,
+    annotation,
+    find and wrap sign
+    tests rewritten against paint items and GPU readback,
+    a guard per piece that fails a test when the piece is
+    removed,
+    and the cadence run.
+    Done on 2026-10-20 (section "Stages 3 and 4" of `doc/planning/ide-gpu-snapshot-harness.md`).
+5.  and 6.
+    (merged into one stage) The minimap as a GPU slice texture,
+    and the end of the CPU pipeline.
+    The worker
+    shapes the lines of the slice with a row cache and encodes them as paint items in chunks of at most 512 rows;
+    the one Vello renderer of the code view renders each chunk and copies it into the slice texture,
+    and the box,
+    pointer,
+    and planning code stay.
+    Deleted:
+    `downscale.rs`,
+    `build.rs`,
+    `render.rs`,
+    `key.rs`,
+    `cache.rs` of the
+    minimap,
+    `text_raster.rs`,
+    `glyph_cache.rs`,
+    `selection_paint.rs`,
+    the pixel code of `annotation_paint.rs`,
+    the
+    `swash` dependency,
+    and the CPU minimap tests.
+    Check:
+    the drag cadence for 489 and 50,000 lines,
+    a crispness
+    comparison against the removed bitmap,
+    `tall_window_minimap_tests`,
+    a guard per thing the minimap draws,
+    and a
+    repository search that no `from_rgba8` or `SharedPixelBuffer` remains in application code.
+    The software renderer
+    feature was already removed from the application in stage 0b (test scaffolding reads GPU snapshots).
+    Done on 2026-10-20 and 2026-10-21 (section "Stages 5 and 6" of `doc/planning/ide-gpu-snapshot-harness.md`).
 
 For design B the stages differ at 2 (enable `renderer-vello` in `Cargo.toml`,
 patch or upstream the one-line clip fix

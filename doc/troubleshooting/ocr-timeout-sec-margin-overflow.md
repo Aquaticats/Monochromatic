@@ -53,124 +53,124 @@ Any `timeout_sec` in `9223372007..9223372036` triggers this.
 Walked on v1.13.1,
 commit `8eb8334`.
 
-1. The validator accepts up to 9223372036 seconds and advertises that maximum
-   in its own rejection message (`internal/llm/resolver.go:230-243`):
+1.  The validator accepts up to 9223372036 seconds and advertises that maximum
+    in its own rejection message (`internal/llm/resolver.go:230-243`):
 
-   ```go
-   // internal/llm/resolver.go:230-243 (v1.13.1)
-   func ValidateTimeoutSec(sec int) (time.Duration, error) {
-       if sec == 0 {
-           return 0, nil
-       }
-       if sec < 0 {
-           return 0, fmt.Errorf("timeout_sec must be non-negative, got %d", sec)
-       }
-       // Guard against overflow: time.Duration is int64 nanoseconds.
-       maxSec := int64(math.MaxInt64 / int64(time.Second))
-       if int64(sec) > maxSec {
-           return 0, fmt.Errorf("timeout_sec %d overflows time.Duration (max %d)", sec, maxSec)
-       }
-       return time.Duration(sec) * time.Second, nil
-   }
-   ```
+    ```go
+    // internal/llm/resolver.go:230-243 (v1.13.1)
+    func ValidateTimeoutSec(sec int) (time.Duration, error) {
+        if sec == 0 {
+            return 0, nil
+        }
+        if sec < 0 {
+            return 0, fmt.Errorf("timeout_sec must be non-negative, got %d", sec)
+        }
+        // Guard against overflow: time.Duration is int64 nanoseconds.
+        maxSec := int64(math.MaxInt64 / int64(time.Second))
+        if int64(sec) > maxSec {
+            return 0, fmt.Errorf("timeout_sec %d overflows time.Duration (max %d)", sec, maxSec)
+        }
+        return time.Duration(sec) * time.Second, nil
+    }
+    ```
 
-2. The shared client constructor adds a 30s margin with no overflow guard.
-   The margin exists so the per-request context deadline fires first
-   (`internal/llm/client.go:48-56`,
-   `internal/llm/client.go:67-77`,
-   pre-patch):
+2.  The shared client constructor adds a 30s margin with no overflow guard.
+    The margin exists so the per-request context deadline fires first
+    (`internal/llm/client.go:48-56`,
+    `internal/llm/client.go:67-77`,
+    pre-patch):
 
-   ```go
-   // internal/llm/client.go:56 (v1.13.1)
-   const responseHeaderTimeoutMargin = 30 * time.Second
-   ```
+    ```go
+    // internal/llm/client.go:56 (v1.13.1)
+    const responseHeaderTimeoutMargin = 30 * time.Second
+    ```
 
-   ```go
-   // internal/llm/client.go:72-76 (v1.13.1, pre-patch)
-   t = t.Clone()
-   if timeout > 0 {
-       t.ResponseHeaderTimeout = timeout + responseHeaderTimeoutMargin
-   }
-   return &http.Client{Transport: t}
-   ```
+    ```go
+    // internal/llm/client.go:72-76 (v1.13.1, pre-patch)
+    t = t.Clone()
+    if timeout > 0 {
+        t.ResponseHeaderTimeout = timeout + responseHeaderTimeoutMargin
+    }
+    return &http.Client{Transport: t}
+    ```
 
-3. The sum wraps.
-   `9223372036s = 9223372036000000000 ns` fits int64
-   (`math.MaxInt64 = 9223372036854775807`),
-   but adding `30000000000 ns` yields `9223372066000000000`,
-   which wraps to `-9223372007709551616 ns` (about -292.4 years).
-   Measured by the source harness ("Harness B"):
-   `ResponseHeaderTimeout = -9223372007709551616 ns`.
+3.  The sum wraps.
+    `9223372036s = 9223372036000000000 ns` fits int64
+    (`math.MaxInt64 = 9223372036854775807`),
+    but adding `30000000000 ns` yields `9223372066000000000`,
+    which wraps to `-9223372007709551616 ns` (about -292.4 years).
+    Measured by the source harness ("Harness B"):
+    `ResponseHeaderTimeout = -9223372007709551616 ns`.
 
-4. No competing deadline can fire.
-   The per-request deadline is `WithRequestTimeout(cfg.Timeout)`
-   (`internal/llm/client.go:613`),
-   about 292 years out,
-   and `time.Time.Add` degrades to wall-only instead of wrapping when the
-   monotonic addition leaves the range
-   (Go 1.27.2 `src/time/time.go:1182-1189`):
+4.  No competing deadline can fire.
+    The per-request deadline is `WithRequestTimeout(cfg.Timeout)`
+    (`internal/llm/client.go:613`),
+    about 292 years out,
+    and `time.Time.Add` degrades to wall-only instead of wrapping when the
+    monotonic addition leaves the range
+    (Go 1.27.2 `src/time/time.go:1182-1189`):
 
-   ```go
-   // Go src/time/time.go:1182-1189 (1.27.2)
-   te := t.ext + int64(d)
-   if d < 0 && te > t.ext || d > 0 && te < t.ext {
-       // Monotonic clock reading now out of range; degrade to wall-only.
-       t.stripMono()
-   } else {
-       t.ext = te
-   }
-   ```
+    ```go
+    // Go src/time/time.go:1182-1189 (1.27.2)
+    te := t.ext + int64(d)
+    if d < 0 && te > t.ext || d > 0 && te < t.ext {
+        // Monotonic clock reading now out of range; degrade to wall-only.
+        t.stripMono()
+    } else {
+        t.ext = te
+    }
+    ```
 
-   The header timer is therefore the only deadline that can fire,
-   and it is
-   broken.
-   (An unset or zero `timeout_sec` clamps to a 5-minute default at
-   `internal/llm/client.go:595-596`,
-   so the bug needs an explicitly huge value.)
+    The header timer is therefore the only deadline that can fire,
+    and it is
+    broken.
+    (An unset or zero `timeout_sec` clamps to a 5-minute default at
+    `internal/llm/client.go:595-596`,
+    so the bug needs an explicitly huge value.)
 
-5. Go's HTTP/2 transport arms the header timer on any nonzero duration,
-   negative included
-   (Go 1.27.2 `src/net/http/internal/http2/transport.go:1370-1384`;
-   the `ocr` binary embeds the go1.26.9 stdlib per `strings`,
-   and "Harness A" demonstrates identical behavior in the shipped binary):
+5.  Go's HTTP/2 transport arms the header timer on any nonzero duration,
+    negative included
+    (Go 1.27.2 `src/net/http/internal/http2/transport.go:1370-1384`;
+    the `ocr` binary embeds the go1.26.9 stdlib per `strings`,
+    and "Harness A" demonstrates identical behavior in the shipped binary):
 
-   ```go
-   // Go src/net/http/internal/http2/transport.go:1370-1376 (1.27.2)
-   if d := cc.responseHeaderTimeout(); d != 0 {
-       timer := time.NewTimer(d)
-       defer timer.Stop()
-       respHeaderTimer = timer.C
-       respHeaderRecv = cs.respHeaderRecv
-   }
-   ```
+    ```go
+    // Go src/net/http/internal/http2/transport.go:1370-1376 (1.27.2)
+    if d := cc.responseHeaderTimeout(); d != 0 {
+        timer := time.NewTimer(d)
+        defer timer.Stop()
+        respHeaderTimer = timer.C
+        respHeaderRecv = cs.respHeaderRecv
+    }
+    ```
 
-   `time.NewTimer(negative)` is already expired,
-   the `<-respHeaderTimer` branch returns `errTimeout`
-   (`transport.go:1384`),
-   whose text is `"http2: timeout awaiting response headers"`
-   (`src/net/http/internal/http2/http2.go:374`).
-   The HTTP/1 transport arms only on a positive duration
-   (`src/net/http/transport.go:3101`:
-   `if d := pc.t.ResponseHeaderTimeout; d > 0 {`),
-   so an HTTP/1-only endpoint instead silently loses the header cap and hangs.
+    `time.NewTimer(negative)` is already expired,
+    the `<-respHeaderTimer` branch returns `errTimeout`
+    (`transport.go:1384`),
+    whose text is `"http2: timeout awaiting response headers"`
+    (`src/net/http/internal/http2/http2.go:374`).
+    The HTTP/1 transport arms only on a positive duration
+    (`src/net/http/transport.go:3101`:
+    `if d := pc.t.ResponseHeaderTimeout; d > 0 {`),
+    so an HTTP/1-only endpoint instead silently loses the header cap and hangs.
 
-6. Retries amplify one instant failure into the observed ~15s.
-   The margin's own comment records that a header-timeout win
-   "surfaces as a nil-response transport error that shouldRetry treats as
-   retryable,
-   so the request would be retried up to 5 more times"
-   (`internal/llm/client.go:48-56`).
-   Six instant attempts plus exponential backoff matches the measured total.
+6.  Retries amplify one instant failure into the observed ~15s.
+    The margin's own comment records that a header-timeout win
+    "surfaces as a nil-response transport error that shouldRetry treats as
+    retryable,
+    so the request would be retried up to 5 more times"
+    (`internal/llm/client.go:48-56`).
+    Six instant attempts plus exponential backoff matches the measured total.
 
-7. Blast radius is every protocol client and command.
-   The helper is shared by the OpenAI,
-   OpenAI Responses and Anthropic
-   constructors (`internal/llm/client.go:613-614`,
-   `internal/llm/client.go:1191`,
-   `internal/llm/responses_client.go:52`),
-   and the scan plan phase calls through the same shared client
-   (`internal/scan/agent.go:887`,
-   error print at `internal/scan/agent.go:894`).
+7.  Blast radius is every protocol client and command.
+    The helper is shared by the OpenAI,
+    OpenAI Responses and Anthropic
+    constructors (`internal/llm/client.go:613-614`,
+    `internal/llm/client.go:1191`,
+    `internal/llm/responses_client.go:52`),
+    and the scan plan phase calls through the same shared client
+    (`internal/scan/agent.go:887`,
+    error print at `internal/scan/agent.go:894`).
 
 ## Verification
 
@@ -314,28 +314,28 @@ Values that fail:
 
 ## Verified workarounds
 
-1. Keep `timeout_sec` at or below `9223372006` so the margin sum fits int64.
-   This machine runs `2147483647` on both configured providers:
+1.  Keep `timeout_sec` at or below `9223372006` so the margin sum fits int64.
+    This machine runs `2147483647` on both configured providers:
 
-   ```sh
-   ocr config set custom_providers.Synthetic.timeout_sec 2147483647
-   ocr config set custom_providers.hyper.timeout_sec 2147483647
-   ```
+    ```sh
+    ocr config set custom_providers.Synthetic.timeout_sec 2147483647
+    ocr config set custom_providers.hyper.timeout_sec 2147483647
+    ```
 
-   Tradeoffs:
-   not literally infinite;
-   a genuinely stalled connection is now bounded only by manual interruption
-   or a caller context (compare upstream issue [#1717][] about stalled requests),
-   and about 68 years is far past any real review run.
-   The ~4.3x headroom under `MaxInt64` also survives any plausible future
-   margin growth in ocr.
+    Tradeoffs:
+    not literally infinite;
+    a genuinely stalled connection is now bounded only by manual interruption
+    or a caller context (compare upstream issue [#1717][] about stalled requests),
+    and about 68 years is far past any real review run.
+    The ~4.3x headroom under `MaxInt64` also survives any plausible future
+    margin growth in ocr.
 
-2. `9223372006` (about 292 years),
-   the tightest safe value.
-   Tradeoff:
-   it sits exactly one margin below the wrap boundary,
-   so a future ocr release that enlarges `responseHeaderTimeoutMargin`
-   silently re-breaks the same config.
+2.  `9223372006` (about 292 years),
+    the tightest safe value.
+    Tradeoff:
+    it sits exactly one margin below the wrap boundary,
+    so a future ocr release that enlarges `responseHeaderTimeoutMargin`
+    silently re-breaks the same config.
 
 ## What does not work
 
@@ -394,40 +394,40 @@ Values that fail:
   still contains the unguarded sum,
   so neither the newest release nor `main` carries a fix.
 - Six-constraint check:
-  1. Really upstream's fault:
-     yes.
-     Their validator advertises a maximum
-     (`internal/llm/resolver.go:240`)
-     that their own constructor corrupts 30s below.
-  2. Can upstream fix it:
-     yes.
-     Saturating addition,
-     prototyped in
-     [ocr-timeout-sec-margin-overflow.patch](ocr-timeout-sec-margin-overflow.patch).
-  3. Supporting this use case:
-     yes.
-     [#1161][] exists precisely so `timeout_sec` is honored on slow endpoints,
-     and the configuration docs ship a `timeout_sec` example.
-  4. Would welcome the contribution:
-     yes,
-     with disclosure.
-     `CONTRIBUTING.md` section "AI-Assisted Development" requires disclosing
-     AI/LLM use and the tools/models used;
-     `.github/ISSUE_TEMPLATE/bug_report.yml` carries an "AI/LLM Disclosure"
-     field;
-     bug reports are explicitly invited.
-     No ban found in the files checked.
-  5. Likely to fix:
-     yes.
-     [#1161][] received a same-day PR ([#1162][]) with active maintainer review;
-     this is an edge case of that merged code;
-     no won't-fix signal found.
-  6. Prototyped minimal fix:
-     yes.
-     Disposable clone at tag `v1.13.1` (`8eb8334`);
-     "Harness B" fails pre-patch,
-     passes post-patch,
-     and the pre-existing `TestHTTPClientWithHeaderTimeout` passes post-patch.
+  1.  Really upstream's fault:
+      yes.
+      Their validator advertises a maximum
+      (`internal/llm/resolver.go:240`)
+      that their own constructor corrupts 30s below.
+  2.  Can upstream fix it:
+      yes.
+      Saturating addition,
+      prototyped in
+      [ocr-timeout-sec-margin-overflow.patch](ocr-timeout-sec-margin-overflow.patch).
+  3.  Supporting this use case:
+      yes.
+      [#1161][] exists precisely so `timeout_sec` is honored on slow endpoints,
+      and the configuration docs ship a `timeout_sec` example.
+  4.  Would welcome the contribution:
+      yes,
+      with disclosure.
+      `CONTRIBUTING.md` section "AI-Assisted Development" requires disclosing
+      AI/LLM use and the tools/models used;
+      `.github/ISSUE_TEMPLATE/bug_report.yml` carries an "AI/LLM Disclosure"
+      field;
+      bug reports are explicitly invited.
+      No ban found in the files checked.
+  5.  Likely to fix:
+      yes.
+      [#1161][] received a same-day PR ([#1162][]) with active maintainer review;
+      this is an edge case of that merged code;
+      no won't-fix signal found.
+  6.  Prototyped minimal fix:
+      yes.
+      Disposable clone at tag `v1.13.1` (`8eb8334`);
+      "Harness B" fails pre-patch,
+      passes post-patch,
+      and the pre-existing `TestHTTPClientWithHeaderTimeout` passes post-patch.
 - Decision:
   all six constraints hold,
   so the draft issue in "Draft issue" is fileable as-is.

@@ -568,44 +568,44 @@ event that an application could intercept from outside Masonry.
 The route with the most existing plumbing is native Wayland.
  It needs four pieces:
 
-1. A Winit release Xilem can depend on that carries the data-transfer API,
-   plus the
+1.  A Winit release Xilem can depend on that carries the data-transfer API,
+    plus the
   Xilem-side dependency and event-name migration (`CursorMoved` to `PointerMoved`,
 `MouseInput` to `PointerButton`,
-   and the reducer crate that matches them).
-2. Masonry routing for the new events:
-   `DragEntered`,
-   `DragPosition`,
+    and the reducer crate that matches them).
+2.  Masonry routing for the new events:
+    `DragEntered`,
+    `DragPosition`,
 `DragDropped`,
-   `DragLeft`,
-   `DataTransferReceived`,
-   `OutgoingDragDropped`,
-   and
+    `DragLeft`,
+    `DataTransferReceived`,
+    `OutgoingDragDropped`,
+    and
   `OutgoingDragCanceled`,
-   delivered as their own widget event type rather than as
+    delivered as their own widget event type rather than as
   pointer events,
-   per the pull request #950 rationale.
-3. A widget-level API in both directions.
-   Outgoing:
-   declare offered types
+    per the pull request #950 rationale.
+3.  A widget-level API in both directions.
+    Outgoing:
+    declare offered types
   (`UriList` for files),
-   supply bytes lazily,
-   choose permitted `DndAction` values,
+    supply bytes lazily,
+    choose permitted `DndAction` values,
   and provide a drag icon.
-   Incoming:
-   accept or reject with
+    Incoming:
+    accept or reject with
   `set_valid_dnd_actions`,
-   request a type with `fetch_data_transfer`,
-   and read the
+    request a type with `fetch_data_transfer`,
+    and read the
   result asynchronously.
-4. Dolphin testing that records Plasma and Dolphin versions,
-   session type,
-   the
+4.  Dolphin testing that records Plasma and Dolphin versions,
+    session type,
+    the
   offered MIME type list,
-   the negotiated action,
-   the number of `wl_data_device`
+    the negotiated action,
+    the number of `wl_data_device`
   objects the process binds,
-   and cancellation behavior.
+    and cancellation behavior.
 
 X11 bidirectional support additionally needs an outgoing XDND implementation in
 Winit itself,
@@ -676,79 +676,79 @@ API adoption boundary,
 The six checks are recorded so later work does not mistake the capability gap for a
 confirmed upstream bug:
 
-1. **Is it really upstream's fault?**
-    Not established as a defect.
-    Xilem does not
-   expose the feature,
-    and its pinned Winit release lacks an outgoing API and lacks
-   Wayland file events entirely.
-    Winit has since merged both for Wayland.
-2. **Can upstream fix it?**
-    Yes in principle.
-    Wayland outgoing support exists in
-   `v0.31.0-beta.3`;
-    Xilem can bridge the events and requests.
-    X11 outgoing support
-   is separate,
-    unbuilt work in Winit that upstream called out of scope for the merged
-   pull request.
-3. **Are they supporting this use case?**
-    No documented signal in Xilem.
-    No doc,
-   example,
-    or test covers native file exchange.
-    Open issue
-   [#1768][xilem-issue-1768] lists missing core features and does not mention
-   drag-and-drop;
-    open issue [#1836][xilem-issue-1836] proposes refactoring
-   `masonry_winit` and does not mention it either.
-    Winit,
-    by contrast,
-    now documents
-   the data-transfer API as a supported feature.
-4. **Would the repo welcome a contribution?**
-    `README.md:150` states "Contributions
-   are welcome by pull request."
-    The checked revision has no `CONTRIBUTING.md`,
-    no
-   issue or pull request template,
-    and no AI-assistance restriction;
-    `.github/`
-   contains only `copyright.sh`,
-    `debug_assertions.sh`,
-    and `workflows/ci.yml`.
-5. **Will they likely fix it?**
-    No signal either way for Xilem.
-    Searches of the Xilem
-   tracker for `drag and drop`,
-    `drag`,
-    `dnd`,
-    `drop file`,
-    `drop`,
-    and `winit 0.31`
-   across open and closed state,
-    plus a title search for `drag drop file`,
-    found no
-   native drag-and-drop tracking issue or pull request.
-    Closed issue
-   [#312][xilem-issue-312] is about unifying pointer and touch events,
-    not file
-   transfer.
-    On the Winit side,
-    [#1881][winit-1881] is closed as completed and
-   [#720][winit-720] and [#1499][winit-1499] remain open,
-    so an X11 outgoing gap has
-   a live tracking home but no filed issue.
-    Absence of signal is not a refusal.
-6. **Have we prototyped a minimal fix?**
-    No.
-    The required semantics and the Dolphin
-   interoperability outcome are both unknown,
-    so a prototype would be guessing at the
-   target.
-    Because this is a capability assessment rather than an accepted feature
-   request,
-    the auto-prototype step was not started.
+1.  **Is it really upstream's fault?**
+     Not established as a defect.
+     Xilem does not
+    expose the feature,
+     and its pinned Winit release lacks an outgoing API and lacks
+    Wayland file events entirely.
+     Winit has since merged both for Wayland.
+2.  **Can upstream fix it?**
+     Yes in principle.
+     Wayland outgoing support exists in
+    `v0.31.0-beta.3`;
+     Xilem can bridge the events and requests.
+     X11 outgoing support
+    is separate,
+     unbuilt work in Winit that upstream called out of scope for the merged
+    pull request.
+3.  **Are they supporting this use case?**
+     No documented signal in Xilem.
+     No doc,
+    example,
+     or test covers native file exchange.
+     Open issue
+    [#1768][xilem-issue-1768] lists missing core features and does not mention
+    drag-and-drop;
+     open issue [#1836][xilem-issue-1836] proposes refactoring
+    `masonry_winit` and does not mention it either.
+     Winit,
+     by contrast,
+     now documents
+    the data-transfer API as a supported feature.
+4.  **Would the repo welcome a contribution?**
+     `README.md:150` states "Contributions
+    are welcome by pull request."
+     The checked revision has no `CONTRIBUTING.md`,
+     no
+    issue or pull request template,
+     and no AI-assistance restriction;
+     `.github/`
+    contains only `copyright.sh`,
+     `debug_assertions.sh`,
+     and `workflows/ci.yml`.
+5.  **Will they likely fix it?**
+     No signal either way for Xilem.
+     Searches of the Xilem
+    tracker for `drag and drop`,
+     `drag`,
+     `dnd`,
+     `drop file`,
+     `drop`,
+     and `winit 0.31`
+    across open and closed state,
+     plus a title search for `drag drop file`,
+     found no
+    native drag-and-drop tracking issue or pull request.
+     Closed issue
+    [#312][xilem-issue-312] is about unifying pointer and touch events,
+     not file
+    transfer.
+     On the Winit side,
+     [#1881][winit-1881] is closed as completed and
+    [#720][winit-720] and [#1499][winit-1499] remain open,
+     so an X11 outgoing gap has
+    a live tracking home but no filed issue.
+     Absence of signal is not a refusal.
+6.  **Have we prototyped a minimal fix?**
+     No.
+     The required semantics and the Dolphin
+    interoperability outcome are both unknown,
+     so a prototype would be guessing at the
+    target.
+     Because this is a capability assessment rather than an accepted feature
+    request,
+     the auto-prototype step was not started.
 
 `.out-of-scope/` was checked for an Xilem,
  Winit,
