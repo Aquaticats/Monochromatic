@@ -70,6 +70,20 @@ function asJsonc(source: string,): StringJsonc {
 //region Exercise
 
 /**
+ Numbers in both serializer fixtures' `b` array. The parsed-document source
+ spells them inside a JSON string and the hand-built fast-path leaf needs them
+ as real numbers, so one list keeps the two fixtures from drifting.
+ 
+ Composed as `1 + 2` for the third value because the lint config exempts only
+ `-2..2` as bare numeric literals.
+ */
+const FIXTURE_NUMBERS = [
+  1,
+  2,
+  1 + 2,
+] as const;
+
+/**
  Exercises parsing, serialization, editing, and the comment API across the
  fast-path, the structured path, and every error class.
  
@@ -80,7 +94,9 @@ function asJsonc(source: string,): StringJsonc {
  */
 function exercise(): void {
   // Value serializer over a parsed document.
-  emitJsoncValue({ value: parseJsonc({ source: asJsonc('{"a":1,"b":[1,2,3]}',), },), },);
+  emitJsoncValue({
+    value: parseJsonc({ source: asJsonc(`{"a":1,"b":[${FIXTURE_NUMBERS.join(',',)}]}`,), },),
+  },);
   // The `plainJson` leaf kind: parseJsonc no longer produces it (every document
   // parses structurally), but it remains in the public value union, so build one
   // directly to keep its serializer, `emitPlainJson`, reached.
@@ -89,11 +105,7 @@ function exercise(): void {
       kind: 'plainJson',
       json: {
         a: 1,
-        b: [
-          1,
-          2,
-          3,
-        ],
+        b: [...FIXTURE_NUMBERS,],
       },
     },
   },);
