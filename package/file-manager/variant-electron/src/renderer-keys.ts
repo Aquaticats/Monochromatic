@@ -24,6 +24,8 @@ import {
   paneById,
 } from './strip.js';
 
+//region Selection and column movement
+
 /**
  Moves the in-pane selection of the focused pane and reveals it.
  
@@ -188,6 +190,10 @@ function moveColumnFocus(
   renderAndReport({ session, },);
 }
 
+//endregion Selection and column movement
+
+//region Open and close actions
+
 /**
  Opens the focused pane's selected entry.
  
@@ -258,6 +264,10 @@ function closeActivePane({ session, }: { readonly session: RendererSession; },):
   },);
   renderAndReport({ session, },);
 }
+
+//endregion Open and close actions
+
+//region Key dispatch and installation
 
 /**
  Dispatches one keydown event through the strip keyboard model: a key the
@@ -354,3 +364,5 @@ export function installKeyboard({ session, }: { readonly session: RendererSessio
     },
   );
 }
+
+//endregion Key dispatch and installation

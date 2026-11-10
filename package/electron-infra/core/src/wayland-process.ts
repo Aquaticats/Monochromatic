@@ -26,6 +26,8 @@ import {
   type WaylandBoundaryFixture,
 } from './wayland-constants.js';
 
+//region Electron binary lookup
+
 /**
  CommonJS require rooted at this tool so the Electron binary path can be read.
  
@@ -86,6 +88,10 @@ function electronBinaryPath(): string {
   return parseElectronBinaryPath({ value: require('electron',) as unknown, },);
 }
 
+//endregion Electron binary lookup
+
+//region Fixture temp paths
+
 /**
  Creates temp paths for socket, state file, and screenshot output.
  
@@ -128,6 +134,10 @@ export async function createWaylandFixture(): Promise<WaylandBoundaryFixture> {
     },
   };
 }
+
+//endregion Fixture temp paths
+
+//region Nested compositor spawn
 
 /**
  Spawns nested Wayland session hosting an Electron app.
@@ -184,6 +194,10 @@ export function spawnNestedWaylandElectron(
     },
   );
 }
+
+//endregion Nested compositor spawn
+
+//region Exit observation
 
 /**
  Formats a Node child-process exit event payload for diagnostics.
@@ -314,3 +328,5 @@ export async function waitForSuccessfulExit(
     },)}`,
     );
 }
+
+//endregion Exit observation
