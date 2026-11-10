@@ -28,3 +28,6 @@ extends = "format:oxlint"
 [tasks."lint:types"]
 extends = "lint:types"
 hide = true
+
+[tasks."test:unit"]
+extends = "test:unit"
