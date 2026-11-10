@@ -1203,16 +1203,24 @@ fn debug_streams_workspace_progress_and_plain_runs_stay_silent() {
 }
 
 /// A write failure other than a closed pipe exits 2 whichever stream failed,
-///  instead of the findings' status.
+///  instead of the findings' status,
+///  and names the refused stream and the operating system's error on the stream that still works.
 /// `/dev/full` refuses every write with "no space left on device".
 #[test]
-fn a_failing_output_stream_exits_two() {
+fn a_refused_stream_write_exits_two_and_names_the_stream() {
     let fixture: Fixture = Fixture::new();
     fixture.write(CONFIG, RULES);
     fixture.write("a.md", "# Title.\n");
     let baseline: Run = run(&fixture.path, &[], b"");
     assert_eq!((baseline.status, baseline.stderr.as_str()), (1, ""));
-    // Standard output fails; standard error stays empty because nothing else had to be said.
+    // Learn the refusal text from the device itself, so the expected line carries the kernel's own wording.
+    let refusal: std::io::Error = std::fs::File::options()
+        .write(true)
+        .open("/dev/full")
+        .expect("open /dev/full")
+        .write_all(b"x")
+        .expect_err("/dev/full refuses every write");
+    // Standard output fails, so standard error carries the one explanation the run owes the reader.
     let full_stdout: std::fs::File = std::fs::File::options()
         .write(true)
         .open("/dev/full")
@@ -1225,8 +1233,12 @@ fn a_failing_output_stream_exits_two() {
         .output()
         .expect("run the built executable");
     assert_eq!(stdout_failed.status.code(), Some(2));
-    assert!(stdout_failed.stderr.is_empty());
-    // Standard error fails while `--debug` writes its notes there; the findings still reach standard output.
+    assert_eq!(
+        String::from_utf8(stdout_failed.stderr).expect("UTF-8"),
+        format!("{PROGRAM}: Cannot write standard output: {refusal}.\n")
+    );
+    // Standard error fails while `--debug` writes its notes there; the findings and the explanation
+    // both reach standard output.
     let full_stderr: std::fs::File = std::fs::File::options()
         .write(true)
         .open("/dev/full")
@@ -1242,7 +1254,10 @@ fn a_failing_output_stream_exits_two() {
     assert_eq!(stderr_failed.status.code(), Some(2));
     assert_eq!(
         String::from_utf8(stderr_failed.stdout).expect("UTF-8"),
-        baseline.stdout
+        format!(
+            "{}{PROGRAM}: Cannot write standard error: {refusal}.\n",
+            baseline.stdout
+        )
     );
 }
 

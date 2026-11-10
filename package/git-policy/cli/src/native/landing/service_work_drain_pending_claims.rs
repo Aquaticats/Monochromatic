@@ -30,7 +30,7 @@ use std::time::{Duration, Instant};
 pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, renewal: Renewal<'_>, replanning: &mut Replanning) {
     let work_dir: PathBuf = work_directory(git_dir);
     let (held, renewer) = held_claims(work_dir.as_path());
-    let _renewing: ClaimRenewal = match renewal {
+    let renewing: ClaimRenewal = match renewal {
         Renewal::Timed => ClaimRenewal::start(renewer, renewal_interval(lease)),
         Renewal::Driven(driver) => ClaimRenewal::driven(renewer, driver),
     };
@@ -41,14 +41,14 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
             Ok(taken) => taken,
             Err(reason) => {
                 crate::service_error!("{reason}");
-                return;
+                break;
             }
         };
         for item in &claimed {
             held.hold(item);
         }
         if claimed.is_empty() {
-            return;
+            break;
         }
         // Claims that are no longer acceptable are failed; the others are sorted by kind, in the order they were claimed.
         let mut acceptable: Vec<Claimed> = Vec::new();
@@ -235,4 +235,7 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
             }
         }
     }
+    // The renewal is stopped and waited for here, so a drain that returns leaves no task renaming a claim behind it; the wait is
+    //  the one `ClaimRenewal`'s drop no longer makes, because a task that waits for a task holds the worker it waits for.
+    renewing.stop_on_the_calling_thread();
 }

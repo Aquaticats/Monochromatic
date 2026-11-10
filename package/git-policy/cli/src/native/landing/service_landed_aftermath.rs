@@ -73,8 +73,6 @@ pub(crate) struct LandedAftermath<'landed> {
     /// The commit the service built from the request,
     /// when it did.
     pub(crate) embedded_in_use: Option<&'landed Embedded>,
-    /// Whether Git built the commit.
-    pub(crate) native: bool,
     /// The amend this commit was,
     /// when the branch moved and its changes became a new commit on top of it.
     pub(crate) amended_as_new: Option<&'landed AmendedCommit>,
@@ -115,7 +113,6 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
             input.first_parent.as_str(),
             input.fixed_message,
             input.embedded_in_use,
-            input.native,
             input.amended_as_new,
             input.unlanded,
         ),
