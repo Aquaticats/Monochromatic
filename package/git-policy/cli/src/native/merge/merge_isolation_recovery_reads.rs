@@ -10,6 +10,11 @@
 //! which keeps the file under the package's line
 //!  limit.
 //!
+//!  Each read is one body waited on by the caller:
+//! the recovery that a task awaits,
+//!  because a synchronous Git start registers its step's pipes by entering the runtime,
+//! which is refused from inside it.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const checkedOut = await symbolicRef({ place, root }); const current = await resolveCommit({ place, root, reference });
@@ -17,9 +22,9 @@
 
 use crate::merge_isolation_changes::{Change, parse_raw_changes};
 use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace, Standing};
-use crate::transaction_git::run_git_checked;
 use crate::recovery_error::RecoveryError;
-use crate::transaction_git::{GitRequest, run_git};
+use crate::transaction_git::GitRequest;
+use crate::transaction_git_awaiting::{run_git_awaiting, run_git_checked_awaiting};
 use std::path::Path;
 
 /// What:
@@ -66,9 +71,9 @@ pub fn holds_the_merge(judged: &Judged) -> bool {
 /// ```ts
 /// const named = await git(['symbolic-ref', '--quiet', 'HEAD']); return named.succeeded ? named.stdout.trim() : undefined;
 /// ```
-pub fn symbolic_ref(place: &RecoveryPlace, root: &Path) -> Result<Option<String>, RecoveryError> {
+pub async fn symbolic_ref_awaiting(place: &RecoveryPlace, root: &Path) -> Result<Option<String>, RecoveryError> {
     let request: GitRequest = GitRequest::new(root, &["symbolic-ref", "--quiet", "HEAD"]);
-    let output = match run_git(&place.git, &request) {
+    let output = match run_git_awaiting(&place.git, &request).await {
         Ok(done) => done,
         Err(error) => return Err(RecoveryError(format!("git symbolic-ref could not start: {error}"))),
     };
@@ -88,10 +93,10 @@ pub fn symbolic_ref(place: &RecoveryPlace, root: &Path) -> Result<Option<String>
 /// ```ts
 /// async function resolveCommit(reference: string): Promise<string | undefined>;
 /// ```
-pub fn resolve_commit(place: &RecoveryPlace, root: &Path, reference: &str) -> Result<Option<String>, RecoveryError> {
+pub async fn resolve_commit_awaiting(place: &RecoveryPlace, root: &Path, reference: &str) -> Result<Option<String>, RecoveryError> {
     let revision: String = format!("{reference}^{{commit}}");
     let request: GitRequest = GitRequest::new(root, &["rev-parse", "--verify", "--quiet", revision.as_str()]);
-    let output = match run_git(&place.git, &request) {
+    let output = match run_git_awaiting(&place.git, &request).await {
         Ok(done) => done,
         Err(error) => return Err(RecoveryError(format!("git rev-parse could not start: {error}"))),
     };
@@ -114,7 +119,7 @@ pub fn resolve_commit(place: &RecoveryPlace, root: &Path, reference: &str) -> Re
 /// ```ts
 /// pathsTheBranchDoesNotHold({ place, root, tip, changes, nextOid }): boolean[]; // diff-tree tip..nextOid
 /// ```
-pub fn paths_the_branch_does_not_hold(
+pub async fn paths_the_branch_does_not_hold_awaiting(
     place: &RecoveryPlace,
     root: &Path,
     tip: &str,
@@ -125,7 +130,7 @@ pub fn paths_the_branch_does_not_hold(
         root,
         &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", tip, next_oid],
     );
-    let output = match run_git_checked(&place.git, &request) {
+    let output = match run_git_checked_awaiting(&place.git, &request).await {
         Ok(done) => done,
         Err(error) => return Err(RecoveryError(error.to_string())),
     };

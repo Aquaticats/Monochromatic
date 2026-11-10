@@ -273,7 +273,7 @@ pub const RECOVERY_CONSEQUENCE: &str = "the interrupted merge stays unfinished, 
 /// ```ts
 /// await waitForIndexReleaseWhileFinishingAMerge(realIndex, stderr)
 /// ```
-pub fn wait_for_index_release_while_finishing_a_merge(real_index: &Path, out: &mut dyn Write) -> IndexWait {
+pub fn wait_for_index_release_while_finishing_a_merge<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
     return wait_with_watches_and_consequence(
         real_index,
         "merge",
@@ -328,7 +328,7 @@ thread_local! {
 /// ```ts
 /// await waitForIndexReleaseBeforeAMergeThatClearsADeadLock(realIndex, stderr)
 /// ```
-pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock(real_index: &Path, out: &mut dyn Write) -> IndexWait {
+pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
     return wait_with_watches_and_consequence(
         real_index,
         "merge",
@@ -346,7 +346,7 @@ pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock(real_index:
 /// the callers ignore the result,
 /// because a closed terminal
 ///  is not a reason to stop the command the person asked for.
-fn write_then_flush(out: &mut dyn Write, bytes: &[u8]) -> std::io::Result<()> {
+fn write_then_flush<W: Write + ?Sized>(out: &mut W, bytes: &[u8]) -> std::io::Result<()> {
     out.write_all(bytes)?;
     return out.flush();
 }
@@ -360,14 +360,14 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
 
 /// `wait_with_watches` with the sentence the ceiling line ends on given,
 /// so a recovery of an interrupted merge can say what it does instead of reporting what Git says.
-fn wait_with_watches_and_consequence(
+fn wait_with_watches_and_consequence<W: Write + ?Sized>(
     real_index: &Path,
     command: &str,
     consequence: &str,
     dead_ending: &str,
     ceiling: Duration,
     cadence: Cadence,
-    out: &mut dyn Write,
+    out: &mut W,
     set_watch: &dyn Fn(&Path) -> Option<Watch>,
 ) -> IndexWait {
     let lock = lock_path_of(real_index);

@@ -7,7 +7,6 @@
   "type": "module",
   "main": "src/index.css",
   "exports": {
-    "./.css": "./src/index.css",
     "./index.css": "./src/index.css",
     "./mixin.css": "./src/mixin.css"
   },

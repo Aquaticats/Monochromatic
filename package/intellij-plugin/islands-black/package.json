@@ -5,6 +5,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
   "files": [
     "META-INF/",
     "scheme/",
@@ -16,7 +25,9 @@
     "@monochromatic-dev/zip-writer-core": "workspace:*"
   },
   "devDependencies": {
-    "@monochromatic-dev/config-typescript": "workspace:*"
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*"
   },
   "repository": {
     "type": "git",

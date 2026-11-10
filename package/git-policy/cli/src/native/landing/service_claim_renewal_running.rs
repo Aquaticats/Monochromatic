@@ -9,7 +9,10 @@
 //! which depends on that file and not the other way round.
 //! The task waits on its channel and its timer with `.await`,
 //! the renames run on the blocking pool,
-//! and dropping the renewal waits for the task for at most `RENEWAL_STOP_CEILING`.
+//! and a renewal is stopped by a wait of the runtime,
+//! bounded by `RENEWAL_STOP_CEILING`;
+//! dropping one only tells its task to stop,
+//!  because a synchronous wait on a task holds the worker the task needs to end.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +24,8 @@ use crate::claim_time::ClaimTime;
 use crate::lazy_runtime::spawn_on_runtime;
 use crate::service_claim_renewal::Renewer;
 use std::sync::OnceLock;
-use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, channel, sync_channel};
+use std::sync::mpsc::{SyncSender, sync_channel};
+use tokio::sync::oneshot::{Receiver, channel as oneshot_channel};
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::time::Instant;
@@ -146,10 +150,10 @@ pub struct ClaimRenewal {
     /// The way to tell the task to stop.
     pub(crate) control: UnboundedSender<Control>,
     /// What the task sends when it has ended,
-    /// taken when it is waited for;
+    /// taken by the face that waits for it;
     /// nothing when no task could be started.
     ended: Option<Receiver<()>>,
-    /// How long dropping waits for the task to end.
+    /// How long a stop waits for the task to end.
     stop_ceiling: Duration,
 }
 
@@ -253,7 +257,7 @@ fn due_after(interval: Duration) -> Instant {
 /// where the claims expire with their lease,
 /// as for a service that died.
 fn start_task(renewer: Renewer, requests: UnboundedReceiver<Control>, every: Option<Duration>) -> Option<Receiver<()>> {
-    let (ended_sender, ended) = channel::<()>();
+    let (ended_sender, ended) = oneshot_channel::<()>();
     let started = spawn_on_runtime(async move {
         renew_until_stopped(renewer, requests, every).await;
         // The task says it returned before it says so on the channel the drop waits on, so a control can read that it ended.
@@ -288,7 +292,7 @@ impl ClaimRenewal {
         return ClaimRenewal { control, ended, stop_ceiling: RENEWAL_STOP_CEILING };
     }
 
-    /// `driven` with the wait of the drop set by the control,
+    /// `driven` with the wait of the stop set by the control,
     /// so a control shows the wait is bounded in a moment.
     #[cfg(test)]
     pub(crate) fn driven_with_stop_ceiling(renewer: Renewer, driver: &DrivenRenewal, stop_ceiling: Duration) -> ClaimRenewal {
@@ -296,25 +300,66 @@ impl ClaimRenewal {
         renewal.stop_ceiling = stop_ceiling;
         return renewal;
     }
+
+    /// What:
+    ///  Stop the renewal and wait for its task,
+    ///  for at most the stop ceiling,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   A renewal in the middle of its renames finishes them first,
+    /// as the thread it replaced was joined,
+    ///  and a wait that does not end is never kept
+    /// ("nothing should ever wait forever").
+    /// The wait is the runtime's timer,
+    /// so the worker that waits holds nothing while the task it waits for runs:
+    /// a synchronous wait on a task from inside the runtime would hold the very worker the task needs.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await renewal.stopAwaiting();
+    /// ```
+    pub async fn stop_awaiting(mut self) {
+        let _told = self.control.send(Control::Stop);
+        let Some(ended) = self.ended.take() else { return };
+        match tokio::time::timeout(self.stop_ceiling, ended).await {
+            // A task that panicked has nothing left to report (its sender is dropped, which ends this wait): the claims it held
+            //  expire with the lease.
+            Ok(_answered) => {}
+            Err(_elapsed) => {
+                crate::service_warn!("the renewal of claims did not stop within {:?}; it is left behind and the claims expire with their lease", self.stop_ceiling);
+            }
+        }
+    }
+
+    /// Stop the renewal and wait for its task from a caller outside the runtime,
+    /// entering the runtime once.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// renewal.stopOnTheCallingThread();
+    /// ```
+    pub fn stop_on_the_calling_thread(self) {
+        match crate::lazy_runtime::run_on_runtime(self.stop_awaiting()) {
+            Ok(()) => {}
+            // A caller inside the runtime cannot enter it, and its wait would hold the worker the task needs to end: the task is
+            //  told to stop and ends on its own, and a rename it finishes later finds the claim moved on and changes nothing. That
+            //  caller is a job of the blocking pool today (`landing/service_round.rs`, `DrainEachDirectory::run`), and the round
+            //  that awaits this stop is the landing round's own piece, so the line is the log's and not the journal's.
+            Err(refusal) => crate::diagnostic_log::debug("claimRenewal", format!("the renewal of claims was not waited for: {refusal}").as_str()),
+        }
+    }
 }
 
-/// Stops the task when the renewal goes out of scope,
-/// and waits until it has ended for at most `RENEWAL_STOP_CEILING`:
-/// a renewal in the middle of its renames finishes them first,
-/// as the thread it replaces was joined,
-/// but a wait that does not end is never kept ("nothing should ever wait forever").
+/// Tells the task to stop when the renewal goes out of scope,
+/// and waits for nothing.
+/// Why:
+///   A synchronous wait on a task holds the thread that waits,
+/// and a drain that is a task would hold a worker the task it waits for needs to end;
+/// so the ending is waited for by `stop_awaiting` or `stop_on_the_calling_thread`,
+/// and a renewal nobody stopped leaves a task that reads its stop and ends on its own,
+/// whose claims expire by their lease if it cannot.
 impl Drop for ClaimRenewal {
     fn drop(&mut self) {
         let _told = self.control.send(Control::Stop);
-        if let Some(ended) = self.ended.take() {
-            match ended.recv_timeout(self.stop_ceiling) {
-                // A task that panicked has nothing left to report (its sender is dropped, which ends this wait): the claims it held
-                //  expire with the lease.
-                Ok(()) | Err(RecvTimeoutError::Disconnected) => {}
-                Err(RecvTimeoutError::Timeout) => {
-                    crate::service_warn!("the renewal of claims did not stop within {:?}; it is left behind and the claims expire with their lease", self.stop_ceiling);
-                }
-            }
-        }
     }
 }
