@@ -67,7 +67,9 @@ The boundary test builds a throwaway fixture directory tree,
  drives it purely with
 compositor keyboard input,
  and polls the state file the main process mirrors renderer
-state into (`MONOCHROMATIC_FILE_MANAGER_ELECTRON_STATE_PATH`).
+state into (`MONOCHROMATIC_FILE_MANAGER_ELECTRON_STATE_PATH`),
+which the main process writes through the shared `writeJsonFileAtomically` of
+`@monochromatic-dev/electron-infra-core` that its bundle inlines.
 The decisive assertions are `rootPinned: true` while `scrolledDown: true` (sticky is
 actually sticking) and `overlapCount: 0` (flow actually prevents overlap).
 A screenshot with the rail debug tint (`MONOCHROMATIC_FILE_MANAGER_ELECTRON_DEBUG_TINT`)
