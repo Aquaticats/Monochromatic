@@ -33,7 +33,7 @@ import {
 
 import { readFile, } from 'node:fs/promises';
 
-import { fuzzRuns, } from './fuzz-budget.ts';
+import { fuzzPropertyTimeoutMs, fuzzRuns, } from './fuzz-budget.ts';
 import {
   type AsyncAdapter,
   forkAdapter,
@@ -229,7 +229,7 @@ await describe({
           },
         );
       },
-      timeout: 120_000,
+      timeout: fuzzPropertyTimeoutMs,
     },),
 
     it({
@@ -260,7 +260,7 @@ await describe({
           },
         );
       },
-      timeout: 120_000,
+      timeout: fuzzPropertyTimeoutMs,
     },),
 
     it({
@@ -303,7 +303,7 @@ await describe({
           },
         );
       },
-      timeout: 180_000,
+      timeout: fuzzPropertyTimeoutMs,
     },),
 
     it({

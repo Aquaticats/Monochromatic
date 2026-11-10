@@ -30,7 +30,7 @@ import {
   nodeWorkerPreambleSource,
 } from '@monochromatic-dev/upstream-fork-make-asynchronous/ts';
 
-import { fuzzRuns, } from './fuzz-budget.ts';
+import { fuzzPropertyTimeoutMs, fuzzRuns, } from './fuzz-budget.ts';
 import {
   type IterableFunctionSpec,
   iterableFunctionSpecArb,
@@ -331,7 +331,7 @@ await describe({
           },
         );
       },
-      timeout: 60_000,
+      timeout: fuzzPropertyTimeoutMs,
     },),
 
     //endregion Settlements
