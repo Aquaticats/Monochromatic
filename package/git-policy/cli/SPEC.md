@@ -3062,6 +3062,10 @@ because a kill can come at any moment after that,
 and raised once the ladder's last write into the stage is done,
 right before the swap,
 so a kill after the wrapper's own writes removes the folder cleanly.
+The accounting reads every entry of the folder before the removal and opens no file and follows no link,
+so a stage of a whole checkout costs one lookup per entry on the command that finds the dead claim,
+and never a wait;
+the removal it decides is the destroy of a subvolume where the mount allows it.
 A record that cannot be written never fails the add:
 the add is whole,
 and the stage a kill leaves is reported instead of removed.
