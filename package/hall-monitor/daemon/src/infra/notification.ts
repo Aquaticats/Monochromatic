@@ -1,7 +1,17 @@
 import spawn from 'nano-spawn';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { log, } from './syslog.ts';
+
+/**
+ Module logger: the journal identity this package files every record under, then this module's
+ subsystem tag.
+ */
+const l = tagged({
+  l: log,
+  tag: 'notify',
+},);
 
 /**
  Sends a critical desktop notification via `notify-send` to alert the user
@@ -15,6 +25,14 @@ import { log, } from './syslog.ts';
  ```
  */
 export async function sendNotification(summary: string,): Promise<void> {
+  /**
+   Notification logger, tagged with this function's name under the module's subsystem tag.
+   */
+  const fnLog = tagged({
+    l,
+    tag: sendNotification.name,
+  },);
+
   try {
     await spawn(
       'notify-send',
@@ -25,13 +43,13 @@ export async function sendNotification(summary: string,): Promise<void> {
         summary,
       ],
     );
-    log.info('[notify] Desktop notification sent.',);
+    fnLog.info('Desktop notification sent.',);
   }
   catch (err: unknown) {
     /**
      Caught error rendered as a string; preserves `err.message` for `Error` instances, otherwise coerces via `String(err)`.
      */
     const message = caughtValueText(err,);
-    log.error(`[notify] Failed to send notification: ${message}`,);
+    fnLog.error(`Failed to send notification: ${message}`,);
   }
 }

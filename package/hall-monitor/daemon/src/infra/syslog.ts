@@ -210,9 +210,55 @@ const log: Logger = tagged({
 
 //endregion Logger
 
+//region Expected failures
+
+/**
+ Reports a caught value a call site already expected.
+
+ LG2 asks every `catch (error)` to use its binding, even when the failure is
+ expected: a silently swallowed `pkill` that matched nothing, or a `/proc` read
+ that hit a permission wall, is exactly what an operator needs when the daemon
+ misbehaves. The report is filed at `debug` so a routine, expected condition
+ never crowds the journal at a level an operator watches.
+
+ @param error - caught value
+
+ @param l - logger the report is filed through
+
+ @param operation - plain description of what failed
+
+ @throws whatever `error` carries when it is not an `Error`, so a throw nobody planned stays fatal
+
+ @example
+ ```ts
+ try {
+   await spawn('pkill', ['-f', 'llama-server'],);
+ }
+ catch (error: unknown) {
+   reportExpectedFailure({ error, l, operation: 'pkill', });
+ }
+ ```
+ */
+function reportExpectedFailure({
+  error,
+  l,
+  operation,
+}: Readonly<{
+  error: unknown;
+  l: Logger;
+  operation: string;
+}>): void {
+  if (!Error.isError(error,))
+    throw error;
+  l.debug(`${operation} failed: ${caughtValueText(error,)}`,);
+}
+
+//endregion Expected failures
+
 export {
   createJournalSink,
   journalArgumentsFor,
   log,
+  reportExpectedFailure,
 };
 export type { JournalRunner, };

@@ -26,7 +26,7 @@ import {
   shiftDecisionWindow,
   type Decision,
   type DecisionWindow,
-} from './decision-window.ts';
+} from '../../dist/final/node/testing.mjs';
 
 /** The verdict that builds a streak. */
 const UNPRODUCTIVE: Decision = 'UNPRODUCTIVE';

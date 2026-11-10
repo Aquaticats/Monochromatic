@@ -789,12 +789,12 @@ intact for bare names.
 
 ### Why we do not file this upstream (audit, post-prototype)
 
-1. **Is it really upstream's fault?
+1.  **Is it really upstream's fault?
    ** Yes;
     the resolver's
    builtin check should fire for `node:` subpaths regardless
    of platform when the source code spells the prefix.
-2. **Can upstream fix it?
+2.  **Can upstream fix it?
    ** Yes,
     but **not** via the gate
    flip in `resolver_config.rs:133`.
@@ -815,15 +815,15 @@ intact for bare names.
    are still small changes;
     the latter is implementable
    entirely in rolldown without an oxc-resolver release.
-3. **Are they supporting this use case?
+3.  **Are they supporting this use case?
    ** Yes;
     cross-runtime
    bundles are a documented goal.
-4. **Will they likely fix it?
+4.  **Will they likely fix it?
    ** Plausible;
     the targeted fix
    is two file-local changes.
-5. **Have we prototyped a minimal fix?
+5.  **Have we prototyped a minimal fix?
    ** Yes,
     the one-line
    gate flip.
