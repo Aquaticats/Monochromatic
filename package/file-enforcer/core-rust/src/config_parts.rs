@@ -93,7 +93,8 @@ pub enum ValueExpr {
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
 #[schemars(deny_unknown_fields, description = "License texts a manifest license expression needs.")]
 pub struct LicenseRequirement {
-    /// One SPDX license id the expression names, matched whole and never as a substring.
+    /// One SPDX license id the expression names,
+    /// matched whole and never as a substring.
     pub operand: String,
     /// Text ids (keys of `texts`) the package then needs.
     pub texts: Vec<String>,

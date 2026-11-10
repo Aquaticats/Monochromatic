@@ -1227,17 +1227,20 @@ and each stays a dead reference.
 
 ### Should upstream forks keep their own MIT text? (issue 1645)
 
-The rule that writes license files knows no MIT text,
-so the MIT files of the packages under `upstream-fork/` are neither written nor removed by it.
-All carry the same copyright line,
-naming Sindre Sorhus.
+Settled by issue 1645:
+`LICENSES/MIT.txt` is a root canonical source,
+the `package-licenses` rule owns the `MIT` text,
+and the eight `upstream-fork` packages carry generated copies of it.
+All eight name Sindre Sorhus,
+so the shared text is correct for them today.
 
-Recommended:
-keep one text per package and teach the rule to seed it,
-because a shared text would put that copyright on any other MIT project added later.
-The alternative,
-one shared root `LICENSES/MIT.txt`,
-is simpler and is only correct while every MIT fork has the same author.
+Still open:
+a fork of a different MIT author would inherit that copyright line.
+The read taken:
+a hand-placed text under another name,
+as `markdownlint-MIT.txt` already is,
+which the rule neither writes nor removes.
+Say if a per-package source text is wanted before a second MIT author arrives.
 
 ### Should 30 packages declare a license? (issue 2994)
 

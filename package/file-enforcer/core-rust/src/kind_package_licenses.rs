@@ -96,6 +96,34 @@ fn license_of(manifest: &str, text: &str) -> Result<Option<String>, Diagnostic> 
 }
 
 /// What:
+///  Whether a character separates two SPDX ids.
+/// Why:
+///  `split` takes this instead of a closure,
+/// because a closure that captures nothing is a named function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isSpdxSeparator(character: string): boolean
+/// ```
+fn is_spdx_separator(character: char) -> bool {
+    return character.is_whitespace() || matches!(character, '(' | ')');
+}
+
+/// What:
+///  Whether a split token is a license id rather than an operator or an empty piece.
+/// Why:
+///  The operators `AND`,
+/// `OR` and `WITH` join ids and are not ids themselves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isSpdxOperand(token: string): boolean
+/// ```
+fn is_spdx_operand(token: &&str) -> bool {
+    return !token.is_empty() && !matches!(*token, "AND" | "OR" | "WITH");
+}
+
+/// What:
 ///  The SPDX license ids a manifest license expression names,
 /// each read whole.
 /// Why:
@@ -109,10 +137,7 @@ fn license_of(manifest: &str, text: &str) -> Result<Option<String>, Diagnostic> 
 /// function spdxOperands(expression: string): Set<string>
 /// ```
 fn spdx_operands(expression: &str) -> BTreeSet<&str> {
-    return expression
-        .split(|character: char| return character.is_whitespace() || matches!(character, '(' | ')'))
-        .filter(|token| return !token.is_empty() && !matches!(*token, "AND" | "OR" | "WITH"))
-        .collect();
+    return expression.split(is_spdx_separator).filter(is_spdx_operand).collect();
 }
 
 /// What:
