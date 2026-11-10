@@ -3624,7 +3624,10 @@ and a copy killed at any moment leaves nothing at a file's real name for the nex
 
 A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
 with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
-The copy writes that record before its first entry and removes it when it completes,
+The add's own record is written before real Git runs and is handed to the copy rather than dropped once the checkout is
+done,
+so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.
+The copy writes its own record before its first entry and removes it when it completes,
 so a copy killed at any moment is resumed by the next command and a copy that truly cannot finish leaves the worktree
 named instead of forgetting what is missing there.
 The line goes when the worktree is removed or is replaced by another one at the same path.

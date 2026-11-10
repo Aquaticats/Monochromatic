@@ -2283,6 +2283,14 @@ however bounded the step was;
 `Command::output` and the wrapper's own forwarded child are such callers,
 and the line a ceiling writes says so and says which of the two things it knows about Git,
 naming the helper nowhere because nothing reports which process a filter started.
+The record of an add that owes an ignored-state copy lives from before real Git runs until that copy's journal names
+its stage:
+the rung that took the claim hands it to the copy instead of releasing it,
+and no completion marker is written while a copy is still owed,
+so a command killed between the end of the checkout and the copy's journal leaves a claim whose owner is dead,
+which the next recovery reports by name.
+The completion marker is written when an add is settled with no copy left to make,
+and a claim released then says nothing more.
 A process killed between Git's run and the end of the add leaves the claim and a record;
 the next recovery changes
 nothing,
