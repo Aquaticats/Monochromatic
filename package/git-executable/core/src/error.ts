@@ -30,7 +30,13 @@ export type RealGitNotFoundEvidence = {
  The generic install hint is dropped once a rejection names its own remediation,
  because that rejection contradicts a missing-installation reading.
  
- @param evidence - Examined and rejected candidate counts and paths.
+ @param candidateCount - PATH-derived candidates examined before failure.
+ 
+ @param skippedSelfShimCount - Self-referential wrappers rejected during examination.
+ 
+ @param skippedNonRegularCandidatePaths - Candidates whose opened object is not a regular file.
+ 
+ @param skippedOversizedCandidatePaths - Non-native candidates larger than the inspection bound.
  
  @returns Message naming the counts, the rejected candidate paths, and each remediation.
  
