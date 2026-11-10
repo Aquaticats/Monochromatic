@@ -8,14 +8,24 @@
 
 ## What's done
 
-### Unit tests (45 tests, all passing)
+JSONC parsing is owned by `@monochromatic-dev/jsonc-edit-core-ts` since issue 1242's
+adoption;
+ `config.ts` keeps no comment scanner of its own.
+
+### Unit tests
 
 - `src/config.unit.test.ts`:
+   `isVmNameChar`,
+   `InvalidVmNameError`,
    `validateName`,
-   `stripJsoncComments`,
+   `parseVmsyncConfig`,
    `vmDir`,
    `vmConfigPath`,
    `detectHypervisor`
+- `src/cli.unit.test.ts`:
+   the built bin's help output,
+   a config read in the README's JSONC form,
+   and the two import refusals
 - `src/boot.unit.test.ts`:
    `parseMemoryToBytes` (exported for testing)
 - `src/import.unit.test.ts`:

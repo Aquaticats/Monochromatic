@@ -34,6 +34,22 @@ vmsync config alpine --memory 8G --cpus 8
 3. Converts to both `base.qcow2` (KVM) and `base.vhdx` (Hyper-V)
 4. Stores both formats in `~/.local/share/vmsync/<name>/` with a `vmsync.jsonc` config
 
+### VM names
+
+A VM name starts with a letter or a digit,
+ and holds only letters,
+ digits,
+ `_` and `-` after that.
+`import` derives the name from the image file name,
+ so `alpine-3.21-cloud.qcow2` becomes `alpine-3-21-cloud`.
+A file name that starts with a character a name may not use,
+ such as `_alpine.qcow2`,
+ derives a name that `vmsync` refuses;
+ the refusal names the character,
+ states the rule,
+ and says where the name came from.
+Pass `--name` to choose the name yourself.
+
 ### Boot + incremental sync
 
 **On Linux (KVM):
