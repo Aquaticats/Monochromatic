@@ -9,6 +9,7 @@ import {
   delimiter,
   resolve,
 } from 'node:path';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ResolvedTerminal, } from './resolve.ts';
@@ -77,6 +78,7 @@ async function which(name: string,): Promise<string | typeof EXECUTABLE_NOT_ON_P
       if (!(Error.isError(error,)))
         throw error;
 
+      l.debug(`PATH candidate '${candidate}' cannot be used: ${caughtValueText(error,)}`,);
       continue;
     }
   }

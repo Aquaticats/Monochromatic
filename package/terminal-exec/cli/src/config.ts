@@ -6,6 +6,7 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
@@ -58,6 +59,9 @@ export type ConfigResult = {
  Lines starting with `/` are directives (e.g. `/execarg_default:id:arg`),
  handed to {@link parseDirective} for parsing.
  All other lines are explicit entry ID preferences.
+ Every setting follows the path order: the first file naming an id decides its
+ execarg default, its fallback exclusion, or its inclusion, so a system file
+ never overrides the user's own configuration.
  
  @param paths - Config file paths in descending priority order.
  
@@ -77,15 +81,15 @@ export async function parseConfigFiles(
    */
   const entryIds: string[] = [];
   /**
-   Ids removed from fallback unless overridden by a later `+`.
+   Ids removed from fallback by the first `-` marker that names them.
    */
   const excludedIds = new Set<string>();
   /**
-   Tracks IDs that have been explicitly included via `+`, preventing later `-` from excluding them.
+   Ids whose fallback exclusion the first `+` marker that names them prevents.
    */
   const includedIds = new Set<string>();
   /**
-   Per-id execarg defaults from `/execarg_default:` directives.
+   Per-id execarg defaults from the first `/execarg_default:` directive naming the id.
    */
   const execArgDefaults = new Map<string, string>();
 
@@ -105,6 +109,7 @@ export async function parseConfigFiles(
       if (!(Error.isError(error,)))
         throw error;
 
+      l.debug(`config '${path}' cannot be read: ${caughtValueText(error,)}`,);
       continue;
     }
 
@@ -130,6 +135,10 @@ export async function parseConfigFiles(
            Entry id and default arg from the matched directive.
            */
           const [entryId, defaultArg,] = directive;
+          if (execArgDefaults.has(entryId,)) {
+            l.debug(`kept the higher-priority TerminalArgExec default for '${entryId}'`,);
+            continue;
+          }
           execArgDefaults.set(
             entryId,
             defaultArg,
@@ -156,8 +165,11 @@ export async function parseConfigFiles(
          Entry id without the leading `+` inclusion marker.
          */
         const id = line.slice(1,);
+        if (excludedIds.has(id,)) {
+          l.debug(`kept the higher-priority exclusion of entry '${id}'`,);
+          continue;
+        }
         includedIds.add(id,);
-        excludedIds.delete(id,);
         continue;
       }
 
