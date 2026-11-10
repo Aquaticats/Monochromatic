@@ -30,6 +30,9 @@ This plugin provides individual rules for each banned syntax pattern instead.
    rejects generic identifiers,
    absence labels,
    and repeated low-information phrases
+- **no-main-wrapper**:
+   bans a `main()` a script declares only to call it at the end,
+   in favor of running the statements at file level with top-level `await`
 - **catch-binding**:
    bans `catch {}`;
    bind the caught value with `catch (error) {}` or another named binding

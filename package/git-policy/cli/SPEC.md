@@ -1282,12 +1282,49 @@ into a trash directory
 by rename.
 A stand-in directory the snapshot shows where the source holds a nested subvolume (inode 2,
 btrfs's stand-in for a
-subvolume a snapshot did not carry) is never moved:
+subvolume a snapshot did not carry) is never moved by the leave-out:
 it holds nothing,
 so it carries no ignored state,
 and btrfs refuses to rename it.
 It stays for the stand-in sweep,
-which removes it as an empty directory in the folders that hold this repository's worktrees.
+which reads the folders that hold this repository's worktrees once each and takes a folder whole when every entry
+of it is such a stand-in:
+one rename into the snapshot's trash,
+and a fresh empty folder with the mode of the one it replaced takes
+its place.
+The stand-ins are deleted after the add returns by the same commit service and in the same work item as the rest
+of the trash,
+so an add pays one rename and one directory made again however many worktrees the repository has,
+and
+not one btrfs metadata change for each of them
+(`doc/planning/cli-git-worktree-add-stand-ins-off-the-waiting-path.md` measures the
+counts).
+When the leave-out set nothing aside the sweep makes that trash itself;
+a source whose Git does not ignore
+the trash place gets none,
+and its stand-ins are removed as empty directories where they are,
+because a trash the
+new worktree's Git does not ignore can be staged.
+A folder that holds one entry that is not such a stand-in stays where it
+is,
+because every other entry may be someone's data,
+and only the stand-ins in it are removed one by one.
+A stand-in
+whose subvolume no worktree names stays,
+since the snapshot never carried its files and their absence must stay visible.
+The service's emptying allows a stand-in through the device check that stops it at a nested subvolume or another
+filesystem:
+a stand-in reports a device of its own and belongs to the tree being removed.
+The snapshot's own `.git` copy goes into that trash behind one rename,
+after the index is installed and before the
+new worktree's pointer is written:
+it is the whole common directory,
+with one administrative directory for every worktree of the
+repository,
+and removing it inside the add costs one btrfs metadata change for each of them.
+A source whose `.git` is a pointer
+file has one file there,
+and it is unlinked as before.
 Names are kept as bytes:
 a name that is not UTF-8 is moved or kept by its bytes and never taken for another entry.
 Every directory is opened by one plain name below the handle of the one above,
@@ -3598,6 +3635,9 @@ everything not listed above.
 Refusals that may still end a commit or merge with an error:
 policy errors at error severity,
 an empty message,
+a named path an ignore rule matches while no index entry tracks it
+(the `explicit-path-commit/named-path-ignored` finding,
+"Core finding event"),
 and a content
 conflict no resolver settles (the merge stops with the conflict recorded).
 A commit that names a conflicted path is not a refusal:
@@ -3655,6 +3695,21 @@ as Git stops on a conflict
 with the conflicting paths named,
 only where no resolution exists.
 The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
+
+The owner on 2026-11-10:
+"Dozens of agents at once is normal operation."
+That is the load every command is built for,
+not an exception to plan around.
+A `git worktree add`,
+commit,
+merge or push that slows down,
+waits on another command,
+or fails because dozens of agents run Git in this repository at once has a defect in the wrapper;
+the number of agents is never the explanation.
+An add or a commit whose own work grows with the number of other worktrees,
+adds or commits is such a defect.
+The owner said the same day that unblocking these jams means fixing the wrapper:
+"By "prioritize on unblocking jams" I also meant fix the wrapper."
 
 A `git pull` that is stated to merge (`--no-rebase`,
 `pull.rebase` or `branch.<name>.rebase` false,
@@ -8695,14 +8750,17 @@ export type CoreFindingEvent = EventBase & {
   readonly coreId:
     | 'commit-only'
     | 'commit-normalization'
-    | 'concurrent-commit';
+    | 'concurrent-commit'
+    | 'explicit-path-commit';
   readonly code:
     | 'commit-only/all-flag'
     | 'commit-only/pathspec-required'
     | 'commit-only/staged-changes-ignored'
+    | 'commit-only/staged-deletion-worktree-present'
     | 'commit-normalization/no-change'
     | 'concurrent-commit/replay-conflict'
-    | 'concurrent-commit/already-committed';
+    | 'concurrent-commit/already-committed'
+    | 'explicit-path-commit/named-path-ignored';
   readonly message: string;
 };
 ```
@@ -8724,6 +8782,23 @@ and cannot be disabled or assigned a severity through repository config.
 - `concurrent-commit/already-committed`:
   the captured change merged onto the branch equals the branch,
   because a commit that landed meanwhile already holds it.
+- `commit-only/staged-deletion-worktree-present`:
+  an explicit-path commit names a path whose deletion the real index stages while an entry still exists at that
+  worktree path,
+  so the pathspec cannot record the deletion.
+  The message names the paths and both ways forward
+  (`commit_staged_deletions.rs`).
+- `explicit-path-commit/named-path-ignored`:
+  an explicit-path commit names one file of the worktree that an ignore rule matches while no index entry tracks it,
+  so the private staging would refuse it.
+  It is decided from the selection's own elements before any `git add` runs,
+  the commit is not made,
+  nothing is staged by it,
+  and the message names every rejected path with both ways forward:
+  leave the file out of the commit's paths,
+  or stage it with `git add --force -- <path>` when it is meant to become tracked
+  (`commit_named_ignored_files.rs`;
+  issue 6278).
 
 Every `concurrent-commit` finding leaves ref,
 real index,
@@ -11354,8 +11429,23 @@ For injected commit-only semantics:
     It is staged with `git add -- <element>`,
     so `git commit -- <file>` records a file nothing staged,
     where native Git refuses the pathspec,
-    and a path that an ignore rule matches and that no index stages is refused with the message that says
-    to stage it with `git add --force` first.
+    and a path that an ignore rule matches and that no index stages is refused before that staging runs,
+    with the finding `explicit-path-commit/named-path-ignored` (see "Core finding event"):
+    the selection's own elements that name one file are asked of
+    `git check-ignore -z --stdin` under the real index,
+    so nothing depends on the words of a Git message and a path the real index tracks is left out,
+    as `git add` leaves it out.
+    The commit is not made,
+    nothing is staged by it,
+    and the message names every rejected path with both ways forward:
+    leave the file out of the commit's paths,
+    or stage it with `git add --force -- <path>` when it is meant to become tracked.
+    Real Git 2.56.0 on a disposable repository refuses the same command line either way:
+    `git commit -- <untracked ignored path>` exits 1,
+    its pathspec matching no file Git knows,
+    and `git add -- <the same path>` exits 1 with
+    "The following paths are ignored by one of your .gitignore files"
+    and the force-add hint.
     A backslash is Git's escape and not a pattern character:
     `a\b.txt` names the file whose pathname spells it when one is there.
     Every other element is a directory,

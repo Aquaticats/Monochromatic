@@ -39,30 +39,19 @@ const l = tagged({ tag: 'wg-quicker', },);
 const OPENSNITCH_RULES_SUBCOMMAND = 'opensnitch-rules';
 
 /**
- Validates invocation,
- crosses privilege boundary,
- then runs requested tunnel operation.
- 
- @example
- ```ts
- await main();
- ```
+ Arguments after runtime and script path.
  */
-async function main(): Promise<void> {
+const processArguments = await restorePrivilegeContext();
+if (processArguments[0] === OPENSNITCH_RULES_SUBCOMMAND) {
   /**
-   Arguments after runtime and script path.
+   Whether non-root process handed the rule maintenance to a sudo child.
    */
-  const processArguments = await restorePrivilegeContext();
-  if (processArguments[0] === OPENSNITCH_RULES_SUBCOMMAND) {
-    /**
-     Whether non-root process handed the rule maintenance to a sudo child.
-     */
-    const rulesDelegated = await relaunchWithRootIfNeeded();
-    if (!rulesDelegated) {
-      await runOpenSnitchRulesCommand({ argv: processArguments.slice(1,), },);
-    }
-    return;
+  const rulesDelegated = await relaunchWithRootIfNeeded();
+  if (!rulesDelegated) {
+    await runOpenSnitchRulesCommand({ argv: processArguments.slice(1,), },);
   }
+}
+else {
   /**
    Parsed subcommand and config target.
    */
@@ -75,27 +64,25 @@ async function main(): Promise<void> {
    Whether non-root process handed entire operation to sudo child.
    */
   const delegated = await relaunchWithRootIfNeeded();
-  if (delegated)
-    return;
-  /**
-   Parsed config for requested interface.
-   */
-  const config = await loadConfig({
-    arg: target,
-    expandAllowedIps: subcommand === 'up',
-  },);
-  await runSubcommand({
-    subcommand,
-    target,
-    config,
-    steps: {
-      up,
-      down,
-      warn: function warnNotice(notice,): void {
-        l.warn(notice,);
+  if (!delegated) {
+    /**
+     Parsed config for requested interface.
+     */
+    const config = await loadConfig({
+      arg: target,
+      expandAllowedIps: subcommand === 'up',
+    },);
+    await runSubcommand({
+      subcommand,
+      target,
+      config,
+      steps: {
+        up,
+        down,
+        warn: function warnNotice(notice,): void {
+          l.warn(notice,);
+        },
       },
-    },
-  },);
+    },);
+  }
 }
-
-await main();

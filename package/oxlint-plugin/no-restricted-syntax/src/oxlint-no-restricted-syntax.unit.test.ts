@@ -234,6 +234,7 @@ const SUBSTANTIVE_RULES = [
   'no-useless-spread',
   'prefer-spread',
   'no-low-information-symbol-description',
+  'no-main-wrapper',
   'no-module-root-let',
   'no-nullish-union',
   'catch-binding',
@@ -600,6 +601,15 @@ await describe({
           fn: async () => {
             const diagnostics = await lint(
               'valid/no-optional-escape.ts',
+            );
+            expect(diagnostics,).toEqual([],);
+          },
+        },),
+        it({
+          name: 'no-main-wrapper accepts a main the file exports, passes on, or guards',
+          fn: async () => {
+            const diagnostics = await lint(
+              'valid/no-main-wrapper-referenced-main.ts',
             );
             expect(diagnostics,).toEqual([],);
           },

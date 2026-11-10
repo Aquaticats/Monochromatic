@@ -86,7 +86,9 @@ fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     assert!(result.claim.is_some(), "the record of the add travels on to the copy");
     // The swap put the snapshot where Git's directory stood, so the destination is the object the rung made and not the one that was reserved before Git ran.
     assert_eq!(result.placed, crate::worktree_add_binding::path_identity(root.join("topic").as_path()), "the destination is the snapshot the rung swapped in");
-    assert_eq!(result.trash, None);
+    // The snapshot's own `.git` is a copy of the whole common directory, and it goes into the trash even when the leave-out moved nothing, so the add hands one record over whatever its source holds.
+    let trash: PendingTrash = result.trash.expect("the snapshot's own .git is handed over");
+    assert_eq!(trash.manifest.entries.len(), 1, "the snapshot's own .git is the one entry");
     assert!(steps.is_empty(), "{steps:?}");
     let head: String = git_text(repo.as_path(), &["log", "-1", "--format=HEAD is now at %h %s"]);
     assert_eq!(printed, format!("{head}\n"));
@@ -270,7 +272,7 @@ fn btrfs_a_snapshot_hands_its_trash_to_the_caller_instead_of_emptying_it() {
     assert!(steps.is_empty(), "{steps:?}");
     let pending: PendingTrash = result.trash.expect("the snapshot left a trash for the disposal");
     assert_eq!(pending.destination, root.join("topic"));
-    assert_eq!(pending.manifest.entries.len(), 1, "the cache was set aside");
+    assert_eq!(pending.manifest.entries.len(), 2, "the cache and the snapshot's own .git were set aside");
     assert!(!pending.quiet);
     let trash: PathBuf = root.join("topic").join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
     assert!(trash.join("d0/.pnpm-store/data").is_file() || trash.join("d0/data").is_file(), "the trash is still in the worktree, for the lifecycle to empty: {}", trash.display());
