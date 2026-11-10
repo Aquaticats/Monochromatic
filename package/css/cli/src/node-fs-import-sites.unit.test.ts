@@ -7,8 +7,9 @@
  missing builtins. The package therefore loads the module once, behind the
  computed specifier in `fs.ts`, and hands the loaded module to every caller.
  This suite fails when a statically resolvable spelling appears in a source
- module, and it reads the specifier out of each `import(...)` call rather
- than matching a pattern, so a computed argument never counts.
+ module. It reads the argument of each `import(...)` call out of the source
+ text, so a computed argument never counts and a literal split across lines
+ still does.
  */
 import { readdirSync, readFileSync, } from 'node:fs';
 import { basename, join, } from 'node:path';
@@ -33,18 +34,24 @@ const sourceDirectory = import.meta.dirname;
 const testFileSuffix = '.test.ts';
 
 /**
- Specifier text of a dynamic import call written with a literal argument,
- as it reads once quotes and surrounding space are stripped.
+ Text that opens a dynamic import call.
  */
 const dynamicImportPrefix = 'import(';
 
 /**
- Quote characters a literal specifier may be written with.
+ Characters a literal import argument may be wrapped in, split by, or
+ followed by, so a wrapped or quoted spelling compares equal to the bare
+ module name.
  */
-const quoteCharacters = [
+const argumentNoiseCharacters = [
   '"',
   "'",
   '`',
+  ' ',
+  '\t',
+  '\n',
+  '\r',
+  ',',
 ] as const;
 
 /**
@@ -77,40 +84,54 @@ function bundledSourcePaths(): string[] {
 }
 
 /**
- Argument text of the first dynamic import call on a line, with quotes and
- surrounding space stripped.
+ Arguments of every dynamic import call in one module, with quotes and
+ whitespace removed so a wrapped spelling reads as one token.
  
- @param line - One source line.
+ @param filePath - Absolute path of the module to scan.
  
- @returns Stripped argument text, or empty string when the line has no
- complete dynamic import call.
+ @returns Stripped argument text per call, empty arguments excluded.
  */
-function dynamicImportArgument(line: string,): string {
-  const callIndex = line.indexOf(dynamicImportPrefix,);
-  if (callIndex === (-1))
-    return '';
-
-  const argumentStart = callIndex + dynamicImportPrefix.length;
-  const argumentEnd = line.indexOf(')', argumentStart,);
-  if (argumentEnd === (-1))
-    return '';
-
+function dynamicImportArguments(filePath: string,): string[] {
   /**
-   Argument as written, before quotes are stripped.
+   Source text of the module.
    */
-  const argument = line.slice(
-    argumentStart,
-    argumentEnd,
-  )
-    .trim();
-  return quoteCharacters
-    .reduce(function withoutQuote(text, quote,) {
-      return text.replaceAll(
-        quote,
-        '',
-      );
-    }, argument,)
-    .trim();
+  const sourceText = readFileSync(
+    filePath,
+    'utf8',
+  );
+  return sourceText
+    .split(dynamicImportPrefix,)
+    .slice(1,)
+    .flatMap(function argumentOf(callText,) {
+      /**
+       Index of the parenthesis closing this call, absent when the call runs
+       to the end of the file.
+       */
+      const closingIndex = callText.indexOf(')',);
+      /**
+       Argument as written, before quotes and line breaks are stripped.
+       */
+      const rawArgument = closingIndex === (-1)
+        ? callText
+        : callText.slice(
+          0,
+          closingIndex,
+        );
+      /**
+       Argument without the characters a literal may be wrapped in.
+       */
+      const argument = argumentNoiseCharacters
+        .reduce(function withoutNoise(text, character,) {
+          return text.replaceAll(
+            character,
+            '',
+          );
+        }, rawArgument,);
+
+      return argument === ''
+        ? []
+        : [argument,];
+    },);
 }
 
 /**
@@ -118,18 +139,15 @@ function dynamicImportArgument(line: string,): string {
  
  @param filePath - Absolute path of the module to inspect.
  
- @returns One `fileName:lineNumber` entry per literal import site.
+ @returns One `fileName: specifier` entry per literal import site.
  */
 function literalNodeFsImportSites(filePath: string,): string[] {
-  return readFileSync(
-    filePath,
-    'utf8',
-  )
-    .split('\n',)
-    .flatMap(function sitesOnLine(line, index,) {
-      return literalNodeFsSpecifiers.has(dynamicImportArgument(line,),)
-        ? [`${basename(filePath,)}:${index + 1}`,]
-        : [];
+  return dynamicImportArguments(filePath,)
+    .filter(function namesNodeFs(argument,) {
+      return literalNodeFsSpecifiers.has(argument,);
+    },)
+    .map(function describeSite(argument,) {
+      return `${basename(filePath,)}: ${argument}`;
     },);
 }
 
