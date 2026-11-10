@@ -2,6 +2,7 @@ import {
   crc32,
   deflateRawSync,
 } from 'node:zlib';
+import { existsSync, } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -445,6 +446,19 @@ await describe({
             expect(file.fileType,).toBe('fig',);
             expect(file.canvasVersion,).toBe(CANVAS_VERSION,);
             expect(file.document,).toBeTypeOf('symbol',);
+          },
+        },),
+        it({
+          name: 'removes the fixture directory when the test body throws',
+          fn: async () => {
+            let directoryPath = '';
+            await expect(
+              (async function createAndThrow(): Promise<void> {
+                directoryPath = await mkdtemp(join(scratchRoot(), 'figma-kiwi-parse-',),);
+                throw new Error('fixture probe',);
+              })(),
+            ).rejects.toThrow('fixture probe',);
+            expect(existsSync(directoryPath),).toBe(false);
           },
         },),
       ],
