@@ -5,6 +5,8 @@
  @module
  */
 
+//region Base error
+
 /**
  Base class for every error the daemon throws, letting a single `instanceof`
  check catch all daemon-originated failures.
@@ -43,6 +45,10 @@ export class UnknownKeyError extends KeyHelperError {
   }
 }
 
+//endregion Base error
+
+//region Failure kinds
+
 /**
  Thrown when a command the daemon ran did not exit successfully: it exited
  nonzero, a signal ended it, or it could not be started. The message names the
@@ -74,10 +80,12 @@ export class CommandFailedError extends KeyHelperError {
  */
 export class NoNvimSocketError extends KeyHelperError {
   /**
-   Construct with a fixed, descriptive message.
+   @param refusals - Why each socket that refused a connection refused it; empty when the directory held no socket at all
    */
-  constructor() {
-    super('no nvim socket found');
+  constructor({ refusals = [], }: { readonly refusals?: readonly string[]; } = {}) {
+    super(refusals.length === 0
+      ? 'no nvim socket found'
+      : `no nvim socket accepted the input: ${refusals.join('; ')}`,);
     this.name = 'NoNvimSocketError';
   }
 }
@@ -121,3 +129,24 @@ export class NoRuntimeDirectoryError extends KeyHelperError {
     this.name = 'NoRuntimeDirectoryError';
   }
 }
+
+/**
+ Thrown when an install step cannot proceed, with the caught value in the
+ message so the operator sees the fault the step refused to paper over.
+ 
+ @example
+ ```ts
+ throw new InstallError(`cannot inspect ${linkPath}: ${caughtValueText(error)}`);
+ ```
+ */
+export class InstallError extends KeyHelperError {
+  /**
+   @param message - What the install was doing and the caught failure
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = 'InstallError';
+  }
+}
+
+//endregion Failure kinds

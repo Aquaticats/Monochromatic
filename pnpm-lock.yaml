@@ -2774,6 +2774,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/shell-argument-core':
+        specifier: workspace:*
+        version: link:../../shell-argument/core
       '@msgpack/msgpack':
         specifier: 'catalog:'
         version: 3.1.3

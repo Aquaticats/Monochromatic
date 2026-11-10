@@ -689,6 +689,45 @@ so it has to be declared in each template or task that sets its own list.
 It does not prevent the first stale build;
 it only guarantees the rebuild after the install.
 
+### Declare a sibling's build as a task dependency
+
+A task whose tests load a sibling's built artifact must declare that build:
+
+```toml
+# package/logger/core.fuzz/mise.toml
+[tasks."test:unit"]
+extends = "test:unit"
+depends = ["//package/logger/core:build"]
+```
+
+2026-11-10:
+`package/logger/core.fuzz`'s property suite imports the built runtime through
+the package name,
+and only its `fuzz` task built that runtime first.
+`mise run //package/logger/core.fuzz:test:unit` therefore compared the
+reference model with whatever build sat in `dist`,
+which is not committed.
+A build from before the change that keeps a slow sink's records retired a sink
+at its verify deadline,
+so `orchestration.property.unit.test.ts` failed with
+`no-backend throw agreement`
+for a sink whose probe never answers,
+although no current source produces that verdict:
+199 of the 202 worktrees on this machine then held a logger build older than
+that change,
+including the main checkout's.
+`src/artifact-freshness.unit.test.ts` now fails first and names the build task,
+and `test:unit` declares the same dependency `fuzz` performs.
+Tradeoffs:
+a warm build costs about a tenth of a second on every suite run
+(a cold one several seconds);
+the guard compares modification times,
+so a build and a source touched within the same filesystem timestamp
+granularity reads as fresh,
+and a checkout that rewrites a source without changing it reads as stale
+(the harmless direction:
+it asks for a build).
+
 ### Use content-hash freshness
 
 `task.source_freshness_hash_contents = true` closes the first-run-failure gap.

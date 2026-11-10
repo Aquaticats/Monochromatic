@@ -26,6 +26,8 @@ const keysLogger = tagged({ tag: 'kwin-key-helper-keys', },);
 
 //endregion Logging
 
+//region Key table
+
 /**
  Lowercased key token to Linux evdev key code.
  
@@ -78,6 +80,10 @@ export const EVDEV_KEYS: Record<string, number> = {
   backspace: 14,
   delete: 111,
 };
+
+//endregion Key table
+
+//region Combo translation
 
 /**
  Translate a `+`-joined key combo into the ydotool press-then-release token
@@ -142,6 +148,10 @@ export function keysToEvdev(combo: string): readonly string[] {
   ];
 }
 
+//endregion Combo translation
+
+//region Injection
+
 /**
  Inject a key combo by shelling out to `ydotool key`, logging (never throwing)
  on translation or process failure so a bad combo cannot crash the daemon.
@@ -183,3 +193,5 @@ export async function sendKeys(keys: string): Promise<void> {
       .error(`ydotool/key error: ${message}`,);
   }
 }
+
+//endregion Injection

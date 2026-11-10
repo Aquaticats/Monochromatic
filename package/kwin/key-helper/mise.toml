@@ -70,69 +70,25 @@ run = ["mise run build", "mise run sea"]
 
 [tasks.install]
 description = "Symlink the KWin script, point autostart at the in-repo binary, enable the script"
+# The steps themselves live in src/install.ts, where they are unit-tested: the
+# autostart Exec line crosses both the desktop-entry grammar and /bin/sh, and a
+# checkout path with a space or a quote used to break it silently.
 shell = "node --input-type=module-typescript -e"
 run = """
-import { execFileSync, } from 'node:child_process'
-import {
-  lstatSync,
-  mkdirSync,
-  readlinkSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
-import {
-  join,
-  resolve,
-} from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { installKeyHelper } from './src/install.ts'
 
 const home = process.env.HOME
-if (!home) { throw new Error('HOME is not set',) }
-const pkgDir = process.cwd()
-const kwinTarget = resolve(pkgDir, 'kwin-script',)
-const binPath = resolve(pkgDir, 'key-helper-service',)
-
-// 1. Symlink the KWin script package into the XDG scripts dir (idempotent).
-const scriptsDir = join(home, '.local/share/kwin/scripts',)
-mkdirSync(scriptsDir, { recursive: true, },)
-const linkPath = join(scriptsDir, 'key-helper-kwin',)
-let needLink = true
-try {
-  const st = lstatSync(linkPath,)
-  if (st.isSymbolicLink() && (readlinkSync(linkPath,) === kwinTarget)) { needLink = false }
-  else { rmSync(linkPath, { recursive: true, force: true, },) }
-} catch (error) {
-  // Link absent: nothing to reconcile, create it below.
-  void error
-}
-if (needLink) {
-  symlinkSync(kwinTarget, linkPath,)
-  console.log(`linked ${linkPath} -> ${kwinTarget}`,)
-} else {
-  console.log(`link already correct: ${linkPath}`,)
-}
-
-// 2. Write the autostart entry pointing at the in-repo SEA binary.
-const autostartDir = join(home, '.config/autostart',)
-mkdirSync(autostartDir, { recursive: true, },)
-const desktop = [
-  '[Desktop Entry]',
-  'Type=Application',
-  'Name=Key Helper D-Bus Service',
-  'Comment=Bridges KWin script commands to Neovim RPC and ydotool',
-  `Exec=/bin/sh -c 'exec ${binPath} 2>&1 | systemd-cat -t key-helper -p debug'`,
-  'Terminal=false',
-  'X-KDE-autostart-phase=2',
-  '',
-].join('\\n',)
-writeFileSync(join(autostartDir, 'key-helper-service.desktop',), desktop,)
-console.log('wrote autostart: key-helper-service.desktop',)
-
-// 3. Enable the KWin script in kwinrc.
-execFileSync(
-  'kwriteconfig6',
-  ['--file', 'kwinrc', '--group', 'Plugins', '--key', 'key-helper-kwinEnabled', 'true',],
-  { stdio: 'inherit', },
-)
-console.log('enabled key-helper-kwin in kwinrc',)
+if (!home) { throw new Error('HOME is not set') }
+await installKeyHelper({
+  homeDirectory: home,
+  packageDirectory: process.cwd(),
+  enableKwinScript() {
+    execFileSync(
+      'kwriteconfig6',
+      ['--file', 'kwinrc', '--group', 'Plugins', '--key', 'key-helper-kwinEnabled', 'true'],
+      { stdio: 'inherit' },
+    )
+  },
+})
 """

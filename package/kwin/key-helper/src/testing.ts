@@ -15,6 +15,8 @@
 
 import { logger, } from '@monochromatic-dev/logger-core/ts';
 
+//region Test support
+
 /**
  Drain the daemon's pending log writes, so a test can assert what was reported.
 
@@ -26,6 +28,10 @@ import { logger, } from '@monochromatic-dev/logger-core/ts';
 export async function flushLogs(): Promise<void> {
   await logger.flush();
 }
+
+//endregion Test support
+
+//region Child processes and failures
 
 /**
  Running one command to completion, the daemon's single child-process shape.
@@ -44,12 +50,30 @@ export {
  */
 export {
   CommandFailedError,
+  InstallError,
   KeyHelperError,
   NoAppIdentityError,
   NoNvimSocketError,
   NoRuntimeDirectoryError,
   UnknownKeyError,
 } from './errors.ts';
+
+/**
+ The install steps: the KWin script link and the autostart entry.
+
+ @internal
+ */
+export {
+  buildAutostartDesktopEntry,
+  desktopEntryQuote,
+  installKeyHelper,
+  reconcileKwinScriptLink,
+  writeAutostartEntry,
+} from './install.ts';
+
+//endregion Child processes and failures
+
+//region Keys
 
 /**
  Combo-to-evdev translation and its ydotool runner.
@@ -69,9 +93,34 @@ export {
  */
 export {
   findNewestNvimSocket,
+  findNvimSockets,
   nvimSocketDirectory,
   sendNvimInput,
 } from './nvim.ts';
+
+//endregion Neovim
+
+//region evdev
+
+/**
+ evdev device discovery, the per-device monitor, and the rescanning watcher.
+
+ @internal
+ */
+export {
+  findShiftDevices,
+  startEvdevMonitor,
+  watchShiftDevices,
+  type Device,
+  type DeviceHandle,
+  type DeviceMonitor,
+  type DeviceMonitorStarter,
+  type DeviceOpener,
+} from './evdev.ts';
+
+//endregion Keys
+
+//region Neovim
 
 /**
  The pure double-shift detector and sysfs bitmap parser.
@@ -88,6 +137,10 @@ export {
   type ShiftState,
 } from './evdev-parse.ts';
 
+//endregion evdev
+
+//region Launching
+
 /**
  New-instance command selection and its launcher.
 
@@ -99,3 +152,5 @@ export {
   selectLaunchCommand,
   type LaunchCommand,
 } from './launch.ts';
+
+//endregion Launching

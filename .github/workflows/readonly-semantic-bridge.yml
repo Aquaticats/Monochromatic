@@ -1,5 +1,10 @@
 name: readonly semantic bridge host evidence
 
+# push and pull_request are path-filtered to the six packages below. merge_group cannot be
+# path-filtered (a GitHub limitation), so the Scope step in the job compares the queued
+# diff with the same paths and skips the three-OS install, build and test when no listed
+# path changed; the job still succeeds so a required merge-queue check stays green.
+
 on:
   pull_request:
     branches: ['main']
@@ -48,16 +53,54 @@ jobs:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
-        fetch-depth: 1
+        # Full history so the merge_group scope check can diff the event's own commits.
+        fetch-depth: 0
+
+    - name: Scope to the semantic-bridge changes
+      id: scope
+      # push and pull_request are already filtered to the paths above, so they always run. merge_group cannot be
+      # path-filtered (a GitHub limitation), so this step asks whether the queue entry touches any listed path and the
+      # heavy steps below read its answer. The decision is the repository's scope command, which compares the event's
+      # own immutable base and head commits, never a moving `origin/main`, and fails the step instead of reporting
+      # nothing changed when it cannot compare (doc/decision/toml-edit-ci-scope.md). The two lists it reads below are
+      # this workflow's paths, one per line so a path holding a space stays one path.
+      #
+      # Runner-provided Node executes this before the task CLI or any dependency installation. The launcher remains
+      # CommonJS because Actions writes an extensionless file.
+      shell: node {0}
+      env:
+        SCOPE_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        SCOPE_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        SCOPE_SUBJECT: semantic-bridge
+        SCOPE_PACKAGE_PREFIXES: |
+          package/config/oxlint/
+          package/ownership-markers/foreign-borrowed/
+          package/oxlint-plugin/no-restricted-syntax/
+          package/oxlint-plugin/prefer-readonly-parameter-type/
+          package/oxlint-plugin/shared/
+          package/test-fixture/oxlint-no-restricted-syntax/
+        SCOPE_CONTRACT_PATHS: |
+          pnpm-lock.yaml
+          .github/workflows/readonly-semantic-bridge.yml
+      run: |
+        require('node:child_process').execFileSync(
+          process.execPath,
+          ['package/toml-edit/core.fuzz/src/ci-scope.ts'],
+          { stdio: 'inherit' },
+        )
 
     - name: Set up node, pnpm and the task CLI
+      if: steps.scope.outputs.run == 'true'
       uses: ./.github/actions/task-cli-setup
 
     - name: Build semantic plugin artifact
+      if: steps.scope.outputs.run == 'true'
       run: task-run //package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node
 
     - name: Verify native bridge lifecycle and platform paths
+      if: steps.scope.outputs.run == 'true'
       run: task-run //package/oxlint-plugin/prefer-readonly-parameter-type:test:semantic-bridge-host
 
     - name: Verify external consumer artifact
+      if: steps.scope.outputs.run == 'true'
       run: task-run //package/oxlint-plugin/prefer-readonly-parameter-type:test:external-consumer-host
