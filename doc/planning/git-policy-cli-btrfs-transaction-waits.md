@@ -208,7 +208,20 @@ before arm at 2026-11-10T18:18-05:00:
 - add: 49,443 / 14,272 / 2,780 / 7,471 / 1,693 ms,
   with threads asleep in `wait_current_trans`, `wait_for_commit`, `btrfs_sync_log` and `wait_log_commit`.
 - remove: 232 / 272 / 147 / 207 / 550 ms, its longest wait `wait_current_trans`.
-- commit: not measured on that fixture yet, see "What is not measured".
+
+The same fixture under a lighter load, three rounds per arm, alternating arms,
+each round an add, two commits in the fixture's own checkout and a remove:
+
+- before arm, 2026-11-10T18:47:31-05:00: adds 554 / 413 / 391 ms,
+  commits 227 / 271 / 248 ms, removes 42 / 42 / 43 ms.
+- after arm, 2026-11-10T18:48:43-05:00: adds 3,906 / 700 / 699 ms,
+  commits 164 / 188 / 268 ms, removes 42 / 44 / 43 ms.
+  The 3,906 ms add spent 1.3 s of its samples in `btrfs_commit_transaction`:
+  that is the snapshot ioctl, which this change does not touch,
+  and it is why an add's cost is dominated by load rather than by the commit path.
+- An uncontended commit is not where this change shows:
+  three samples per arm cannot separate 227 to 271 ms from 164 to 268 ms on this volume,
+  and the concurrency the audit measured is what the s01 numbers above are for.
 
 ## What is not changed, and why
 
