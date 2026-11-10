@@ -273,6 +273,34 @@ pub mod value_eval;
 mod toml_ops;
 
 /// What:
+///  `json_ops` edits JSON text by splicing the bytes of one member,
+/// keeping member order,
+/// indentation and unowned members;
+/// it is private.
+/// Why:
+///  Only the `json-keys` kind needs it,
+/// and keeping it private lets its helpers change without an API change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: parseJsonText(source); replaced(node, token); withMember(node, key, token)
+/// ```
+mod json_ops;
+
+/// What:
+///  `kind_json_keys` implements the `json-keys` kind:
+/// guarded member assignments in JSON manifests.
+/// Why:
+///  The repository and homepage links of every `package.json` are derived from where the file sits,
+/// and strict JSON rules out the canonical emitter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export class JsonKeysRule implements Rule { plan(view: View): RulePlan }
+/// ```
+pub mod kind_json_keys;
+
+/// What:
 ///  `kind_concat` implements the `concat` kind:
 /// one file from literal text,
 /// other files and variables.
@@ -651,6 +679,20 @@ mod config_position_tests;
 #[cfg(test)]
 #[path = "kinds_tests.rs"]
 mod kinds_tests;
+
+/// What:
+///  `json_ops_tests` checks the JSON splicing and comparison helpers behind the `json-keys` kind.
+/// Why:
+///  Splicing must keep every byte it does not own and leave the original text alone when nothing is owned,
+/// which a rule test alone cannot show.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './jsonOps.test';
+/// ```
+#[cfg(test)]
+#[path = "json_ops_tests.rs"]
+mod json_ops_tests;
 
 /// What:
 ///  `run_tests` checks whole runs:

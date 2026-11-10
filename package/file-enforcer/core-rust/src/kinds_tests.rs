@@ -243,7 +243,7 @@ fn json_keys_names_a_manifest_that_is_not_json_and_writes_nothing() {
         "edits": [{"guard": [], "path": ["homepage"], "value": "https://new.example"}]}]}"#;
     let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
     assert_eq!(code1, 1, "{events1:?}");
-    assert_eq!(count_code(&events1, "json-invalid"), 1, "{events1:?}");
+    assert_eq!(count_code(&events1, "manifest-invalid"), 1, "{events1:?}");
     assert_eq!(read_text(dir.path(), "package/x/z/package.json"), "{}\n", "a failing run writes nothing");
 }
 

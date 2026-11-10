@@ -13,12 +13,12 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! function tomlKeysRule(manifests: string[], onlyDirs: string[] | undefined, edits: TomlEdit[], blocks: TomlBlock[]): Rule
+//! function tomlKeysRule(manifests: string[], onlyDirs: string[] | undefined, edits: KeyEdit[], blocks: TomlBlock[]): Rule
 //! ```
 
 /// Imports `TomlBlock`,
-/// `TomlEdit` from `crate::config_parts`.
-use crate::config_parts::{TomlBlock, TomlEdit};
+/// `KeyEdit` from `crate::config_parts`.
+use crate::config_parts::{KeyEdit, TomlBlock};
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
 /// Imports `parent_directory` from `crate::path_text`.
@@ -63,7 +63,7 @@ pub struct TomlKeysRule {
     /// Crate directories the rule is limited to.
     pub only_dirs: Option<Vec<String>>,
     /// Guarded assignments.
-    pub edits: Vec<TomlEdit>,
+    pub edits: Vec<KeyEdit>,
     /// Blocks appended when absent.
     pub blocks: Vec<TomlBlock>,
 }

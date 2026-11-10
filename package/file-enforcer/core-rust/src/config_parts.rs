@@ -100,18 +100,19 @@ pub struct LicenseRequirement {
 }
 
 /// What:
-///  One guarded key assignment inside a `Cargo.toml`.
+///  One guarded key assignment inside a manifest.
 /// Why:
-///  The tool owns a key only where the crate already has its table or key,
-/// so crates that opt out stay untouched.
+///  The `toml-keys` and `json-keys` kinds own a key only where the manifest already has its table or key,
+/// so a package that opts out stays untouched,
+/// and both kinds share the assignment shape.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TomlEdit = { guard: string[]; path: string[]; value: ValueExpr };
+/// type KeyEdit = { guard: string[]; path: string[]; value: ValueExpr };
 /// ```
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
 #[schemars(deny_unknown_fields, description = "A key assignment applied only where the guard key path exists.")]
-pub struct TomlEdit {
+pub struct KeyEdit {
     /// Key path that must exist before the edit applies;
     /// empty means always.
     pub guard: Vec<String>,

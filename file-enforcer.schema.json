@@ -205,7 +205,7 @@
             "edits": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/TomlEdit"
+                "$ref": "#/$defs/KeyEdit"
               },
               "description": "Guarded assignments."
             },
@@ -225,6 +225,51 @@
             "blocks"
           ],
           "description": "Set guarded keys and append absent blocks in matching `Cargo.toml` files."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "json-keys"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "manifests": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Manifest globs."
+            },
+            "onlyDirs": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Manifest directories the rule is limited to; absent means every matching manifest."
+            },
+            "edits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/KeyEdit"
+              },
+              "description": "Guarded assignments; a member the manifest does not have is added as its record's last member."
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "manifests",
+            "edits"
+          ],
+          "description": "Set guarded members in matching JSON manifests."
         },
         {
           "type": "object",
@@ -488,7 +533,7 @@
       ],
       "description": "License texts a manifest license expression needs."
     },
-    "TomlEdit": {
+    "KeyEdit": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
