@@ -2,11 +2,16 @@
  The pane-strip state machine: a tree of panes laid out on a `(column, row)` grid.
  
  This is a pure TypeScript port of the plain-Rust model in
- `package/file-manager/app/src/model.rs`, so the Niri-style
- spawn/dedup/close rules stay byte-comparable between the GTK original and
- this Electron prototype. Each pane knows its parent; `column` is lineage
- depth and `row` is assigned by a tidy tree layout so a child aligns to its
- parent's row and a sibling starts below the previous sibling's whole subtree.
+ `package/file-manager/app/src/model.rs`. The rules both models implement are
+ spawn, dedup, focus and close; the original's `close_column` and
+ `close_right_of` bulk gestures are not ported. Two deliberate differences
+ inside the ported rules keep the parity claim honest: an orphaned child drops
+ its parent link here, where the original keeps a dangling one, and a spawn
+ under an already-closed parent id lands in column 0 here, where the original's
+ unreachable branch would place it one column right. Each pane knows its
+ parent; `column` is lineage depth and `row` is assigned by a tidy tree layout
+ so a child aligns to its parent's row and a sibling starts below the previous
+ sibling's whole subtree.
  
  Types live in `strip-types.ts` and read-only queries in `strip-query.ts`;
  both are re-exported here so consumers import one module.
@@ -459,7 +464,13 @@ export function spawnChild(
   },);
 
   /**
-   Column of the spawning parent, defaulting to a root when the id is stale.
+   Column of the spawning parent; a stale id spawns as a root in column 0.
+   
+   The renderer awaits the directory listing before it spawns, so closing that
+   pane during the await makes this branch reachable here, while the original
+   spawns synchronously and cannot reach it. Keeping the child in column 0
+   fills the leftmost column the closed pane leaves behind instead of opening
+   the strip with an empty one.
    */
   const parentColumn = ((typeof parentPane) === 'symbol')
     ? -1
