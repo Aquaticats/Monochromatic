@@ -11,6 +11,7 @@ import { inflateSync } from 'node:zlib';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
+import { hasProjectAuthorsCopyrightLine } from './copyright-lines.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
@@ -110,7 +111,7 @@ const checks: Record<string, Check> = {
       demand({ condition: readFileSync(inputFile(relative), 'utf8').includes(phrase), message: relative + ' does not contain "' + phrase + '"' });
     }
     for (const relative of ['LICENSES/font/Inter-LICENSE.txt', 'LICENSES/font/JetBrainsMono-OFL.txt']) {
-      demand({ condition: /^Copyright .*Project Authors/m.test(readFileSync(inputFile(relative), 'utf8')), message: relative + ' lacks its copyright line' });
+      demand({ condition: hasProjectAuthorsCopyrightLine(readFileSync(inputFile(relative), 'utf8')), message: relative + ' lacks its copyright line' });
     }
     const { libraries } = listedGrammars();
     const notices: string[] = [];
