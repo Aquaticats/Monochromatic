@@ -42,9 +42,8 @@ use std::path::Path;
 /// function finishAndRemove(destination: string): [string, string];
 /// ```
 pub fn finish_and_remove(destination: &Path) -> (String, String) {
-    // Both paths are read by the person's shell, so they are quoted the way a shell reads a word back, not the way
-    // JSON spells a string: `$bucket` and a backquote inside double quotes would be expanded by the shell that runs
-    // `rm`.
+    // The path is read by the person's shell, so it is quoted the way a shell reads a word back, not the way JSON
+    // spells a string: `$bucket` and a backquote inside double quotes would be expanded by the shell that runs `rm`.
     let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
     let finish: String = format!("git -C {shown} reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard");
     let remove: String = format!("git worktree remove --force {shown}");
