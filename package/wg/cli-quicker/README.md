@@ -1264,7 +1264,12 @@ drops or renames an update host or a model provider host therefore reaches a tun
 with nothing for a person to do:
 the next refresh installs the rules of the new list.
 A rule that both lists name is never removed,
-so a connection through it is not moved into the tunnel and does not change its source address.
+so no new connection to that address starts using the tunnel while the list changes,
+and the path of one already established is untouched:
+removing such a rule does not move an established connection at all,
+because its route is cached in the socket
+(measured,
+see [what removing a rule does](../../../doc/troubleshooting/ip-rule-removal-established-connection.md)).
 A host the new list no longer names loses its rule after two consecutive refreshes without it,
 the same rule that keeps a rotating CDN address alive,
 so such a rule lingers at most two refresh intervals,
