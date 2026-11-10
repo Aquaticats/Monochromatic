@@ -59,6 +59,60 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### At the Claude Code restart (2026-11-10T05:16:25-05:00)
+
+`0.6.1-alpha.7` is published and installed,
+so the pending drain and the landing round on the tokio runtime are live.
+`main` is at `c351a48f48` with no merge open.
+
+A restart leaves Pi agents running:
+`systemd-run --wait` only waits on the `pi-<name>.service` unit,
+and `does-a-unit-survive-its-waiting-client.ts` measured the unit active after its waiting client ended by `SIGTERM` and by `SIGKILL`.
+Only the completion notices are lost,
+so after a restart read each run's `summary.json` with `show-pi-run-reports.ts`.
+These units were running at the restart:
+`commit-timing-records-name-why-a-commit-stopped`,
+`merge-with-an-editor-carries-unsaved-work`,
+`mise-rustup-backend-recursion`,
+`publish-job-family-1609`,
+`tokio-service-loop-and-landing-on-the-runtime`
+and `worktree-copy-controls-slow-in-a-suite`.
+
+The next landings,
+in this order,
+each with `land-package-branches-round-13.ts` unless named otherwise:
+
+1. `fuzz-sidecar-lint-on-main`,
+   whose agent has merged `main` again.
+   Nothing else can pass `//package/jsonc-edit/core-ts.fuzz:lint` until this lands.
+2. `coverage-report-mode-check-remaining-copies` and `fuzz-run-budget-one-owner-1419`.
+   Issue 613 follows the budget branch,
+   as the shared package the session picked.
+3. `pi-plugin-registration-and-spawn-issues`:
+   its conflict is resolved as `c32139b103`
+   and its reviewed retirement fixture is `68353c7339`.
+4. `electron-lint-and-listener-sites` and `key-helper-tests-import-the-artifact`.
+   Their `//package/kwin/key-helper:lint` fails on `Cannot find module '@monochromatic-dev/const-core/ts'`,
+   because the worktree's links predate the merge:
+   run `pnpm install --frozen-lockfile --offline` in each first.
+5. `text-scan-character-predicates-1673` conflicts in `package/oxlint-plugin/tsdoc/src/tsdoc-blocks.ts` since the block-tag branch landed.
+   Send it back to its agent,
+   together with the run-scan helper the session picked.
+6. `test-import-remaining-sites-1651` stopped without naming a failing task,
+   so its cause is not known yet.
+7. `ide-probe-runs-1352-1353-1355`,
+   with explicit tasks,
+   because `//package/ide/app:test` has two `wrap_keys` failures on `main`.
+8. The documentation branches `prose-rules-in-docs-outside-decisions` and `wrapper-open-issues-next-batch`,
+   and `raw-console-and-color-token-issues`.
+9. Whatever the other round-46 agents finished,
+   none of which has been read yet.
+
+`fix/file-enforcer-issue-1645` stays off `main` until the owner answers its question.
+
+Issues whose fixes landed still need closing with evidence.
+The verdicts are in each run's report.
+
 ### Next alpha, gate on `cfce0bc84e` (2026-11-09T22:18:01-05:00)
 
 `0.6.1-alpha.6` is not published,
