@@ -124,18 +124,14 @@ function assistantContentText(content: AssistantMessageLike['content'],): string
  ```
  */
 function extractLastAssistantText(messages: readonly unknown[],): string {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    /**
-     Candidate message inspected from newest to oldest.
-     */
-    const message = messages[index];
-    if (!isAssistantMessage(message,))
+  for (const candidate of messages.toReversed()) {
+    if (!isAssistantMessage(candidate,))
       continue;
 
     /**
      Text content emitted by candidate assistant message.
      */
-    const text = assistantContentText(message.content,);
+    const text = assistantContentText(candidate.content,);
     if (text.length > 0)
       return text;
   }
