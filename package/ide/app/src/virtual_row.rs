@@ -447,7 +447,9 @@ pub fn message_rows(problems: &[&Problem]) -> Vec<MessageRow> {
     return rows;
 }
 
-/// The cap that cuts one message keeps the same kept rows, hidden count, and wording for every caller.
+/// The cap that cuts one message keeps the same kept rows,
+///  hidden count,
+///  and wording for every caller.
 #[cfg(test)]
 #[path = "virtual_row_tests.rs"]
 mod tests;

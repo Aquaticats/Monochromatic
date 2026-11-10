@@ -115,7 +115,9 @@ impl ServerState {
     ///  or `None` for a state each surface explains with its own remedy.
     /// Why:
     ///  Two surfaces explain the same server state.
-    ///  The cause, and any remedy that reads the same on both, is written once here,
+    ///  The cause,
+    ///  and any remedy that reads the same on both,
+    ///  is written once here,
     ///  and each surface adds only the remedy that names its own way to retry,
     ///  so a wording change cannot reach one surface and miss the other.
     ///

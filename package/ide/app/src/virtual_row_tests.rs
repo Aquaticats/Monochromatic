@@ -45,7 +45,8 @@ fn a_message_past_the_cap_keeps_its_first_rows_and_counts_the_rest() {
     assert_eq!(counted.severity, Severity::Warning);
 }
 
-/// A message at or under the cap is shown whole, with no row counting anything.
+/// A message at or under the cap is shown whole,
+///  with no row counting anything.
 #[test]
 fn a_message_within_the_cap_is_shown_whole() {
     for total in [1, MESSAGE_ROWS - 1, MESSAGE_ROWS] {
