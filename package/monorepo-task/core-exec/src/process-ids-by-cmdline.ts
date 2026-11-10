@@ -38,9 +38,12 @@ const VANISHED_PROCESS_ERROR_CODES: ReadonlySet<string> = new Set([
 
  @example
  ```ts
- isVanishedProcessError(errnoError('ENOENT')); // true
- isVanishedProcessError(errnoError('ESRCH')); // true
- isVanishedProcessError(errnoError('EACCES')); // false
+ try {
+   readFileSync(`/proc/${pid}/cmdline`, 'utf8');
+ }
+ catch (error) {
+   isVanishedProcessError(error); // true once the process is released
+ }
  ```
  
  @internal
