@@ -42,6 +42,7 @@ import type {
   Uuid,
 } from './types.ts';
 import {
+  guidKey,
   guidToUuid,
   nextUuid,
 } from './uuid.ts';
@@ -53,32 +54,6 @@ type PageSource = {
   key: string;
   nc: Record<string, unknown>;
 };
-
-/**
- Build a composite GUID lookup key from session and local id components.
- 
- @param sessionId - Figma session id
- 
- @param localId - Figma local id
- 
- @returns `"sessionId:localId"` key
- 
- @example
- ```ts
- guidKey({ sessionId: 0, localId: 1, }); // "0:1"
- ```
- */
-function guidKey(
-  {
-    sessionId,
-    localId,
-  }: Readonly<{
-    sessionId: number;
-    localId: number;
-  }>,
-): string {
-  return `${sessionId}:${localId}`;
-}
 
 /**
  Read a node's GUID components, or `SKIP` when the node carries no GUID.

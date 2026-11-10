@@ -30,7 +30,10 @@ import type {
   PenpotShapeType,
   Uuid,
 } from './types.ts';
-import { nextUuid, } from './uuid.ts';
+import {
+  guidKey,
+  nextUuid,
+} from './uuid.ts';
 
 /**
  Shared lookup tables threaded unchanged through the conversion recursion.
@@ -78,9 +81,7 @@ function resolveParentUuid(
   /**
    Composite key matching the parent entry in the GUID map.
    */
-  const parentKey = `${parent.parentGuid
-    .sessionId}:${parent.parentGuid
-      .localId}`;
+  const parentKey = guidKey(parent.parentGuid,);
   return guidToUuidMap.get(parentKey,)
     ?? parentUuid;
 }

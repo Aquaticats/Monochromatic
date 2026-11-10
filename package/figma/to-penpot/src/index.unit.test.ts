@@ -483,6 +483,27 @@ await describe({
     },),
     // endregion
 
+    // region parent linkage
+    describe({
+      name: 'parent linkage',
+      children: [
+        it({
+          name: 'links a nested text to the frame that contains it',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTestFigmaFile(), },);
+            const frame = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'My Frame',),
+            );
+            const text = nonNullishOrThrow(
+              [...doc.shapes.values(),].find(shape => shape.name === 'Hello',),
+            );
+            expect(text.parentId,).toBe(frame.id,);
+          },
+        },),
+      ],
+    },),
+    // endregion
+
     // region convertFigmaToPenpot (deck)
     describe({
       name: 'convertFigmaToPenpot (deck)',
