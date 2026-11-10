@@ -21,6 +21,61 @@ import { createWriteBuffer, } from './write-buffer.ts';
 const encoder = new TextEncoder();
 
 /**
+ * Milliseconds allowed for a flush promise to settle before the test treats it
+ * as hung, so a stranded queue fails an assertion instead of the suite.
+ */
+const SETTLE_WINDOW_MS = 2_000;
+
+/**
+ * Waits up to `windowMs` for a promise to settle, counting a rejection as
+ * settling so the caller can assert on the outcome afterwards.
+ *
+ * @param promise - promise under test
+ *
+ * @param windowMs - milliseconds allowed before the promise counts as hung
+ *
+ * @returns true when the promise settled inside the window
+ *
+ * @example
+ * ```ts
+ * const settled = await settledWithin(pending, 2000);
+ * ```
+ */
+async function settledWithin(promise: Promise<unknown>, windowMs: number,): Promise<boolean> {
+  /**
+   * Sentinel the race resolves to when the window elapses before the promise
+   * settles.
+   */
+  const WINDOW_ELAPSED = Symbol('settle window elapsed with no settlement',);
+  /**
+   * Handle of the timer that ends the window, held in an object so the function
+   * body keeps only consts.
+   */
+  const timer: { handle?: ReturnType<typeof setTimeout> } = {};
+  const window = new Promise<typeof WINDOW_ELAPSED>(function startTimer(resolve,) {
+    timer.handle = setTimeout(
+      function elapsed() {
+        resolve(WINDOW_ELAPSED,);
+      },
+      windowMs,
+    );
+  },);
+  const winner = await Promise.race([
+    promise.then(
+      function settled() {
+        return undefined;
+      },
+      function rejected() {
+        return undefined;
+      },
+    ),
+    window,
+  ],);
+  clearTimeout(timer.handle,);
+  return winner !== WINDOW_ELAPSED;
+}
+
+/**
  * Storage adapter that records every batch it receives, can hold the next
  * batch open until the test releases it, and fails a chosen number of leading
  * batches.
@@ -266,6 +321,78 @@ await describe({
              */
             const latestBody = new TextDecoder().decode(await memory.get('a',),);
             expect(latestBody,).toBe('latest',);
+            await buffer.close();
+          },
+        },),
+        it({
+          name: 'does not restore a body superseded while its batch was in flight',
+          async fn() {
+            const memory = createMemoryStorage();
+            /**
+             * One entry per putBatch call, each settled by the test.
+             */
+            const attempts: {
+              readonly items: readonly StoragePutItem[];
+              readonly deliver: () => void;
+              readonly fail: () => void;
+            }[] = [];
+            const storage: Storage = {
+              ...memory,
+              putBatch(items: readonly StoragePutItem[],) {
+                return new Promise<void>(function hold(resolve, reject,) {
+                  attempts.push({
+                    items: [...items,],
+                    deliver: function deliverBatch() {
+                      resolve(memory.putBatch(items,),);
+                    },
+                    fail: function failBatch() {
+                      reject(new Error('backend unavailable',),);
+                    },
+                  },);
+                },);
+              },
+            };
+            const buffer = createWriteBuffer({
+              storage,
+              flushAtItems: 100,
+              flushAtMs: 10_000,
+            },);
+            buffer.enqueue({
+              key: 'a',
+              body: encoder.encode('superseded',),
+            },);
+            /**
+             * First flush holds its batch open, so the next enqueue and flush
+             * both land while it is still in flight.
+             */
+            const firstFlush = buffer.flush();
+            buffer.enqueue({
+              key: 'a',
+              body: encoder.encode('latest',),
+            },);
+            const secondFlush = buffer.flush();
+            expect(attempts.length,).toBe(2,);
+            attempts[0]
+              ?.fail();
+            await expect(firstFlush,).rejects.toThrow('unavailable',);
+            attempts[1]
+              ?.deliver();
+            const secondSettled = await settledWithin(
+              secondFlush,
+              SETTLE_WINDOW_MS,
+            );
+            expect(secondSettled,).toBe(true,);
+            /**
+             * The superseded body must not be waiting for a further flush.
+             */
+            expect(buffer.pending,).toBe(0,);
+            expect(attempts.length,).toBe(2,);
+            /**
+             * Body the store ends up with: the later write, never the failed
+             * older one coming back from the requeue.
+             */
+            const stored = await memory.get('a',);
+            expect(new TextDecoder().decode(stored,),).toBe('latest',);
             await buffer.close();
           },
         },),
