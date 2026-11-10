@@ -34,6 +34,10 @@ import {
   RESULT_RELATION_UNPROVEN,
 } from './effect-result-provenance-authority.ts';
 
+//region Result sentinels
+// The sentinel for a result not verified to be receiver state, covering every
+// reason at once, and the one for a call that selected no member.
+
 /**
  Sentinel when a call's result is not verified to be receiver state.
  
@@ -56,6 +60,12 @@ export const RESULT_NOT_RECEIVER_STATE: unique symbol = Symbol(
 const NOT_DEFAULT_LIBRARY_MEMBER: unique symbol = Symbol(
   'call selected no default-library interface member',
 );
+
+//endregion Result sentinels
+
+//region Type identity
+// Splitting a type into the constituents identity matching considers, and the
+// subset test that decides whether every result value is receiver state.
 
 /**
  Splits a type into the constituents identity matching should consider.
@@ -139,6 +149,12 @@ function resultIsHeldState({
     },);
 }
 
+//endregion Type identity
+
+//region Resolving the member
+// The member a call resolved to, and the resolution that proves default-library
+// ownership.
+
 /**
  One default-library interface member a call resolved to.
  */
@@ -198,6 +214,12 @@ function defaultLibraryMember({
       .text,
   };
 }
+
+//endregion Resolving the member
+
+//region Receiver-state relations
+// The receiver whose state a call's result is, and the observer-returned case
+// that is the third answer to the result question.
 
 /**
  Resolves the receiver whose state a call's result is verified to be.
@@ -382,6 +404,12 @@ export function callResultComesFromObserver({
   return supplied >= SEEDED_FOLD_ARGUMENT_COUNT;
 }
 
+//endregion Receiver-state relations
+
+//region Held type and fold seed
+// Whether a result's held type is the receiver's or a narrowing of it, and how
+// many arguments a fold carries when it supplies its own accumulator.
+
 /**
  Tests whether a result's held type is the receiver's, or a narrowing of it.
  
@@ -431,6 +459,11 @@ function heldTypeSurvives({
  Arguments a fold carries when it supplies its own starting accumulator.
  */
 const SEEDED_FOLD_ARGUMENT_COUNT = 2;
+
+//endregion Held type and fold seed
+
+//region Fresh container results
+// The receiver whose values a call's newly built container result may hold.
 
 /**
  Resolves the receiver whose values a call's fresh container result may hold.
@@ -552,3 +585,4 @@ export function callResultElementReceiver({
     ? receiver
     : RESULT_NOT_RECEIVER_STATE;
 }
+//endregion Fresh container results

@@ -39,6 +39,10 @@ import {
 } from './effect-summary-model.ts';
 import type { EffectSlot, } from './effect-slot-identity.ts';
 
+//region Shared empty values
+// Provenance facts and origins carried by nothing, shared so an absent entry
+// allocates no set.
+
 /**
  Provenance facts carried by nothing, shared so an absent entry allocates no set.
  */
@@ -48,6 +52,12 @@ const NO_PROVENANCE_FACTS: ReadonlySet<string> = new Set<string>();
  Origins carried by nothing, shared so a formal packaging no callable allocates none.
  */
 const NO_CAPTURED_ORIGINS: readonly EffectSlot[] = [];
+
+//endregion Shared empty values
+
+//region Uncertain formals
+// Marking caller origins opaque when a callable they were captured by reached
+// a formal whose handling is unknown.
 
 /**
  Marks caller origins opaque when a callable they were captured by reached an uncertain formal.
@@ -152,6 +162,11 @@ export function propagateCapturedCapability({
   return growth.any;
 }
 
+//endregion Uncertain formals
+
+//region Captured origins
+// The caller origins captured by the callable filling one callee slot's formal.
+
 /**
  Names the caller origins captured by the callable filling one callee slot's formal.
  
@@ -190,6 +205,11 @@ function capturesOfCalleeSlot({
     return NO_CAPTURED_ORIGINS;
   return edge.capturedOriginsByFormal[owner] ?? NO_CAPTURED_ORIGINS;
 }
+
+//endregion Captured origins
+
+//region Unresolved callees
+// Every capture on an edge stays opaque when the callee has no summary at all.
 
 /**
  Marks every capture on an edge opaque when the callee has no summary at all.
@@ -247,3 +267,5 @@ export function markCapturedCapabilityUnresolved({
     },);
   return growth.any;
 }
+
+//endregion Unresolved callees

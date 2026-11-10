@@ -9,6 +9,10 @@ import {
   isWordChar,
 } from './text-character.ts';
 
+//region Constants
+// The tags that close an open contract, the fence delimiter that suspends
+// scanning, and the sentinel standing where no segment is open.
+
 /**
  Block tags that terminate an open `@mutates` block.
  */
@@ -43,6 +47,11 @@ const FENCE_DELIMITER = '```';
 const OPEN_MUTATION_UNAVAILABLE: unique symbol = Symbol(
   'mutation scanner lacks open contract segment',
 );
+//endregion Constants
+
+//region Types
+// The published contract block, plus the line, open-segment, and readonly
+// projections the scanner passes between its steps.
 
 /**
  Parsed mutation contract shared by documentation and semantic rules.
@@ -96,6 +105,10 @@ type ReadonlyOpenMutationSegment = {
   readonly lineOffset: number;
   readonly blockStartOffset: number;
 };
+//endregion Types
+
+//region Line tokens
+// Where the first token ends, and which `@word` tag opens a line.
 
 /**
  Returns exclusive end of first non-whitespace token.
@@ -131,6 +144,11 @@ function leadingBlockTag(text: string,): string {
   }
   return text.length === 1 ? '' : text;
 }
+//endregion Line tokens
+
+//region Line normalization
+// Strip comment stars, keep the source offsets a report needs, and mark the
+// lines inside a fenced example so their tags are never read.
 
 /**
  Normalizes comment body lines while retaining source offsets and fence state.
@@ -197,6 +215,11 @@ function normalizedContractLines(commentValue: string,): readonly ContractLine[]
     },);
   return state.lines;
 }
+//endregion Line normalization
+
+//region Segment finalization
+// One open segment's continuation text becomes a parameter name and its
+// description, with one optional hyphen separator dropped.
 
 /**
  Converts open segment to parsed mutation contract.
@@ -251,6 +274,11 @@ function finalizeSegment({
     blockEndOffset,
   };
 }
+//endregion Segment finalization
+
+//region Entry point
+// Walk the normalized lines, close a segment at the next block tag, and finalize
+// whatever is still open at the comment's end.
 
 /**
  Parses every project `@mutates` block from one TSDoc comment body.
@@ -321,3 +349,4 @@ export function parseMutationContractBlocks({
   }
   return blocks;
 }
+//endregion Entry point

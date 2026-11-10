@@ -44,6 +44,10 @@ import {
 } from './effect-summary-model.ts';
 import { targetIsCallableLocal, } from './effect-value-consumer.ts';
 
+//region Storing operators
+// The assignment operators that store the right operand's own reference: the
+// logical forms do, the arithmetic forms build a new value instead.
+
 /**
  Assignment operators that store the right operand's own reference.
  
@@ -59,6 +63,12 @@ const RETAINING_ASSIGNMENT_OPERATORS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.AmpersandAmpersandEqualsToken,
   SyntaxKind.QuestionQuestionEqualsToken,
 ],);
+
+//endregion Storing operators
+
+//region Escaping assignments
+// Opacity for every parameter an escaping assignment can hand outward. Recorded
+// as opacity rather than a dimension of its own.
 
 /**
  Records opacity for every parameter an escaping assignment can hand outward.
@@ -273,6 +283,12 @@ export function recordAssignmentStore({
   },);
 }
 
+//endregion Escaping assignments
+
+//region Iteration bindings
+// Opacity for a parameter an iteration statement hands to a binding it does not
+// own.
+
 /**
  Records opacity for a parameter an iteration statement hands to a binding it does not own.
  
@@ -383,3 +399,5 @@ export function recordIterationStore({
     provenance,
   },);
 }
+
+//endregion Iteration bindings

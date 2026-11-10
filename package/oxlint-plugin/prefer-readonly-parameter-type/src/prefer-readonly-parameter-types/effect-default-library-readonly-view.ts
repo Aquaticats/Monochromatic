@@ -28,6 +28,10 @@ import {
   memberInvokesObserver,
 } from './effect-member-channel-authority.ts';
 
+//region Structure claims
+// The three claims a collection member can make about its receiver's structure,
+// and the union they form.
+
 /**
  Member leaves the receiver's own structure intact.
  */
@@ -56,6 +60,12 @@ export type CollectionStructureClaim =
   | typeof COLLECTION_STRUCTURE_PRESERVED
     | typeof COLLECTION_STRUCTURE_MUTATED
     | typeof COLLECTION_UNRECOGNIZED;
+
+//endregion Structure claims
+
+//region Classifying one member
+// The derivable cases: a member that preserves its receiver's structure, and one
+// that restructures it.
 
 /**
  Classify a resolved declaration's effect on its receiver's structure.
@@ -161,6 +171,12 @@ export function collectionStructureClaim({
     : COLLECTION_STRUCTURE_MUTATED;
 }
 
+//endregion Classifying one member
+
+//region User-code channel width
+// Whether a member's user-code channel is no wider than a property read, read
+// from the one permitted authority.
+
 /**
  Tests whether a member's user-code channel is no wider than a property read.
  
@@ -250,3 +266,5 @@ export function memberChannelIsVerifiedNarrow({
     return argumentsAreAbsent;
   return channel !== MEMBER_CHANNEL_UNPROVEN;
 }
+
+//endregion User-code channel width

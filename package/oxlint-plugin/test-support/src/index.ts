@@ -27,6 +27,10 @@ import dedent from 'string-dedent';
  @module
  */
 
+//region Workspace root
+// The monorepo root every fixture path is resolved from, found once at
+// import time from this shared test-support module.
+
 /**
  Workspace root resolved from this shared test-support directory.
  
@@ -39,6 +43,12 @@ export const OXLINT_PLUGIN_TEST_ROOT: string = await findRoot({
   cwd: import.meta.dirname,
   marker: MISE_MONOREPO,
 },);
+
+//endregion Workspace root
+
+//region Diagnostic and process-output shapes
+// The subset of oxlint's JSON diagnostics these helpers keep, the raw shape
+// the runner filters it from, and the copied-fixture handle tests dispose of.
 
 /**
  Single diagnostic from oxlint JSON output after plugin filtering.
@@ -121,6 +131,12 @@ export type TempFixtureFile = {
    */
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
+
+//endregion Diagnostic and process-output shapes
+
+//region Fixture and temp-copy options
+// One options object per helper below: which fixture package, which config,
+// which target, how to run oxlint, and what to copy into the temp directory.
 
 /**
  Options for locating one test-fixture package.
@@ -215,6 +231,12 @@ export type CreateTempFixtureFileParams = {
    */
   readonly tempPrefix: string;
 };
+
+//endregion Fixture and temp-copy options
+
+//region Fixture path resolution
+// Absolute locations inside one fixture package, and resolution of a caller's
+// relative fixture name against them while absolute temp paths pass through.
 
 /**
  Returns absolute package root for one oxlint test fixture package.
@@ -313,6 +335,13 @@ export function resolveFixtureTarget(params: ResolveFixtureTargetParams,): strin
       fixturePath,
     );
 }
+
+//endregion Fixture path resolution
+
+//region Oxlint process output
+// What an oxlint run printed and the command line that printed it, the error
+// for output that is not the JSON the runner asked for, and the reader that
+// rescues output nano-spawn attaches to a non-zero exit.
 
 /**
  Text oxlint printed, and the command line that printed it.
@@ -438,6 +467,12 @@ export function outputFromSpawnError({ error, }: { readonly error: unknown; },):
   };
 }
 
+//endregion Oxlint process output
+
+//region Output parsing and fix flags
+// Turning the process output into typed diagnostics, and the flags that make
+// oxlint write its fixes back to the target file.
+
 /**
  Parses oxlint JSON output into typed diagnostics.
  
@@ -507,6 +542,12 @@ function fixFlags(fix: OxlintFixMode,): readonly string[] {
     '--fix-suggestions',
   ];
 }
+
+//endregion Output parsing and fix flags
+
+//region Fixture runs and temp copies
+// Running oxlint against one fixture target with plugin filtering, and copying
+// a source fixture into a disposable directory its disposer removes.
 
 /**
  Runs oxlint with a fixture config and filters diagnostics to one plugin.
@@ -691,6 +732,12 @@ export async function createTempFixtureFile(
   };
 }
 
+//endregion Fixture runs and temp copies
+
+//region Rule code collection
+// Collapsing the diagnostics of a run into the sorted unique rule codes a test
+// asserts against.
+
 /**
  Extracts sorted unique rule codes from diagnostics.
  
@@ -714,3 +761,5 @@ export function uniqueRuleCodes(
     ),),
   ].toSorted();
 }
+
+//endregion Rule code collection

@@ -1,107 +1,80 @@
-#!/usr/bin/env node
 /**
- CLI entry point for vmsync.
- Parses argv, dispatches to the appropriate command handler.
+ Library surface of `@monochromatic-dev/vmsync-cli`, re-exported so tests import
+ the built bundle instead of sibling source files.
+ 
+ The `vmsync` executable lives in `./cli.ts`, and every symbol here is exposed
+ for built-artifact verification rather than for consumers of this private
+ package: the CLI is what ships, and these are the helpers its tests reach.
  
  @module
  */
 
-// TODO: deprecate Optique
-import { message, } from '@optique/core/message';
-// TODO: deprecate Optique
-import { runSync, } from '@optique/run';
-
-import { bootVm, } from './boot.ts';
-import { updateConfig, } from './config-cmd.ts';
-import { importImage, } from './import.ts';
-import { parser, } from './index-parsers.ts';
-import { printVmList, } from './list.ts';
-import { showStatus, } from './status.ts';
-import { syncVm, } from './sync.ts';
-
-
-
-//region Verbose flag: stripped before parsing; logger detects it from raw process.argv at import time
-
 /**
- Flags consumed by infrastructure (logger) rather than the argument parser.
- Stripped from tokens before `--` so that guest commands are not affected.
+ Hypervisor detection for the running platform.
  
- @example
- ```ts
- INFRA_FLAGS.has('--verbose'); // true
- ```
+ @internal
  */
-const INFRA_FLAGS: ReadonlySet<string> = new Set(['--verbose',],);
+export { detectHypervisor, } from './config.ts';
 
 /**
- Raw args after the script name.
+ The single statement of which characters a VM name may contain.
+ 
+ @internal
  */
-const rawArgs = process.argv
-  .slice(2,);
+export { isVmNameChar, } from './config.ts';
 
 /**
- Index of the `--` separator, or end-of-args when absent.
- Infrastructure flags are only stripped before this boundary.
+ JSONC comment stripping, the step `readConfig` runs before parsing.
+ 
+ @internal
  */
-const doubleDashIndex = rawArgs.indexOf('--',);
+export { stripJsoncComments, } from './config.ts';
 
 /**
- Boundary past which tokens must not be touched.
+ The VM-name validation `import` and `config` both rely on.
+ 
+ @internal
  */
-const boundary = (doubleDashIndex === (-1)) ? rawArgs.length : doubleDashIndex;
+export { validateName, } from './config.ts';
 
 /**
- TODO: deprecate Optique
- Process argv with infrastructure flags removed only from the vmsync-owned prefix.
- The logger caches its own `process.argv` check at module load time
- (before this runs), so stripping here only affects the \@optique parser.
+ Path of the per-VM configuration file.
+ 
+ @internal
  */
-const filteredArgs = rawArgs.filter(function keepNonInfraArgs(
-  arg,
-  i,
-) {
-  return (i >= boundary) || (!INFRA_FLAGS.has(arg,));
-},);
-
-//endregion Verbose flag
-
-//region Dispatch: parse argv and route to the appropriate handler
+export { vmConfigPath, } from './config.ts';
 
 /**
- TODO: deprecate Optique
- Parsed CLI result from process.argv.
+ Directory holding one VM's images and configuration.
+ 
+ @internal
  */
-const args = runSync(
-  parser,
-  {
-    programName: 'vmsync',
-    args: filteredArgs,
-    help: 'option',
-    aboveError: 'help',
-    brief: message`vmsync - multi-hypervisor VM image manager with incremental sync`,
-    footer: message`Pass --verbose before the subcommand to enable debug logging.`,
-  },
-);
+export { vmDir, } from './config.ts';
 
-if (args.cmd
-  === 'import') {
-  await importImage(args,);
-}
-else if (args.cmd
-  === 'boot')
-  await bootVm(args.name,);
-else if (args.cmd
-  === 'sync')
-  await syncVm(args.name,);
-else if (args.cmd
-  === 'status')
-  await showStatus(args.name,);
-else if (args.cmd
-  === 'list')
-  await printVmList();
-else {
-  await updateConfig(args,);
-}
+/**
+ The VM-name derivation `importImage` runs on an image path.
+ 
+ @internal
+ */
+export { nameFromPath, } from './import.ts';
 
-//endregion Dispatch
+/**
+ The memory-string parser `boot` runs before handing a domain to libvirt.
+ 
+ @internal
+ */
+export { parseMemoryToBytes, } from './boot.ts';
+
+/**
+ The whitespace scan `qemu-img` runs over a `sha256sum` line.
+ 
+ @internal
+ */
+export { firstWhitespaceIndex, } from './qemu-img.ts';
+
+/**
+ The `dd` argument list `nbd` builds for a block transfer.
+ 
+ @internal
+ */
+export { ddTransferArgs, } from './nbd.ts';

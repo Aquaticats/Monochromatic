@@ -12,6 +12,10 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 
 import { findVariable, } from './no-sync.syntax.ts';
 
+//region Identifier resolution
+// Reading an identifier's name off an expression, and deciding whether it still
+// names the global binding rather than a local shadow.
+
 /**
  Sentinel returned when an expression is not a supported identifier.
  */
@@ -77,6 +81,12 @@ function isUnshadowedGlobalIdentifier(
   return defs.length === 0;
 }
 
+//endregion Identifier resolution
+
+//region Error detector calls
+// Reading the identifier a direct `Error.isError` call tests, which is the
+// subject every later predicate is stated about.
+
 /**
  Reads identifier tested by direct `Error.isError` call.
  
@@ -138,6 +148,12 @@ export function errorDetectorIdentifier(
     return NO_IDENTIFIER;
   return identifierName({ expression: argument, },);
 }
+
+//endregion Error detector calls
+
+//region Diagnostic reads
+// Recognising the two shapes a formatter returns: a named Error field, and the
+// duplicated non-Error fallback built from `String`.
 
 /**
  Tests whether expression reads named Error field from detector input.
@@ -228,6 +244,12 @@ export function readsErrorDiagnostic(
     property: 'message',
   },);
 }
+
+//endregion Diagnostic reads
+
+//region Statement shapes
+// The return statements a formatter's branches end in, each reported back to
+// the duplicates predicate.
 
 /**
  Tests whether expression is duplicated non-Error diagnostic fallback.
@@ -416,6 +438,12 @@ function returnsErrorDiagnostic(
     },);
 }
 
+//endregion Statement shapes
+
+//region The recogniser
+// The exported entry point that decides whether a function body reimplements
+// the caught-value formatter.
+
 /**
  Tests whether function starts local caught-value formatter implementation.
  
@@ -488,3 +516,5 @@ export function duplicatesCaughtValueFormatter(
       },);
     },);
 }
+
+//endregion The recogniser

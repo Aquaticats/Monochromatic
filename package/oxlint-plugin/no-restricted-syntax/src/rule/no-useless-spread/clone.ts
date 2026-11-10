@@ -22,6 +22,11 @@ import { expressionValueKind, } from '../spread-evidence/expression-kind.ts';
 import { isUndeclaredReference, } from '../spread-evidence/undeclared-reference.ts';
 import { valueHint, } from './value-hint.ts';
 
+//region Rewrite vocabulary
+// The expression types that bind tighter than any operator, so their text can
+// stand where the enclosing literal stood, and the longest argument text a
+// diagnostic quotes.
+
 /**
  Expression types that bind tighter than any operator, so their text can stand
  anywhere the enclosing literal stood.
@@ -40,6 +45,12 @@ const PRIMARY_TYPES: ReadonlySet<string> = new Set([
  Longest argument text quoted in a diagnostic.
  */
 const MAX_QUOTED_LENGTH = 50;
+
+//endregion Rewrite vocabulary
+
+//region Replacement and diagnostic text
+// The spread argument's source text with parentheses only where precedence
+// needs them, and the short quoted form diagnostics use.
 
 /**
  Source text of a spread argument, parenthesized unless it is a primary expression.
@@ -87,6 +98,12 @@ function replacementText(
 function quotedExpression(text: string,): string {
   return (text.length > MAX_QUOTED_LENGTH) || text.includes('\n',) ? 'this expression' : text;
 }
+
+//endregion Replacement and diagnostic text
+
+//region Reporting
+// Reporting a fresh array copy and a fresh array or object spread, each with the
+// fix that drops the spread.
 
 /**
  Reports the array copy `[...x]` when `x` is proven fresh, fixing it to `x`.
@@ -247,3 +264,5 @@ export function reportUselessClone(
     },
   },);
 }
+
+//endregion Reporting

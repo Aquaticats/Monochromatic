@@ -17,7 +17,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { firstWhitespaceIndex, } from '../dist/final/node/testing.mjs';
+import { firstWhitespaceIndex, } from '../dist/final/node/index.mjs';
 
 /** Iteration count for the long-run stack-safety case; far exceeds the V8 recursion depth the old walker would have overflowed at, yet computes instantly. */
 const LONG_RUN = 100_000;

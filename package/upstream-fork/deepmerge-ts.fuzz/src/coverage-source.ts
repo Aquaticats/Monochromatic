@@ -46,7 +46,10 @@ export type SourceBucket = {
 const BLANK_LINE = -1;
 
 /**
- First non-blank column of a line, found by index scan.
+ First non-blank column of a line.
+
+ The column counts UTF-16 code units, the unit a source map records, which is
+ what the text ahead of the line's own trimmed start measures.
 
  @param text - One generated line.
 
@@ -58,13 +61,13 @@ const BLANK_LINE = -1;
  ```
  */
 export function firstNonBlankColumn(text: string,): number {
-  for (let column = 0; column < text.length; column += 1) {
-    if (text.charAt(column,)
-      .trim()
-      !== '')
-      return column;
-  }
-  return BLANK_LINE;
+  /**
+   The line without its leading whitespace.
+   */
+  const trimmed = text.trimStart();
+  return trimmed === ''
+    ? BLANK_LINE
+    : text.length - trimmed.length;
 }
 
 /**

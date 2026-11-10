@@ -51,6 +51,10 @@ import { collectAstNodes, } from './effect-summary-model.ts';
 import { resultReachableSymbolIds, } from './effect-result-holders.ts';
 import { writtenDirectlyInBody, } from './effect-enclosing-callable.ts';
 
+//region Operators that keep no reference
+// The binary and prefix operators that only test a value, so a result they feed
+// cannot escape through them.
+
 /**
  Binary operators that only test a value and keep no reference to it.
  */
@@ -73,6 +77,12 @@ const TESTING_OPERATORS: ReadonlySet<SyntaxKind> = new Set([
 const TESTING_PREFIX_OPERATORS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.ExclamationToken,
 ],);
+
+//endregion Operators that keep no reference
+
+//region Argument and literal nests
+// The nesting the walk may follow: a literal handed to a call, a literal inside
+// another literal, and the array literal a spread chain carries a value into.
 
 /**
  Tests whether a literal is handed directly to a call as an argument.
@@ -172,6 +182,12 @@ function spreadCarrier({ node, }: { readonly node: Node; },): Node {
     carried = carried.parent;
   return carried;
 }
+
+//endregion Argument and literal nests
+
+//region Positions the analysis cannot follow
+// The deliberately enumerated attributed positions, where an escape is assumed
+// rather than traced.
 
 /**
  Tests whether a node sits in a position this analysis cannot follow.
@@ -311,6 +327,12 @@ function useEscapes({
   return true;
 }
 
+//endregion Positions the analysis cannot follow
+
+//region Bindings and verified calls
+// Whether an identifier occurrence establishes a binding or uses one, and
+// whether a verified call's result can leave the callable body.
+
 /**
  Tests whether an identifier occurrence establishes a binding rather than using it.
  
@@ -435,6 +457,12 @@ export function resultEscapesCallable({
     },);
 }
 
+//endregion Bindings and verified calls
+
+//region Nested callables
+// Whether a node sits inside a callable nested under the given body, whose
+// ascent lives in `effect-enclosing-callable.ts`.
+
 /**
  Tests whether a node sits inside a callable nested under the given body.
  
@@ -469,3 +497,4 @@ function enclosedByNestedCallable({
     body,
   },);
 }
+//endregion Nested callables

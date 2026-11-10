@@ -14,6 +14,10 @@ import {
   type SpineNode,
 } from './invocation-spine.ts';
 
+//region Argument-list bracket lookup
+// Find the call's own `(` rather than a grouping parenthesis around its
+// operand, anchoring past type arguments or past the `import` keyword.
+
 /**
  Reports whether a token is an opening parenthesis.
  
@@ -85,6 +89,11 @@ function findOpenParen({
     { filter: isOpenParenToken, },
     ),);
 }
+//endregion Argument-list bracket lookup
+
+//region Trailing-comma offset
+// The comma goes past the operand and the grouping parens hugging it, before
+// any existing comma or comment.
 
 /**
  Minimal readonly token shape the grouping scan reads.
@@ -185,6 +194,11 @@ function commaInsertionOffset({
     initialEnd: operand.end,
   },);
 }
+//endregion Trailing-comma offset
+
+//region Split fix
+// Replace the argument-list brackets with a three-line form that keeps the
+// operand text, its grouping parens, and its trailing comments verbatim.
 
 /**
  Parameters for {@link buildSplitFix}.
@@ -313,3 +327,4 @@ export function buildSplitFix({
     replacement,
   );
 }
+//endregion Split fix

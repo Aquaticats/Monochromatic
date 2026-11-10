@@ -11,7 +11,7 @@ import {
   validateName,
   vmConfigPath,
   vmDir,
-} from '../dist/final/node/testing.mjs';
+} from '../dist/final/node/index.mjs';
 
 //region validateName: rejects unsafe VM names, accepts safe ones
 

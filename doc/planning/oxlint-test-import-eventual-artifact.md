@@ -414,6 +414,25 @@ That marker is hardcoded to `dist/final`,
 so imports under `dist/app` do not map back;
 this affects the 4 Electron test files.
 
+### Bin-only CLI packages
+
+`package/vmsync/cli` had one entry that parsed argv at import,
+so no test could reach the artifact at all.
+Commit `750aae7ac1` gives it the shape `package/mvm/cli` and
+`package/dependency-catalog/cli-cube` already had:
+`src/index.ts` is a barrel of the symbols its five suites reach,
+each tagged `@internal`,
+and the executable moved to `src/cli.ts`,
+which the manifest `bin`,
+the `run` task,
+the e2e bundle path,
+and the bin smoke test follow.
+Its build uses `perEntryNodeConfig`,
+so neither entry carries a hashed shared chunk.
+Replacing one message string inside `dist/final/node/index.mjs` fails the
+`parseMemoryToBytes` suite,
+which shows the artifact import bites rather than merely satisfying the rule.
+
 ### Why internal modules are in scope at all
 
 The policy is empirical,

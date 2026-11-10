@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { hasUnescapedCommentClose, } from './tag-escaping.ts';
+import { hasUnescapedCommentClose, } from '../../dist/final/node/index.mjs';
 
 /** Count of repeated closers used to exercise the walk across many matches. */
 const LONG_RUN = 1_000;

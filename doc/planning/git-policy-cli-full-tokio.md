@@ -8586,6 +8586,645 @@ so no finding here is this run's,
 and the four the coordinator read on `merge_isolation_recovery.rs` are
 cleared.
 
+## Step T12, the landing round is tasks: the review, the drain and the round, 2026-11-09T23:43:43-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-drain-pending-and-landing-round` in
+  `.claude/worktrees/pi-tokio-drain-pending-and-landing-round`,
+  from main at `42cea0ccee`,
+  and main merged into it twice while the run went on
+  (`ec99918fe2`,
+  when `origin/main` had moved to `403cf459bb`,
+  and `bf647f4fcb`,
+  when it had moved again to `23fc2569b5`),
+  each before the checks that follow it.
+  Commit `2a00940c40` is the work,
+  `78cb8d9135` is this section's own commit,
+  and `f28892147a` is its measurement and its last run.
+  Not merged into main.
+- What this run was asked to do,
+  in the order the previous record's "What the round still needs,
+  measured"
+  names it:
+  the awaited review,
+  the storage work of each item inside `run_blocking_job_within_the_budget`
+  with the held claims shared rather than borrowed,
+  and the loop itself as a task,
+  then the landing round in `landing/service_round.rs`,
+  then T13's guards.
+- Done:
+  all three of the drain's items and the round.
+  T13 is not started,
+  and the reason is below.
+- The review is awaited:
+  `run_contained_in_awaiting` (`standards_review/standards_review_run.rs`)
+  makes the wait for the contained job a `tokio::sync::oneshot` under the
+  runtime's timer,
+  with the admission,
+  the thread,
+  the release before the send and the second bounded wait of the synchronous
+  face;
+  `review_item_in_awaiting`,
+  `review_item_within_awaiting` and `review_item_awaiting`
+  (`service/service_review.rs`) sit beside the synchronous faces and answer
+  through one `verdict_of`,
+  whose job is one function (`run_the_review`) for both;
+  `WorkHandlers::review_awaiting` has a default that keeps the synchronous
+  answer,
+  and `GitHandlers` overrides it.
+  Every double in the controls is unchanged by the default.
+- The drain is a task:
+  `drain_pending_awaiting` (`landing/service_work_drain_pending_claims.rs`)
+  is the one body,
+  and the synchronous `drain_pending` enters the runtime once and says so when
+  it is called from inside it.
+  Each storage step is a job of the blocking pool
+  (`landing/service_work_storage_awaited.rs`):
+  the claim of a directory,
+  the look that decides which records are acceptable,
+  the settling,
+  the look that finds a claim taken over,
+  the push-failure and push-skip records,
+  the removal of earlier records,
+  the wait for another instance's claim,
+  the taking back of expired claims,
+  and the look for the instance record.
+  A job the system refuses a thread for does nothing,
+  says so,
+  and leaves its records to their lease.
+- The held claims are shared:
+  `HeldClaims` (`landing/service_claim_renewal.rs`) keeps its list and its one
+  directory listing behind a `Mutex`,
+  and the hand-over to the renewal is a `tokio::sync::mpsc` channel,
+  because the task and whichever pool thread runs a step both touch them.
+  No file operation is made while the lock is held:
+  the look at the directory is made outside it and its answer stored inside
+  (`current_name`),
+  and a claim is cloned out of the list before the directory is read
+  (`is_held_on_disk`).
+  The renewal's stop is `stop_awaiting`,
+  which is the runtime's timer bounded by `RENEWAL_STOP_CEILING`.
+- The planned drains are awaited:
+  `drain_planned_with_awaiting`,
+  `drain_planned_awaiting`,
+  `drain_common_records_planned_awaiting` and
+  `run_due_push_retries_awaiting`
+  (`landing/service_work_drains_awaiting.rs`),
+  with the synchronous faces of `landing/service_work.rs` entering the runtime
+  once.
+  `run_due_push_retries` and the synchronous `drain_pending` are gone:
+  the second had no caller left,
+  and the first is the awaited twin's body.
+- The round is a lane of tasks:
+  `drain_directories_awaiting` (`landing/service_round.rs`) runs each lane as
+  a task of `run_ordered_awaiting_on_the_runtime`,
+  and answers the answer and the `OrderedRunError` of a lane that stopped
+  before its last directory,
+  because a caller told nothing reads the silence as a full refresh.
+  `drain_directories` enters the runtime once for the service's work loop,
+  which still calls it from its own thread,
+  and says what stopped in the service log.
+  One item's work is one function (`drain_one`) for the lane and for the
+  control that drains the same directories one after another,
+  so a difference between them is the runner's.
+  `RoundDrain::handlers` is an `Arc<H>`:
+  a lane is a task that outlives the
+  frame that starts it,
+  so the handlers are a shared value and no longer a borrow.
+- What the previous record had wrong,
+  and what this run measured instead:
+  `review_item` is not refused inside the runtime.
+  `the_synchronous_wait_answers_from_inside_the_runtime`
+  (`standards_review/standards_review_run_tests.rs`) makes that wait from a
+  task and gets the job's value,
+  so a task calling `review_item` did not fail:
+  it held its worker for up to `REVIEW_CEILING`.
+  The reason is in the code the record pointed at:
+  the contained job runs on a plain `standards-review` thread
+  (`run_contained_in`,
+  `standards_review/standards_review_run.rs:519`),
+  and the `run_on_runtime` at
+  `standards_review/standards_review_client.rs:474` is that thread's own,
+  not the caller's,
+  while the synchronous wait is `mpsc::recv_timeout`,
+  which no runtime refuses.
+  What the awaited face removes is the held worker,
+  not a refusal.
+- Measured,
+  and it is the trap of this step:
+  a lane whose awaited handler face blocks holds a worker,
+  so the round's overlap is bounded by the runtime's workers and not by its
+  lanes.
+  `landing::service_round::tests::repositories_are_drained_side_by_side` failed
+  on the first run of the suite with
+  "left:
+  1,
+  right:
+  4",
+  over the four "pushed ... push_ms=10000" lines of the log:
+  three lanes waited at the point the fourth never reached,
+  because the doubles' `push_awaiting` default ran the synchronous `push` on
+  the worker.
+  The control now gives its double an awaited face that runs the waiting as a
+  job of the pool,
+  which is the shape the shipped handlers have,
+  and the control passes in 0.09 s.
+- Not converted,
+  and why that is not this step's gap:
+  `WorkHandlers::trash` is still synchronous in the drain,
+  so `empty_trash` reads a manifest and removes files on a worker,
+  which can wait on storage;
+  the previous record judged it safe because it starts no Git,
+  and this run kept that judgement and names it the next piece of the loop.
+  The service's work loop (`service/service_server_work_loop.rs`) is still a
+  thread that calls `run_round` and enters the runtime once,
+  and the landing (`landing/service_land.rs`) is untouched.
+
+### What the controls pin, and what changed
+
+- `a_refused_thread_partway_through_a_round_leaves_no_directory_undrained` is
+  gone.
+  The round starts no scoped thread any more,
+  so `scoped_start::RefusedStarts` refused nothing,
+  and the control would have compared two rounds that both drain everything.
+  A control that cannot fail proves nothing,
+  so it was replaced rather than kept.
+- `a_lane_that_panics_stops_its_lane_and_the_round_says_so` is the
+  replacement,
+  and it pins what the plan says the converted round must answer:
+  one lane's push panics,
+  the round answers `OrderedRunError::Panicked`,
+  the repository of the other lane is settled `done`,
+  the record the stopped lane was inside keeps its claim in `claimed`,
+  and the record behind it stays in `pending`.
+  Planted,
+  by answering nothing instead of the runner's error,
+  it fails on its own expectation,
+  `the round says it did not finish`,
+  because the round answered as if it had finished.
+- `the_awaited_runner_answers_what_the_synchronous_one_answers`
+  (`standards_review/standards_review_run_tests.rs`) pins the four answers of
+  `run_contained_in_awaiting` against the synchronous ones:
+  a value,
+  a panic,
+  a ceiling with the abandoned job still counted until it ends,
+  and a closed runner.
+  Planted,
+  with the ceiling arm answering `Panicked` instead of `CeilingReached`,
+  it fails on `a job still running at the ceiling is not waited for`,
+  with `Panicked` against `CeilingReached(400ms)`.
+- `the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers`
+  (`landing/service_work_tests.rs`) reviews two identical fixtures,
+  one from a plain thread and one from a task,
+  against the loopback gateway,
+  and requires the same verdict and an entry in each repository's live log,
+  with a repository that keeps no shadow log answering `Done` on both faces.
+  Planted,
+  by making the awaited face answer a failure,
+  it fails on `the two faces answer one review the same way`,
+  with the planted failure against the synchronous `Done`.
+- `the_synchronous_wait_answers_from_inside_the_runtime` is the measurement the
+  paragraph above rests on:
+  a task that makes the synchronous wait for a review's job gets
+  `Contained::Finished(4)`,
+  so nothing refuses it and the awaited face is about the worker it holds.
+- The three plants were made in one build,
+  each on its own path,
+  and the three controls passed again once the plants were restored:
+  3 of 3 in 0.4 s.
+- The round's double gained an awaited push face,
+  and the reason is above:
+  a control's push waits at a point several pushes must reach together,
+  and a worker that waited there showed the shape of a host with fewer workers
+  than repositories instead of the round's.
+
+### Checks
+
+- One selection,
+  one run,
+  in a `systemd-run --user --scope` at `CPUQuota=600%`,
+  `MemoryMax=24G` and `TasksMax=4000`,
+  with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`,
+  over `landing::service_round`,
+  `landing::service_work` (which holds the push-retry controls),
+  `landing::service_claim` and
+  `standards_review`:
+  203 of 203 passed in 17.4 s at the tip of `2a00940c40`,
+  203 of 203 in 17.5 s at the merged tip (`ec99918fe2`),
+  where main had brought 39 more tests into these folders
+  (5831 and 5870 skipped),
+  204 of 204 in 17.6 s at the tip of `f28892147a`,
+  where the last control,
+  `the_synchronous_wait_answers_from_inside_the_runtime`,
+  had joined the selection,
+  and 204 of 204 in 22.4 s at the second merged tip (`bf647f4fcb`).
+- The binary target's own landing tests,
+  `native:test:binary:host`:
+  `service::a_landing_waits_for_the_index_lock_before_the_branch_moves`,
+  `service_lane::a_landing_waiting_for_a_foreign_index_lock_does_not_delay_another_worktree`,
+  `service_provision::the_service_pushes_after_the_commit_returned` and
+  `commit::the_maintenance_a_landing_hands_to_the_service_runs_once_the_work_settled`,
+  4 of 4 passed in 7.5 s at the merged tip.
+  The push one is the round end to end through the real handlers:
+  it was among the eight the previous record found failing at its own gate,
+  and it passes here.
+- `native:test:binary:host --no-run` built the binary test target twice,
+  once at the tip of `2a00940c40` (4 m 45 s) and once through the run above at
+  the merged tip.
+- `native:clippy` on every target clean
+  (`cargo clippy --locked --offline --all-targets -- -D warnings`),
+  at both tips.
+  It refused,
+  and the code now says:
+  four `clippy::implicit_return` sites (an arm of `()` and three closures that
+  returned their last expression),
+  one `clippy::let_unit_value`,
+  five `shadow_reuse` sites (`held` and four `newest`),
+  and one `shadow_unrelated` (`_elapsed`);
+  and the repo's closure lint refused the review's job as a returned closure,
+  which is now a named function the two faces hand to the runner as a direct
+  argument.
+- `//:lint:monochromatic-lint --max-warnings 0` on the fifteen files this run
+  touched:
+  0 errors and 0 warnings,
+  after `format:monochromatic-lint` wrote the two breaks it asked for
+  (`service_claim_renewal.rs`,
+  `service_work_tests.rs`).
+- Not run:
+  the whole `native:test:host` suite,
+  the container gate,
+  `native:perf` (nothing of this run is in a forwarded command's path,
+  and the
+  commit path is not touched),
+  `native:clippy:windows`,
+  and any mutation campaign (paused by the owner).
+- T13 is not started,
+  and the reason is measured rather than chosen:
+  its guards fail on what this tree still runs.
+  `std::thread` is used by the review's contained thread
+  (`standards_review/standards_review_run.rs`),
+  by `foundation/scoped_start.rs` and by the doubles of several suites,
+  and `thread::sleep` by controls that wait on a program they started.
+  A guard that rejects them now would be red on a tree that is green,
+  and the plan puts T13 after the whole move for that reason.
+
+
+## Step T12, the trash the drain dropped: a work item of every kind goes through the awaited drain, 2026-11-10T01:34:09-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-drain-pending-and-landing-round` in
+  `.claude/worktrees/pi-tokio-drain-pending-and-landing-round`.
+  Main was merged into it as `13967bfec9` by the coordinator,
+  and again by this run as `7856e87e96` when `origin/main` had moved to
+  `dc63e09c24`.
+  Commit `3a42f1aa05` is the fix,
+  and `7bab410ebe` is this section's own commit.
+  Not merged into main.
+- What the coordinator measured,
+  and what this run found:
+  `worktree::worktree_trash::tests::the_drain_empties_a_trash_item` failed
+  alone and in the selection at `13967bfec9`,
+  and the wrapper's own word for the reason was in the test's stderr:
+
+  ```text
+  the trash ... could not be emptied: the runtime that runs this command's waits was asked for
+  from inside itself, where waiting for it would never end; nothing was run.
+  ```
+
+- The cause:
+  `WorkHandlers::trash` reached `empty_trash`
+  (`worktree/worktree_trash_dispose.rs`),
+  which reached `remove_entries`
+  (`worktree/worktree_trash_entries.rs`),
+  and that face enters the process's runtime for its entry removals
+  (`run_on_runtime`).
+  The drain of a round is a task of the runtime since the previous section,
+  so the entry removals were refused inside it,
+  the trash stayed,
+  and the item was settled as failed with the refusal as its reason.
+  The item was not dropped in silence:
+  it was settled,
+  and the person's line named the refusal as a defect.
+  What was lost was the emptying.
+- Why the previous record did not see it:
+  it listed `WorkHandlers::trash` as the last kind still synchronous,
+  and judged it safe because `empty_trash` starts no Git.
+  The judgement was about Git and missed the runtime:
+  a synchronous face is only safe for a task's caller when it does not enter
+  the runtime,
+  and the records merged from main made this one do so
+  (`delete_trash_awaiting`,
+  `dispose_pending_trash_awaiting` and `remove_entries_awaiting`).
+- Done:
+  `empty_trash_awaiting` (`worktree/worktree_trash_dispose_awaiting.rs`) is the
+  twin a task asks:
+  the same record decode,
+  the same reasons and `delete_trash_awaiting`'s awaited disposal.
+  `WorkHandlers::trash_awaiting` is the face the drain calls,
+  its default keeps the synchronous handler for a handler that knows nothing of
+  the runtime,
+  and `GitHandlers` answers through the awaited one.
+  The drain awaits it,
+  so no kind of work item reaches a synchronous face there any more.
+- Two supporting changes the awaited face needed,
+  both measured by the compiler rather than chosen:
+  - The awaited ordered runner's consumer is the caller's own type instead of
+    a `dyn` value
+    (`foundation/parallel_runner_on_the_runtime_awaiting.rs`,
+    `foundation/parallel_runner_on_the_runtime.rs` and
+    `foundation/parallel_runner.rs`).
+    A run's future held `&mut dyn OrderedEvents<R>`,
+    which is never `Send`,
+    so no task could reach an entry removal through it.
+    With the consumer named,
+    a run whose work and consumer are `Send` is a future a task may await,
+    and the consumers that lend a sink which is not `Send` (the worktree
+    conversion's report and the index refresh's lines) keep exactly the shape
+    they had:
+    their runs stay futures only a caller outside the runtime awaits,
+    and nothing in their files changed.
+  - `remove_entries` removes the entries in turn where it is called from
+    inside the runtime
+    (`worktree/worktree_trash_entries.rs`),
+    where entering the runtime is refused and a job of the blocking pool cannot
+    await either.
+    The per-entry body is one function (`remove_one`) for the pool job,
+    for the
+    awaited face and for this fallback,
+    so a trash emptied here holds what a trash emptied there holds;
+    only a handler written against the synchronous face takes that path,
+    which the drain of the service never does.
+    The reasons are the removal's own,
+    unchanged:
+    a prefix that named the entry again would say its name twice,
+    which
+    `worktree::worktree_trash_entries::tests::the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go`
+    caught while this run was written.
+
+### What pins each kind of work item
+
+- Push:
+  `landing::service_work::tests::pending_pushes_of_one_branch_become_one_push`
+  (one push for a branch's burst) and
+  `landing::service_work::push_retry_tests::the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers`
+  (the awaited face delivers what the synchronous one does).
+- Maintenance:
+  `landing::service_work::tests::upkeep_and_review_that_ran_leave_entries` and
+  `landing::service_work::push_retry_tests::the_awaited_maintenance_of_the_handlers_answers_what_the_synchronous_one_answers`.
+- Review:
+  `landing::service_work::tests::every_review_item_is_reviewed_once_after_the_pushes`,
+  `landing::service_work::tests::a_review_runs_through_the_real_handlers_in_a_service_context`
+  and
+  `landing::service_work::tests::the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers`.
+- Trash:
+  `worktree::worktree_trash::tests::the_drain_empties_a_trash_item` (the
+  coordinator's failing control,
+  green again) and
+  `worktree::worktree_trash::tests::the_two_faces_of_the_trash_handler_empty_what_a_task_and_a_thread_ask_about`
+  (the product's two faces,
+  one asked from a plain thread and one from a task).
+- All four kinds in one task:
+  `landing::service_work::tests::the_awaited_drain_runs_every_kind_of_item`,
+  which asks one item of each kind through the awaited drain,
+  requires each handler to be asked once,
+  and requires all four to be in `done` with nothing left claimed.
+  Planted,
+  by asking the synchronous trash face from the drain as before,
+  the trash item is settled as failed with the refusal of the runtime and the
+  directory stays,
+  which is the failing output of the coordinator's control quoted above.
+
+### Checks
+
+- The coordinator's selection,
+  one run,
+  in a `systemd-run --user --scope` at `CPUQuota=600%`,
+  `MemoryMax=24G` and `TasksMax=4000`,
+  with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`,
+  over `the_drain`,
+  `service_work`,
+  `landing` and
+  `drain`:
+  866 of 866 passed in 88.1 s at `13967bfec9` with `3a42f1aa05` applied,
+  and 866 of 866 in 159.4 s at the merged tip (`7856e87e96`).
+  It is one more than the coordinator's 865:
+  `the_awaited_drain_runs_every_kind_of_item` is new.
+- The trash folder alone,
+  `worktree::worktree_trash`:
+  55 of 55 passed in 16.5 s,
+  which holds the coordinator's control,
+  the two new ones and the entries folder's own reasons control.
+- The binary target's landing tests,
+  `native:test:binary:host`,
+  the same four as the previous section:
+  4 of 4 passed in 11.2 s at the unmerged tip and 4 of 4 in 35.3 s at the
+  merged tip.
+- `native:clippy` clean on every target at both tips
+  (`Finished \`dev\` profile ... in 30.98s`,
+  then `in 34.52s`).
+- `//:lint:monochromatic-lint --max-warnings 0` on the thirteen files this run
+  touched:
+  0 errors and 0 warnings
+  (`Finished in 24.61s`).
+- Not run:
+  the whole `native:test:host` suite and the container gate (the coordinator
+  runs them),
+  `native:perf` (nothing of this run is in a forwarded command's path),
+  `native:clippy:windows`,
+  and any mutation campaign (paused by the owner).
+- Still blocking on the runtime,
+  unchanged by this run:
+  the service's work loop is a thread that calls `run_round` and enters the
+  runtime once,
+  `landing/service_land.rs` and the commit path are untouched,
+  and T13's guards are not started,
+  for the reason the previous section gives.
+
+
+## Step T12, the round's lanes measured in the gate's container, and the claim set without a lock, 2026-11-10T02:41:50-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-drain-pending-and-landing-round` in
+  `.claude/worktrees/pi-tokio-drain-pending-and-landing-round`.
+  Main was merged into it as `842c57a9e5` when `origin/main` had moved to
+  `26e8148971`,
+  after the coordinator's gate on the merge `13967bfec9`.
+  Commit `692ab42ac8` is the two fixes,
+  and `5d215708d2` is this section's own commit.
+  Not merged into main.
+- The whole-suite gate on the merge `13967bfec9` ran 6962 tests,
+  6960 passed and two failed
+  (`${HOME}/temp/agent/gate/gpc-gate-wrapper-tokio-drain-and-landing-round-20261110T014146-0500.log`):
+  `landing::service_round::tests::repositories_are_drained_side_by_side` and
+  `source_guard::service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`.
+
+### The round's lanes, measured where the gate runs them
+
+The gate container runs the suite with `--memory 2g`,
+`--cpus 2` and `--pids-limit 512`
+(`${HOME}/temp/agent/gate/launch-gate.ts`),
+and the wrapper sizes the process's runtime and its bound on blocking jobs from
+the CPUs it may use
+(`lazy_runtime.rs`,
+`max_blocking_threads`;
+`blocking_jobs_within_the_budget.rs`,
+`decide_the_budget`).
+This run ran the gate's own image
+(`localhost/git-policy-native-test:gpc-gate-wrapper-tokio-drain-and-landing-round-20261110T014146-0500`)
+with those limits and the test binary of this tree,
+the control instrumented for one run,
+and the measurement is:
+
+```text
+PROBE lane=.../repository1/common reached-its-push room=2
+PROBE lane=.../repository0/common reached-its-push room=2
+PROBE lane=.../repository1/common job-started
+PROBE lane=.../repository3/common reached-its-push room=2
+PROBE lane=.../repository0/common job-started
+PROBE lane=.../repository1/common job-ended            (10.0 s later)
+PROBE lane=.../repository3/common job-started          (10.0 s later)
+PROBE lane=.../repository0/common job-ended
+PROBE lane=.../repository2/common reached-its-push     (10.0 s later)
+PROBE lane=.../repository2/common job-started
+PROBE lane=.../repository2/common job-ended            (27 ms)
+PROBE lane=.../repository3/common job-ended
+```
+
+- `room=2` is `budgeted_blocking_jobs()`:
+  the process may run two blocking jobs
+  at once in that container,
+  and its runtime's blocking pool is built with the same figure.
+- Three of the four lanes reached their push within the first milliseconds,
+  which is the round doing what it is for:
+  the lanes are tasks,
+  each awaited its storage steps,
+  and none waited for another.
+- The fourth lane reached its push only after the first two *pushes* ended,
+  because the control's own push held a place of the process's two for its
+  whole ten-second wait,
+  and the lane's next storage step had to wait for a place.
+- The four pushes therefore ran in two waves of two,
+  and the control's point on the pool was passed by two of them.
+- The product does not have that shape:
+  a push takes a place only for its short storage steps
+  (`lfs/lfs_bounded_push.rs:210` and `:232`,
+  `lfs/lfs_upload.rs:359`),
+  and its Git wait is awaited on the runtime.
+  So the failing control measured the process's bound on blocking jobs,
+  which the owner chose ("Build size + job limit",
+  `doc/planning/git-policy-cli-full-tokio.md`,
+  "The owner's answers at 2026-11-07"),
+  and not the round's lanes.
+
+### What changed for the round's control
+
+`repositories_are_drained_side_by_side` now puts its point on the runtime
+(`tokio::sync::Barrier`,
+one participant per repository),
+where the shipped handlers wait for their Git,
+and the round runs inside `test_support::finished_within_at`:
+a round that ran its lanes in turn never brings all of them to the point,
+so it never finishes and the control fails by name
+(`the round brought every repository to the point within 10s, so its lanes ran side by side`)
+rather than passing on a patience.
+That is a stronger control than the one it replaces,
+which could pass on a patience and reported only a count of arrivals.
+The double keeps the pool's waiting for the controls that measure the pool's
+own bound
+(`the_budget_of_the_host_bounds_the_overlap`,
+`the_directories_of_one_repository_are_drained_one_after_another`),
+so nothing there changed.
+Measured in the gate's image and limits,
+before and after:
+`left: 2, right: 4` in 10.05 s at `13967bfec9`,
+and 10 of 10 of `landing::service_round` in 0.44 s with
+`push_ms=0` for all four pushes after this change.
+
+### The claim set without a lock
+
+`HeldClaims` (`landing/service_claim_renewal.rs`) kept its two collections
+behind a `Mutex` after the previous section,
+which the lock inventory refused
+(`a_lock_stands_only_in_a_file_on_the_inventory`:
+"locks outside the inventory ...
+["landing/service_claim_renewal.rs"]").
+The lock is gone,
+and no lock replaced it:
+the set has **one owner at a time**,
+and the owner hands the whole set to the step that reads or renames a claim and
+takes it back
+(`service_work_storage_awaited.rs`:
+`settle_all_awaiting` and `still_held_awaiting` take `HeldClaims` and return
+it).
+The two collections are `RefCell`s again,
+which is sound because the value is moved between threads and never shared,
+and the hand-over to the renewal is still a channel.
+What a refused job costs is now stated and paid:
+a job the system refuses a thread for does not run,
+so the set goes with it and nothing is answered,
+and the drain ends its round there
+(`service_work_drain_pending_claims.rs`,
+the labelled `'round` loop)
+with the reason in the log,
+leaving every record it had claimed to its lease for the next round.
+That is the same promise as before ("nothing is lost"),
+made in one place instead of behind a lock.
+
+### Checks
+
+- The selection this branch ran before,
+  plus both controls the gate named,
+  one run,
+  in a `systemd-run --user --scope` at `CPUQuota=600%`,
+  `MemoryMax=24G` and `TasksMax=4000`,
+  with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`,
+  over `the_drain`,
+  `service_work`,
+  `landing`,
+  `drain`,
+  `a_lock_stands_only_in_a_file_on_the_inventory`,
+  `worktree_trash` and
+  `service_claim_renewal`:
+  922 of 922 passed in 99.8 s at the unmerged tip and 922 of 922 in 167.0 s at
+  the merged tip (`842c57a9e5`).
+- `landing::service_round` alone in the gate's image and limits
+  (`podman run --pids-limit 512 --cpus 2 --memory 2g`,
+  the binary of this tree):
+  10 of 10 passed in 0.44 s,
+  with `push_ms=0` for the four pushes of the overlap control.
+- `source_guard` and `service_lock_inventory` on the host:
+  47 of 47 passed in 0.9 s,
+  the inventory test among them.
+  They read this tree's sources,
+  so they do not run in a container that holds no sources.
+- `native:clippy` clean on every target
+  (`Finished \`dev\` profile ... in 9.15s` at the unmerged tip).
+- `//:lint:monochromatic-lint --max-warnings 0` on the four files this run
+  touched:
+  0 errors and 0 warnings,
+  after `format:monochromatic-lint` wrote the two breaks it asked for.
+- Not run:
+  the whole `native:test:host` suite and the container gate (the coordinator
+  runs them),
+  `native:perf` (nothing of this run is in a forwarded command's path),
+  `native:clippy:windows`,
+  and any mutation campaign (paused by the owner).
+- Still blocking on the runtime,
+  unchanged by this run:
+  the service's work loop is a thread that calls `run_round` and enters the
+  runtime once,
+  `landing/service_land.rs` and the commit path are untouched,
+  and T13's guards are not started.
+  One thing this run measured and did not change:
+  a lane's storage steps and a handler's blocking work share the process's one
+  bound,
+  so on a host whose bound is two a long blocking job in one lane delays
+  another lane's storage steps by its own ceiling.
+  Nothing waits for ever there,
+  and the shipped push does not hold a place while it waits on Git,
+  but a handler that holds one for its whole run would.
+
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;

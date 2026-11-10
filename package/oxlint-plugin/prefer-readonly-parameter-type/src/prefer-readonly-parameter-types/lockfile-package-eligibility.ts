@@ -17,6 +17,10 @@ import {
 import { ancestorDirectories, } from './ancestor-directories.ts';
 import type { InstalledPackageIdentity, } from './installed-package-identity.ts';
 
+//region Lockfile lookup
+// The sentinel for a project no pnpm lockfile governs, the cached keys per
+// lockfile path, and the search for the nearest governing lockfile.
+
 /**
  Sentinel when configured project has no governing pnpm lockfile.
  */
@@ -56,6 +60,12 @@ function nearestPnpmLockfile(
   }
   return PNPM_LOCKFILE_UNAVAILABLE;
 }
+
+//endregion Lockfile lookup
+
+//region Key parsing
+// The sentinel for a line carrying no package key, the indentation width every
+// such key sits at, and the parse of one line.
 
 /**
  Sentinel for lockfile lines carrying no package key.
@@ -117,6 +127,12 @@ function lockfileLinePackageKey(
   }
   return LINE_WITHOUT_PACKAGE_KEY;
 }
+
+//endregion Key parsing
+
+//region Reading the keys
+// Every package and snapshot key of one lockfile, read and parsed once per
+// metadata identity.
 
 /**
  Parses every package and snapshot key from lockfile text.
@@ -188,6 +204,12 @@ function lockfileKeys(path: string,): ReadonlySet<string> {
   return keys;
 }
 
+//endregion Reading the keys
+
+//region Eligibility
+// The process-local reset, and the exported test for whether one installed
+// version occurs in the governing lockfile.
+
 /**
  Clears process-local lockfile keys at semantic lifecycle boundary.
  
@@ -230,3 +252,4 @@ export function packageVersionIsLocked({
   return lockfileKeys(path,)
     .has(`${identity.name}@${identity.version}`,);
 }
+//endregion Eligibility

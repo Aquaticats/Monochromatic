@@ -28,6 +28,10 @@ import {
   nativeApiChild,
 } from './typescript-sync-native-shutdown.ts';
 
+//region Bridge vocabulary
+// The package logger and the four sentinels standing for the states the bridge
+// has not reached yet.
+
 /**
  Package logger for semantic bridge lifecycle.
  */
@@ -52,6 +56,12 @@ export const NO_ACTIVE_FILE: unique symbol = Symbol('TypeScript semantic bridge 
  Sentinel before the request memo is installed on the native API client.
  */
 const NO_REQUEST_MEMO: unique symbol = Symbol('TypeScript request memo not installed',);
+
+//endregion Bridge vocabulary
+
+//region Bridge state
+// The mutable process-local state the bridge and the file-open phases of the
+// adapter share.
 
 /**
  Mutable process-local bridge state shared with the file-open phases of
@@ -81,6 +91,12 @@ export const bridgeState: {
   beforeExitHookRegistered: false,
   channelRetired: false,
 };
+
+//endregion Bridge state
+
+//region Starting
+// The native synchronous API started once with its process cleanup, and the
+// semantic child started before Oxlint allocates a buffer per worker.
 
 /**
  Starts native synchronous API once and registers process cleanup.
@@ -164,6 +180,12 @@ export function getApi(): API {
 export function initializeSemanticBridge(): void {
   getApi();
 }
+
+//endregion Starting
+
+//region Retiring
+// The retirement after the channel stopped accepting writes, and the idempotent
+// disposal every shutdown path may call.
 
 /**
  Retires the semantic bridge after its native channel stopped accepting writes.
@@ -284,3 +306,4 @@ export function closeSemanticBridge(): void {
   bridgeState.projectDiscoveryCount = 0;
   rl.debug('closed TypeScript synchronous API',);
 }
+//endregion Retiring

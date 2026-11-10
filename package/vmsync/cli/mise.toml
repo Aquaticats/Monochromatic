@@ -1,6 +1,6 @@
 [tasks.run]
 description = "Run vmsync CLI"
-run = "node src/index.ts"
+run = "node src/cli.ts"
 
 [tasks.build]
 extends = "build"

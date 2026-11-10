@@ -101,10 +101,16 @@ export function reachTally(events: readonly string[],): ReachTally {
     },
     shortfalls(minimum,) {
       return [...counts,]
-        .filter(function below([, count,],) {
+        .filter(function below([, count,]: readonly [
+          string,
+          number
+        ],) {
           return count < minimum;
         },)
-        .map(function describe([event, count,],) {
+        .map(function describe([event, count,]: readonly [
+          string,
+          number
+        ],) {
           return `${event}: ${String(count,)} of ${String(minimum,)} runs`;
         },);
     },
