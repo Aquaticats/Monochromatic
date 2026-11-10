@@ -48,3 +48,11 @@ The editor color scheme extends Darcula and overrides:
 - Disables caret row highlight
 - Removes warning background fill (keeps underline)
 - Removes injected language fragment background
+
+## Terminal colors
+
+The block terminal's ANSI black foreground stays `#000000`,
+which is what the bundled Darcula scheme uses and what the ANSI palette means by
+black: on this theme's `#000000` console background such text is invisible,
+and a program that wants readable dark text prints bright black instead,
+which this scheme leaves at Darcula's visible `#4E5157`.
