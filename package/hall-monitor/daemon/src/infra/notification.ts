@@ -32,7 +32,6 @@ export async function sendNotification(summary: string,): Promise<void> {
      Caught error rendered as a string; preserves `err.message` for `Error` instances, otherwise coerces via `String(err)`.
      */
     const message = caughtValueText(err,);
-    console.error(`[notify] Failed to send notification: ${message}`,);
     log.error(`[notify] Failed to send notification: ${message}`,);
   }
 }

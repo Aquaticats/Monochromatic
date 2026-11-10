@@ -19,6 +19,7 @@ import {
 } from 'node:fs/promises';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import {
@@ -27,6 +28,16 @@ import {
   reduceShiftEvent,
   type ShiftState,
 } from './evdev-parse.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const evdevLogger = tagged({ tag: 'kwin-key-helper-evdev', },);
+
+//endregion Logging
 
 /**
  evdev `type` value for a key event.
@@ -198,7 +209,11 @@ export async function findShiftDevices(): Promise<readonly Device[]> {
          Message for an unreadable or malformed device, which is expected.
          */
         const message = caughtValueText(error,);
-        console.error(`[key-helper] skipping input device ${path}: ${message}`);
+        tagged({
+          tag: findShiftDevices.name,
+          l: evdevLogger,
+        },)
+          .debug(`skipping input device ${path}: ${message}`,);
         return [];
       }
     }),
@@ -328,9 +343,17 @@ export async function startEvdevMonitor({
   stream.on(
     'error',
     function onError(error: ForeignBorrowed<Error>): void {
-      console.error(`[key-helper] evdev read error: ${error.message}`);
+      tagged({
+        tag: startEvdevMonitor.name,
+        l: evdevLogger,
+      },)
+        .error(`evdev read error: ${error.message}`,);
     }
   );
 
-  console.log(`[key-helper] monitoring ${devicePath} for double-shift`);
+  tagged({
+    tag: startEvdevMonitor.name,
+    l: evdevLogger,
+  },)
+    .info(`monitoring ${devicePath} for double-shift`,);
 }
