@@ -261,11 +261,103 @@ mise exec -- oxlint -c oxlint.config.ts -A all \
   -D test-import/require-eventual-artifact --format json package/
 ```
 
+
 The `-A prefer-readonly-parameter-type/...` argument keeps the semantic bridge out of the run;
  this rule reads the AST and the owning manifest,
  never type evidence,
 so dropping that rule changes nothing it reports
  and lets the sweep finish in minutes.
+
+### Migration progress, worktree `fix/test-import-remaining-sites-1651`, 2026-11-10T08:20:00-05:00
+
+The sweep opened at 178 sites across 108 files in 22 packages,
+and closed at 55 sites across 34 files in 5 packages,
+after 123 sites in 16 packages were converted.
+The 178 is 177 from the sweep plus one the crash pass below found:
+`package/vmsync/cli/src/import.unit.test.ts`.
+
+Packages converted,
+each green on every check:
+`lint:oxlint`,
+`lint:types`
+and `test:unit`.
+`fy/cli`,
+`numeric-format/core`,
+`llm/llm-type`,
+`agent-harness-shared/text-scan`,
+`agent-harness-shared/usage-projection`,
+`agent-harness-shared/session-discovery`,
+`pi-plugin/terminal-title`,
+`pi-plugin/statusline`,
+`pi-plugin/spawn`,
+`pi-plugin/current-time-context`,
+`vmsync/cli`,
+`android-exempt-unused/cli`,
+`test-harness/core`,
+`wc/app`,
+`git-clone-size/cli`,
+and `watch-restart/cli`.
+
+Two more have their sites converted and stop one check short of green,
+each on debt that predates this work.
+`pi-plugin/thinking-default` meets two pi 1.5.1 type errors in its extension entry:
+`Model<any>` against `ModelWithId` under `exactOptionalPropertyTypes`,
+and the `pi.on` `model_select` overload.
+`watch-restart/cli` meets one `consistent-function-scoping` warning in its shutdown
+handler,
+whose hoist exposes `unicorn/no-process-exit`,
+a rule this repository enables repo-wide with no per-file allowance.
+
+Three shapes covered every case,
+in the order to prefer them.
+
+-   The package's own bare name,
+     when its entry already re-exports the behavior under test and is side-effect
+    free on import.
+    It is one word per test file and exercises the exports map.
+-   A testing entry that the package's own rolldown Node build emits beside its bin or
+    extension entry,
+     built from a `testing.ts` that re-exports the driven symbols as `@internal`.
+    This is the shape for a package whose only entry runs when it loads.
+-   The standard unit glob instead of a package `self.unit.test.ts` aggregator,
+     for a package whose suites each own one file per module:
+    the aggregator's imports of sibling test files were the only sites,
+     and the glob reaches those files anyway.
+
+Each converted package takes the build its suites now need:
+`[tasks."test:unit"] extends = "test:unit"` with `depends = ["build"]`,
+or `depends = ["build:js:node"]` for a site whose build is expensive.
+
+### Measuring this rule is not one command
+
+A sweep can silently lose findings.
+On the run above,
+20 files produced `Error running JS plugin` after the TypeScript semantic bridge
+retired,
+and one of them,
+`package/vmsync/cli/src/import.unit.test.ts`,
+hid a real site that a single-file run reports.
+The crashed files must be re-run on their own,
+and a count that skips that pass is a lower bound rather than the count.
+`OXLINT_THREADS=1` cut the run time and did not remove the crashes.
+
+### Remaining sites, 2026-11-10T08:55:00-05:00
+
+-   `dependency-catalog/cli-cube` 21
+-   `i18n-compose/core` 17
+-   `oxlint-plugin/tsdoc` 10,
+     carried by the unmerged branch `fix/hyperscript-and-oxlint-plugin-lint`
+-   `ide/app` 6
+-   `terminal/app` 1
+
+`ide/app` and `terminal/app` are Rust packages that hold JavaScript build scripts
+and no `package.json` of their own,
+so the nearest manifest above those scripts is the repository root's and the rule
+treats them as root-owned.
+No artifact of those scripts exists or is planned,
+so the fix there is a per-site suppression with a rationale,
+or a rule that skips a file whose nearest named manifest is the workspace root.
+That choice belongs to the owner.
 
 Stage-one categorization below predates implementation and is retained
 as the shape of the work rather than as a current count.
