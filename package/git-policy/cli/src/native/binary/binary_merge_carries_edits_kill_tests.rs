@@ -305,8 +305,9 @@ fn a_kill_between_the_index_step_and_the_file_keeps_every_layer() {
     killed_at(&fixture, repo.as_path(), "merge-carry-index");
     let recovered: Observed = after_the_kill(&fixture, repo.as_path());
     assert_merged(&fixture, repo.as_path(), "kill between the layers");
-    assert!(!said(&recovered).contains("was written again while the merge ran"), "nothing changed under the next command, so it must not claim one did: {}", said(&recovered));
+    // The bytes come first: a line that says the right thing about a file whose layer never came back is the worse failure.
     assert_both_layers(&fixture, repo.as_path(), "kill between the layers");
+    assert!(!said(&recovered).contains("was written again while the merge ran"), "nothing changed under the next command, so it must not claim one did: {}", said(&recovered));
     assert_eq!(records(repo.as_path()), "", "the record went");
     assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
     remove_settled(&fixture);

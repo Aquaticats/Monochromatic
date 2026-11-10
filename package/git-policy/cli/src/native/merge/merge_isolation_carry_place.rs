@@ -401,9 +401,13 @@ async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
         // Another write took the path in the gap; the entry put aside is kept and named, and the bytes this write
         //  would have placed are made again by the next command.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Placed::Changed { kept: Some(aside.clone()) },
+        // The entry put aside stays where it is, so the message names it rather than leaving a person to find it.
         Err(error) => {
-            let _kept = aside.exists();
-            return Err(CarryFailure::Failed(format!("{} could not be written: {error}", location.display())));
+            return Err(CarryFailure::Failed(format!(
+                "{} could not be written: {error}; the file it held before is at {}",
+                location.display(),
+                aside.display()
+            )));
         }
     };
     if matches!(placed, Placed::Written) {
