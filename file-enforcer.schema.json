@@ -470,9 +470,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "contains": {
+        "operand": {
           "type": "string",
-          "description": "Substring of the manifest's license expression."
+          "description": "One SPDX license id the expression names, matched whole and never as a substring."
         },
         "texts": {
           "type": "array",
@@ -483,7 +483,7 @@
         }
       },
       "required": [
-        "contains",
+        "operand",
         "texts"
       ],
       "description": "License texts a manifest license expression needs."

@@ -75,8 +75,8 @@ fn package_licenses_copies_required_texts_and_prunes_only_owned_ones() {
         "manifests": ["package/*/*/package.json", "package/*/*/Cargo.toml"],
         "texts": {"CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt", "GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
                   "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt"},
-        "requires": [{"contains": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"]},
-                     {"contains": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"]}]}]}"#;
+        "requires": [{"operand": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"]},
+                     {"operand": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"]}]}]}"#;
     let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
     assert_eq!(code1, 0, "{events1:?}");
     assert_eq!(read_text(dir.path(), "package/a/b/LICENSES/GPL-3.0-or-later.txt"), "gpl");
@@ -86,6 +86,71 @@ fn package_licenses_copies_required_texts_and_prunes_only_owned_ones() {
     assert!(!dir.path().join("package/c/d/node_modules/e/LICENSES").exists(), "the glob is exactly two levels deep");
     let (code2, _) = run_config(dir.path(), config, check());
     assert_eq!(code2, 0);
+}
+
+#[test]
+fn package_licenses_matches_whole_spdx_ids_not_substrings() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            ("LICENSES/GPL-3.0.txt", "gpl-3.0"),
+            ("LICENSES/GPL-3.0-or-later.txt", "gpl"),
+            ("LICENSES/GPL-2.0-or-later.txt", "gpl-2.0"),
+            ("LICENSES/LGPL-3.0-or-later.txt", "lgpl"),
+            ("LICENSES/CC-BY-SA-4.0.txt", "cc"),
+            ("package/agpl/copyleft/package.json", r#"{"license": "AGPL-3.0-or-later"}"#),
+            ("package/agpl/copyleft/LICENSES/GPL-3.0-or-later.txt", "stale"),
+            ("package/both/copyleft/package.json", r#"{"license": "LGPL-3.0-or-later AND CC-BY-SA-4.0"}"#),
+            ("package/prefix/copyleft/package.json", r#"{"license": "GPL-3.0-or-later"}"#),
+            ("package/grouped/copyleft/package.json", r#"{"license": "(GPL-3.0-or-later OR MIT)"}"#),
+            (
+                "package/exception/copyleft/package.json",
+                r#"{"license": "GPL-2.0-or-later WITH Classpath-exception-2.0"}"#,
+            ),
+        ],
+    );
+    let config = r#"{"rules": [{"kind": "package-licenses", "id": "lic", "directory": "LICENSES",
+        "manifests": ["package/*/*/package.json"],
+        "texts": {"GPL-3.0": "LICENSES/GPL-3.0.txt", "GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
+                  "GPL-2.0-or-later": "LICENSES/GPL-2.0-or-later.txt",
+                  "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt",
+                  "CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt"},
+        "requires": [{"operand": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"]},
+                     {"operand": "GPL-3.0", "texts": ["GPL-3.0"]},
+                     {"operand": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"]},
+                     {"operand": "GPL-2.0-or-later", "texts": ["GPL-2.0-or-later"]},
+                     {"operand": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"]}]}]}"#;
+    let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
+    assert_eq!(code1, 0, "{events1:?}");
+    assert!(
+        !dir.path().join("package/agpl/copyleft/LICENSES/GPL-3.0-or-later.txt").exists(),
+        "AGPL-3.0-or-later is a different operand from GPL-3.0-or-later, so its stale owned text is pruned"
+    );
+    assert!(
+        !dir.path().join("package/agpl/copyleft/LICENSES/GPL-3.0.txt").exists(),
+        "AGPL-3.0-or-later is a different operand from GPL-3.0"
+    );
+    assert_eq!(read_text(dir.path(), "package/both/copyleft/LICENSES/GPL-3.0-or-later.txt"), "gpl");
+    assert_eq!(read_text(dir.path(), "package/both/copyleft/LICENSES/LGPL-3.0-or-later.txt"), "lgpl");
+    assert_eq!(read_text(dir.path(), "package/both/copyleft/LICENSES/CC-BY-SA-4.0.txt"), "cc");
+    assert!(
+        !dir.path().join("package/prefix/copyleft/LICENSES/GPL-3.0.txt").exists(),
+        "an operand never matches as the prefix of a longer id"
+    );
+    assert_eq!(read_text(dir.path(), "package/prefix/copyleft/LICENSES/GPL-3.0-or-later.txt"), "gpl");
+    assert_eq!(read_text(dir.path(), "package/grouped/copyleft/LICENSES/GPL-3.0-or-later.txt"), "gpl");
+    assert!(
+        !dir.path().join("package/grouped/copyleft/LICENSES/GPL-3.0.txt").exists(),
+        "parentheses separate operands and are not part of one"
+    );
+    assert_eq!(read_text(dir.path(), "package/exception/copyleft/LICENSES/GPL-2.0-or-later.txt"), "gpl-2.0");
+    assert!(
+        !dir.path().join("package/exception/copyleft/LICENSES/Classpath-exception-2.0.txt").exists(),
+        "WITH joins an id and an exception, and no requirement names the exception"
+    );
+    let (code2, events2) = run_config(dir.path(), config, check());
+    assert_eq!(code2, 0, "{events2:?}");
 }
 
 #[test]

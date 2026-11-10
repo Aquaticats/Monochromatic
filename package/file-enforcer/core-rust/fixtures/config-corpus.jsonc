@@ -36,7 +36,7 @@
           "manifests": ["package/*/*/package.json"],
           "directory": "LICENSES",
           "texts": { "MIT": "LICENSES/MIT.txt" },
-          "requires": [{ "contains": "MIT", "texts": ["MIT"] }],
+          "requires": [{ "operand": "MIT", "texts": ["MIT"] }],
         },
       ],
     },
@@ -124,9 +124,21 @@
     "package-licenses texts value not a string": {
       "rules": [{ "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "texts": { "A": 1 }, "requires": [] }],
     },
-    "package-licenses requirement missing contains": {
+    "package-licenses requirement missing operand": {
       "rules": [
         { "kind": "package-licenses", "id": "p", "manifests": [], "directory": "L", "texts": {}, "requires": [{ "texts": [] }] },
+      ],
+    },
+    "package-licenses requirement carries the retired contains key": {
+      "rules": [
+        {
+          "kind": "package-licenses",
+          "id": "p",
+          "manifests": [],
+          "directory": "L",
+          "texts": {},
+          "requires": [{ "contains": "MIT", "texts": [] }],
+        },
       ],
     },
     "mirror to missing": { "rules": [{ "kind": "mirror", "id": "m", "from": "a" }] },
@@ -189,7 +201,7 @@
             "manifests": [],
             "directory": "L",
             "texts": { "MIT": "LICENSES/MIT.txt" },
-            "requires": [{ "contains": "GPL", "texts": ["GPL"] }],
+            "requires": [{ "operand": "GPL", "texts": ["GPL"] }],
           },
         ],
       },

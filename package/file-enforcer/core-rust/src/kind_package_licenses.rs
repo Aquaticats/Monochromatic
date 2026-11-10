@@ -7,6 +7,9 @@
 //!  (the keys of `texts`) that are no longer required are removed,
 //! and any other file in the directory is left alone.
 //!  A manifest with no license expression is not managed at all.
+//!  A requirement names a whole SPDX id of the expression,
+//! never a substring of it,
+//! so an `AGPL-3.0-or-later` manifest never pulls the `GPL-3.0-or-later` text.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -93,6 +96,51 @@ fn license_of(manifest: &str, text: &str) -> Result<Option<String>, Diagnostic> 
 }
 
 /// What:
+///  Whether a character separates two SPDX ids.
+/// Why:
+///  `split` takes this instead of a closure,
+/// because a closure that captures nothing is a named function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isSpdxSeparator(character: string): boolean
+/// ```
+fn is_spdx_separator(character: char) -> bool {
+    return character.is_whitespace() || matches!(character, '(' | ')');
+}
+
+/// What:
+///  Whether a split token is a license id rather than an operator or an empty piece.
+/// Why:
+///  The operators `AND`,
+/// `OR` and `WITH` join ids and are not ids themselves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isSpdxOperand(token: string): boolean
+/// ```
+fn is_spdx_operand(token: &&str) -> bool {
+    return !token.is_empty() && !matches!(*token, "AND" | "OR" | "WITH");
+}
+
+/// What:
+///  The SPDX license ids a manifest license expression names,
+/// each read whole.
+/// Why:
+///  A requirement names an id,
+/// so a substring match would let `AGPL-3.0-or-later` satisfy a `GPL-3.0-or-later` requirement.
+///  Operators and parentheses split the ids and are not ids themselves;
+/// one linear pass keeps this total for an expression of any length.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function spdxOperands(expression: string): Set<string>
+/// ```
+fn spdx_operands(expression: &str) -> BTreeSet<&str> {
+    return expression.split(is_spdx_separator).filter(is_spdx_operand).collect();
+}
+
+/// What:
 ///   How the `package-licenses` kind plugs into the engine:
 /// its id,
 /// its kind name and its plan.
@@ -135,9 +183,10 @@ impl Rule for PackageLicensesRule {
                 let text = view.read_text(&manifest)?.unwrap_or_default();
                 // A manifest without a license expression is not managed: its texts are neither added nor pruned.
                 if let Some(expression) = license_of(&manifest, &text)? {
+                    let operands = spdx_operands(&expression);
                     let wanted = required.entry(package_dir).or_default();
                     for requirement in &self.requires {
-                        if expression.contains(&requirement.contains) {
+                        if operands.contains(requirement.operand.as_str()) {
                             for license in &requirement.texts {
                                 wanted.insert(license.clone());
                             }
