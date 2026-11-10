@@ -388,11 +388,17 @@ and 0.092 s and 0.095 s inside the whole library suite.
   `merge_isolation_journal` and `shadow_refs`:
   `464 tests run: 464 passed` in 12.4 s,
   which is the same set that reads the sync records.
-- The whole library suite (`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`):
+- The whole library suite (`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`),
+  on the tree of `8e6e326c8e`:
   `6080 tests run: 6080 passed (1 slow), 14 skipped` in 156.762 s,
   the slow one the push control that is slow on purpose
   (`push::push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`),
   run while another session was using the host.
+  The pipe control below was added after that run;
+  its own run and the 405 tests of `private_storage`,
+  `worktree_copying::`,
+  `worktree_add_binding` and `install_log`
+  (`405 tests run: 405 passed`) are the runs it had.
 - `cargo build --bin monochromatic-git-policy-cli` (`native:build`),
   which compiles the `#[cfg(not(test))]` arm where `syncing_is_faithful` is the constant `true`.
 - The two branches of `private_storage::flush_file_when_faithful` are told apart by the flush itself,
