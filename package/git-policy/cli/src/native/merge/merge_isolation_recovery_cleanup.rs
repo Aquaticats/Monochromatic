@@ -228,9 +228,9 @@ pub fn a_worktree_that_switched(target: &str, root: &Path, checked_out: Option<&
 ///  The refusal for a merge whose worktree switched and whose branch could not be put back,
 ///  with the branch still naming the merge.
 /// Why:
-///   A person told the branch was restored would leave a branch that names the merge,
-/// so this says what the undo's
-///  failure left and what moving the branch back failed on.
+///   A person told the branch was restored would leave a branch that names the merge;
+///  this says what the undo's failure left,
+///  and what moving the branch back failed on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -255,9 +255,9 @@ pub fn a_branch_that_could_not_be_put_back(target: &str, root: &Path, checked_ou
 ///  The refusal for a merge already in its branch while this worktree belongs to another branch,
 ///  with the record kept.
 /// Why:
-///   A checkout another branch owns may hold the merge's index entries and files,
-/// and the record is the only thing that
-///  still names them: dropping it leaves them with nothing that ever settles them.
+///   A checkout another branch owns may hold the merge's index entries and files;
+///  the record is the only thing that still names them.
+///  Dropping it would leave them with nothing that ever settles them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

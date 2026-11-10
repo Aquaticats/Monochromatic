@@ -94,7 +94,8 @@ fn a_binding_holds_until_the_registration_behind_the_path_is_another() {
 /// How long a record that must not wait may take to answer in a control.
 const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 
-/// A named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+/// A named pipe at `path`,
+///  which blocks whoever opens it for reading until a writer comes.
 fn make_pipe(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");

@@ -306,7 +306,8 @@ fn the_read_is_capped_beyond_the_reported_size() {
 /// How long a read that must not wait may take to answer in a control.
 const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 
-/// A named pipe at `path`, which blocks whoever opens it for reading until a writer comes.
+/// A named pipe at `path`,
+///  which blocks whoever opens it for reading until a writer comes.
 #[cfg(unix)]
 fn make_pipe(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
