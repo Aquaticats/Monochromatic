@@ -17,6 +17,7 @@ import { safetySweepDeclaration } from './refresh-policy-sweep.ts';
 import { inotifyWatchCount } from './inotify-fdinfo.ts';
 import { pressureShares } from './pressure-shares.ts';
 import { listedDirectoryPath } from './directory-snapshot-path.ts';
+import { reportedColumns } from './strace-summary.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
 const containerLimits = containerBounds();
@@ -315,7 +316,7 @@ try {
         await done;
         const counted: Record<string, number> = {};
         for (const line of readFileSync(summaryPath, 'utf8').split('\n')) {
-          const row = line.trim().split(/\s+/);
+          const row = reportedColumns(line);
           const seconds = row[0] ?? '';
           const calls = row[3] ?? '';
           const name = row.at(-1) ?? '';
