@@ -180,6 +180,11 @@ mod discard;
 #[path = "binary_no_checkout_clone_tests.rs"]
 mod no_checkout_clone;
 
+/// A clone a build script made in its own output directory belongs to the build step,
+/// so the guard of uncommitted work exempts it.
+#[path = "binary_build_script_clone_tests.rs"]
+mod build_script_clone;
+
 /// The hints of blocks outside the discard guard reach the caller beside an unchanged message.
 #[path = "binary_hint_tests.rs"]
 mod hints;
