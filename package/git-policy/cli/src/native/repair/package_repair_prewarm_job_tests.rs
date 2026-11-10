@@ -121,3 +121,53 @@ fn publishing_a_staging_copy_never_replaces_a_directory() {
     assert_eq!(std::fs::read(destination.join("a-dependency-build")).expect("the kept file"), b"dependency");
     remove(root.as_path());
 }
+
+/// The Cargo this control builds its fixture with,
+/// which the gate image provides.
+fn cargo_on_the_search_path() -> PathBuf {
+    let environment: RepairEnvironment = RepairEnvironment::from_process();
+    return super::cargo_for(Path::new("/nonexistent"), &environment).expect("this control needs cargo on the search path");
+}
+
+/// What:
+///  A record naming one workspace is filled:
+/// the copy is published under the worktree's build directory name,
+/// the worktree's own crate is cleaned out of the copy,
+/// and the source checkout's build directory is untouched.
+/// Why:
+///   This is the whole guarantee of the change, end to end and with a real Cargo:
+/// the add stopped doing this work, so the service's filling must do the same clean the add used to,
+/// and it must never clean the source's own state,
+/// which every other worktree of the repository shares.
+#[test]
+fn the_filling_publishes_a_clean_copy_and_leaves_the_source_alone() {
+    let root: PathBuf = fixture("prewarm-filling");
+    let workspace: PathBuf = root.join("worktree/package/own-ws");
+    std::fs::create_dir_all(workspace.join("src")).expect("the workspace");
+    std::fs::write(workspace.join("Cargo.toml"), "[workspace]\nmembers = [\".\"]\n\n[package]\nname = \"own\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nserde = \"1\"\n").expect("the manifest");
+    std::fs::write(workspace.join("src/lib.rs"), "pub fn own() -> &'static str { \"own\" }\n").expect("the crate");
+    let source_build: PathBuf = root.join("source-build");
+    let cargo: PathBuf = cargo_on_the_search_path();
+    let built: std::process::Output = std::process::Command::new(cargo)
+        .args(["build", "--offline", "--quiet"])
+        .current_dir(workspace.as_path())
+        .env(BUILD_DIRECTORY_VARIABLE, source_build.as_os_str())
+        .env(TARGET_DIRECTORY_VARIABLE, root.join("source-target").as_os_str())
+        .output()
+        .expect("cargo runs");
+    assert!(built.status.success(), "the fixture builds: {}", String::from_utf8_lossy(built.stderr.as_slice()));
+    let destination_build: PathBuf = root.join("worktree-build");
+    let entry: PrewarmEntry = PrewarmEntry { root: workspace.clone(), from: source_build.clone(), to: destination_build.clone(), members: vec![String::from("own")] };
+    let item: WorkItem = crate::package_repair_prewarm::item_of(root.as_path(), workspace.as_path(), std::slice::from_ref(&entry)).expect("the record");
+    let verdict: Verdict = crate::lazy_runtime::run_on_runtime(super::prewarm_awaiting(&item)).expect("the filling runs");
+    assert_eq!(verdict, Verdict::Done, "the filling published the copy");
+    let own_of = |build: &Path| -> Vec<String> {
+        return std::fs::read_dir(build.join("debug/incremental"))
+            .map(|listing| listing.flatten().filter_map(|each| return each.file_name().into_string().ok()).filter(|name| return name.starts_with("own-")).collect())
+            .unwrap_or_default();
+    };
+    assert!(!own_of(source_build.as_path()).is_empty(), "the source checkout's own crate is still built there");
+    assert!(own_of(destination_build.as_path()).is_empty(), "the copy holds no artifact of the worktree's own crate");
+    assert!(!staging_of(destination_build.as_path()).exists(), "the staging directory is published and gone");
+    remove(root.as_path());
+}

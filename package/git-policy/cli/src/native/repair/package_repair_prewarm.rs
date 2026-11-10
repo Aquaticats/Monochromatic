@@ -307,6 +307,34 @@ pub async fn common_directory_awaiting(git: &GitContext, destination: &Path) -> 
     return if named.is_empty() { Err(String::from("git named no common directory for the worktree")) } else { Ok(PathBuf::from(named)) };
 }
 
+/// What:
+///  The hand-over of a prewarm record as a job of the process's blocking pool.
+/// Why:
+///  Writing a record and waking a service that may have to be started are storage and socket waits,
+/// and the task that polls the three repairs must never do either:
+/// a service that never answered would stop the pnpm repair's quiet window and its ceiling with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handOverInAJob = ([context, commonDir, destination, entries]) => handOverToTheService(context, commonDir, destination, entries);
+/// ```
+pub(super) fn hand_over_in_a_job(state: TheHandOver) -> Result<(), String> {
+    let (context, common_dir, destination, entries): TheHandOver = state;
+    return hand_over_to_the_service(&context, common_dir.as_path(), destination.as_path(), entries.as_slice());
+}
+
+/// What a hand-over job reads:
+/// the Git context, the repository's common directory, the new worktree, and the workspaces.
+/// Why:
+///   A job reads only what it was handed,
+/// so the four travel together as owned values.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheHandOver = [GitContext, string, string, PrewarmEntry[]];
+/// ```
+pub(super) type TheHandOver = (GitContext, PathBuf, PathBuf, Vec<PrewarmEntry>);
+
 /// Prewarm controls stay out of the release executable.
 #[cfg(test)]
 #[path = "package_repair_prewarm_tests.rs"]

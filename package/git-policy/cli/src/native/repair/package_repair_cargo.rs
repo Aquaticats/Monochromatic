@@ -40,6 +40,7 @@
 //! ```
 
 use crate::add_timing::{begin_work, end_work};
+use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
@@ -48,7 +49,7 @@ use crate::package_repair_cargo_concurrent::{ItemLabel, map_concurrent_awaiting}
 use crate::package_repair_cargo_lock::{read_lock, restore_lock};
 use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories_awaiting, read_workspace_awaiting};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, run_tool_awaiting};
-use crate::package_repair_prewarm::{PrewarmEntry, common_directory_awaiting, hand_over_to_the_service};
+use crate::package_repair_prewarm::{PrewarmEntry, common_directory_awaiting, hand_over_in_a_job};
 /// The jobs of one workspace and what their runs take,
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "package_repair_cargo_jobs.rs"]
@@ -464,31 +465,41 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
 /// so a wake that cannot reach it leaves the work named rather than lost,
 /// and the add never fails for it:
 /// the worktree is correct without the filling and only its first build is slower.
+/// The writing of a record and the wake that may wait for a service to start are storage and socket
+///  work,
+/// so they run as a job of the blocking pool and never on the task that polls the three repairs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const handedOver = async (request, entries) => { try { handOverToTheService(request.git, await commonDirectory(request.destination), request.destination, entries); return repaired(...); } catch (reason) { return failed(...); } };
+/// const handedOver = async (request, entries) => { const told = await handOverWithinTheBudget(request.git, await commonDirectory(request.destination), request.destination, entries); return repaired(told); };
 /// ```
 async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: &[PrewarmEntry]) -> Finding {
     let began: Instant = begin_work();
     let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
-    let told: Result<(), String> = match common_dir {
-        Ok(common) => hand_over_to_the_service(request.git, common.as_path(), request.destination, entries),
-        Err(reason) => Err(reason),
+    let told: Result<Result<(), String>, BlockingJobError> = match common_dir {
+        Ok(common) => {
+            let state: (crate::transaction_git::GitContext, PathBuf, PathBuf, Vec<PrewarmEntry>) =
+                (request.git.clone(), common, request.destination.to_path_buf(), entries.to_vec());
+            run_a_job_or_in_turn(state, hand_over_in_a_job).await
+        }
+        Err(reason) => Ok(Err(reason)),
     };
     end_work("cargoPrewarmHandOver", began);
     let workspace_noun: &str = if entries.len() == 1 { "build directory" } else { "build directories" };
-    return match told {
-        Ok(()) => Finding {
-            tool: Tool::Cargo,
-            outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and handed the filling of {} {workspace_noun} to the commit service, which fills them after this command returns", entries.len()), millis: began.elapsed().as_millis() },
-        },
-        // A record the service never heard of is still the service's, and the person is told which command does it now.
-        Err(reason) => Finding {
-            tool: Tool::Cargo,
-            outcome: Outcome::Failed { reason: format!("the filling of {} {workspace_noun} could not be handed to the commit service ({reason})", entries.len()), run_instead: String::from("mise run toolchain:install") },
-        },
+    let detail: String = match told {
+        Ok(Ok(())) => format!("Cargo kept dependency builds and handed the filling of {} {workspace_noun} to the commit service, which fills them after this command returns", entries.len()),
+        // The record stays and the service fills it when it next runs for this repository, so this is a line of the report and
+        //  never the add's failure: the worktree is whole either way and its first build only compiles more.
+        Ok(Err(reason)) => format!(
+            "Cargo kept dependency builds and wrote the record that fills {} {workspace_noun}, which it could not hand to the commit service ({reason}); the service fills them when it next runs for this repository",
+            entries.len()
+        ),
+        Err(refusal) => format!(
+            "Cargo kept dependency builds and could not write the record that fills {} {workspace_noun} ({refusal}); the worktree's first build compiles them instead",
+            entries.len()
+        ),
     };
+    return Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail, millis: began.elapsed().as_millis() } };
 }
 
 /// What:
