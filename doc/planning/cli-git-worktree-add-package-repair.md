@@ -1,0 +1,180 @@
+# The package repair a worktree add runs, and what it costs the add
+
+What:
+ the three repairs an add runs once the new worktree is filled,
+ the measured time each takes,
+ and the change that stops the add waiting for the Cargo repair's clone.
+Why:
+ a traced add spent a third of its wall time in the repair,
+ almost all of it inside one workspace's build-directory clone,
+ while the two other repairs finished first.
+Status:
+ measured on 2026-11-11 from the owner's trace of 2026-11-10T18:00:41Z,
+ and changed on this branch.
+Future sessions read this before moving any of the three repairs,
+and before measuring an add again.
+
+## What the add runs after the copy
+
+An add that took the snapshot rung fills the worktree,
+copies the ignored files,
+and then repairs the package managers of the new worktree
+(`package/git-policy/cli/src/native/worktree_copying/worktree_copy_after_lock.rs:63-152`,
+named in `doc/planning/cli-git-worktree-add-route-findings-on-main.md:256-263`).
+The repairs are three waits of one task (`package/git-policy/cli/src/native/repair/package_repair.rs:230-247`):
+
+- pnpm: `pnpm install --offline --frozen-lockfile` in the worktree
+  (`package_repair_pnpm.rs:40`).
+- toolchain: `mpm-shadow install --frozen-lockfile` in the worktree,
+  which rewrites the launchers that still name another checkout's lock
+  (`package_repair_toolchain.rs:5-6`,
+  `:338`).
+- Cargo: for every Cargo workspace of the worktree,
+  `cargo metadata --locked --offline --no-deps` on the workspace and on its source counterpart,
+  then `cargo clean --offline --package <member>` in the worktree
+  (`package_repair_cargo.rs:162-169`,
+  `package_repair_cargo_workspaces.rs:266`).
+
+The `cargo clean` calls that the trace shows are the wrapper's own,
+not `cargo-shadow`'s:
+`cargo-shadow` treats `clean` as a command that resolves nothing and passes it through
+(`package/cargo-shadow/cli/src/verb_tests.rs:39-50`),
+while every `cargo` the repair starts is the toolchain's shadow first
+(`.../toolchain-global/exposure/cargo`) and the real `cargo` after it.
+The 105 `cargo` execve entries of the trace are 70 metadata runs and 35 clean runs,
+each of them the shadow and the real binary.
+
+## The time split of one traced add
+
+The trace is `${HOME}/temp/agent/worktree-add-traces/add-2026-11-10T18-00-41-418Z.strace`,
+`strace -f` of one `git worktree add --detach <dest> HEAD` through the installed wrapper
+`0.6.1-alpha.8` under a host with about fifty agents working:
+5,752,264 lines,
+2,290,094 completed system calls,
+490.5 s of wall time (`13:00:41.475` to `13:08:51.942`).
+The untraced add earlier the same day took 79 s,
+so the trace's own overhead is in every figure below.
+
+The phases, split at the events that start and end each one:
+
+- Registration,
+  12.7 s (`13:00:41.475` to `13:00:54.163`):
+  2.0 s of system-call time.
+- Filling the tree,
+  272.4 s (`13:00:54.163` to `13:05:26.593`):
+  114.4 s of system-call time,
+  of which `unlinkat` 38.3 s over 37,677 calls,
+  `statx` 32.0 s over 750,542 calls,
+  `renameat2` 14.5 s over 515 calls,
+  `getdents64` 7.3 s.
+- After the fill,
+  37.2 s (`13:05:26.593` to `13:06:03.832`):
+  19.7 s of system-call time,
+  of which one `fsync` of 9.1 s and one `recvfrom` of 5.4 s.
+- The repairs,
+  167.8 s (`13:06:03.832` to `13:08:51.654`):
+  44.6 s of system-call time.
+- The tail,
+  7.9 s (`13:08:51.654` to `13:08:51.942`).
+
+The three repairs ran beside each other and the add waited for the slowest:
+
+- `pnpm install` 49.6 s (`13:06:03.832` to `13:06:53.401`).
+- `mpm-shadow install` 11.8 s (`13:06:03.847` to `13:06:15.652`).
+- The Cargo repair 167.8 s (`13:06:03.878` to `13:08:51.654`),
+  so it alone set the repair's length:
+  34 percent of the add.
+
+Inside the Cargo repair,
+one blocking-pool thread cloned one workspace's build directory from the main checkout's
+`/var/mnt/encrypted/cargo-build/ae/b0b48f8399eb6a` into the worktree's `e6/e1a60d246f5b3a`:
+3,215 `ioctl` calls with `FICLONE` (12.3 s blocked, longest 6.7 s),
+14.5 s in `openat`,
+12.8 s in `statx`,
+4,543 `chmod` calls,
+spanning `13:06:51.252` to `13:08:42.797`,
+which is 111.5 s,
+or 66 percent of the Cargo repair and 23 percent of the add.
+The other 34 workspaces were cleaned without a clone,
+because the source checkout had no build directory for them.
+
+The same shape is in the wrapper's own timing records,
+which are not traced and so carry no trace overhead:
+`doc/handover/cli-git-rust-implementation.md:4008-4037` reads 192 records of 2026-11-08 and finds
+`cargoCloneTree` 66,305 ms over 34 clones,
+`cargoClean` 34,029 ms over 34 workspaces,
+`cargoRepairWorkspace` 108,436 ms over 35 workspaces,
+and `repairPnpm` 6,440 ms,
+with the repair 89 percent of the add at the median.
+
+## What the repair exists to guarantee
+
+The Cargo repair exists because Cargo bakes absolute paths into what it builds,
+so artifacts built at the source checkout's path are wrong for the worktree's own crates,
+while registry and git dependencies hold nothing path-specific and can be reused.
+The owner chose that on 2026-11-03 as "Reuse deps, rebuild own",
+done with "Run cargo clean -p"
+(`doc/handover/cli-git-rust-implementation.md:10195-10197`,
+`doc/planning/lean-build-dirs.md:990-992`).
+The toolchain repair exists because mpm-shadow's launcher records hold absolute paths,
+and the owner accepted an online install during the add
+(`doc/handover/cli-git-rust-implementation.md:10198`,
+`doc/troubleshooting/mpm-shadow-record-copied-into-a-new-worktree-retires-the-source-links.md:142`).
+The owner's speed bound is "60s is fine for adding worktrees"
+(`doc/handover/cli-git-rust-implementation.md:10212-10215`),
+with no target to stop at,
+and dozens of agents at once are normal operation.
+
+The repair is correct without its clone:
+a worktree whose build directory is absent rebuilds its dependencies,
+which is what 34 of the 35 workspaces already did.
+So the clone adds speed to the worktree's first build and costs the add its longest step,
+and the two are separable:
+the add stays correct when the clone happens after it returns.
+
+Two limits the build directory's layout puts on any replacement:
+
+- `doc/decision/cargo-build-dir-host-cache.md:401-430` allows no reader of the build directory's
+  layout except the `cargo-shadow lean` sweep,
+  so no code may decide which entries belong to the worktree's own crates.
+  The clean has to be Cargo's own command.
+- `cargo metadata` reports the build and target directories of a workspace,
+  so the wrapper reads no configuration,
+  and `doc/decision/cargo-build-dir-host-cache.md:179-186` records that the hash keys the workspace
+  root,
+  which is why a new worktree starts with no build state at all.
+
+A shared build directory is not a hazard here:
+`plan_build_state` refuses a clean when the source and the worktree name one build directory
+(`package_repair_cargo.rs:128-130`),
+and the trace's cleans touched only the worktree's own hash
+(`e6/e1a60d246f5b3a`),
+never the main checkout's (`ae/b0b48f8399eb6a`).
+So no add deleted an artifact another worktree still used,
+and nothing of this change addresses that.
+
+## The change
+
+The Cargo repair no longer clones and cleans a workspace whose build state lives only in the
+source checkout.
+It writes one `prewarm` work item naming each such workspace (its `cargo metadata` directories and
+its members) and wakes the commit service, exactly as a snapshot's trash is handed over
+(`worktree_trash_hand_over.rs:111-191`):
+
+- `package/git-policy/cli/src/native/repair/package_repair_prewarm.rs`:
+  the record, its payload, and the hand-over.
+- `package/git-policy/cli/src/native/repair/package_repair_prewarm_job.rs`:
+  the service's filling.
+  Per workspace: clone the source's build directory into `<destination>.monochromatic-prewarm`,
+  run `cargo clean --package <members>` against that copy with `CARGO_BUILD_BUILD_DIR` and
+  `CARGO_TARGET_DIR` pointing at directories of the job's own,
+  then publish it with `renameat2(RENAME_NOREPLACE)`.
+  A destination that exists is a build that got there first,
+  and then nothing is published and the staging copy is removed.
+- `WorkKind::Prewarm` in `work_item_kinds_and_their_names.rs`,
+  drained before the trashes in `service_work_drain_pending_claims.rs`.
+
+What stays on the add's waiting path is the plan:
+`cargo metadata` for each workspace and its source counterpart,
+which is the 70 metadata runs of the trace,
+and the clean of a workspace whose build state the worktree already has.

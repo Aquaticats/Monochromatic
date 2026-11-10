@@ -138,6 +138,26 @@ pub trait WorkHandlers {
     fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.trash(item)));
     }
+    /// Fill a new worktree's Cargo build directory from the build state of the checkout it was copied from;
+    /// a handler that does not know it skips.
+    fn prewarm(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not fill Cargo build directories"));
+    }
+    /// The same filling,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The drain of a round is a task,
+    /// and the filling starts Cargo children and copies a tree,
+    /// which the synchronous face would refuse from inside the runtime;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// prewarmAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.prewarm(item)));
+    }
 }
 
 /// The work directory of a repository.

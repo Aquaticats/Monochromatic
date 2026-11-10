@@ -1,10 +1,8 @@
 //! What:
 //!  The Cargo repair:
 //! for each Cargo workspace of a new worktree,
-//! clone the source workspace's build state when Cargo keeps
-//!  it outside the worktree,
-//! then `cargo clean --package <member>` for every member so only the worktree's own crates
-//!  rebuild.
+//!  `cargo clean --package <member>` for every member so only the worktree's own crates fully rebuild,
+//! and the hand-over of the filling of the worktree's build directory to the commit service.
 //! Why:
 //!  Cargo bakes absolute paths into what it builds (`CARGO_MANIFEST_DIR`,
 //! build script output),
@@ -18,10 +16,21 @@
 //! done with "Run cargo clean -p".
 //!  Where `build-dir` is outside the worktree (the person's `~/.cargo/config.toml` keys it by workspace path) a copy of
 //!  ignored files does not carry it,
-//! so it is cloned;
-//! under Cargo's default layout it is inside `target/`,
+//! so it was cloned.
+//! The clone is the heaviest step of the repair:
+//! a traced add spent 111 s of its 160 s repair phase inside one workspace's clone,
+//! so it is no longer the add's work.
+//! The add writes what the clone needs (the source's build directory,
+//! the worktree's,
+//! and the members) and hands it to the commit service,
+//! which clones into a staging directory,
+//! cleans the copy,
+//! and publishes it only where the worktree still has no build directory of its own
+//! (`package_repair_prewarm.rs`).
+//!  Under Cargo's default layout the build state is inside `target/`,
 //! which is already
-//!  copied.
+//!  copied,
+//! so only the clean runs.
 //! `cargo metadata` names both directories,
 //! so no configuration is read by the wrapper.
 //!
@@ -39,13 +48,13 @@ use crate::package_repair_cargo_concurrent::{ItemLabel, map_concurrent_awaiting}
 use crate::package_repair_cargo_lock::{read_lock, restore_lock};
 use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories_awaiting, read_workspace_awaiting};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, run_tool_awaiting};
+use crate::package_repair_prewarm::{PrewarmEntry, common_directory_awaiting, hand_over_to_the_service};
 /// The jobs of one workspace and what their runs take,
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "package_repair_cargo_jobs.rs"]
 mod jobs;
 use self::jobs::{CargoTool, look_for_the_program, ReadWorkspaceJob, RepairWorkspaceJob};
 use crate::package_repair_report::{Finding, Outcome, Tool, missing_tool};
-use crate::package_repair_tree_clone::clone_tree_awaiting;
 use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -76,9 +85,10 @@ pub enum BuildStatePlan {
     /// The state is already in the worktree (copied with `target/`):
     /// only the members are cleaned.
     CleanOnly,
-    /// The source's external build directory is cloned to the worktree's,
-    /// then the members are cleaned.
-    CloneThenClean {
+    /// The source's external build directory is filled into the worktree's by the commit service,
+    /// and the members are cleaned there,
+    /// so the add does not wait for the clone.
+    FillFromTheSource {
         /// The source workspace's build directory.
         from: PathBuf,
         /// The worktree's build directory,
@@ -139,7 +149,7 @@ pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts:
         return BuildStatePlan::Nothing(String::from("the worktree's build directory already holds state of its own"));
     }
     if facts.source_build_exists {
-        return BuildStatePlan::CloneThenClean { from: source_build.clone(), to: destination.build_directory.clone() };
+        return BuildStatePlan::FillFromTheSource { from: source_build.clone(), to: destination.build_directory.clone() };
     }
     return if facts.destination_target_exists { BuildStatePlan::CleanOnly } else { BuildStatePlan::Nothing(String::from("neither side holds build state")) };
 }
@@ -192,13 +202,13 @@ enum Done {
     /// the text says why.
     Skipped,
     /// The members were cleaned,
-    /// and the build directory was cloned first when `cloned` is set.
-    Cleaned {
-        /// Whether a build directory was cloned.
-        cloned: bool,
-        /// How many entries of the source's build directory could not be read and were left out of the clone.
-        left_out: usize,
-    },
+    /// The members were cleaned at the add's own location,
+    /// and the build directory they were cleaned in was the worktree's.
+    Cleaned,
+    /// The workspace's build directory is to be filled by the commit service,
+    /// which also cleans the worktree's own crates out of the copy,
+    /// so nothing was cleaned here.
+    HandedOver(PrewarmEntry),
     /// The workspace could not be repaired.
     Failed(Finding),
 }
@@ -206,20 +216,24 @@ enum Done {
 /// What:
 ///  Repair one workspace:
 /// plan,
-/// clone,
-/// clean,
+/// hand the filling of its build directory over,
+/// clean what is already here,
 /// with every wait awaited on the runtime.
 /// Why:
 ///   Each workspace's state is in a directory of its own,
 /// so workspaces never touch each other's,
-/// and the clone and the two tool runs are waits a
+/// and the tool run is a wait a
 ///  task cannot block on.
+/// A workspace whose build state is only in the source checkout is the service's:
+/// the clone that fills it is the repair's heaviest step,
+/// and the worktree is correct without it
+/// (`package_repair_prewarm.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function repairWorkspace(tool: CargoTool, workspace: Workspace, destinationRoot: string, source: string, cloneWorkers: number): Promise<Done>;
+/// async function repairWorkspace(tool: CargoTool, workspace: Workspace, destinationRoot: string, source: string): Promise<Done>;
 /// ```
-async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, destination_root: &Path, source: &Path, clone_workers: usize) -> Done {
+async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, destination_root: &Path, source: &Path) -> Done {
     let manual: String = manual_command(workspace.root.as_path(), workspace.members.as_slice());
     let Ok(relative) = workspace.root.strip_prefix(destination_root) else {
         debug(TAG, format!("{} lies outside {} and is left alone", workspace.root.display(), destination_root.display()).as_str());
@@ -248,53 +262,24 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
     };
     let plan: BuildStatePlan = plan_build_state(workspace, destination_root, &facts);
     debug(TAG, format!("{}: {plan:?}", workspace.root.display()).as_str());
-    let (cloned, left_out): (bool, usize) = match &plan {
+    match &plan {
         BuildStatePlan::Nothing(_) => return Done::Skipped,
-        BuildStatePlan::CleanOnly => (false, 0),
-        BuildStatePlan::CloneThenClean { from, to } => {
-            match timed_clone_tree_awaiting(from.as_path(), to.as_path(), clone_workers).await {
-                Ok(made) => {
-                    debug(TAG, format!("cloned {} entries from {} to {}", made.made, from.display(), to.display()).as_str());
-                    for path in &made.left_out {
-                        debug(TAG, format!("{} could not be read and is not in the clone", from.join(path).display()).as_str());
-                    }
-                    (true, made.left_out.len())
-                }
-                Err(reason) => return workspace_failed(manual.as_str(), format!("the build state could not be cloned: {reason}")),
-            }
+        // The clone that fills this worktree's build directory is the service's work, and the same clean runs on the copy
+        //  it publishes, so this workspace is done here.
+        BuildStatePlan::FillFromTheSource { from, to } => {
+            return Done::HandedOver(PrewarmEntry { root: workspace.root.clone(), from: from.clone(), to: to.clone(), members: workspace.members.clone() });
         }
-    };
+        BuildStatePlan::CleanOnly => {}
+    }
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
     let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
     let run: ToolRun = timed_clean_awaiting(tool, &command).await;
     restore_lock(workspace.root.as_path(), lock_before.as_deref());
     return match run.end {
-        ToolEnd::Succeeded => Done::Cleaned { cloned, left_out },
+        ToolEnd::Succeeded => Done::Cleaned,
         ToolEnd::Failed(reason) => workspace_failed(manual.as_str(), reason),
         ToolEnd::TimedOut => workspace_failed(manual.as_str(), String::from("it showed no sign of work for the quiet window and was stopped")),
         ToolEnd::CeilingReached(ceiling) => workspace_failed(manual.as_str(), crate::package_repair_report::ceiling_reason(crate::package_repair_report::Tool::Cargo, ceiling)),
-    };
-}
-
-/// What:
-///  The words that say how many entries of the cloned build state could not be read,
-/// or nothing when all could.
-/// Why:
-///   The person is told what the clone left out:
-/// the entries are the source's,
-/// unreadable to everyone but a chmod the repair
-///  never performs,
-/// and Cargo rebuilds whatever of them it needs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// leftOutWords(2) // '; 2 unreadable entries were left out'
-/// ```
-fn left_out_words(left_out: usize) -> String {
-    return match left_out {
-        0 => String::new(),
-        1 => String::from("; 1 unreadable entry was left out"),
-        many => format!("; {many} unreadable entries were left out"),
     };
 }
 
@@ -333,25 +318,6 @@ async fn timed_read_workspace_awaiting(name: &str, tool: &CargoTool, directory: 
     let read: Result<Workspace, String> = read_workspace_awaiting(tool.program.as_path(), directory, tool.limits).await;
     end_work(name, began);
     return read;
-}
-
-/// What:
-///  Clone a build directory with the timing record's step `cargoCloneTree`.
-/// Why:
-///   Same as `timed_read_workspace_awaiting`:
-/// the call runs in place between `begin_work` and `end_work`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const began = beginWork();
-/// const made = await cloneTreeAwaiting(from, to, workers);
-/// endWork('cargoCloneTree', began);
-/// ```
-async fn timed_clone_tree_awaiting(from: &Path, to: &Path, clone_workers: usize) -> Result<crate::package_repair_tree_clone::Cloned, String> {
-    let began: Instant = begin_work();
-    let made: Result<crate::package_repair_tree_clone::Cloned, String> = clone_tree_awaiting(from, to, clone_workers).await;
-    end_work("cargoCloneTree", began);
-    return made;
 }
 
 /// What:
@@ -460,9 +426,7 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         // A worktree whose real path cannot be read is used as the caller named it.
         Err(_cannot_be_resolved) => request.destination.to_path_buf(),
     };
-    let clone_workers: usize = if workspaces.len() > 1 { 1 } else { workers };
-    let repairer: RepairWorkspaceJob =
-        RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf(), clone_workers };
+    let repairer: RepairWorkspaceJob = RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf() };
     let repaired: Vec<Result<Done, String>> =
         map_concurrent_awaiting(Arc::clone(&workspaces), workers, Arc::new(RepairLabel), Arc::new(repairer)).await;
     let mut done: Vec<Done> = Vec::new();
@@ -473,25 +437,58 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         });
     }
     let mut cleaned: usize = 0;
-    let mut cloned: usize = 0;
-    let mut left_out: usize = 0;
+    let mut handed_over: Vec<PrewarmEntry> = Vec::new();
     for outcome in done {
         match outcome {
             Done::Skipped => {}
-            Done::Cleaned { cloned: was_cloned, left_out: unreadable } => {
-                cleaned += 1;
-                cloned += usize::from(was_cloned);
-                left_out += unreadable;
-            }
+            Done::Cleaned => cleaned += 1,
+            Done::HandedOver(entry) => handed_over.push(entry),
             Done::Failed(finding) => findings.push(finding),
         }
     }
     if cleaned > 0 {
         let workspace_noun: &str = if cleaned == 1 { "workspace" } else { "workspaces" };
-        let directory_noun: &str = if cloned == 1 { "build directory" } else { "build directories" };
-        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun} ({cloned} {directory_noun} cloned{})", left_out_words(left_out)), millis: started.elapsed().as_millis() } });
+        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun}"), millis: started.elapsed().as_millis() } });
+    }
+    if !handed_over.is_empty() {
+        findings.push(hand_the_filling_over(request, handed_over.as_slice()).await);
     }
     return findings;
+}
+
+/// What:
+///  Hand the filling of the worktree's build directories to the commit service,
+/// and answer the line the person reads.
+/// Why:
+///   The record is written before the service is reached,
+/// so a wake that cannot reach it leaves the work named rather than lost,
+/// and the add never fails for it:
+/// the worktree is correct without the filling and only its first build is slower.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handedOver = async (request, entries) => { try { handOverToTheService(request.git, await commonDirectory(request.destination), request.destination, entries); return repaired(...); } catch (reason) { return failed(...); } };
+/// ```
+async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: &[PrewarmEntry]) -> Finding {
+    let began: Instant = begin_work();
+    let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
+    let told: Result<(), String> = match common_dir {
+        Ok(common) => hand_over_to_the_service(request.git, common.as_path(), request.destination, entries),
+        Err(reason) => Err(reason),
+    };
+    end_work("cargoPrewarmHandOver", began);
+    let workspace_noun: &str = if entries.len() == 1 { "build directory" } else { "build directories" };
+    return match told {
+        Ok(()) => Finding {
+            tool: Tool::Cargo,
+            outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and handed the filling of {} {workspace_noun} to the commit service, which fills them after this command returns", entries.len()), millis: began.elapsed().as_millis() },
+        },
+        // A record the service never heard of is still the service's, and the person is told which command does it now.
+        Err(reason) => Finding {
+            tool: Tool::Cargo,
+            outcome: Outcome::Failed { reason: format!("the filling of {} {workspace_noun} could not be handed to the commit service ({reason})", entries.len()), run_instead: String::from("mise run toolchain:install") },
+        },
+    };
 }
 
 /// What:
