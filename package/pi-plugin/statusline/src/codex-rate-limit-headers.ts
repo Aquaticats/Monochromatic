@@ -448,7 +448,7 @@ function parseCodexRateLimitSnapshots({
   headers,
   nowMs,
 }: {
-  readonly headers: Record<string, string>;
+  readonly headers: Readonly<Record<string, string>>;
   readonly nowMs: number;
 },): readonly RateLimitSnapshot[] {
   /**

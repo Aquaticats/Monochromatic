@@ -10,7 +10,7 @@ import {
   createExtensionContext,
   fakePiApi,
   getAfterProviderResponseHandler,
-} from './pi-test-harness.ts';
+} from './pi-api-fixture.ts';
 
 //region Constants
 

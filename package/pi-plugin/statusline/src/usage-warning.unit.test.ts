@@ -11,19 +11,17 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { parseRateLimitSnapshots, } from './rate-limit-headers.ts';
-import {
-  PLAIN_USAGE_WARNING_STYLE,
-  RATE_LIMIT_WINDOW_SECONDS,
-  type RateLimitSnapshot,
-  type UsageWarningStyle,
-} from './rate-limit-types.ts';
 import {
   formatRelativeTime,
   formatUsageWarningSegment,
   formatUsageWarningStatus,
+  PLAIN_USAGE_WARNING_STYLE,
+  parseRateLimitSnapshots,
   projectUsagePercent,
-} from './usage-warning.ts';
+  RATE_LIMIT_WINDOW_SECONDS,
+  type RateLimitSnapshot,
+  type UsageWarningStyle,
+} from '../dist/final/node/testing.mjs';
 
 const NOW_MS = Date.parse('2026-06-01T12:00:00Z',);
 const SECOND_MS = 1_000;

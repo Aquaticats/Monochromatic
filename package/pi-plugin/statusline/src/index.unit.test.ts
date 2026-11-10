@@ -3,7 +3,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import statusline, { STATUS_KEY, } from './index.ts';
+import statusline, { STATUS_KEY, } from '@monochromatic-dev/pi-plugin-statusline';
 import {
   createAfterProviderResponseEvent,
   createExtensionContext,
@@ -11,7 +11,7 @@ import {
   fakePiApi,
   getAfterProviderResponseHandler,
   getSessionStartHandler,
-} from './pi-test-harness.ts';
+} from './pi-api-fixture.ts';
 
 const NOW_MS = Date.parse('2026-06-01T12:00:00Z',);
 const SECOND_MS = 1_000;
