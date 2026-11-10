@@ -258,7 +258,7 @@ fn capped_line(name: &str, arguments: &[OsString], real: &Path) -> String {
         command.push_str(argument.to_string_lossy().as_ref());
     }
     return format!(
-        "search-shadow: stopped `{command}` after {MAX_OUTPUT_BYTES} bytes of output (limit=output-cap, exit status {CAPPED_EXIT_CODE}). Everything the real tool printed past that limit was dropped, so the output above is only its beginning. To read all of it, run the real tool itself: {}. To read less, narrow the search with a path, --max-count or --max-depth. An output a terminal shows is never capped.",
+        "search-shadow: stopped `{command}` after {MAX_OUTPUT_BYTES} bytes of output (limit=output-cap, exit status {CAPPED_EXIT_CODE}). Everything the real tool printed past that limit was dropped, so the output above is only its beginning. To read all of it, run the real tool itself: {}. To read less, narrow the request: a narrower path, or the tool's own count or depth limit (--max-count, --max-depth, -maxdepth). An output a terminal shows is never capped.",
         real.display(),
     );
 }

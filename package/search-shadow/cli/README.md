@@ -196,9 +196,8 @@ so a run whose standard output is not a terminal passes that output through the 
   the cap,
   the exit status and the real tool's own path,
   then both ways forward:
-  read a smaller part (a path,
-  `--max-count`,
-  `--max-depth`)
+  read a smaller part (a narrower path,
+  or the tool's own count or depth limit such as `--max-count` or `-maxdepth`)
   or run the real tool itself.
   The exit code is `124`,
   `timeout(1)`'s convention for a command it stopped.
@@ -216,6 +215,16 @@ so a run whose standard output is not a terminal passes that output through the 
   and the run keeps the tool's own status.
 - An output that cannot be written (a full disk) ends with exit code `1` and one line saying what it failed on,
   because a shortened answer that passes for a complete one is the failure this crate exists to prevent.
+
+The price of the cap is one extra process and one pipe copy for every run whose output is not a terminal.
+Measured 2026-11-10 with `hyperfine`
+(100 runs per arm,
+`rg needle tree` over forty small files,
+standard output to `/dev/null`,
+host load average about 124 on four CPUs),
+the real ripgrep took 2.9 ms and 3.5 ms (mean, two runs)
+against 4.1 ms and 4.2 ms through the shadow,
+so the cap adds about 1 ms on top of the 0.2 ms the PATH lookup already cost.
 
 The cap runs after the refusal policies,
 so a refused run still prints only its refusal,

@@ -573,11 +573,26 @@ and `fd`
 is never refused.
 The owner decided on 2026-10-29 that breaking scripts which rely on plain GNU behavior is acceptable.
 
+The shadow also caps the real tool's standard output at 4 MiB (4,194,304 bytes)
+when that output is not a terminal:
+the tool runs as a child with its output on a pipe,
+and past the cap the shadow closes the pipe,
+writes one line naming the command,
+the cap and the real tool's path,
+and exits 124.
+A terminal's output is not capped,
+and there the shadow still replaces itself with the real tool.
+The owner answered issue 3474's open question with "Cap its output" on 2026-11-10.
+The mechanics,
+the boundary cases and the cost measured on 2026-11-10 (about 1 ms per capped run)
+are in `package/search-shadow/cli/README.md`.
+
 Checks:
 `cargo clippy --deny warnings` clean;
-45 nextest tests pass (unit tests for each policy plus process-level tests in
+132 nextest tests pass on 2026-11-10, 45 when this note was written (unit tests for each policy plus process-level tests in
 which a fake real tool reports `best-effort: prio 7` under the shadow and does not when run alone,
 grep and find refusals,
+the output cap's byte boundary and its terminal exception,
 and a non-UTF-8 argument passed through byte for byte).
 `mise run //package/search-shadow/cli:test:container` builds a podman
 image holding the real tools this host lacks and checks each shadow against its real tool;
