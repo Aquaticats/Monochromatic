@@ -822,6 +822,18 @@ existing per-track corpus (full peak plus per-second bin peaks,
 That run changes the classifier approach above,
  so the steps stay but their conclusion moves.
 
+The bench's own copies of the probe selection,
+ the neighbour climb and the even pass,
+ differed from the production probe in two edge cases:
+ a coverage share above one,
+ where a copy never capped its budget at the bin count,
+ and a bones slot at or past the last bin,
+ where the bucket copy measured one bin and playback measures that bin's neighbour too.
+A sweep whose coverage stays below one and whose seeds sit inside the grid measured the
+ same bins playback would.
+Since issue 1461 both paths call `select_probe_bins` from `truepeak-core`,
+ so no run can differ.
+
 The corpus and target:
 
 ```text
