@@ -9,22 +9,22 @@ to replace manual "forgot what changes" commits.
 
 The current development workflow suffers from a fundamental commit discipline problem:
 
-1. **Extended Development Sessions**:
-    Work for hours/days/weeks without committing
-2. **Memory Loss**:
-    By the time a commit happens,
-    the specific changes and reasoning are forgotten
-3. **Generic Commit Messages**:
-    Resort to meaningless messages like "forgot what changes",
-    "various updates",
-    "WIP"
-4. **Lost Development History**:
-    No granular record of the development process or decision-making
-5. **Recovery Challenges**:
-    When things break,
-    no logical restore points to analyze or revert to
-6. **Code Review Impossibility**:
-    Massive commits are impossible to review effectively
+1.  **Extended Development Sessions**:
+     Work for hours/days/weeks without committing
+2.  **Memory Loss**:
+     By the time a commit happens,
+     the specific changes and reasoning are forgotten
+3.  **Generic Commit Messages**:
+     Resort to meaningless messages like "forgot what changes",
+     "various updates",
+     "WIP"
+4.  **Lost Development History**:
+     No granular record of the development process or decision-making
+5.  **Recovery Challenges**:
+     When things break,
+     no logical restore points to analyze or revert to
+6.  **Code Review Impossibility**:
+     Massive commits are impossible to review effectively
 
 ### Specific Pain Points
 
@@ -44,19 +44,19 @@ The current development workflow suffers from a fundamental commit discipline pr
 
 This approach addresses the core psychological and workflow barriers:
 
-1. **Eliminates Decision Fatigue**:
-    No manual "should I commit?
-   " decisions
-2. **Preserves Context**:
-    AI can analyze diffs while changes are fresh
-3. **Maintains Flow State**:
-    Automatic background process doesn't interrupt coding
-4. **Better Than Nothing**:
-    Even generic AI messages > "forgot what changes"
-5. **Granular History**:
-    Recovery points every few minutes instead of massive commits
-6. **Upgrade Path**:
-    Provides foundation for gradually improving commit quality
+1.  **Eliminates Decision Fatigue**:
+     No manual "should I commit?
+    " decisions
+2.  **Preserves Context**:
+     AI can analyze diffs while changes are fresh
+3.  **Maintains Flow State**:
+     Automatic background process doesn't interrupt coding
+4.  **Better Than Nothing**:
+     Even generic AI messages > "forgot what changes"
+5.  **Granular History**:
+     Recovery points every few minutes instead of massive commits
+6.  **Upgrade Path**:
+     Provides foundation for gradually improving commit quality
 
 ### Expected Outcomes
 

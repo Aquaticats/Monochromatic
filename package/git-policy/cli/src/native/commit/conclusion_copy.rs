@@ -119,6 +119,8 @@ fn copy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
 fn owning_pseudoref(context: &GitContext, cwd: &Path, name: &str) -> Option<String> {
     let mut request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--verify", "--quiet", name]);
     request.without_prefix = true;
+    // The value is read in the caller's repository, which a Git directory beside its work tree only names.
+    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     return resolve_pseudoref(context, request);
 }
 

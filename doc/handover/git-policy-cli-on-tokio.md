@@ -459,28 +459,28 @@
   The next agent must keep that shape in any new job helper.
 - Exact next steps,
   in order:
-  1. The leaf-first `async` Git:
-     an `async fn` beside `run_git` in `transaction/transaction_git.rs`
-     (`run_git_once`/`run_git_watched`/`run_git_once_with`/`run_git_pausing` become
-     `async` cores over the async pipe reader and `OwnedChild::wait`,
-     with the synchronous
-     faces kept as bridges),
-     then its callers one folder at a time.
-  2. Then `landing/service_round.rs` (`drain_directories`) onto
-     `run_ordered_on_the_runtime`,
-     and the pure-file sites
-     (`worktree/worktree_trash_entries.rs`,
-     `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
-     `worktree/worktree_convert_command.rs`,
-     the copy and repair sites of `side_by_side_threads.rs`) once their state is shared.
-  3. Then T13's removals and lint:
-     no `std::thread`,
-     no `std::process::Command` outside the guarded start,
-     no `thread::sleep`,
-     and the hand D-Bus wire format with its fuzz target.
-     None of the three guards can be tightened before step 2 lands,
-     because `foundation/scoped_start.rs`,
-     `foundation/side_by_side_threads.rs` and the rest still start threads and sleep.
+  1.  The leaf-first `async` Git:
+      an `async fn` beside `run_git` in `transaction/transaction_git.rs`
+      (`run_git_once`/`run_git_watched`/`run_git_once_with`/`run_git_pausing` become
+      `async` cores over the async pipe reader and `OwnedChild::wait`,
+      with the synchronous
+      faces kept as bridges),
+      then its callers one folder at a time.
+  2.  Then `landing/service_round.rs` (`drain_directories`) onto
+      `run_ordered_on_the_runtime`,
+      and the pure-file sites
+      (`worktree/worktree_trash_entries.rs`,
+      `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+      `worktree/worktree_convert_command.rs`,
+      the copy and repair sites of `side_by_side_threads.rs`) once their state is shared.
+  3.  Then T13's removals and lint:
+      no `std::thread`,
+      no `std::process::Command` outside the guarded start,
+      no `thread::sleep`,
+      and the hand D-Bus wire format with its fuzz target.
+      None of the three guards can be tightened before step 2 lands,
+      because `foundation/scoped_start.rs`,
+      `foundation/side_by_side_threads.rs` and the rest still start threads and sleep.
 - Not run,
   for the next agent:
   the container gate of this branch (no gate image was made),
@@ -544,21 +544,21 @@
   time from the top of each chain.
 - Exact next steps,
   in order:
-  1. Convert one folder whose chain to a boundary is short,
-     keeping the package's tests green at each commit.
-     The leaf files are `transaction/`,
-     `push/` and `foundation/`,
-     and a converted step calls `run_git_awaiting` where it called `run_git`.
-  2. Convert the landing's handlers and then `landing/service_round.rs`
-     (`drain_directories`) onto `run_ordered_awaiting_on_the_runtime`,
-     with each item's storage work inside
-     `run_blocking_job_within_the_budget`.
-  3. Then the pure-file sites of the blocking runner
-     (`worktree/worktree_trash_entries.rs`,
-     `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
-     `worktree/worktree_convert_command.rs`)
-     and the `run_all_side_by_side`/`run_beside_caller` sites.
-  4. Then T13's removals and lint.
+  1.  Convert one folder whose chain to a boundary is short,
+      keeping the package's tests green at each commit.
+      The leaf files are `transaction/`,
+      `push/` and `foundation/`,
+      and a converted step calls `run_git_awaiting` where it called `run_git`.
+  2.  Convert the landing's handlers and then `landing/service_round.rs`
+      (`drain_directories`) onto `run_ordered_awaiting_on_the_runtime`,
+      with each item's storage work inside
+      `run_blocking_job_within_the_budget`.
+  3.  Then the pure-file sites of the blocking runner
+      (`worktree/worktree_trash_entries.rs`,
+      `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+      `worktree/worktree_convert_command.rs`)
+      and the `run_all_side_by_side`/`run_beside_caller` sites.
+  4.  Then T13's removals and lint.
 - Checks,
   the whole suites once at the end:
   `native:test:host` 4794 run,
@@ -646,24 +646,24 @@
   choice and `binary_forwarded_command_makes_no_thread_tests.rs` keep free.
 - Exact next steps,
   in order:
-  1. Item 3's pure-file sites,
-     and read the plan's list of what they need
-     first:
-     each of the three lends the blocking runner state that has to be
-     owned before the awaited runner can take it (`IndexLock<'a>`,
-     `RewriteOne<'a>`,
-     `&dyn Platform`,
-     `&Interrupt`),
-     and each says lines while
-     it works,
-     which a `'static` blocking job cannot do through the sink the
-     awaited runner lends it.
-     Decide that line path first;
-     it is one decision for all three.
-  2. Then item 2:
-     the landing's handlers and `landing/service_round.rs`.
-  3. Then item 4 (T13's guards),
-     unchanged.
+  1.  Item 3's pure-file sites,
+      and read the plan's list of what they need
+      first:
+      each of the three lends the blocking runner state that has to be
+      owned before the awaited runner can take it (`IndexLock<'a>`,
+      `RewriteOne<'a>`,
+      `&dyn Platform`,
+      `&Interrupt`),
+      and each says lines while
+      it works,
+      which a `'static` blocking job cannot do through the sink the
+      awaited runner lends it.
+      Decide that line path first;
+      it is one decision for all three.
+  2.  Then item 2:
+      the landing's handlers and `landing/service_round.rs`.
+  3.  Then item 4 (T13's guards),
+      unchanged.
 - Checks,
   both whole suites at the tip:
   `native:test:host` 4807 run,
@@ -771,21 +771,21 @@
   work that takes a place waits and work that runs on a worker does not).
 - Exact next steps,
   in order:
-  1. Item 2:
-     the landing's handlers and `landing/service_round.rs` (`drain_directories`)
-     onto `run_ordered_awaiting_on_the_runtime`,
-     with each item's storage work inside `run_blocking_job_within_the_budget`.
-     The landing's items say lines while they work,
-     so they take the owned sink by moving it into the job,
-     as `worktree_convert_command.rs` does.
-     Another agent has an unmerged branch in the landing's index handling;
-     read it before touching `landing/service_index_*` or `commit/native_commit*`.
-  2. Then the sites still on `parallel_runner.rs`:
-     `worktree/worktree_copying/`,
-     the copy and repair sites of `foundation/side_by_side_threads.rs`,
-     and the rest of the seven `run_ordered` sites the plan lists.
-  3. Then item 4 (T13's guards),
-     unchanged.
+  1.  Item 2:
+      the landing's handlers and `landing/service_round.rs` (`drain_directories`)
+      onto `run_ordered_awaiting_on_the_runtime`,
+      with each item's storage work inside `run_blocking_job_within_the_budget`.
+      The landing's items say lines while they work,
+      so they take the owned sink by moving it into the job,
+      as `worktree_convert_command.rs` does.
+      Another agent has an unmerged branch in the landing's index handling;
+      read it before touching `landing/service_index_*` or `commit/native_commit*`.
+  2.  Then the sites still on `parallel_runner.rs`:
+      `worktree/worktree_copying/`,
+      the copy and repair sites of `foundation/side_by_side_threads.rs`,
+      and the rest of the seven `run_ordered` sites the plan lists.
+  3.  Then item 4 (T13's guards),
+      unchanged.
 - Checks,
   the whole suites once at the tip,
   with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own control group at

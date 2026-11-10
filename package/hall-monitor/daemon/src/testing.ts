@@ -58,9 +58,13 @@ export type {
 
 //endregion Capture buffer
 
-//region llama-server: the end-of-child wait the stop path depends on
+//region llama-server: starting a server, stopping one, and the end-of-child wait both depend on
 
-export { awaitChildEnd, } from './analyze/llama.ts';
+export {
+  awaitChildEnd,
+  start as startLlamaServer,
+  stop as stopLlamaServer,
+} from './analyze/llama.ts';
 
 //endregion llama-server
 

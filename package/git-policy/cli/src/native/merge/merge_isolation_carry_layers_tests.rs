@@ -15,7 +15,7 @@ fn place(name: &str) -> (PathBuf, PathBuf, ContextRunner<'static>) {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let context: &'static crate::transaction_git::GitContext = Box::leak(Box::new(git_context()));
     let cwd: &'static Path = Box::leak(repo.clone().into_boxed_path());
-    let runner: ContextRunner<'static> = ContextRunner { context, cwd, without_prefix: false, object_directory: None, environment: Vec::new() };
+    let runner: ContextRunner<'static> = ContextRunner { context, cwd, without_prefix: false, repository: Vec::new(), object_directory: None, environment: Vec::new() };
     return (root, repo, runner);
 }
 

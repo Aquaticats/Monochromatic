@@ -1056,50 +1056,50 @@ WiFi.
 
 ### Ranking and reasons
 
-1. ASRock X870E Taichi Lite.
-   It is E-ATX (12.0 by 10.5 inches,
-   TechPowerUp and Vortez),
-   x8/x8,
-   code display,
-   Wi-Fi 7,
-   5 Gb LAN,
-   about 399.99 US dollars at launch (PCMag).
-   Corsair's own 4000D Airflow page (CC-9011200-WW,
-   Tech Specs) lists "E-ATX (305mm x 277mm)",
-   and 10.5 inches is 267 mm,
-   so the board fits the stated size;
-   KitGuru,
-   one UK reseller and two spec aggregators list only ATX,
-   so Corsair's page and the listings that copy it are the
-   source used.
-   Fit with the NH-D15S (160 mm tall,
-   case limit 170 mm) and the board's mounting holes is unchecked.
-2. ASUS ROG Crosshair X870E Hero.
-   It is ATX (ASUS),
-   x8/x8,
-   Q-Code,
-   Wi-Fi 7 (Qualcomm or MediaTek by unit),
-   456.90 CHF
-   to 568.90 EUR in the ASUS shop.
-   It is the only candidate with every requirement checked,
-   including the fit.
-3. ASRock X870E Nova WiFi.
-   It is ATX (12.0 by 9.6 inches),
-   with a Dr. Debug display (retailer spec) and Wi-Fi 7,
-   5 Gb
-   LAN,
-   MSRP 349 US dollars (Tech4Gamers,
-   Tom's Hardware 349.99).
-   Its only chipset slot of full length,
-   PCIE3,
-   runs
-   at PCIe 3.0 x2 (ASRock page) and is disabled when M2_5 is used,
-   so the RX 7600 would get a Gen3 x2 link.
-4. ROG Crosshair X670E Hero:
-   x8/x8 and Wi-Fi 6E,
-   display not confirmed in text read,
-   price not found,
-   older platform.
+1.  ASRock X870E Taichi Lite.
+    It is E-ATX (12.0 by 10.5 inches,
+    TechPowerUp and Vortez),
+    x8/x8,
+    code display,
+    Wi-Fi 7,
+    5 Gb LAN,
+    about 399.99 US dollars at launch (PCMag).
+    Corsair's own 4000D Airflow page (CC-9011200-WW,
+    Tech Specs) lists "E-ATX (305mm x 277mm)",
+    and 10.5 inches is 267 mm,
+    so the board fits the stated size;
+    KitGuru,
+    one UK reseller and two spec aggregators list only ATX,
+    so Corsair's page and the listings that copy it are the
+    source used.
+    Fit with the NH-D15S (160 mm tall,
+    case limit 170 mm) and the board's mounting holes is unchecked.
+2.  ASUS ROG Crosshair X870E Hero.
+    It is ATX (ASUS),
+    x8/x8,
+    Q-Code,
+    Wi-Fi 7 (Qualcomm or MediaTek by unit),
+    456.90 CHF
+    to 568.90 EUR in the ASUS shop.
+    It is the only candidate with every requirement checked,
+    including the fit.
+3.  ASRock X870E Nova WiFi.
+    It is ATX (12.0 by 9.6 inches),
+    with a Dr. Debug display (retailer spec) and Wi-Fi 7,
+    5 Gb
+    LAN,
+    MSRP 349 US dollars (Tech4Gamers,
+    Tom's Hardware 349.99).
+    Its only chipset slot of full length,
+    PCIE3,
+    runs
+    at PCIe 3.0 x2 (ASRock page) and is disabled when M2_5 is used,
+    so the RX 7600 would get a Gen3 x2 link.
+4.  ROG Crosshair X670E Hero:
+    x8/x8 and Wi-Fi 6E,
+    display not confirmed in text read,
+    price not found,
+    older platform.
 
 Pair reasons:
 the Lite beats the Hero on price and VFIO evidence now that the case lists E-ATX;
@@ -1676,53 +1676,53 @@ The day-one checks under "Checks before buying" still decide it.
 
 ## Next actions
 
-1. No monitor and no 4-hour check (ended by the user).
-   Read alerts from the journal only when the user asks.
-2. When a session has run sustained load,
-   run `node package/claude-cpu-cap/daemon/src/summarize-samples.ts 1`.
-   It still needs a chiplet comparison and a (Tctl minus probe) per watt figure.
-3. The service stays running;
-   stop it only if the user asks.
-4. Record every user decision and measurement in this file as the session continues.
-5. After the user reapplies paste (decided about 20:45 EDT on 2026-10-13:
-   Noctua NT-H2 3.5g AM5 Edition,
-   ordered,
-   not
-   yet arrived):
-   compare against the baseline below with the same kind of load of 100 W or more for at least 3 minutes.
-   Baseline before the reapply (MX-4 cross,
-   2 fans,
-   cap 28,
-   20:16 to 20:25 EDT):
-   Tctl 95.4,
-   average of the two CCD
-   temperatures about 91.7,
-   package power 133 W,
-   clock 4407 MHz median,
-   probe 26 degrees,
-   so about 0.49 degrees per
-   watt over ambient;
-   Noctua's lab figure for the same heatsink and chip is about 0.26.
-   Compare degrees per watt,
-   not
-   raw temperature,
-   because the load will differ.
-   `node package/claude-cpu-cap/daemon/src/analyze-episode.ts <from> <to>` prints the medians.
-   The NT-H2 AM5 Edition includes the NA-TPG1 paste guard and 3 cleaning wipes;
-   Noctua's AM5 pattern is five small
-   dots (four of about 2 mm near the corners,
-   one of 3 to 4 mm in the centre) with no manual spreading,
-   and the paste
-   needs no cure time (NT-H2 AM5 Edition manual and product page,
-   fetched 2026-10-13).
-   The reseat also resets the
-   other checks:
-   base film removed,
-   -7 mm offset,
-   bars NORTH and SOUTH,
-   screws alternately to the stop.
-   Done on 2026-10-18 together with a board swap;
-   see the section on the board swap.
+1.  No monitor and no 4-hour check (ended by the user).
+    Read alerts from the journal only when the user asks.
+2.  When a session has run sustained load,
+    run `node package/claude-cpu-cap/daemon/src/summarize-samples.ts 1`.
+    It still needs a chiplet comparison and a (Tctl minus probe) per watt figure.
+3.  The service stays running;
+    stop it only if the user asks.
+4.  Record every user decision and measurement in this file as the session continues.
+5.  After the user reapplies paste (decided about 20:45 EDT on 2026-10-13:
+    Noctua NT-H2 3.5g AM5 Edition,
+    ordered,
+    not
+    yet arrived):
+    compare against the baseline below with the same kind of load of 100 W or more for at least 3 minutes.
+    Baseline before the reapply (MX-4 cross,
+    2 fans,
+    cap 28,
+    20:16 to 20:25 EDT):
+    Tctl 95.4,
+    average of the two CCD
+    temperatures about 91.7,
+    package power 133 W,
+    clock 4407 MHz median,
+    probe 26 degrees,
+    so about 0.49 degrees per
+    watt over ambient;
+    Noctua's lab figure for the same heatsink and chip is about 0.26.
+    Compare degrees per watt,
+    not
+    raw temperature,
+    because the load will differ.
+    `node package/claude-cpu-cap/daemon/src/analyze-episode.ts <from> <to>` prints the medians.
+    The NT-H2 AM5 Edition includes the NA-TPG1 paste guard and 3 cleaning wipes;
+    Noctua's AM5 pattern is five small
+    dots (four of about 2 mm near the corners,
+    one of 3 to 4 mm in the centre) with no manual spreading,
+    and the paste
+    needs no cure time (NT-H2 AM5 Edition manual and product page,
+    fetched 2026-10-13).
+    The reseat also resets the
+    other checks:
+    base film removed,
+    -7 mm offset,
+    bars NORTH and SOUTH,
+    screws alternately to the stop.
+    Done on 2026-10-18 together with a board swap;
+    see the section on the board swap.
 
 ### In-repo CPU cap package (2026-10-13, about 22:15 EDT)
 

@@ -166,25 +166,25 @@ TROUBLESHOOTING.
 **Resume work next session:
 **
 
-1. Re-run 120s soundness-by-revert in `/tmp/fs-soundness-revert`.
-   Sync src first,
-    clear stale timeout artifacts:
-   ```text
-   cp /var/home/user/Monochromatic/package/cli/forbidden-strings/src/{fuzz_api,rules}.rs /tmp/fs-soundness-revert/packages/cli/forbidden-strings/src/
-   cp /var/home/user/Monochromatic/package/cli/forbidden-strings/src/rule/{engine,engine_tests}.rs /tmp/fs-soundness-revert/packages/cli/forbidden-strings/src/rule/
-   rm /tmp/fs-soundness-revert/packages/cli/forbidden-strings/fuzz/artifacts/fuzz_extract_gate_soundness/timeout-*
-   cd /tmp/fs-soundness-revert/packages/cli/forbidden-strings
-   mise run fuzz:run fuzz_extract_gate_soundness -max_total_time=120 -timeout=10
-   ```
-   Expect SOUNDNESS PANIC.
-    If still hitting non-soundness halts,
-   decode via `/tmp/probe-slow-unit/target/release/probe <path>` and
-   add another pre-validator.
-2. If panic still doesn't fire after fuzz runs 120s clean,
-    bias
-   `synth_content` to produce Unicode case-flipped variants.
-3. File Bug E upstream at github.
-   com/ieviev/resharp.
+1.  Re-run 120s soundness-by-revert in `/tmp/fs-soundness-revert`.
+    Sync src first,
+     clear stale timeout artifacts:
+    ```text
+    cp /var/home/user/Monochromatic/package/cli/forbidden-strings/src/{fuzz_api,rules}.rs /tmp/fs-soundness-revert/packages/cli/forbidden-strings/src/
+    cp /var/home/user/Monochromatic/package/cli/forbidden-strings/src/rule/{engine,engine_tests}.rs /tmp/fs-soundness-revert/packages/cli/forbidden-strings/src/rule/
+    rm /tmp/fs-soundness-revert/packages/cli/forbidden-strings/fuzz/artifacts/fuzz_extract_gate_soundness/timeout-*
+    cd /tmp/fs-soundness-revert/packages/cli/forbidden-strings
+    mise run fuzz:run fuzz_extract_gate_soundness -max_total_time=120 -timeout=10
+    ```
+    Expect SOUNDNESS PANIC.
+     If still hitting non-soundness halts,
+    decode via `/tmp/probe-slow-unit/target/release/probe <path>` and
+    add another pre-validator.
+2.  If panic still doesn't fire after fuzz runs 120s clean,
+     bias
+    `synth_content` to produce Unicode case-flipped variants.
+3.  File Bug E upstream at github.
+    com/ieviev/resharp.
 
 ### Late-2026-05-16 session (~23:00): Bug F + case-flip bias + widened B
 
@@ -249,18 +249,18 @@ via direct probe" and "fuzz never discovers it via random mutation".
 **TODO for next session:
 **
 
-1. Widen `nested_lookahead_in_quantified_group` to also catch
-   "quantified lookahead group + trailing content" (Bug F broader
-   class).
-    Bisect probes in `/tmp/probe-slow-unit/src/bin/bisect_f7,
-   bisect_f8.rs` document the exact triggers.
-2. Sync to worktree,
-    re-fuzz.
-    Expect SOUNDNESS PANIC.
-3. Add Bug F section to TROUBLESHOOTING.
-   `resharp.md`.
-4. File Bug E upstream at github.
-   com/ieviev/resharp (still pending).
+1.  Widen `nested_lookahead_in_quantified_group` to also catch
+    "quantified lookahead group + trailing content" (Bug F broader
+    class).
+     Bisect probes in `/tmp/probe-slow-unit/src/bin/bisect_f7,
+    bisect_f8.rs` document the exact triggers.
+2.  Sync to worktree,
+     re-fuzz.
+     Expect SOUNDNESS PANIC.
+3.  Add Bug F section to TROUBLESHOOTING.
+    `resharp.md`.
+4.  File Bug E upstream at github.
+    com/ieviev/resharp (still pending).
 
 ---
 
@@ -276,184 +276,184 @@ historical context only:
   Findings late-2026-05-16,
    in the order they crystallised:
 
-  1. **`cd9b2dbf` (stacked-quantifier pre-validator) was solving the
-     wrong shape.
-     ** The pre-validator catches bare-stacked
-     quantifiers like `a**` and `\D{5,11}{5,11}`.
-      But the fuzz
-     target's `Node::Quant` renderer at
-     `fuzz/src/generators.rs:1292-1300` ALWAYS wraps the quantified
-     atom in `(?:...)` non-capturing group:
-     ```rust
-     //! The fuzz target's quantifier renderer that always wraps the atom in a group
-     Node::Quant(body, kind) => {
-         out.push_str("(?:");
-         body.render(out);
-         out.push(')');
-         kind.render(out);
-     }
-     ```
-     So the generator NEVER emits bare-stacked source.
-      A deeply-
-     nested Quant chain renders as
-     `(?:(?:(?:(?:(?:atom){N,M}){N,M}){N,M}){N,M}){N,M}` (grouped
-     via `(?:...)`),
-      and my pre-validator's "two quantifier suffixes
-     back-to-back" logic does not fire because the `)` resets the
-     `just_consumed_quant` state.
-      The pre-validator is a no-op for
-     the fuzz target;
-      its unit tests pass because they use a
-     hand-written bare-stacked source the fuzz never produces.
+  1.  **`cd9b2dbf` (stacked-quantifier pre-validator) was solving the
+      wrong shape.
+      ** The pre-validator catches bare-stacked
+      quantifiers like `a**` and `\D{5,11}{5,11}`.
+       But the fuzz
+      target's `Node::Quant` renderer at
+      `fuzz/src/generators.rs:1292-1300` ALWAYS wraps the quantified
+      atom in `(?:...)` non-capturing group:
+      ```rust
+      //! The fuzz target's quantifier renderer that always wraps the atom in a group
+      Node::Quant(body, kind) => {
+          out.push_str("(?:");
+          body.render(out);
+          out.push(')');
+          kind.render(out);
+      }
+      ```
+      So the generator NEVER emits bare-stacked source.
+       A deeply-
+      nested Quant chain renders as
+      `(?:(?:(?:(?:(?:atom){N,M}){N,M}){N,M}){N,M}){N,M}` (grouped
+      via `(?:...)`),
+       and my pre-validator's "two quantifier suffixes
+      back-to-back" logic does not fire because the `)` resets the
+      `just_consumed_quant` state.
+       The pre-validator is a no-op for
+      the fuzz target;
+       its unit tests pass because they use a
+      hand-written bare-stacked source the fuzz never produces.
 
-     Decoded slow-unit `slow-unit-0cfbc4b8b9945074fe5214a96c503f6e994e3b97`
-     rendered source via the probe at `/tmp/probe-slow-unit/`:
-     ```text
-     (?iu)(?:(?:(?:(?:(?:\d){5,11}){5,11}){5,11}){5,11}){5,11}(?:(?:(?:(?:(?:\d)*)*)*)*)*aa
-     ```
-     `compile_rule_src` on this source takes ~3.26s and errors with
-     `CompiledTooBig(268_435_456)`.
-      The shape that needs to be
-     caught is **grouped-via-`(?:)` nested quantifiers** at depth
-     4+,
-      not bare-stacked.
-      The pre-validator either needs a new
-     algorithm (count chains of `){quant}` adjacency) or a sibling
-     that walks paren-depth-tracked quantified-group nesting.
+      Decoded slow-unit `slow-unit-0cfbc4b8b9945074fe5214a96c503f6e994e3b97`
+      rendered source via the probe at `/tmp/probe-slow-unit/`:
+      ```text
+      (?iu)(?:(?:(?:(?:(?:\d){5,11}){5,11}){5,11}){5,11}){5,11}(?:(?:(?:(?:(?:\d)*)*)*)*)*aa
+      ```
+      `compile_rule_src` on this source takes ~3.26s and errors with
+      `CompiledTooBig(268_435_456)`.
+       The shape that needs to be
+      caught is **grouped-via-`(?:)` nested quantifiers** at depth
+      4+,
+       not bare-stacked.
+       The pre-validator either needs a new
+      algorithm (count chains of `){quant}` adjacency) or a sibling
+      that walks paren-depth-tracked quantified-group nesting.
 
-     The pre-validator is still correct on its own terms (it catches
-     bare-stacked patterns IF anyone hand-writes one in a rules
-     file).
-      It is just not the load-bearing defence the fuzz target
-     needs.
-      Keep it,
-      add the grouped sibling.
+      The pre-validator is still correct on its own terms (it catches
+      bare-stacked patterns IF anyone hand-writes one in a rules
+      file).
+       It is just not the load-bearing defence the fuzz target
+      needs.
+       Keep it,
+       add the grouped sibling.
 
-  2. **`2f4d27b0` (Unicode literal alphabet widening) exposed two
-     pre-existing resharp panic shapes that the fuzz now reaches
-     within ~30s.
-     ** The new pick=5 branch in `gen_literal_bytes`
-     emits one of `é`/`ñ`/`ü`/`ö`/`ç` as a 2-byte UTF-8 pair.
-     This is necessary for the soundness-by-revert path (the
-     e49d8694 case-fold bug requires non-ASCII letters in the
-     gate).
-      But the wider literal alphabet also lets the
-     generator construct rule sources combining `&` (intersection)
-     with `(?=`/`(?!` (lookahead) -- a shape neither
-     `intersection_with_lookbehind` (covers lookBEHIND only) nor
-     `intersection_with_word_end_alternation` (covers `&`+`\w`+`$`)
-     catches.
-      Resharp's `engine.rs:1020` `debug_assert!` then
-     fires in debug builds and the libfuzzer panic hook aborts
-     before our `catch_unwind` net can intercept.
+  2.  **`2f4d27b0` (Unicode literal alphabet widening) exposed two
+      pre-existing resharp panic shapes that the fuzz now reaches
+      within ~30s.
+      ** The new pick=5 branch in `gen_literal_bytes`
+      emits one of `é`/`ñ`/`ü`/`ö`/`ç` as a 2-byte UTF-8 pair.
+      This is necessary for the soundness-by-revert path (the
+      e49d8694 case-fold bug requires non-ASCII letters in the
+      gate).
+       But the wider literal alphabet also lets the
+      generator construct rule sources combining `&` (intersection)
+      with `(?=`/`(?!` (lookahead) -- a shape neither
+      `intersection_with_lookbehind` (covers lookBEHIND only) nor
+      `intersection_with_word_end_alternation` (covers `&`+`\w`+`$`)
+      catches.
+       Resharp's `engine.rs:1020` `debug_assert!` then
+      fires in debug builds and the libfuzzer panic hook aborts
+      before our `catch_unwind` net can intercept.
 
-     Crash artifacts left over from the failed 60s gate on main
-     (post-widening,
-      with stacked-quant fix in place):
-     - `crash-8cba104f0805ccb567513aff895398a4f652200c` — Alt
-       containing `Lookaround(NotAhead, ...)` siblings with
-       intersection.
-        The reproducer panics on
-       `resharp-algebra/0.6.0/src/lib.rs:2470` (algebra
-       overflow shape),
-        but the rule shape is lookahead+intersect.
+      Crash artifacts left over from the failed 60s gate on main
+      (post-widening,
+       with stacked-quant fix in place):
+      - `crash-8cba104f0805ccb567513aff895398a4f652200c` — Alt
+        containing `Lookaround(NotAhead, ...)` siblings with
+        intersection.
+         The reproducer panics on
+        `resharp-algebra/0.6.0/src/lib.rs:2470` (algebra
+        overflow shape),
+         but the rule shape is lookahead+intersect.
 
-     - `slow-unit-0cfbc4b8b9945074fe5214a96c503f6e994e3b97` —
-       same hash as the original slow-unit,
-        but the bytes now
-       represent the grouped-quantifier shape under (?
-       iu);
-       compile takes ~3s,
-        which combined with ASAN overhead
-       crosses libfuzzer's 10s slow-unit threshold.
+      - `slow-unit-0cfbc4b8b9945074fe5214a96c503f6e994e3b97` —
+        same hash as the original slow-unit,
+         but the bytes now
+        represent the grouped-quantifier shape under (?
+        iu);
+        compile takes ~3s,
+         which combined with ASAN overhead
+        crosses libfuzzer's 10s slow-unit threshold.
 
-     Both artifacts must remain on disk for the next session's
-     diagnosis;
-      do not `rm` them.
-      The artifact-permission denial
-     in the prior turn was correct.
+      Both artifacts must remain on disk for the next session's
+      diagnosis;
+       do not `rm` them.
+       The artifact-permission denial
+      in the prior turn was correct.
 
-  3. **The 60s fuzz on main is now BROKEN.
-     ** Pre-widening (commit
-     order through `cd9b2dbf`),
-      two consecutive 60s `fuzz:run
-     fuzz_extract_gate_soundness` invocations completed cleanly
-     (9561 + 3858 iterations).
-      Post-widening (`2f4d27b0`),
-      the
-     same command exits with libfuzzer status 77 within ~60s,
-     hitting the lookahead+intersect resharp panic and the
-     grouped-quantifier slow-unit.
-      The user instructed
-     "Don't revert it" -- the widening stays in HEAD as commit
-     `4d5563cb` (reapplied via revert-of-revert;
-      `1976d0b9` is
-     the discarded revert).
+  3.  **The 60s fuzz on main is now BROKEN.
+      ** Pre-widening (commit
+      order through `cd9b2dbf`),
+       two consecutive 60s `fuzz:run
+      fuzz_extract_gate_soundness` invocations completed cleanly
+      (9561 + 3858 iterations).
+       Post-widening (`2f4d27b0`),
+       the
+      same command exits with libfuzzer status 77 within ~60s,
+      hitting the lookahead+intersect resharp panic and the
+      grouped-quantifier slow-unit.
+       The user instructed
+      "Don't revert it" -- the widening stays in HEAD as commit
+      `4d5563cb` (reapplied via revert-of-revert;
+       `1976d0b9` is
+      the discarded revert).
 
-  4. **Manually probed soundness IS reachable** in the reverted
-     worktree:
-      `(?iu)café` vs content `CAFÉ` triggers the
-     expected soundness violation (probe at
-     `/tmp/probe-slow-unit/`).
-      The bug class fixed by `e49d8694`
-     is real.
-      The fuzz target cannot reach it because the
-     generator's `synth_content` does not produce
-     Unicode-case-flipped variants of the rule's non-ASCII
-     bytes -- mutations there are uniform random 0..=255 byte
-     writes,
-      so converging on the `0xA9` -> `0x89` flip is
-     stochastic.
-      A targeted bias in `synth_content`,
-      OR a
-     hand-crafted seed in `fuzz/corpus/fuzz_extract_gate_soundness/`
-     that decodes to the violating shape,
-      would let phase 11
-     panic deterministically.
+  4.  **Manually probed soundness IS reachable** in the reverted
+      worktree:
+       `(?iu)café` vs content `CAFÉ` triggers the
+      expected soundness violation (probe at
+      `/tmp/probe-slow-unit/`).
+       The bug class fixed by `e49d8694`
+      is real.
+       The fuzz target cannot reach it because the
+      generator's `synth_content` does not produce
+      Unicode-case-flipped variants of the rule's non-ASCII
+      bytes -- mutations there are uniform random 0..=255 byte
+      writes,
+       so converging on the `0xA9` -> `0x89` flip is
+      stochastic.
+       A targeted bias in `synth_content`,
+       OR a
+      hand-crafted seed in `fuzz/corpus/fuzz_extract_gate_soundness/`
+      that decodes to the violating shape,
+       would let phase 11
+      panic deterministically.
 
   **Follow-ups,
    in priority order:
   **
-  1. Add a `nested_grouped_quantifier` pre-validator that flags
-     depth-4+ chains of `(?:body){quant}` nesting.
-      Or extend
-     `stacked_quantifier` with a paren-depth counter that
-     re-arms `just_consumed_quant` across `)` when the inner
-     body was itself quantified.
-      Algorithm sketch:
-      walk paren
-     depth;
-      when a group close `)` is followed by a quantifier
-     start,
-      increment a per-depth `quantified_closes` counter;
-     flag when 4+ such closes appear in adjacent positions
-     (separated only by quantifier suffixes).
-  2. Generalise `intersection_with_lookbehind` to also fire on
-     `&` + lookahead (`(?=`,
-      `(?!`).
-      Or add a sibling
-     `intersection_with_lookaround`.
-      The reproducer for the
-     post-widening crash is in
-     `fuzz/artifacts/fuzz_extract_gate_soundness/crash-8cba104f...`.
-  3. Re-run 60 s fuzz on main:
-      must complete clean before
-     declaring the load-bearing verification gate green again.
-  4. Re-run 120 s soundness-by-revert:
-      expect either the
-     grouped-quantifier slow-unit and lookahead+intersect to
-     fire FIRST (if the new pre-validators are still
-     incomplete),
-      or the SOUNDNESS PANIC on a non-ASCII
-     case-fold shape (if the pre-validators are thorough and
-     libfuzzer's mutations reach the case-flip).
-  5. If (4) keeps missing the soundness panic,
-      bias
-     `synth_content` (in `fuzz/src/generators.rs` near
-     line 1383) to emit Unicode-case-flipped variants of any
-     non-ASCII letter bytes in the rule's literals -- not
-     uniform 0..=255 mutations.
-      Or add a deterministic seed.
+  1.  Add a `nested_grouped_quantifier` pre-validator that flags
+      depth-4+ chains of `(?:body){quant}` nesting.
+       Or extend
+      `stacked_quantifier` with a paren-depth counter that
+      re-arms `just_consumed_quant` across `)` when the inner
+      body was itself quantified.
+       Algorithm sketch:
+       walk paren
+      depth;
+       when a group close `)` is followed by a quantifier
+      start,
+       increment a per-depth `quantified_closes` counter;
+      flag when 4+ such closes appear in adjacent positions
+      (separated only by quantifier suffixes).
+  2.  Generalise `intersection_with_lookbehind` to also fire on
+      `&` + lookahead (`(?=`,
+       `(?!`).
+       Or add a sibling
+      `intersection_with_lookaround`.
+       The reproducer for the
+      post-widening crash is in
+      `fuzz/artifacts/fuzz_extract_gate_soundness/crash-8cba104f...`.
+  3.  Re-run 60 s fuzz on main:
+       must complete clean before
+      declaring the load-bearing verification gate green again.
+  4.  Re-run 120 s soundness-by-revert:
+       expect either the
+      grouped-quantifier slow-unit and lookahead+intersect to
+      fire FIRST (if the new pre-validators are still
+      incomplete),
+       or the SOUNDNESS PANIC on a non-ASCII
+      case-fold shape (if the pre-validators are thorough and
+      libfuzzer's mutations reach the case-flip).
+  5.  If (4) keeps missing the soundness panic,
+       bias
+      `synth_content` (in `fuzz/src/generators.rs` near
+      line 1383) to emit Unicode-case-flipped variants of any
+      non-ASCII letter bytes in the rule's literals -- not
+      uniform 0..=255 mutations.
+       Or add a deterministic seed.
 
 - `/tmp/fs-fuzz-validate`,
    `/tmp/fs-soundness-revert`,
@@ -502,22 +502,22 @@ historical context only:
 
 ## What the user asked for
 
-1. Fix two upstream resharp panics by **both** mechanisms:
-   - `std::panic::catch_unwind` wrapping (defense in depth)
-   - Pre-validator pre-flight rejection of known-bad shapes
-2. **Do NOT** file upstream issues yet -- only update
-   `TROUBLESHOOTING.resharp.md`.
-3. Per their later note:
-    do not skip when probing fails to reproduce;
-   document any cargo-fuzz-vs-`cargo run` discrepancies in a separate
-   TROUBLESHOOTING doc.
-4. Per their final note:
-    resharp 6.0 was released mid-task;
-    finish
-   current logical unit,
-    write handover,
-    commit,
-    defer everything else.
+1.  Fix two upstream resharp panics by **both** mechanisms:
+    - `std::panic::catch_unwind` wrapping (defense in depth)
+    - Pre-validator pre-flight rejection of known-bad shapes
+2.  **Do NOT** file upstream issues yet -- only update
+    `TROUBLESHOOTING.resharp.md`.
+3.  Per their later note:
+     do not skip when probing fails to reproduce;
+    document any cargo-fuzz-vs-`cargo run` discrepancies in a separate
+    TROUBLESHOOTING doc.
+4.  Per their final note:
+     resharp 6.0 was released mid-task;
+     finish
+    current logical unit,
+     write handover,
+     commit,
+     defer everything else.
 
 ## Status of the original task list
 
@@ -854,17 +854,17 @@ new file:   HANDOVER.resharp-panic-fix.md
 
 Two commits feel right:
 
-1. `fix(forbidden-strings): make scanner panic-safe against resharp engine`
-   - `Cargo.toml` profile (panic=unwind,
-      overflow-checks=true)
-   - `src/rules.rs` catch_unwind wrap on `Regex::new`
-   - `src/rules/engine.rs` catch_unwind wraps on `find_all`/`is_match`
-   - Subset of the new tests covering the catch_unwind paths
-2. `fix(forbidden-strings): pre-validate resharp 0.5.x panic shapes`
-   - `src/rules/engine.rs` two new pre-validators + their re-exports
-   - `src/rules.rs` wiring `compile_rule_src` to call them
-   - Remaining tests (pre-validator units + end-to-end
-     `compile_rule_src_does_not_panic_on_known_bad_shapes`)
+1.  `fix(forbidden-strings): make scanner panic-safe against resharp engine`
+    - `Cargo.toml` profile (panic=unwind,
+       overflow-checks=true)
+    - `src/rules.rs` catch_unwind wrap on `Regex::new`
+    - `src/rules/engine.rs` catch_unwind wraps on `find_all`/`is_match`
+    - Subset of the new tests covering the catch_unwind paths
+2.  `fix(forbidden-strings): pre-validate resharp 0.5.x panic shapes`
+    - `src/rules/engine.rs` two new pre-validators + their re-exports
+    - `src/rules.rs` wiring `compile_rule_src` to call them
+    - Remaining tests (pre-validator units + end-to-end
+      `compile_rule_src_does_not_panic_on_known_bad_shapes`)
 
 If the resharp 6.0 bump in the next session ends up removing the
 pre-validators entirely,

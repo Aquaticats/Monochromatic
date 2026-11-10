@@ -332,64 +332,64 @@ and add a matching `[[bin]]` block to `fuzz/Cargo.toml`.
  Order by
 priority:
 
-1. **`fuzz_extract_gate_soundness`** — primary.
-    Per §7.1:
-    assert that for
-   every regex match in haystack,
-    at least one extracted gate substring
-   from `extract_gating_substrings` is present in the haystack under the
-   gate's case-sensitivity mode.
-    Use `compile_rule_src` so the fuzzer and
-   production share the compile path.
-    Reject oversized patterns,
-    compile
-   failures,
-    and zero-match cases.
-    Panic message:
-    pattern source +
-   content length + SHA-256 hex digest only (never raw bytes).
-2. **`fuzz_ruleset_scan_invariants`** — build a bounded ruleset,
-    run
-   `scan_content`,
-    assert:
-    every hit re-checks via regex on raw bytes,
-   no column counter crosses UTF-8 boundary,
-    hit set invariant to rayon
-   thread count,
-    hit set invariant to rule order,
-    hit format matches the
-   `path:line:cols rule=N` shape.
-3. **`fuzz_regex_engine_dispatch`** — assert resharp-only constructs
-   route to resharp;
-    plain constructs route to `regex` crate.
-    For the
-   feature subset both engines agree on,
-    compare `is_match` and non-empty
-   `find_all` on bounded haystacks.
-    Gate the comparison via
-   `both_engines_agree(src)` so the target stays sound as either engine
-   evolves.
-4. **`fuzz_regex_syntax_walkers`** — panic-freedom + index invariants for
-   `group_body_start`,
-    `find_matching_close_paren`,
-    `skip_any_quantifier`,
-   `quantifier_is_required`,
-    `skip_class_body`,
-    `walk_literal_bytes`.
-5. **`fuzz_scan_format`** — line-index construction,
-    byte-to-line/column,
-   hit-end clipping,
-    `format_hit` redaction.
-    Negative invariant:
-    the
-   formatted hit never contains any matched byte from the content slice.
-6. **`fuzz_residual_shards`** — each input regex appears exactly once
-   across shards;
-    if any member regex matches a haystack,
-    the combined-
-   shard gate returns `Ok(true)` or `Err(())`,
-    never `Ok(false)`.
-7. **`fuzz_literal_roundtrip`** — keep only if cheap.
+1.  **`fuzz_extract_gate_soundness`** — primary.
+     Per §7.1:
+     assert that for
+    every regex match in haystack,
+     at least one extracted gate substring
+    from `extract_gating_substrings` is present in the haystack under the
+    gate's case-sensitivity mode.
+     Use `compile_rule_src` so the fuzzer and
+    production share the compile path.
+     Reject oversized patterns,
+     compile
+    failures,
+     and zero-match cases.
+     Panic message:
+     pattern source +
+    content length + SHA-256 hex digest only (never raw bytes).
+2.  **`fuzz_ruleset_scan_invariants`** — build a bounded ruleset,
+     run
+    `scan_content`,
+     assert:
+     every hit re-checks via regex on raw bytes,
+    no column counter crosses UTF-8 boundary,
+     hit set invariant to rayon
+    thread count,
+     hit set invariant to rule order,
+     hit format matches the
+    `path:line:cols rule=N` shape.
+3.  **`fuzz_regex_engine_dispatch`** — assert resharp-only constructs
+    route to resharp;
+     plain constructs route to `regex` crate.
+     For the
+    feature subset both engines agree on,
+     compare `is_match` and non-empty
+    `find_all` on bounded haystacks.
+     Gate the comparison via
+    `both_engines_agree(src)` so the target stays sound as either engine
+    evolves.
+4.  **`fuzz_regex_syntax_walkers`** — panic-freedom + index invariants for
+    `group_body_start`,
+     `find_matching_close_paren`,
+     `skip_any_quantifier`,
+    `quantifier_is_required`,
+     `skip_class_body`,
+     `walk_literal_bytes`.
+5.  **`fuzz_scan_format`** — line-index construction,
+     byte-to-line/column,
+    hit-end clipping,
+     `format_hit` redaction.
+     Negative invariant:
+     the
+    formatted hit never contains any matched byte from the content slice.
+6.  **`fuzz_residual_shards`** — each input regex appears exactly once
+    across shards;
+     if any member regex matches a haystack,
+     the combined-
+    shard gate returns `Ok(true)` or `Err(())`,
+     never `Ok(false)`.
+7.  **`fuzz_literal_roundtrip`** — keep only if cheap.
 
 Delete `fuzz/fuzz_targets/fuzz_target_1.rs` when the first real target
 lands.
@@ -413,26 +413,26 @@ lands.
 
 ### Step D — Tooling integration (phase 9)
 
-1. Root `mise.toml` `[tools]` — add `"cargo:cargo-fuzz" = "0.13.1"`
-   next to the existing `"cargo:fastmod"`.
-2. Per-package nightly pinning — either add to
-   `package/cli/forbidden-strings/mise.toml` `[tools]` (preferred per
-   plan),
-    or set `RUSTUP_TOOLCHAIN=nightly` per fuzz task as the
-   fallback.
-    The simpler fallback is fine;
-    nightly is currently
-   installed system-wide.
-3. Add to `package/cli/forbidden-strings/mise.toml` `[tasks.fuzz:list]`,
-   `[tasks.fuzz:build]`,
-    `[tasks.fuzz:smoke]`,
-    `[tasks.fuzz:run]`,
-   `[tasks.fuzz:seed]`.
-    Plan §9.3 spells out the command bodies.
-4. **DO NOT** add a `fuzz:install` task — mise's tool system handles
-   installation (per plan §9.4).
-5. Document the bounded container wrapper in README:
-   `podman run --memory=2g --cpus=2 --rm -v "$PWD":/work -w /work <image> mise run //package/cli/forbidden-strings:fuzz:build`.
+1.  Root `mise.toml` `[tools]` — add `"cargo:cargo-fuzz" = "0.13.1"`
+    next to the existing `"cargo:fastmod"`.
+2.  Per-package nightly pinning — either add to
+    `package/cli/forbidden-strings/mise.toml` `[tools]` (preferred per
+    plan),
+     or set `RUSTUP_TOOLCHAIN=nightly` per fuzz task as the
+    fallback.
+     The simpler fallback is fine;
+     nightly is currently
+    installed system-wide.
+3.  Add to `package/cli/forbidden-strings/mise.toml` `[tasks.fuzz:list]`,
+    `[tasks.fuzz:build]`,
+     `[tasks.fuzz:smoke]`,
+     `[tasks.fuzz:run]`,
+    `[tasks.fuzz:seed]`.
+     Plan §9.3 spells out the command bodies.
+4.  **DO NOT** add a `fuzz:install` task — mise's tool system handles
+    installation (per plan §9.4).
+5.  Document the bounded container wrapper in README:
+    `podman run --memory=2g --cpus=2 --rm -v "$PWD":/work -w /work <image> mise run //package/cli/forbidden-strings:fuzz:build`.
 
 ### Step E — Documentation (phase 10)
 
@@ -452,20 +452,20 @@ needed.
 
 Run in order:
 
-1. `mise run //package/cli/forbidden-strings:build`
-2. `mise run //package/cli/forbidden-strings:test`
-3. `mise run //package/cli/forbidden-strings:lint`
-4. `mise run //package/cli/forbidden-strings:lint:clippy`
-5. Release binary CLI smoke (any temp file with a known rule).
-6. `mise run //package/cli/forbidden-strings:fuzz:build` inside the
-   container wrapper.
-7. `mise run //package/cli/forbidden-strings:fuzz:smoke` inside the
-   container wrapper.
-8. `git check-ignore --verbose package/cli/forbidden-strings.fuzz/Cargo.lock`
-   must return no match.
-   Cargo lockfiles are not gitignored.
-9. Sentinel commands from `AGENTS.md` "Git cleanup and worktree safety
-   reviews" to confirm no fuzz output escapes the ignore set.
+1.  `mise run //package/cli/forbidden-strings:build`
+2.  `mise run //package/cli/forbidden-strings:test`
+3.  `mise run //package/cli/forbidden-strings:lint`
+4.  `mise run //package/cli/forbidden-strings:lint:clippy`
+5.  Release binary CLI smoke (any temp file with a known rule).
+6.  `mise run //package/cli/forbidden-strings:fuzz:build` inside the
+    container wrapper.
+7.  `mise run //package/cli/forbidden-strings:fuzz:smoke` inside the
+    container wrapper.
+8.  `git check-ignore --verbose package/cli/forbidden-strings.fuzz/Cargo.lock`
+    must return no match.
+    Cargo lockfiles are not gitignored.
+9.  Sentinel commands from `AGENTS.md` "Git cleanup and worktree safety
+    reviews" to confirm no fuzz output escapes the ignore set.
 10. **Soundness-by-revert (load-bearing!
     )**:
     - Create a disposable worktree from current `main`.
@@ -512,28 +512,28 @@ cd9b2dbf fix: pre-validate stacked quantifiers
 **Pre-validators now in `compile_rule_src` (resharp path):
 **
 
-1. `stacked_quantifier` (cd9b2dbf) -- bare-stacked `a**`/`\D{5,11}{5,11}`.
-2. `nested_grouped_quantifier` (9ac0b3a9) -- grouped-via-`(?:)` chain
-   of `){quant}` adjacencies at depth 4+.
-    Probe shows slow-unit
-   `(?iu)(?:(?:(?:(?:(?:\d){5,11}){5,11}){5,11}){5,11}){5,11}(?:(?:(?:(?:(?:\d)*)*)*)*)*aa`
-   rejects in 4.98us (was 3.26s).
-3. `intersection_with_lookbehind` (4fb14f4c) -- widened to cover any
-   lookaround direction (was lookbehind-only).
-4. `lookaround_in_alternation_with_sibling` (4fb14f4c) -- catches
-   `(a|(?![_]))(?!a)` shape that hits resharp `engine.rs:1020`
-   `debug_assert!` during `scan_fwd_all`.
-    Bisected from
-   `crash-8cba104f0805ccb567513aff895398a4f652200c`.
-    Probe rejects
-   in 8.89us (was compile-OK then find_all-panic).
-5. `complement_intersection_quantified_group` (e5ab8c6f,
-    widened
-   cbc1616e) -- catches `&` + quantified group (`)*`/`)+`/etc.)
-   anywhere in source.
-    Bisected from
-   `timeout-00179d433e26fbcc3bedf2b7b38b6ce1ff9e6438` and
-   `timeout-0815a95346bfa16ae0c6454162d9af0b8c05779c`.
+1.  `stacked_quantifier` (cd9b2dbf) -- bare-stacked `a**`/`\D{5,11}{5,11}`.
+2.  `nested_grouped_quantifier` (9ac0b3a9) -- grouped-via-`(?:)` chain
+    of `){quant}` adjacencies at depth 4+.
+     Probe shows slow-unit
+    `(?iu)(?:(?:(?:(?:(?:\d){5,11}){5,11}){5,11}){5,11}){5,11}(?:(?:(?:(?:(?:\d)*)*)*)*)*aa`
+    rejects in 4.98us (was 3.26s).
+3.  `intersection_with_lookbehind` (4fb14f4c) -- widened to cover any
+    lookaround direction (was lookbehind-only).
+4.  `lookaround_in_alternation_with_sibling` (4fb14f4c) -- catches
+    `(a|(?![_]))(?!a)` shape that hits resharp `engine.rs:1020`
+    `debug_assert!` during `scan_fwd_all`.
+     Bisected from
+    `crash-8cba104f0805ccb567513aff895398a4f652200c`.
+     Probe rejects
+    in 8.89us (was compile-OK then find_all-panic).
+5.  `complement_intersection_quantified_group` (e5ab8c6f,
+     widened
+    cbc1616e) -- catches `&` + quantified group (`)*`/`)+`/etc.)
+    anywhere in source.
+     Bisected from
+    `timeout-00179d433e26fbcc3bedf2b7b38b6ce1ff9e6438` and
+    `timeout-0815a95346bfa16ae0c6454162d9af0b8c05779c`.
 
 **Bug E -- new finding documented in TROUBLESHOOTING.
 `resharp.md`:
@@ -571,36 +571,36 @@ prototypes and stay deferred.
  in priority order:
 **
 
-1. **Re-run 120s soundness-by-revert** in `/tmp/fs-soundness-revert`
-   (worktree exists,
-    was reverted of `e49d8694`).
-    Sync sources first:
-   `cp /var/home/user/Monochromatic/package/cli/forbidden-strings/src/{fuzz_api,rules}.rs /tmp/fs-soundness-revert/packages/cli/forbidden-strings/src/` then `cp src/rules/{engine,engine_tests}.rs .../src/rules/`.
-   Clear stale timeout:
-    `rm /tmp/fs-soundness-revert/packages/cli/forbidden-strings/fuzz/artifacts/fuzz_extract_gate_soundness/timeout-*`.
-   Run:
-    `cd /tmp/fs-soundness-revert/packages/cli/forbidden-strings && mise run fuzz:run fuzz_extract_gate_soundness -max_total_time=120 -timeout=10`.
-   Expect SOUNDNESS PANIC.
-    If hit another non-soundness halt,
-    decode
-   via `/tmp/probe-slow-unit/target/release/probe <artifact-path>`
-   and bisect with `bisect2.rs..bisect6.rs` style probes.
-2. **If soundness panic doesn't fire after fuzz completes 120s clean,
-   **
-   bias `synth_content` in `fuzz/src/generators.rs` to emit
-   Unicode-case-flipped variants of any non-ASCII bytes in the rule's
-   literals.
-    Manual probe confirms `(?iu)café` vs `CAFÉ` panics with
-   the expected redacted reproducer when e49d8694 is reverted;
-    the
-   gap is that uniform-random byte mutations don't reliably converge
-   on the `0xA9` -> `0x89` (é -> É) byte-pair flip.
-3. **File Bug E upstream** at github.
-   com/ieviev/resharp using
-   minimal-patch prototype documented in TROUBLESHOOTING.
-   `resharp.md`.
-   Verify the patch against the resharp test suite in
-   `/tmp/resharp-src/` before filing.
+1.  **Re-run 120s soundness-by-revert** in `/tmp/fs-soundness-revert`
+    (worktree exists,
+     was reverted of `e49d8694`).
+     Sync sources first:
+    `cp /var/home/user/Monochromatic/package/cli/forbidden-strings/src/{fuzz_api,rules}.rs /tmp/fs-soundness-revert/packages/cli/forbidden-strings/src/` then `cp src/rules/{engine,engine_tests}.rs .../src/rules/`.
+    Clear stale timeout:
+     `rm /tmp/fs-soundness-revert/packages/cli/forbidden-strings/fuzz/artifacts/fuzz_extract_gate_soundness/timeout-*`.
+    Run:
+     `cd /tmp/fs-soundness-revert/packages/cli/forbidden-strings && mise run fuzz:run fuzz_extract_gate_soundness -max_total_time=120 -timeout=10`.
+    Expect SOUNDNESS PANIC.
+     If hit another non-soundness halt,
+     decode
+    via `/tmp/probe-slow-unit/target/release/probe <artifact-path>`
+    and bisect with `bisect2.rs..bisect6.rs` style probes.
+2.  **If soundness panic doesn't fire after fuzz completes 120s clean,
+    **
+    bias `synth_content` in `fuzz/src/generators.rs` to emit
+    Unicode-case-flipped variants of any non-ASCII bytes in the rule's
+    literals.
+     Manual probe confirms `(?iu)café` vs `CAFÉ` panics with
+    the expected redacted reproducer when e49d8694 is reverted;
+     the
+    gap is that uniform-random byte mutations don't reliably converge
+    on the `0xA9` -> `0x89` (é -> É) byte-pair flip.
+3.  **File Bug E upstream** at github.
+    com/ieviev/resharp using
+    minimal-patch prototype documented in TROUBLESHOOTING.
+    `resharp.md`.
+    Verify the patch against the resharp test suite in
+    `/tmp/resharp-src/` before filing.
 
 ### 2026-05-17 session: tightened Bug F validator, pre-validator warnings, Bug G discovered
 
@@ -616,40 +616,40 @@ prototypes and stay deferred.
 **What happened (chronological):
 **
 
-1. Added `quantified_lookahead_with_sibling_content` (241286f8) covering
-   the second Bug F shape (single quantified-LA + trailing).
-    Initially
-   broad:
-    fire on any quantified-LA + ANY sibling content at parent
-   depth.
-    User pushed back that this rejects legitimate production
-   patterns like `(?:(?!X)){n}<atom>` (exact quant,
-    compiles cleanly)
-   and `(?:(?!X)){m,n}aaa` (3+ trail,
-    also compiles cleanly).
+1.  Added `quantified_lookahead_with_sibling_content` (241286f8) covering
+    the second Bug F shape (single quantified-LA + trailing).
+     Initially
+    broad:
+     fire on any quantified-LA + ANY sibling content at parent
+    depth.
+     User pushed back that this rejects legitimate production
+    patterns like `(?:(?!X)){n}<atom>` (exact quant,
+     compiles cleanly)
+    and `(?:(?!X)){m,n}aaa` (3+ trail,
+     also compiles cleanly).
 
-2. Tightened (29f5f495) to be PRECISE — fires only on shapes that
-   actually panic upstream:
-   - VARIABLE bound `{m,n}` with m < n (and `*`/`+`/`?` which are
-     variable).
-      EXACT `{n}` does NOT arm.
-   - EXACTLY 1 or 2 trailing atoms at parent depth.
-      3+ atoms disarms.
-   - Atom = literal byte,
-      escape,
-      char class,
-      group,
-      anchor.
-     No accepted false positives.
-      Negative tests now explicitly
-     enumerate the previously-false-positive shapes.
+2.  Tightened (29f5f495) to be PRECISE — fires only on shapes that
+    actually panic upstream:
+    - VARIABLE bound `{m,n}` with m < n (and `*`/`+`/`?` which are
+      variable).
+       EXACT `{n}` does NOT arm.
+    - EXACTLY 1 or 2 trailing atoms at parent depth.
+       3+ atoms disarms.
+    - Atom = literal byte,
+       escape,
+       char class,
+       group,
+       anchor.
+      No accepted false positives.
+       Negative tests now explicitly
+      enumerate the previously-false-positive shapes.
 
-3. Added eprintln warnings to ALL 7 pre-validator rejection sites in
-   `compile_rule_src` (per user request "emit a warning whenever the
-   validator flags something").
-    Each warning names the validator and
-   quotes the source so users see why a rule was rejected without
-   parsing the error string.
+3.  Added eprintln warnings to ALL 7 pre-validator rejection sites in
+    `compile_rule_src` (per user request "emit a warning whenever the
+    validator flags something").
+     Each warning names the validator and
+    quotes the source so users see why a rule was rejected without
+    parsing the error string.
 
 **Bug G discovered (NEW upstream resharp bug,
  separate from Bug F):
@@ -702,41 +702,41 @@ upstream-bug-shape.
 **Resume work next session — priority:
 **
 
-1. **Install a custom panic hook in the fuzz target.
-   ** libfuzzer-sys
-   currently calls `abort()` from its panic hook BEFORE unwinding
-   starts,
-    so `compile_rule_src`'s `catch_unwind` never gets a chance
-   to catch resharp panics.
-    Solution:
-    in `fuzz_extract_gate_soundness.rs`,
-   replace libfuzzer's hook (use `std::panic::set_hook`) with one that:
-   - For panics at known resharp locations
-     (`resharp-algebra/src/lib.rs:2470`,
-      `resharp-engine/src/engine.rs:1020`)
-     → no-op,
-      let unwinding proceed (catch_unwind catches it).
-   - For all other panics → call default hook + abort (preserves
-     normal fuzz crash semantics).
-     This single change unblocks both remaining Bug F variants AND Bug G
-     AND any future upstream variant at the same locations.
+1.  **Install a custom panic hook in the fuzz target.
+    ** libfuzzer-sys
+    currently calls `abort()` from its panic hook BEFORE unwinding
+    starts,
+     so `compile_rule_src`'s `catch_unwind` never gets a chance
+    to catch resharp panics.
+     Solution:
+     in `fuzz_extract_gate_soundness.rs`,
+    replace libfuzzer's hook (use `std::panic::set_hook`) with one that:
+    - For panics at known resharp locations
+      (`resharp-algebra/src/lib.rs:2470`,
+       `resharp-engine/src/engine.rs:1020`)
+      → no-op,
+       let unwinding proceed (catch_unwind catches it).
+    - For all other panics → call default hook + abort (preserves
+      normal fuzz crash semantics).
+      This single change unblocks both remaining Bug F variants AND Bug G
+      AND any future upstream variant at the same locations.
 
-2. Once panic hook is in place,
-    re-run 180s soundness-by-revert fuzz.
-   Expected:
-    SOUNDNESS PANIC at the assertion in
-   `fuzz_extract_gate_soundness.rs:290`.
+2.  Once panic hook is in place,
+     re-run 180s soundness-by-revert fuzz.
+    Expected:
+     SOUNDNESS PANIC at the assertion in
+    `fuzz_extract_gate_soundness.rs:290`.
 
-3. Once fuzz halts on SOUNDNESS PANIC,
-    complete Phase 11.
-    The verbose
-   output should include the rule and content that triggered the
-   violation (the `e49d8694` bug).
+3.  Once fuzz halts on SOUNDNESS PANIC,
+     complete Phase 11.
+     The verbose
+    output should include the rule and content that triggered the
+    violation (the `e49d8694` bug).
 
-4. File Bug E,
-    Bug F,
-    Bug G upstream at github.
-   com/ieviev/resharp.
+4.  File Bug E,
+     Bug F,
+     Bug G upstream at github.
+    com/ieviev/resharp.
 
 **Diagnostic infrastructure (continued):
 **
@@ -786,36 +786,36 @@ iu)
 - Unicode-literal + case-flipped-content combo in 90k iterations.
   Three orthogonal levers:
 
-1. **Seed the corpus with crafted bytes** that decode (via
-   `RuleAndContent::arbitrary`) close to the soundness shape.
-    Started
-   with 5 seeds at `/tmp/fs-soundness-revert/.../seed-soundness-*`
-   (via `/tmp/seed_soundness.sh`) embedding `\xc3\xa9` (é) and
-   `\xc3\x89` (É) byte pairs.
-    The Arbitrary decoder will partition
-   these between rule/content;
-    coverage-guided mutation evolves from
-   there.
-    Next session,
-    expand the seed set with longer prefixes
-   (`abc<é>def<É>ret`) and explicit flag bytes corresponding to
-   `(?iu)` rendering.
+1.  **Seed the corpus with crafted bytes** that decode (via
+    `RuleAndContent::arbitrary`) close to the soundness shape.
+     Started
+    with 5 seeds at `/tmp/fs-soundness-revert/.../seed-soundness-*`
+    (via `/tmp/seed_soundness.sh`) embedding `\xc3\xa9` (é) and
+    `\xc3\x89` (É) byte pairs.
+     The Arbitrary decoder will partition
+    these between rule/content;
+     coverage-guided mutation evolves from
+    there.
+     Next session,
+     expand the seed set with longer prefixes
+    (`abc<é>def<É>ret`) and explicit flag bytes corresponding to
+    `(?iu)` rendering.
 
-2. **Bias FlagSet's Arbitrary impl** so `(?iu)` (i=true,
-    u=true,
-   negate_i=false) is overrepresented.
-    Currently each bool is
-   uniform-random so the right combo is ~12.5% probability.
-    A
-   manual `Arbitrary` impl that reads one byte and biases the i+u
-   case to ~50% would help.
+2.  **Bias FlagSet's Arbitrary impl** so `(?iu)` (i=true,
+     u=true,
+    negate_i=false) is overrepresented.
+     Currently each bool is
+    uniform-random so the right combo is ~12.5% probability.
+     A
+    manual `Arbitrary` impl that reads one byte and biases the i+u
+    case to ~50% would help.
 
-3. **Bias gen_literal_bytes** so multi-char Unicode-flanked
-   literals (`abc<é>def` shape) appear more often than single
-   Unicode chars (single-char doesn't get a gate extracted;
-    the
-   shape needs ASCII context around the Unicode letter for the
-   AC gate to include it).
+3.  **Bias gen_literal_bytes** so multi-char Unicode-flanked
+    literals (`abc<é>def` shape) appear more often than single
+    Unicode chars (single-char doesn't get a gate extracted;
+     the
+    shape needs ASCII context around the Unicode letter for the
+    AC gate to include it).
 
 Lower-effort first:
  try (1) with a richer seed set.
@@ -841,40 +841,40 @@ exec/s from 175 to ~83.
 **Next session priorities (in order):
 **
 
-1. **Add a slow-unit pre-validator** for the intersection-of-large-classes
-   shape that ate fuzz cycles this session (e.g. `(?i)(?!(?:(?:(?:ñ
-   ×10&ñ×10)&ñ×10)|\s))`).
-    Add a check like
-   "intersection involving classes/literals of length >= 10 inside a
-   lookahead" so the fuzz rejects them in microseconds instead of 13s.
-   The slow-unit artifacts at
-   `fuzz/artifacts/fuzz_extract_gate_soundness/slow-unit-293a*` and
-   `slow-unit-7a84*` decode the exact shape.
+1.  **Add a slow-unit pre-validator** for the intersection-of-large-classes
+    shape that ate fuzz cycles this session (e.g. `(?i)(?!(?:(?:(?:ñ
+    ×10&ñ×10)&ñ×10)|\s))`).
+     Add a check like
+    "intersection involving classes/literals of length >= 10 inside a
+    lookahead" so the fuzz rejects them in microseconds instead of 13s.
+    The slow-unit artifacts at
+    `fuzz/artifacts/fuzz_extract_gate_soundness/slow-unit-293a*` and
+    `slow-unit-7a84*` decode the exact shape.
 
-2. **Run 30-60 min fuzz on the warm corpus.
-   ** With the slow-unit
-   validator removing the throughput drain,
-    expected exec/s should
-   return to ~200-300.
-    Combined with the 12504-file corpus and the
-   biases,
-    the soundness panic should fire within that budget.
+2.  **Run 30-60 min fuzz on the warm corpus.
+    ** With the slow-unit
+    validator removing the throughput drain,
+     expected exec/s should
+    return to ~200-300.
+     Combined with the 12504-file corpus and the
+    biases,
+     the soundness panic should fire within that budget.
 
-3. **If still not firing,
-    write a brute-force soundness searcher.
-   **
-   Iterate over short byte sequences passed through
-   `RuleAndContent::arbitrary`;
-    check each decoded pair against the
-   soundness contract directly (no libfuzzer harness).
-    The byte
-   space for the simplest triggering shape is small enough to
-   enumerate exhaustively up to ~100 bytes.
+3.  **If still not firing,
+     write a brute-force soundness searcher.
+    **
+    Iterate over short byte sequences passed through
+    `RuleAndContent::arbitrary`;
+     check each decoded pair against the
+    soundness contract directly (no libfuzzer harness).
+     The byte
+    space for the simplest triggering shape is small enough to
+    enumerate exhaustively up to ~100 bytes.
 
-4. **Phase 11 completion:
-   ** when soundness panic fires,
-    capture the
-   redacted reproducer + clean up worktree per the original plan.
+4.  **Phase 11 completion:
+    ** when soundness panic fires,
+     capture the
+    redacted reproducer + clean up worktree per the original plan.
 
 ### 2026-05-16 late session (~23:00): Bug F discovered + 3 more commits
 
@@ -955,26 +955,26 @@ quant + trailing literal" case.
 **Resume work next session:
 **
 
-1. **Widen nested_lookahead_in_quantified_group** to also catch
-   "quantified lookahead group + trailing content at parent depth".
-   Bisect first to nail the exact criterion (variable-quant vs
-   trailing-length interaction).
-    Probes are at
-   `/tmp/probe-slow-unit/src/bin/bisect_f5..f8.rs`.
-   Alternatively,
-    just widen broadly:
-    fire on any
-   quantified-lookahead-bearing group that has any sibling content
-   at parent depth.
-    Accept false positives (the user already endorsed
-   this trade-off).
-2. Sync new validator to `/tmp/fs-soundness-revert/`,
-    clear crashes,
-   re-run 120s fuzz.
-    Expect either soundness panic (success) or
-   another novel resharp shape (decode + add another pre-validator).
-3. Once fuzz halts cleanly on SOUNDNESS PANIC,
-    complete Phase 11.
+1.  **Widen nested_lookahead_in_quantified_group** to also catch
+    "quantified lookahead group + trailing content at parent depth".
+    Bisect first to nail the exact criterion (variable-quant vs
+    trailing-length interaction).
+     Probes are at
+    `/tmp/probe-slow-unit/src/bin/bisect_f5..f8.rs`.
+    Alternatively,
+     just widen broadly:
+     fire on any
+    quantified-lookahead-bearing group that has any sibling content
+    at parent depth.
+     Accept false positives (the user already endorsed
+    this trade-off).
+2.  Sync new validator to `/tmp/fs-soundness-revert/`,
+     clear crashes,
+    re-run 120s fuzz.
+     Expect either soundness panic (success) or
+    another novel resharp shape (decode + add another pre-validator).
+3.  Once fuzz halts cleanly on SOUNDNESS PANIC,
+     complete Phase 11.
 
 **Diagnostic infrastructure in /tmp/probe-slow-unit/:
 **
@@ -1120,39 +1120,39 @@ f5bc49c6 fix(forbidden-strings): pre-validate nested complement `~(~(...))`
 **Three new pre-validators in `compile_rule_src`'s resharp branch:
 **
 
-1. `nested_quantifier_after_wildcard` (9c3e06cd) -- chain >= 3 of
-   `){quant}` adjacencies immediately following a bare `_` wildcard
-   outside a class.
-    Decoded from `slow-unit-8c41` (compile 409ms +
-   scan 1.16s) and `slow-unit-709c` (compile 4.33s).
-    Innermost atom
-   is `_` triad (wildcard);
-    nesting depth 3+ explodes resharp's NFA.
+1.  `nested_quantifier_after_wildcard` (9c3e06cd) -- chain >= 3 of
+    `){quant}` adjacencies immediately following a bare `_` wildcard
+    outside a class.
+     Decoded from `slow-unit-8c41` (compile 409ms +
+    scan 1.16s) and `slow-unit-709c` (compile 4.33s).
+     Innermost atom
+    is `_` triad (wildcard);
+     nesting depth 3+ explodes resharp's NFA.
 
-2. `nested_chain_in_lookaround_body` (9c3e06cd) -- chain >= 3 of
-   `){quant}` pairs occurring while any open lookaround frame
-   (`(?!`/`(?=`/`(?<!`/`(?<=`) remains higher up the stack.
-    Decoded
-   from `slow-unit-4eab` (compile 1.9s,
-    errors with
-   `Algebra(UnsupportedPattern)`).
-    Resharp's algebra walks derivative
-   shapes per-prefix per-suffix inside lookarounds.
+2.  `nested_chain_in_lookaround_body` (9c3e06cd) -- chain >= 3 of
+    `){quant}` pairs occurring while any open lookaround frame
+    (`(?!`/`(?=`/`(?<!`/`(?<=`) remains higher up the stack.
+     Decoded
+    from `slow-unit-4eab` (compile 1.9s,
+     errors with
+    `Algebra(UnsupportedPattern)`).
+     Resharp's algebra walks derivative
+    shapes per-prefix per-suffix inside lookarounds.
 
-3. `nested_complement` (f5bc49c6) -- inner `~(...)` complement
-   nested inside an open outer `~(...)`.
-    Both back-to-back
-   `~(~(...))` and group-transparent `~((?:~(...)))` forms caught
-   (probed both at ~915ms).
-    Decoded from
-   `timeout-95f5e661c596e4b5a12e9841cda2e3ba242ecf7a` (the new
-   biased-generator counterpart).
-    Sibling complements
-   `~(...)&~(...)` (production shape,
-    e.g. RELEASE_TAG rule) are
-   NOT caught:
-    the inner complement is checked only when an outer
-   complement frame is still on the stack.
+3.  `nested_complement` (f5bc49c6) -- inner `~(...)` complement
+    nested inside an open outer `~(...)`.
+     Both back-to-back
+    `~(~(...))` and group-transparent `~((?:~(...)))` forms caught
+    (probed both at ~915ms).
+     Decoded from
+    `timeout-95f5e661c596e4b5a12e9841cda2e3ba242ecf7a` (the new
+    biased-generator counterpart).
+     Sibling complements
+    `~(...)&~(...)` (production shape,
+     e.g. RELEASE_TAG rule) are
+    NOT caught:
+     the inner complement is checked only when an outer
+    complement frame is still on the stack.
 
 **Verification status:
 **
@@ -1176,35 +1176,35 @@ f5bc49c6 fix(forbidden-strings): pre-validate nested complement `~(~(...))`
  in priority order:
 **
 
-1. **Wait for 5-min fuzz result** (started at end of this session,
-    log
-   at `/tmp/fuzz-soundness-5min.log`).
-    If clean,
-    run a 30-60 min
-   fuzz with `mise run fuzz:run fuzz_extract_gate_soundness
-   -max_total_time=1800 -timeout=10`.
-    Expect SOUNDNESS PANIC.
+1.  **Wait for 5-min fuzz result** (started at end of this session,
+     log
+    at `/tmp/fuzz-soundness-5min.log`).
+     If clean,
+     run a 30-60 min
+    fuzz with `mise run fuzz:run fuzz_extract_gate_soundness
+    -max_total_time=1800 -timeout=10`.
+     Expect SOUNDNESS PANIC.
 
-2. **If yet ANOTHER novel slow shape appears**,
-    the advisor flagged
-   that validator count is at 10 and "structural-validator approach
-   has hit its limit".
-    Switch to generator-side anti-bias:
-    modify
-   `RuleSrc::arbitrary` in `fuzz/src/generators.rs` to use rejection
-   sampling against known slow shapes (`~(~(`,
-    deep nested chains,
-   etc.).
-    Coverage is preserved if the rejection happens at decode
-   time,
-    before the input enters the corpus.
-    Cap validator-side
-   additions at this round.
+2.  **If yet ANOTHER novel slow shape appears**,
+     the advisor flagged
+    that validator count is at 10 and "structural-validator approach
+    has hit its limit".
+     Switch to generator-side anti-bias:
+     modify
+    `RuleSrc::arbitrary` in `fuzz/src/generators.rs` to use rejection
+    sampling against known slow shapes (`~(~(`,
+     deep nested chains,
+    etc.).
+     Coverage is preserved if the rejection happens at decode
+    time,
+     before the input enters the corpus.
+     Cap validator-side
+    additions at this round.
 
-3. **Phase 11 completion:
-   ** when SOUNDNESS PANIC fires,
-    capture the
-   redacted reproducer + clean up worktree per the original plan.
+3.  **Phase 11 completion:
+    ** when SOUNDNESS PANIC fires,
+     capture the
+    redacted reproducer + clean up worktree per the original plan.
 
 **Diagnostic infrastructure additions:
 **
@@ -1224,18 +1224,18 @@ f5bc49c6 fix(forbidden-strings): pre-validate nested complement `~(~(...))`
 
 In `compile_rule_src` order (both branches considered):
 
-1. `stacked_quantifier` (regex branch + resharp) -- `a**` / `\D{5,11}{5,11}` bare-stacked shapes.
-2. `nested_grouped_quantifier` (regex branch + resharp) -- chain >= 4 of `){quant}` pairs anywhere.
-3. `lookaround_in_complement` (resharp only) -- `\b`/`^`/`$`/lookaround inside `~(...)`.
-4. `intersection_with_lookbehind` (resharp only) -- `&` with any lookaround.
-5. `intersection_with_word_end_alternation` (resharp only).
-6. `lookaround_in_alternation_with_sibling` (resharp only) -- `(a|(?![X]))(?!Y)` shape.
-7. `complement_intersection_quantified_group` (resharp only) -- `&` + quantified group + `~(`.
-8. `nested_lookahead_in_quantified_group` (resharp only) -- Bug F core:
-    nested LA in quantified group,
-    outer min >= 2.
-9. `quantified_lookahead_with_sibling_content` (resharp only) -- Bug F variant:
-    quantified LA + short trailing.
+1.  `stacked_quantifier` (regex branch + resharp) -- `a**` / `\D{5,11}{5,11}` bare-stacked shapes.
+2.  `nested_grouped_quantifier` (regex branch + resharp) -- chain >= 4 of `){quant}` pairs anywhere.
+3.  `lookaround_in_complement` (resharp only) -- `\b`/`^`/`$`/lookaround inside `~(...)`.
+4.  `intersection_with_lookbehind` (resharp only) -- `&` with any lookaround.
+5.  `intersection_with_word_end_alternation` (resharp only).
+6.  `lookaround_in_alternation_with_sibling` (resharp only) -- `(a|(?![X]))(?!Y)` shape.
+7.  `complement_intersection_quantified_group` (resharp only) -- `&` + quantified group + `~(`.
+8.  `nested_lookahead_in_quantified_group` (resharp only) -- Bug F core:
+     nested LA in quantified group,
+     outer min >= 2.
+9.  `quantified_lookahead_with_sibling_content` (resharp only) -- Bug F variant:
+     quantified LA + short trailing.
 10. `nested_quantifier_after_wildcard` (resharp only) -- chain >= 3 immediately after bare `_` (new this session).
 11. `nested_chain_in_lookaround_body` (resharp only) -- chain >= 3 inside open lookaround body (new this session).
 12. `nested_complement` (resharp only) -- `~(...)` body contains another `~(...)` (new this session).
@@ -1304,34 +1304,34 @@ on bytes a9 vs 89 → SOUNDNESS VIOLATION.
 **Phase 11 verification (load-bearing Done criterion):
 **
 
-1. Reverted worktree at `/tmp/fs-soundness-revert/` (e49d8694 fix
-   reverted via commit 52aa8a46).
-2. 5-min fuzz with fixed renderer + warm corpus (18,278 files):
-   panic fired during corpus replay (before mutation budget kicked
-   in).
-3. Crash artifact:
-    `crash-6dcd4ce23d88e2ee9568ba546c007c63d9131c1b`
-   (1-byte input).
-4. Decoded reproducer:
-   - rendered src:
-      `(?iu)café` (10 bytes)
-   - content:
-      `cafÉ` (5 bytes:
-      `99 97 102 195 137` = `c a f c3 89`)
-   - compile OK,
-      find_all = 1 match,
-      gates = [("café",
-      true)]
-   - contains_under_ci("café",
-      content="cafÉ",
-      ci=true) = false
-   - SOUNDNESS VIOLATION at `fuzz_target.rs`:
-     377
-5. Same crash artifact replayed against MAIN's fuzz binary
-   (e49d8694 fix in place):
-    runs in 4ms,
-    no crash,
-    no panic.
+1.  Reverted worktree at `/tmp/fs-soundness-revert/` (e49d8694 fix
+    reverted via commit 52aa8a46).
+2.  5-min fuzz with fixed renderer + warm corpus (18,278 files):
+    panic fired during corpus replay (before mutation budget kicked
+    in).
+3.  Crash artifact:
+     `crash-6dcd4ce23d88e2ee9568ba546c007c63d9131c1b`
+    (1-byte input).
+4.  Decoded reproducer:
+    - rendered src:
+       `(?iu)café` (10 bytes)
+    - content:
+       `cafÉ` (5 bytes:
+       `99 97 102 195 137` = `c a f c3 89`)
+    - compile OK,
+       find_all = 1 match,
+       gates = [("café",
+       true)]
+    - contains_under_ci("café",
+       content="cafÉ",
+       ci=true) = false
+    - SOUNDNESS VIOLATION at `fuzz_target.rs`:
+      377
+5.  Same crash artifact replayed against MAIN's fuzz binary
+    (e49d8694 fix in place):
+     runs in 4ms,
+     no crash,
+     no panic.
 
 **This is the load-bearing soundness-by-revert evidence:
 ** the fuzz
@@ -1397,26 +1397,26 @@ integration tests = all green.
 **Next-session cleanup tasks:
 **
 
-1. **Remove the disposable worktree** at `/tmp/fs-soundness-revert/`
-   (per Phase 11 step 11.10 "Remove the worktree").
-    Save the crash
-   artifact + decode metadata to repo first if you want it
-   preserved.
-2. **Decode and address `timeout-dba8a535...`** (the new timeout
-   that escaped my validators during the pre-fix 30-min fuzz).
-    It
-   was added under the old broken renderer;
-    may decode to something
-   entirely different now and may not need a validator at all.
-   Verify before adding more pre-validators.
-3. **Optional**:
-    Document the pre-validators in `FUZZING.md` per
-   plan §10.
-    Defer if not blocking other work.
-4. **Optional**:
-    Commit the pre-existing uncommitted README +
-   fuzz/`Cargo.toml` + fuzz/dictionaries/forbidden-strings.
-   dict
-   changes (the dictionary fix is a real bug fix;
-    the others are
-   small/cosmetic).
+1.  **Remove the disposable worktree** at `/tmp/fs-soundness-revert/`
+    (per Phase 11 step 11.10 "Remove the worktree").
+     Save the crash
+    artifact + decode metadata to repo first if you want it
+    preserved.
+2.  **Decode and address `timeout-dba8a535...`** (the new timeout
+    that escaped my validators during the pre-fix 30-min fuzz).
+     It
+    was added under the old broken renderer;
+     may decode to something
+    entirely different now and may not need a validator at all.
+    Verify before adding more pre-validators.
+3.  **Optional**:
+     Document the pre-validators in `FUZZING.md` per
+    plan §10.
+     Defer if not blocking other work.
+4.  **Optional**:
+     Commit the pre-existing uncommitted README +
+    fuzz/`Cargo.toml` + fuzz/dictionaries/forbidden-strings.
+    dict
+    changes (the dictionary fix is a real bug fix;
+     the others are
+    small/cosmetic).

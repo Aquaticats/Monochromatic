@@ -7,7 +7,6 @@
 use super::*;
 use crate::worktree_copy_notices::UNKNOWN_DESTINATION_NOTICE;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
-use crate::worktree_copy_after_lock::trash_beside_repair_awaiting;
 use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pending_journals};
 use crate::test_support::dead_copy_owner;
 use std::process::Output;
@@ -345,39 +344,38 @@ fn creation_from(main: &Path, common: &Path, destination: Option<&Path>) -> Invo
     };
 }
 
-/// The disposal of a snapshot's trash runs and is joined before the add ends:
-/// what it did is recorded as work of its own,
-/// the wait for it is a step of its own,
-/// and a disposal that fails is reported instead of failing the add.
+/// What:
+///  A snapshot's trash is handed over inside the add,
+/// is still standing when the add ends,
+/// and a record under the repository's common
+///  directory names it,
+/// so the service empties it after the command returns.
+/// Why:
+///   Whether the add waits for hundreds of thousands of deletions is the whole point of the change
+/// (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`);
+/// the record is what makes the trash
+///  the service's work,
+/// and the trash that still stands is the proof that nothing deleted it here.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_the_adds() {
+fn a_snapshot_trash_is_handed_over_within_the_add_and_still_stands_when_it_ends() {
     use crate::fs_beneath::ObjectId;
     use crate::worktree_trash::TrashManifest;
-    let root: PathBuf = fixture("lifecycle-trash-disposal");
+    let root: PathBuf = fixture("lifecycle-trash-hand-over");
     let (main, common) = source(root.as_path());
-    // The trash the snapshot names is not there, so the disposal of it fails with the reason it names: a failure of
-    //  the disposal is the add's to report, never the add's to fail.
     let pending: PendingTrash = PendingTrash {
         destination: main.clone(),
-        git_dir: common.clone(),
+        common_dir: common.clone(),
         manifest: TrashManifest { name: "ab".repeat(20), trash: ObjectId { device: 7, inode: 1, birth: None }, entries: Vec::new() },
         quiet: true,
     };
     let after: AfterLock = AfterLock { source_root: None, created: Vec::new(), trash: Some(pending.clone()) };
     let invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(main.as_path()));
     let mut stderr: Vec<u8> = Vec::new();
-    crate::add_timing::begin(common.clone());
-    {
-        let stream: crate::shared_notice_stream::NoticeStream<'_> = std::sync::Mutex::new(&mut stderr);
-        crate::lazy_runtime::run_on_runtime(trash_beside_repair_awaiting(&invocation, &after, &pending, &stream)).expect("this process can build its runtime");
-    }
-    crate::add_timing::finish(0);
-    assert_eq!(stderr, Vec::<u8>::new(), "the person's stream carries the repair, and a disposal that fails says so in the log");
-    let written: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
-    let record: serde_json::Value = serde_json::from_str(written.trim_end()).expect("the record is one JSON object");
-    assert_eq!(record["work"]["disposeTrash"]["calls"], 1, "{record}");
-    assert_eq!(record["steps"]["disposeTrashWait"]["calls"], 1, "the wait is a step of its own: {record}");
+    finish_trash_and_repair(&invocation, &after, &mut stderr);
+    assert_eq!(stderr, Vec::<u8>::new(), "a quiet add says nothing, and a hand-over that fails is a warning of its own");
+    let record: PathBuf = crate::work_item::state_directory(crate::service_work::work_directory(common.as_path()).as_path(), crate::work_item::PENDING).join(format!("trash-{}", pending.manifest.name));
+    assert!(record.exists(), "the record that names the trash outlives the command: {}", record.display());
     remove(root.as_path());
 }
 
@@ -854,9 +852,12 @@ fn a_destination_that_stood_before_the_add_and_was_made_again_is_left_alone() {
 
 /// A refused add leaves no unfinished record for the worktree another command completed in its place,
 /// so a later add from that worktree copies its ignored state instead of being told it is only partly there.
+/// The durability writes of its three settlements stay in the page cache,
+/// because this control checks nothing about what a crash leaves.
 #[cfg(unix)]
 #[test]
 fn a_refused_add_leaves_no_record_for_the_worktree_another_command_completed() {
+    keep_the_durability_writes_in_the_page_cache();
     let root: PathBuf = fixture("lifecycle-refused-no-record");
     let (main, common) = source(root.as_path());
     std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
@@ -951,6 +952,75 @@ fn an_unreadable_destination_keeps_the_record_of_the_worktree_that_was_not_fille
     );
     assert_eq!(std::fs::read(topic.join("cache/data")).ok(), None, "nothing was copied into it");
     remove(root.as_path());
+}
+
+/// A control whose subject is neither what a crash leaves nor the flush itself keeps the durability writes of its
+/// fixtures in the page cache,
+/// and the settlement still records every sync it asked for.
+/// Why:
+///   One settlement asks for more than thirty flushes,
+/// and on this repository's fixture volume (btrfs on dm-crypt with `compress=zstd:3`) each of them waits for a log
+/// commit that every other process of the machine waits for too:
+/// measured 2026-11-10,
+/// one record flush of a `worktree_copy` fixture took up to 20.0 s while the host ran at a load average of 27 to 33
+/// (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`,
+/// "The flushes the controls did not need").
+#[cfg(unix)]
+#[test]
+fn a_settlement_whose_control_checks_no_crash_keeps_its_writes_in_the_page_cache() {
+    keep_the_durability_writes_in_the_page_cache();
+    let root: PathBuf = fixture("lifecycle-writes-kept-in-memory");
+    let (main, common) = source(root.as_path());
+    let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let mut stderr: Vec<u8> = Vec::new();
+    let mut faithful_in_the_settlement: Vec<bool> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+        &mut |_step: &GitStep<'_>| {
+            // Read in the middle of the settlement: the journal is written and the copy is not installed yet.
+            faithful_in_the_settlement.push(crate::private_storage::syncing_is_faithful());
+            return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice()));
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    let synced_directories: Vec<PathBuf> = crate::private_storage::take_directory_syncs();
+    let synced_files: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert_eq!(exit_code(&settlement), 0, "{}", String::from_utf8_lossy(stderr.as_slice()));
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("copied"), b"payload");
+    assert_eq!(
+        faithful_in_the_settlement,
+        vec![false],
+        "the settlement's durability writes stay in the page cache for a control that checks nothing about a crash"
+    );
+    // The records stay whatever the switch says, so a control whose subject is the order of the flushes still reads them.
+    assert!(
+        synced_directories.iter().any(|path| return path.ends_with("v1")),
+        "the settlement's own directory syncs are still recorded: {synced_directories:?}"
+    );
+    assert!(
+        synced_files.iter().any(|path| return path.ends_with("install-log.jsonl")),
+        "the install log's own file sync is still recorded: {synced_files:?}"
+    );
+    assert!(
+        synced_files.iter().any(|path| return path.ends_with("monochromatic-git-policy-cli-copy-owner")),
+        "the registration's owner file's own sync is still recorded: {synced_files:?}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  Keep the durability writes of this control's fixtures in the page cache,
+/// for a control whose subject is neither what a crash leaves nor the flush itself.
+/// Why:
+///   One settlement asks for more than thirty flushes,
+/// and each of them waits for a log commit that every other process of the machine waits for too,
+/// so the disk decides whether the control finishes inside the run's own bound.
+/// Only the wait goes:
+/// every sync is still recorded,
+/// so a control whose subject is the order of the flushes reads them as before.
+fn keep_the_durability_writes_in_the_page_cache() {
+    crate::private_storage::skip_the_durability_syncs_here();
 }
 
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
@@ -1475,9 +1545,12 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
 
 /// A journal whose owner is dead is recovered before the creation runs Git,
 /// and reported.
+/// The durability writes of its two settlements stay in the page cache,
+/// because this control checks nothing about what a crash leaves.
 #[cfg(unix)]
 #[test]
 fn a_creation_recovers_a_dead_journal_first() {
+    keep_the_durability_writes_in_the_page_cache();
     let root: PathBuf = fixture("lifecycle-dead-journal");
     let (main, common) = source(root.as_path());
     let older: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("older");

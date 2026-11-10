@@ -43,73 +43,73 @@ Prerequisites:
   and Redis components.
 - No concurrent Penpot deployment or backup.
 
-1. Open the deployment's Coolify dashboard in a browser.
-   The Coolify sign-in page or dashboard appears.
-2. Sign in with the authorized Coolify account.
-   The dashboard appears without an authorization error.
-3. Open **Projects**.
-   The project list appears.
-4. Open the project and environment containing `penpot.c.aquati.cat`.
-   The environment's resource list appears.
-5. Open the Penpot service.
-   Component cards for frontend,
-   backend,
-   exporter,
-   PostgreSQL,
-   and Redis appear.
-6. Record the service's current status.
-   The status is available for choosing one recreation action later.
+1.  Open the deployment's Coolify dashboard in a browser.
+    The Coolify sign-in page or dashboard appears.
+2.  Sign in with the authorized Coolify account.
+    The dashboard appears without an authorization error.
+3.  Open **Projects**.
+    The project list appears.
+4.  Open the project and environment containing `penpot.c.aquati.cat`.
+    The environment's resource list appears.
+5.  Open the Penpot service.
+    Component cards for frontend,
+    backend,
+    exporter,
+    PostgreSQL,
+    and Redis appear.
+6.  Record the service's current status.
+    The status is available for choosing one recreation action later.
 
 ## Steps
 
 Status:
 TODO
 
-1. Open **Configuration** and then **General**.
-   The service's general configuration appears.
-2. Click **Edit Compose File**.
-   The **Source Compose** editor opens.
-3. Copy the complete source Compose text to a local file outside Coolify.
-   The file preserves the exact pre-repair configuration for rollback.
-4. Confirm the saved and editable definitions still contain these volume names:
+1.  Open **Configuration** and then **General**.
+    The service's general configuration appears.
+2.  Click **Edit Compose File**.
+    The **Source Compose** editor opens.
+3.  Copy the complete source Compose text to a local file outside Coolify.
+    The file preserves the exact pre-repair configuration for rollback.
+4.  Confirm the saved and editable definitions still contain these volume names:
 
-   ```text
-   penpot-assets
-   penpot-postgresql-data
-   penpot-redis-data
-   ```
+    ```text
+    penpot-assets
+    penpot-postgresql-data
+    penpot-redis-data
+    ```
 
-   All persistent data sources remain represented before the edit.
-5. Find `services.frontend.environment` in **Source Compose**.
-   The list contains `SERVICE_URL_FRONTEND_8080` and `PENPOT_FLAGS`.
-6. Keep this frontend routing declaration unchanged:
+    All persistent data sources remain represented before the edit.
+5.  Find `services.frontend.environment` in **Source Compose**.
+    The list contains `SERVICE_URL_FRONTEND_8080` and `PENPOT_FLAGS`.
+6.  Keep this frontend routing declaration unchanged:
 
-   ```yaml
-   - SERVICE_URL_FRONTEND_8080
-   ```
+    ```yaml
+    - SERVICE_URL_FRONTEND_8080
+    ```
 
-   Coolify retains port `8080` as the frontend container's internal target.
-7. Add this entry to the same frontend environment list:
+    Coolify retains port `8080` as the frontend container's internal target.
+7.  Add this entry to the same frontend environment list:
 
-   ```yaml
-   - 'PENPOT_PUBLIC_URI=https://penpot.c.aquati.cat'
-   ```
+    ```yaml
+    - 'PENPOT_PUBLIC_URI=https://penpot.c.aquati.cat'
+    ```
 
-   Frontend now explicitly overrides Coolify's shared service environment.
-8. Leave the existing backend and exporter public URI entries unchanged:
+    Frontend now explicitly overrides Coolify's shared service environment.
+8.  Leave the existing backend and exporter public URI entries unchanged:
 
-   ```yaml
-   - 'PENPOT_PUBLIC_URI=https://penpot.c.aquati.cat'
-   ```
+    ```yaml
+    - 'PENPOT_PUBLIC_URI=https://penpot.c.aquati.cat'
+    ```
 
-   Backend and exporter retain their already-correct values.
-9. Leave the custom Caddy configuration and frontend port mapping unchanged:
+    Backend and exporter retain their already-correct values.
+9.  Leave the custom Caddy configuration and frontend port mapping unchanged:
 
-   ```yaml
-   - '127.0.0.1:1009:8080'
-   ```
+    ```yaml
+    - '127.0.0.1:1009:8080'
+    ```
 
-   This repair changes only frontend application configuration.
+    This repair changes only frontend application configuration.
 10. Confirm the editable Compose text still contains these mounts exactly:
 
     ```yaml
@@ -206,26 +206,26 @@ TODO
 Configuration rollback is sufficient for this environment-only change.
 Do not restore PostgreSQL or asset backups merely because the public URI deployment fails.
 
-1. Open the Penpot service's **Configuration** and then **General**.
-   The service's general configuration appears.
-2. Click **Edit Compose File**.
-   The **Source Compose** editor opens.
-3. Replace the editor contents with the complete pre-repair Compose text saved during setup.
-   The explicit frontend public URI entry disappears.
-4. Confirm the restored text still names `penpot-assets`,
-   `penpot-postgresql-data`,
-   and `penpot-redis-data`.
-   All persistent data sources remain represented.
-5. Click **Save changes**.
-   Coolify confirms the restored Compose definition.
-6. If the service is **Stopped**,
-   click **Actions** and then **Force Deploy**.
-   Coolify recreates the containers from the restored definition.
-7. If the service is not **Stopped**,
-   click **Actions** and then **Force Restart**.
-   Coolify recreates the containers from the restored definition.
-8. Leave the deployment log open until it finishes.
-   The final deployment line reports success or reproduces the inherited public URI symptom.
+1.  Open the Penpot service's **Configuration** and then **General**.
+    The service's general configuration appears.
+2.  Click **Edit Compose File**.
+    The **Source Compose** editor opens.
+3.  Replace the editor contents with the complete pre-repair Compose text saved during setup.
+    The explicit frontend public URI entry disappears.
+4.  Confirm the restored text still names `penpot-assets`,
+    `penpot-postgresql-data`,
+    and `penpot-redis-data`.
+    All persistent data sources remain represented.
+5.  Click **Save changes**.
+    Coolify confirms the restored Compose definition.
+6.  If the service is **Stopped**,
+    click **Actions** and then **Force Deploy**.
+    Coolify recreates the containers from the restored definition.
+7.  If the service is not **Stopped**,
+    click **Actions** and then **Force Restart**.
+    Coolify recreates the containers from the restored definition.
+8.  Leave the deployment log open until it finishes.
+    The final deployment line reports success or reproduces the inherited public URI symptom.
 
 Never delete or rename the service,
 run Compose with `--volumes`,
