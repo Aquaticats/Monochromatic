@@ -54,8 +54,9 @@ pub fn named_ignored_files(
     real_index: &Path,
     selection: &IndexSelection,
 ) -> Result<Vec<Vec<u8>>, GitFailure> {
-    // A selection with no element this reader takes stages nothing from the worktree by a name, so nothing can be refused
-    // this way (`Selected::File` and `Selected::Unreadable` stage with `--update` or `--all`, which add no ignored path).
+    // A selection with no element this reader takes stages nothing under a name of its own: `Selected::File` and
+    // `Selected::Unreadable` hand the pathspec file to Git, so the elements that could be refused are not known here, and
+    // that staging decides for itself (`add_selected_paths`).
     let Selected::Items(items) = selection_items(selection) else {
         return Ok(Vec::new());
     };
