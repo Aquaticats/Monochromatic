@@ -142,19 +142,79 @@ fn where_no_thread_can_start_the_runtime_is_current_thread_and_the_blocking_job_
 
 /// The address-space sizes of the measured hang band (tokio's multi-thread build hung at 900 to 1150 MiB with default arenas)
 ///  and sizes either side,
-/// from the smallest where the wrapper itself starts (below 48 MiB the debug build was measured to print nothing,
-/// with or
-///  without a runtime,
-/// though Git completes there:
-/// a gap that is not the runtime's) to above.
+/// sampled from this list.
+/// The smallest sampled size is not the smallest this control judges:
+/// see `smallest_address_space_that_runs_the_job`.
 const ADDRESS_SPACE_SIZES_MEBIBYTES: [u64; 18] = [48, 52, 56, 60, 64, 80, 100, 200, 400, 600, 800, 900, 950, 1020, 1030, 1100, 1150, 1500];
 
-/// At every address-space size where Git completes,
-/// the probe finishes by its bound with a runtime and a blocking job.
+/// The address space the search for the smallest that runs a blocking job starts at,
+/// in mebibytes:
+/// below it no build of this executable has been seen to start at all,
+/// so the search needs no smaller one.
+const ADDRESS_SPACE_SEARCH_FLOOR_MEBIBYTES: u64 = 40;
+
+/// The address space the search is known to succeed at,
+/// in mebibytes:
+/// well under the measured hang band,
+/// so the search never asks about a size the band is about.
+const ADDRESS_SPACE_SEARCH_CEILING_MEBIBYTES: u64 = 200;
+
+/// What:
+///  Whether the probe builds a runtime and runs its blocking job in `mebibytes` of address space.
+/// Why:
+///   A blocking step runs on a thread of its own,
+/// and a thread needs its stack mapped,
+/// so an address space that leaves less than
+///  that is one where no blocking job can run whatever the plan does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runs = (mib: number) => probeLines(probeUnder(fixture, ['as', mib * MEBIBYTE])).includes('blocking=ok');
+/// ```
+fn runs_the_job_in_address_space(fixture: &Fixture, mebibytes: u64) -> bool {
+    let seen: Observed = probe_under(fixture, Some((LimitKind::AddressSpace, mebibytes * MEBIBYTE)));
+    return seen.code == Some(0) && probe_lines(&seen).contains(&String::from("blocking=ok"));
+}
+
+/// What:
+///  The smallest address space in which the probe builds a runtime and runs its blocking job,
+/// searched around the sampled
+///  sizes.
+/// Why:
+///   That size is a property of this build and of the system's thread stacks,
+/// not of the wrapper's plan:
+///  the plan reads the
+///  limit and builds the current-thread runtime below it,
+/// and the blocked thread is then refused with the plain error the
+///  control above requires.
+/// A number copied from another build is therefore a bet:
+/// the same list failed on the host and
+///  passed in the gate until this search was added,
+/// because the gate's executable carries no debug information and its
+///  addresses need a couple of mebibytes less.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const smallest = smallestWorking(40, 200, (mib) => runsTheJobInAddressSpace(fixture, mib));
+/// ```
+fn smallest_address_space_that_runs_the_job(fixture: &Fixture) -> u64 {
+    assert!(
+        runs_the_job_in_address_space(fixture, ADDRESS_SPACE_SEARCH_CEILING_MEBIBYTES),
+        "the probe does not run a blocking job in {ADDRESS_SPACE_SEARCH_CEILING_MEBIBYTES} MiB, which this control needs to find the smallest size that does"
+    );
+    return super::fault_limits::smallest_working(ADDRESS_SPACE_SEARCH_FLOOR_MEBIBYTES, ADDRESS_SPACE_SEARCH_CEILING_MEBIBYTES, &|mebibytes| {
+        return runs_the_job_in_address_space(fixture, mebibytes);
+    });
+}
+
+/// At every address-space size where Git completes and the wrapper can run a thread,
+/// the probe finishes by its bound
+///  with a runtime and a blocking job.
 #[test]
 fn at_every_address_space_size_the_runtime_is_built_by_the_deadline_and_the_job_runs() {
     let fixture: Fixture = fixture("runtime-probe-address-space");
-    for mebibytes in ADDRESS_SPACE_SIZES_MEBIBYTES {
+    let smallest: u64 = smallest_address_space_that_runs_the_job(&fixture);
+    for mebibytes in ADDRESS_SPACE_SIZES_MEBIBYTES.iter().copied().filter(|mebibytes| { return *mebibytes >= smallest; }) {
         let limit: Option<(LimitKind, u64)> = Some((LimitKind::AddressSpace, mebibytes * MEBIBYTE));
         if !git_completes_under(&fixture, limit) {
             continue;
