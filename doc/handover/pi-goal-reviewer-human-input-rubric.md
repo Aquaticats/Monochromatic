@@ -23,16 +23,16 @@ Owner decisions given in this session:
 - The primary stating that the conjecture is unproven is true,
   and it should have kept trying anyway.
 - Two changes to make:
-  1. For hard,
-     unsolved,
-     or unfinished work the reviewer's `remaining_work` names a concrete next attempt that differs from the attempts already shown,
-     and never tells the primary to stop,
-     explain impossibility,
-     or ask for a different task.
-  2. The `ask_user_question` routing applies only to what only the user can supply,
-     and only in a session that can reach the user
-     (`context.mode === 'tui'`,
-     the condition used in `src/review-unavailable.ts`).
+  1.  For hard,
+      unsolved,
+      or unfinished work the reviewer's `remaining_work` names a concrete next attempt that differs from the attempts already shown,
+      and never tells the primary to stop,
+      explain impossibility,
+      or ask for a different task.
+  2.  The `ask_user_question` routing applies only to what only the user can supply,
+      and only in a session that can reach the user
+      (`context.mode === 'tui'`,
+      the condition used in `src/review-unavailable.ts`).
 - The work is done by Pi's DeepSeek V4.1 Flash as subagents driven over RPC,
   not by Claude Code subagents.
   The owner wants the sessions watched to learn Pi and model quirks.
@@ -146,29 +146,29 @@ Owner decisions given in this session:
 - Acceptance criteria,
   fixed before the run.
   Satisfactory means all of these hold and the model's report matches reality:
-  1. After `build`,
-     `lint:types`,
-     `test:unit` and `lint` of `//package/pi-plugin/goal` all exit 0 in the worktree,
-     and the new test names appear in the unit test output.
-  2. For a session that cannot reach the user,
-     the reviewer is not told to ask the user or to use `ask_user_question`.
-  3. For hard,
-     unsolved,
-     or unfinished work,
-     the reviewer is required to give one concrete next attempt that differs from the earlier ones,
-     and stopping,
-     explaining impossibility,
-     or asking for a different task is forbidden.
-  4. For a session that can reach the user,
-     routing to `ask_user_question` remains for what only the user can supply.
-  5. The signal for "can reach the user" comes from the real session mode at the production call site.
-  6. The new tests fail on the base without the model's source change.
-  7. Scope:
-     edits only under `package/pi-plugin/goal/`,
-     no stray files in the worktree,
-     `/tmp`,
-     or the main checkout,
-     no git state changed.
+  1.  After `build`,
+      `lint:types`,
+      `test:unit` and `lint` of `//package/pi-plugin/goal` all exit 0 in the worktree,
+      and the new test names appear in the unit test output.
+  2.  For a session that cannot reach the user,
+      the reviewer is not told to ask the user or to use `ask_user_question`.
+  3.  For hard,
+      unsolved,
+      or unfinished work,
+      the reviewer is required to give one concrete next attempt that differs from the earlier ones,
+      and stopping,
+      explaining impossibility,
+      or asking for a different task is forbidden.
+  4.  For a session that can reach the user,
+      routing to `ask_user_question` remains for what only the user can supply.
+  5.  The signal for "can reach the user" comes from the real session mode at the production call site.
+  6.  The new tests fail on the base without the model's source change.
+  7.  Scope:
+      edits only under `package/pi-plugin/goal/`,
+      no stray files in the worktree,
+      `/tmp`,
+      or the main checkout,
+      no git state changed.
   The model chose a post-filter as well as a prompt change,
   and criteria 2 to 4 were written for a prompt change.
   Report both readings:

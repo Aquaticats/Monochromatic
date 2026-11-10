@@ -82,6 +82,11 @@ pub struct ContextRunner<'a> {
     pub cwd: &'a Path,
     /// Whether the invocation's global options are left out (the commit replay's private runs).
     pub without_prefix: bool,
+    /// The repository the invocation named,
+    /// as `repository_selection::from_global_options` names it,
+    /// for a caller whose start keeps none of the caller's other options.
+    /// Empty where the directory finds the repository.
+    pub repository: Vec<OsString>,
     /// The object store that receives written objects,
     /// when it is not the repository's own.
     pub object_directory: Option<&'a Path>,
@@ -101,6 +106,7 @@ impl GitRunner for ContextRunner<'_> {
         return Box::pin(async move {
             let mut request: GitRequest = GitRequest::new(self.cwd, arguments);
             request.without_prefix = self.without_prefix;
+            request.repository_selection.clone_from(&self.repository);
             request.object_directory = self.object_directory.map(Path::to_path_buf);
             request.environment.clone_from(&self.environment);
             request.input = input.map(<[u8]>::to_vec);

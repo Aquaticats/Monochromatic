@@ -1032,29 +1032,29 @@ a `check` subcommand that CI and a mise lint task call without pnpm.
   Its release order (from its message,
   a peer's report,
   not verified here):
-  1. Publish the shared library crate first.
-     The wrapper pins workspace library crates by exact version in its `Cargo.toml`
-     (for example `forbidden-strings = { path, version = "=0.6.0" }`),
-     and publishing the wrapper fails unless that exact version is
-     already on crates.io.
-     The shared crate needs inline pins in dependent manifests (the release tool
-     `package/crate-release/cli/bin/release.ts` moves only inline `name = { ... version = "=x" }` lines,
-     not table-style
-     `[dependencies.name]`) and its own `release` and `release:wait` mise tasks like `package/forbidden-strings/cli/mise.toml`.
-  2. 7a releases the wrapper (`native:release`,
-     `native:release:wait`) once the policy,
-     its tests and the mutation and fuzz gates pass.
-     Since 2026-11-01 those tasks only dispatch the `crate-release` workflow and follow its run,
-     and nothing compiles on the
-     developer machine (`doc/decision/releases-run-in-ci.md`);
-     the shared crate of step 1 also needs an entry in
-     `package/crate-release/cli/releasable-crates.json` and in the `crate` choices of `.github/workflows/crate-release.yml`.
-  3. `toolchain:update` bumps the wrapper in `toolchain.lock.json`;
-     it has no per-tool filter,
-     so it also moves every other floating
-     tool,
-     and the user decides each time.
-  4. `toolchain:sync` installs it as the production `git`.
+  1.  Publish the shared library crate first.
+      The wrapper pins workspace library crates by exact version in its `Cargo.toml`
+      (for example `forbidden-strings = { path, version = "=0.6.0" }`),
+      and publishing the wrapper fails unless that exact version is
+      already on crates.io.
+      The shared crate needs inline pins in dependent manifests (the release tool
+      `package/crate-release/cli/bin/release.ts` moves only inline `name = { ... version = "=x" }` lines,
+      not table-style
+      `[dependencies.name]`) and its own `release` and `release:wait` mise tasks like `package/forbidden-strings/cli/mise.toml`.
+  2.  7a releases the wrapper (`native:release`,
+      `native:release:wait`) once the policy,
+      its tests and the mutation and fuzz gates pass.
+      Since 2026-11-01 those tasks only dispatch the `crate-release` workflow and follow its run,
+      and nothing compiles on the
+      developer machine (`doc/decision/releases-run-in-ci.md`);
+      the shared crate of step 1 also needs an entry in
+      `package/crate-release/cli/releasable-crates.json` and in the `crate` choices of `.github/workflows/crate-release.yml`.
+  3.  `toolchain:update` bumps the wrapper in `toolchain.lock.json`;
+      it has no per-tool filter,
+      so it also moves every other floating
+      tool,
+      and the user decides each time.
+  4.  `toolchain:sync` installs it as the production `git`.
   The CI step must land only after the lock names the new wrapper and every runner installs from that lock,
      because
   `git cli-git check --all --policy mono/catalog-specifiers` fails on a wrapper that predates the policy.
@@ -1326,20 +1326,20 @@ most severe first:
 Sequencing the reviewer proposes (a review proposal,
 not decided):
 
-1. Fix `zod` first,
-   with the intended range and any lockfile update,
-   for a zero-violation baseline.
-2. Fix the library's byte-to-findings contract,
-   publish it with inline exact-version dependencies and release tasks.
-3. Satisfy the other cli-git publication prerequisites,
-   including the `jsonc-edit` pin.
-4. Add and release the native policy without activating its config entry yet;
-   test the new binary against the old config.
-5. Establish deterministic installation and the CI bootstrap;
-   update the locked version by a targeted operation if possible,
-   otherwise review the whole fleet-update diff.
-6. Activate the `error` policy and land the independently provisioned CI workflow.
-7. Ship the advisory pnpm wrapper independently.
+1.  Fix `zod` first,
+    with the intended range and any lockfile update,
+    for a zero-violation baseline.
+2.  Fix the library's byte-to-findings contract,
+    publish it with inline exact-version dependencies and release tasks.
+3.  Satisfy the other cli-git publication prerequisites,
+    including the `jsonc-edit` pin.
+4.  Add and release the native policy without activating its config entry yet;
+    test the new binary against the old config.
+5.  Establish deterministic installation and the CI bootstrap;
+    update the locked version by a targeted operation if possible,
+    otherwise review the whole fleet-update diff.
+6.  Activate the `error` policy and land the independently provisioned CI workflow.
+7.  Ship the advisory pnpm wrapper independently.
 It also notes that the staged-only commit policy does not need `zod` and activation in one commit (that was the abandoned hook's
 constraint),
    though fixing `zod` first avoids a tripwire and the whole-repository CI check needs a clean baseline.
@@ -2087,28 +2087,28 @@ after the third review was folded in.
   user directions on `pnpm-shadow`,
   three messages in order,
   each a direct user instruction:
-  1. "only say it's the wrapper on version and help commands."
-     Done:
-     the warning lines carry the prefix `warning: ` and never name
-     the wrapper;
-     the wrapper names itself only after a lone `--version`/`-v` (one line on standard output) and a lone
-     `--help`/`-h`/`help` (a section),
-     as `mpm-shadow` does;
-     its two own failures (no real pnpm,
-     could not start it) keep the
-     `pnpm-shadow:` prefix because they report the wrapper's own fault.
-     That exception is mine,
-     not the user's:
-     veto open.
-  2. "The wrapper also shouldn't take 12ms for trival pnpm commands where the wrapper doesn't even do work,
-     because pnpm itself is
-     rust tool.
-     Profile and optimize until we don't add more than what pnpm itself adds for them.
-     If you think clap is the problem,
-     provide evidence and tell me what to use instead."
-  3. "still scans" - didn't we already determine to only do scans on install-class commands?,
-     then "for wrapper warning scope" -
-     only when the warning would make sense.
+  1.  "only say it's the wrapper on version and help commands."
+      Done:
+      the warning lines carry the prefix `warning: ` and never name
+      the wrapper;
+      the wrapper names itself only after a lone `--version`/`-v` (one line on standard output) and a lone
+      `--help`/`-h`/`help` (a section),
+      as `mpm-shadow` does;
+      its two own failures (no real pnpm,
+      could not start it) keep the
+      `pnpm-shadow:` prefix because they report the wrapper's own fault.
+      That exception is mine,
+      not the user's:
+      veto open.
+  2.  "The wrapper also shouldn't take 12ms for trival pnpm commands where the wrapper doesn't even do work,
+      because pnpm itself is
+      rust tool.
+      Profile and optimize until we don't add more than what pnpm itself adds for them.
+      If you think clap is the problem,
+      provide evidence and tell me what to use instead."
+  3.  "still scans" - didn't we already determine to only do scans on install-class commands?,
+      then "for wrapper warning scope" -
+      only when the warning would make sense.
   The record before these:
      the user chose "Warn only,
      never block" against my ranking of install-class first,

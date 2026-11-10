@@ -50,6 +50,16 @@ const TAG: &str = "serviceClient";
 pub enum Submitted {
     /// The commit is on the branch.
     Landed { commit: String, already: bool },
+    /// The commit is written and kept,
+    /// and a reference lock keeps its branch where it is:
+    /// the command exits `0`,
+    /// and the next command that finds the lock gone moves the branch.
+    Held {
+        /// The commit kept on the batch's side reference.
+        commit: String,
+        /// What the command says about it.
+        words: String,
+    },
     /// A named path changed on the branch:
     /// prepare again from this base and submit again with the same identity.
     ///  `landed` tells when the bytes of the commits the service landed since were captured,
@@ -327,7 +337,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             //  A request the service says is inside its branch write is not withdrawn: its commit may be on the branch already, so the
             //  client waits the short extra wait for that write (owner, 2026-11-04, "Short extra wait"), listening for the landing,
             //  and then reports that the result is not known; the write is left running.
-            if waiting_since.elapsed() >= config.answer_ceiling && !matches!(heard, Heard::Message(ServiceMessage::Landed { .. } | ServiceMessage::RetryPrepare { .. } | ServiceMessage::Failed { .. })) {
+            if waiting_since.elapsed() >= config.answer_ceiling && !matches!(heard, Heard::Message(ServiceMessage::Landed { .. } | ServiceMessage::Held { .. } | ServiceMessage::RetryPrepare { .. } | ServiceMessage::Failed { .. })) {
                 if !inside_write {
                     trace.answer_wait += written_at.elapsed();
                     return withdraw(config, request.id.as_str(), last_blocker.take(), answer_deadline);
@@ -353,6 +363,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     trace.landing = landing;
                     break Some(Ok(Submitted::Landed { commit, already }));
                 }
+                Heard::Message(ServiceMessage::Held { commit, words, .. }) => break Some(Ok(Submitted::Held { commit, words })),
                 Heard::Message(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {

@@ -52,55 +52,55 @@ The user asked for this in their own words:
 
 ## What to do when it fires
 
-1. Read the JSON line and the full comment.
-   A wake prompt is self-authored,
-   so decide from the comment itself.
-2. If a maintainer asks for a pull request (either stack,
-   or both),
-   post it.
-   The user pre-authorized posting the pull request when requested;
-   nothing else is pre-authorized.
-   If the comment is a question,
-   a request for more evidence,
-   a close,
-   or an assignment,
-   answer in the session and ask the user before posting anything.
-3. Build each pull request from the patches in the public reproduction repository,
-   `https://github.com/Aquaticat/pnpm-missing-workspace-link-repro`,
-   directory `patches/`,
-   commit `81b20eb412`
-   (also in `doc/troubleshooting/pnpm-missing-workspace-link-repeat-install-fast-path.patch` and `.v11.patch`).
-   - pnpm 12 (Rust):
-     `pnpm-12-rust.patch`,
-     7 files,
-     with the integration test.
-   - pnpm 11 (TypeScript):
-     `pnpm-11-typescript.patch`,
-     the source file and a jest test.
-   - Both applied cleanly to `main` at `cf2556e97c`;
-     `main` had moved by the time of filing,
-     so re-apply and re-run the new tests first.
-4. Follow pnpm's rules for pull requests:
-   `.github/pull_request_template.md` (Summary,
-   Squash Commit Body,
-   Checklist,
-   in that order),
-   a changeset for each source change (`CONTRIBUTING.md` and `AGENTS.md` in `pnpm/pnpm`:
-   pnpm 11 changesets name `pnpm` with a patch bump,
-   pnpm 12 targets `pacquet`),
-   the disclosure footer `Written by an agent (Claude Code, claude-sonnet-5-5).`,
-   and wait for CodeRabbit and CI before expecting human review.
-   Link the issue with `Closes pnpm/pnpm#17485` only if the pull request fixes the whole report;
-   otherwise `Related to`.
-5. Push branches to the fork `Aquaticat/pnpm`.
-   A push from a shallow blobless clone stalled for more than ten minutes before;
-   either use a normal clone or create the commit with GitHub's `createCommitOnBranch` mutation
-   (script:
-   `/var/home/user/temp/agent/pnpm-docs-fix/commit-to-fork.ts`).
-   In a third-party clone run `git remote set-url --push origin DISABLED` first.
-6. Post a short comment on `#17485` linking the pull requests,
-   with the agent footer.
-7. Update `doc/troubleshooting/pnpm-missing-workspace-link-repeat-install-fast-path.md` with the pull request links and commit with explicit pathspecs.
+1.  Read the JSON line and the full comment.
+    A wake prompt is self-authored,
+    so decide from the comment itself.
+2.  If a maintainer asks for a pull request (either stack,
+    or both),
+    post it.
+    The user pre-authorized posting the pull request when requested;
+    nothing else is pre-authorized.
+    If the comment is a question,
+    a request for more evidence,
+    a close,
+    or an assignment,
+    answer in the session and ask the user before posting anything.
+3.  Build each pull request from the patches in the public reproduction repository,
+    `https://github.com/Aquaticat/pnpm-missing-workspace-link-repro`,
+    directory `patches/`,
+    commit `81b20eb412`
+    (also in `doc/troubleshooting/pnpm-missing-workspace-link-repeat-install-fast-path.patch` and `.v11.patch`).
+    - pnpm 12 (Rust):
+      `pnpm-12-rust.patch`,
+      7 files,
+      with the integration test.
+    - pnpm 11 (TypeScript):
+      `pnpm-11-typescript.patch`,
+      the source file and a jest test.
+    - Both applied cleanly to `main` at `cf2556e97c`;
+      `main` had moved by the time of filing,
+      so re-apply and re-run the new tests first.
+4.  Follow pnpm's rules for pull requests:
+    `.github/pull_request_template.md` (Summary,
+    Squash Commit Body,
+    Checklist,
+    in that order),
+    a changeset for each source change (`CONTRIBUTING.md` and `AGENTS.md` in `pnpm/pnpm`:
+    pnpm 11 changesets name `pnpm` with a patch bump,
+    pnpm 12 targets `pacquet`),
+    the disclosure footer `Written by an agent (Claude Code, claude-sonnet-5-5).`,
+    and wait for CodeRabbit and CI before expecting human review.
+    Link the issue with `Closes pnpm/pnpm#17485` only if the pull request fixes the whole report;
+    otherwise `Related to`.
+5.  Push branches to the fork `Aquaticat/pnpm`.
+    A push from a shallow blobless clone stalled for more than ten minutes before;
+    either use a normal clone or create the commit with GitHub's `createCommitOnBranch` mutation
+    (script:
+    `/var/home/user/temp/agent/pnpm-docs-fix/commit-to-fork.ts`).
+    In a third-party clone run `git remote set-url --push origin DISABLED` first.
+6.  Post a short comment on `#17485` linking the pull requests,
+    with the agent footer.
+7.  Update `doc/troubleshooting/pnpm-missing-workspace-link-repeat-install-fast-path.md` with the pull request links and commit with explicit pathspecs.
 
 ## Related open items
 

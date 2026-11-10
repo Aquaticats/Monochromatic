@@ -27,6 +27,10 @@ import {
   installFakeCommand,
 } from './fake-command-fixture.ts';
 
+//region Fixtures
+// The combo every case injects, the tokens it must become, and the failure a
+// stand-in `ydotool` reports, so a case states only what it varies.
+
 /**
  Combo whose tokens are known, used by the `sendKeys` cases.
  */
@@ -61,6 +65,12 @@ const INHERITED_NAMES: readonly string[] = [
   '__proto__',
   'hasOwnProperty',
 ];
+
+//endregion Fixtures
+
+//region Cases
+// Both exported halves: the translation that turns a combo into evdev tokens
+// or rejects it, and the runner that reports what `ydotool` did.
 
 await describe({
   name: '',
@@ -211,3 +221,5 @@ await describe({
     }),
   ],
 });
+
+//endregion Cases

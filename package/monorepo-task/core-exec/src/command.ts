@@ -143,9 +143,12 @@ catch (error) {
       readonly signalName?: string;
       readonly message: string;
     } {
+      // nano-spawn reports a child killed by a signal with `signalName` and no
+      // `exitCode` at all, so testing for `exitCode` alone sent every signal and
+      // every timeout to the unknown-error branch, stack trace included.
       return (candidate !== null)
         && ((typeof candidate) === 'object')
-        && ('exitCode' in candidate);
+        && (('exitCode' in candidate) || ('signalName' in candidate));
     },
     function handleSubprocessError(subprocessError,): void {
       match(subprocessError.signalName,)

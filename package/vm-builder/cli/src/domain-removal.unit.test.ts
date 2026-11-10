@@ -4,10 +4,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import {
-  type CommandRunner,
-  undefineVmIfExists,
-} from '../dist/final/node/domain-removal.mjs';
+import { undefineVmIfExists, } from '../dist/final/node/domain-removal.mjs';
+import type { CommandRunner, } from '../dist/final/node/exec.mjs';
 
 //region Fixtures
 

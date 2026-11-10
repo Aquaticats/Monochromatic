@@ -52,6 +52,7 @@ fn ordinary_git_mode(mode: CandidateMode) -> Option<&'static str> {
 fn blob_id(context: &GitContext, cwd: &Path, bytes: &[u8]) -> Result<String, GitFailure> {
     let mut request: GitRequest = GitRequest::new(cwd, &["hash-object", "--stdin"]);
     request.without_prefix = true;
+    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     request.input = Some(bytes.to_vec());
     let output: GitOutput = run_git_checked(context, &request)?;
     return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
@@ -114,6 +115,8 @@ pub fn settled_entry(
     let mut request: GitRequest = GitRequest::new(cwd, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
     request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
     request.without_prefix = true;
+    // The listing runs in the caller's repository, which a Git directory beside its work tree only names.
+    request.repository_selection = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
     request.index = Some(index.to_path_buf());
     let output: GitOutput = run_git_checked(context, &request)?;
     for record in output.stdout.split(is_nul_byte) {

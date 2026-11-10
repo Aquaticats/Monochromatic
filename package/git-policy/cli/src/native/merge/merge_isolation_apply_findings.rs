@@ -86,7 +86,9 @@ pub(crate) fn a_carry_that_stopped(reference: &str, failure: &CarryFailure, capt
     let detail: String = match failure {
         CarryFailure::IndexHeld(lock) => format!("another program holds this repository's index ({lock})"),
         CarryFailure::Failed(text) => String::from(text.as_str()),
-        CarryFailure::Foreign(path) => format!("{} holds something else now", String::from_utf8_lossy(path.as_slice())),
+        CarryFailure::Foreign(path) | CarryFailure::Changed(path) => {
+            format!("{} holds something else now", String::from_utf8_lossy(path.as_slice()))
+        }
     };
     let kept: &str = capture.reference.as_deref().unwrap_or("the record this merge wrote");
     return format!(
@@ -110,7 +112,7 @@ pub(crate) fn failure_text(failure: &CarryFailure) -> String {
     return match failure {
         CarryFailure::IndexHeld(lock) => format!("another program held {lock} until this merge had waited its longest"),
         CarryFailure::Failed(detail) => String::from(detail.as_str()),
-        CarryFailure::Foreign(path) => format!(
+        CarryFailure::Foreign(path) | CarryFailure::Changed(path) => format!(
             "{} was written after this merge captured it, so the merge was not written over it",
             String::from_utf8_lossy(path.as_slice())
         ),

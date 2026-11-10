@@ -13,10 +13,14 @@
  */
 export type ReadonlyRecord = Readonly<Record<string, unknown>>;
 
+export { BLOCK_TAG_NAMES, } from './block-tag-names.ts';
+
 export {
   isWhitespaceChar,
   isWordChar,
 } from './text-character.ts';
+
+export { tokenEnd, } from './token-end.ts';
 
 export {
   type ParsedMutationContractBlock,

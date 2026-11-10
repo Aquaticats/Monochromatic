@@ -36,7 +36,7 @@ use crate::policy_test_support::{
 };
 use crate::policy_trigger::Trigger;
 use crate::repository_location::RepositoryLocation;
-use crate::rule_add_explicit::decide_add_explicit;
+use crate::rule_add_explicit::{StagedSelection, add_explicit_question, decide_add_explicit};
 use crate::test_support::{fixture, remove, repository};
 use crate::worktree_identity::WorktreeIdentity;
 use crate::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
@@ -106,6 +106,21 @@ fn unanswerable() -> ScriptedFacts {
 fn location_only() -> Vec<String> {
     return vec![String::from("location")];
 }
+
+/// The pathspec measurement and the location are asked for,
+///  and nothing else.
+fn measured_location_only() -> Vec<String> {
+    return vec![String::from("location"), String::from("selection:.")];
+}
+
+/// The pathspec measurement,
+///  the location and the candidates are asked for.
+fn measured_location_and_candidates() -> Vec<String> {
+    let mut asked: Vec<String> = measured_location_only();
+    asked.push(String::from("candidates"));
+    return asked;
+}
+
 
 /// The require-root finding at `severity` for a command run in `sub/` below `root`.
 fn not_at_root(root: &str, severity: Severity) -> PolicyEvent {
@@ -385,9 +400,20 @@ fn add_reads_its_candidates_after_add_explicit() {
             location_and_candidates()
         )
     );
-    // A bulk add is rejected by add-explicit before any content policy reads.
-    let bulk: String = decide_add_explicit(os_arguments(&["add", "."]).as_slice())
-        .expect("a bulk add is rejected");
+    // A bulk add is rejected by add-explicit before any content policy reads, and the text names the paths
+    // the measurement found.
+    let sweeping: StagedSelection = StagedSelection {
+        selected: 2,
+        repository: 2,
+        directory: 2,
+    };
+    let bulk: String = decide_add_explicit(
+        &add_explicit_question(os_arguments(&["add", "."]).as_slice()).expect("a question"),
+        Some(&sweeping),
+    )
+    .expect("a bulk add is rejected");
+    let mut sweeping_facts: ScriptedFacts = scripted_facts();
+    sweeping_facts.selection = Ok(sweeping);
     let bulk_event: PolicyEvent = PolicyEvent::Finding(FindingEvent {
         trigger: Trigger::PreForward,
         policy: PolicyId::AddExplicit,
@@ -399,24 +425,40 @@ fn add_reads_its_candidates_after_add_explicit() {
         fix_available: false,
     });
     assert_eq!(
-        run(&["add", "."], scripted_facts(), &[]),
+        run(&["add", "."], sweeping_facts.clone(), &[]),
         (
             WrappedOutcome::Exit {
                 code: 1,
                 stderr: render_policy_events(0, std::slice::from_ref(&bulk_event)),
             },
-            location_only()
+            measured_location_only()
         )
     );
     // With keep-going the finding is reported and the content policy still reads.
     assert_eq!(
-        run(&["--cli-git-keep-going", "add", "."], scripted_facts(), &[]),
+        run(&["--cli-git-keep-going", "add", "."], sweeping_facts, &[]),
         (
             WrappedOutcome::Exit {
                 code: 2,
                 stderr: render_policy_events(0, &[bulk_event, unprepared_final_newline()]),
             },
-            location_and_candidates()
+            measured_location_and_candidates()
+        )
+    );
+    // A measurement that could not be made lets the add through with one line saying so.
+    let mut failing: ScriptedFacts = scripted_facts();
+    failing.selection = Err(String::from("the listing failed"));
+    assert_eq!(
+        run(&["add", "--no-enforce-final-newline", "."], failing, &[]),
+        (
+            WrappedOutcome::Forward {
+                arguments: os_arguments(&["add", "."]),
+                stderr: String::from(
+                    "monochromatic-git-policy-cli: could not check whether this git add stages the whole \
+                     repository, so the command runs unchanged: the listing failed\n"
+                ),
+            },
+            measured_location_only()
         )
     );
     // Escaping the only content policy that is on prepares nothing and lets the command through.

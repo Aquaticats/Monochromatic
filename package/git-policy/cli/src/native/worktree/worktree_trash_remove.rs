@@ -14,6 +14,11 @@
 //! and the identity of the top directory is compared with the recorded one on the object that is
 //!  opened,
 //! so a replacement is never emptied.
+//! The one directory of another device that is no boundary is the stand-in btrfs shows where a snapshot left a nested
+//!  subvolume out:
+//! it holds nothing and belongs to the tree being removed,
+//! so it is removed as the empty directory it
+//!  is (`subvolume_remove_walk.rs` makes the same exception for the same reason).
 //! A directory the owner cannot write to is given the owner's permission bits
 //!  through its descriptor on the way down,
 //! as `subvolume_remove.rs` does for the old tree of a conversion.
@@ -26,11 +31,26 @@
 use crate::fs_beneath::{ObjectId, device_of, handle_path, identity_at, identity_of, open_directory_at, remove_at};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrashRemove";
+
+/// What:
+///  The inode number btrfs gives the empty directory that stands for a nested subvolume in a snapshot
+/// (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID`),
+/// read from the module that owns the number.
+/// Why:
+///   Such a directory reports a device of its own and holds nothing,
+/// so it is no boundary of the tree being removed;
+///  the leave-out and the stand-in step read the same number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const STAND_IN_INODE = BTRFS_STAND_IN_INODE;
+/// ```
+const BTRFS_STAND_IN_INODE: u64 = crate::fs_kind::BTRFS_STAND_IN_INODE;
 
 /// What a removal found.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -151,8 +171,10 @@ fn make_writable(dir: &File, shown: Describe<'_>) {
 /// the reason is the error.
 fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Result<Frame, String> {
     let dir: File = failed_at(open_directory_at(parent, name), &shown, "is not a plain directory that can be entered, so it is left alone")?;
-    let found: u64 = failed_at(device_of(&dir), &shown, "cannot be examined")?;
-    if found != device {
+    let facts: std::fs::Metadata = failed_at(dir.metadata(), &shown, "cannot be examined")?;
+    // A stand-in of a nested subvolume is the one directory here with a device of its own that is no boundary: btrfs
+    //  builds it for a subvolume a snapshot left out, it holds nothing, and it belongs to the tree being removed.
+    if facts.dev() != device && facts.ino() != BTRFS_STAND_IN_INODE {
         return Err(format!("{} is on another device, so it is left alone", shown.path().display()));
     }
     make_writable(&dir, shown);

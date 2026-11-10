@@ -12,10 +12,10 @@
 //! so no other file repeats the rule,
 //! and a name that was never needed is never
 //!  touched.
-//! A log that rotates keeps its numbered older copies (`<log>.1`),
+//! A log keeps its numbered older copies (`<log>.1`),
 //! and they move with it,
-//! because the audit log
-//!  copies name saved files still on disk.
+//! because an audit line can name a
+//!  saved copy still on disk.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -60,10 +60,10 @@ const WORKTREE_DIRECTORY_FOLDS: [KeptName; 2] = [
 const COMMON_DIRECTORY_FOLDS: [KeptName; 6] = [
     KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
     KeptName { name: WORKTREE_COPY_RECORD_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log { rotates: false } },
-    KeptName { name: DISCARD_AUDIT_LOG, kind: KeptKind::Log { rotates: true } },
-    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
-    KeptName { name: WORKTREE_ADD_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
+    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log },
+    KeptName { name: DISCARD_AUDIT_LOG, kind: KeptKind::Log },
+    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log },
+    KeptName { name: WORKTREE_ADD_TIMING_LOG, kind: KeptKind::Log },
 ];
 
 /// The names to fold in a Git directory that is both the worktree's own and the common one (the main worktree).
@@ -71,10 +71,10 @@ const MAIN_DIRECTORY_FOLDS: [KeptName; 7] = [
     KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
     KeptName { name: MERGE_INTENT_FOLDER, kind: KeptKind::Folder },
     KeptName { name: WORKTREE_COPY_RECORD_FOLDER, kind: KeptKind::Folder },
-    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log { rotates: false } },
-    KeptName { name: DISCARD_AUDIT_LOG, kind: KeptKind::Log { rotates: true } },
-    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
-    KeptName { name: WORKTREE_ADD_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
+    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log },
+    KeptName { name: DISCARD_AUDIT_LOG, kind: KeptKind::Log },
+    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log },
+    KeptName { name: WORKTREE_ADD_TIMING_LOG, kind: KeptKind::Log },
 ];
 
 /// Whether one byte of a name is an ASCII digit;

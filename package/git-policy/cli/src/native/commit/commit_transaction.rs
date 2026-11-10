@@ -253,6 +253,7 @@ pub fn private_checks<'a, F: RepositoryFacts>(
     checks: &'a mut ShippedChecks<F>,
     index: &Path,
     object_directory: &Path,
+    real_index: &Path,
     candidates: CandidateRequest,
 ) -> ShippedChecks<PrivateIndexFacts<&'a mut F>> {
     // The scanner settings and the Markdown linter move to the rebuilt checks; the originals are placeholders that
@@ -269,6 +270,8 @@ pub fn private_checks<'a, F: RepositoryFacts>(
     );
     rebuilt.scanner_settings = scanner_settings;
     rebuilt.markdown = markdown;
+    // A policy of this commit that adds a path compares the real index with the commit's own entries before it writes one.
+    rebuilt.real_index = Some(real_index.to_path_buf());
     return rebuilt;
 }
 

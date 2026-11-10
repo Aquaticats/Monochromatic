@@ -48,7 +48,8 @@ use crate::common_directory_of_a_git_directory::common_directory_of;
 /// one entry per build.
 use crate::scratch_commit_step::{ScratchStepFacts, drain_scratch_steps, scratch_steps_json};
 use crate::diagnostic_log::debug;
-use crate::discard_audit::append_line;
+use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
+use crate::log_lines_appended_without_a_lock::append_line;
 use crate::iso_time::now_iso;
 use crate::json_record::{quote, string_array};
 use crate::quiet_ledger::{drain, longest_healthy, object_json};
@@ -59,11 +60,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// The file inside the common Git directory that collects the timing records of every worktree of the repository.
-/// It moves
-///  aside to `monochromatic-git-policy-cli-commit-timing.jsonl.1`,
-/// replacing the older one (a timing log keeps one generation),
-/// at the size limit
-///  `discard_audit::append_line` applies.
+/// A full file moves aside to the next free generation
+/// (`monochromatic-git-policy-cli-commit-timing.jsonl.<number>`),
+/// and the generations are kept up to `LOG_HISTORY_BYTES`.
 pub const TIMING_FILE: &str = COMMIT_TIMING_LOG.current;
 
 /// The version of the record's fields;
@@ -670,7 +669,7 @@ impl CommitTiming {
         (with_quiet.build_parts, with_quiet.build_parts_dropped) = drain_build_parts();
         with_quiet.scratch_steps = drain_scratch_steps();
         let line: String = with_quiet.line(self.began.elapsed(), exit_code);
-        if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
+        if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {
             debug(TAG, &format!("the timing record could not be written to {}: {error}", target.display()));
         }
     }

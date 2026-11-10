@@ -27,110 +27,110 @@ so the drafts are ready for the user's review.
 Next actions,
 in order:
 
-1.   Mutation-testing fork:
-     done 2026-09-24
-     (report `doc/audit/deepmerge-ts-mutation-2026-09-24.md`;
-     upstream suite 800 of 1098 Stryker mutants,
-     sidecar now 1017,
-     the other 81 argued equivalent).
-     Its four public findings were reproduced independently on 8.0.2 and added to issue sections 2,
-     8,
-     10,
-     11,
-     and 13;
-     `fix/into-first-value-typing` was built and leaves the `filterValues` empty-seed case unchanged.
-     No new security candidates.
-     User decision 2026-09-24:
-     make the run reproducible as a Stryker image task in this package
-     (chosen over extending `package/cli/mutation-test`,
-     which cannot run upstream's Vitest suite,
-     and over leaving it documented only).
-     Ported as the `mutation`,
-     `mutation:sweep`,
-     and `mutation:differential` tasks (commits `d1a3cd6d1`,
-     `50348c435`):
-     the rerun from a `v8.0.2` checkout reproduces 800 of 1098 with matching mutant ids,
-     the sweep baseline passes all sidecar files,
-     four known mutants reproduce their verdicts,
-     and the differential controls hold.
-     Generator-widening fork (the report's generator gaps):
-     done,
-     commits `1d2cc683f` to `035805aa8`;
-     its new divergence (into never passes a target-only Map entry to a custom function)
-     and a slot-written `actions.defaultMerge` ignored by into array,
-     Set,
-     and Map functions
-     are pinned in `known-defect-options.unit.test.ts` and in issue section 8.
-     Campaign failure at 05:58 (seed 297866779) came from its half-edited files:
-     the seed passes on the committed files.
-2.   Integrate each widening fork's report per `Widening pass`.
-     Done for the exotic,
-     options,
-     scale,
-     and aliasing forks
-     (findings reproduced independently and added to the local drafts;
-     model and snapshot made realm-independent in `src/realm.ts`,
-     commit `fa548bf15`).
-     New fork branch `fix/cross-realm-collections` (worktree `~/temp/agent/deepmerge-ts-fix-cross-realm`):
-     291 upstream tests pass,
-     its new test fails 5 of 6 cases on unfixed `src`,
-     and the sidecar run against its build turns only the cross-realm known-defect test red.
-     The other new defects wait for an upstream design choice (throw or document),
-     so they have no branch.
-     Declared-type fork integrated too
-     (7 new type classes;
-     issue snippet type-checked verbatim in a local file;
-     capped `fuzz:declared-types`,
-     `fuzz:declared-types:control`,
-     and `generate:declared-type-cases` tasks,
-     the control catching 42 of 45 tampered cases and the corpus regenerating byte-identical).
-     The restarted campaign found a new defect on its own
-     (one `deepmergeInto` call rewrites a cyclic source node it stored by reference,
-     seed 1395258848);
-     pinned in `known-defect-alias.unit.test.ts`,
-     with the source-mutation property narrowed by node identity (`src/alias-rewire.ts`)
-     and a positive control failing at the same test number with the exclusion removed.
-     The next campaign run (seed 1831879258) found the same rewrite one node further in,
-     on a source node the target reaches only through the stored one;
-     pinned beside it (commit `07f01a556`),
-     with the property now skipping every source node the target reaches after the call
-     and a helper test showing writes into unreached source nodes are still reported.
-     Issue section 6 carries both repros,
-     each checked on 8.0.2.
-     `lint:oxlint` passes but prints plugin warnings (`effect-summary-omission`,
-     `readonly-source-evidence`)
-     for `src/declared-type-sample.ts`:
-     the `prefer-readonly-parameter-type` plugin's deliberate omission record for a TypeScript tuple-serialization panic
-     (`doc/handover/prefer-readonly-parameter-types-issue-review.md`,
-     "Verified controls"),
-     so that one callable goes unanalyzed by that rule,
-     not a finding in this package.
-     `format:oxlint`,
-     `lint:oxlint` (0 warnings,
-     0 errors),
-     `lint:types`,
-     and `test:unit` pass;
-     coverage baseline ratcheted to 1765 of 1772 lines.
-3.   Campaign with the widened generators stopped on the user's call after about 2 hours:
-     580 rounds of 10000 runs per property file passed with no counterexample.
-     Rerun it after any generator widening,
-     upstream release,
-     or fork fix,
-     and triage any counterexample per `Campaign`.
-4.   Method audit (see `Method audit`),
-     started 2026-09-24 after the user rejected the drafts as too thin:
-     "This can't be it.
-     I expected many more findings.
-     Maybe we're not looking for findings correctly?"
-     All three reports integrated (see `Integration after the three reports`);
-     The campaign on the widened generators was stopped on the user's call after about a day:
-     4326 rounds of 10000 runs per property file passed with no new counterexample
-     (the only failure record is the earlier,
-     already-pinned seed 1831879258).
-     User decision 2026-09-24:
-     the user reviews and posts both drafts personally.
-5.   Open PRs from the fork branches if the maintainer wants them,
-     and follow `After upstream responds`.
+1.  Mutation-testing fork:
+    done 2026-09-24
+    (report `doc/audit/deepmerge-ts-mutation-2026-09-24.md`;
+    upstream suite 800 of 1098 Stryker mutants,
+    sidecar now 1017,
+    the other 81 argued equivalent).
+    Its four public findings were reproduced independently on 8.0.2 and added to issue sections 2,
+    8,
+    10,
+    11,
+    and 13;
+    `fix/into-first-value-typing` was built and leaves the `filterValues` empty-seed case unchanged.
+    No new security candidates.
+    User decision 2026-09-24:
+    make the run reproducible as a Stryker image task in this package
+    (chosen over extending `package/cli/mutation-test`,
+    which cannot run upstream's Vitest suite,
+    and over leaving it documented only).
+    Ported as the `mutation`,
+    `mutation:sweep`,
+    and `mutation:differential` tasks (commits `d1a3cd6d1`,
+    `50348c435`):
+    the rerun from a `v8.0.2` checkout reproduces 800 of 1098 with matching mutant ids,
+    the sweep baseline passes all sidecar files,
+    four known mutants reproduce their verdicts,
+    and the differential controls hold.
+    Generator-widening fork (the report's generator gaps):
+    done,
+    commits `1d2cc683f` to `035805aa8`;
+    its new divergence (into never passes a target-only Map entry to a custom function)
+    and a slot-written `actions.defaultMerge` ignored by into array,
+    Set,
+    and Map functions
+    are pinned in `known-defect-options.unit.test.ts` and in issue section 8.
+    Campaign failure at 05:58 (seed 297866779) came from its half-edited files:
+    the seed passes on the committed files.
+2.  Integrate each widening fork's report per `Widening pass`.
+    Done for the exotic,
+    options,
+    scale,
+    and aliasing forks
+    (findings reproduced independently and added to the local drafts;
+    model and snapshot made realm-independent in `src/realm.ts`,
+    commit `fa548bf15`).
+    New fork branch `fix/cross-realm-collections` (worktree `~/temp/agent/deepmerge-ts-fix-cross-realm`):
+    291 upstream tests pass,
+    its new test fails 5 of 6 cases on unfixed `src`,
+    and the sidecar run against its build turns only the cross-realm known-defect test red.
+    The other new defects wait for an upstream design choice (throw or document),
+    so they have no branch.
+    Declared-type fork integrated too
+    (7 new type classes;
+    issue snippet type-checked verbatim in a local file;
+    capped `fuzz:declared-types`,
+    `fuzz:declared-types:control`,
+    and `generate:declared-type-cases` tasks,
+    the control catching 42 of 45 tampered cases and the corpus regenerating byte-identical).
+    The restarted campaign found a new defect on its own
+    (one `deepmergeInto` call rewrites a cyclic source node it stored by reference,
+    seed 1395258848);
+    pinned in `known-defect-alias.unit.test.ts`,
+    with the source-mutation property narrowed by node identity (`src/alias-rewire.ts`)
+    and a positive control failing at the same test number with the exclusion removed.
+    The next campaign run (seed 1831879258) found the same rewrite one node further in,
+    on a source node the target reaches only through the stored one;
+    pinned beside it (commit `07f01a556`),
+    with the property now skipping every source node the target reaches after the call
+    and a helper test showing writes into unreached source nodes are still reported.
+    Issue section 6 carries both repros,
+    each checked on 8.0.2.
+    `lint:oxlint` passes but prints plugin warnings (`effect-summary-omission`,
+    `readonly-source-evidence`)
+    for `src/declared-type-sample.ts`:
+    the `prefer-readonly-parameter-type` plugin's deliberate omission record for a TypeScript tuple-serialization panic
+    (`doc/handover/prefer-readonly-parameter-types-issue-review.md`,
+    "Verified controls"),
+    so that one callable goes unanalyzed by that rule,
+    not a finding in this package.
+    `format:oxlint`,
+    `lint:oxlint` (0 warnings,
+    0 errors),
+    `lint:types`,
+    and `test:unit` pass;
+    coverage baseline ratcheted to 1765 of 1772 lines.
+3.  Campaign with the widened generators stopped on the user's call after about 2 hours:
+    580 rounds of 10000 runs per property file passed with no counterexample.
+    Rerun it after any generator widening,
+    upstream release,
+    or fork fix,
+    and triage any counterexample per `Campaign`.
+4.  Method audit (see `Method audit`),
+    started 2026-09-24 after the user rejected the drafts as too thin:
+    "This can't be it.
+    I expected many more findings.
+    Maybe we're not looking for findings correctly?"
+    All three reports integrated (see `Integration after the three reports`);
+    The campaign on the widened generators was stopped on the user's call after about a day:
+    4326 rounds of 10000 runs per property file passed with no new counterexample
+    (the only failure record is the earlier,
+    already-pinned seed 1831879258).
+    User decision 2026-09-24:
+    the user reviews and posts both drafts personally.
+5.  Open PRs from the fork branches if the maintainer wants them,
+    and follow `After upstream responds`.
 
 User constraints from confirmation:
 all security findings go into one combined private advisory draft,
@@ -299,26 +299,26 @@ confirmed by the user the same day.
 
 ## Planned sequence
 
-1. One combined local advisory draft for every embargoed finding,
-   for the user to file privately.
-2. Sidecar `package/module/deepmerge-ts.fuzz`:
-   reference model,
-   invariants,
-   fixed-seed `test:unit`,
-   unbounded containerized `fuzz`,
-   `fuzz:coverage` gate,
-   `README.md`.
-3. GitHub fork `Aquaticat/deepmerge-ts`,
-   local checkout under `~/temp/agent` pushing only to the fork,
-   and sidecar support for targeting a local branch build.
-4. Fix branches with Vitest regression tests for non-embargoed defects,
-   pushed to the fork;
-   no upstream PRs until the user posts the combined issue.
-5. One combined local issue draft:
-   non-embargoed defects,
-   `maxDepth` fallback docs request,
-   sparse-hole intent question,
-   property-suite proposal.
+1.  One combined local advisory draft for every embargoed finding,
+    for the user to file privately.
+2.  Sidecar `package/module/deepmerge-ts.fuzz`:
+    reference model,
+    invariants,
+    fixed-seed `test:unit`,
+    unbounded containerized `fuzz`,
+    `fuzz:coverage` gate,
+    `README.md`.
+3.  GitHub fork `Aquaticat/deepmerge-ts`,
+    local checkout under `~/temp/agent` pushing only to the fork,
+    and sidecar support for targeting a local branch build.
+4.  Fix branches with Vitest regression tests for non-embargoed defects,
+    pushed to the fork;
+    no upstream PRs until the user posts the combined issue.
+5.  One combined local issue draft:
+    non-embargoed defects,
+    `maxDepth` fallback docs request,
+    sparse-hole intent question,
+    property-suite proposal.
 
 ## Answered 2026-09-23 (round 4)
 

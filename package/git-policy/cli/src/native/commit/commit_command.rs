@@ -36,9 +36,10 @@ use crate::policy_checks::ShippedChecks;
 use crate::policy_engine::StageRequest;
 use crate::policy_events::{PolicyEvent, render_policy_events};
 use crate::policy_trigger::Trigger;
-use crate::post_commit::{POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, run_post_commit_gate};
+use crate::post_commit::{NO_BLOCKING_CAUSE, POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, blocked_reason, run_post_commit_gate};
 use crate::repository_facts::RepositoryFacts;
 use crate::transaction_git::GitContext;
+use crate::global_arguments::without_directory_changes;
 use crate::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::io::Write;
@@ -224,8 +225,15 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         Err(_) => PathBuf::from("."),
     };
     let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    // Every Git of this commit runs in `cwd`, the directory the caller's `-C` chain already reached, so the options it forwards
+    //  keep everything the caller wrote but that `-C`: forwarding it moved Git a second time and read the repository beside the
+    //  one the command was in.
+    let context: GitContext = GitContext {
+        global_prefix: without_directory_changes(command.context.global_prefix.as_slice()),
+        ..command.context.clone()
+    };
     let invocation: CommitInvocation<'_> = CommitInvocation {
-        context: command.context,
+        context: &context,
         environment: command.environment,
         cwd: cwd.as_path(),
         arguments: command.arguments,
@@ -302,7 +310,10 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     timing.gate += gating.elapsed();
     write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
     if gate.blocked {
-        forget_the_push(handoff, landed);
+        // The verdict keeps the gate's own words: the next push of this branch stops before this commit, and every command says
+        //  why until the commit is off the branch's way out.
+        let said: String = blocked_reason(gate.events.as_slice());
+        forget_the_push(handoff, landed, if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() });
         return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
     }
     // The gate approved the backup: the push the service held for this commit becomes runnable, and the hand-off below wakes it.

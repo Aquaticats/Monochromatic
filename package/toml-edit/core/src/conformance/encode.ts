@@ -136,28 +136,15 @@ function buildSafely(
 }
 
 /**
- Run the encoder adapter end to end.
- 
- @example
- ```ts
- await main();
- ```
+ Lenient UTF-8 view of stdin; malformed JSON is caught by the parse below.
  */
-async function main(): Promise<void> {
-  /**
-   Lenient UTF-8 view of stdin; malformed JSON is caught by the parse below.
-   */
-  const text = new TextDecoder().decode(await readStdin(),);
-  /**
-   Parse-and-build result.
-   */
-  const result = buildSafely({ text, },);
-  if (!result.ok) {
-    failAdapter({ message: result.message, },);
-    return;
-  }
+const text = new TextDecoder().decode(await readStdin(),);
+/**
+ Parse-and-build result.
+ */
+const result = buildSafely({ text, },);
+if (!result.ok)
+  failAdapter({ message: result.message, },);
+else
   process.stdout
     .write(result.toml,);
-}
-
-await main();

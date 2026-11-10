@@ -118,6 +118,10 @@ pub mod commit_index;
 /// and the two `git add` starts that stage them.
 pub mod commit_selection_staging;
 
+/// The named files an ignore rule refuses,
+/// decided from the selection before any `git add` runs (issue 6278).
+pub mod commit_named_ignored_files;
+
 /// The one read of the real index that every private copy of a commit is written from.
 pub mod commit_index_bytes;
 
@@ -173,9 +177,15 @@ pub mod scratch_step_stop_words;
 /// The line a commit prints while it waits for the `git commit` of its scratch repository.
 pub mod scratch_step_notice_line;
 
+/// The line a commit prints when the step it stopped is still held by the kernel.
+pub mod scratch_step_held_by_the_kernel;
+
 /// The programs a look of the notice saw below the step,
 /// and the time each was credited with.
 pub mod scratch_step_programs_below;
+
+/// One look at the step the commit waits for and the programs below it.
+pub mod scratch_step_look_below;
 
 /// The waiting notice of the commit Git builds in the scratch repository.
 pub mod native_commit_waiting_notice;
