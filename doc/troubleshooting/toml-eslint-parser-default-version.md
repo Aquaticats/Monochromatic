@@ -132,7 +132,7 @@ No upstream filing is warranted:
 
 ## Upstream filing artifact
 
-**Do not file as-is.**
+Do not file as-is.
 This draft records why a report would misattribute our documentation error to upstream:
 
 ~~~md

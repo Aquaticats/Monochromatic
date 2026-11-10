@@ -39,92 +39,92 @@ M1 (NEON).
  The decision-relevant conclusions,
  in order of weight:
 
-1. ieviev's match-time claim is **confirmed strongly** at default config:
-    the regex crate either
-   refuses large `\w` repeats (`CompiledTooBig` from `\w{256}` up) or collapses at match time
-   (`\w{100}`:
-    0.45 s to 3.6 s per 8 MiB pass,
-    14x to 152x slower than resharp;
-    `\w{500}` with the
-   size cap raised:
-    ~19.5 s,
-    ~600x).
-    The collapse is lazy-DFA cache thrash,
-    fixable with a
-   non-default `dfa_size_limit` (256 MiB restores 25 ms passes) but real out of the box.
-2. "RE# pays compile time only" is **false on non-ASCII input**:
-    resharp Full `\w{26}`..`\w{500}`
-   each spend **27 s to 50 s of lazy-DFA construction on the first `find_all` over an 8 MiB
-   multilingual haystack** (warm passes after that:
-    ~45 ms).
-    Not a synthetic artifact:
-    2.2 MiB of
-   real Chinese prose (the kernel's zh_CN docs) stalls `\w{26}` for 18.5 s,
-    while the regex crate
-   at **default config** does the identical job on the same bytes in 4.3 ms cold (same 1 938
-   matches).
-    The bounded left-to-right path that protects n <= 25 (`\w{24}` cold-multilingual:
-   24 ms) is exactly the path ieviev is considering shrinking;
-    the data says shrinking it makes
-   this worse.
-3. The compile cliff is one unbudgeted safety proof,
-    priced precisely below:
-    `\w{24}` Full costs
-   1.51 s and **503 MiB** to compile;
-    `\w{26}` costs 176 ms and 49 MiB.
-    The cliff tracks
-   class byte-width,
-    not `\w` (it appears for `\p{L}`,
-    `[\w\s]`,
-    `\W`;
-    not for `\d`,
-    `\s`,
-   `[a-f0-9]`),
-    and it is **entirely absent in `UnicodeMode::Ascii`** (`\w{24}` Ascii:
-    160 µs).
-4. At real-tree scale,
-    a 259-rule secret scanner's startup goes from ~9 ms (regex) to **2.1 s**
-   under resharp's default config (`UnicodeMode::Default`),
-    16.5 s on one thread,
-    but **that gap
-   is mostly the Unicode mode,
-    not the engine**:
-    resharp in `UnicodeMode::Ascii` (correct for
-   ASCII secret tokens) starts in 53 ms (~5-6x regex) and scans the Linux kernel in 5.5 s /
-   0.37 GiB,
-    vs Default's 11.6 s / **4.8 GiB**.
-    The engine's true sole-use cost is ~5-6x at load
-   and ~3x at scan;
-    the rest is Default mode making `\w` a wide 2-byte class.
-    Behind a literal
-   prefilter the engine is invisible at scan time and only load differs.
-    (These figures correct an
-   earlier revision of this document whose forced-engine scanner variants compiled the ruleset
-   twice at load,
-    inflating their cold starts ~2x;
-    the engine/mode split is unchanged.
-   )
-5. resharp already ships the escape hatch that dissolves the question for deployable rulesets:
-   `Regex::dump()` / `Regex::load()` (feature `serialize`) eagerly determinizes at dump time and
-   loads in milliseconds,
-    turning the 18-50 s first-match cliff into a **7.5 ms load plus a
-   10-49 ms first pass** ([priced below](#option-p5-ahead-of-time-compile-and-cache-regexdump--load)).
-   The catch:
-    the feature **does not compile at c1b3b87** (five fields missing from `load()`'s
-   initializer;
-    it bit-rotted outside default-feature CI).
-    A 15-line fix restores it.
-6. Acceptability is the maintainer's call,
-    not this document's;
-    the
-   [decision inputs](#what-the-data-says-about-how-long-is-acceptable) are:
-    resharp's measured
-   floor for wide-class patterns is ~120-200 ms and every cheaper bail-out measured here forfeits
-   correctness or first-match latency;
-    per-pattern cost multiplies by ruleset size at the
-   realistic consumer;
-    and a compile budget constrains nothing unless first-match determinization
-   is budgeted too.
+1.  ieviev's match-time claim is **confirmed strongly** at default config:
+     the regex crate either
+    refuses large `\w` repeats (`CompiledTooBig` from `\w{256}` up) or collapses at match time
+    (`\w{100}`:
+     0.45 s to 3.6 s per 8 MiB pass,
+     14x to 152x slower than resharp;
+     `\w{500}` with the
+    size cap raised:
+     ~19.5 s,
+     ~600x).
+     The collapse is lazy-DFA cache thrash,
+     fixable with a
+    non-default `dfa_size_limit` (256 MiB restores 25 ms passes) but real out of the box.
+2.  "RE# pays compile time only" is **false on non-ASCII input**:
+     resharp Full `\w{26}`..`\w{500}`
+    each spend **27 s to 50 s of lazy-DFA construction on the first `find_all` over an 8 MiB
+    multilingual haystack** (warm passes after that:
+     ~45 ms).
+     Not a synthetic artifact:
+     2.2 MiB of
+    real Chinese prose (the kernel's zh_CN docs) stalls `\w{26}` for 18.5 s,
+     while the regex crate
+    at **default config** does the identical job on the same bytes in 4.3 ms cold (same 1 938
+    matches).
+     The bounded left-to-right path that protects n <= 25 (`\w{24}` cold-multilingual:
+    24 ms) is exactly the path ieviev is considering shrinking;
+     the data says shrinking it makes
+    this worse.
+3.  The compile cliff is one unbudgeted safety proof,
+     priced precisely below:
+     `\w{24}` Full costs
+    1.51 s and **503 MiB** to compile;
+     `\w{26}` costs 176 ms and 49 MiB.
+     The cliff tracks
+    class byte-width,
+     not `\w` (it appears for `\p{L}`,
+     `[\w\s]`,
+     `\W`;
+     not for `\d`,
+     `\s`,
+    `[a-f0-9]`),
+     and it is **entirely absent in `UnicodeMode::Ascii`** (`\w{24}` Ascii:
+     160 µs).
+4.  At real-tree scale,
+     a 259-rule secret scanner's startup goes from ~9 ms (regex) to **2.1 s**
+    under resharp's default config (`UnicodeMode::Default`),
+     16.5 s on one thread,
+     but **that gap
+    is mostly the Unicode mode,
+     not the engine**:
+     resharp in `UnicodeMode::Ascii` (correct for
+    ASCII secret tokens) starts in 53 ms (~5-6x regex) and scans the Linux kernel in 5.5 s /
+    0.37 GiB,
+     vs Default's 11.6 s / **4.8 GiB**.
+     The engine's true sole-use cost is ~5-6x at load
+    and ~3x at scan;
+     the rest is Default mode making `\w` a wide 2-byte class.
+     Behind a literal
+    prefilter the engine is invisible at scan time and only load differs.
+     (These figures correct an
+    earlier revision of this document whose forced-engine scanner variants compiled the ruleset
+    twice at load,
+     inflating their cold starts ~2x;
+     the engine/mode split is unchanged.
+    )
+5.  resharp already ships the escape hatch that dissolves the question for deployable rulesets:
+    `Regex::dump()` / `Regex::load()` (feature `serialize`) eagerly determinizes at dump time and
+    loads in milliseconds,
+     turning the 18-50 s first-match cliff into a **7.5 ms load plus a
+    10-49 ms first pass** ([priced below](#option-p5-ahead-of-time-compile-and-cache-regexdump--load)).
+    The catch:
+     the feature **does not compile at c1b3b87** (five fields missing from `load()`'s
+    initializer;
+     it bit-rotted outside default-feature CI).
+     A 15-line fix restores it.
+6.  Acceptability is the maintainer's call,
+     not this document's;
+     the
+    [decision inputs](#what-the-data-says-about-how-long-is-acceptable) are:
+     resharp's measured
+    floor for wide-class patterns is ~120-200 ms and every cheaper bail-out measured here forfeits
+    correctness or first-match latency;
+     per-pattern cost multiplies by ruleset size at the
+    realistic consumer;
+     and a compile budget constrains nothing unless first-match determinization
+    is budgeted too.
 
 ## Head-to-head: the disputed pattern family
 
@@ -237,7 +237,7 @@ path dep, <code>diag</code> feature</td></tr>
    `nonword`.
    Plus
   Twain (Gutenberg #74+#76 to 8 MiB) and 9.9 MiB of real Rust source for corpus/feature suites.
-- **Match timing**:
+- Match timing:
    compile once,
    then 4 timed `find_all` passes;
    pass 1 = "cold" (includes
@@ -249,7 +249,7 @@ path dep, <code>diag</code> feature</td></tr>
    as do the A/B/C scanner findings at full scale.
 - Peak RSS via `/usr/bin/time -v`,
    fresh process.
-- **Run-to-run spread**:
+- Run-to-run spread:
    a 10-run fresh-process probe of `\w{24}` Full compile spans 1.47-1.74 s
   (~±9% around the mean).
    Treat trailing digits in every cell as noise;
@@ -308,10 +308,10 @@ Fresh process,
    So does
   `Javascript` mode (`\w` stays ASCII).
    The cliff is a wide-Unicode-class phenomenon only.
-- **The regex crate enforces its compile budget structurally**:
+- The regex crate enforces its compile budget structurally:
    at most ~67 ms before refusing;
   per-repeat slope ~0.13 ms.
-- **Peak RSS**:
+- Peak RSS:
    regex `\w{24}` 7 MiB,
    regex-big `\w{500}` 70 MiB;
    resharp Full `\w{24}` **503 MiB**,
@@ -470,7 +470,7 @@ pattern over the identical bytes in 4.3 ms cold / 3.1 ms warm,
 
 This is the crux of "adjust the upper limit of the left-to-right path":
  at these shapes the bounded
-path is the *better* matcher (16.3 ms vs 25.2 ms warm on run1k at the n=25/26 boundary;
+path is the **better** matcher (16.3 ms vs 25.2 ms warm on run1k at the n=25/26 boundary;
  **24 ms vs
 27 s cold on multilingual**),
  and its BDFA is 2 states.
@@ -634,7 +634,7 @@ orthogonal to the compile question.
 these rules were ported defensively (no set algebra) because of past resharp fragility,
  so they
 exercise resharp only on regex-shaped patterns;
- and much of what a betterleaks rule *means*
+ and much of what a betterleaks rule **means**
 (stopword/allowlist filters,
  `required` co-occurrence) is deliberately not in the regex,
  because
@@ -813,7 +813,7 @@ the identical 259-rule ruleset:
   literal "default config" question,
    but reads as a mode choice,
    not engine overhead.
-- **B is viable but lossy in expressiveness**:
+- B is viable but lossy in expressiveness:
    routing the `BASE&~(E)` rules verbatim to the regex
   crate compiles (it reads `&~(` as literal bytes) but silently changes semantics and loses the
   detection;
@@ -856,7 +856,7 @@ A split decision on speed (literal-anchored:
  class-shaped with no
 literal:
  the single resharp pattern wins),
- but the single pattern buys *semantics*:
+ but the single pattern buys **semantics**:
  the
 password-policy decomposition is wrong (a line containing an 8-char token,
  a digit somewhere,
@@ -896,113 +896,113 @@ Picking the number is the maintainer's call;
  no threshold is derivable from benchmarks alone.
 What the measurements do pin down:
 
-1. **The reference the ecosystem sets.
-   ** At default config the regex crate compiles typical rules
-   in 0.1-6 ms,
-    the worst accepted pattern in this campaign in ~67 ms,
-    and *refuses* rather than
-   stalls.
-    resharp is already inside "not too much slower than regex" everywhere except
-   wide-Unicode bounded repeats:
-    ASCII classes at parity (µs),
-    ordinary rules at ~8x (tens of ms),
-   the Full-mode wide-class floor at ~120-200 ms.
+1.  **The reference the ecosystem sets.
+    ** At default config the regex crate compiles typical rules
+    in 0.1-6 ms,
+     the worst accepted pattern in this campaign in ~67 ms,
+     and **refuses** rather than
+    stalls.
+     resharp is already inside "not too much slower than regex" everywhere except
+    wide-Unicode bounded repeats:
+     ASCII classes at parity (µs),
+     ordinary rules at ~8x (tens of ms),
+    the Full-mode wide-class floor at ~120-200 ms.
 
-2. **Per-pattern cost multiplies by ruleset size at the realistic consumer.
-   ** Whatever per-pattern
-   number is chosen,
-    a ruleset consumer (this campaign's 259-rule scanner,
-    any linter or secret
-   scanner) pays it hundreds of times per cold start:
-    a 200 ms/rule worst case is 52 s serial for
-   this ruleset,
-    and resharp Full's measured 6.7 s corpus compile is what the A/B/C section
-   surfaces as the adoption obstacle.
-    For `\w`-bearing rules,
-    only Ascii/Javascript modes (µs per
-   pattern) or P5 caching land in the regex crate's 0.1-6 ms reference band today.
+2.  **Per-pattern cost multiplies by ruleset size at the realistic consumer.
+    ** Whatever per-pattern
+    number is chosen,
+     a ruleset consumer (this campaign's 259-rule scanner,
+     any linter or secret
+    scanner) pays it hundreds of times per cold start:
+     a 200 ms/rule worst case is 52 s serial for
+    this ruleset,
+     and resharp Full's measured 6.7 s corpus compile is what the A/B/C section
+    surfaces as the adoption obstacle.
+     For `\w`-bearing rules,
+     only Ascii/Javascript modes (µs per
+    pattern) or P5 caching land in the regex crate's 0.1-6 ms reference band today.
 
-3. **Everything above the ~200 ms floor pays for the proof,
-    and every cheaper bail-out measured
-   here gives something up.
-   ** The floor is achievable by construction (it is what n >= 26 already
-   costs);
-    the 1.5 s / 503 MiB above it buys the bounded accelerator,
-    which P1 shows is **not
-   optional**:
-    skip it and `\w{24}`'s cold multilingual match goes from 24 ms to 25.8 s.
-    Bail the
-   proof (P1) and the first-match cliff extends down to n <= 25;
-    cap the DFA (P3) and the stall
-   becomes a hard `CapacityExceeded`;
-    hardened mode avoids neither cliff.
-    The consequence:
-    a
-   structural budget (counting construction work,
-    `CompiledTooBig`-style;
-    per-shape heuristics
-   cannot see the cost,
-    compare `[a-f0-9]{64}` at 245 µs with `\w{24}` at 1.5 s,
-    both
-   bounded-path) amounts to **refusing wide-Unicode bounded repeats the way regex refuses
-   `\w{256}`**,
-    unless determinization itself gets cheaper.
-    Whether refusal beats a 27 s stall
-   behind a mutex is a product decision;
-    the data only says those are the two ends of the trade.
+3.  **Everything above the ~200 ms floor pays for the proof,
+     and every cheaper bail-out measured
+    here gives something up.
+    ** The floor is achievable by construction (it is what n >= 26 already
+    costs);
+     the 1.5 s / 503 MiB above it buys the bounded accelerator,
+     which P1 shows is **not
+    optional**:
+     skip it and `\w{24}`'s cold multilingual match goes from 24 ms to 25.8 s.
+     Bail the
+    proof (P1) and the first-match cliff extends down to n <= 25;
+     cap the DFA (P3) and the stall
+    becomes a hard `CapacityExceeded`;
+     hardened mode avoids neither cliff.
+     The consequence:
+     a
+    structural budget (counting construction work,
+     `CompiledTooBig`-style;
+     per-shape heuristics
+    cannot see the cost,
+     compare `[a-f0-9]{64}` at 245 µs with `\w{24}` at 1.5 s,
+     both
+    bounded-path) amounts to **refusing wide-Unicode bounded repeats the way regex refuses
+    `\w{256}`**,
+     unless determinization itself gets cheaper.
+     Whether refusal beats a 27 s stall
+    behind a mutex is a product decision;
+     the data only says those are the two ends of the trade.
 
-4. **A compile budget constrains nothing unless it covers first-match too.
-   ** Moving work out of
-   `Regex::new` does not discharge it:
-    the n >= 26 patterns compile in 176 ms and then spend
-   27-50 s inside the first `find_all` on multilingual input (18.5 s on real Chinese prose),
-    20x
-   the bill they avoided,
-    behind a mutex,
-    saturating by 1 MiB of input.
-    A compile budget paired
-   with an unbudgeted lazy determinizer relocates the stall to production.
-    (The regex crate's
-   compile budget is meaningful only because its lazy DFA degrades gracefully instead of
-   stalling.
-   )
+4.  **A compile budget constrains nothing unless it covers first-match too.
+    ** Moving work out of
+    `Regex::new` does not discharge it:
+     the n >= 26 patterns compile in 176 ms and then spend
+    27-50 s inside the first `find_all` on multilingual input (18.5 s on real Chinese prose),
+     20x
+    the bill they avoided,
+     behind a mutex,
+     saturating by 1 MiB of input.
+     A compile budget paired
+    with an unbudgeted lazy determinizer relocates the stall to production.
+     (The regex crate's
+    compile budget is meaningful only because its lazy DFA degrades gracefully instead of
+    stalling.
+    )
 
-5. **On "adjust the upper limit of the left-to-right path":
-    the measurements cut against
-   shrinking it.
-   ** P1 shows the path's accelerator is what protects n <= 25 from the 27 s
-   first-match cliff (24 ms vs 25.8 s);
-    P2 shows raising the gate extends that protection at
-   proportional cost (3.3 s at n = 50);
-    P3 shows capping the DFA converts the stall into a hard
-   error.
-    The leverage the data locates instead:
-    normal-path determinization over wide classes,
-   where the regex crate's byte-class-compressed lazy DFA proves single-digit ms is achievable on
-   the same pattern and the same multilingual bytes at a 2 MiB cache budget;
-    once that is cheap
-   (or incremental),
-    the accelerator and its expensive proof stop being load-bearing.
-    Meanwhile
-   two already-shipping escape hatches dissolve the problem for the workloads measured here:
-   **(a)** `UnicodeMode::Ascii`/`Javascript` for ASCII-token workloads (160 µs compile,
-    no cold
-   cliff;
-    the end-to-end scanner goes from a 2.1 s startup,
-    16.5 s serial,
-    and 4.8 GiB kernel scan
-   under `UnicodeMode::Default` to 53 ms and 0.37 GiB under Ascii,
-    ~40x of the gap being the
-   mode);
-    **(b)** the `serialize` feature (P5),
-    which precompiles at dump time and turns both
-   cliffs into a 7.5 ms load for fixed rulesets,
-    once its compile breakage is fixed.
-    The same
-   numbers mean the default-`UnicodeMode` choice moves more consumer-visible cost than any
-   per-pattern threshold:
-    `Default` (2-byte `\w`) opts every `\w`-bearing rule into the wide-class
-   compile.
+5.  **On "adjust the upper limit of the left-to-right path":
+     the measurements cut against
+    shrinking it.
+    ** P1 shows the path's accelerator is what protects n <= 25 from the 27 s
+    first-match cliff (24 ms vs 25.8 s);
+     P2 shows raising the gate extends that protection at
+    proportional cost (3.3 s at n = 50);
+     P3 shows capping the DFA converts the stall into a hard
+    error.
+     The leverage the data locates instead:
+     normal-path determinization over wide classes,
+    where the regex crate's byte-class-compressed lazy DFA proves single-digit ms is achievable on
+    the same pattern and the same multilingual bytes at a 2 MiB cache budget;
+     once that is cheap
+    (or incremental),
+     the accelerator and its expensive proof stop being load-bearing.
+     Meanwhile
+    two already-shipping escape hatches dissolve the problem for the workloads measured here:
+    **(a)** `UnicodeMode::Ascii`/`Javascript` for ASCII-token workloads (160 µs compile,
+     no cold
+    cliff;
+     the end-to-end scanner goes from a 2.1 s startup,
+     16.5 s serial,
+     and 4.8 GiB kernel scan
+    under `UnicodeMode::Default` to 53 ms and 0.37 GiB under Ascii,
+     ~40x of the gap being the
+    mode);
+     **(b)** the `serialize` feature (P5),
+     which precompiles at dump time and turns both
+    cliffs into a 7.5 ms load for fixed rulesets,
+     once its compile breakage is fixed.
+     The same
+    numbers mean the default-`UnicodeMode` choice moves more consumer-visible cost than any
+    per-pattern threshold:
+     `Default` (2-byte `\w`) opts every `\w`-bearing rule into the wide-class
+    compile.
 
 ## Caveats and threats to validity
 

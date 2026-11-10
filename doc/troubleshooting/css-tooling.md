@@ -85,21 +85,21 @@ pipeline.
 Already filed (#1081).
  5 constraints:
 
-1. Upstream's fault?
-    Yes.
-2. Can upstream fix?
-    Yes,
-    but the issue has been open with
-   no movement.
-3. Supporting this use case?
-    Documented in examples;
-    the
-   defect is the gap between docs and reality.
-4. Will they fix?
-    Unknown;
-    track #1081.
-5. Prototyped a minimal fix?
-    No.
+1.  Upstream's fault?
+     Yes.
+2.  Can upstream fix?
+     Yes,
+     but the issue has been open with
+    no movement.
+3.  Supporting this use case?
+     Documented in examples;
+     the
+    defect is the gap between docs and reality.
+4.  Will they fix?
+     Unknown;
+     track #1081.
+5.  Prototyped a minimal fix?
+     No.
 
 Decision:
  no new report;
@@ -483,29 +483,29 @@ closed tracking issue (#147),
 
 Two distinct CSS import resolution strategies are exercised:
 
-1. **`exports` field resolution** (`test-css-importing` +
-   `test-css-imported`):
-    imports like
-   `@import '@monochromatic-dev/test-css-imported/index.css'`,
-   resolved via the `exports` mappings in the imported
-   package's `package.json`.
-    Modern,
-    encapsulated approach
-   where the package controls its public surface.
-2. **Direct file-path resolution**
-   (`test-css-importing-filepath` +
-   `test-css-imported-no-exports`):
-    imports like
-   `@import '@monochromatic-dev/test-css-imported-no-exports/src/index.css'`,
-   resolved by reaching directly into the package's file
-   tree.
-    Requires the imported package to **not** have an
-   `exports` field,
-    because `exports` blocks deep imports by
-   design (Node.
-   js resolution semantics,
-    enforced by
-   oxc-resolver).
+1.  **`exports` field resolution** (`test-css-importing` +
+    `test-css-imported`):
+     imports like
+    `@import '@monochromatic-dev/test-css-imported/index.css'`,
+    resolved via the `exports` mappings in the imported
+    package's `package.json`.
+     Modern,
+     encapsulated approach
+    where the package controls its public surface.
+2.  **Direct file-path resolution**
+    (`test-css-importing-filepath` +
+    `test-css-imported-no-exports`):
+     imports like
+    `@import '@monochromatic-dev/test-css-imported-no-exports/src/index.css'`,
+    resolved by reaching directly into the package's file
+    tree.
+     Requires the imported package to **not** have an
+    `exports` field,
+     because `exports` blocks deep imports by
+    design (Node.
+    js resolution semantics,
+     enforced by
+    oxc-resolver).
 
 Key discovery:
  when a package has an `exports` field,
@@ -558,18 +558,18 @@ build pipeline is the working answer.
 
 ## Lessons (kept for posterity)
 
-1. Every abstraction has leaky edges;
-    LightningCSS is fast
-   until it intersects with `var()`.
-2. Package managers are not interchangeable;
-    pnpm's
-   strictness creates real failures that npm/yarn don't.
-3. Frameworks own their pipelines;
-    trying to retrofit a
-   transform onto a framework's CSS path is not reliable.
-4. "Just works" never does at the boundary between two
-   tools.
-5. The JavaScript ecosystem's modules-and-CSS interface is
-   loosely defined;
-    every tool makes assumptions that
-   conflict with adjacent tools.
+1.  Every abstraction has leaky edges;
+     LightningCSS is fast
+    until it intersects with `var()`.
+2.  Package managers are not interchangeable;
+     pnpm's
+    strictness creates real failures that npm/yarn don't.
+3.  Frameworks own their pipelines;
+     trying to retrofit a
+    transform onto a framework's CSS path is not reliable.
+4.  "Just works" never does at the boundary between two
+    tools.
+5.  The JavaScript ecosystem's modules-and-CSS interface is
+    loosely defined;
+     every tool makes assumptions that
+    conflict with adjacent tools.

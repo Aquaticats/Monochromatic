@@ -72,31 +72,31 @@ Even though OXC isolated declarations is fast per-file
  the DTS bundling pass
 has inherent overhead:
 
-1. **JS event loop serialisation.
-   ** Rolldown spawns concurrent
-   tokio tasks per module (`tokio::spawn` in
-   `module_loader.rs`),
-    but each task calls the JS `load` hook
-   via NAPI `ThreadsafeFunction.call_async()`.
-    These callbacks
-   execute one-at-a-time on the single JS event loop thread.
-   The `isolatedDeclarationSync` call within each callback
-   blocks that callback from yielding.
-2. **Import resolution fanout.
-   ** For `module-es`:
-    483 DTS source
-   files produce 1138 cross-file DTS import resolutions.
-    Each
-   resolution goes through the JS-side resolver plugin.
-   Rolldown discovers imports incrementally;
-    each layer of the
-   dependency graph must resolve before the next layer is
-   discovered.
-3. **Bundle linking.
-   ** After all load hooks complete,
-    rolldown
-   runs its standard linking phase on the DTS module graph to
-   produce the final bundled output.
+1.  **JS event loop serialisation.
+    ** Rolldown spawns concurrent
+    tokio tasks per module (`tokio::spawn` in
+    `module_loader.rs`),
+     but each task calls the JS `load` hook
+    via NAPI `ThreadsafeFunction.call_async()`.
+     These callbacks
+    execute one-at-a-time on the single JS event loop thread.
+    The `isolatedDeclarationSync` call within each callback
+    blocks that callback from yielding.
+2.  **Import resolution fanout.
+    ** For `module-es`:
+     483 DTS source
+    files produce 1138 cross-file DTS import resolutions.
+     Each
+    resolution goes through the JS-side resolver plugin.
+    Rolldown discovers imports incrementally;
+     each layer of the
+    dependency graph must resolve before the next layer is
+    discovered.
+3.  **Bundle linking.
+    ** After all load hooks complete,
+     rolldown
+    runs its standard linking phase on the DTS module graph to
+    produce the final bundled output.
 
 Verified via `DEBUG='rolldown-plugin-dts:*'` output:
  resolved
@@ -207,15 +207,15 @@ builds still pay the full cost.
 
 ## What does not work
 
-- **Switching to tsc for DTS**:
+- Switching to tsc for DTS:
    would be slower,
    not faster.
   The OXC path is already the fastest available.
-- **Setting `dts: { oxc: true }` explicitly**:
+- Setting `dts: { oxc: true }` explicitly:
    redundant;
   `rolldown-plugin-dts` auto-detects `isolatedDeclarations:
   true` from tsconfig.
-- **Disabling minification**:
+- Disabling minification:
    saves ~1 ms,
    irrelevant.
 - **Running with `DEBUG='rolldown-plugin-dts:*'` or
@@ -231,36 +231,36 @@ builds still pay the full cost.
 
 ## Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No. The DTS bundling pass
-   exists because library consumers expect a single `.d.ts`
-   entry.
-    The cost is inherent to the goal,
-    not to a
-   suboptimal implementation.
-2. **Can upstream fix it?
-   ** Possibly.
-    Moving the load-hook
-   fan-out to a Rust-side parallel walker would amortise the
-   per-file cost,
-    but `isolatedDeclarationSync` is itself a sync
-   NAPI call,
-    so the benefit depends on whether OXC's
-   declaration generation can be invoked from rust threads
-   safely.
-    Non-trivial.
-3. **Are they supporting this use case?
-   ** Yes;
-    bundled DTS is
-   the documented tsdown feature set.
-4. **Will they likely fix it?
-   ** Maybe.
-    sxzz maintains the
-   plugin actively;
-    performance improvements have landed in
-   the past.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** No. The DTS bundling pass
+    exists because library consumers expect a single `.d.ts`
+    entry.
+     The cost is inherent to the goal,
+     not to a
+    suboptimal implementation.
+2.  **Can upstream fix it?
+    ** Possibly.
+     Moving the load-hook
+    fan-out to a Rust-side parallel walker would amortise the
+    per-file cost,
+     but `isolatedDeclarationSync` is itself a sync
+    NAPI call,
+     so the benefit depends on whether OXC's
+    declaration generation can be invoked from rust threads
+    safely.
+     Non-trivial.
+3.  **Are they supporting this use case?
+    ** Yes;
+     bundled DTS is
+    the documented tsdown feature set.
+4.  **Will they likely fix it?
+    ** Maybe.
+     sxzz maintains the
+    plugin actively;
+     performance improvements have landed in
+    the past.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.
@@ -486,13 +486,13 @@ A tool that bundles everything by default would not warn about bundling.
 
 The call chain is:
 
-1. `resolveOptions()` reads `package.json` -> `pkg`
-2. `pkg` is stored on `ResolvedConfig`
-3. `DepsPlugin(config, bundle)` is registered (always,
-    when `pkg` exists)
-4. `getProductionDeps(pkg)` extracts `dependencies` + `peerDependencies` + `optionalDependencies`
-5. `externalStrategy()` marks any import matching a production dep as external
-6. Anything from `node_modules` that slips through triggers a warning
+1.  `resolveOptions()` reads `package.json` -> `pkg`
+2.  `pkg` is stored on `ResolvedConfig`
+3.  `DepsPlugin(config, bundle)` is registered (always,
+     when `pkg` exists)
+4.  `getProductionDeps(pkg)` extracts `dependencies` + `peerDependencies` + `optionalDependencies`
+5.  `externalStrategy()` marks any import matching a production dep as external
+6.  Anything from `node_modules` that slips through triggers a warning
 
 No user configuration is required.
  The FAQ's claim that "tsdown bundles all imported modules"

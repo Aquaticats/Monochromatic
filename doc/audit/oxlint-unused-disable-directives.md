@@ -77,26 +77,26 @@ Three independent lines of evidence rule out the false-positive hypothesis,
  that
 type-aware suppressions are flagged because the unused-check cannot see tsgolint diagnostics.
 
-1. oxlint's own diagnostic text is `Unused oxlint-disable directive (no problems were reported).`
-   The check ran the rule at that scope and the rule reported nothing.
-2. A controlled fixture proves the check accounts for tsgolint.
-   Two identical `value as string` assertions on an `unknown`,
-    one with a
-   `typescript/no-unsafe-type-assertion` directive and one without:
-    the bare one produced
-   `typescript(no-unsafe-type-assertion): Unsafe type assertion`,
-    the suppressed one produced
-   nothing,
-    and its directive was not flagged unused.
-   A used type-aware directive is correctly recognized as used.
-3. The flagged set is type-independent.
-   Running the whole tree with `--type-aware` and without it both flag exactly the same 301
-   locations (byte-for-byte identical file:
-   line sets),
-    even though the type-aware run emits
-   1133 real `! typescript(...)` diagnostics elsewhere.
-   The 301 do not depend on type information;
-    the rules simply do not fire there.
+1.  oxlint's own diagnostic text is `Unused oxlint-disable directive (no problems were reported).`
+    The check ran the rule at that scope and the rule reported nothing.
+2.  A controlled fixture proves the check accounts for tsgolint.
+    Two identical `value as string` assertions on an `unknown`,
+     one with a
+    `typescript/no-unsafe-type-assertion` directive and one without:
+     the bare one produced
+    `typescript(no-unsafe-type-assertion): Unsafe type assertion`,
+     the suppressed one produced
+    nothing,
+     and its directive was not flagged unused.
+    A used type-aware directive is correctly recognized as used.
+3.  The flagged set is type-independent.
+    Running the whole tree with `--type-aware` and without it both flag exactly the same 301
+    locations (byte-for-byte identical file:
+    line sets),
+     even though the type-aware run emits
+    1133 real `! typescript(...)` diagnostics elsewhere.
+    The 301 do not depend on type information;
+     the rules simply do not fire there.
 
 ## Root-cause categories
 
@@ -130,44 +130,44 @@ TA  no-unsafe-argument                  4
 
 The categories that explain them:
 
-1. Defensive type-aware suppressions on safe code.
-   The bulk.
-    Authors disabled `prefer-readonly-parameter-types` or `no-unsafe-type-assertion`
-   expecting a complaint that never comes.
+1.  Defensive type-aware suppressions on safe code.
+    The bulk.
+     Authors disabled `prefer-readonly-parameter-types` or `no-unsafe-type-assertion`
+    expecting a complaint that never comes.
+     Example:
+    `package/module/es/src/types/t function/f/t function/memoize/r a/p n/index.ts:223`
+    disables `no-unsafe-type-assertion` above `return memoized as MemoizedAsyncFunction<...>`,
+    but tsgolint considers that assertion safe after the property assignments above it.
+    Many sit on `Array.prototype.filter` and `.map` callbacks whose parameter the rule exempts
+    (for example `package/webapp-forge/server/src/worker/render.ts:234`).
+2.  Disabling a rule that is turned off in config.
+    `typescript/no-unnecessary-condition` is `'off'` at
+    `package/config/oxlint/src/rule/correctness.ts:44`,
+     so all 24 directives targeting it are dead.
     Example:
-   `package/module/es/src/types/t function/f/t function/memoize/r a/p n/index.ts:223`
-   disables `no-unsafe-type-assertion` above `return memoized as MemoizedAsyncFunction<...>`,
-   but tsgolint considers that assertion safe after the property assignments above it.
-   Many sit on `Array.prototype.filter` and `.map` callbacks whose parameter the rule exempts
-   (for example `package/webapp-forge/server/src/worker/render.ts:234`).
-2. Disabling a rule that is turned off in config.
-   `typescript/no-unnecessary-condition` is `'off'` at
-   `package/config/oxlint/src/rule/correctness.ts:44`,
-    so all 24 directives targeting it are dead.
-   Example:
-    `package/config/tofu/fetch_ips.ts:76` disables it above `while (true)`.
-3. Dead `oxlint-disable`/`oxlint-enable` block pairs where the rule never fires inside.
-   72 of the 301 are `/* oxlint-enable ... */` lines (232 are `oxlint-disable` lines).
-   Example:
-    `package/webapp-forge/server/src/storage/adapter.ts:78`.
-   oxlint flags only the enable for such a block;
-    the paired disable reports unused only after
-   the enable is gone (removing the enable extends the disable to end-of-file,
-    then the disable
-   itself is flagged).
-    A controlled test confirmed the disable suppresses nothing:
-    deleting it
-   alone surfaced no new diagnostic,
-    only `Unused oxlint-enable directive (no matching
-   oxlint-disable directives were found)`.
-    Both lines must be removed together.
-4. Non-canonical prefixes copied from ESLint configs.
-   `typescript-eslint/...`,
-    `typescript-eslint(...)`,
-    and bare `no-unsafe-type-assertion`
-   forms still match the rule (see `doc/troubleshooting/oxlint.md` on prefix stripping),
-   so the prefix is not why they are unused;
-    the underlying rule simply does not fire.
+     `package/config/tofu/fetch_ips.ts:76` disables it above `while (true)`.
+3.  Dead `oxlint-disable`/`oxlint-enable` block pairs where the rule never fires inside.
+    72 of the 301 are `/* oxlint-enable ... */` lines (232 are `oxlint-disable` lines).
+    Example:
+     `package/webapp-forge/server/src/storage/adapter.ts:78`.
+    oxlint flags only the enable for such a block;
+     the paired disable reports unused only after
+    the enable is gone (removing the enable extends the disable to end-of-file,
+     then the disable
+    itself is flagged).
+     A controlled test confirmed the disable suppresses nothing:
+     deleting it
+    alone surfaced no new diagnostic,
+     only `Unused oxlint-enable directive (no matching
+    oxlint-disable directives were found)`.
+     Both lines must be removed together.
+4.  Non-canonical prefixes copied from ESLint configs.
+    `typescript-eslint/...`,
+     `typescript-eslint(...)`,
+     and bare `no-unsafe-type-assertion`
+    forms still match the rule (see `doc/troubleshooting/oxlint.md` on prefix stripping),
+    so the prefix is not why they are unused;
+     the underlying rule simply does not fire.
 
 ## The tofu exception
 
@@ -197,30 +197,30 @@ Removed across two commits,
  each verified behaviorally neutral by capturing the full set of
 2352 real (non-unused) diagnostics before and after and confirming they are byte-identical:
 
-1. `oxlint --fix` does not remove unused directives.
-   Unlike ESLint,
-    oxlint's `--fix` leaves them in place even with
-   `--report-unused-disable-directives` and `--type-aware`;
-    verified by running it against a
-   known dead directive and seeing no change.
-    Removal edits the flagged spans directly.
-2. Single-line and file-level directives (231,
-    commit `b89e4f96`).
-   `oxlint-disable-next-line` comments and file-level `oxlint-disable` blocks with no matching
-   enable:
-    delete the whole line,
-    or drop the dead rule from a multi-rule list.
-3. Dead block pairs (63) and dead rules in live blocks (7),
-    commit `a9a3e479`.
-   For each flagged `oxlint-enable`,
-    the matching `oxlint-disable` (located by per-file LIFO
-   pairing) is also dead,
-    so both lines are removed together;
-    doing so in one pass avoids the
-   cascade that removing only the enable would trigger.
-    For a rule dead in an otherwise-live
-   block,
-    the rule is dropped from both the disable and its enable.
+1.  `oxlint --fix` does not remove unused directives.
+    Unlike ESLint,
+     oxlint's `--fix` leaves them in place even with
+    `--report-unused-disable-directives` and `--type-aware`;
+     verified by running it against a
+    known dead directive and seeing no change.
+     Removal edits the flagged spans directly.
+2.  Single-line and file-level directives (231,
+     commit `b89e4f96`).
+    `oxlint-disable-next-line` comments and file-level `oxlint-disable` blocks with no matching
+    enable:
+     delete the whole line,
+     or drop the dead rule from a multi-rule list.
+3.  Dead block pairs (63) and dead rules in live blocks (7),
+     commit `a9a3e479`.
+    For each flagged `oxlint-enable`,
+     the matching `oxlint-disable` (located by per-file LIFO
+    pairing) is also dead,
+     so both lines are removed together;
+     doing so in one pass avoids the
+    cascade that removing only the enable would trigger.
+     For a rule dead in an otherwise-live
+    block,
+     the rule is dropped from both the disable and its enable.
 
 After remediation,
  zero unused oxlint-disable directives remain across the workspace.

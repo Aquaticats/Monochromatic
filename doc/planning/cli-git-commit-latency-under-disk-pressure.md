@@ -669,91 +669,91 @@ system calls,
 8 `pread64`,
 no sync call and 16 process starts (including the `post-commit` hook and `git-lfs`).
 
-1. The service waits for twelve syncs per landing on the base (about four on 0.5.27,
-   none for native Git):
-   the
-   intent file and its directory,
-   the lock marker,
-   the start record and its directory,
-   the private copy of the
-   index,
-   the replacement file of the index update,
-   the Git directory after the index rename,
-   the completion record
-   and its directory,
-   the journal directory after the batch is marked done,
-   and Git's own pack sync in
-   `fast-import`.
-   Each is a flush that a loaded disk can stall for seconds.
-   Idle,
-   they cost 21 ms each on average in the traced run (1.26 s over sixty syncs).
-2. The client reads 46.9 MB and makes 79,951 `pread64` calls where native Git reads 1.5 MB and makes 8:
-   the
-   in-process object reader (`repo_read_pack.rs`,
-   embedded code) searched a pack index one name at a time with a
-   system call per step,
-   opened every pack with 256 reads of four bytes,
-   and walked the whole tree of a commit
-   (about 1,400 trees) for a question about one changed file.
-   This is what a page cache under pressure turns into disk waits.
-3. A scan of every process the host runs,
-   started by the watch of each Git child the wrapper starts,
-   on its first
-   look (`push_progress.rs`,
-   `Clock::check` with `next_sample: now`).
-   The scan reads a status file per process (841 files,
-   7 ms on this host) and the wrapper starts fifteen to twenty
-   Git children for one commit,
-   most of them gone within ten milliseconds.
-   It grows with the number of processes the host runs,
-   which is large exactly when the host is under pressure.
-   Removing it took the unsigned `build` phase from 22 to 2 ms,
-   `ref_ms` from 10 to 2 ms,
-   and with the change below
-   the paired delta from 155 to 115 ms.
-4. The gate after the landing listed the whole tree of the base commit with `ls-tree -r` again and walked both full
-   trees for the landed commit's changes:
-   69 ms of the signed commit's gate,
-   10 ms after.
-5. The service started a `rev-parse` of the branch for every landing in a spelling the in-process readers do not
-   answer (one Git start of about 10 ms warm,
-   a cold start of the Git executable when the host has evicted it).
-6. The client still starts nine Git processes (unsigned route) and the service three or four per landing;
-   `add`,
-   `cat-file`,
-   `ls-tree`,
-   `diff-index`,
-   `rev-list` and `var` (twice) in the client,
-   and for a signed commit the
-   scratch repository's `commit`,
-   `update-ref` and `symbolic-ref` remain (see the options).
-7. The first landing of a fresh fixture is slow in some runs,
-   on every build:
-   `sync_ms` of the first landing was 98
-   to 361 ms on
-   the base (five signed runs) and 117 to 1,537 ms on the tip (eight signed runs,
-   three of them above one second),
-   23 to 48 ms
-   on 0.5.27 and the tip's unsigned runs,
-   and one base run had a second-round sample at 3.2 s.
-   A trace of the tip's first landing (`NATIVE_PERF_TRACE_CALLS=execve,fsync,rename`) shows the in-process update,
-   no Git
-   `reset`,
-   and two syncs that took 178 ms (the replacement file of the index) and 298 ms (the Git directory after the
-   index rename),
-   where the same syncs take 6 ms later in the run.
-   The fixture's own setup has just written a lot (the reflink copies,
-   the refresh of four indexes),
-   and a sync
-   waits for
-   the writeback that is pending on the file system:
-   the production stall in miniature,
-   on a quiet host.
-   Whether the tip's tail is longer than the base's is not established;
-   the base pays the same backlog in the sync
-   it makes
-   on the private copy,
-   which the tip no longer makes.
+1.  The service waits for twelve syncs per landing on the base (about four on 0.5.27,
+    none for native Git):
+    the
+    intent file and its directory,
+    the lock marker,
+    the start record and its directory,
+    the private copy of the
+    index,
+    the replacement file of the index update,
+    the Git directory after the index rename,
+    the completion record
+    and its directory,
+    the journal directory after the batch is marked done,
+    and Git's own pack sync in
+    `fast-import`.
+    Each is a flush that a loaded disk can stall for seconds.
+    Idle,
+    they cost 21 ms each on average in the traced run (1.26 s over sixty syncs).
+2.  The client reads 46.9 MB and makes 79,951 `pread64` calls where native Git reads 1.5 MB and makes 8:
+    the
+    in-process object reader (`repo_read_pack.rs`,
+    embedded code) searched a pack index one name at a time with a
+    system call per step,
+    opened every pack with 256 reads of four bytes,
+    and walked the whole tree of a commit
+    (about 1,400 trees) for a question about one changed file.
+    This is what a page cache under pressure turns into disk waits.
+3.  A scan of every process the host runs,
+    started by the watch of each Git child the wrapper starts,
+    on its first
+    look (`push_progress.rs`,
+    `Clock::check` with `next_sample: now`).
+    The scan reads a status file per process (841 files,
+    7 ms on this host) and the wrapper starts fifteen to twenty
+    Git children for one commit,
+    most of them gone within ten milliseconds.
+    It grows with the number of processes the host runs,
+    which is large exactly when the host is under pressure.
+    Removing it took the unsigned `build` phase from 22 to 2 ms,
+    `ref_ms` from 10 to 2 ms,
+    and with the change below
+    the paired delta from 155 to 115 ms.
+4.  The gate after the landing listed the whole tree of the base commit with `ls-tree -r` again and walked both full
+    trees for the landed commit's changes:
+    69 ms of the signed commit's gate,
+    10 ms after.
+5.  The service started a `rev-parse` of the branch for every landing in a spelling the in-process readers do not
+    answer (one Git start of about 10 ms warm,
+    a cold start of the Git executable when the host has evicted it).
+6.  The client still starts nine Git processes (unsigned route) and the service three or four per landing;
+    `add`,
+    `cat-file`,
+    `ls-tree`,
+    `diff-index`,
+    `rev-list` and `var` (twice) in the client,
+    and for a signed commit the
+    scratch repository's `commit`,
+    `update-ref` and `symbolic-ref` remain (see the options).
+7.  The first landing of a fresh fixture is slow in some runs,
+    on every build:
+    `sync_ms` of the first landing was 98
+    to 361 ms on
+    the base (five signed runs) and 117 to 1,537 ms on the tip (eight signed runs,
+    three of them above one second),
+    23 to 48 ms
+    on 0.5.27 and the tip's unsigned runs,
+    and one base run had a second-round sample at 3.2 s.
+    A trace of the tip's first landing (`NATIVE_PERF_TRACE_CALLS=execve,fsync,rename`) shows the in-process update,
+    no Git
+    `reset`,
+    and two syncs that took 178 ms (the replacement file of the index) and 298 ms (the Git directory after the
+    index rename),
+    where the same syncs take 6 ms later in the run.
+    The fixture's own setup has just written a lot (the reflink copies,
+    the refresh of four indexes),
+    and a sync
+    waits for
+    the writeback that is pending on the file system:
+    the production stall in miniature,
+    on a quiet host.
+    Whether the tip's tail is longer than the base's is not established;
+    the base pays the same backlog in the sync
+    it makes
+    on the private copy,
+    which the tip no longer makes.
 
 ## What was changed
 

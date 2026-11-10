@@ -100,22 +100,22 @@ fn binding_matches(binding: &OidcWorkloadIdentity, payload: &Value) -> bool {
 
 Walked from the request:
 
-1. `pnpr/crates/pnpr/src/server/authentication.rs:260` strips the `pnpr_workload_` prefix and calls
-   `OidcState::workload`.
-2. `pnpr/crates/auth/src/oidc/workload_verification.rs:24` verifies the JWT signature,
-   issuer,
-   audience,
-   and times;
-   the captured claims satisfy all of them (`iss`,
-   `aud`,
-   `iat`,
-   `exp`,
-   `nbf`).
-3. `match_workload_binding` compares `sub` to `identity.subject` by exact equality
-   (`workload.rs:131`),
-   the ID-anchored claim matches no binding,
-   and `matched` stays `None`.
-4. `pnpr/crates/auth/src/oidc.rs:243` turns that into one opaque rejection:
+1.  `pnpr/crates/pnpr/src/server/authentication.rs:260` strips the `pnpr_workload_` prefix and calls
+    `OidcState::workload`.
+2.  `pnpr/crates/auth/src/oidc/workload_verification.rs:24` verifies the JWT signature,
+    issuer,
+    audience,
+    and times;
+    the captured claims satisfy all of them (`iss`,
+    `aud`,
+    `iat`,
+    `exp`,
+    `nbf`).
+3.  `match_workload_binding` compares `sub` to `identity.subject` by exact equality
+    (`workload.rs:131`),
+    the ID-anchored claim matches no binding,
+    and `matched` stays `None`.
+4.  `pnpr/crates/auth/src/oidc.rs:243` turns that into one opaque rejection:
 
 ```rust
 pub(super) fn rejected() -> RegistryError {
@@ -297,40 +297,40 @@ trust config.
 The 6-constraint check,
 walked explicitly:
 
-1. **Is it really upstream's fault?**
-   No. Behavior,
-   not bug:
-   the customization API and the minted
-   claim agree with each other and with GitHub's documented GUID form.
-   Our generator pinned the
-   previous shape.
-2. **Can upstream fix it?**
-   Not applicable as a bug fix.
-   GitHub could only change the documented
-   feature.
-3. **Are they supporting this use case?**
-   Yes.
-   The customization exists exactly so trust policies
-   can pin rename-stable subjects;
-   the failing half was our pin.
-4. **Would the repo welcome our contribution?**
-   Not applicable when there is nothing to fix.
-   No
-   filing is proposed,
-   so no contribution policy is exercised.
-5. **Will they likely fix it?**
-   Not applicable.
-   Related trackers
-   (`npm/cli#9969`,
-   `integrations/terraform-provider-github#3548`) are other consumers adapting to
-   the same claim shape,
-   not evidence of an upstream defect.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   The minimal fix is on our
-   side of the boundary and is recorded in "Verified workarounds":
-   the generator change plus the
-   regenerated config,
-   measured against the minted claim.
+1.  **Is it really upstream's fault?**
+    No. Behavior,
+    not bug:
+    the customization API and the minted
+    claim agree with each other and with GitHub's documented GUID form.
+    Our generator pinned the
+    previous shape.
+2.  **Can upstream fix it?**
+    Not applicable as a bug fix.
+    GitHub could only change the documented
+    feature.
+3.  **Are they supporting this use case?**
+    Yes.
+    The customization exists exactly so trust policies
+    can pin rename-stable subjects;
+    the failing half was our pin.
+4.  **Would the repo welcome our contribution?**
+    Not applicable when there is nothing to fix.
+    No
+    filing is proposed,
+    so no contribution policy is exercised.
+5.  **Will they likely fix it?**
+    Not applicable.
+    Related trackers
+    (`npm/cli#9969`,
+    `integrations/terraform-provider-github#3548`) are other consumers adapting to
+    the same claim shape,
+    not evidence of an upstream defect.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    The minimal fix is on our
+    side of the boundary and is recorded in "Verified workarounds":
+    the generator change plus the
+    regenerated config,
+    measured against the minted claim.
 
 Duplicate search:
 `gh search issues 'use_immutable_subject'` found the three trackers linked in
@@ -361,8 +361,8 @@ and the green run `39690652845` closed this incident on the live `0.1.0-alpha.11
 per the landing decision recorded in `doc/handover/pnpr-fix-forward.md`,
 `## Owner decisions (2026-10-21)`.
 
-1. Remove the `[DEBUG-401]` step from `.github/workflows/pnpr-publish.yml`,
-   naming this subject-claim hypothesis in the commit body.
-2. The base repin to `0.1.0-alpha.16` and its `/npm` URL move stay held until the person runs the
-   `pnpr upgrade-storage` conversion from `doc/runbook/deploy-pnpr-registry.md`,
-   `## Move to a newer pnpr base`.
+1.  Remove the `[DEBUG-401]` step from `.github/workflows/pnpr-publish.yml`,
+    naming this subject-claim hypothesis in the commit body.
+2.  The base repin to `0.1.0-alpha.16` and its `/npm` URL move stay held until the person runs the
+    `pnpr upgrade-storage` conversion from `doc/runbook/deploy-pnpr-registry.md`,
+    `## Move to a newer pnpr base`.

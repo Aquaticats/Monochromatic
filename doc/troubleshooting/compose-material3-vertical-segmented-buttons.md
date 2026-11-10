@@ -218,27 +218,27 @@ GitHub results and Google's issue tracker found no trustworthy matching vertical
 request.
  No issue should be filed.
 
-1. **Upstream fault:**
-    No. AndroidX names and documents a row component;
-    it does not
-   promise a vertical wrapper.
-2. **Upstream can change it:**
-    Yes,
-    by adding a column scope and vertical overlap
-   layout.
-3. **Supported use case:**
-    No evidence says the Compose component supports vertical
-   orientation.
-4. **Contribution policy:**
-    Not evaluated further because the supported-use-case gate
-   fails.
-5. **Likely upstream action:**
-    Unknown;
-    no matching maintained issue was verified.
-6. **Compatible minimal fix:**
-    Not prototyped upstream because constraints one and
-   three fail.
-    The consumer-side visual workaround is sufficient for this design
-   prototype but is not an upstream API proposal.
+1.  **Upstream fault:**
+     No. AndroidX names and documents a row component;
+     it does not
+    promise a vertical wrapper.
+2.  **Upstream can change it:**
+     Yes,
+     by adding a column scope and vertical overlap
+    layout.
+3.  **Supported use case:**
+     No evidence says the Compose component supports vertical
+    orientation.
+4.  **Contribution policy:**
+     Not evaluated further because the supported-use-case gate
+    fails.
+5.  **Likely upstream action:**
+     Unknown;
+     no matching maintained issue was verified.
+6.  **Compatible minimal fix:**
+     Not prototyped upstream because constraints one and
+    three fail.
+     The consumer-side visual workaround is sufficient for this design
+    prototype but is not an upstream API proposal.
 
 There is no fileable upstream issue or additive comment.

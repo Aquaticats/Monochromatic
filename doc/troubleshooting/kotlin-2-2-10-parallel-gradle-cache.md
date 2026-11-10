@@ -191,23 +191,23 @@ different Gradle projects may still run concurrently when they do not share an o
 
 ## Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   No.
-   The repository harness launched two commands
-   concurrently against one mutable Gradle output directory.
-2. **Can upstream fix it?**
-   Not evaluated because the first constraint fails.
-3. **Are they supporting this use case?**
-   No evidence was found that separate Gradle
-   invocations may mutate one project cache concurrently.
-4. **Would the repository welcome our contribution?**
-   Not evaluated because this is a
-   consumer scheduling error.
-5. **Will they likely fix it?**
-   Not applicable.
-6. **Have we prototyped a minimal fix?**
-   The consumer-side fix is verified serialization;
-   no upstream patch is warranted.
+1.  **Is it really upstream's fault?**
+    No.
+    The repository harness launched two commands
+    concurrently against one mutable Gradle output directory.
+2.  **Can upstream fix it?**
+    Not evaluated because the first constraint fails.
+3.  **Are they supporting this use case?**
+    No evidence was found that separate Gradle
+    invocations may mutate one project cache concurrently.
+4.  **Would the repository welcome our contribution?**
+    Not evaluated because this is a
+    consumer scheduling error.
+5.  **Will they likely fix it?**
+    Not applicable.
+6.  **Have we prototyped a minimal fix?**
+    The consumer-side fix is verified serialization;
+    no upstream patch is warranted.
 
 No matching exemption exists under `.out-of-scope/`.
  Searches of open and closed

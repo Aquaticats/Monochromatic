@@ -153,51 +153,51 @@ not the consequence measured here.
 
 ## What the route does
 
-1. Git stops with an unmerged index.
-   For a command a person types,
-   `watch_before` and `resolve_after`
-   (`merge_second_pass_worktree.rs:239`)
-   keep only the paths that were not unmerged before the command,
-   so a file being resolved by hand is never replaced.
-2. `second_pass` (`merge_second_pass.rs:301`) keeps a path only when all three stages exist
-   with one plain-file mode,
-   no stage holds a NUL in its first 8000 bytes,
-   no stage is over 8 MiB,
-   and the `merge` attribute is `unspecified`,
-   `set` or `text`
-   (`merge_second_pass.rs:109`,
-   `:224`).
-3. `merge_by_word` (`word_merge.rs:386`) merges the line hunks Git left,
-   then each hunk both sides changed by word,
-   then the bytes between words.
-   A hunk is taken only when one side equals the base there,
-   or both sides equal each other
-   (`word_merge.rs:266`);
-   otherwise the whole file stays as Git left it.
-4. The merged bytes become a blob
-   (`hash-object -w --no-filters`),
-   are staged as resolved
-   (`update-index --index-info`),
-   and are written over the worktree file
-   (`checkout-index --force`),
-   with the conflict stages put back if the write fails
-   (`merge_second_pass_worktree.rs:193`).
-5. One line per merged part goes to standard error,
-   or one line for a file whose every region took one side,
-   and one journal entry per merged file
-   (`merge_second_pass.rs:463`,
-   `:484`;
-   `merge_second_pass_tree.rs:296`).
-   When every conflicted file resolved,
-   `finish` ends the operation the way a clean run does
-   (`merge_second_pass_finish.rs`).
-6. A merge computed from objects
-   (the isolated merge,
-   the reconcile merge,
-   the replay)
-   takes the tree from `git merge-tree --write-tree -z`
-   and rewrites it with the merged blobs
-   (`merge_second_pass_tree.rs:193`).
+1.  Git stops with an unmerged index.
+    For a command a person types,
+    `watch_before` and `resolve_after`
+    (`merge_second_pass_worktree.rs:239`)
+    keep only the paths that were not unmerged before the command,
+    so a file being resolved by hand is never replaced.
+2.  `second_pass` (`merge_second_pass.rs:301`) keeps a path only when all three stages exist
+    with one plain-file mode,
+    no stage holds a NUL in its first 8000 bytes,
+    no stage is over 8 MiB,
+    and the `merge` attribute is `unspecified`,
+    `set` or `text`
+    (`merge_second_pass.rs:109`,
+    `:224`).
+3.  `merge_by_word` (`word_merge.rs:386`) merges the line hunks Git left,
+    then each hunk both sides changed by word,
+    then the bytes between words.
+    A hunk is taken only when one side equals the base there,
+    or both sides equal each other
+    (`word_merge.rs:266`);
+    otherwise the whole file stays as Git left it.
+4.  The merged bytes become a blob
+    (`hash-object -w --no-filters`),
+    are staged as resolved
+    (`update-index --index-info`),
+    and are written over the worktree file
+    (`checkout-index --force`),
+    with the conflict stages put back if the write fails
+    (`merge_second_pass_worktree.rs:193`).
+5.  One line per merged part goes to standard error,
+    or one line for a file whose every region took one side,
+    and one journal entry per merged file
+    (`merge_second_pass.rs:463`,
+    `:484`;
+    `merge_second_pass_tree.rs:296`).
+    When every conflicted file resolved,
+    `finish` ends the operation the way a clean run does
+    (`merge_second_pass_finish.rs`).
+6.  A merge computed from objects
+    (the isolated merge,
+    the reconcile merge,
+    the replay)
+    takes the tree from `git merge-tree --write-tree -z`
+    and rewrites it with the merged blobs
+    (`merge_second_pass_tree.rs:193`).
 
 ## Findings
 

@@ -317,33 +317,33 @@ the service.
 
 ## Decision summary
 
-1. One resident,
-   single-writer service per worktree.
-   The wrapper is a thin client for the commit-path commands that mutate
-   a repository;
-   every other command is forwarded to real Git as today.
-2. The service is never started by the wrapper.
-   The operating system starts it on demand through socket activation,
-   or
-   the client stops with a plain failure.
-   No second writer,
-   no lock,
-   no fallback path.
-3. Preparation and policies run in the client,
-   outside the serialized step;
-   the service lands prepared changes in FIFO
-   order in batches with one journal sync per batch.
-4. Exactly-once landing by request id,
-   journal replay on restart.
-5. After-commit work (push,
-   maintenance,
-   standards review) is recorded as durable work items and runs after the client
-   is acknowledged.
-6. The lock,
-   owner record,
-   recovery,
-   shadow repository and replay machinery are deleted once the service is the only
-   writer of the commit path (the list and line counts under `What is deleted and what is kept`).
+1.  One resident,
+    single-writer service per worktree.
+    The wrapper is a thin client for the commit-path commands that mutate
+    a repository;
+    every other command is forwarded to real Git as today.
+2.  The service is never started by the wrapper.
+    The operating system starts it on demand through socket activation,
+    or
+    the client stops with a plain failure.
+    No second writer,
+    no lock,
+    no fallback path.
+3.  Preparation and policies run in the client,
+    outside the serialized step;
+    the service lands prepared changes in FIFO
+    order in batches with one journal sync per batch.
+4.  Exactly-once landing by request id,
+    journal replay on restart.
+5.  After-commit work (push,
+    maintenance,
+    standards review) is recorded as durable work items and runs after the client
+    is acknowledged.
+6.  The lock,
+    owner record,
+    recovery,
+    shadow repository and replay machinery are deleted once the service is the only
+    writer of the commit path (the list and line counts under `What is deleted and what is kept`).
 
 ## One service, no lock
 
@@ -644,40 +644,40 @@ and a hung policy or a slow disk in a client cannot stall the writer.
 Per batch,
 in this order,
 all by the one writer of the queue:
-1. Take every queued request up to a batch limit (64 in the prototype),
-   in accept order,
-   re-sent ids first.
-2. Read the branch head.
-   For each request check that none of its paths changed between its expected base and the head
-   (one tree comparison per batch for all paths).
-   A request that conflicts gets `retry_prepare`;
-   the rest continue.
-3. Build one commit per request,
-   chained,
-   with the objects written by one `fast-import` (or by in-process object
-   writing once the crate can;
-   the prototype shows 15 to 35 ms for this step).
-4. Write the batch intent to the journal:
-   one file,
-   one `fsync` of it,
-   one rename into place and one `fsync` of the
-   directory.
-   This is the only synchronous durable write of the batch.
-5. Move the branch with one compare-and-swap (Git's own ref transaction:
-   it still takes Git's own lock file for that ref,
-   which is Git's,
-   not ours,
-   and also protects against a plain `git` process moving the branch).
-6. Update the real index for the named paths (`reset` of those paths against the new commit),
-   which takes Git's own
-   `index.lock`;
-   a holder from another program is waited for with a bounded retry,
-   then the failure is reported.
-7. Mark the intent done (a rename,
-   not synced;
-   a lost mark only makes recovery redo an idempotent step).
-8. Acknowledge every client of the batch,
-   then append the after-commit work items.
+1.  Take every queued request up to a batch limit (64 in the prototype),
+    in accept order,
+    re-sent ids first.
+2.  Read the branch head.
+    For each request check that none of its paths changed between its expected base and the head
+    (one tree comparison per batch for all paths).
+    A request that conflicts gets `retry_prepare`;
+    the rest continue.
+3.  Build one commit per request,
+    chained,
+    with the objects written by one `fast-import` (or by in-process object
+    writing once the crate can;
+    the prototype shows 15 to 35 ms for this step).
+4.  Write the batch intent to the journal:
+    one file,
+    one `fsync` of it,
+    one rename into place and one `fsync` of the
+    directory.
+    This is the only synchronous durable write of the batch.
+5.  Move the branch with one compare-and-swap (Git's own ref transaction:
+    it still takes Git's own lock file for that ref,
+    which is Git's,
+    not ours,
+    and also protects against a plain `git` process moving the branch).
+6.  Update the real index for the named paths (`reset` of those paths against the new commit),
+    which takes Git's own
+    `index.lock`;
+    a holder from another program is waited for with a bounded retry,
+    then the failure is reported.
+7.  Mark the intent done (a rename,
+    not synced;
+    a lost mark only makes recovery redo an idempotent step).
+8.  Acknowledge every client of the batch,
+    then append the after-commit work items.
 
 FIFO:
 the order is the order connections are accepted;
@@ -1190,49 +1190,49 @@ the holder-identifying evidence may shrink to the message that already names the
 ## Migration plan
 
 Each slice ships and passes the container gate.
-1. Service plus the commit path,
-   end to end,
-   for the explicit-path commit (the default wrapped commit):
-   the service
-   crate module (`service_*`),
-   the client path in `commit_command.rs`,
-   journal and recovery,
-   group commit,
-   FIFO,
-   request
-   id,
-   activation unit files for systemd and a development entry that binds the abstract socket,
-   the failure messages
-   with their tests,
-   the kill tests.
-   The existing policies run in the client unchanged.
-   The old landing code stays in the
-   tree during this slice but is not reachable from the commit command (no runtime fallback).
-   Index commits and `--amend`
-   keep the old path until slice 2 (one release,
-   then removed).
-2. The other commit modes through the service (index commit,
-   amend,
-   `-a`),
-   the after-commit work queue with push and
-   maintenance moved out of the command,
-   and `retry_prepare`.
-3. Standards review as a work-item consumer (the port owner's module),
-   notices of late outcomes.
-4. Delete the lock,
-   recovery,
-   shadow,
-   replay and registry code and their tests;
-   keep a one-time reader that removes the
-   old registry directory of a repository.
-5. macOS:
-   a launchd agent with a `Sockets` entry;
-   same service,
-   same tests where launchd is available.
-6. Windows:
-   designed as a named-pipe service started by the service control manager;
-   until built,
-   the loud failure above.
+1.  Service plus the commit path,
+    end to end,
+    for the explicit-path commit (the default wrapped commit):
+    the service
+    crate module (`service_*`),
+    the client path in `commit_command.rs`,
+    journal and recovery,
+    group commit,
+    FIFO,
+    request
+    id,
+    activation unit files for systemd and a development entry that binds the abstract socket,
+    the failure messages
+    with their tests,
+    the kill tests.
+    The existing policies run in the client unchanged.
+    The old landing code stays in the
+    tree during this slice but is not reachable from the commit command (no runtime fallback).
+    Index commits and `--amend`
+    keep the old path until slice 2 (one release,
+    then removed).
+2.  The other commit modes through the service (index commit,
+    amend,
+    `-a`),
+    the after-commit work queue with push and
+    maintenance moved out of the command,
+    and `retry_prepare`.
+3.  Standards review as a work-item consumer (the port owner's module),
+    notices of late outcomes.
+4.  Delete the lock,
+    recovery,
+    shadow,
+    replay and registry code and their tests;
+    keep a one-time reader that removes the
+    old registry directory of a repository.
+5.  macOS:
+    a launchd agent with a `Sockets` entry;
+    same service,
+    same tests where launchd is available.
+6.  Windows:
+    designed as a named-pipe service started by the service control manager;
+    until built,
+    the loud failure above.
 
 ## Kill-test plan
 
@@ -2147,40 +2147,40 @@ see "One executable") exist (an existing socket does not end it:
 see the "Upgrades heal on the first commit" section).
 The first two steps and the
 bus calls are skipped when the check there finds nothing to change:
-1. Remove units of an earlier release from `~/.config/systemd/user` (they outrank runtime units in the unit search path),
-   recognized by content,
-   plus the enabling link they left.
-   A file of the same name that something else wrote is never
-   touched;
-   the commit stops with a message naming the file.
-2. Write the templates `cli-git@.socket` and `cli-git@.service` into `$XDG_RUNTIME_DIR/systemd/user` through a temporary file and a rename,
-   only when the content differs.
-   Nothing remains in the home directory,
-   and the runtime directory disappears at logout,
-   so
-   the next first use provisions again.
-   Concurrent first commits agree through idempotence alone:
-   identical content,
-   atomic
-   renames,
-   no lock.
-3. Reload the manager only when a unit file that already existed changed or went away (an upgrade moved the program).
-   A new
-   file needs no reload:
-   measured on this machine,
-   the probe unit of
-   `the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit` was found and started with no reload,
-   while one
-   reload took over twenty seconds on the loaded host and interrupted other clients of the manager for that time.
-4. Clear failed state (`ResetFailedUnit` on both units,
-   errors ignored) when a unit file was already there,
-   then start
-   `cli-git@<instance>.socket` through the manager.
-   The manager,
-   not the wrapper,
-   starts the daemon on the first connection,
-   so
-   the daemon is in its own cgroup (`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
+1.  Remove units of an earlier release from `~/.config/systemd/user` (they outrank runtime units in the unit search path),
+    recognized by content,
+    plus the enabling link they left.
+    A file of the same name that something else wrote is never
+    touched;
+    the commit stops with a message naming the file.
+2.  Write the templates `cli-git@.socket` and `cli-git@.service` into `$XDG_RUNTIME_DIR/systemd/user` through a temporary file and a rename,
+    only when the content differs.
+    Nothing remains in the home directory,
+    and the runtime directory disappears at logout,
+    so
+    the next first use provisions again.
+    Concurrent first commits agree through idempotence alone:
+    identical content,
+    atomic
+    renames,
+    no lock.
+3.  Reload the manager only when a unit file that already existed changed or went away (an upgrade moved the program).
+    A new
+    file needs no reload:
+    measured on this machine,
+    the probe unit of
+    `the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit` was found and started with no reload,
+    while one
+    reload took over twenty seconds on the loaded host and interrupted other clients of the manager for that time.
+4.  Clear failed state (`ResetFailedUnit` on both units,
+    errors ignored) when a unit file was already there,
+    then start
+    `cli-git@<instance>.socket` through the manager.
+    The manager,
+    not the wrapper,
+    starts the daemon on the first connection,
+    so
+    the daemon is in its own cgroup (`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
 
 The calls go to the user session bus (`DBUS_SESSION_BUS_ADDRESS`,
 else `$XDG_RUNTIME_DIR/bus`) as `org.freedesktop.systemd1`

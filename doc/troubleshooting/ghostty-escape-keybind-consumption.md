@@ -642,50 +642,50 @@ There is no additive comment to post to the Ghostty threads.
 Its Ghostty mention is inside the Claude Code exemption and does not exempt Ghostty reports.
 Default policy remains not to file.
 
-1. **Is it really upstream's fault?**
-   No for the reported incident on current evidence.
-   Stock Ghostty,
-   the current user configuration,
-   config reload,
-   legacy encoding,
-   Kitty encoding,
-   and the pi-tui consumer boundary all passed in isolation.
-   A bare user override is confirmed to fail,
-   but that override is absent from the current config.
-   The `+list-keybinds` flag omission is a real diagnostic hazard,
-   but it did not cause this incident unless its output had previously been copied into runtime configuration.
+1.  **Is it really upstream's fault?**
+    No for the reported incident on current evidence.
+    Stock Ghostty,
+    the current user configuration,
+    config reload,
+    legacy encoding,
+    Kitty encoding,
+    and the pi-tui consumer boundary all passed in isolation.
+    A bare user override is confirmed to fail,
+    but that override is absent from the current config.
+    The `+list-keybinds` flag omission is a real diagnostic hazard,
+    but it did not cause this incident unless its output had previously been copied into runtime configuration.
 
-2. **Can upstream fix it?**
-   Ghostty cannot fix the actual incident because the stuck state belonged to another virtual input device.
-   Upstream can separately make `+list-keybinds` serialize flags,
-   but that would address the diagnostic hazard rather than this incident.
+2.  **Can upstream fix it?**
+    Ghostty cannot fix the actual incident because the stuck state belonged to another virtual input device.
+    Upstream can separately make `+list-keybinds` serialize flags,
+    but that would address the diagnostic hazard rather than this incident.
 
-3. **Are they supporting this use case?**
-   Yes.
-   Escape encoding,
-   Kitty keyboard protocol,
-   GTK search,
-   and `performable:` keybindings are supported features with source,
-   documentation,
-   and tests.
+3.  **Are they supporting this use case?**
+    Yes.
+    Escape encoding,
+    Kitty keyboard protocol,
+    GTK search,
+    and `performable:` keybindings are supported features with source,
+    documentation,
+    and tests.
 
-4. **Would the repo welcome our contribution?**
-   Not as an unreviewed copy of this document.
-   `CONTRIBUTING.md` routes uncertain bugs to Issue Triage discussions.
-   `AI_POLICY.md` permits AI assistance only with disclosure and requires a human to review and edit the content.
-   It also requires the human to understand the code.
-   No human-edited upstream artifact exists in this investigation.
+4.  **Would the repo welcome our contribution?**
+    Not as an unreviewed copy of this document.
+    `CONTRIBUTING.md` routes uncertain bugs to Issue Triage discussions.
+    `AI_POLICY.md` permits AI assistance only with disclosure and requires a human to review and edit the content.
+    It also requires the human to understand the code.
+    No human-edited upstream artifact exists in this investigation.
 
-5. **Will they likely fix it?**
-   Not applicable to the incident because Ghostty was not the failing layer.
-   Related input and formatter defects were accepted and fixed,
-   but the separate formatter omission was not filed during this investigation.
+5.  **Will they likely fix it?**
+    Not applicable to the incident because Ghostty was not the failing layer.
+    Related input and formatter defects were accepted and fixed,
+    but the separate formatter omission was not filed during this investigation.
 
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No upstream fix was prototyped.
-   The auto-prototype gate is not triggered because constraints 1 and 4 fail.
-   The verified configuration variants are diagnostics and user-side workarounds,
-   not a source patch.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No upstream fix was prototyped.
+    The auto-prototype gate is not triggered because constraints 1 and 4 fail.
+    The verified configuration variants are diagnostics and user-side workarounds,
+    not a source patch.
 
 Decision:
 do not file an issue or discussion and do not keep a sendable draft.

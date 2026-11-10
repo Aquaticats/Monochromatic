@@ -155,107 +155,107 @@ Verbatim:
 from the main checkout,
 which is a btrfs subvolume root and clean:
 
-1. Before anything else,
-   every wrapped command settles and takes removal snapshots
-   (`invocation/wrapped_command_notices_snapshots_and_manual_push.rs:118`).
-   For a main checkout that does not create a worktree this is all that
-   happens:
-   a main checkout's other commands take no lifecycle
-   (`worktree_copying/worktree_copy_forward.rs:96`,
-   `copy_applies_with`,
-   which answers `serves_ladder || creates` for a main worktree).
-2. The plan reads the destination from the command line
-   (`worktree_add_plan.rs:229`,
-   `parse_add_plan`),
-   with the real path of its parent joined with its last component
-   (`:158`,
-   `recorded_destination`).
-   A form outside the table,
-   a missing parent,
-   or a destination that is already a symbolic link leaves the whole
-   invocation to plain Git.
-3. `begin_ladder` chooses the rung
-   (`worktree_ladder_run.rs:179`,
-   `choose_rung`):
-   `snapshot_refusal` and `clone_refusal` first
-   (`worktree_snapshot_source.rs:230`,
-   `:296`),
-   then one `git status` and one `ls-files` for the source's cleanliness
-   (`worktree_clean.rs`),
-   then the claim
-   (`worktree_copy_stage_claim.rs:278`,
-   `claim_stage_for_add`),
-   which writes two files under
-   `<common>/monochromatic-git-policy-cli/`:
-   a `.stage` claim naming the stage container and the owning process,
-   and an `.add` record naming the destination with `phase=planned`.
-4. Real Git runs,
-   with `--no-checkout` inserted directly after `add` for the snapshot and
-   clone rungs
-   (`worktree_ladder_run.rs:331`,
-   `first_step`).
-   Git validates the request,
-   makes the destination directory,
-   writes `gitdir: <common>/worktrees/<id>` into its `.git` file,
-   writes the registration's `gitdir` back-pointer,
-   `HEAD`,
-   `commondir`,
-   and `locked` when asked.
-5. `bind_registration`
-   (`worktree_add_binding.rs:211`)
-   proves the destination and the registration name each other,
-   captures the identity of both directories and the pointer's bytes,
-   and `record_binding` writes them into the `.add` record as
-   `phase=registered`.
-6. The rung:
-   for a snapshot,
-   `prepare_target` reads the new `HEAD`,
-   the tree difference and the
-   configuration
-   (`worktree_ladder_target.rs:417`);
-   `take_snapshot`
-   (`worktree_snapshot.rs:283`)
-   runs `BTRFS_IOC_SNAP_CREATE_V2` from the source root to a stage name
-   beside the destination
-   (`.cli-git-worktree-copy-<uuid>`,
-   `worktree_copying/worktree_copy_stage.rs:172`,
-   `new_stage_container`),
-   makes it private,
-   reads the snapshot's own index when the source has changes,
-   prunes the main checkout's leave-out,
-   removes the stub of every nested worktree and of the destination,
-   installs the index into the new worktree's administrative directory,
-   and replaces the snapshot's `.git` with Git's pointer bytes;
-   then the tree difference is applied,
-   or a dirty main checkout is restored
-   (`worktree_dirty_restore.rs:205`,
-   `restore_dirty`);
-   a kill anywhere here leaves the destination exactly as step 4 made it.
-7. `put_in_place`
-   (`worktree_snapshot.rs:399`)
-   checks that the destination is still the directory Git made,
-   exchanges it with the stage by `RENAME_EXCHANGE`,
-   and checks the displaced identity again;
-   `settle_displaced`
-   (`:445`)
-   moves anything another process added to Git's directory into the new
-   worktree,
-   removes Git's pointer when its bytes are the ones written,
-   and removes the empty directory.
-8. The add is marked complete
-   (`worktree_ladder_finish.rs:338`,
-   `mark_complete`,
-   unsynced after a swap),
-   Git's checkout line is printed,
-   and the claim is released
-   (`:498`,
-   `release_claim`,
-   record first,
-   then marker,
-   then claim).
-9. The lifecycle then empties the snapshot's trash beside the package repair
-   (`worktree_copying/worktree_copy_after_lock.rs:191`) and repairs the
-   package managers of the new worktree.
+1.  Before anything else,
+    every wrapped command settles and takes removal snapshots
+    (`invocation/wrapped_command_notices_snapshots_and_manual_push.rs:118`).
+    For a main checkout that does not create a worktree this is all that
+    happens:
+    a main checkout's other commands take no lifecycle
+    (`worktree_copying/worktree_copy_forward.rs:96`,
+    `copy_applies_with`,
+    which answers `serves_ladder || creates` for a main worktree).
+2.  The plan reads the destination from the command line
+    (`worktree_add_plan.rs:229`,
+    `parse_add_plan`),
+    with the real path of its parent joined with its last component
+    (`:158`,
+    `recorded_destination`).
+    A form outside the table,
+    a missing parent,
+    or a destination that is already a symbolic link leaves the whole
+    invocation to plain Git.
+3.  `begin_ladder` chooses the rung
+    (`worktree_ladder_run.rs:179`,
+    `choose_rung`):
+    `snapshot_refusal` and `clone_refusal` first
+    (`worktree_snapshot_source.rs:230`,
+    `:296`),
+    then one `git status` and one `ls-files` for the source's cleanliness
+    (`worktree_clean.rs`),
+    then the claim
+    (`worktree_copy_stage_claim.rs:278`,
+    `claim_stage_for_add`),
+    which writes two files under
+    `<common>/monochromatic-git-policy-cli/`:
+    a `.stage` claim naming the stage container and the owning process,
+    and an `.add` record naming the destination with `phase=planned`.
+4.  Real Git runs,
+    with `--no-checkout` inserted directly after `add` for the snapshot and
+    clone rungs
+    (`worktree_ladder_run.rs:331`,
+    `first_step`).
+    Git validates the request,
+    makes the destination directory,
+    writes `gitdir: <common>/worktrees/<id>` into its `.git` file,
+    writes the registration's `gitdir` back-pointer,
+    `HEAD`,
+    `commondir`,
+    and `locked` when asked.
+5.  `bind_registration`
+    (`worktree_add_binding.rs:211`)
+    proves the destination and the registration name each other,
+    captures the identity of both directories and the pointer's bytes,
+    and `record_binding` writes them into the `.add` record as
+    `phase=registered`.
+6.  The rung:
+    for a snapshot,
+    `prepare_target` reads the new `HEAD`,
+    the tree difference and the
+    configuration
+    (`worktree_ladder_target.rs:417`);
+    `take_snapshot`
+    (`worktree_snapshot.rs:283`)
+    runs `BTRFS_IOC_SNAP_CREATE_V2` from the source root to a stage name
+    beside the destination
+    (`.cli-git-worktree-copy-<uuid>`,
+    `worktree_copying/worktree_copy_stage.rs:172`,
+    `new_stage_container`),
+    makes it private,
+    reads the snapshot's own index when the source has changes,
+    prunes the main checkout's leave-out,
+    removes the stub of every nested worktree and of the destination,
+    installs the index into the new worktree's administrative directory,
+    and replaces the snapshot's `.git` with Git's pointer bytes;
+    then the tree difference is applied,
+    or a dirty main checkout is restored
+    (`worktree_dirty_restore.rs:205`,
+    `restore_dirty`);
+    a kill anywhere here leaves the destination exactly as step 4 made it.
+7.  `put_in_place`
+    (`worktree_snapshot.rs:399`)
+    checks that the destination is still the directory Git made,
+    exchanges it with the stage by `RENAME_EXCHANGE`,
+    and checks the displaced identity again;
+    `settle_displaced`
+    (`:445`)
+    moves anything another process added to Git's directory into the new
+    worktree,
+    removes Git's pointer when its bytes are the ones written,
+    and removes the empty directory.
+8.  The add is marked complete
+    (`worktree_ladder_finish.rs:338`,
+    `mark_complete`,
+    unsynced after a swap),
+    Git's checkout line is printed,
+    and the claim is released
+    (`:498`,
+    `release_claim`,
+    record first,
+    then marker,
+    then claim).
+9.  The lifecycle then empties the snapshot's trash beside the package repair
+    (`worktree_copying/worktree_copy_after_lock.rs:191`) and repairs the
+    package managers of the new worktree.
 
 The clone rung fills the destination itself
 (`worktree_clone.rs:494`,
@@ -308,40 +308,40 @@ the third control under "Reproductions".
 
 Sequence:
 
-1. `git worktree add .claude/worktrees/topic` from the main checkout takes the
-   snapshot rung,
-   so the claim and the `.add` record exist before Git runs
-   (`worktree_ladder_run.rs:220`).
-2. Real Git returns zero:
-   the destination is registered and holds nothing but
-   its `.git` file
-   (`worktree_ladder_finish.rs:453`,
-   `finish_snapshot`).
-3. The process is killed anywhere between there and the swap:
-   in `prepare_target`,
-   during the snapshot ioctl,
-   during the leave-out,
-   during the index walk,
-   or in the tree difference.
-   For a large repository that window is seconds to minutes,
-   and it leaves a registered worktree with no checkout plus a full snapshot
-   subvolume at the stage name.
-4. The next command that takes the lifecycle
-   (`worktree_copying/worktree_copy.rs:549`,
-   `recover_pending_worktree_copies`)
-   judges the claim's owner dead,
-   prints one line about the stage
-   (`worktree_copying/worktree_copy_stage_claim_reaping.rs:384-391`)
-   and one about the add
-   (`:143-147`,
-   `settle_text`,
-   `Recorded::Registered`),
-   and then removes the `.add` record,
-   the marker and the claim
-   (`:404-406`).
-5. Nothing prints anything about that worktree again:
-   the second control run of the same recovery prints an empty line
-   (quoted under "Reproductions").
+1.  `git worktree add .claude/worktrees/topic` from the main checkout takes the
+    snapshot rung,
+    so the claim and the `.add` record exist before Git runs
+    (`worktree_ladder_run.rs:220`).
+2.  Real Git returns zero:
+    the destination is registered and holds nothing but
+    its `.git` file
+    (`worktree_ladder_finish.rs:453`,
+    `finish_snapshot`).
+3.  The process is killed anywhere between there and the swap:
+    in `prepare_target`,
+    during the snapshot ioctl,
+    during the leave-out,
+    during the index walk,
+    or in the tree difference.
+    For a large repository that window is seconds to minutes,
+    and it leaves a registered worktree with no checkout plus a full snapshot
+    subvolume at the stage name.
+4.  The next command that takes the lifecycle
+    (`worktree_copying/worktree_copy.rs:549`,
+    `recover_pending_worktree_copies`)
+    judges the claim's owner dead,
+    prints one line about the stage
+    (`worktree_copying/worktree_copy_stage_claim_reaping.rs:384-391`)
+    and one about the add
+    (`:143-147`,
+    `settle_text`,
+    `Recorded::Registered`),
+    and then removes the `.add` record,
+    the marker and the claim
+    (`:404-406`).
+5.  Nothing prints anything about that worktree again:
+    the second control run of the same recovery prints an empty line
+    (quoted under "Reproductions").
 
 For a main checkout,
 step 4 happens only for a later command that creates a worktree
@@ -393,40 +393,40 @@ the first control under "Reproductions".
 
 Sequence:
 
-1. A worktree is created from a main checkout,
-   so the destination lies inside the source:
-   `.claude/worktrees/topic`,
-   as this repository makes them.
-2. At the same time another command copies ignored state into a worktree whose
-   destination is in the same folder,
-   so `stage_ignored_snapshot`
-   (`worktree_copying/worktree_copy_stage.rs:191`)
-   has made `.claude/worktrees/.cli-git-worktree-copy-<uuid>` and is filling
-   its `payload` with that worktree's ignored files.
-   That container is an ordinary directory with mode 0700,
-   and the copy takes minutes for a real `node_modules`.
-3. `git worktree add .claude/worktrees/topic` from the main checkout takes the
-   snapshot rung,
-   which copies the whole subvolume.
-4. `prune_snapshot`
-   (`worktree_trash.rs:321`)
-   leaves out a directory only when `Prune::skips_path` names it as a cache or
-   a run record
-   (`worktree_copying/worktree_copy_prune.rs:157`),
-   or when `skips_checkout` finds a `.git` in it
-   (`:195`).
-   `.cli-git-worktree-copy-<uuid>` is neither a cache name,
-   a run record,
-   nor a checkout,
-   and `.claude` is not a tracked path,
-   so the walk descends into it and keeps it.
-5. `remove_snapshot_placeholders`
-   (`worktree_snapshot_placeholders.rs:180`)
-   removes only the empty stand-in directories btrfs shows for nested
-   subvolumes (inode 2,
-   `:112`),
-   which is the shape a *snapshot* rung's stage has;
-   an ordinary stage directory is not one.
+1.  A worktree is created from a main checkout,
+    so the destination lies inside the source:
+    `.claude/worktrees/topic`,
+    as this repository makes them.
+2.  At the same time another command copies ignored state into a worktree whose
+    destination is in the same folder,
+    so `stage_ignored_snapshot`
+    (`worktree_copying/worktree_copy_stage.rs:191`)
+    has made `.claude/worktrees/.cli-git-worktree-copy-<uuid>` and is filling
+    its `payload` with that worktree's ignored files.
+    That container is an ordinary directory with mode 0700,
+    and the copy takes minutes for a real `node_modules`.
+3.  `git worktree add .claude/worktrees/topic` from the main checkout takes the
+    snapshot rung,
+    which copies the whole subvolume.
+4.  `prune_snapshot`
+    (`worktree_trash.rs:321`)
+    leaves out a directory only when `Prune::skips_path` names it as a cache or
+    a run record
+    (`worktree_copying/worktree_copy_prune.rs:157`),
+    or when `skips_checkout` finds a `.git` in it
+    (`:195`).
+    `.cli-git-worktree-copy-<uuid>` is neither a cache name,
+    a run record,
+    nor a checkout,
+    and `.claude` is not a tracked path,
+    so the walk descends into it and keeps it.
+5.  `remove_snapshot_placeholders`
+    (`worktree_snapshot_placeholders.rs:180`)
+    removes only the empty stand-in directories btrfs shows for nested
+    subvolumes (inode 2,
+    `:112`),
+    which is the shape a *snapshot* rung's stage has;
+    an ordinary stage directory is not one.
 
 The wrong result:
 the new worktree holds
@@ -460,30 +460,30 @@ with the clean source as the control.
 
 Sequence:
 
-1. The main checkout ignores `cache/` and holds `cache/data.bin`.
-   The commit the new worktree will check out ignores nothing:
-   a branch that predates the rule,
-   or a rule that a later commit removed,
-   which is ordinary on any repository.
-2. The main checkout has one uncommitted change to a tracked file,
-   so `source_or_dirty`
-   (`worktree_snapshot_source.rs:391`)
-   snapshots it and `restore_dirty` runs.
-3. `git read-tree --reset -u <new commit>`
-   (`worktree_dirty_restore.rs:211`)
-   brings the tracked `.gitignore` to the new commit,
-   so the stage's ignore rules are now the new commit's.
-4. `git clean --force -d`
-   (`:219`)
-   removes every untracked file the stage's rules do not cover,
-   which now includes `cache/data.bin`.
-5. `prove_restored`
-   (`:171`)
-   asks only for an empty `ls-files --others --exclude-standard`,
-   a clean `diff-files`,
-   and an index equal to the commit,
-   so the deleted ignored file is exactly what the proof expects.
-6. The add succeeds and prints that the uncommitted changes were left out.
+1.  The main checkout ignores `cache/` and holds `cache/data.bin`.
+    The commit the new worktree will check out ignores nothing:
+    a branch that predates the rule,
+    or a rule that a later commit removed,
+    which is ordinary on any repository.
+2.  The main checkout has one uncommitted change to a tracked file,
+    so `source_or_dirty`
+    (`worktree_snapshot_source.rs:391`)
+    snapshots it and `restore_dirty` runs.
+3.  `git read-tree --reset -u <new commit>`
+    (`worktree_dirty_restore.rs:211`)
+    brings the tracked `.gitignore` to the new commit,
+    so the stage's ignore rules are now the new commit's.
+4.  `git clean --force -d`
+    (`:219`)
+    removes every untracked file the stage's rules do not cover,
+    which now includes `cache/data.bin`.
+5.  `prove_restored`
+    (`:171`)
+    asks only for an empty `ls-files --others --exclude-standard`,
+    a clean `diff-files`,
+    and an index equal to the commit,
+    so the deleted ignored file is exactly what the proof expects.
+6.  The add succeeds and prints that the uncommitted changes were left out.
 
 The wrong result:
 the same repository,
@@ -526,25 +526,25 @@ the fourth control under "Reproductions".
 
 Sequence:
 
-1. The snapshot rung reaches `install_index`
-   (`worktree_snapshot_index_step.rs:100`),
-   which calls `install_index_in_with`
-   (`subvolume/subvolume_index_install_into_new_worktree.rs:66`).
-2. `install_index_in_with` creates
-   `<common>/worktrees/<id>/index.lock` in the new worktree's administrative
-   directory
-   (`:70-73`),
-   writes the index into it,
-   links it under the name `index`,
-   and removes the lock.
-3. The process is killed between the create and the removal.
-   `NHP` makes that normal here.
-4. The destination is registered and holds only `.git`,
-   and the administrative directory holds `index.lock` with no `index`.
-5. The next recovery prints
-   "`git -C <destination> reset --hard` completes its checkout"
-   (`worktree_copy_stage_claim_reaping.rs:144`).
-6. That command fails:
+1.  The snapshot rung reaches `install_index`
+    (`worktree_snapshot_index_step.rs:100`),
+    which calls `install_index_in_with`
+    (`subvolume/subvolume_index_install_into_new_worktree.rs:66`).
+2.  `install_index_in_with` creates
+    `<common>/worktrees/<id>/index.lock` in the new worktree's administrative
+    directory
+    (`:70-73`),
+    writes the index into it,
+    links it under the name `index`,
+    and removes the lock.
+3.  The process is killed between the create and the removal.
+    `NHP` makes that normal here.
+4.  The destination is registered and holds only `.git`,
+    and the administrative directory holds `index.lock` with no `index`.
+5.  The next recovery prints
+    "`git -C <destination> reset --hard` completes its checkout"
+    (`worktree_copy_stage_claim_reaping.rs:144`).
+6.  That command fails:
 
 ```text
 fatal: Unable to create '.../worktrees/<id>/index.lock': File exists.
@@ -576,28 +576,28 @@ Read from the code.
 
 Sequence:
 
-1. The snapshot rung's tree difference runs
-   `git read-tree -m -u <source> <new>`
-   (`worktree_ladder_target.rs:496`,
-   `apply_difference`),
-   the dirty restore runs `git read-tree --reset -u`
-   (`worktree_dirty_restore.rs:211`),
-   and the fallback runs `git reset --hard`
-   (`worktree_ladder_finish.rs:281`,
-   `checkout_like_git`).
-2. Each goes through `run_step`
-   (`worktree_ladder_target.rs:379`)
-   to the lifecycle's runner,
-   which starts real Git as a child and waits for it
-   (`invocation/forwarding.rs:187`,
-   `run_real_git`,
-   `status()`).
-3. Nothing in that path sets a deadline,
-   and `read-tree -m -u` and `read-tree --reset -u` run the checkout's
-   conversion filters,
-   so a smudge filter,
-   a Git LFS process,
-   or a network filesystem that never answers holds the add forever.
+1.  The snapshot rung's tree difference runs
+    `git read-tree -m -u <source> <new>`
+    (`worktree_ladder_target.rs:496`,
+    `apply_difference`),
+    the dirty restore runs `git read-tree --reset -u`
+    (`worktree_dirty_restore.rs:211`),
+    and the fallback runs `git reset --hard`
+    (`worktree_ladder_finish.rs:281`,
+    `checkout_like_git`).
+2.  Each goes through `run_step`
+    (`worktree_ladder_target.rs:379`)
+    to the lifecycle's runner,
+    which starts real Git as a child and waits for it
+    (`invocation/forwarding.rs:187`,
+    `run_real_git`,
+    `status()`).
+3.  Nothing in that path sets a deadline,
+    and `read-tree -m -u` and `read-tree --reset -u` run the checkout's
+    conversion filters,
+    so a smudge filter,
+    a Git LFS process,
+    or a network filesystem that never answers holds the add forever.
 
 The wrong result:
 a command that never returns,
@@ -737,72 +737,72 @@ hidden or applied to the wrong place.
 All of these were read from the code;
 the ones with a control are named.
 
-1. Before `prepare_subvolume_destination`
-   (`worktree_subvolume.rs:81`):
-   nothing changed.
-   After it,
-   for the clone and Git rungs only:
-   an empty subvolume at the destination that no record names.
-   A later add at that path finds an empty directory Git accepts,
-   so it is harmless;
-   the destination's parent keeps an empty directory if the person never adds
-   again.
-   No data,
-   no notice needed.
-2. Before the claim
-   (`worktree_copy_stage_claim.rs:293`):
-   nothing.
-   After the `.stage` claim and before the `.add` record:
-   a claim naming a stage that does not exist,
-   which the next recovery removes without a word
-   (`worktree_copy_stage_claim_reaping.rs:384-396`,
-   the `present` branch is not taken).
-3. After the `.add` record and before real Git:
-   the same,
-   plus a `planned` record whose destination has no `.git`,
-   so `settle_text` says nothing
-   (`:131-141`).
-4. After real Git returns:
-   the registered worktree with only `.git`,
-   the `planned` record,
-   and one line at the next recovery naming the destination and
-   `git worktree remove --force`
-   (finding 1).
-5. After `bind` and `record_binding`
-   (`worktree_ladder_finish.rs:382`):
-   the record names both identities,
-   and the recovery's line offers `reset --hard` and `remove --force`
-   (finding 1,
-   finding 4 when an index lock is in the way).
-6. After the snapshot ioctl,
-   the `chmod`,
-   the own-index read,
-   the leave-out or the stub removal
-   (`worktree_snapshot.rs:283-330`):
-   a stage subvolume holding a copy of the source,
-   a claim whose owner is dead,
-   and a destination that is Git's directory.
-   The recovery reports the stage and never removes it
-   (`worktree_copy_stage_claim_reaping.rs:384-396`),
-   because a claim names a path and a path proves nothing.
-   Nothing of the person's is lost:
-   the stage is a copy,
-   and the source is never written.
-7. During `install_index`
-   (`worktree_snapshot_index_step.rs:100`):
-   the administrative directory can keep `index.lock`
-   (finding 4),
-   and either no index or the finished index.
-8. Between removing the stage's `.git` and writing the pointer
-   (`worktree_snapshot.rs:263`,
-   `replace_git_pointer`):
-   the stage has no `.git`,
-   which the recovery reports as a stage and never removes.
-   The destination is untouched.
-9. During `restore_dirty` or `apply_difference`:
-   the stage's index and files are partly updated.
-   The stage is reported and destroyed by nothing;
-   the destination is untouched.
+1.  Before `prepare_subvolume_destination`
+    (`worktree_subvolume.rs:81`):
+    nothing changed.
+    After it,
+    for the clone and Git rungs only:
+    an empty subvolume at the destination that no record names.
+    A later add at that path finds an empty directory Git accepts,
+    so it is harmless;
+    the destination's parent keeps an empty directory if the person never adds
+    again.
+    No data,
+    no notice needed.
+2.  Before the claim
+    (`worktree_copy_stage_claim.rs:293`):
+    nothing.
+    After the `.stage` claim and before the `.add` record:
+    a claim naming a stage that does not exist,
+    which the next recovery removes without a word
+    (`worktree_copy_stage_claim_reaping.rs:384-396`,
+    the `present` branch is not taken).
+3.  After the `.add` record and before real Git:
+    the same,
+    plus a `planned` record whose destination has no `.git`,
+    so `settle_text` says nothing
+    (`:131-141`).
+4.  After real Git returns:
+    the registered worktree with only `.git`,
+    the `planned` record,
+    and one line at the next recovery naming the destination and
+    `git worktree remove --force`
+    (finding 1).
+5.  After `bind` and `record_binding`
+    (`worktree_ladder_finish.rs:382`):
+    the record names both identities,
+    and the recovery's line offers `reset --hard` and `remove --force`
+    (finding 1,
+    finding 4 when an index lock is in the way).
+6.  After the snapshot ioctl,
+    the `chmod`,
+    the own-index read,
+    the leave-out or the stub removal
+    (`worktree_snapshot.rs:283-330`):
+    a stage subvolume holding a copy of the source,
+    a claim whose owner is dead,
+    and a destination that is Git's directory.
+    The recovery reports the stage and never removes it
+    (`worktree_copy_stage_claim_reaping.rs:384-396`),
+    because a claim names a path and a path proves nothing.
+    Nothing of the person's is lost:
+    the stage is a copy,
+    and the source is never written.
+7.  During `install_index`
+    (`worktree_snapshot_index_step.rs:100`):
+    the administrative directory can keep `index.lock`
+    (finding 4),
+    and either no index or the finished index.
+8.  Between removing the stage's `.git` and writing the pointer
+    (`worktree_snapshot.rs:263`,
+    `replace_git_pointer`):
+    the stage has no `.git`,
+    which the recovery reports as a stage and never removes.
+    The destination is untouched.
+9.  During `restore_dirty` or `apply_difference`:
+    the stage's index and files are partly updated.
+    The stage is reported and destroyed by nothing;
+    the destination is untouched.
 10. Before the exchange,
     after `put_in_place`'s checks:
     nothing changed yet.
@@ -1229,20 +1229,20 @@ so the inode is what the control reads.
 Inspect,
 in this order:
 
-1. `package/git-policy/cli/src/native/worktree_copying/worktree_copy_stage_claim_reaping.rs:114-160`
-   and the record's release,
-   for finding 1,
-   with the third control's output beside them.
-2. `package/git-policy/cli/src/native/worktree/worktree_trash.rs:321-440`
-   for finding 2,
-   and the `STAGE_PREFIX` check that the walk would need.
-3. `package/git-policy/cli/src/native/worktree/worktree_dirty_restore.rs:205-245`
-   for finding 3,
-   with the second control's two worktrees.
-4. `package/git-policy/cli/src/native/subvolume/subvolume_index_install_into_new_worktree.rs:66-110`
-   for finding 4.
-5. `package/git-policy/cli/src/native/invocation/forwarding.rs:187`
-   and every `run_step` caller for finding 5.
+1.  `package/git-policy/cli/src/native/worktree_copying/worktree_copy_stage_claim_reaping.rs:114-160`
+    and the record's release,
+    for finding 1,
+    with the third control's output beside them.
+2.  `package/git-policy/cli/src/native/worktree/worktree_trash.rs:321-440`
+    for finding 2,
+    and the `STAGE_PREFIX` check that the walk would need.
+3.  `package/git-policy/cli/src/native/worktree/worktree_dirty_restore.rs:205-245`
+    for finding 3,
+    with the second control's two worktrees.
+4.  `package/git-policy/cli/src/native/subvolume/subvolume_index_install_into_new_worktree.rs:66-110`
+    for finding 4.
+5.  `package/git-policy/cli/src/native/invocation/forwarding.rs:187`
+    and every `run_step` caller for finding 5.
 
 To respond,
 each finding is a suggestion and none is a decision:

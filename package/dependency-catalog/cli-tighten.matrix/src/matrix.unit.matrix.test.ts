@@ -13,10 +13,6 @@
  */
 
 import {
-  join,
-} from 'node:path';
-
-import {
   describe,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
@@ -27,30 +23,13 @@ import {
   SCENARIOS,
   type Scenario,
 } from './combos.ts';
+import {
+  HOST_REPO_ROOT,
+  IN_CONTAINER_ENTRY,
+  REPO_DIR,
+} from './container-paths.ts';
 
 //region Container configuration
-
-/**
- Directory of this file; the repo root is four levels up
- (`src` -> package -> `dev-script` -> `packages` -> repo).
- */
-const HERE = import.meta.dirname;
-
-/**
- Absolute monorepo root on the host, bind-mounted read-only into each container.
- */
-const REPO_ROOT = join(
-  HERE,
-  '..',
-  '..',
-  '..',
-  '..',
-);
-
-/**
- In-container entrypoint path, resolved against the read-only `/repo` mount.
- */
-const IN_CONTAINER_ENTRY = '/repo/packages/dev-script/catalog-tighten.matrix/src/in-container.ts';
 
 /**
  Base image: node with corepack and unflagged TypeScript stripping; pnpm is provisioned at runtime.
@@ -108,7 +87,7 @@ async function resolvePnpmSpec(): Promise<string> {
   const version = (await spawn(
     'pnpm',
     ['--version',],
-    { cwd: REPO_ROOT, },
+    { cwd: HOST_REPO_ROOT, },
   )).stdout
     .trim();
   if (version.length === 0)
@@ -160,7 +139,7 @@ function buildPodmanArgs(
     '--env',
     `${FIXTURE_PNPM_ENV}=${pnpmSpec}`,
     '--volume',
-    `${REPO_ROOT}:/repo:ro`,
+    `${HOST_REPO_ROOT}:${REPO_DIR}:ro`,
     '--workdir',
     '/work',
     NODE_IMAGE,

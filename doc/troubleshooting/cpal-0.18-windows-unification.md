@@ -9,39 +9,39 @@ problems showed up while making the player properly cross-platform.
 
 ## Symptom
 
-1. The dependency graph compiled two different major versions of the `windows`
-   crate.
-    The resolved lockfile (any platform,
-    since `Cargo.lock` is
-   target-agnostic) listed both:
+1.  The dependency graph compiled two different major versions of the `windows`
+    crate.
+     The resolved lockfile (any platform,
+     since `Cargo.lock` is
+    target-agnostic) listed both:
 
-   ```text
-   name = "windows"   version = "0.54.0"   # pulled only by cpal 0.15.3
-   name = "windows"   version = "0.62.2"   # pulled by the Slint/skia stack
-   ```
+    ```text
+    name = "windows"   version = "0.54.0"   # pulled only by cpal 0.15.3
+    name = "windows"   version = "0.62.2"   # pulled by the Slint/skia stack
+    ```
 
-   Two copies of a large crate is wasted compile time and binary surface.
+    Two copies of a large crate is wasted compile time and binary surface.
 
-2. After bumping cpal to unify them,
-    the **native** (macOS/Windows) build failed,
-   while a Linux `cargo check` stayed green.
-    The error,
-    from compiling
-   `output_cpal.rs`:
+2.  After bumping cpal to unify them,
+     the **native** (macOS/Windows) build failed,
+    while a Linux `cargo check` stayed green.
+     The error,
+     from compiling
+    `output_cpal.rs`:
 
-   ```text
-   error[E0423]: expected function, tuple struct or tuple variant, found type alias `SampleRate`
-      --> src/output_cpal.rs:321:26
-       |
-   321 |             sample_rate: SampleRate(rate),
-       |                          ^^^^^^^^^^ not a function, tuple struct or tuple variant
-   ```
+    ```text
+    error[E0423]: expected function, tuple struct or tuple variant, found type alias `SampleRate`
+       --> src/output_cpal.rs:321:26
+        |
+    321 |             sample_rate: SampleRate(rate),
+        |                          ^^^^^^^^^^ not a function, tuple struct or tuple variant
+    ```
 
-   The Linux check passes because `output_cpal.rs` is gated `cfg(not(target_os =
-   "linux"))`,
-    so cpal is never compiled on Linux.
-    The break is invisible until the
-   code is built on a Mac (`ssh m1`) or Windows box (`ssh x13-win`).
+    The Linux check passes because `output_cpal.rs` is gated `cfg(not(target_os =
+    "linux"))`,
+     so cpal is never compiled on Linux.
+     The break is invisible until the
+    code is built on a Mac (`ssh m1`) or Windows box (`ssh x13-win`).
 
 ## Root cause
 
@@ -198,16 +198,16 @@ What works:
 Nothing to file.
  Walking the 6-constraint check stops at constraint 1:
 
-1. Is it upstream's fault?
-    No. cpal's per-release `windows` version ranges and its
-   0.18 API changes (`SampleRate` alias,
-    by-value `StreamConfig`) are deliberate,
-   documented in cpal's own `UPGRADING.md`.
-    There is no defect:
-    the duplicate
-   `windows` was our graph holding cpal back at 0.15,
-    and the API break is a normal,
-   announced major-version migration we completed.
+1.  Is it upstream's fault?
+     No. cpal's per-release `windows` version ranges and its
+    0.18 API changes (`SampleRate` alias,
+     by-value `StreamConfig`) are deliberate,
+    documented in cpal's own `UPGRADING.md`.
+     There is no defect:
+     the duplicate
+    `windows` was our graph holding cpal back at 0.15,
+     and the API break is a normal,
+    announced major-version migration we completed.
 
 Because constraint 1 fails,
  the remaining constraints do not apply and there is no

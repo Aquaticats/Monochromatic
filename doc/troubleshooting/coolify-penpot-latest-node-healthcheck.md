@@ -375,32 +375,32 @@ No report for the current inverse mismatch was found.
 
 The filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   No.
-   The affected service combines a floating image tag with a healthcheck tied to an older image's toolset.
-   Coolify's current template pins `2.11.1`,
-   while the shown service uses `latest`.
-2. **Can upstream fix it?**
-   Coolify can update its template to a newer pinned Penpot release and a curl healthcheck,
-   but that would not retroactively edit this persisted service definition.
-3. **Are they supporting this use case?**
-   Yes.
-   Coolify ships a Penpot service template,
-   and Penpot documents Docker Compose self-hosting.
-4. **Would the repo welcome our contribution?**
-   Yes with conditions.
-   `CONTRIBUTING.md:221` permits verified AI-assisted contributions,
-   and `.github/pull_request_template.md:25-34` requires disclosure.
-   The merged related fix in pull request `#6272` is another positive signal.
-5. **Will they likely fix it?**
-   Not applicable to this persisted configuration.
-   The current template already prevents floating-tag drift by pinning `2.11.1`.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No upstream patch is warranted because constraint 1 fails.
-   The consumer-side Compose replacement was verified with a disposable full stack:
-   curl returned `OK`,
-   Docker reported `healthy`,
-   and the Node.js command failed with status `127` against the same ready backend.
+1.  **Is it really upstream's fault?**
+    No.
+    The affected service combines a floating image tag with a healthcheck tied to an older image's toolset.
+    Coolify's current template pins `2.11.1`,
+    while the shown service uses `latest`.
+2.  **Can upstream fix it?**
+    Coolify can update its template to a newer pinned Penpot release and a curl healthcheck,
+    but that would not retroactively edit this persisted service definition.
+3.  **Are they supporting this use case?**
+    Yes.
+    Coolify ships a Penpot service template,
+    and Penpot documents Docker Compose self-hosting.
+4.  **Would the repo welcome our contribution?**
+    Yes with conditions.
+    `CONTRIBUTING.md:221` permits verified AI-assisted contributions,
+    and `.github/pull_request_template.md:25-34` requires disclosure.
+    The merged related fix in pull request `#6272` is another positive signal.
+5.  **Will they likely fix it?**
+    Not applicable to this persisted configuration.
+    The current template already prevents floating-tag drift by pinning `2.11.1`.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No upstream patch is warranted because constraint 1 fails.
+    The consumer-side Compose replacement was verified with a disposable full stack:
+    curl returned `OK`,
+    Docker reported `healthy`,
+    and the Node.js command failed with status `127` against the same ready backend.
 
 The decision is not to file an upstream issue or prepare a patch.
 The recovery belongs in the affected Coolify service configuration.

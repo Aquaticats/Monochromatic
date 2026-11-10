@@ -545,43 +545,43 @@ appropriate.
 
 Six-constraint check:
 
-1. Upstream's fault?
-    Yes.
-    Sätteri emits offsets in byte or code-point units
-   where the ecosystem it targets uses UTF-16 code units.
-2. Can upstream fix it?
-    Yes,
-    and prototyped below.
-    Not architectural:
-    a counter
-   change plus one conversion at the walk site.
-3. Supporting this use case?
-    Yes.
-    Standard mdast `position` compatible with
-   remark/micromark is a stated goal,
-    asserted in `line_index.rs:5-8`.
-4. Would the repo welcome it?
-    Yes.
-    `CONTRIBUTING.md` invites issues and PRs and
-   ships a bug-report template (`.github/ISSUE_TEMPLATE/01-bug-report.yml`);
-    no
-   ban on AI-assisted reports was found (`AGENTS.md` treats agents and humans
-   equally and asks for a Sampo changeset on fixes).
-    The draft discloses AI
-   assistance accordingly.
-5. Will they likely fix it?
-    No signal against.
-    Correctness is a stated value
-   ("fast,
-    correct,
-    and extensible",
-    `CONTRIBUTING.md`);
-    the tracker is active;
-   no won't-fix on positions.
-6. Prototyped a minimal fix?
-    Yes,
-    verified.
-    See below and `satteri-offsets.patch`.
+1.  Upstream's fault?
+     Yes.
+     Sätteri emits offsets in byte or code-point units
+    where the ecosystem it targets uses UTF-16 code units.
+2.  Can upstream fix it?
+     Yes,
+     and prototyped below.
+     Not architectural:
+     a counter
+    change plus one conversion at the walk site.
+3.  Supporting this use case?
+     Yes.
+     Standard mdast `position` compatible with
+    remark/micromark is a stated goal,
+     asserted in `line_index.rs:5-8`.
+4.  Would the repo welcome it?
+     Yes.
+     `CONTRIBUTING.md` invites issues and PRs and
+    ships a bug-report template (`.github/ISSUE_TEMPLATE/01-bug-report.yml`);
+     no
+    ban on AI-assisted reports was found (`AGENTS.md` treats agents and humans
+    equally and asks for a Sampo changeset on fixes).
+     The draft discloses AI
+    assistance accordingly.
+5.  Will they likely fix it?
+     No signal against.
+     Correctness is a stated value
+    ("fast,
+     correct,
+     and extensible",
+     `CONTRIBUTING.md`);
+     the tracker is active;
+    no won't-fix on positions.
+6.  Prototyped a minimal fix?
+     Yes,
+     verified.
+     See below and `satteri-offsets.patch`.
 
 Prototype (Bug B core,
  verified).

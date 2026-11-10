@@ -1395,11 +1395,11 @@ Claims in `stack-typescript.md` that are wrong or incomplete given these librari
     limits:
     `fs.writeFile` to `cgroup.freeze`,
     `cgroup.kill`" applies only to a daemon-owned
-7. delegated subtree;
-    with the `systemd-run --scope` fallback the scopes are systemd-owned under a slice,
-   so direct writes would bypass
-    systemd's state.
-    The design doc's process model (`monorepo-manager-from-scratch-design.md:352-363`) assumes the delegated subtree.
+7.  delegated subtree;
+     with the `systemd-run --scope` fallback the scopes are systemd-owned under a slice,
+    so direct writes would bypass
+     systemd's state.
+     The design doc's process model (`monorepo-manager-from-scratch-design.md:352-363`) assumes the delegated subtree.
 8.  `:137-140` NDJSON with `mcp-stdio` `readLines`:
     still sound,
     but incomplete.
