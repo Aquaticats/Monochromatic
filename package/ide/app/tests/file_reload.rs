@@ -99,6 +99,41 @@ fn absent_non_regular_and_non_utf8_sources_fail_without_mutating_document() {
     assert_eq!(document.text().to_string(), "retained source");
 }
 
+/// A path that is not a regular file is named with the same diagnosis the startup read gives,
+///  because one function reads source for both.
+#[test]
+fn a_non_regular_source_fails_with_the_one_shared_diagnosis() {
+    let fixture = memory_fixture::directory("ide-file-reload-");
+    let document = Document::new("retained source");
+    let error = read_reload(&document, fixture.path())
+        .err()
+        .expect("a folder is not source");
+    assert!(
+        format!("{error:#}").contains(&format!(
+            "Cannot open source file {}: it is not a regular file",
+            fixture.path().display()
+        )),
+        "{error:#}"
+    );
+}
+
+/// Undecodable bytes are reported with the same diagnosis wherever source is read.
+#[test]
+fn an_undecodable_source_fails_with_the_one_shared_diagnosis() {
+    let fixture = memory_fixture::directory("ide-file-reload-");
+    let path = fixture.path().join("source.txt");
+    std::fs::write(&path, [0xff, 0xfe]).expect("invalid UTF-8 fixture");
+    let document = Document::new("retained source");
+    let error = read_reload(&document, &path)
+        .err()
+        .expect("invalid UTF-8 is not source");
+    assert!(
+        format!("{error:#}")
+            .contains(&format!("Cannot read source file {} as UTF-8", path.display())),
+        "{error:#}"
+    );
+}
+
 /// A second request cannot accumulate while the previous response remains unread.
 #[test]
 fn worker_bounds_requests_and_maps_the_latest_caret() {
