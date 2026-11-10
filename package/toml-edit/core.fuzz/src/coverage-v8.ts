@@ -231,6 +231,8 @@ function paintBitmap(
       range.endOffset,
       length,
     );
+    // The offset is the bitmap's own index, so the loop walks offsets rather
+    // than the members of any collection.
     for (let offset = Math.max(
       range.startOffset,
       0,
@@ -270,6 +272,8 @@ function lineHasCoveredCode(
     readonly bitmap: Uint8Array;
   },
 ): boolean {
+  // The index is read twice, as the line's code unit and as the bitmap offset
+  // that unit lands on, so the scan needs the position rather than the value.
   for (let index = 0; index < line.length; index += 1) {
     if ((!WHITESPACE_CHARS.includes(line[index] ?? ' ',)) && (bitmap[start + index] === 1)) return true;
   }

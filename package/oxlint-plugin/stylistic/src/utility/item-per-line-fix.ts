@@ -12,6 +12,9 @@ import {
   rangeOf,
 } from './range.ts';
 
+//region Types
+// List bracket pairs and the configuration every per-line fixer hands in.
+
 /**
  Bracket pair that delimits the list being reformatted.
  
@@ -78,6 +81,10 @@ export type PerLineFixConfig = {
    */
   readonly delimiter?: ',' | ';';
 };
+//endregion Types
+
+//region Fix construction
+// Locate the list's brackets, read every item, and replace the bracketed range.
 
 /**
  Builds a fixer result that reformats items one per line.
@@ -119,6 +126,10 @@ export function buildPerLineFix({
   boundary,
   delimiter = ',',
 }: ForeignBorrowed<PerLineFixConfig>,): ReturnType<Fixer['replaceText']> {
+  //region Bracket and indent discovery
+  // Sprout positions from the items themselves, so a container span carrying
+  // type annotations, callee chains, or generics cannot widen the range.
+
   /**
    Range of the first item; left edge used to locate the opening bracket.
    */
@@ -193,6 +204,12 @@ export function buildPerLineFix({
    Two-space continuation indent for items inside the brackets.
    */
   const childIndent = `${baseIndent}  `;
+  //endregion Bracket and indent discovery
+
+  //region Item text and trailing delimiter
+  // Item source is read verbatim with its own delimiter stripped, so the
+  // rewrite adds exactly one delimiter per item and keeps the original's
+  // trailing-delimiter choice.
 
   /**
    Extract each item's source text, stripping any existing trailing delimiter.
@@ -230,6 +247,11 @@ export function buildPerLineFix({
   const hasTrailingDelimiter = trailingRegion.has(',',)
     || trailingRegion
       .has(';',);
+  //endregion Item text and trailing delimiter
+
+  //region Rendered replacement
+  // One item per line between the brackets, and nothing else in the range
+  // changes.
 
   /**
    Items rendered one per line with `childIndent` prefix and the appropriate delimiter suffix.
@@ -265,3 +287,5 @@ export function buildPerLineFix({
     replacement,
   );
 }
+//endregion Rendered replacement
+//endregion Fix construction
