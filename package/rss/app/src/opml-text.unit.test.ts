@@ -11,7 +11,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { getOPMLTexts, } from './opml-text.ts';
+import { getOPMLTexts, } from '../dist/final/node/testing.mjs';
 
 /**
  Source URL whose host cannot be reached, so `fetch` rejects without a

@@ -13,9 +13,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { logger, } from '@monochromatic-dev/logger-core/ts';
 
-import { getSortedFeeds, } from './feed.ts';
-import { getOPMLTexts, } from './opml-text.ts';
-import { getOutlinesFromOpmls, } from './outline.ts';
+import {
+  getOPMLTexts,
+  getOutlinesFromOpmls,
+  getSortedFeeds,
+} from '../dist/final/node/testing.mjs';
 
 /**
  Failure message a stubbed response throws while streaming its body, so a

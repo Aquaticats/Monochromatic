@@ -11,7 +11,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { getSortedFeeds, } from './feed.ts';
+import { getSortedFeeds, } from '../dist/final/node/testing.mjs';
 
 /**
  OPML `xmlUrl` of the feed carrying a readable publication date.

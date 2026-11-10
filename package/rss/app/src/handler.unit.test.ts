@@ -17,7 +17,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { ignore, } from './handler.ts';
+import { ignore, } from '../dist/final/node/testing.mjs';
 
 /**
  File the endpoint appends records to, asserted on disk after each request.

@@ -7,6 +7,9 @@ extends = "build:js"
 [tasks."build:js:client"]
 extends = "build:js:client"
 
+[tasks."build:js:node"]
+extends = "build:js:node"
+
 [tasks."watch:build"]
 extends = "watch:build"
 
@@ -15,6 +18,9 @@ extends = "watch:build:js"
 
 [tasks."watch:build:js:client"]
 extends = "watch:build:js:client"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
 
 [tasks.dev]
 description = "Start RSS reader in watch mode"
@@ -33,4 +39,11 @@ extends = "format:oxlint"
 extends = "lint:types"
 
 [tasks."test:unit"]
+description = "Build the artifact the unit tests import, then run them"
+run = [
+  { tasks = ["build"] },
+  { tasks = ["test:unit:cases"] },
+]
+
+[tasks."test:unit:cases"]
 extends = "test:unit"

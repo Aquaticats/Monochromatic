@@ -11,8 +11,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { itemToFeed, } from './html-item.ts';
-import { getSortedItems, } from './item.ts';
+import {
+  getSortedItems,
+  itemToFeed,
+} from '../dist/final/node/testing.mjs';
 
 /**
  Link the fixture entry points at, asserted on the rendered anchor.
