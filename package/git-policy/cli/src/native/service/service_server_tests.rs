@@ -285,3 +285,28 @@ fn a_request_that_names_a_foreign_directory_names_no_tree() {
     assert_eq!(crate::service_scratch_release_removal::the_tree_of(precious.as_path(), git_dir.as_path()), None);
     remove_short(root.as_path());
 }
+
+/// What:
+///  The trees a group's requests name, minus the ones the service handed back to their clients.
+/// Why:
+///  A client told to prepare again still reads the tree it named,
+///  so that one is the client's to remove;
+///  every other answer ends the landing that read the tree,
+///  and the service removes it beside the loop.
+#[test]
+fn only_a_tree_no_client_still_reads_is_released_to_the_service() {
+    let trees: Vec<(String, std::path::PathBuf)> = vec![
+        (String::from("landed"), std::path::PathBuf::from("/trees/landed")),
+        (String::from("moved"), std::path::PathBuf::from("/trees/moved")),
+        (String::from("again"), std::path::PathBuf::from("/trees/again")),
+    ];
+    let handed_back: std::collections::HashSet<String> = [String::from("moved"), String::from("again")].into_iter().collect();
+    let released: Vec<&std::path::PathBuf> = crate::service_server::released_trees(trees.as_slice(), &handed_back);
+    assert_eq!(released, vec![&std::path::PathBuf::from("/trees/landed")], "only the landed request's tree is the service's to remove");
+    let nothing_kept: std::collections::HashSet<String> = std::collections::HashSet::new();
+    assert_eq!(
+        crate::service_server::released_trees(trees.as_slice(), &nothing_kept).len(),
+        trees.len(),
+        "a group none of whose requests was handed back releases every tree"
+    );
+}

@@ -1,13 +1,18 @@
 /**
- Environment-adaptive file reading.
+ Environment-adaptive file access.
  
  Checks the in-memory {@link fsRegistry} first (browser path),
  then falls back to `node:fs` when running under Node/Bun.
  This lets the same build pipeline work on the server (disk I/O)
  and in the browser (pre-populated memory Map).
+ The module is loaded once, behind a computed specifier, so no bundler
+ resolves `node:fs` from a static import site.
  */
 import type NodeFs from 'node:fs';
+import { dirname, } from '@monochromatic-dev/fs-path-core/ts';
 import { fsRegistry, } from './fs-registry.ts';
+
+//region Runtime module loading
 
 /**
  Whether the current runtime has Node-compatible `fs` APIs.
@@ -34,7 +39,7 @@ const NO_NODE_FS = Symbol('runtime node:fs import unavailable',);
  Eagerly loaded `node:fs` module, or {@link NO_NODE_FS} in browser.
  Uses a variable specifier so browser bundlers cannot statically resolve the import.
  Loaded eagerly (not lazily) because sync functions like
- {@link readCssFileSync} and {@link existsSync} cannot await.
+ {@link readTextFileSync} and {@link existsSync} cannot await.
  */
 const nodeFs: typeof NodeFs | typeof NO_NODE_FS = hasNodeFs
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic import lacks static type
@@ -42,9 +47,25 @@ const nodeFs: typeof NodeFs | typeof NO_NODE_FS = hasNodeFs
   : NO_NODE_FS;
 
 /**
- Reads a CSS file by absolute path.
- Looks in {@link fsRegistry} first; falls back to `node:fs/promises`
- when running server-side.
+ Promise-based filesystem API of the module loaded above, or
+ {@link NO_NODE_FS} in the browser. Reading it once keeps every call site
+ down to a single member access, so none of them names `node:fs` itself.
+ */
+const nodeFsPromises: typeof NodeFs.promises | typeof NO_NODE_FS = nodeFs
+  === NO_NODE_FS
+  ? NO_NODE_FS
+  : nodeFs.promises;
+
+//endregion Runtime module loading
+
+//region File reading
+
+/**
+ Reads a text file by absolute path.
+ Checks {@link fsRegistry} first (browser path); otherwise reads from disk
+ through `node:fs/promises` when running server-side. Nothing about the
+ fallback is CSS-specific: callers pass stylesheets and package manifests
+ alike, so the name states the boundary rather than one caller's file type.
  
  @param absolutePath - Absolute file path to read
  
@@ -54,10 +75,10 @@ const nodeFs: typeof NodeFs | typeof NO_NODE_FS = hasNodeFs
  
  @example
  ```ts
- const css = await readCssFile('/project/src/styles.css');
+ const css = await readTextFile('/project/src/styles.css');
  ```
  */
-export async function readCssFile(absolutePath: string,): Promise<string> {
+export async function readTextFile(absolutePath: string,): Promise<string> {
   /**
    Registry hit shortcuts the filesystem fallback for browser builds.
    */
@@ -65,12 +86,8 @@ export async function readCssFile(absolutePath: string,): Promise<string> {
   if (cached !== undefined)
     return cached;
 
-  if (nodeFs !== NO_NODE_FS) {
-    /**
-     Dynamic import keeps `node:fs/promises` out of browser bundles.
-     */
-    const { readFile, } = await import('node:fs/promises');
-    return readFile(
+  if (nodeFsPromises !== NO_NODE_FS) {
+    return await nodeFsPromises.readFile(
       absolutePath,
       'utf8',
     );
@@ -82,8 +99,9 @@ export async function readCssFile(absolutePath: string,): Promise<string> {
 }
 
 /**
- Synchronous variant of {@link readCssFile} for contexts that cannot be async
+ Synchronous variant of {@link readTextFile} for contexts that cannot be async
  (e.g. inside PostCSS plugin walkers that don't support promises).
+ Same registry-then-disk order: {@link fsRegistry} first, disk second.
  
  @param absolutePath - Absolute file path to read
  
@@ -93,10 +111,10 @@ export async function readCssFile(absolutePath: string,): Promise<string> {
  
  @example
  ```ts
- const css = readCssFileSync('/project/src/styles.css');
+ const css = readTextFileSync('/project/src/styles.css');
  ```
  */
-export function readCssFileSync(absolutePath: string,): string {
+export function readTextFileSync(absolutePath: string,): string {
   /**
    Registry hit shortcuts the filesystem fallback for browser builds.
    */
@@ -115,6 +133,55 @@ export function readCssFileSync(absolutePath: string,): string {
     `File not found in registry and no filesystem available: ${absolutePath}`,
   );
 }
+
+//endregion File reading
+
+//region File writing
+
+/**
+ Writes a text file, creating the directories above it when they are absent.
+ Uses the module loaded once in {@link nodeFs}, so no call site names
+ `node:fs` as a static import specifier.
+ Writes reach only the disk: the browser path cannot write, because
+ {@link fsRegistry} is a read-only view of files the host already loaded.
+ 
+ @param absolutePath - Absolute path of the file to write
+ 
+ @param content - Text written verbatim, UTF-8 encoded
+ 
+ @throws When the runtime has no filesystem, or the write itself fails
+ 
+ @example
+ ```ts
+ await writeTextFileEnsuringParentDirectory({
+   absolutePath: '/project/dist/main.css',
+   content: '.a { top: 0; }',
+ },);
+ ```
+ */
+export async function writeTextFileEnsuringParentDirectory({
+  absolutePath,
+  content,
+}: {
+  readonly absolutePath: string;
+  readonly content: string;
+},): Promise<void> {
+  if (nodeFsPromises === NO_NODE_FS)
+    throw new Error(`No filesystem available to write: ${absolutePath}`,);
+
+  await nodeFsPromises.mkdir(
+    dirname(absolutePath,),
+    { recursive: true, },
+  );
+  await nodeFsPromises.writeFile(
+    absolutePath,
+    content,
+  );
+}
+
+//endregion File writing
+
+//region Existence probing
 
 /**
  Checks whether a file exists at the given absolute path.
@@ -138,3 +205,5 @@ export function existsSync(absolutePath: string,): boolean {
 
   return false;
 }
+
+//endregion Existence probing

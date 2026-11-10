@@ -151,22 +151,13 @@ export function toBudgetModelCandidate(
   };
 }
 
-/**
- Return canonical provider/model slug for a model identity.
- 
- @param model - model identity
- 
- @returns provider/model slug
- 
- @example
- ```typescript
- budgetModelSlug(model);
- ```
- */
-export function budgetModelSlug(
-  model: ModelIdentity,
-): string {
-  return `${model.provider}/${model.id}`;
-}
-
 //endregion Candidate helpers
+
+//region Compatibility names
+
+// {@link canonicalSlug} in `model-id.ts` is the one implementation of the
+// provider/model slug format. This name stays for consumers that imported it
+// before the owner was named, and adds no second formatting site.
+export { canonicalSlug as budgetModelSlug, } from './model-id.ts';
+
+//endregion Compatibility names
