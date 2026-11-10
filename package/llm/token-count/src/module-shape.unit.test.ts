@@ -1,15 +1,22 @@
 /**
  Guards this package's module shape where no lint rule reaches.
 
- `AGENTS.md` and `doc/todo/code-quality.md` ban a single-letter variable outside a
- math formula, and `id-length` is set to `allow` in
- `package/config/oxlint/src/rule/style.ts`, so nothing enforces the ban here.
+ `doc/todo/code-quality.md` and the review checklist behind issue 1435 ban a
+ single-letter variable outside a math formula, and `id-length` is set to `allow`
+ in `package/config/oxlint/src/rule/style.ts`, so nothing enforces the ban here.
  Every product module's comment-free text is read and each `function` parameter
- list is checked directly.
+ list is checked directly. `package/search-fetch/mcp/src/module-shape.unit.test.ts`
+ keeps the same kind of guard for its own package, and
+ `fix/oxlint-plugin-stylistic-ready-bugs` carries a repository-wide scan of the
+ same defect; whoever merges second replaces one with the other.
 
- The scan covers `function` declarations and function expressions. An arrow
- function's parameter list is not read, and a string literal is read as written,
- so a quoted `function (` would be scanned as code.
+ The scan reads `function` declarations and named function expressions, and the
+ first identifier of each comma-separated parameter. It does not read an arrow
+ function's parameter list, an object-literal or class method's shorthand list,
+ nor a destructured parameter's property names. A string literal is read as a
+ literal, so a quoted `function (` is scanned as code, while a regular
+ expression holding an unbalanced bracket inside a default value can end a
+ parameter list early and leave the rest of that list unread.
 
  @module
  */
@@ -400,22 +407,16 @@ function topLevelSeparatorColumns(text: string,): readonly number[] {
  */
 function parameterTexts(text: string,): readonly string[] {
   /**
-   Columns of the separators between parameters.
+   Column each parameter starts at, in source order.
    */
-  const separators = topLevelSeparatorColumns(text,);
-  /**
-   Column each parameter starts at.
-   */
-  const starts = [0, ...separators.map(function afterSeparator(column,) {
+  const boundaries = [0, ...topLevelSeparatorColumns(text,).map(function afterSeparator(column,) {
     return column + 1;
   },),];
-  /**
-   Column just past each parameter.
-   */
-  const ends = [...separators, text.length,];
-  return starts
+  return boundaries
     .map(function toParameter(start, index,) {
-      return text.slice(start, ends[index] ?? text.length,).trim();
+      return text
+        .slice(start, boundaries[index + 1] ?? text.length,)
+        .trim();
     },)
     .filter(function notEmpty(parameter,) {
       return parameter !== '';
@@ -651,7 +652,7 @@ await describe({
       name: 'parameter names',
       children: [
         it({
-          name: 'reports a one-character parameter name the scan reads',
+          name: 'reports a one-character parameter name in a fixture',
           fn: async () => {
             /**
              Parameter lists the scan reads from the offending fixture.
@@ -665,7 +666,7 @@ await describe({
           },
         },),
         it({
-          name: 'names every product module parameter with a word',
+          name: 'reports no one-character parameter name in a product module',
           fn: async () => {
             /**
              Every product module with the parameter lists it declares.
