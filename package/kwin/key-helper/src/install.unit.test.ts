@@ -44,9 +44,12 @@ import {
 const FOLDER_PREFIX = 'key-helper-install-';
 
 /**
- Directory name of a checkout whose path holds a space and a single quote.
+ Directory name of a checkout whose path holds every character the entry's two
+ grammars reserve: a space and a single quote for the quoting rules, and `%f`,
+ which the desktop-entry field-code rule reads as "a single file name" even
+ inside a quoted argument.
  */
-const AWKWARD_CHECKOUT_DIRECTORY = "c heck'out";
+const AWKWARD_CHECKOUT_DIRECTORY = "c heck'%fout";
 
 /**
  Filename of the daemon binary inside the checkout.
@@ -245,6 +248,42 @@ function execArguments({ entryText }: { readonly entryText: string; }): readonly
 }
 
 /**
+ Expand the field codes of one `Exec` argument, the way a launcher does before
+ it runs the entry.
+ 
+ This entry is launched with no files and no URLs, so the specification's only
+ literal form of a percentage character is the doubled one: a `%` that survives
+ doubling is a field code the entry hands to whatever runs it, which this
+ rejects rather than letting the case pass over it.
+ 
+ @param argument - One argument of the entry's command line, quoting already undone
+ 
+ @returns The argument, with each `%%` read as one literal `%`
+ 
+ @throws {Error} when a `%` that the specification does not allow as literal survives
+ 
+ @example
+ ```ts
+ withFieldCodesExpanded({ argument: 'exec /pa%%fth/bin' }); // 'exec /pa%fth/bin'
+ ```
+ */
+function withFieldCodesExpanded({ argument }: {
+  readonly argument: string;
+}): string {
+  /**
+   Argument with every doubled percentage character read as one.
+   */
+  const expanded = argument.replaceAll(
+    '%%',
+    '%',
+  );
+  if (expanded.includes('%')) {
+    throw new Error(`the entry hands a field code to what runs it: ${argument}`,);
+  }
+  return expanded;
+}
+
+/**
  Environment variables the execution case needs, restored when it ends.
  
  @param path - `PATH` the case runs with
@@ -319,12 +358,12 @@ await describe({
       name: buildAutostartDesktopEntry.name,
       children: [
         it({
-          name: 'encodes a binary path with a space and a single quote for both grammars',
+          name: 'encodes a binary path with a space, a single quote and a field code for both grammars',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             Checkout directory whose name holds the two characters that used to
-             break the entry.
+             Checkout directory whose name holds the characters that used to
+            break the entry.
              */
             const checkout = join(
               folder.path,
@@ -385,9 +424,13 @@ await describe({
              */
             const argv = execArguments({ entryText, });
             /**
-             Shell the entry runs, its option, and whatever it passes after it.
+             Shell the entry runs, its option, and whatever it passes after it,
+             each argument expanded as a launcher expands it before running.
              */
-            const [shellPath, commandOption, ...scriptArguments] = argv;
+            const [shellPath, commandOption, ...scriptArguments] = argv
+              .map(function expanded(argument: string): string {
+                return withFieldCodesExpanded({ argument, });
+              });
             expect([shellPath, commandOption,]).toEqual([SHELL_PATH, SHELL_COMMAND_OPTION,]);
             /**
              Script the entry hands to the shell.
