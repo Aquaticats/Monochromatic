@@ -21,7 +21,6 @@ import { homedir, } from 'node:os';
 import {
   join,
   resolve,
-  sep,
 } from 'node:path';
 
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
@@ -46,6 +45,10 @@ import {
   ROOT_DIRECTORY_ENVIRONMENT_VARIABLE,
   STATE_PATH_ENVIRONMENT_VARIABLE,
 } from './constants.js';
+import {
+  confinePath,
+  ListingOutsideRootError,
+} from './confinement.js';
 import {
   INITIAL_ROOT_CHANNEL,
   LIST_DIRECTORY_CHANNEL,
@@ -132,57 +135,6 @@ function configureLinuxWayland(): void {
 }
 
 /**
- Error thrown when a listing request escapes the configured root directory.
- 
- @example
- ```ts
- new ListingOutsideRootError({ path: '/etc' });
- ```
- */
-class ListingOutsideRootError extends Error {
-  /**
-   Builds a descriptive confinement error.
-   
-   @param path - Rejected request path.
-   
-   @example
-   ```ts
-   new ListingOutsideRootError({ path: '/etc' });
-   ```
-   */
-  public constructor({ path, }: { readonly path: string; },) {
-    super(`Refusing to list ${path}: outside the configured root ${rootDirectory}`,);
-    this.name = 'ListingOutsideRootError';
-  }
-}
-
-/**
- Resolves and confines a renderer-supplied path under the root directory.
- 
- @param path - Renderer-supplied directory path.
- 
- @returns Resolved absolute path safe to read.
- 
- @throws ListingOutsideRootError when the path escapes the root.
- 
- @example
- ```ts
- confinePath({ path: '/home' });
- ```
- */
-function confinePath({ path, }: { readonly path: string; },): string {
-  /**
-   Fully resolved request path with `..` segments folded away.
-   */
-  const resolved = resolve(path,);
-
-  if ((resolved !== rootDirectory) && (!resolved.startsWith(`${rootDirectory}${sep}`,)))
-    throw new ListingOutsideRootError({ path, },);
-
-  return resolved;
-}
-
-/**
  Classifies one `readdir` dirent probe into a bridge entry kind, checking
  symlinks first because a symlink also answers the directory probe on some
  platforms.
@@ -234,7 +186,10 @@ async function listDirectory({ path, }: { readonly path: string; },): Promise<re
   /**
    Confined absolute directory path.
    */
-  const confined = confinePath({ path, },);
+  const confined = confinePath({
+    path,
+    rootDirectory,
+  },);
 
   /**
    Raw directory entries with type information, without following symlinks.

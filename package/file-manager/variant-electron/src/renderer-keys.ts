@@ -347,7 +347,10 @@ export function installKeyboard({ session, }: { readonly session: RendererSessio
   globalThis.addEventListener(
     'keydown',
     function handleStripKeyEvent(event: KeyboardEvent,): void {
-      handleStripKey({ actions, event, },);
+      handleStripKey({
+        actions,
+        event,
+      },);
     },
   );
 }

@@ -32,19 +32,20 @@ function fakeKeydown({ key, }: { readonly key: string; },): {
   readonly wasPrevented: () => boolean;
 } {
   /**
-   Whether the dispatched handler called `preventDefault` on this event.
+   Dispatch state the handler mutates, held in a record so nothing at the
+   function-body root is reassigned.
    */
-  let prevented = false;
+  const state = { prevented: false, };
 
   return {
     event: {
       key,
       preventDefault(): void {
-        prevented = true;
+        state.prevented = true;
       },
     } as unknown as KeyboardEvent,
     wasPrevented(): boolean {
-      return prevented;
+      return state.prevented;
     },
   };
 }
