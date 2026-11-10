@@ -243,6 +243,45 @@ Compressed sizes in the registry from `skopeo inspect` on 2026-11-10:
 A comparison of what each image installs was stopped when the owner decided,
 so installed sizes and start times were not measured.
 
+## Answered in the question tool, recorded 2026-11-10T09:48:06-05:00
+
+### Build guard on unit tests that read built output (issue 1658)
+
+"Hold until Pants (Recommended)".
+Branch `fix/pnpr-open-issues` stays unmerged and ready to land,
+and issue 1658 stays open.
+
+### `main()` wrappers (issue 1382)
+
+"Sweep and add a rule (Recommended)".
+An agent removes the wrapper from the files that still end with `await main();`
+and adds `no-main-wrapper` to the repository's own `no-restricted-syntax` lint plugin.
+
+### Picks made for the owner, veto open
+
+These fall under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session."
+
+- Issue 1678 is closed:
+  the logger half is fixed on main,
+  and the remaining matches of its acceptance regex are `console.*` terminal output,
+  which rule `TLG` permits.
+- Issue 1396:
+  a bare `-0` in `@monochromatic-dev/toml-edit-core` emits `-0.0`,
+  so the sign survives a reparse.
+- `catalog-tighten`'s `test:matrix` adopts the passing arm of `doc/troubleshooting/catalog-tighten-matrix-cannot-start.md`:
+  mount the resolved store read-only and take pnpm's first version line.
+- The first trash hand-over in a repository whose service is not running keeps waiting for the service to start,
+  bounded by the commit path's start wait.
+  It measured 12.1 s,
+  once per repository.
+- Whether `node_modules/.monochromatic` can be a subvolume is measured on a throwaway checkout before anything changes:
+  it would remove roughly 165,000 of the 269,000 deletions a snapshot's trash costs,
+  and nothing yet shows that the tools leave a subvolume in place.
+- `MD2` in `AGENTS.md` was reworded by an agent to say the marker width in words,
+  with the same meaning.
+- `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
+  following issue 1579's acceptance and the `hook-type` precedent.
+
 ## Answered in the question tool, recorded 2026-11-10T08:24:33-05:00
 
 ### Package-local rules
