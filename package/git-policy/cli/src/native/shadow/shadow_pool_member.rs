@@ -73,13 +73,13 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// await refusal(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
 pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
-    if read_text(member.join("config").as_path())? != template.config_text() {
+    if read_bytes(member.join("config").as_path())? != template.config_text().as_bytes() {
         return Ok(Some(String::from("its config is not the one this invocation would write")));
     }
-    if read_text(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_text() {
+    if read_bytes(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_text().as_bytes() {
         return Ok(Some(String::from("its alternates do not name this invocation's object directory")));
     }
-    if read_text(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD {
+    if read_bytes(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD.as_bytes() {
         return Ok(Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch")));
     }
     for relative in SKELETON_DIRECTORIES {
@@ -127,8 +127,8 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         }
     }
     if copies_worktree_config
-        && read_text(member.join(WORKTREE_CONFIG).as_path())?
-            != read_text(template.git_dir.join(WORKTREE_CONFIG).as_path())?
+        && read_bytes(member.join(WORKTREE_CONFIG).as_path())?
+            != read_bytes(template.git_dir.join(WORKTREE_CONFIG).as_path())?
     {
         return Ok(Some(String::from("its copy of the worktree's configuration is not the one a creation would copy")));
     }
@@ -145,20 +145,27 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
 }
 
 /// What:
-///  A file's bytes as text,
+///  A file's bytes,
 ///  and nothing for one that is not there.
 /// Why:
-///   A missing entry is a difference the caller refuses,
-/// not an error it has to tell from a real one.
+///   A configuration is compared byte for byte:
+/// two files whose bytes differ in a way that decodes to the
+///  same text are still two configurations,
+/// and a member that kept the older one would hand a commit the editor,
+/// the hook
+///  or the command the person has since changed.
+/// A missing entry is a difference the caller refuses,
+/// not an error it has to tell from a
+///  real one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await readText(path) // '' when absent
+/// await readBytes(path) // the empty buffer when absent
 /// ```
-fn read_text(path: &Path) -> std::io::Result<String> {
+fn read_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
     return match std::fs::read(path) {
-        Ok(bytes) => Ok(String::from_utf8_lossy(bytes.as_slice()).into_owned()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Ok(bytes) => Ok(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
         Err(error) => Err(error),
     };
 }
