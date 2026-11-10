@@ -13,6 +13,26 @@
   --pane-width: 320px;
   --pane-height: 520px;
   --pane-gap: 12px;
+
+  --color-app-background: #000;
+  --color-pane-background: #101010;
+  --color-border: #2a2a2a;
+  --color-accent: #4a90d9;
+  --color-text: #e6e6e6;
+  --color-text-strong: #fff;
+  --color-text-muted: #b0b0b0;
+  --color-text-faint: #888;
+  --color-selection-background: #26436b;
+  --color-directory: #8ab4f8;
+
+  /* Debug tint: the rail and per-column overlays the GTK original draws to
+   * make the sticky containing blocks visible in screenshots. */
+  --color-debug-rail: rgb(40 255 120 / 8%);
+  --color-debug-rail-border: #28ff78;
+  --color-debug-column-red: rgb(255 64 64 / 12%);
+  --color-debug-column-green: rgb(64 200 64 / 12%);
+  --color-debug-column-blue: rgb(64 140 255 / 12%);
+  --color-debug-column-yellow: rgb(230 190 64 / 12%);
 }
 
 * {
@@ -27,9 +47,9 @@ body {
 }
 
 body {
-  background-color: #000;
+  background-color: var(--color-app-background);
 
-  color: #e6e6e6;
+  color: var(--color-text);
 
   font-family: system-ui, sans-serif;
 }
@@ -75,9 +95,9 @@ body {
  * when the rail's end pushes it off. This one declaration replaces the GTK
  * original's lane-offset engine and collision solver. */
 .pane {
-  background-color: #101010;
+  background-color: var(--color-pane-background);
 
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--color-border);
 
   border-radius: 8px;
 
@@ -97,13 +117,13 @@ body {
 }
 
 .pane[data-active] {
-  border-color: #4a90d9;
+  border-color: var(--color-accent);
 }
 
 .pane-header {
   align-items: center;
 
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--color-border);
 
   display: flex;
 
@@ -129,7 +149,7 @@ body {
 
   border: none;
 
-  color: #888;
+  color: var(--color-text-faint);
 
   cursor: pointer;
 
@@ -137,7 +157,7 @@ body {
 }
 
 .pane-close:hover {
-  color: #fff;
+  color: var(--color-text-strong);
 }
 
 .pane-list {
@@ -167,13 +187,13 @@ body {
 }
 
 .entry[data-kind='directory'] {
-  color: #8ab4f8;
+  color: var(--color-directory);
 }
 
 .entry[data-selected] {
-  background-color: #26436b;
+  background-color: var(--color-selection-background);
 
-  color: #fff;
+  color: var(--color-text-strong);
 }
 
 .pane-preview-body {
@@ -185,7 +205,7 @@ body {
 }
 
 .status {
-  color: #b0b0b0;
+  color: var(--color-text-muted);
 
   flex: none;
 
@@ -201,25 +221,25 @@ body {
 /* Debug tint: make every rail (the sticky containing block) visible, matching
  * the GTK original's green Y6L lane overlays for screenshot comparison. */
 .debug-tint .rail {
-  background-color: rgb(40 255 120 / 8%);
+  background-color: var(--color-debug-rail);
 
-  border: 3px solid #28ff78;
+  border: 3px solid var(--color-debug-rail-border);
 
   border-radius: 12px;
 }
 
 .debug-tint .column:nth-child(4n+1) {
-  background-color: rgb(255 64 64 / 12%);
+  background-color: var(--color-debug-column-red);
 }
 
 .debug-tint .column:nth-child(4n+2) {
-  background-color: rgb(64 200 64 / 12%);
+  background-color: var(--color-debug-column-green);
 }
 
 .debug-tint .column:nth-child(4n+3) {
-  background-color: rgb(64 140 255 / 12%);
+  background-color: var(--color-debug-column-blue);
 }
 
 .debug-tint .column:nth-child(4n+4) {
-  background-color: rgb(230 190 64 / 12%);
+  background-color: var(--color-debug-column-yellow);
 }
