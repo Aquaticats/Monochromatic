@@ -1,6 +1,7 @@
 // The final composition: bucket-first allocation with the FLAC bones+even+zoom hybrid.
 // Buckets from embedded tags only. FLAC probes are guided by frame-size profiles
-// (out/flac-profiles.jsonl from flac-bones.mjs extract); lossy buckets use plain zoom.
+// (out/flac-profiles.jsonl from `truepeak-core-bench <corpus> --bones <out.jsonl>`);
+// lossy buckets use plain zoom.
 // Searches small per-bucket (coverage, margin) grids under the quarter budget.
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';

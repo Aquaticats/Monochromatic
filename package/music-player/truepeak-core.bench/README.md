@@ -68,6 +68,32 @@ The target is computed from the corpus as `total decodable seconds / 4`,
  the corrected
 quarter-library benchmark target.
 
+## The bucket composite's side files
+
+`--buckets` joins two files that are not committed,
+ because both read the library itself:
+
+```sh
+# The tag sweep: one codec and embedded-tag record per track.
+node analysis/tags-sweep.mjs
+# The FLAC byte profiles: the shared framing walk over every loud long FLAC.
+mise run //package/music-player/truepeak-core.bench:run -- /path/to/tracks-fine.jsonl --bones out/flac-profiles.jsonl
+# The composite, over the corpus and both side files.
+mise run //package/music-player/truepeak-core.bench:run -- /path/to/tracks-fine.jsonl out/tags-full.jsonl out/flac-profiles.jsonl --buckets
+```
+
+`--bones` writes one `{"path", "slotSecs", "bytes"}` row per loud long FLAC,
+ walking container framing through `truepeak_core::flac_bones_profile`,
+ the same function the shipped probe seeds its bins with.
+The side file therefore comes from one implementation of the walk,
+ not a second one kept beside it in another language.
+`slotSecs` is `truepeak_core::BONES_SLOT_SECS`,
+ and each slot's bytes are whole numbers.
+A track that left the disk,
+ or whose bytes are not a walkable FLAC stream,
+ is counted and skipped,
+ so a library that changed under an older corpus still yields the rows beside it.
+
 ## Findings
 
 The full exploration and its evidence live in the plan's Stage-two section.
