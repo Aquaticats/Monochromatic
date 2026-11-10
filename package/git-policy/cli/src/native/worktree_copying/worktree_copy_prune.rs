@@ -153,6 +153,27 @@ fn names_checkout_marker(child_names: &[Vec<u8>]) -> bool {
     return false;
 }
 
+/// What:
+///  Whether any component of a repository path begins the name of a private stage container.
+/// Why:
+///   A stage container belongs to the one add or copy that is filling it and holds another worktree's ignored state,
+/// so no walk of a source may enter it and no manifest may carry it;
+/// the rule is about a component,
+///  so a file in a directory whose name merely begins with the prefix is not left out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesAPrivateStage('.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload/node_modules/pkg/index.js') // true
+/// ```
+pub fn names_a_private_stage(relative_path: &[u8]) -> bool {
+    for component in relative_path.split(is_separator_byte) {
+        if component.starts_with(STAGE_PREFIX.as_bytes()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 impl Prune {
     /// What:
     ///  The rule the main checkout uses,
@@ -186,14 +207,12 @@ impl Prune {
     /// skipsPath(prune, '.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543') // true
     /// ```
     pub fn skips_path(self, relative_path: &[u8]) -> bool {
-        let components: Vec<&[u8]> = relative_path.split(is_separator_byte).collect();
         // Another command's stage container is no state of the source, whatever the rule: its payload is a full copy of
         //  another worktree's ignored state, made while its own copy runs, and nothing names it in the new worktree.
-        for component in &components {
-            if component.starts_with(STAGE_PREFIX.as_bytes()) {
-                return true;
-            }
+        if names_a_private_stage(relative_path) {
+            return true;
         }
+        let components: Vec<&[u8]> = relative_path.split(is_separator_byte).collect();
         let Prune::MainCheckout { run_records } = self else {
             return false;
         };

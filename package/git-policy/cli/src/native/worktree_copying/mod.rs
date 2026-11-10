@@ -22,6 +22,10 @@ pub mod worktree_copy_registry;
 /// and the validation every one passes.
 pub mod worktree_copy_repository_path;
 
+/// Whether an entry a walk of a live checkout listed is still there when the walk reaches it,
+/// and that its absence is no failure.
+pub mod worktree_copy_vanished_entry;
+
 /// The ignored source paths a linked-worktree copy selects,
 /// and the path validation every selection passes.
 pub mod worktree_copy_selection;
@@ -58,6 +62,13 @@ pub mod worktree_copy_settling;
 /// and the identity captured after it.
 #[cfg(unix)]
 pub mod worktree_copy_install_entry;
+
+/// The publication of one staged regular file at its destination name in one step:
+/// unnamed while it is filled,
+/// with the entry's mode before it can be read,
+/// and linked into place only when whole.
+#[cfg(unix)]
+pub mod worktree_copy_publish_file;
 
 /// Installation of a validated stage into a new worktree,
 /// with preflight,
@@ -102,6 +113,11 @@ pub mod worktree_copy_interrupted_add_settlement;
 /// recorded beside its payload and checked before every write into a worktree.
 #[cfg(unix)]
 pub mod worktree_copy_stage_binding;
+
+/// The durable record of a worktree left without part of its source's ignored state,
+/// reported by every later command until the worktree is gone or replaced.
+#[cfg(unix)]
+pub mod worktree_copy_unfilled_record;
 
 /// The append-only install log of one stage:
 /// per-batch intents and creations,

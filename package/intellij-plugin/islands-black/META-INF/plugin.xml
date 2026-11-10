@@ -9,7 +9,7 @@
     Overrides the four base gray tokens (gray-10 through gray-40) to pure #000000,
     producing true black backgrounds across all UI panels, toolbars, and editor areas.
   ]]></description>
-  <idea-version since-build='233' />
+  <idea-version since-build='252' />
   <depends>com.intellij.modules.platform</depends>
   <extensions defaultExtensionNs='com.intellij'>
     <themeProvider
