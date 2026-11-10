@@ -34,6 +34,7 @@
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/css-core-edit": "workspace:*",
     "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/named-error-core": "workspace:*",
     "@optique/core": "catalog:",
     "@optique/run": "catalog:"
   },

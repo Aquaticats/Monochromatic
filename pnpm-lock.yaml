@@ -1492,6 +1492,9 @@ importers:
       '@monochromatic-dev/fs-path-core':
         specifier: workspace:*
         version: link:../../fs-path/core
+      '@monochromatic-dev/named-error-core':
+        specifier: workspace:*
+        version: link:../../named-error/core
       '@optique/core':
         specifier: 'catalog:'
         version: 1.3.6

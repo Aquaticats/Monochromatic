@@ -1,4 +1,7 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { NamedError, } from '@monochromatic-dev/named-error-core/ts';
+
+/* oxlint-disable unicorn/custom-error-definition -- Every class here takes its name from `NamedError`, which derives it from the concrete class, so no literal is left to check; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
 
 //region Mixin reference errors
 
@@ -14,7 +17,7 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
  }
  ```
  */
-export class UnknownCssMixinError extends Error {
+export class UnknownCssMixinError extends NamedError {
   /**
    Mixin name the failing reference asked for.
    */
@@ -33,7 +36,6 @@ export class UnknownCssMixinError extends Error {
     readonly mixinName: string;
   },) {
     super(message,);
-    this.name = 'UnknownCssMixinError';
     this.mixinName = mixinName;
   }
 }
@@ -53,7 +55,7 @@ export class UnknownCssMixinError extends Error {
  }
  ```
  */
-export class CircularCssMixinError extends Error {
+export class CircularCssMixinError extends NamedError {
   /**
    Reference chain ending at the repeated mixin.
    */
@@ -68,7 +70,6 @@ export class CircularCssMixinError extends Error {
     readonly trail: readonly string[];
   },) {
     super(`Circular @apply reference between mixins: ${trail.join(' -> ',)}`,);
-    this.name = 'CircularCssMixinError';
     this.trail = trail;
   }
 }
@@ -92,7 +93,7 @@ export class CircularCssMixinError extends Error {
  }
  ```
  */
-export class CssPackageManifestError extends Error {
+export class CssPackageManifestError extends NamedError {
   /**
    Absolute path of the unreadable manifest.
    */
@@ -114,9 +115,10 @@ export class CssPackageManifestError extends Error {
       `Cannot read package manifest '${manifestPath}': ${caughtValueText(cause,)}`,
       { cause, },
     );
-    this.name = 'CssPackageManifestError';
     this.manifestPath = manifestPath;
   }
 }
 
 //endregion Package manifest errors
+
+/* oxlint-enable unicorn/custom-error-definition */
