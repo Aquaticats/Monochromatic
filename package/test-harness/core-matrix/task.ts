@@ -29,6 +29,7 @@ export default {
       'node src/locked-rust-toolchain.unit.test.ts',
       'node src/locked-tool-build-arguments.unit.test.ts',
       'node src/container-image-rebuild-on-changed-inputs.unit.test.ts',
+      'node src/function-return-type-annotations.unit.test.ts',
     ],
   },
 } satisfies PackageTaskFile;
