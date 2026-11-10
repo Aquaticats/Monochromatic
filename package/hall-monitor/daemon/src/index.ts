@@ -4,9 +4,15 @@ import {
   MS_PER_SECOND,
   SECONDS_PER_MINUTE,
 } from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { forceCleanup, } from './analyze/llama.ts';
 import { cycle, } from './cycle.ts';
+import {
+  createShutdownSignal,
+  runDaemonLoop,
+  runDetachedShutdown,
+} from './daemon-loop.ts';
 import {
   acquireLock,
   closeLock,
@@ -15,6 +21,8 @@ import {
 import { log, } from './infra/syslog.ts';
 
 
+
+//region Interval
 
 /**
  Minutes per cycle interval.
@@ -26,6 +34,10 @@ const INTERVAL_MINUTES = 5;
  */
 const INTERVAL_MS = INTERVAL_MINUTES * SECONDS_PER_MINUTE
   * MS_PER_SECOND;
+
+//endregion Interval
+
+//region Command line
 
 /**
  Parsed CLI arguments for the hall-monitor daemon.
@@ -39,10 +51,14 @@ const { values: args, } = parseArgs({
   }, },
 },);
 
+//endregion Command line
+
+//region Shutdown
+
 /**
- Module-singleton mutable state for the daemon loop flag; wrapped so it satisfies no-module-root-let.
+ Shutdown signal the loop watches and the signal handlers request.
  */
-const state: { running: boolean; } = { running: true, };
+const shutdownSignal = createShutdownSignal();
 
 /**
  Journal flush that runs when its `await using` scope ends.
@@ -63,8 +79,15 @@ const JOURNAL_FLUSH_ON_EXIT: AsyncDisposable = {
  llama-server processes via {@link forceCleanup}.
  */
 async function shutdown(): Promise<void> {
-  log.debug('Shutting down...',);
-  state.running = false;
+  /**
+   Shutdown logger, tagged with this function's name so the last records of a run name their origin.
+   */
+  const l = tagged({
+    l: log,
+    tag: shutdown.name,
+  },);
+  l.debug('Shutting down...',);
+  shutdownSignal.request();
   closeLock();
   /**
    Journal flush bound to this call's scope.
@@ -75,10 +98,20 @@ async function shutdown(): Promise<void> {
 }
 
 /**
- Synchronous signal-listener wrapper; fires the async {@link shutdown} without awaiting.
+ Synchronous signal-listener wrapper.
+
+ A signal handler cannot await, so the promise {@link shutdown} returns is
+ discarded, and {@link runDetachedShutdown} is what keeps a failed shutdown from
+ ending the process as an unhandled rejection before its records are flushed.
  */
 function onSignal(): void {
-  void shutdown();
+  runDetachedShutdown({
+    l: tagged({
+      l: log,
+      tag: onSignal.name,
+    },),
+    shutdown,
+  },);
 }
 
 process.on(
@@ -89,6 +122,10 @@ process.on(
   'SIGTERM',
   onSignal,
 );
+
+//endregion Shutdown
+
+//region Entry point
 
 /**
  Main daemon entry point.
@@ -103,33 +140,28 @@ async function main(): Promise<void> {
       await killExisting();
     else {
       throw new Error(
-        '[hall-monitor] Another instance is already running. Use --kill-existing to replace it.',
+        'Another instance is already running. Use --kill-existing to replace it.',
       );
     }
   }
 
-  log.debug(
+  /**
+   Startup logger, tagged with this function's name.
+   */
+  const l = tagged({
+    l: log,
+    tag: main.name,
+  },);
+  l.debug(
     'Starting: capturing every 5 minutes, retaining last 10 minutes',
   );
-  log.debug(`PID ${process.pid}, lock: abstract socket`,);
+  l.debug(`PID ${process.pid}, lock: abstract socket`,);
 
-  await cycle();
-
-  // Not needed because we don't allow configuring interval: defense-in-depth: add a floor (e.g. Math.max(INTERVAL_MS, 60_000))
-  // so a misconfigured or zero interval cannot cause a tight spin loop.
-  while (state.running) {
-    // oxlint-disable-next-line no-await-in-loop, promise/avoid-new -- sequential timer loop; setTimeout wrapper for delay
-    await new Promise(function intervalDelay(resolve,) {
-      setTimeout(
-        resolve,
-        INTERVAL_MS,
-      );
-    },);
-    if (state.running) {
-      // oxlint-disable-next-line no-await-in-loop -- sequential polling loop; each cycle must complete before the next
-      await cycle();
-    }
-  }
+  await runDaemonLoop({
+    cycle,
+    intervalMs: INTERVAL_MS,
+    signal: shutdownSignal,
+  },);
 }
 
 /**
@@ -155,3 +187,5 @@ async function runMain(): Promise<void> {
 
 // oxlint-disable-next-line unicorn/prefer-top-level-await -- bun build --compile does not support top-level await
 void runMain();
+
+//endregion Entry point

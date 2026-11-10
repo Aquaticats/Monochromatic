@@ -12,6 +12,8 @@
  @module
  */
 
+//region Window shape
+
 /**
  Possible productivity verdict values.
  */
@@ -118,6 +120,10 @@ export function shiftDecisionWindow(
   ];
 }
 
+//endregion Window shape
+
+//region Recording a verdict
+
 /**
  What one recorded verdict does to the window and the streak.
  */
@@ -186,6 +192,10 @@ export function recordVerdict(
   };
 }
 
+//endregion Recording a verdict
+
+//region Streak inspection
+
 /**
  Counts the unproductive verdicts in a window, which is the streak the daemon
  logs.
@@ -226,3 +236,5 @@ export function everyDecisionUnproductive(window: DecisionWindow,): boolean {
       return isUnproductive(decision,);
     },);
 }
+
+//endregion Streak inspection
