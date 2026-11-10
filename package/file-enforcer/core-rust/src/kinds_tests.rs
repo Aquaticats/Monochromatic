@@ -89,6 +89,45 @@ fn package_licenses_copies_required_texts_and_prunes_only_owned_ones() {
 }
 
 #[test]
+fn package_licenses_matches_whole_spdx_ids_and_owns_the_mit_text() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[
+            ("LICENSES/GPL-3.0-or-later.txt", "gpl"),
+            ("LICENSES/LGPL-3.0-or-later.txt", "lgpl"),
+            ("LICENSES/MIT.txt", "mit"),
+            ("package/a/b/package.json", r#"{"license": "LGPL-3.0-or-later AND MIT"}"#),
+            ("package/c/d/package.json", r#"{"license": "LGPL-3.0-or-later"}"#),
+            ("package/c/d/LICENSES/MIT.txt", "stale"),
+            ("package/e/f/package.json", r#"{"license": "AGPL-3.0-or-later"}"#),
+        ],
+    );
+    let config = r#"{"rules": [{"kind": "package-licenses", "id": "lic", "directory": "LICENSES",
+        "manifests": ["package/*/*/package.json"],
+        "texts": {"GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
+                  "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt", "MIT": "LICENSES/MIT.txt"},
+        "requires": [{"operand": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"]},
+                     {"operand": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"]},
+                     {"operand": "MIT", "texts": ["MIT"]}]}]}"#;
+    let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
+    assert_eq!(code1, 0, "{events1:?}");
+    assert_eq!(read_text(dir.path(), "package/a/b/LICENSES/MIT.txt"), "mit", "one MIT operand pulls the MIT text");
+    assert_eq!(read_text(dir.path(), "package/a/b/LICENSES/GPL-3.0-or-later.txt"), "gpl");
+    assert_eq!(read_text(dir.path(), "package/a/b/LICENSES/LGPL-3.0-or-later.txt"), "lgpl");
+    assert!(
+        !dir.path().join("package/c/d/LICENSES/MIT.txt").exists(),
+        "an owned text the expression drops is pruned"
+    );
+    assert!(
+        !dir.path().join("package/e/f/LICENSES").exists(),
+        "AGPL-3.0-or-later is a different id from GPL-3.0-or-later"
+    );
+    let (code2, events2) = run_config(dir.path(), config, check());
+    assert_eq!(code2, 0, "{events2:?}");
+}
+
+#[test]
 fn mirror_makes_the_target_equal_and_leaves_siblings_alone() {
     let dir = scratch_dir();
     write_files(
