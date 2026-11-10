@@ -1,4 +1,6 @@
+import { readFile, } from 'node:fs/promises';
 import { createRequire, } from 'node:module';
+import { setTimeout as delay, } from 'node:timers/promises';
 
 import {
   describe,
@@ -22,6 +24,99 @@ const requireFromHere = createRequire(import.meta.url,);
  */
 const requiredStub: unknown = requireFromHere('./index.cjs',);
 
+/**
+ Text a primitive coercion of the stub produces, which this package's README documents. The coercion case asserts both
+ that the runtime produces this text and that the README states it, so the two cannot drift apart silently.
+ */
+const PRIMITIVE_TEXT = '[stub-silent]';
+
+/**
+ What every case that expects a stub-shaped value compares against, so a failure names the identity instead of asking
+ chai to stringify the stub, which throws the same `TypeError` the coercion case covers.
+ */
+const STUB_IDENTITY = 'the stub itself';
+
+/**
+ Long enough for the promise resolution jobs of a settled await to run, short enough that a deadlocked stub does not
+ stall the suite.
+ */
+const SETTLE_DEADLINE_MS = 1_000;
+
+/**
+ Sentinel the deadline arm of an await case resolves to, so a failure reads as "the stub never settled" instead of
+ comparing two stub-looking values.
+ */
+const DEADLINE = Symbol('stub await did not settle before the deadline',);
+
+/**
+ Property keys the promise machinery reads to decide whether a value is thenable.
+ */
+const PROMISE_MACHINERY_KEYS = [
+  'then',
+  'catch',
+  'finally',
+] as const;
+
+/**
+ Stub values a consumer may await, each labeled by the shape it exercises.
+ */
+const AWAITABLE_STUB_EXPRESSIONS: readonly {
+  readonly label: string;
+  readonly produce: () => unknown;
+}[] = [
+  { label: 'the stub itself', produce: () => stub, },
+  { label: 'a property read chain', produce: () => stub.foo?.bar, },
+  { label: 'a call chain', produce: () => stub.foo?.bar?.(), },
+  { label: 'a call result', produce: () => stub(), },
+];
+
+/**
+ Awaits `value` under a deadline, so a value that never settles fails an assertion instead of hanging the case.
+
+ @param value - Stub value or chain to await
+
+ @returns The settled value, or `DEADLINE` when the await did not settle in time
+ */
+async function awaitWithinDeadline(value: unknown,): Promise<unknown> {
+  return Promise.race([
+    Promise.resolve(value,),
+    delay(SETTLE_DEADLINE_MS,).then(() => DEADLINE,),
+  ],);
+}
+
+/**
+ Interpolates `value` into a template literal, the substitution shape a consumer reaches the primitive coercion
+ through.
+
+ @param value - Value to interpolate
+
+ @returns The text the template literal produces
+
+ @example
+ ```ts
+ templateCoerce(1,); // => '1'
+ ```
+ */
+function templateCoerce(value: unknown,): string {
+  // oxlint-disable-next-line typescript/restrict-template-expressions -- the case must interpolate the stub itself; `String()` is a different coercion entry point than the template substitution this package has to survive
+  return `${value}`;
+}
+
+/**
+ Names what a stub-shaped value turned out to be, without stringifying it.
+
+ @param value - Value produced by a call, a property read, a construction, or an await
+
+ @returns `STUB_IDENTITY`, the deadline marker, or the `typeof` of anything else
+ */
+function describeStubValue(value: unknown,): string {
+  if (value === stub)
+    return STUB_IDENTITY;
+  if (value === DEADLINE)
+    return 'the await deadline, so the value never settled';
+  return `a ${typeof value}`;
+}
+
 //endregion Fixtures
 
 await describe({
@@ -41,10 +136,10 @@ await describe({
             const chained = stub.foo?.bar?.();
             const constructed = new stub();
 
-            expect(called,).toBe(stub,);
-            expect(chained,).toBe(stub,);
-            expect(constructed,).toBe(stub,);
-            expect(requiredStub,).toBe(stub,);
+            expect(describeStubValue(called,),).toBe(STUB_IDENTITY,);
+            expect(describeStubValue(chained,),).toBe(STUB_IDENTITY,);
+            expect(describeStubValue(constructed,),).toBe(STUB_IDENTITY,);
+            expect(describeStubValue(requiredStub,),).toBe(STUB_IDENTITY,);
           },
         },),
         it({
@@ -94,5 +189,41 @@ await describe({
       ],
     },),
     //endregion Has checks
+
+    //region Get checks
+
+    describe({
+      name: 'get checks',
+      children: [
+        ...AWAITABLE_STUB_EXPRESSIONS.map(function mapExpression(entry,) {
+          return it({
+            name: `settles when awaited instead of deadlocking: ${entry.label}`,
+            fn: async () => {
+              const settled = await awaitWithinDeadline(entry.produce(),);
+              expect(describeStubValue(settled,),).toBe(STUB_IDENTITY,);
+            },
+          },);
+        },),
+        ...PROMISE_MACHINERY_KEYS.map(function mapPromiseKey(key,) {
+          return it({
+            name: `reads ${key} as absent so the promise machinery skips the stub`,
+            fn: async () => {
+              expect(typeof stub[key],).toBe('undefined',);
+            },
+          },);
+        },),
+        it({
+          name: 'answers a primitive coercion with the text the README documents instead of throwing a TypeError',
+          fn: async () => {
+            const readme = await readFile(new URL('README.md', import.meta.url,), 'utf8',);
+
+            expect(String(stub,),).toBe(PRIMITIVE_TEXT,);
+            expect(templateCoerce(stub,),).toBe(PRIMITIVE_TEXT,);
+            expect(readme,).toContain(PRIMITIVE_TEXT,);
+          },
+        },),
+      ],
+    },),
+    //endregion Get checks
   ],
 },);

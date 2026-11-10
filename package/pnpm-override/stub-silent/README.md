@@ -8,14 +8,27 @@ When a package is blocklisted with `action: 'silent'`
 in the policy table at the repo root's `.pnpmfile.policies.json`
 (read by the hook in `.pnpmfile.mjs`),
  the pnpm install hook rewrites every transitive dependency entry pointing at the blocked package to point here instead.
-The stub exports a callable Proxy whose every property access,
+The stub exports a callable Proxy whose property access,
  function call,
- and `new` invocation returns the Proxy itself,
- and whose `in` checks return `false`,
- except for `'prototype' in stub`,
- which answers `true`.
-JavaScript forbids a Proxy from reporting a non-configurable own property of its target as absent,
- and the wrapped function's `prototype` is the only such property.
+ and `new` invocation return the Proxy itself,
+ and whose `in` checks return `false`.
+Three property keys are answered differently,
+ because returning the Proxy for them crashes or hangs a consumer instead of handing it a wrong value:
+
+- `then`,
+   `catch`,
+   and `finally` read as `undefined`,
+   so awaiting the stub,
+   a property chain of it,
+   or a call result of it settles instead of deadlocking on a `then` whose resolve and reject callbacks the stub
+   never invokes.
+- `Symbol.toPrimitive` reads as a function returning `[stub-silent]`,
+   so `String(stub)` and template interpolation produce that text instead of throwing
+   `TypeError: Cannot convert object to primitive value`.
+- `'prototype' in stub` answers `true`,
+   because JavaScript forbids a Proxy from reporting a non-configurable own property of its target as absent,
+   and the wrapped function's `prototype` is the only such property.
+
 This lets shape-probing code (`typeof X === 'function'`,
  `X.someMethod`,
  `new X()`,
