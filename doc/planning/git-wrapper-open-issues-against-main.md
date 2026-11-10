@@ -1235,7 +1235,7 @@ Why:
  `TrustStorageError` and
  `AreAccessRulesProtected`.
 - `git ls-files` and `git log --follow` for the three deleted paths,
-  and `git log -S` for each of the three names and the two task names.
+  and `git log -S` for each of those names and for `bump:dependents`.
 - every backticked `package/`,
  `doc/` and root-file path in the four troubleshooting records,
   tested for existence,
