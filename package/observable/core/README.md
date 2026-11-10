@@ -49,6 +49,12 @@ count.setValue(1,); // logs "0 -> 1, current 1"
 
 The two variants differ only in how `setValue` treats the handler.
 
+Both wrap one internal container core (`src/create-observable-core.ts`):
+ the container and the order of
+its update are written once,
+ and each side supplies only its handler discipline.
+ Neither side is generated from the other.
+
 Synchronous,
  `createObservable`:
 
