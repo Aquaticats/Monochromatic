@@ -726,12 +726,29 @@ Each job the settlement lock used to do is done without one:
   runs,
   and the person sees a copy written into a worktree the notice does not name;
   `git worktree list` shows which worktree stands where.
-  A destination this command reserved is never removed again:
-  its identity was read one call after the creation,
-  so
-  another command may own the directory at that name by then,
-  and an empty directory left after a refused add is
-  harmless because Git accepts it and a later add fills it.
+  A destination this command reserved is removed again after a refused add while it is still the object this command
+  made and still empty,
+  with `rmdir`,
+  so no empty folder is left inside the enclosing checkout for a later Git command run
+  there to act on the enclosing checkout instead of a worktree
+  (owner report 2026-11-10:
+  `git worktree add -b <branch> <path> main`
+  with a branch that already exists left `<path>` empty).
+  The removal is guarded three ways:
+  only a destination this command made is considered,
+  its identity is read again immediately before the
+  removal,
+  and the removal itself refuses a directory that holds anything,
+  so a destination that stood before the command,
+  a folder the person already had above it,
+  and a destination another program wrote into all stay;
+  the last one is named on the command's output.
+  Git's own status and text are what the caller sees either way.
+  A replacement that lands between the creation and the identity read is not told apart from the directory this
+  command made;
+  that window needs a second program to move a directory into the reserved name in microseconds,
+  and removing nothing but an
+  empty directory loses no data.
 - Every other forwarded command,
 including every commit preparation,
 runs without any of this,

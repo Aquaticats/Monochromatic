@@ -16,6 +16,8 @@ import {
 import { join, } from 'node:path';
 import { setInterval as everyMs, } from 'node:timers/promises';
 
+import { processIdsWithCmdline, } from '../dist/final/node/testing.mjs';
+
 //region Bounds: no test waits forever on a child process
 
 /**
@@ -112,40 +114,28 @@ async function stderrOfFailure(command: string,): Promise<string> {
 
 /**
  Process ids of live `sleep <seconds>` processes with exactly this argument, read from `/proc`.
-
+ 
  Matches the argument vector, not a command line that merely mentions the text, so the CLI under test and the shell
- that started it never count. An unreadable or vanished entry is a process that ended while being read and is skipped.
-
+ that started it never count. A process that ends between the listing and its read is skipped by the scan, while any
+ other read failure still reaches this caller.
+ 
  @param seconds - Exact text of the one argument the `sleep` was given
-
+ 
  @returns Process ids still alive
-
+ 
  @example
  ```ts
  const alive = sleepPidsWithArgument('31.123456'); // [] once the pipeline is gone
  ```
  */
 function sleepPidsWithArgument(seconds: string,): readonly number[] {
-  return readdirSync('/proc',)
-    .filter(function isProcessEntry(entry,): boolean {
-      return Number.isInteger(Number(entry,),);
-    },)
-    .filter(function hasSleepArgument(entry,): boolean {
-      try {
-        return readFileSync(`/proc/${entry}/cmdline`, 'utf8',) === `sleep\0${seconds}\0`;
-      }
-      catch (error) {
-        // The process ended between listing and reading: it is not alive, so it does not count. `/proc` reports that as
-        // ENOENT when the entry is already gone and as ESRCH when it goes during the read.
-        const endedWhileReading = (Error.isError(error,))
-          && ('code' in error)
-          && ((error.code === 'ENOENT') || (error.code === 'ESRCH'));
-        if (endedWhileReading)
-          return false;
-        throw error;
-      }
-    },)
-    .map(Number,);
+  return processIdsWithCmdline({
+    entries: readdirSync('/proc',),
+    expectedCmdline: `sleep\0${seconds}\0`,
+    readCmdline: function readCmdline(entry,): string {
+      return readFileSync(`/proc/${entry}/cmdline`, 'utf8',);
+    },
+  },);
 }
 
 //region Fixture Setup: temp directory with controllable source and output files
