@@ -24,7 +24,8 @@
 > `package/desktop-app/ide/design/screenshots` is now `package/ide/app/design/screenshots`
 > (2026-10-29 `592d78b143`).
 > `package/ide/app/design/questions` is now `package/ide/app/design/question`
-> (2026-11-10, issue [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676)),
+> (2026-11-10,
+> issue [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676)),
 > so every `design/questions/` path below resolves under `design/question/` today.
 > `package/desktop-app/ide/Containerfile` is now `package/ide/app/Containerfile`
 > (2026-10-29 `592d78b143`).
