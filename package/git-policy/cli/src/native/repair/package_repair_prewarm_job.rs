@@ -270,15 +270,29 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
 /// async function prewarmAwaiting(item): Promise<Verdict>;
 /// ```
 pub async fn prewarm_awaiting(item: &WorkItem) -> Verdict {
+    return prewarm_awaiting_with(item, &RepairEnvironment::from_process()).await;
+}
+
+/// What:
+///  `prewarm_awaiting` with the environment handed over instead of read from the process.
+/// Why:
+///   The program lookup and the two bounds come from the process,
+/// which a control cannot change,
+/// so a control that proves where the worktree's own Cargo is found hands its own environment in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// prewarmAwaitingWith(item, environment);
+/// ```
+async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdict {
     let entries: Vec<PrewarmEntry> = match decode(item.parent.as_str()) {
         Ok(decoded) => decoded,
         Err(reason) => return Verdict::Failed(reason),
     };
-    let environment: RepairEnvironment = RepairEnvironment::from_process();
     let Some(first) = entries.first() else {
         return Verdict::Skipped(String::from("the record names no workspaces"));
     };
-    let Some(cargo) = cargo_for(first.root.as_path(), &environment) else {
+    let Some(cargo) = cargo_for(first.root.as_path(), environment) else {
         return Verdict::Failed(format!("no `{PROGRAM}` could be found to clean the copies with"));
     };
     let fill: Fill = Fill { cargo, limits: environment.limits() };

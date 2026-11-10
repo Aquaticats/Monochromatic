@@ -7,7 +7,7 @@ use super::{PREWARM_REFERENCE, PrewarmEntry, Reach, decode, encode, hand_over_wi
 use crate::service_route::Route;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, git_context, remove};
-use crate::work_item::{PENDING, WorkItem, WorkKind, state_directory};
+use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, state_directory};
 use std::path::{Path, PathBuf};
 
 /// One workspace whose build directory is to be filled,
@@ -165,4 +165,62 @@ fn a_hand_over_of_nothing_writes_no_record() {
     hand_over_with(&git_context(), common.as_path(), destination.as_path(), &[], &no_reach()).expect("nothing to hand over never fails");
     assert!(!work_directory(common.as_path()).exists(), "no work directory is made for nothing");
     remove(root.as_path());
+}
+
+/// What:
+///  The names of the records a state directory holds,
+/// in the order they sort,
+/// so a control reads what the queue took without knowing an id.
+/// Why:
+///   A record's name is its id,
+/// which the hand-over derives rather than states,
+/// so a control asks the directory what is there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordsIn = (work, state) => readdirSync(join(work, state)).sort();
+/// ```
+fn records_in(work: &Path, state: &str) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(state_directory(work, state))
+        .map(|listing| return listing.flatten().filter_map(|entry| return entry.file_name().into_string().ok()).collect())
+        .unwrap_or_default();
+    names.sort();
+    return names;
+}
+
+/// What:
+///  A worktree removed from a path and added again there gets a filling of its own,
+/// whether the record of the earlier worktree finished or failed.
+/// Why:
+///   A record's id is its idempotency key,
+/// and the queue answers an id it already knows as known in every state.
+/// With the worktree's path as the whole id,
+/// the second worktree's filling would be dropped as already known,
+/// and a filling that failed could never be asked for again:
+/// the service settles a failure into `failed` and reads no record back.
+#[test]
+fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
+    for settled in [DONE, FAILED] {
+        let root: PathBuf = fixture(format!("prewarm-added-again-{settled}").as_str());
+        let common: PathBuf = root.join("common");
+        let destination: PathBuf = root.join("topic");
+        let entries: Vec<PrewarmEntry> = vec![entry("/w/package/linter/rust", "/cache/old", "/cache/new")];
+        let work: PathBuf = work_directory(common.as_path());
+        std::fs::create_dir_all(common.as_path()).expect("the common directory");
+        std::fs::create_dir_all(destination.as_path()).expect("the first worktree");
+        let _told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
+        let first: Vec<String> = records_in(work.as_path(), PENDING);
+        assert_eq!(first.len(), 1, "the first worktree's record is queued: {first:?}");
+        // The service runs the record and settles it into the state its verdict names.
+        let settled_at: PathBuf = state_directory(work.as_path(), settled).join(&first[0]);
+        std::fs::rename(state_directory(work.as_path(), PENDING).join(&first[0]), settled_at.as_path()).expect("the record is settled");
+        // The worktree is removed, and another is added at the same path.
+        remove(destination.as_path());
+        std::fs::create_dir_all(destination.as_path()).expect("a worktree added again at the same path");
+        let _told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
+        let second: Vec<String> = records_in(work.as_path(), PENDING);
+        assert_eq!(second.len(), 1, "the worktree added again is queued for a filling of its own, though its predecessor settled into {settled}: {second:?}");
+        assert_ne!(second[0], first[0], "the second record is not the first one ({settled})");
+        remove(root.as_path());
+    }
 }
