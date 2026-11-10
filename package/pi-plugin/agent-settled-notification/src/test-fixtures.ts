@@ -1,9 +1,9 @@
 /**
  Pi lifecycle fixtures shared by the settled-notification unit tests and verifiers.
 
- Every value here mirrors the contract Pi itself hands an extension handler, so a
- suite that passes proves the handler accepted a complete event and a context,
- rather than an object Pi would never deliver.
+ Every event here carries the fields Pi's own `AgentSettledEvent` requires, and
+ every handler invocation receives a handler context, so no suite can pass
+ against an event shape Pi never delivers.
 
  @module
  */
@@ -188,6 +188,11 @@ function createAgentSettledEvent(
 
 /**
  Creates the handler context Pi passes alongside every lifecycle event.
+
+ Pi's `ExtensionContext` has no complete stand-in short of a live Pi runtime, so
+ this returns an empty object asserted to the contract. That stays safe only
+ while the settled handler reads nothing from the context, which the extension
+ does not.
 
  @returns extension context stub, which the settled handler deliberately ignores
 
