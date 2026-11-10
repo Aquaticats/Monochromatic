@@ -11,7 +11,8 @@
 //! A holder proven alive and an owner that cannot be proven alive are
 //!  both waited for until `MERGE_LOCK_CEILING` (one minute,
 //! `wait_ceilings.rs`),
-//! which is where the wait names the blocker and ends and the merge goes on to meet Git's own refusal;
+//! which is where the wait names the blocker and ends and the merge is saved on a side ref for a later command to
+//!  finish (`SPEC.md`, "Merges and commits never fail");
 //!  the line for the second says what is known and how to remove the lock if no program uses the repository.
 //! A PID file naming
 //!  a process that is gone ends the wait at once with a diagnostic.
@@ -52,7 +53,14 @@ use crate::index_lock_evidence::{
 };
 
 /// The sentence a merge's ceiling line ends on before its own apply.
-const MERGE_CONSEQUENCE: &str = "git merge stops waiting and reports what Git says";
+/// A held lock is not that merge's failure:
+///  it is saved on a side ref and exits 0,
+/// and the next command in the worktree finishes the checkout.
+const MERGE_CONSEQUENCE: &str = "the merge stops waiting and saves itself on a ref of its own for the next command in this worktree to finish";
+
+/// The sentence the notices before that ceiling end on:
+/// the same outcome, said without the stop the ceiling line alone announces.
+const MERGE_NOTICE_ENDING: &str = "the merge is saved on a ref of its own for the next command in this worktree to finish";
 
 /// The sentence a command's dead owner's line ends on when nothing else holds the lock:
 /// the command clears it and goes on.
@@ -137,10 +145,9 @@ fn gather_here(real_index: &Path) -> std::io::Result<Option<Evidence>> {
 /// what the command waits for,
 /// why it is safe to wait,
 /// then the holder,
-/// and how long the wait lasts before the command meets Git's own refusal.
-fn notice(command: &str, real_index: &Path, waited: Duration, ceiling: Duration, proof: &Proof, first: bool) -> String {
-    let ending: String = format!("git {command} meets Git's own refusal");
-    let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending: ending.as_str() };
+/// and how long the wait lasts before the ending the wait's own caller states happens.
+fn notice(command: &str, real_index: &Path, waited: Duration, ceiling: Duration, proof: &Proof, first: bool, ending: &str) -> String {
+    let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending };
     let tail: String = match proof {
         Proof::Alive(evidence, pid, by_descriptor, holder_command) => {
             let line: String = if first {
@@ -251,6 +258,10 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
 /// ```
 pub const RECOVERY_CONSEQUENCE: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it once that program is done";
 
+/// The sentence the recovery's notices before that ceiling end on:
+/// the same outcome, said without the stop the ceiling line alone announces.
+const RECOVERY_NOTICE_ENDING: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it";
+
 /// What:
 ///  Wait while any program holds `index.lock` of `real_index`,
 /// before a recovery writes the index to finish an interrupted merge.
@@ -278,6 +289,7 @@ pub fn wait_for_index_release_while_finishing_a_merge<W: Write + ?Sized>(real_in
         real_index,
         "merge",
         RECOVERY_CONSEQUENCE,
+        RECOVERY_NOTICE_ENDING,
         CLEARS_A_DEAD_OWNERS_LOCK,
         recovery_ceiling(),
         Cadence::from_environment(),
@@ -333,6 +345,7 @@ pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock<W: Write + 
         real_index,
         "merge",
         MERGE_CONSEQUENCE,
+        MERGE_NOTICE_ENDING,
         CLEARS_A_DEAD_OWNERS_LOCK,
         MERGE_LOCK_CEILING,
         Cadence::from_environment(),
@@ -355,7 +368,8 @@ fn write_then_flush<W: Write + ?Sized>(out: &mut W, bytes: &[u8]) -> std::io::Re
 /// so a control can hand it none.
 fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
     let consequence: String = format!("git {command} stops waiting and reports what Git says");
-    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch);
+    let notice_ending: String = format!("git {command} meets Git's own refusal");
+    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), notice_ending.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch);
 }
 
 /// `wait_with_watches` with the sentence the ceiling line ends on given,
@@ -364,6 +378,7 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
     real_index: &Path,
     command: &str,
     consequence: &str,
+    notice_ending: &str,
     dead_ending: &str,
     ceiling: Duration,
     cadence: Cadence,
@@ -397,11 +412,11 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
         }
         if due {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = write_then_flush(out, notice(command, real_index, elapsed, ceiling, &proof, !announced).as_bytes());
+            let _noted = write_then_flush(out, notice(command, real_index, elapsed, ceiling, &proof, !announced, notice_ending).as_bytes());
             announced = true;
         }
         // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the wait names the blocker and ends;
-        //  the merge then runs into Git's own refusal and exits non-zero, with nothing changed.
+        //  the command that waited then decides, and a merge saves itself instead of failing (`MERGE_CONSEQUENCE`).
         if elapsed >= ceiling {
             let blocker: String = match &proof {
                 Proof::Alive(evidence, ..) => blocker_words(evidence),
