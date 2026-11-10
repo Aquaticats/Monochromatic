@@ -255,9 +255,11 @@ Read-only commands,
   unstaged edit and untracked file that the merge does not change stays byte for byte as it was.
   A merge that changes a path someone else has staged or modified is completed,
   and that work is carried across it (see "Carrying the person's own work").
-  A merge that conflicts is refused,
+  A merge that conflicts over that work is refused,
   with the conflicting paths named and the ways forward,
-  only when no resolution settles every one of them.
+  only when no resolution settles every one of them;
+  over a clean checkout a conflict is native Git's,
+  which stops and leaves its markers in the worktree.
   Shapes the wrapper cannot make exact (`--squash`,
   `--no-commit`,
   `-s`,
