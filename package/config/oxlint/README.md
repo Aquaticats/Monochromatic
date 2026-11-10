@@ -9,7 +9,7 @@ The root `oxlint.config.ts` imports and re-exports the shared config:
 
 ```typescript
 // oxlint.config.ts (monorepo root)
-import base from '@monochromatic-dev/config-oxlint';
+import base from '@monochromatic-dev/config-oxlint/ts';
 import { defineConfig, } from 'oxlint';
 
 export default defineConfig({ ...base, },);
@@ -27,11 +27,11 @@ The package default export resolves to the prebuilt,
 `dist/final/node/index.mjs`,
  which bundles the config and references three
 co-located plugin sidecars (`plugin-*.mjs`) by relative `file://` URL.
- Build it
-with `mise run //package/config/oxlint:build` before linting (the root
-`oxlint.config.ts` imports this built entry).
- TypeScript source is available at the
-`/ts` subpath (`/ts/*` for individual files) for development.
+It is publishing output for consumers outside this repository.
+A repository root lints through the `/ts` source subpath (`/ts/*` for individual
+files) instead,
+ which needs no build before linting and keeps a lint run reading live
+plugin source (rule ST3, `doc/decision/workspace-ts-source-imports.md`).
 
 ## Structure
 
