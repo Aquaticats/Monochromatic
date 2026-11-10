@@ -16,8 +16,6 @@
 use crate::diagnostic_log::debug;
 /// Where Git's words about the wrapper's own fast-forward go now that the run carries no `--quiet`.
 use crate::inner_git_words::record_streams;
-/// The failure rendering for state that cannot be read.
-use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The files the word pass merged,
 /// and the lines that list them.
 use crate::merge_second_pass::Merged;
@@ -26,11 +24,9 @@ use crate::merge_second_pass_tree::announce;
 /// The intent record.
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
 /// Recovery of records.
-use crate::merge_isolation_recovery::{
-    MergeRecoveryAction, settle_failed_merge,
-};
+use crate::merge_isolation_recovery::RecoveryPlace;
 /// The refusal findings.
-use crate::merge_isolation_report::not_applied_finding;
+use crate::merge_isolation_apply_findings::failure_text;
 /// The person's own work in the paths the merge changes:
 /// the clear before Git's update,
 /// the carry after it,
@@ -40,13 +36,12 @@ use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, changes_
 use crate::merge_isolation_carry_notice::report_lines;
 /// The words a merge that could not be finished now prints,
 /// which its own file holds so this one stays inside the code-line limit.
-use crate::merge_isolation_apply_findings::{a_carry_that_stopped, a_deferred_save_finding, a_merge_that_could_not_be_saved, failure_text};
+use crate::merge_isolation_apply_findings::{a_carry_that_stopped, a_deferred_save_finding, a_merge_that_could_not_be_saved};
+use crate::merge_isolation_apply_stops::{a_clear_that_met_newer_bytes, settle_a_failed_step};
 /// The raw differences between the two commits of the merge.
 use crate::merge_isolation_changes::Change;
 /// The command-line reading.
 use crate::merge_options::{MergeShape, Signing};
-/// The place recovery runs in.
-use crate::merge_isolation_recovery::RecoveryPlace;
 /// Marker phases for the crash controls.
 use crate::transaction_phase::{Phase, reach_transaction_phase};
 /// Real Git.
@@ -441,82 +436,6 @@ fn save_for_a_later_finish(
 }
 
 
-
-
-/// What:
-///  Put the person's own work back and make the merge again on the bytes their files hold now.
-/// Why:
-///   The owner's rule is that a save is never discarded and a merge is never refused for one;
-/// the clear stops at the first path
-///  it did not judge, so the record goes once the layers are back,
-/// and the round starts again on what the person has now
-///  (`SPEC.md`,
-/// "Merges and commits never fail").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function aClearThatMetNewerBytes({ place, record, intent, reference, failure }): Bail; // settle, then Bail.Again
-/// ```
-fn a_clear_that_met_newer_bytes(place: &RecoveryPlace, record: &Path, intent: &MergeIntent, reference: &str, failure: &CarryFailure) -> Bail {
-    let detail: String = failure_text(failure);
-    return match settle_failed_merge(place, record, intent, &mut std::io::stderr()) {
-        // Nothing of the merge was applied, so the record and the capture are gone and the round is made again.
-        Ok(MergeRecoveryAction::Discarded | MergeRecoveryAction::BranchMoved | MergeRecoveryAction::SavedBranchMoved) => Bail::Again(detail),
-        // The lock stays held or the record waits, so the next command finishes this very merge and nothing of the person's went.
-        Ok(MergeRecoveryAction::IndexHeld | MergeRecoveryAction::DeferredRefused | MergeRecoveryAction::OwnerActive) => refused(
-            2,
-            format!(
-                "monochromatic-git-policy-cli: git merge {reference}: {detail}; the merge was recorded and nothing of yours was \
-                 removed. Run any git command again to finish it.\n"
-            ),
-        ),
-        // The merge is in the branch, which another command may have made it; the person's work is back and nothing is left.
-        Ok(MergeRecoveryAction::AlreadyLanded | MergeRecoveryAction::Completed) => Bail::Done(IsolatedMerge::Finished {
-            code: 0,
-            stdout: String::new(),
-            stderr: format!("monochromatic-git-policy-cli: git merge {reference}: the merge is in the branch.\n"),
-        }),
-        Err(error) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None)),
-    };
-}
-
-/// What:
-///  What a failed step's detail means for the command's ending.
-/// Why:
-///   A step that failed on a branch that moved is made again on the moved head,
-/// one that failed on the index lock is
-///  made again once the lock is gone,
-/// and one that failed after the merge began is settled from the record.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function settleAFailedStep({ place, record, intent, reference, detail, lockTaken, code, gitStderr }): Bail;
-/// ```
-fn settle_a_failed_step(
-    place: &RecoveryPlace,
-    record: &Path,
-    intent: &MergeIntent,
-    reference: &str,
-    detail: &str,
-    lock_taken: bool,
-    code: i32,
-    git_stderr: &[u8],
-) -> Bail {
-    return match settle_failed_merge(place, record, intent, &mut std::io::stderr()) {
-        Ok(MergeRecoveryAction::BranchMoved) => Bail::Again(format!("{reference} was merged on a branch that moved meanwhile")),
-        Ok(MergeRecoveryAction::Discarded) if lock_taken => Bail::Again(String::from("another program took the index lock first")),
-        Ok(MergeRecoveryAction::Completed) => Bail::Done(IsolatedMerge::Finished {
-            code: 0,
-            stdout: String::new(),
-            stderr: format!(
-                "monochromatic-git-policy-cli: git merge {reference}: Git reported an error ({detail}) after it had started, and the \
-                 wrapper completed the merge.\n"
-            ),
-        }),
-        Ok(_) => refused(code, format!("{}{}", String::from_utf8_lossy(git_stderr), not_applied_finding(reference, detail))),
-        Err(error) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None)),
-    };
-}
 
 
 /// What:

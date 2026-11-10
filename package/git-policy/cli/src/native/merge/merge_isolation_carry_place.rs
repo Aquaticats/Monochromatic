@@ -17,12 +17,15 @@
 //!  which is how the second pass's install already writes a merged file).
 //!  The identity is the cheap check and the bytes are the authority:
 //! a program that keeps its descriptor
-//!  across the rename can write the same length into the file and put the modification time back, which leaves every
+//!  across the rename can write the same length into the file and put the modification time back,
+//! which leaves every
 //!  part of the identity as it was.
 //!  A kill between the take and the placing leaves the judged entry under a private name that names its
-//!  path (`merge_isolation_take_asides.rs`), which the next recovery puts back;
+//!  path (`merge_isolation_take_asides.rs`),
+//! which the next recovery puts back;
 //!  the new bytes under this module's own private name are made again by the
-//!  next command, so a kill that leaves one loses nothing.
+//!  next command,
+//! so a kill that leaves one loses nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -162,7 +165,10 @@ fn set_mode(file: &Path, mode: &str) -> Result<(), String> {
     {
         use std::os::unix::fs::PermissionsExt;
         let bits: u32 = if mode == "100755" { 0o755 } else { 0o644 };
-        return std::fs::set_permissions(file, std::fs::Permissions::from_mode(bits)).map_err(|error| error.to_string());
+        return match std::fs::set_permissions(file, std::fs::Permissions::from_mode(bits)) {
+            Ok(()) => Ok(()),
+            Err(error) => Err(error.to_string()),
+        };
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
@@ -193,7 +199,10 @@ fn write_private(location: &Path, bytes: &[u8], mode: &str) -> Result<PathBuf, S
         #[cfg(unix)]
         {
             use std::os::unix::ffi::OsStrExt;
-            return std::os::unix::fs::symlink(std::ffi::OsStr::from_bytes(bytes), private.as_path()).map(|()| private).map_err(|error| error.to_string());
+            return match std::os::unix::fs::symlink(std::ffi::OsStr::from_bytes(bytes), private.as_path()) {
+                Ok(()) => Ok(private),
+                Err(error) => Err(error.to_string()),
+            };
         }
         // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
         #[cfg(not(unix))]
@@ -202,10 +211,10 @@ fn write_private(location: &Path, bytes: &[u8], mode: &str) -> Result<PathBuf, S
             return Err(String::from("a symbolic link cannot be made on this platform"));
         }
     }
-    std::fs::write(private.as_path(), bytes).map_err(|error| {
+    if let Err(error) = std::fs::write(private.as_path(), bytes) {
         let _left = std::fs::remove_file(private.as_path());
-        return error.to_string();
-    })?;
+        return Err(error.to_string());
+    }
     set_mode(private.as_path(), mode)?;
     return Ok(private);
 }
@@ -341,7 +350,9 @@ async fn remove_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], 
     return match take_judged_awaiting(context, root, path, location, judged).await? {
         Taken::Aside(aside) => {
             // The entry that was judged is the one this write removes, and its bytes are in the merge's capture.
-            std::fs::remove_file(aside.as_path()).map_err(|error| CarryFailure::Failed(format!("{} could not be removed: {error}", aside.display())))?;
+            if let Err(error) = std::fs::remove_file(aside.as_path()) {
+                return Err(CarryFailure::Failed(format!("{} could not be removed: {error}", aside.display())));
+            }
             Ok(Placed::Written)
         }
         Taken::Changed { kept } => Ok(Placed::Changed { kept }),
@@ -410,7 +421,8 @@ async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
 ///  a removal,
 /// or nothing at all.
 /// Why:
-///   Every write of a carry, a clear and a putting back goes through this one step,
+///   Every write of a carry,
+/// a clear and a putting back goes through this one step,
 /// so an entry changed
 ///  after it was judged is never replaced by any of them.
 ///

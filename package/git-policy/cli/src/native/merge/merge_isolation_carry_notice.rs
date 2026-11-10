@@ -88,8 +88,9 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
     }
     for path in &report.changed {
         lines.push(format!(
-            "monochromatic-git-policy-cli: git merge {reference}: {} changed again while the merge ran, so nothing was written to it and what \
-             is in it is yours. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the difference.",
+            "monochromatic-git-policy-cli: git merge {reference}: {} was written again while the merge ran, so this merge wrote nothing to \
+             it and the file holds what was written then. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the \
+             difference.",
             text(path),
             text(path)
         ));

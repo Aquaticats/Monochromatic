@@ -172,6 +172,10 @@ pub mod merge_isolation_carry_place;
 /// the commit and the two-way update.
 pub mod merge_isolation_apply;
 
+/// What a step of an isolated merge that stopped means for the command's ending,
+/// and what a clear that met newer bytes does about them.
+pub mod merge_isolation_apply_stops;
+
 /// The words an isolated merge prints when it could not be finished now.
 pub mod merge_isolation_apply_findings;
 

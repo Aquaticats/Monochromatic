@@ -232,7 +232,8 @@ fn failure_detail(failure: &CarryFailure) -> String {
 ///  because a start enters the runtime and is refused from inside it.
 ///  Every worktree path is checked before the index records go,
 /// and each one is taken aside under a private name
-///  before its own bytes are replaced, so a file saved in either window is kept.
+///  before its own bytes are replaced,
+/// so a file saved in either window is kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

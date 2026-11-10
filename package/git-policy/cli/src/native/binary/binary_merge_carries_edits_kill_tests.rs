@@ -25,7 +25,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::merge_carries_edits::{FEATURE_THIRD, PERSON_LINE, assert_merged, diverged, on_main_a, records, side_refs, status, text_at};
+use super::merge_carries_edits::{FEATURE_THIRD, PERSON_LINE, assert_merged, diverged, on_main_a, records, said, side_refs, status, text_at};
 use super::support::{Fixture, Observed, fixture, git, observe};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::os::unix::process::ExitStatusExt;
@@ -109,12 +109,6 @@ fn after_the_kill(fixture: &Fixture, repo: &Path) -> Observed {
     let observed: Observed = observe(&mut wrapped_commit(fixture, repo, &["status", "--porcelain=v1"]), b"");
     assert_eq!(observed.code, Some(0), "the next command runs: {}", String::from_utf8_lossy(observed.stderr.as_slice()));
     return observed;
-}
-
-/// What a command said,
-/// as one line for an assertion.
-fn said(observed: &Observed) -> String {
-    return String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
 }
 
 /// A repository whose `a.txt` holds a staged line in the index and an unsaved line over it in the worktree.
@@ -311,7 +305,7 @@ fn a_kill_between_the_index_step_and_the_file_keeps_every_layer() {
     killed_at(&fixture, repo.as_path(), "merge-carry-index");
     let recovered: Observed = after_the_kill(&fixture, repo.as_path());
     assert_merged(&fixture, repo.as_path(), "kill between the layers");
-    assert!(!said(&recovered).contains("changed again"), "nothing changed under the next command, so it must not claim one did: {}", said(&recovered));
+    assert!(!said(&recovered).contains("was written again while the merge ran"), "nothing changed under the next command, so it must not claim one did: {}", said(&recovered));
     assert_both_layers(&fixture, repo.as_path(), "kill between the layers");
     assert_eq!(records(repo.as_path()), "", "the record went");
     assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
@@ -369,7 +363,7 @@ fn a_kill_after_the_carried_files_keeps_every_layer() {
     killed_at(&fixture, repo.as_path(), "merge-carried-back");
     let recovered: Observed = after_the_kill(&fixture, repo.as_path());
     assert_merged(&fixture, repo.as_path(), "kill after the carried files");
-    assert!(!said(&recovered).contains("changed again"), "nothing changed under the next command, so it must not claim one did: {}", said(&recovered));
+    assert!(!said(&recovered).contains("was written again while the merge ran"), "nothing changed under the next command, so it must not claim one did: {}", said(&recovered));
     assert_both_layers(&fixture, repo.as_path(), "kill after the carried files");
     assert_eq!(records(repo.as_path()), "", "the record went");
     assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
@@ -399,5 +393,35 @@ fn a_save_between_the_index_step_and_the_file_is_kept() {
     assert_eq!(status(&fixture, repo.as_path()), "MM a.txt\n", "one layer is staged and the other is unsaved: {said}");
     assert_eq!(records(repo.as_path()), "", "the record went");
     assert_eq!(side_refs(&fixture, repo.as_path()), "", "the captured bytes are not left on a ref nothing names");
+    remove_settled(&fixture);
+}
+
+/// A save that keeps the file's length and its modification time is kept too:
+/// the identity cannot see it,
+/// and the bytes can.
+#[test]
+fn a_save_that_keeps_the_length_and_the_time_is_kept() {
+    let fixture: Fixture = fixture("carry-save-same-identity");
+    let repo: PathBuf = staged_and_unsaved(&fixture, "repo");
+    let held: std::time::SystemTime = std::fs::metadata(repo.join("a.txt")).expect("a.txt").modified().expect("the modification time");
+    let paused: Paused = paused_at(&fixture, repo.as_path(), "merge-clear-index");
+    // The same length as the line it replaces, written over the same inode, with the time put back.
+    let saved: String = unsaved_text().replace(UNSAVED_LINE, "the unsaved LINE");
+    assert_eq!(saved.len(), unsaved_text().len(), "the control writes the same length");
+    std::fs::write(repo.join("a.txt"), &saved).expect("the save that lands while the merge runs");
+    std::fs::File::options()
+        .write(true)
+        .open(repo.join("a.txt"))
+        .expect("a.txt")
+        .set_modified(held)
+        .expect("the modification time put back");
+    let output: Output = paused.released("merge-clear-index");
+    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    assert_eq!(output.status.code(), Some(0), "the merge exits 0 with the save kept: {said}");
+    assert_merged(&fixture, repo.as_path(), "save with the same length and time");
+    let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
+    assert!(after.contains("the unsaved LINE"), "the bytes are what the control wrote, not the old line: {after:?}");
+    assert!(after.contains(FEATURE_THIRD), "the merge's line reaches the file: {after:?}");
+    assert_eq!(status(&fixture, repo.as_path()), "MM a.txt\n", "one layer is staged and the other is unsaved");
     remove_settled(&fixture);
 }
