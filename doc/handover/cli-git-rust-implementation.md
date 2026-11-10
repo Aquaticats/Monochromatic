@@ -233,8 +233,20 @@ under rule `WGH`:
   and the owner's "Carry edits forward" is still not built:
   both are briefed.
 - `never-stuck`:
-  a FIFO at `.git/index.lock` or at a rules file blocks for ever,
-  and it is briefed.
+  a FIFO at `.git/index.lock` or at a rules file blocked every command that read it for ever,
+  and the commit service's landing behind it.
+  Fixed on the branch `fix/git-policy-cli-fifo-where-a-file-is-expected-ends-no-command`
+  (not merged into `main` yet),
+  which reads both through opens that cannot wait
+  (`service_index_wait.rs`,
+  `service_index_marker.rs`,
+  `entry_rules_text_change_warm.rs`,
+  `package/forbidden-strings/cli/src/rules_snapshot.rs`),
+  and refuses a rules file that is not a plain one with a sentence naming its path.
+  The reproductions,
+  the stacks that put the service thread in `marker_of`,
+  and the survey of the rest of the class are in
+  `doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`.
 - `differential-against-real-git`:
   `git commit -- .` also commits untracked files,
   global pathspec modes are ignored by an explicit-path commit,
