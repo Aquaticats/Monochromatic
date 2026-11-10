@@ -1,13 +1,13 @@
 /**
  Guards this package's function parameter names, which no lint rule enforces.
 
- `AGENTS.md` and the repository review checklist ban a single-letter variable
- name outside a math formula, and `id-length` is set to `allow` in
- `package/config/oxlint/src/rule/style.ts`, so a helper taking `s: string` passes
- every configured rule. That is how the sweep behind `#1478` found nine such
- helpers across the tsdoc and stylistic packages: nothing read the names, so the
- abbreviation came back. Every product module's comment-free text is read here
- and each `function` parameter list is checked directly.
+ `doc/todo/code-quality.md` and `.agents/skills/project-code-review/SKILL.md` ban a
+ single-letter variable name outside a math formula, and `id-length` is set to
+ `allow` in `package/config/oxlint/src/rule/style.ts`, so a helper taking
+ `s: string` passes every configured rule. That is how the sweep behind `#1478`
+ found nine such helpers across the tsdoc and stylistic packages: nothing read
+ the names, so the abbreviation came back. Every product module's comment-free
+ text is read here and each `function` parameter list is checked directly.
 
  This package keeps its modules in two folders, `src` beside this test and the
  rule modules under `src/rule`, so the walk is recursive; the guards in flat
@@ -158,12 +158,12 @@ const MEANINGLESS_NAME_LENGTH = 1;
 /**
  Product module beside this test, scanned as a positive control.
  */
-const SURFACE_MODULE = 'comment-text.ts';
+const TOP_FOLDER_MODULE = 'comment-text.ts';
 
 /**
  Product module one folder down, scanned to show the walk reaches `src/rule`.
  */
-const RULE_MODULE = 'rule/tag-escaping.ts';
+const NESTED_FOLDER_MODULE = 'rule/tag-escaping.ts';
 
 /**
  Module text whose second parameter names its element with one character, so the
@@ -745,8 +745,8 @@ await describe({
             },);
 
             // A scan that never reached the modules the guard exists for proves nothing.
-            expect(fileNames,).toContain(SURFACE_MODULE,);
-            expect(fileNames,).toContain(RULE_MODULE,);
+            expect(fileNames,).toContain(TOP_FOLDER_MODULE,);
+            expect(fileNames,).toContain(NESTED_FOLDER_MODULE,);
 
             /**
              One report line per meaningless parameter name across all modules.
