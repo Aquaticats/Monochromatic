@@ -221,6 +221,8 @@ neither written nor checked.
 - `package-licenses`:
   copies license texts into each package's `LICENSES` directory according to the manifest's license
   expression and prunes only the texts the rule owns.
+  A requirement names one whole SPDX id of the expression,
+  so `AGPL-3.0-or-later` never pulls the `GPL-3.0-or-later` text.
   A manifest without a license expression is not managed.
 - `mirror`:
   makes a directory an exact copy of another and owns the target outright.

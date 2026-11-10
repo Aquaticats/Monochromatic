@@ -102,7 +102,7 @@ fn package_licenses_matches_whole_spdx_ids_not_substrings() {
             ("package/agpl/copyleft/LICENSES/GPL-3.0-or-later.txt", "stale"),
             ("package/both/copyleft/package.json", r#"{"license": "LGPL-3.0-or-later AND CC-BY-SA-4.0"}"#),
             ("package/prefix/copyleft/package.json", r#"{"license": "GPL-3.0-or-later"}"#),
-            ("package/grouped/copyleft/package.json", r#"{"license": "(MIT OR CC-BY-SA-4.0)"}"#),
+            ("package/grouped/copyleft/package.json", r#"{"license": "(GPL-3.0-or-later OR MIT)"}"#),
         ],
     );
     let config = r#"{"rules": [{"kind": "package-licenses", "id": "lic", "directory": "LICENSES",
@@ -112,6 +112,7 @@ fn package_licenses_matches_whole_spdx_ids_not_substrings() {
                   "CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt"},
         "requires": [{"operand": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"]},
                      {"operand": "GPL-3.0", "texts": ["GPL-3.0"]},
+                     {"operand": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"]},
                      {"operand": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"]}]}]}"#;
     let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
     assert_eq!(code1, 0, "{events1:?}");
@@ -131,7 +132,7 @@ fn package_licenses_matches_whole_spdx_ids_not_substrings() {
         "an operand never matches as the prefix of a longer id"
     );
     assert_eq!(read_text(dir.path(), "package/prefix/copyleft/LICENSES/GPL-3.0-or-later.txt"), "gpl");
-    assert_eq!(read_text(dir.path(), "package/grouped/copyleft/LICENSES/CC-BY-SA-4.0.txt"), "cc");
+    assert_eq!(read_text(dir.path(), "package/grouped/copyleft/LICENSES/GPL-3.0-or-later.txt"), "gpl");
     assert!(
         !dir.path().join("package/grouped/copyleft/LICENSES/GPL-3.0.txt").exists(),
         "parentheses separate operands and are not part of one"
