@@ -1,6 +1,6 @@
 /**
- Pins what the out-of-memory fixture prints before its deadline passes: one
- allocation line per chunk, reporting mebibytes.
+ Pins what each fixture does when it runs: the exit code or signal that ends it,
+ one marker on the stream it prints, and how long it lives.
 
  The fixtures are this package's entire behaviour and the package has no build
  step, so a test spawns `src/<fixture>.ts` under Bun instead of importing a
@@ -9,6 +9,9 @@
  @module
  */
 
+import {
+  readFileSync,
+} from 'node:fs';
 import {
   fileURLToPath,
 } from 'node:url';
@@ -52,7 +55,97 @@ const FIXTURE_DIRECTORY = fileURLToPath(FIXTURE_DIRECTORY_URL,);
  */
 const ALLOCATION_LINE_PREFIX = 'Allocated ';
 
+/**
+ Prefix of the mise.toml line that runs a fixture under Bun.
+ */
+const TASK_RUN_PREFIX = 'run = "bun src/';
+
+/**
+ Signal the test sends a fixture that outlives its deadline.
+ */
+const STOP_SIGNAL: NodeJS.Signals = 'SIGKILL';
+
 //endregion Constants
+
+//region Documented outcomes
+
+/**
+ A fixture whose process exits by itself with this status code.
+ */
+type ExitsWithCode = { readonly kind: 'exit'; readonly code: number };
+
+/**
+ A fixture whose process the runtime terminates with this signal.
+ */
+type EndsWithSignal = { readonly kind: 'signal'; readonly signal: string };
+
+/**
+ A fixture whose process never ends, so the test's own deadline stops it.
+ */
+type NeverEnds = { readonly kind: 'never' };
+
+/**
+ How a fixture's process ends.
+ */
+type FixtureEnding = ExitsWithCode | EndsWithSignal | NeverEnds;
+
+/**
+ What one fixture promises to do, as its TSDoc and its `run:` task description
+ say.
+ */
+type DocumentedOutcome = {
+  /** File name under `src/`. */
+  readonly fileName: string;
+  /** How the process stops when nothing else stops it. */
+  readonly ending: FixtureEnding;
+  /** Text the fixture must print on standard error, absent when it prints none. */
+  readonly stderrMarker?: string;
+};
+
+/**
+ Every fixture this package ships, with the outcome its documentation promises.
+ */
+const DOCUMENTED_OUTCOMES: readonly DocumentedOutcome[] = [
+  {
+    fileName: 'abort.ts',
+    ending: { kind: 'signal', signal: 'SIGABRT', },
+  },
+  {
+    fileName: 'infinite-loop.ts',
+    ending: { kind: 'never', },
+  },
+  {
+    fileName: 'not-a-function.ts',
+    ending: { kind: 'exit', code: 1, },
+    stderrMarker: 'TypeError: notAFunction is not a function',
+  },
+  {
+    fileName: 'null-deref.ts',
+    ending: { kind: 'exit', code: 1, },
+    stderrMarker: "TypeError: null is not an object (evaluating 'value.property')",
+  },
+  {
+    fileName: 'oom.ts',
+    ending: { kind: 'never', },
+  },
+  {
+    fileName: 'stack-overflow.ts',
+    ending: { kind: 'exit', code: 1, },
+    stderrMarker: 'RangeError: Maximum call stack size exceeded',
+  },
+  {
+    fileName: 'uncaught-throw.ts',
+    ending: { kind: 'exit', code: 1, },
+    stderrMarker: 'error: Intentional uncaught throw',
+  },
+  {
+    fileName: 'unhandled-rejection.ts',
+    ending: { kind: 'exit', code: 1, },
+    stderrMarker: 'error: Intentional unhandled rejection',
+  },
+];
+
+//endregion Documented outcomes
 
 //region Helpers
 
@@ -99,7 +192,7 @@ async function runFixture(
       [fileURLToPath(new URL(fileName, FIXTURE_DIRECTORY_URL,),),],
       {
         cwd: FIXTURE_DIRECTORY,
-        killSignal: 'SIGKILL',
+        killSignal: STOP_SIGNAL,
         timeout: deadlineMilliseconds,
       },
     );
@@ -152,6 +245,39 @@ function allocationUnits(stdout: string,): readonly string[] {
 await describe({
   name: 'documented fixture outcomes',
   children: [
+    ...DOCUMENTED_OUTCOMES.map(function toOutcomeTest(outcome,) {
+      return it({
+        name: `${outcome.fileName} ends as its documentation says`,
+        timeout: EXIT_DEADLINE_MILLISECONDS,
+        fn: async () => {
+          const run = await runFixture({
+            fileName: outcome.fileName,
+            deadlineMilliseconds: outcome.ending.kind === 'never'
+              ? HANG_BOUND_MILLISECONDS
+              : EXIT_DEADLINE_MILLISECONDS,
+          },);
+          if (outcome.ending.kind === 'exit') {
+            expect(run.exitCode,).toBe(outcome.ending.code,);
+            expect(run.signal,).toBeUndefined();
+          }
+          if (outcome.ending.kind === 'signal') {
+            expect(run.exitCode,).toBeUndefined();
+            expect(run.signal,).toBe(outcome.ending.signal,);
+          }
+          if (outcome.ending.kind === 'never') {
+            // Only the deadline's own SIGKILL ends these, and only after the bound.
+            expect(run.exitCode,).toBeUndefined();
+            expect(run.signal,).toBe(STOP_SIGNAL,);
+            expect(run.durationMilliseconds,).toBeGreaterThanOrEqual(
+              HANG_BOUND_MILLISECONDS,
+            );
+          }
+          if (outcome.stderrMarker !== undefined) {
+            expect(run.stderr,).toContain(outcome.stderrMarker,);
+          }
+        },
+      },);
+    },),
     it({
       name: 'oom.ts reports every allocation in mebibytes',
       timeout: EXIT_DEADLINE_MILLISECONDS,
@@ -161,6 +287,21 @@ await describe({
           deadlineMilliseconds: HANG_BOUND_MILLISECONDS,
         },);
         expect(allocationUnits(run.stdout,),).toEqual(['MiB',],);
+      },
+    },),
+    it({
+      name: 'every run task in mise.toml has a documented outcome here',
+      fn: async () => {
+        const miseToml = readFileSync(
+          new URL('../mise.toml', import.meta.url,),
+          'utf8',
+        );
+        for (const outcome of DOCUMENTED_OUTCOMES) {
+          expect(miseToml,).toContain(`run = "bun src/${outcome.fileName}"`);
+        }
+        // One task per fixture, so a fixture added without an outcome fails here.
+        const runTaskCount = miseToml.split(TASK_RUN_PREFIX,).length - 1;
+        expect(runTaskCount,).toBe(DOCUMENTED_OUTCOMES.length,);
       },
     },),
   ],
