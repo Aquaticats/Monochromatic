@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  Prove panic guards with real executable and public-loader controls in disposable source variants.
+ Throws `ScannerVerificationError` when arguments are given or a control does not prove its boundary
  */
 import {
   readFile,
@@ -220,39 +221,25 @@ async function verifyVariant({
     throw new ScannerVerificationError(`Panic control did not prove the expected boundary: ${variant}; inspect ${fixture.evidence}.`);
 }
 
+if (process.argv
+  .length
+  !== 2) throw new ScannerVerificationError('This task accepts no arguments.');
 /**
- Every disabled variant must fail the previously passing assertion, not merely fail compilation.
-
- @throws ScannerVerificationError when arguments are given or a control does not prove its boundary
-
- @example
- ```ts
- await main();
- ```
+ The committed consumer, frozen once: edits during a multi-variant campaign must not change its assertions.
  */
-async function main(): Promise<void> {
-  if (process.argv
-    .length
-    !== 2) throw new ScannerVerificationError('This task accepts no arguments.');
-  /**
-   The committed consumer, frozen once: edits during a multi-variant campaign must not change its assertions.
-   */
-  const test = await readFile(
-    join(
-      import.meta.dirname,
-      'guard-fixture.rs.txt',
-    ),
-    'utf8',
-  );
-  await mapInSequence({
-    items: guardVariants,
-    run: function verifyOf(variant) {
-      return verifyVariant({
-        variant,
-        test,
-      });
-    },
-  });
-}
-
-await main();
+const test = await readFile(
+  join(
+    import.meta.dirname,
+    'guard-fixture.rs.txt',
+  ),
+  'utf8',
+);
+await mapInSequence({
+  items: guardVariants,
+  run: function verifyOf(variant) {
+    return verifyVariant({
+      variant,
+      test,
+    });
+  },
+});
