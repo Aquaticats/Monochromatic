@@ -98,7 +98,7 @@ detector reads as TypeScript).
 
 Across the four invocation modes:
 
-- **Bare default**:
+- Bare default:
    2344 dead-code issues,
    235 clone groups (7.8% duplication),
   5347 functions analyzed,
@@ -110,7 +110,7 @@ Across the four invocation modes:
    241 entry points
   detected (145 from `package.json`,
    96 from plugins).
-- **`fallow init` default config**:
+- `fallow init` default config:
    identical to bare.
    The default config is
   too minimal to affect anything;
@@ -118,7 +118,7 @@ Across the four invocation modes:
   and declares `package/*/*` as the workspace pattern,
    both of which fallow
   already infers.
-- **Hand-tuned `.fallowrc.json`**:
+- Hand-tuned `.fallowrc.json`:
    869 dead-code issues (-63%),
    232 clone groups
   (8.9% duplication),
@@ -129,7 +129,7 @@ Across the four invocation modes:
    145 `package.json`,
    96 plugin,
   44 manual entry).
-- **file-enforcer-generated config (prototype)**:
+- file-enforcer-generated config (prototype):
    744 dead-code issues
   (-68% from default;
    -14% from hand-tuned),
@@ -319,7 +319,7 @@ Closing this gap would extend the generator to scan every
 
 ### Bare `tsdown.config.ts` files
 
-**Resolved 2026-05-09**:
+Resolved 2026-05-09:
  every per-package config now uses
 `tsdown.<platform>.config.ts`,
  so the false-positive class described below

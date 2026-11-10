@@ -839,7 +839,7 @@ no taxonomy query because the single expansion round was already frozen.
 
 ### Discovery status
 
-**Reopened after independent review.**
+Reopened after independent review.
  The initial run treated GitHub's documented `1,000`-result search cap as a terminal
 block.
  An independent review pointed out that the frozen queries were too broad (`pi dynamic workflows` matched `23,764`

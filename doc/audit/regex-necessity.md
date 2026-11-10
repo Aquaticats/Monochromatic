@@ -151,18 +151,18 @@ Enumeration had to see justified sites too,
   (the constructor beside it stays necessary),
   and the string branch of `toMatch` in
   `package/module/test-expect/src/expect-matchers-core.ts:294`.
-- **1069 sites in untracked files**:
+- 1069 sites in untracked files:
   gitignored local artifacts,
   dominated by `src/canary-lint/<model>/<probe>/canary.ts`,
   which `package-paused/dev-script/inference-canary/README.md` documents as generated model
   outputs,
   gitignored but preserved locally.
   Editing them would falsify a measurement record.
-- **165 sites in `package/module/deepmerge-ts.fuzz/src/declared-type-soundness.generated.ts`**:
+- 165 sites in `package/module/deepmerge-ts.fuzz/src/declared-type-soundness.generated.ts`:
   generated corpus data marked "Do not edit",
   where each `new RegExp("x", "gu")` is a leaf value the merge must handle.
   Excluded as generated and classified necessary.
-- **1 site in `package/module/conf-fork.fuzz/upstream-conf/index.ts`**:
+- 1 site in `package/module/conf-fork.fuzz/upstream-conf/index.ts`:
   a vendored upstream snapshot under `@ts-nocheck`,
   whose value is that it matches upstream.
 - **The directories the mirror skipped** (`bundle`,
@@ -319,7 +319,7 @@ All timings are Node v26.11.1 on this machine,
   so the seven sites plus `anchoredExternal` and `escapePackageNameForRegExp` in
   `package/config/rolldown/src/package-externals.ts` must migrate as one change,
   and each issue in that group says so.
-  **Correction (2026-10-17):**
+  Correction (2026-10-17):
   this bullet read the TypeScript declaration surface and stopped there.
   Tracing rolldown's Rust source at tag `v1.2.13` shows the `RegExp` entries never
   execute as JavaScript:
@@ -430,7 +430,7 @@ No issue is filed for it until that work is done.
 Completeness needs the negative results too,
  each with the search that produced it.
 
-- **Dot-directories the mirror skipped**:
+- Dot-directories the mirror skipped:
   `.agents`,
   `.cargo`,
   `.changeset`,
@@ -443,7 +443,7 @@ Completeness needs the negative results too,
   and `.serena` hold exactly one tracked JS or TS file between them,
   `.changeset/changelog.ts`,
   which contains no regex.
-- **Shell-tool regex**:
+- Shell-tool regex:
   every tracked hit for `grep -E`,
   `sed -E`,
   `sed -r`,
@@ -458,12 +458,12 @@ Completeness needs the negative results too,
   and replacing them would mean telling the reader to write a program instead of a
   command.
   Out of scope by decision.
-- **`mise.toml` task bodies and `Caddyfile`**:
+- `mise.toml` task bodies and `Caddyfile`:
   no `grep -E`,
   `sed -E`,
   `=~`,
   or Caddy regexp matcher.
-- **Other declarative surfaces**:
+- Other declarative surfaces:
   Slint,
   CSS,
   and Dockerfile files carry no regex constructs.

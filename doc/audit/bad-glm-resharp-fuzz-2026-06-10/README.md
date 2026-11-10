@@ -205,7 +205,7 @@ run on nosimd build,
 
 ### Still present (not fixed)
 
-- **BUG-1**:
+- BUG-1:
    re-entrancy panic.
    Confirmed crash on ARM64 v0.6.12.
 - **BUG-11/17** (bracketed perl class compile blowup):

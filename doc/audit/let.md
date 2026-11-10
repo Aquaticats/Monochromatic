@@ -196,18 +196,18 @@ Sample purposes (from a 30-line sample):
 
 Alternatives:
 
-- **Closure factory**:
+- Closure factory:
    replace with a memoizing closure returned at module init.
   Adds indirection;
    loses module-scope identity that some test fixtures rely on.
-- **`memoize` from `module-es`**:
+- `memoize` from `module-es`:
    directly addresses caching patterns.
   Currently used only once in the entire monorepo,
   despite at least 20 module-level caches that fit its signature.
-- **`Map` / `WeakMap`**:
+- `Map` / `WeakMap`:
    replaces a single mutable slot with a mutable container of `const`.
   Lint-clean but still mutable.
-- **Accept as-is**:
+- Accept as-is:
    module scope is intended;
    nothing to "tighten".
   Document each with TSDoc explaining the cache invariant.
@@ -302,10 +302,10 @@ and would not trip a new `no-let` rule.
 
 Replacements:
 
-- **Iterate the source collection directly**:
+- Iterate the source collection directly:
    when the body reads `coll[i]`,
   switch to `for (const item of coll)` or `coll.forEach(...)`.
-- **`for (const i of range(n))`**:
+- `for (const i of range(n))`:
    requires a `range` helper;
   `module-es` already has one (used once for `range` in `module/es/src/types/...range/...`).
 - **`Array.from({ length: n }, (_, i) => ...)`** when the result is collected into an array.
@@ -388,11 +388,11 @@ Alternatives:
    the call site gets `const rule = ...`.
   Bonus:
    the parser becomes unit-testable in isolation.
-- **IIFE wrap**:
+- IIFE wrap:
    keeps the code structurally similar but tightens scope.
   Less testable than a named function;
    useful when the parsed value is used only locally.
-- **`reduce` over the scanned lines**:
+- `reduce` over the scanned lines:
    clean for simple field-collection,
   awkward when the scan logic involves nested loops or lookahead.
 
@@ -567,21 +567,21 @@ For each option,
  applying refactor,
  verifying tests pass):
 
-- **Option A blanket ban**:
+- Option A blanket ban:
    8 to 16 hours.
   Many trivial changes (disable comment per for-loop counter)
   plus ~50 real refactors hidden in the noise.
   Significant noise added to the codebase.
-- **Option B function-body-root**:
+- Option B function-body-root:
    4 to 8 hours.
   Each catch is a real scope-leak case worth fixing structurally.
   Touches ~150 declarations.
-- **Option C module-level**:
+- Option C module-level:
    2 to 4 hours.
   92 declarations,
    almost all of which are caches that route to `memoize`
   or one-shot init slots that route to factory functions.
-- **Option D pattern-targeted**:
+- Option D pattern-targeted:
    similar to Option C plus marginal cost per added rule.
 
 These are estimates from declaration count and per-case complexity;
@@ -715,7 +715,7 @@ Two structural moves silence the report without disable comments:
    Best when the mutation block has clear inputs and one returned value.
    Bonus:
    the helper is unit-testable in isolation.
-- **Wrap with a named-function IIFE**:
+- Wrap with a named-function IIFE:
    `const x = (function compute () { let acc = init; /* ... */ return acc; })();`.
    Best when the mutation block is tightly coupled to surrounding statements and cannot be cleanly extracted.
 

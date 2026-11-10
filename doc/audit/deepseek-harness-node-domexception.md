@@ -32,7 +32,7 @@ where `DOMException` is native
 (<https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/package.json#L7-L10>,
 <https://nodejs.org/docs/latest-v22.x/api/globals.html#class-domexception>).
 
-**Assessment:**
+Assessment:
  this is a medium dependency-packaging and documentation-hygiene finding,
 not a meaningful runtime-security finding by itself.
 The sloppy part is not a mistaken direct polyfill import.

@@ -237,7 +237,7 @@ path dep, <code>diag</code> feature</td></tr>
    `nonword`.
    Plus
   Twain (Gutenberg #74+#76 to 8 MiB) and 9.9 MiB of real Rust source for corpus/feature suites.
-- **Match timing**:
+- Match timing:
    compile once,
    then 4 timed `find_all` passes;
    pass 1 = "cold" (includes
@@ -249,7 +249,7 @@ path dep, <code>diag</code> feature</td></tr>
    as do the A/B/C scanner findings at full scale.
 - Peak RSS via `/usr/bin/time -v`,
    fresh process.
-- **Run-to-run spread**:
+- Run-to-run spread:
    a 10-run fresh-process probe of `\w{24}` Full compile spans 1.47-1.74 s
   (~±9% around the mean).
    Treat trailing digits in every cell as noise;
@@ -308,10 +308,10 @@ Fresh process,
    So does
   `Javascript` mode (`\w` stays ASCII).
    The cliff is a wide-Unicode-class phenomenon only.
-- **The regex crate enforces its compile budget structurally**:
+- The regex crate enforces its compile budget structurally:
    at most ~67 ms before refusing;
   per-repeat slope ~0.13 ms.
-- **Peak RSS**:
+- Peak RSS:
    regex `\w{24}` 7 MiB,
    regex-big `\w{500}` 70 MiB;
    resharp Full `\w{24}` **503 MiB**,
@@ -813,7 +813,7 @@ the identical 259-rule ruleset:
   literal "default config" question,
    but reads as a mode choice,
    not engine overhead.
-- **B is viable but lossy in expressiveness**:
+- B is viable but lossy in expressiveness:
    routing the `BASE&~(E)` rules verbatim to the regex
   crate compiles (it reads `&~(` as literal bytes) but silently changes semantics and loses the
   detection;
