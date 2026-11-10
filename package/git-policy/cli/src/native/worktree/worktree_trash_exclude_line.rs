@@ -109,6 +109,16 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
 }
 
 /// What:
+///  Whether this line is the wrapper's own,
+/// however much space a person left around it.
+/// Why:
+///   The comparison is one line's whole text,
+/// so the space a hand-edited file carries around the line is not a second line.
+fn is_the_trash_line(line: &str) -> bool {
+    return line.trim() == TRASH_EXCLUDE_LINE;
+}
+
+/// What:
 ///  Whether the file's lines already hold the wrapper's own.
 /// Why:
 ///   A blank line,
@@ -122,7 +132,7 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
 /// const alreadyExcluded = (text) => text.split('\n').map((line) => line.trim()).includes(TRASH_EXCLUDE_LINE);
 /// ```
 fn already_excluded(text: &str) -> bool {
-    return text.lines().any(|line: &str| return line.trim() == TRASH_EXCLUDE_LINE);
+    return text.lines().any(is_the_trash_line);
 }
 
 /// Exclude-line controls stay out of the release executable.
