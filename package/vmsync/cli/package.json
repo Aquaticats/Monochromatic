@@ -18,6 +18,7 @@
   "dependencies": {
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/jsonc-edit-core-ts": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",
     "nano-spawn": "catalog:",
     "@optique/core": "catalog:",

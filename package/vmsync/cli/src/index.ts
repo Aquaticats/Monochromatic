@@ -24,11 +24,11 @@ export { detectHypervisor, } from './config.ts';
 export { isVmNameChar, } from './config.ts';
 
 /**
- JSONC comment stripping, the step `readConfig` runs before parsing.
+ Parsing of a `vmsync.jsonc` file, delegated to the shared JSONC parser.
  
  @internal
  */
-export { stripJsoncComments, } from './config.ts';
+export { parseVmsyncConfig, } from './config.ts';
 
 /**
  The VM-name validation `import` and `config` both rely on.

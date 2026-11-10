@@ -1,6 +1,9 @@
 /**
  VM configuration persistence and platform detection.
  
+ JSONC parsing is owned by `@monochromatic-dev/jsonc-edit-core-ts`; this module
+ only decides which file to read and writes the config back out.
+ 
  @module
  */
 
@@ -12,7 +15,11 @@ import {
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
+import {
+  jsoncGetValue,
+  parseJsoncEdit,
+  type StringJsonc,
+} from '@monochromatic-dev/jsonc-edit-core-ts/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
@@ -182,93 +189,39 @@ export function validateName(name: string,): void {
 //region JSONC parsing
 
 /**
- Strips single-line (`//`) and multi-line (`/* *\/`) comments from a JSONC string,
- preserving string literals that contain comment-like sequences.
- An unterminated multi-line comment consumes the rest of the input.
+ Parses the contents of a `vmsync.jsonc` file into a {@link VmsyncConfig}.
  
- @param text - JSONC source text
+ Comments and trailing commas are accepted, as the README documents, because the
+ shared parser reads them as data instead of stripping them first. Text that is
+ not a JSONC object is refused by the parser with a `JsoncParseError` naming the
+ byte offset of the fault.
  
- @returns JSON-parseable string with comments removed
+ @param source - File contents read verbatim, comments included
+ 
+ @returns Parsed {@link VmsyncConfig}
+ 
+ @throws JsoncParseError when the text is not a JSONC object
  
  @example
  ```ts
- stripJsoncComments('{ "a": 1 // comment\n}'); // '{ "a": 1 \n}'
+ const cfg = parseVmsyncConfig({ source: '{ // boot\n "name": "alpine", }' });
  ```
  */
-export function stripJsoncComments(text: string,): string {
+export function parseVmsyncConfig(
+  { source, }: {
+    readonly source: string;
+  },
+): VmsyncConfig {
   /**
-   Result accumulator built character-by-character.
+   Plain JSON value of the whole document; the empty path addresses the root.
    */
-  const result: string[] = [];
-  /**
-   Current position in the source text.
-   */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- parser cursor advances by 1 or 2 depending on which side-effecting branch fires
-  let i = 0;
-  /**
-   Whether we are currently inside a double-quoted string.
-   */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- string-mode flag toggled across multiple branches of the parser state machine
-  let inString = false;
-
-  while (i < text
-    .length) {
-    /**
-     Character at the current position.
-     */
-    const ch = nonNullishOrThrow(text[i],);
-
-    if (inString) {
-      if (ch === '\\') {
-        /**
-         Escaped character pair.
-         */
-        const next = nonNullishOrThrow(text[i + 1],);
-        result.push(
-          ch,
-          next,
-        );
-        i += 2;
-      }
-      else {
-        if (ch === '"')
-          inString = false;
-        result.push(ch,);
-        i += 1;
-      }
-    }
-    else if (ch === '"') {
-      inString = true;
-      result.push(ch,);
-      i += 1;
-    }
-    else if ((ch === '/') && (text[i + 1]
-      === '/')) {
-      while ((i < text
-        .length) && (text[i]
-          !== '\n'))
-        i += 1;
-    }
-    else if ((ch === '/')
-      && (text[i + 1]
-        === '*')) {
-      i += 2;
-      while ((i < text
-        .length) && (!((text[i]
-          === '*') && (text[i + 1]
-            === '/'))))
-        i += 1;
-      if (i < text
-        .length)
-        i += 2;
-    }
-    else {
-      result.push(ch,);
-      i += 1;
-    }
-  }
-
-  return result.join('',);
+  const value = jsoncGetValue({
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the JSONC brand is a compile-time marker on an ordinary string, and this is the file boundary where an unbranded string arrives
+    state: parseJsoncEdit({ source: source as StringJsonc, },),
+    path: [],
+  },);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSONC config vmsync wrote
+  return value as VmsyncConfig;
 }
 
 //endregion JSONC parsing
@@ -282,7 +235,9 @@ export function stripJsoncComments(text: string,): string {
  
  @returns Parsed {@link VmsyncConfig}
  
- @throws Error when the config file does not exist or contains invalid JSON
+ @throws Error when the config file does not exist
+ 
+ @throws JsoncParseError when the file is not a JSONC object
  
  @example
  ```ts
@@ -308,8 +263,7 @@ export async function readConfig(name: string,): Promise<VmsyncConfig> {
   /**
    Parsed configuration object.
    */
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- trusted JSONC config we wrote
-  const config = JSON.parse(stripJsoncComments(raw,),) as VmsyncConfig;
+  const config = parseVmsyncConfig({ source: raw, },);
   rl.info(`loaded config for "${name}"`,);
   return config;
 }

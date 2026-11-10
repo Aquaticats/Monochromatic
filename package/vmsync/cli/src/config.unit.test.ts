@@ -7,7 +7,7 @@ import {
 import {
   detectHypervisor,
   isVmNameChar,
-  stripJsoncComments,
+  parseVmsyncConfig,
   validateName,
   vmConfigPath,
   vmDir,
@@ -165,143 +165,94 @@ await describe({
 
     //endregion isVmNameChar
 
-    //region stripJsoncComments: removes comments while preserving string content
+    //region parseVmsyncConfig: the shared JSONC parser reads the config file
 
     describe({
-      name: stripJsoncComments.name,
+      name: parseVmsyncConfig.name,
       children: [
         it({
-          name: 'returns plain JSON unchanged',
+          name: 'parses a config holding no comments',
           fn: async () => {
-            const input = '{"a": 1, "b": "hello"}';
-            expect(stripJsoncComments(input,),).toBe(input,);
+            const config = parseVmsyncConfig({
+              source: '{ "name": "alpine", "boot": { "memory": "4G", "cpus": 4 } }',
+            },);
+            expect(config.name,).toBe('alpine',);
+            expect(config.boot,).toEqual({
+              memory: '4G',
+              cpus: 4,
+            },);
           },
         },),
 
         it({
-          name: 'strips single-line comment',
+          name: 'parses a config holding line and block comments',
           fn: async () => {
-            const input = '{"a": 1 // comment\n}';
-            expect(stripJsoncComments(input,),).toBe('{"a": 1 \n}',);
-          },
-        },),
-
-        it({
-          name: 'strips multi-line comment',
-          fn: async () => {
-            const input = '{"a": /* block */ 1}';
-            expect(stripJsoncComments(input,),).toBe('{"a":  1}',);
-          },
-        },),
-
-        it({
-          name: 'preserves comment-like content inside strings',
-          fn: async () => {
-            const input = '{"url": "http://example.com"}';
-            expect(stripJsoncComments(input,),).toBe(input,);
-          },
-        },),
-
-        it({
-          name: 'preserves double-slash inside strings',
-          fn: async () => {
-            const input = '{"msg": "see // this"}';
-            expect(stripJsoncComments(input,),).toBe(input,);
-          },
-        },),
-
-        it({
-          name: 'preserves block comment syntax inside strings',
-          fn: async () => {
-            const input = '{"msg": "a /* b */ c"}';
-            expect(stripJsoncComments(input,),).toBe(input,);
-          },
-        },),
-
-        it({
-          name: 'handles escaped quotes inside strings',
-          fn: async () => {
-            const input = String.raw`{"msg": "say \"hello\""}`;
-            expect(stripJsoncComments(input,),).toBe(input,);
-          },
-        },),
-
-        it({
-          name: 'closes a block comment whose body starts with a slash',
-          fn: async () => {
-            const input = '{/*/*/ "a": 1}';
-            const stripped = stripJsoncComments(input,);
-            expect(stripped,).toBe('{ "a": 1}',);
-            expect(() => {
-              JSON.parse(stripped,);
-            },)
-              .not
-              .toThrow();
-          },
-        },),
-
-        it({
-          name: 'closes a block comment whose body starts with two slashes',
-          fn: async () => {
-            expect(stripJsoncComments('{"a": /*// x */ 1}',),).toBe('{"a":  1}',);
-          },
-        },),
-
-        it({
-          name: 'consumes an unterminated block comment to end of input',
-          fn: async () => {
-            expect(stripJsoncComments('{"a": /* never closed',),).toBe('{"a": ',);
-          },
-        },),
-
-        it({
-          name: 'strips multiple single-line comments',
-          fn: async () => {
-            const input = '{\n// first\n"a": 1,\n// second\n"b": 2\n}';
-            const expected = '{\n\n"a": 1,\n\n"b": 2\n}';
-            expect(stripJsoncComments(input,),).toBe(expected,);
-          },
-        },),
-
-        it({
-          name: 'strips trailing comment after value',
-          fn: async () => {
-            const input = '{"a": 1} // trailing';
-            expect(stripJsoncComments(input,),).toBe('{"a": 1} ',);
-          },
-        },),
-
-        it({
-          name: 'handles empty input',
-          fn: async () => {
-            expect(stripJsoncComments('',),).toBe('',);
-          },
-        },),
-
-        it({
-          name: 'result is valid JSON after stripping JSONC comments',
-          fn: async () => {
-            const input = `{
-  // VM name
+            const source = `{
+  // VM identity
   "name": "alpine",
-  /* disk size in bytes */
-  "size": 1024
+  /* boot settings */
+  "boot": { "memory": "4G", "cpus": 4 }
 }`;
-            const stripped = stripJsoncComments(input,);
-            expect(() => {
-              JSON.parse(stripped,);
-            },)
-              .not
-              .toThrow();
-            const parsed = JSON.parse(stripped,) as { name: string; size: number; };
-            expect(parsed.name,).toBe('alpine',);
-            expect(parsed.size,).toBe(1_024,);
+            const config = parseVmsyncConfig({ source, },);
+            expect(config.name,).toBe('alpine',);
+            expect(config.boot
+              .cpus,).toBe(4,);
+          },
+        },),
+
+        it({
+          name: 'accepts the trailing comma the README example carries',
+          fn: async () => {
+            const source = '{\n  "name": "alpine",\n  "boot": { "memory": "4G", "cpus": 4 },\n}';
+            const config = parseVmsyncConfig({ source, },);
+            expect(config.boot
+              .memory,).toBe('4G',);
+          },
+        },),
+
+        it({
+          name: 'keeps a value whose text looks like a comment',
+          fn: async () => {
+            const config = parseVmsyncConfig({
+              source: '{ "importedFrom": "https://example.com/a.qcow2", "name": "a /* b */ c" }',
+            },);
+            expect(config.importedFrom,).toBe('https://example.com/a.qcow2',);
+            expect(config.name,).toBe('a /* b */ c',);
+          },
+        },),
+
+        it({
+          name: 'refuses text that is not a JSONC object, naming the fault offset',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              parseVmsyncConfig({ source: '{ "name": "alpine" "boot": {} }', },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(Error,);
+            expect((caught as Error).name,).toBe('JsoncParseError',);
+            expect((caught as Error).message,).toContain('at offset',);
+          },
+        },),
+
+        it({
+          name: 'refuses a top-level scalar',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              parseVmsyncConfig({ source: '"alpine"', },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect((caught as Error).name,).toBe('JsoncParseError',);
           },
         },),
       ],
     },),
 
-    //endregion stripJsoncComments
 
     //region vmDir / vmConfigPath: path construction from VM name
 

@@ -8473,6 +8473,9 @@ importers:
       '@monochromatic-dev/const-core':
         specifier: workspace:*
         version: link:../../const/core
+      '@monochromatic-dev/jsonc-edit-core-ts':
+        specifier: workspace:*
+        version: link:../../jsonc-edit/core-ts
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core

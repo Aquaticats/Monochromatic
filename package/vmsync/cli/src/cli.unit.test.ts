@@ -139,7 +139,7 @@ async function writeVmConfig(
  
  @param args - CLI arguments to pass after `vmsync`
  
- @param env - Environment variables to set for the run, merged onto the current ones
+ @param home - Disposable home to run against, so no run touches real VM state
  
  @returns Stdout text, stderr text, and numeric exit code
  
@@ -152,16 +152,21 @@ async function writeVmConfig(
 async function runVmsync(
   {
     args,
-    env,
+    home,
   }: {
     args: readonly string[];
-    readonly env?: Readonly<Partial<Record<string, string>>>;
+    readonly home?: string;
   },
 ): Promise<{
   stdout: string;
   stderr: string;
   exitCode: number;
 }> {
+  /**
+   Environment overrides for this run: the child inherits the current
+   environment and only HOME is replaced, so the other variables still reach it.
+   */
+  const env = (home === undefined) ? {} : { HOME: home, };
   try {
     const result = await spawn('node', [BIN_PATH, ...args,], {
       cwd: REPO_ROOT,
@@ -215,7 +220,7 @@ await describe({
         },);
         const result = await runVmsync({
           args: ['status', 'alpine',],
-          env: { HOME: home, },
+          home,
         },);
         expect(result.stderr,).toBe('',);
         expect(result.exitCode,).toBe(0,);
@@ -236,7 +241,7 @@ await describe({
         },);
         const result = await runVmsync({
           args: ['status', 'alpine',],
-          env: { HOME: home, },
+          home,
         },);
         expect(result.exitCode,).toBe(1,);
         expect(result.stderr,).toContain('JsoncParseError',);
