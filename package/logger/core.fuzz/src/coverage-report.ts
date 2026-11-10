@@ -305,6 +305,11 @@ function formatSummary(
 //region CLI
 
 /**
+ Command line both guards quote, naming the two accepted modes.
+ */
+const USAGE = 'usage: coverage-report.ts <check|write> <coverageDir> <baselinePath>';
+
+/**
  Run the coverage gate as a script.
  
  `write` freezes the baseline from the current coverage and prints the summary.
@@ -321,7 +326,14 @@ async function main(): Promise<void> {
     .slice(2,);
   if ((mode === undefined) || (coverageDir === undefined)
     || (baselinePath === undefined)) {
-    throw new Error('usage: coverage-report.ts <check|write> <coverageDir> <baselinePath>',);
+    throw new Error(USAGE,);
+  }
+  /**
+   Reject any other spelling before the coverage is read, so a mistyped `write`
+   or `check` reports the usage error instead of running the check gate.
+   */
+  if ((mode !== 'check') && (mode !== 'write')) {
+    throw new Error(`unknown mode ${mode}; ${USAGE}`,);
   }
   /**
    Runtime package root, resolved through the `/ts` subpath of
@@ -356,9 +368,6 @@ async function main(): Promise<void> {
     },),);
     console.log(`\nWrote coverage baseline to ${baselinePath}`,);
     return;
-  }
-  if (mode !== 'check') {
-    throw new Error(`Unknown mode ${mode}; expected 'check' or 'write'`,);
   }
   /**
    Committed baseline to gate against.
