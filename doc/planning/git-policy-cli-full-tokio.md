@@ -9562,8 +9562,11 @@ and its steps are awaited:
   `block-in-place` (which panics on the current-thread runtime the system's refusals select).
 - What the guards found,
   and what was fixed:
-  the seven findings below are named by the guard on the tree before the fix,
+  the findings below are named by the guard on the tree before the fix,
   and gone from it after.
+  A call split over two lines answers on both of them,
+  so the guard names nine lines for the three starts it names this way,
+  and two for the LFS query's one.
   The four unretried starts (`947297a8c7`):
   the LFS query's `git` (`lfs/lfs_interactive.rs`),
   the person's merge editor (`merge/merge_isolation_editor.rs`),
