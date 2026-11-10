@@ -262,6 +262,42 @@
       "catalog": "rust-catalog.toml",
       "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
     },
+    // package.json metadata, owned from where each file sits: the repository object and the homepage link both
+    // derive from the directory, so the pre-transfer URL cannot come back (issue 1124). A manifest without a
+    // repository object is not managed.
+    {
+      "kind": "json-keys",
+      "id": "package-metadata",
+      "manifests": ["package/*/*/package.json"],
+      "edits": [
+        { "guard": ["repository"], "path": ["repository", "type"], "value": "git" },
+        {
+          "guard": ["repository"],
+          "path": ["repository", "url"],
+          "value": "https://github.com/Aquaticats/Monochromatic.git",
+        },
+        { "guard": ["repository"], "path": ["repository", "directory"], "value": { "var": "dir" } },
+        {
+          "guard": ["repository"],
+          "path": ["homepage"],
+          "value": { "concat": ["https://github.com/Aquaticats/Monochromatic/tree/main/", { "var": "dir" }] },
+        },
+      ],
+    },
+    // The workspace root manifest has no directory of its own, so only its repository object is owned.
+    {
+      "kind": "json-keys",
+      "id": "root-package-metadata",
+      "manifests": ["package.json"],
+      "edits": [
+        { "guard": ["repository"], "path": ["repository", "type"], "value": "git" },
+        {
+          "guard": ["repository"],
+          "path": ["repository", "url"],
+          "value": "https://github.com/Aquaticats/Monochromatic.git",
+        },
+      ],
+    },
     // Placed after the rules that write manifests: it reads each manifest's license, which the toml-keys rules set.
     // Every package carries the license texts its manifest needs. LGPL-3.0-or-later is an additional-permissions layer
     // over GPL-3.0-or-later, so it needs both. Only the three ids under "texts" are ever pruned.

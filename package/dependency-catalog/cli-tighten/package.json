@@ -18,9 +18,10 @@
   "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/dependency-catalog/cli-tighten"
   },
   "private": true,
-  "sideEffects": true
+  "sideEffects": true,
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/dependency-catalog/cli-tighten"
 }

@@ -25,11 +25,12 @@
   "version": "0.0.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/pnpm-override/shim-ungap-structured-clone"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/pnpm-override/shim-ungap-structured-clone"
 }

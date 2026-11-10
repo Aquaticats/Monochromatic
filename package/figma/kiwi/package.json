@@ -36,7 +36,7 @@
   "license": "LGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/figma/kiwi"
   },
   "dependencies": {
@@ -49,5 +49,6 @@
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/figma/kiwi"
 }

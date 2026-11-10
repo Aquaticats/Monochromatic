@@ -49,11 +49,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/translation-repair/insertion"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/translation-repair/insertion"
 }

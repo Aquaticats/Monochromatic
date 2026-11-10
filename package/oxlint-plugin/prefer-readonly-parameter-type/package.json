@@ -40,7 +40,7 @@
   "license": "LGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/oxlint-plugin/prefer-readonly-parameter-type"
   },
   "exports": {
@@ -61,5 +61,6 @@
         "default": "./dist/final/node/index.mjs"
       }
     }
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/oxlint-plugin/prefer-readonly-parameter-type"
 }

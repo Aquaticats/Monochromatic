@@ -67,5 +67,6 @@
         "default": "./dist/final/node/node.mjs"
       }
     }
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/fs-path/core"
 }

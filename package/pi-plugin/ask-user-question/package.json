@@ -6,7 +6,7 @@
   "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/pi-plugin/ask-user-question"
   },
   "exports": {
@@ -42,5 +42,6 @@
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typebox": "catalog:"
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/pi-plugin/ask-user-question"
 }

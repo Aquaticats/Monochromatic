@@ -37,12 +37,13 @@
   "version": "0.0.2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/monorepo-task/core-exec"
   },
   "sideEffects": true,
   "files": [
     "dist/final",
     "LICENSES"
-  ]
+  ],
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/monorepo-task/core-exec"
 }

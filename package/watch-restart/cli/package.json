@@ -40,9 +40,10 @@
   "version": "0.0.3",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/watch-restart/cli"
   },
   "private": false,
-  "sideEffects": false
+  "sideEffects": false,
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/watch-restart/cli"
 }

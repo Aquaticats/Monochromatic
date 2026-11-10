@@ -43,11 +43,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
     "directory": "package/translation-repair/provider-stream"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "homepage": "https://github.com/Aquaticats/Monochromatic/tree/main/package/translation-repair/provider-stream"
 }
