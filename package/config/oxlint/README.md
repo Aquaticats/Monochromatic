@@ -28,10 +28,11 @@ The package default export resolves to the prebuilt,
  which bundles the config and references three
 co-located plugin sidecars (`plugin-*.mjs`) by relative `file://` URL.
 It is publishing output for consumers outside this repository.
-A repository root lints through the `/ts` source subpath (`/ts/*` for individual
-files) instead,
- which needs no build before linting and keeps a lint run reading live
-plugin source (rule ST3, `doc/decision/workspace-ts-source-imports.md`).
+A repository root lints through the `/ts` source subpath instead,
+ and `/ts/*` names individual files.
+ It needs no build before linting,
+ and a lint run keeps reading live plugin source.
+Rule ST3 and `doc/decision/workspace-ts-source-imports.md` own that choice.
 
 ## Structure
 

@@ -389,10 +389,11 @@ but each link also fails for causes other than #570.
   `@monochromatic-dev/config-oxlint/ts`,
   so an in-repo lint run reads plugin source and never the `dist` sidecars,
   and link 3 no longer reaches lint.
-  Re-measured that day on `package/logger/core/src`, alternating arms,
-  six rounds: built 1.42 s to 1.56 s against `/ts` 1.56 s to 1.67 s,
+  Measured that day on `package/logger/core/src`,
+  alternating arms over six rounds.
+  The built entry ran 1.42 s to 1.56 s and the `/ts` entry 1.56 s to 1.67 s,
   about +0.19 s per oxlint process,
-  and both arms produced byte-identical findings.
+  with byte-identical findings.
   `ensureOxlintConfig` still builds the sidecars a lint run no longer reads;
   removing that step from the `lint:oxlint` and `format:oxlint` templates is the remaining half.
 - Unrelated incidents seen during research,
