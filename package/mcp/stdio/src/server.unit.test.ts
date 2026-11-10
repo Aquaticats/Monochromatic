@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  buildToolCallResult,
   createMcpServer,
   defineTool,
   JSON_RPC_INVALID_PARAMS,
@@ -22,6 +23,7 @@ import {
   strictArguments,
   RESULT_TYPE_COMPLETE,
   SUPPORTED_PROTOCOL_VERSIONS,
+  type ToolCallResult,
   type ToolContent,
   type ToolEntry,
 } from '@monochromatic-dev/mcp-stdio';
@@ -242,6 +244,36 @@ await describe({
     },),
 
     //endregion registerTools
+
+    //region buildToolCallResult: stamps the envelope fields over the handler payload
+
+    describe({
+      name: buildToolCallResult.name,
+      children: [
+        it({
+          name: 'stamps the complete envelope over a payload that states its own resultType',
+          fn: async () => {
+            /**
+             Handler payload carrying an envelope field of its own, which a JavaScript consumer,
+             a cast, or a spread build can hand over even though the declared payload type omits
+             it. Typed as an intersection rather than cast, so the value reaches the builder
+             exactly as a runtime caller would deliver it.
+             */
+            const payloadCarryingAnEnvelopeField: ToolCallResult & { resultType: string; } = {
+              content: [],
+              resultType: 'input_required',
+            };
+            const built = buildToolCallResult({
+              result: payloadCarryingAnEnvelopeField,
+              serverInfo: serverIdentity,
+            },);
+            expect(built.resultType,).toBe(RESULT_TYPE_COMPLETE,);
+          },
+        },),
+      ],
+    },),
+
+    //endregion buildToolCallResult
 
     //region createMcpServer: builds immutable server and dispatches messages
 
@@ -1032,6 +1064,40 @@ await describe({
                   },),
                 ) as JsonRpcResponse;
                 expect((response.result as { isError: boolean; }).isError,).toBe(true,);
+              },
+            },),
+            it({
+              name: 'answers with resultType complete when the handler payload states another one',
+              fn: async () => {
+                /**
+                 Payload a handler supplies with an envelope field of its own set.
+                 */
+                const misstatingPayload: ToolCallResult & { resultType: string; } = {
+                  content: [{ type: 'text', text: 'needs more input', },],
+                  resultType: 'input_required',
+                };
+                const misstatingTool: ToolEntry = {
+                  name: 'misstates',
+                  description: 'Returns a payload carrying its own resultType.',
+                  schema: ANY_ARGUMENTS,
+                  handler: () => misstatingPayload,
+                };
+                const server = createMcpServer({
+                  config: serverIdentity,
+                  tools: [misstatingTool,],
+                },);
+                const response = await server.handleMessage(
+                  modernRequest({
+                    id: 31,
+                    method: 'tools/call',
+                    params: { name: 'misstates', },
+                  },),
+                ) as JsonRpcResponse;
+                expect(
+                  (response.result as { resultType: string; }).resultType,
+                ).toBe(
+                  RESULT_TYPE_COMPLETE,
+                );
               },
             },),
           ],
