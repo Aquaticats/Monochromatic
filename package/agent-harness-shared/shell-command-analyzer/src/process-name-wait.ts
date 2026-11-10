@@ -231,6 +231,9 @@ function programWordOfRun(words: readonly string[],): string | typeof NO_PROGRAM
         0,
         operatorAt,
       );
+      /**
+       Word text before the operator, once a leading `&` is read as part of the redirection.
+       */
       const beforeOperator = operatorPrefix.startsWith('&',)
         ? operatorPrefix.slice(1,)
         : operatorPrefix;

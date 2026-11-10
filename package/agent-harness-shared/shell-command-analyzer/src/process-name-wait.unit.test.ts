@@ -136,6 +136,30 @@ await describe({
           },
         },),
         it({
+          name: 'refuses a lookup behind a descriptor redirection or a joined line in a command the parser cannot read',
+          fn: async function testUnparsableJoinedSpellings() {
+            expect(waitsOnProcessName('while >&2 pgrep -f build; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+            expect(waitsOnProcessName('while pg\\\nrep -f build; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+            expect(waitsOnProcessName("while $'pgrep' -f build; do sleep 1; done \"unterminated",),)
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a lookup written below a quote the command never closes',
+          fn: async function testUnparsableUnclosedQuote() {
+            expect(
+              waitsOnProcessName("cat <<'EOF'\ndon't\nEOF\nwhile pgrep x; do sleep 1; done \"unterminated",),
+            )
+              .toBe(true,);
+            expect(
+              waitsOnProcessName('echo don\'t && while pgrep x; do sleep 1; done "unterminated',),
+            )
+              .toBe(true,);
+          },
+        },),
+        it({
           name: 'refuses a lookup command the parser cannot read outside any visible loop',
           fn: async function testUnparsableStraightLineLookup() {
             expect(waitsOnProcessName('pgrep -af build "unterminated',),).toBe(true,);

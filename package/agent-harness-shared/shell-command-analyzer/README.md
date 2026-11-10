@@ -364,6 +364,12 @@ escapes,
 and the characters Bash reads as command separators,
 and it reads only the runs of words that begin where a command can begin,
 so prose such as `echo "bun test` stays allowed.
+It joins a word a line continuation splits (`bun te` then a backslash and a newline then `st`),
+reads an ANSI-C quoted word (`$'test'`) as the text it spells,
+keeps a `&` that belongs to a redirection (`>&2`,
+`&>/dev/null`) inside its word,
+and reads the source a second time with quoting ignored when a scan ends inside a quote,
+so a `bun test` written below an unclosed quote is refused too.
 
 A here-document body inside such a command is read as command text rather than skipped,
 because that reader never follows the redirect declaring the body.
@@ -422,6 +428,13 @@ so it cannot hide the lookup:
 `while pgrep</dev/null -f x; do sleep 1; done "unterminated` are refused.
 Only the program word hands a script to a shell,
 so `printf bash -c pgrep "unterminated` is not refused.
+The reader joins a word a line continuation splits,
+reads an ANSI-C quoted word as the text it spells,
+keeps a `&` that belongs to a redirection inside its word,
+and reads the source again with quoting ignored when a scan ends inside a quote,
+so `while >&2 pgrep -f x; do sleep 1; done "unterminated`,
+`while $'pgrep' -f x; do sleep 1; done "unterminated`,
+and a loop written below an unclosed quote are refused.
 
 ### What stays undetected or over-refused
 
@@ -429,29 +442,16 @@ The raw reader never follows the redirect that declares a here-document,
 so a here-document body is read as command text:
 `cat <<EOF` whose body spells `while pgrep x; do sleep 1; done` is refused
 even though the body is document text rather than a command.
-The same quote bookkeeping cuts the other way:
-a here-document body or any unparsable word carrying an unbalanced quote
-hides everything after that quote,
-so a real loop spelled later in that command is missed.
 
 A lookup spelled through a variable (`while "$LOOKUP" -f x; do sleep 1; done`)
 is not read,
 in a parsed command or an unparsable one.
 A shell script read from standard input (`bash <<< 'until ! pgrep x; do sleep 1; done'`)
 is not followed either.
-The raw reader hides everything inside quotes,
-so a lookup spelled inside one is unread in an unparsable command:
-`while test "$(pgrep -f x)"; do sleep 1; done "unterminated`,
-`while $'pgrep' -f x; do sleep 1; done "unterminated`,
-and a lookup split by a line continuation (a `pg` word,
-a backslash,
-a newline,
-then `rep`).
-A parsed command reads all three,
-because the parser hands back the commands inside a substitution and resolves the quoting itself.
-The reader also ends a run at `&`,
-so a redirection that names a descriptor splits it away from the command behind it:
-`while >&2 pgrep -f x; do sleep 1; done "unterminated` is not refused.
+A command substitution inside quotes is hidden by them in an unparsable command,
+so `while test "$(pgrep -f x)"; do sleep 1; done "unterminated` is not refused,
+though a parsed command reads it,
+because the parser hands back the commands inside a substitution.
 
 A parsed command is read by its own program word and by shell `-c` script strings only,
 so a wrapper or a command string in front of the lookup is not followed there:
