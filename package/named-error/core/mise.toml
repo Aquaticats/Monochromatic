@@ -1,0 +1,36 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:browser"]
+extends = "build:js:browser"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:browser"]
+extends = "watch:build:js:browser"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the neutral bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]

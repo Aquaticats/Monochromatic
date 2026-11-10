@@ -3309,6 +3309,24 @@ importers:
         specifier: 'catalog:'
         version: 26.6.6
 
+  package/named-error/core:
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+
   package/numeric-format/core:
     dependencies:
       '@monochromatic-dev/const-core':
