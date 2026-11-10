@@ -49,6 +49,7 @@ const PACKAGE_NODE_MODULES = join(
  Relay cache file name, relative to the script's own directory.
  */
 const TOR_RELAY_CACHE_FILE_NAME = 'cache_tor_relays.txt';
+
 /**
  Cache age that still counts as fresh for the relay script's one-hour window.
  */
@@ -177,8 +178,9 @@ type ScriptRun = {
 
  @param scriptFileName - Script file name inside this package's `src` directory.
 
- @returns Manifest, staged script, and its captured-output runner.
-
+ @returns Throwaway directory standing in for the script's source directory,
+   plus the runner that stages no further state.
+ 
  @example
  ```ts
  await using staged = await stageScript('fetch_tor_relays.ts',);
