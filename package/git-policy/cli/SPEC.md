@@ -1282,12 +1282,49 @@ into a trash directory
 by rename.
 A stand-in directory the snapshot shows where the source holds a nested subvolume (inode 2,
 btrfs's stand-in for a
-subvolume a snapshot did not carry) is never moved:
+subvolume a snapshot did not carry) is never moved by the leave-out:
 it holds nothing,
 so it carries no ignored state,
 and btrfs refuses to rename it.
 It stays for the stand-in sweep,
-which removes it as an empty directory in the folders that hold this repository's worktrees.
+which reads the folders that hold this repository's worktrees once each and takes a folder whole when every entry
+of it is such a stand-in:
+one rename into the snapshot's trash,
+and a fresh empty folder with the mode of the one it replaced takes
+its place.
+The stand-ins are deleted after the add returns by the same commit service and in the same work item as the rest
+of the trash,
+so an add pays one rename and one directory made again however many worktrees the repository has,
+and
+not one btrfs metadata change for each of them
+(`doc/planning/cli-git-worktree-add-stand-ins-off-the-waiting-path.md` measures the
+counts).
+When the leave-out set nothing aside the sweep makes that trash itself;
+a source whose Git does not ignore
+the trash place gets none,
+and its stand-ins are removed as empty directories where they are,
+because a trash the
+new worktree's Git does not ignore can be staged.
+A folder that holds one entry that is not such a stand-in stays where it
+is,
+because every other entry may be someone's data,
+and only the stand-ins in it are removed one by one.
+A stand-in
+whose subvolume no worktree names stays,
+since the snapshot never carried its files and their absence must stay visible.
+The service's emptying allows a stand-in through the device check that stops it at a nested subvolume or another
+filesystem:
+a stand-in reports a device of its own and belongs to the tree being removed.
+The snapshot's own `.git` copy goes into that trash behind one rename,
+after the index is installed and before the
+new worktree's pointer is written:
+it is the whole common directory,
+with one administrative directory for every worktree of the
+repository,
+and removing it inside the add costs one btrfs metadata change for each of them.
+A source whose `.git` is a pointer
+file has one file there,
+and it is unlinked as before.
 Names are kept as bytes:
 a name that is not UTF-8 is moved or kept by its bytes and never taken for another entry.
 Every directory is opened by one plain name below the handle of the one above,

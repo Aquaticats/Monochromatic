@@ -27,7 +27,7 @@
 //! ```
 
 use crate::add_timing::{begin_step, end_step};
-use crate::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, remove_at, rename_at};
+use crate::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_file_at, open_root, plain_components, remove_at, rename_at};
 use crate::fs_btrfs_ioctl::snapshot_create_at;
 use crate::subvolume_remove::remove_tree;
 use crate::worktree_add_plan::AddPlan;
@@ -35,13 +35,13 @@ use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clean_content::ConversionEnvironment;
 pub use crate::worktree_snapshot_index_step::CopyState;
 use crate::worktree_snapshot_index_step::{install_index, read_own_index};
-use crate::worktree_snapshot_placeholders::remove_snapshot_placeholders;
+use crate::worktree_snapshot_placeholders::{HandOver, open_below_stand_ins, remove_snapshot_placeholders};
 use crate::worktree_snapshot_source::SnapshotSource;
-use crate::worktree_trash::{Pruned, TrashManifest, prune_snapshot};
+use crate::worktree_trash::{Pruned, TrashManifest, is_directory_itself, prune_snapshot};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Whether an error says the entry is already gone.
@@ -182,6 +182,9 @@ fn file_holds(directory: &File, name: &OsStr, expected: &[u8]) -> bool {
 /// so a registered
 ///  path that reaches the snapshot through a link (a link left where a directory was moved) is an error and never an
 ///  unlink in the tree the link points at.
+/// A path below a stand-in of a nested subvolume names nothing:
+/// such a stand-in holds nothing,
+/// so the stub a registered worktree left there went with the folder when the stand-in step took it.
 /// A nested subvolume's stub is removed only as an empty directory;
 /// only the
 ///  destination's own directory,
@@ -197,11 +200,7 @@ fn remove_stub(root: &File, source_root: &Path, path: &Path, pointer: bool) -> R
     let shown: String = path.display().to_string();
     let names: Vec<OsString> = subject_failure(plain_components(relative), &shown, "is not a plain path inside the source")?;
     let Some((name, parents)) = names.split_last() else { return Ok(()) };
-    let parent: File = match open_directory_beneath(root, parents) {
-        Ok(found) => found,
-        Err(error) if is_gone(&error) => return Ok(()),
-        Err(error) => return Err(format!("{shown} is reached through a link or another mount in the snapshot ({error})")),
-    };
+    let Some(parent) = open_below_stand_ins(root, parents, &shown)? else { return Ok(()) };
     if pointer {
         match open_directory_at(&parent, name.as_os_str()) {
             Ok(stub) => match remove_at(&stub, OsStr::new(".git"), false) {
@@ -224,7 +223,9 @@ fn remove_stub(root: &File, source_root: &Path, path: &Path, pointer: bool) -> R
 ///  Remove the stub that each nested worktree leaves in the snapshot,
 /// and the destination's own directory when it lies
 ///  inside the source,
-/// and then the stand-ins the snapshot holds for subvolumes no worktree names.
+/// after the stand-ins the snapshot holds for subvolumes no worktree names;
+/// and answer the trash the add
+///  hands to the service.
 /// Why:
 ///   A nested worktree that is a subvolume is an empty directory in the snapshot;
 /// the destination was made by Git before
@@ -234,18 +235,24 @@ fn remove_stub(root: &File, source_root: &Path, path: &Path, pointer: bool) -> R
 ///  worktree,
 /// and neither does the stand-in of a stage container of an add in flight
 /// (`worktree_snapshot_placeholders.rs`).
+/// The stand-in step runs first because it takes a folder that holds
+///  nothing but stand-ins whole,
+/// which is one rename and one folder made again rather than one removal for each
+///  worktree of the repository;
+/// a stub it left behind with a folder that holds somebody else's entry is then removed here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await removeStubs({ stage, sourceRoot, nested, destination });
+/// const trash = await removeStubs({ stage, sourceRoot, nested, destination, trash });
 /// ```
-fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan) -> Result<(), String> {
+fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan, hand_over: &mut HandOver) -> Result<(), String> {
     let root: File = subject_failure(open_root(stage), &"the stage", "cannot be opened")?;
+    remove_snapshot_placeholders(&root, source, plan, hand_over)?;
     for nested in &source.nested {
         remove_stub(&root, source.root.as_path(), nested.as_path(), false)?;
     }
     remove_stub(&root, source.root.as_path(), plan.destination.as_path(), true)?;
-    return remove_snapshot_placeholders(&root, source, plan);
+    return Ok(());
 }
 
 /// What:
@@ -255,15 +262,29 @@ fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan) -> Result
 /// Why:
 ///   The bytes are the ones real Git wrote for the new worktree,
 /// so the pointer is exactly Git's.
+/// A copied `.git` directory holds the
+///  whole common directory,
+/// with one administrative directory for every worktree of the repository,
+/// so removing it here
+///  would cost one btrfs metadata change for each of them on the add's waiting path;
+/// it goes into the trash the leave-out and
+///  the stand-ins go into,
+/// which the commit service empties after the add returns.
+/// Nothing the new worktree needs lives in it once the
+///  index is installed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await replaceGitPointer(stage, gitFileOfNewWorktree);
+/// await replaceGitPointer({ stage, pointer, source, handOver });
 /// ```
-fn replace_git_pointer(stage: &Path, pointer: &[u8]) -> Result<(), String> {
-    let path = stage.join(".git");
-    subject_failure(remove_tree(path.as_path()), &"the source's .git", "cannot be removed from the snapshot")?;
-    return subject_failure(std::fs::write(path.as_path(), pointer), &"the .git pointer", "cannot be written");
+fn replace_git_pointer(stage: &Path, pointer: &[u8], source: &SnapshotSource, hand_over: &mut HandOver) -> Result<(), String> {
+    let root: File = subject_failure(open_root(stage), &"the stage", "cannot be opened")?;
+    let path: PathBuf = stage.join(".git");
+    let taken: bool = is_directory_itself(path.as_path()) && hand_over.take_entry(&root, source, &root, OsStr::new(".git"), Path::new(".git"))?;
+    if !taken {
+        subject_failure(remove_tree(path.as_path()), &"the source's .git", "cannot be removed from the snapshot")?;
+    }
+    return subject_failure(std::fs::write(path.as_path(), pointer), &".git pointer", "cannot be written");
 }
 
 /// What:
@@ -303,8 +324,9 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     let prune_outcome = prune_snapshot(stage, source);
     end_step(prune_entered);
     let pruned: Pruned = failing(prune_outcome, made)?;
+    let mut hand_over: HandOver = HandOver::starting(pruned.trash);
     let remove_stubs_entered: bool = begin_step("removeStubs");
-    let remove_stubs_outcome = remove_stubs(stage, source, plan);
+    let remove_stubs_outcome = remove_stubs(stage, source, plan, &mut hand_over);
     end_step(remove_stubs_entered);
     failing(remove_stubs_outcome, made)?;
     let install_index_entered: bool = begin_step("installIndex");
@@ -312,13 +334,13 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     end_step(install_index_entered);
     let state: CopyState = failing(install_index_outcome, made)?;
     let replace_pointer_entered: bool = begin_step("replacePointer");
-    let replace_pointer_outcome = replace_git_pointer(stage, pointer);
+    let replace_pointer_outcome = replace_git_pointer(stage, pointer, source, &mut hand_over);
     end_step(replace_pointer_entered);
     failing(replace_pointer_outcome, made)?;
     let Some(stage_id) = made else {
         return Err(SnapshotFailure { reason: String::from("the stage cannot be examined"), stage: None });
     };
-    return Ok(Snapshotted { stage: stage_id, trash: pruned.trash, state });
+    return Ok(Snapshotted { stage: stage_id, trash: hand_over.finish(), state });
 }
 
 /// What a snapshot that was taken left for the steps after it.
