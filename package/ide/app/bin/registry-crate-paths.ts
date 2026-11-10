@@ -80,9 +80,9 @@ function runEnd({ text, from, accepts }: { text: string; from: number; accepts: 
  The end of a `major.minor.patch` release followed by its optional `-`/`+` suffix, or a negative number when `from` holds
  none.
 
- What: three non-empty digit runs separated by dots, then a maximal run of name characters when the next code unit is `-`
- or `+`. A failure after the first field cannot be repaired by a shorter field, because the character a field must be
- followed by is never one a field holds.
+ What: three non-empty digit runs separated by dots, then a maximal run of suffix characters when the next code unit is
+ `-` or `+`. A failure after the first field cannot be repaired by a shorter field, because the character a field must
+ be followed by is never one a field holds.
 
  @param text - text the release sits in
  @param from - first code unit of the release
