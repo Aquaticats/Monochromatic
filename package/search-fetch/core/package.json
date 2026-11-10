@@ -21,6 +21,7 @@
   "dependencies": {
     "@monochromatic-dev/agent-harness-shared-truncate": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
     "@monochromatic-dev/env-local-json-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
