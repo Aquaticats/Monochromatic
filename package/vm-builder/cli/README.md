@@ -156,7 +156,7 @@ Use it after `:run` has produced the qcow2 at least once.
 ## Pushing to GHCR
 
 `mise run //package/vm-builder/cli:push` tags `localhost/monochromatic-dev:latest`
-as `ghcr.io/aquaticat/monochromatic-dev:latest`,
+as `ghcr.io/aquaticat/monochromatic-dev:latest` with `sudo podman tag`,
 pushes that tag with `sudo podman push`,
 then signs it with `cosign sign` through `sudo env COSIGN_PASSWORD=`,
 using the key at `package/config/cosign/cosign.key`
