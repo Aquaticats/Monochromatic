@@ -20,7 +20,7 @@ await describe({
   children: [
     it({
       name: 'parses separated and inline --models arguments',
-      fn: async function testArgvModels() {
+      fn: async function testArgvModels(): Promise<void> {
         expect(parseArgvModelPatterns({
           argv: [
             'pi',
@@ -38,7 +38,7 @@ await describe({
     },),
     it({
       name: 'returns NO_ARGV_MODELS when --models is absent',
-      fn: async function testAbsentArgvModels() {
+      fn: async function testAbsentArgvModels(): Promise<void> {
         expect(parseArgvModelPatterns({ argv: ['pi',], },),).toBe(NO_ARGV_MODELS,);
       },
     },),

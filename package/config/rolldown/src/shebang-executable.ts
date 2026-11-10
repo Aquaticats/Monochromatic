@@ -42,6 +42,21 @@ type ShebangOutputEntry = {
 type ShebangOutputBundle = Readonly<Record<string, ShebangOutputEntry>>;
 
 /**
+ One bundle key paired with the entry it names,
+ project-owned and deeply readonly so the destructured callback parameter
+ carries a declared type instead of the mutable tuple `Object.entries` infers.
+ 
+ @example
+ ```ts
+ const pair: NamedShebangOutputEntry = ['cli.mjs', { code: '#!\nrun();', type: 'chunk' }];
+ ```
+ */
+type NamedShebangOutputEntry = readonly [
+  fileName: string,
+  output: ShebangOutputEntry,
+];
+
+/**
  Mark shebang-carrying output chunks executable after write.
  
  Raw rolldown preserves `#!` lines in entry chunks but does not set the
@@ -64,7 +79,7 @@ export function shebangExecutablePlugin(): Plugin {
     ): Promise<void> {
       await Promise.all(Object.entries(bundle,)
         .map(
-        async function markExecutable([fileName, output,],): Promise<void> {
+        async function markExecutable([fileName, output,]: NamedShebangOutputEntry,): Promise<void> {
           if ((output.type === 'chunk')
             && output.code
               .startsWith('#!',)) {

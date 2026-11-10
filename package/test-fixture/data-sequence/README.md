@@ -7,7 +7,7 @@ Reusable numeric test data sequences for benchmarking,
 ## Exports
 
 - **`array0to999`**:
-   static 1000-element array of consecutive integers (as const)
+   static 1000-element array of consecutive integers (typed readonly)
 - **`gen0to999`**:
    sync generator yielding 0 to 999
 - **`gen0to999error`**:

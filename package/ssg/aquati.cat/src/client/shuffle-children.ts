@@ -24,7 +24,8 @@
  ```
  */
 
-export {}; // module boundary marker
+// module boundary marker
+export {};
 
 /**
  Probe used to detect whether the browser supports `random()` on `order`.

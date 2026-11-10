@@ -31,7 +31,7 @@ Pi's dependency hygiene and code quality have not been cleared for high trust.
 - extract a balanced JSON object from explanatory text
 - enforce one timeout across the complete attempt
 
-The caller supplies a `StructuredReviewContract<TVerdict>` with the tool,
+The caller supplies a `StructuredReviewContract<TVerdict>` with the tool
 strict parser,
 and direct-JSON retry prompt builder.
 Unexpected tools,
@@ -39,6 +39,15 @@ malformed JSON,
 contract failures,
 timeouts,
 and auth or provider failures reject the attempt.
+
+A provider that refuses,
+throttles,
+or aborts a request ends its stream with an `error` event.
+Collection turns that event into `StructuredReviewProviderError`,
+carrying the provider's `errorMessage` and reported stop reason,
+so the caller records one failed candidate and falls back,
+instead of retrying a request for text the provider never sent.
+A genuinely omitted tool call still reports no tool call with the text the reviewer wrote.
 
 ## Availability fallback
 
@@ -54,6 +63,19 @@ not consensus voting.
 `ReviewUnavailableError` reports every attempted candidate
 and normalized failure diagnostic
 when no candidate returns a valid verdict.
+
+## Provider dispatch
+
+`dispatchProviderStream()` sends one isolated request through the lazy Pi AI
+provider module that the dispatch table records for the selected model's `api`,
+and `PROVIDER_STREAMS_BY_API` is that table.
+Each key names the API its module implements,
+so the table is the only per-provider statement in the package.
+An unregistered API fails with a message listing every registered one.
+
+Tests drive the table with fake provider modules,
+which keeps the Bedrock and Google entries covered
+without adding their optional SDKs as dependencies.
 
 ## Consumer boundary
 

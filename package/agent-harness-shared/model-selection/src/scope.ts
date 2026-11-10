@@ -5,6 +5,7 @@
  */
 
 export * from './argv-scope.ts';
+export * from './model-pattern-cleaning.ts';
 export * from './settings-scope.ts';
 export * from './scope-patterns.ts';
 export * from './scope-resolver.ts';

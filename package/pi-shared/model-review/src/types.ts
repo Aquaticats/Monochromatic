@@ -13,6 +13,8 @@ import type {
 } from '@earendil-works/pi-ai';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Credentials and prompt -- what the caller supplies
+
 /**
  Provider credentials resolved before review transport.
  
@@ -54,6 +56,10 @@ type StructuredReviewPrompt = {
   readonly userContent: string;
 };
 
+//endregion Credentials and prompt -- what the caller supplies
+
+//region Initial result -- forced-tool outcome callers parse
+
 /**
  Initial forced-tool response before caller-specific parsing or retry policy.
  
@@ -83,6 +89,10 @@ type StructuredReviewInitialResult =
      */
       readonly textContent: string;
     };
+
+//endregion Initial result -- forced-tool outcome callers parse
+
+//region Recorded request snapshots -- provider seam deterministic tests read
 
 /**
  Isolated model identity recorded at provider request seam.
@@ -223,6 +233,10 @@ type StructuredReviewRequestSnapshot = {
   readonly options: StructuredReviewOptionsSnapshot;
 };
 
+//endregion Recorded request snapshots -- provider seam deterministic tests read
+
+//region Scripted transport -- deterministic response script
+
 /**
  Data-only deterministic provider seam.
  
@@ -252,6 +266,10 @@ type ScriptedStructuredReviewTransport = {
    */
   requests: StructuredReviewRequestSnapshot[];
 };
+
+//endregion Scripted transport -- deterministic response script
+
+//region Requests -- one candidate attempt and its direct-JSON retry
 
 /**
  Shared request fields for one candidate attempt.
@@ -321,6 +339,8 @@ type StructuredReviewJsonRequest = StructuredReviewRequest & {
    */
   readonly expectedToolName: string;
 };
+
+//endregion Requests -- one candidate attempt and its direct-JSON retry
 
 export type {
   ScriptedStructuredReviewTransport,
