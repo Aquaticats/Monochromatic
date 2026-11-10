@@ -10,7 +10,47 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { mapIterableAsync, } from './map-iterable-async.ts';
+import { mapIterableAsync, } from '../dist/final/neutral/index.mjs';
+
+/**
+ Records the reasons the runtime reports as unhandled while the returned value is in scope.
+
+ A test that asserts an empty list proves the mapper promises carried a rejection
+ handler before their rejections were delivered; a list with entries names the
+ rejection the runtime observed instead.
+
+ @returns collected reasons plus a disposer that unregisters the listener
+
+ @example
+ ```ts
+ using recorder = recordUnhandledRejections();
+ expect(recorder.reasons,).toEqual([],);
+ ```
+ */
+function recordUnhandledRejections(): {
+  readonly reasons: unknown[];
+  [Symbol.dispose](): void;
+} {
+  const reasons: unknown[] = [];
+
+  /**
+   Keeps one delivered reason for the assertion that follows.
+
+   @param reason - value the runtime could not deliver to a promise handler
+   */
+  function recordReason(reason: unknown,): void {
+    reasons.push(reason,);
+  }
+
+  process.on('unhandledRejection', recordReason,);
+
+  return {
+    reasons,
+    [Symbol.dispose](): void {
+      process.off('unhandledRejection', recordReason,);
+    },
+  };
+}
 
 await describe({
   name: mapIterableAsync.name,
@@ -110,6 +150,81 @@ await describe({
 
         await expect(rejection,).rejects.toBeInstanceOf(Error,);
         await expect(rejection,).rejects.toThrow('boom',);
+      },
+    },),
+
+    it({
+      name: 'leaves no unhandled rejection when a mapper rejects while the source is still yielding',
+      fn: async () => {
+        using recorder = recordUnhandledRejections();
+
+        /**
+         Yields its second item only after a pause far longer than a microtask.
+
+         A rejection handler attached only once iteration ends arrives after the
+         runtime has already reported the first mapper's rejection as unhandled.
+         */
+        async function* slowSource() {
+          yield 1;
+          await new Promise(function pauseBeforeSecondItem(resolve,) {
+            setTimeout(resolve, 50,);
+          },);
+          yield 2;
+        }
+
+        const pending = mapIterableAsync({
+          fn: async (n: number) => {
+            if (n === 1)
+              throw new Error('mapper boom',);
+            return n;
+          },
+          iterable: slowSource(),
+        },);
+
+        await expect(pending,).rejects.toThrow('mapper boom',);
+
+        // One macrotask after the outcome lets the runtime deliver a rejection
+        // that was still unobserved when the returned promise settled.
+        await new Promise(function flushRejectionDelivery(resolve,) {
+          setTimeout(resolve, 0,);
+        },);
+
+        expect(recorder.reasons,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'leaves no unhandled rejection when the source throws mid-iteration',
+      fn: async () => {
+        using recorder = recordUnhandledRejections();
+
+        /**
+         Yields one item, then fails.
+
+         Because iteration ends before the join is reached, the mapper promise
+         started for the first item never reaches that join at all.
+         */
+        async function* failingSource() {
+          yield 1;
+          throw new Error('source boom',);
+        }
+
+        const pending = mapIterableAsync({
+          fn: async (n: number) => {
+            throw new Error(`mapper boom ${String(n,)}`,);
+          },
+          iterable: failingSource(),
+        },);
+
+        await expect(pending,).rejects.toThrow('source boom',);
+
+        // One macrotask after the outcome lets the runtime deliver a rejection
+        // that was still unobserved when the returned promise settled.
+        await new Promise(function flushRejectionDelivery(resolve,) {
+          setTimeout(resolve, 0,);
+        },);
+
+        expect(recorder.reasons,).toEqual([],);
       },
     },),
   ],
