@@ -79,8 +79,9 @@ The report is
 `monochromatic-git-policy-cli: an interrupted git worktree add left <path> registered and possibly incomplete; ...`
 from
 `package/git-policy/cli/src/native/worktree_copying/worktree_copy_interrupted_add_settlement.rs`
-and, for a ladder that could not complete a checkout,
-`package/git-policy/cli/src/native/worktree/worktree_ladder_finish.rs`.
+and from
+`package/git-policy/cli/src/native/worktree/worktree_ladder_finish.rs`
+for a ladder that could not complete a checkout.
 
 Printed before the correction:
 
@@ -92,7 +93,8 @@ Run in a registered worktree whose checkout never ran,
 `git -C <path> reset --hard` was refused by `linked-worktree-only`
 (`code: linked-worktree-only/linked-worktree-required`,
 `this worktree has uncommitted changes to tracked files`, exit `1`).
-`git worktree remove --force <path>` runs (it is audited, never refused).
+`git worktree remove --force <path>` runs,
+because it is audited and never refused.
 
 Corrected:
 both messages now print one sentence,
@@ -218,36 +220,63 @@ then the commands.
 
 ### `linked-worktree-only`, in the main worktree
 
-- `git restore`, `git checkout -- <path>`: `git diff -- <path>`,
+- `git restore` and `git checkout -- <path>`:
+  `git diff -- <path>`,
   `git show HEAD:<path>`,
   `git worktree add <path> HEAD`,
   `git worktree add <path> <branch>`.
-- `git reset --hard`: `git reset --soft <commit>`,
+- `git reset --hard`:
+  `git reset --soft <commit>`,
   `git diff <commit>`,
   `git show <commit>:<path>`,
   `git worktree add <path> <commit>`.
-- `git reset`: `git diff --cached --name-only`, `git reset --soft <commit>`.
-- `git restore --staged`: `git diff --cached --name-only`, `git worktree add <path> HEAD`.
-- `git clean`: `git clean -n`, `git worktree add <path> HEAD`.
-- `git clean -x`: `git clean -nx`, `git worktree add <path> HEAD`,
+- `git reset`:
+  `git diff --cached --name-only`,
+  `git reset --soft <commit>`.
+- `git restore --staged`:
+  `git diff --cached --name-only`,
+  `git worktree add <path> HEAD`.
+- `git clean`:
+  `git clean -n`,
+  `git worktree add <path> HEAD`.
+- `git clean -x`:
+  `git clean -nx`,
+  `git worktree add <path> HEAD`,
   and the corrected `git clean --no-enforce-worktree -fd`.
-- `git clean -X`: `git clean -nX`, `git worktree add <path> HEAD`.
-- `git checkout <branch>`, `git switch --force`, `git switch <branch>`:
+- `git clean -X`:
+  `git clean -nX`,
+  `git worktree add <path> HEAD`.
+- `git checkout <branch>`,
+  `git switch --force` and
+  `git switch <branch>`:
   `git worktree add <path> <branch>`.
-- `git read-tree --reset`: `git read-tree -m`, `git worktree add <path> HEAD`.
-- `git checkout-index --force`: `git checkout-index --prefix=<directory>/ --all`.
-- `git rm --force`: `git rm --cached <path>`.
+- `git read-tree --reset`:
+  `git read-tree -m`,
+  `git worktree add <path> HEAD`.
+- `git checkout-index --force`:
+  `git checkout-index --prefix=<directory>/ --all`.
+- `git rm --force`:
+  `git rm --cached <path>`.
   A plain `git rm <path>` of a modified file is refused by Git itself,
   which is what the message says it does.
-- `git mv --force`: `git mv` without `--force` runs;
+- `git mv --force`:
+  `git mv` without `--force` runs;
   `git rm <destination>` before it is the message's own precondition.
-- `git stash drop`: `git stash list`, `git stash show`,
+- `git stash drop`:
+  `git stash list`,
+  `git stash show`,
   and the corrected `git stash branch <branch>` in a clean linked worktree.
-- the hatch: `git restore --no-enforce-worktree -- <path>`.
-- `git merge --abort`: `git merge --quit`.
-- `git rebase --abort`: `git rebase --quit`, `git rebase --skip`.
-- `git cherry-pick --abort` and `git revert --abort`: `--quit` with the same command.
-- `git am --abort`: `git am --quit`.
+- the hatch:
+  `git restore --no-enforce-worktree -- <path>`.
+- `git merge --abort`:
+  `git merge --quit`.
+- `git rebase --abort`:
+  `git rebase --quit`,
+  `git rebase --skip`.
+- `git cherry-pick --abort` and `git revert --abort`:
+  `--quit` with the same command.
+- `git am --abort`:
+  `git am --quit`.
 - `git worktree add <path> HEAD` from a main worktree holding an ignored file:
   the ignored-state copy runs and the add succeeds.
 
@@ -259,21 +288,31 @@ then the commands.
 ### `require-root`
 
 - A command run in a subdirectory is refused,
-  and `-C <root>` before the subcommand runs
-  (`git -C <root> status`, `git -C <root> add -- <path>`).
+  and `-C <root>` before the subcommand runs:
+  `git -C <root> status`,
+  `git -C <root> add -- <path>`.
 
 ### Notices with commands
 
-- `git worktree list` in the worktree-copy notices, the interrupted-add settlement and the ladder
-  report: a read-only command, forwarded unchanged.
+- `git worktree list` in the worktree-copy notices,
+  the interrupted-add settlement and the ladder report:
+  a read-only command,
+  forwarded unchanged.
 - `git worktree remove --force <path>` in the interrupted-add settlement and the ladder report:
-  audited, never refused.
-- `git worktree remove <path>` in the unfinished-copy notice: audited, never refused.
-- `git worktree prune` in the interrupted-removal reports: forwarded unchanged.
-- `git worktree unlock` in the conversion refusal: forwarded unchanged.
-- `git status` in the slow-route notice: forwarded unchanged.
-- `rm <path>` for a stale `index.lock`: not a Git command, and the settlement only names it while no
-  Git runs there.
+  audited,
+  never refused.
+- `git worktree remove <path>` in the unfinished-copy notice:
+  audited,
+  never refused.
+- `git worktree prune` in the interrupted-removal reports:
+  forwarded unchanged.
+- `git worktree unlock` in the conversion refusal:
+  forwarded unchanged.
+- `git status` in the slow-route notice:
+  forwarded unchanged.
+- `rm <path>` for a stale `index.lock`:
+  not a Git command,
+  and the settlement only names it while no Git runs there.
 
 ## What was read and not exercised
 
@@ -291,22 +330,37 @@ They are listed so the next reader knows what is unchecked,
 not because a defect is suspected:
 
 - `package/git-policy/cli/src/native/landing/`:
-  `git log -1`, `git status`, `git show <oid>`, `git log`, `git commit -F <saved>`,
+  `git log -1`,
+  `git status`,
+  `git show <oid>`,
+  `git log`,
+  `git commit -F <saved>`,
   `git push`.
   The states are a branch that moved under a commit,
   a service from another release,
   and a message saved to a file.
 - `package/git-policy/cli/src/native/push/`:
-  `git push`, `git ls-remote <remote>`, `git merge --ff-only <remote>/<branch>`.
+  `git push`,
+  `git ls-remote <remote>`,
+  `git merge --ff-only <remote>/<branch>`.
   The states are a failed backup push,
-  a mirror remote and an unset `push.default`.
+  a mirror remote,
+  and an unset `push.default`.
 - `package/git-policy/cli/src/native/merge/`:
-  `git merge --no-edit`, `git diff --cached -- <file>`, `git log <target>`,
-  `git stash list`, `git cat-file blob <oid>`, `git rebase --continue`,
-  `git cherry-pick --continue`, `git revert --continue`, `git commit`.
+  `git merge --no-edit`,
+  `git diff --cached -- <file>`,
+  `git log <target>`,
+  `git stash list`,
+  `git cat-file blob <oid>`,
+  `git rebase --continue`,
+  `git cherry-pick --continue`,
+  `git revert --continue`,
+  `git commit`.
   The states are an interrupted merge record and a merge that had to be saved on a side ref.
 - `package/git-policy/cli/src/native/worktree_copying/`:
-  the removal, recovery and stage-claim notices,
+  the removal notices,
+  the recovery notices and
+  the stage-claim notices,
   whose states need a killed copy at a chosen step.
 - `package/git-policy/cli/src/native/subvolume/` and the `migrate-to-subvolume` and
   `convert-worktree-to-subvolume` notices:
@@ -319,16 +373,25 @@ not because a defect is suspected:
   both are forwarded unchanged by the wrapper.
 - `package/git-policy/cli/src/native/candidate/` and
   `package/git-policy/cli/src/native/invocation/`:
-  `git cat-file --batch-check`, `git fsck`, `git ls-files --stage`,
-  `git ls-tree -r HEAD`, `git diff --cached --raw`, `git diff-tree`,
+  `git cat-file --batch-check`,
+  `git fsck`,
+  `git ls-files --stage`,
+  `git ls-tree -r HEAD`,
+  `git diff --cached --raw`,
+  `git diff-tree`,
   `ls -l <path>`.
   These are read-only commands named inside engine failures,
   and the wrapper's policy set guards no read.
 - `package/git-policy/cli/src/native/policy/event_hints.rs`:
-  the hints naming `git status --short`, `git add -- <path>`,
+  the hints naming `git status --short`,
+  `git add -- <path>`,
   `git monochromatic-git-policy-cli fix -- <path>`,
-  `git rm --cached CONTEXT.md`, `git status`, `git log --oneline -3`,
-  `git fetch`, `git push`, `git ls-remote <remote>`.
+  `git rm --cached CONTEXT.md`,
+  `git status`,
+  `git log --oneline -3`,
+  `git fetch`,
+  `git push`,
+  `git ls-remote <remote>`.
   Every one is either a read,
   a `git add` with explicit paths,
   a management subcommand the wrapper owns,
