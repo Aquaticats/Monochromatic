@@ -135,8 +135,10 @@ fn cargo_on_the_search_path() -> PathBuf {
 /// the worktree's own crate is cleaned out of the copy,
 /// and the source checkout's build directory is untouched.
 /// Why:
-///   This is the whole guarantee of the change, end to end and with a real Cargo:
-/// the add stopped doing this work, so the service's filling must do the same clean the add used to,
+///   This is the whole guarantee of the change,
+/// end to end and with a real Cargo:
+/// the add stopped doing this work,
+/// so the service's filling must do the same clean the add used to,
 /// and it must never clean the source's own state,
 /// which every other worktree of the repository shares.
 #[test]
