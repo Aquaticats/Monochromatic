@@ -8,6 +8,7 @@
  @module
  */
 
+import { execFile, } from 'node:child_process';
 import {
   access,
   chmod,
@@ -85,30 +86,58 @@ async function createTempDir(): Promise<TempDir> {
 }
 
 /**
- Switches the process working directory, restoring the previous one when the
- binding is disposed.
+ Runs a script in a child Node process started in one directory.
 
- @param path - Directory the process works in until the scope ends
+ The cases of a file run concurrently and share one working directory, so a
+ case that needs a directory of its own asks a child process for it instead of
+ moving the directory every other case resolves against.
 
- @returns disposable that restores the directory the process worked in before
+ @param directory - Directory the child process starts in
+
+ @param source - Module source the child runs
+
+ @returns what the child wrote to its standard output
 
  @example
  ```ts
- using workingDirectory = changeWorkingDirectory(temp.path);
+ const stdout = await runInDirectory({ directory: temp.path, source: 'console.log(1);' });
  ```
  */
-function changeWorkingDirectory(path: string,): Disposable {
-  /**
-   Directory the process worked in before the call.
-   */
-  const previous = process.cwd();
-  process.chdir(path,);
-  return {
-    [Symbol.dispose](): void {
-      process.chdir(previous,);
-    },
-  };
+async function runInDirectory({ directory, source, }: {
+  readonly directory: string;
+  readonly source: string;
+},): Promise<string> {
+  return await new Promise((resolve, reject,) => {
+    execFile(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        source,
+      ],
+      { cwd: directory, },
+      (error, stdout, stderr,) => {
+        if (error !== null) {
+          reject(new Error(`child process in ${directory} failed: ${stderr}`,),);
+          return;
+        }
+        resolve(stdout,);
+      },
+    );
+  },);
 }
+
+/**
+ Prefix a case's child process puts on the line carrying the message it caught,
+ so logger output on the same stream cannot satisfy the assertion.
+ */
+const CAUGHT_MESSAGE_PREFIX = 'CAUGHT_MESSAGE:';
+
+/**
+ Built `./node` entry, resolved through the package specifier the cases import,
+ so a child process runs the artifact under test rather than a rebuilt copy.
+ */
+const NODE_ENTRY_URL = import.meta.resolve('@monochromatic-dev/fs-path-core/node',);
 
 /**
  Whether the current process is the superuser, for whom mode bits never
@@ -120,6 +149,12 @@ const isSuperuser = ((typeof process.getuid) === 'function') && (process.getuid(
  Mode with every permission bit cleared.
  */
 const NO_PERMISSIONS = 0o000;
+
+/**
+ Mode granting the owner read, write, and traverse, which a permission case
+ restores before the fixture is removed.
+ */
+const OWNER_DIRECTORY_MODE = 0o700;
 
 /**
  Text a second writer puts into the file while `ensureFile` guarantees it.
@@ -297,10 +332,15 @@ await describe({
           fn: async () => {
             await using temp = await createTempDir();
             /**
-             Bare name, resolved against the working directory switched into below.
+             What the child process reported after ensuring the bare name.
              */
-            using workingDirectory = changeWorkingDirectory(temp.path,);
-            expect(await ensureFile('bare.txt',),).toBe('bare.txt',);
+            const stdout = await runInDirectory({
+              directory: temp.path,
+              source: `const { ensureFile } = await import(${JSON.stringify(NODE_ENTRY_URL,)});
+const created = await ensureFile('bare.txt');
+console.log('CREATED:' + created);`,
+            },);
+            expect(stdout,).toContain('CREATED:bare.txt',);
             expect((await stat(join(
               temp.path,
               'bare.txt',
@@ -405,6 +445,48 @@ await describe({
             );
             expect(await ensureFile(target,),).toBe(target,);
             expect((await stat(target,)).isFile(),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'names the denied file rather than a parent a bare name has none of',
+          skip: isSuperuser ? 'the superuser passes every access check' : false,
+          fn: async () => {
+            await using temp = await createTempDir();
+            /**
+             Directory the bare name resolves against, which the child denies itself and restores.
+             */
+            const locked = join(
+              temp.path,
+              'locked',
+            );
+            await mkdir(locked,);
+            /**
+             What the child process reported after the denied create, which is nothing when it resolved.
+             */
+            const stdout = await runInDirectory({
+              directory: locked,
+              source: `const { chmod } = await import('node:fs/promises');
+const { ensureFile } = await import(${JSON.stringify(NODE_ENTRY_URL,)});
+const [ deniedMode, restoredMode ] = ${JSON.stringify([ NO_PERMISSIONS, OWNER_DIRECTORY_MODE, ],)};
+const directory = process.cwd();
+await chmod(directory, deniedMode);
+try {
+  await ensureFile('denied.txt');
+  console.log('RESOLVED');
+}
+catch (error) {
+  console.log(${JSON.stringify(CAUGHT_MESSAGE_PREFIX,)} + error.message);
+}
+await chmod(directory, restoredMode);`,
+            },);
+            /**
+             Lines the child wrote with the message it caught, split out of whatever the logger wrote to the same stream.
+             */
+            const caughtLines = stdout.split(
+              '\n',
+            ).filter((line,) => line.startsWith(CAUGHT_MESSAGE_PREFIX,));
+            expect(caughtLines.length,).toBe(1,);
+            expect(caughtLines[0],).toContain('denied.txt',);
           },
         },),
         it({
