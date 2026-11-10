@@ -69,63 +69,6 @@ export type CreateSearchFetchToolsOptions = {
 
 //endregion Types
 
-//region Public API
-
-/**
- Create the two MCP tool entries over shared execution.
-
- @param options - client, config, and response store dependencies
-
- @returns search and fetch tools in registration order
-
- @example
- ```ts
- createSearchFetchTools({ client, config, store });
- ```
- */
-export function createSearchFetchTools(
-  options: CreateSearchFetchToolsOptions,
-): readonly ToolEntry[] {
-  return [
-    defineTool({
-      name: webSearchToolSpec.name,
-      entry: {
-        description: webSearchToolSpec.description,
-        schema: webSearchToolSpec.parameters,
-        handler: async function runSearch(args,) {
-          return toToolCallResult({
-            result: await executeWebSearchTool({
-              client: options.client,
-              config: options.config,
-              rawParams: args,
-            },),
-            store: options.store,
-          },);
-        },
-      },
-    },),
-    defineTool({
-      name: webFetchToolSpec.name,
-      entry: {
-        description: webFetchToolSpec.description,
-        schema: webFetchToolSpec.parameters,
-        handler: async function runFetch(args,) {
-          return toToolCallResult({
-            result: await executeWebFetchTool({
-              client: options.client,
-              config: options.config,
-              rawParams: args,
-            },),
-            store: options.store,
-          },);
-        },
-      },
-    },),
-  ];
-}
-
-//endregion Public API
-
 //region Helpers
 
 /**
@@ -196,3 +139,60 @@ function toToolCallResult(
 }
 
 //endregion Helpers
+
+//region Public API
+
+/**
+ Create the two MCP tool entries over shared execution.
+
+ @param options - client, config, and response store dependencies
+
+ @returns search and fetch tools in registration order
+
+ @example
+ ```ts
+ createSearchFetchTools({ client, config, store });
+ ```
+ */
+export function createSearchFetchTools(
+  options: CreateSearchFetchToolsOptions,
+): readonly ToolEntry[] {
+  return [
+    defineTool({
+      name: webSearchToolSpec.name,
+      entry: {
+        description: webSearchToolSpec.description,
+        schema: webSearchToolSpec.parameters,
+        handler: async function runSearch(args,) {
+          return toToolCallResult({
+            result: await executeWebSearchTool({
+              client: options.client,
+              config: options.config,
+              rawParams: args,
+            },),
+            store: options.store,
+          },);
+        },
+      },
+    },),
+    defineTool({
+      name: webFetchToolSpec.name,
+      entry: {
+        description: webFetchToolSpec.description,
+        schema: webFetchToolSpec.parameters,
+        handler: async function runFetch(args,) {
+          return toToolCallResult({
+            result: await executeWebFetchTool({
+              client: options.client,
+              config: options.config,
+              rawParams: args,
+            },),
+            store: options.store,
+          },);
+        },
+      },
+    },),
+  ];
+}
+
+//endregion Public API
