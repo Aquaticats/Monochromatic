@@ -2342,9 +2342,12 @@ so a destination holding only its `.git` file is not whole,
 while an index with no entries belongs to a tree with nothing to write,
 so a destination holding only its `.git` file is whole,
 which is what a worktree at a commit with an empty tree looks like after every step finished.
-A record written before the add was bound carries only the destination,
+A record written before the add was bound carries the destination,
+the source worktree and the selection its copy takes,
 so the `gitdir:` pointer of the destination's own `.git` file names the registration the proof reads,
 and an add killed between Git's registration and that record is reported and kept like a bound one.
+A record written before those two fields existed carries the destination alone,
+and its worktree is named rather than filled, because nothing says where its ignored state would come from.
 The pointer is read as Git reads it
 (`read_gitfile_gently`,
 `setup.c`):
@@ -2846,6 +2849,9 @@ An installation writes one record of its destination and that destination's iden
 naming the worktree,
 the source and the owner that wrote it,
 and removes it when the installation completes.
+An installation that ends without finishing rewrites that record's reason with what ended it,
+so every later command prints which entry differs or which step failed,
+not only that files are missing.
 Every command that runs the recovery names a worktree whose record's owner is dead and whose destination is still that
 object,
 with the `git worktree remove --force` and same `git worktree add` commands that settle it,
@@ -2997,6 +3003,30 @@ Every pending transaction then reaches an end:
   and the recovering invocation writes the failure as a notice and continues.
 - Completed cleanup is resumed without reinstalling entries.
 
+Before the journals,
+recovery makes the copy an interrupted add still owes
+(`src/native/worktree_copying/worktree_copy_owed_copy.rs`):
+a claim whose owner is dead,
+whose record names a source and a selection,
+whose destination is still a registration of this repository with a whole checkout,
+and whose stage no pending journal names,
+is filled from that source by the same staging,
+journaling and installation a creating command makes.
+Nothing is overwritten, because the installation accepts an exact entry and refuses a differing one,
+so a worktree that gained anything since the add is named instead of written into.
+One command copies into one destination:
+before it stages, it creates a marker in the journal root whose name carries its owner,
+one exclusive create of `<identifier>.<owner>.taking`,
+and a marker whose owner is dead is removed and taken over,
+so two commands that find the same dead claim never stage into one name.
+A copy that cannot be made ends with the record of an unfilled worktree,
+naming the reason the failure gave,
+so every later command prints that reason instead of staging the source again;
+the worktree is named with `git worktree remove --force <path>` and the same `git worktree add` line,
+and the record goes when the worktree is removed or replaced.
+A source that is no longer a worktree of this repository ends the copy the same way,
+and a source that is itself being filled leaves the record for the next command.
+
 After the journals,
 recovery removes every stage container that a dead owner's claim names and no pending journal names:
 a claim whose owner lives is a copy between claiming and journaling and is left whole,
@@ -3008,6 +3038,11 @@ and its stage is reported and never removed (`38e01bcd33`):
 the claim names a stage by its path alone,
 which proves nothing about what stands there now,
 so the notice names the stage and says to remove it once nothing needs it.
+The one exception is a container that records the registration its copy was made for,
+in the stage binding a copy writes before the first payload entry:
+that container is provably that copy's own stage,
+so the pass above removes it and makes the copy again into that name.
+A container of an add that records no binding, such as a snapshot's subvolume, is kept and named as before.
 For a claim no add recorded,
 recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
 stage prefix,

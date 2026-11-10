@@ -25,7 +25,7 @@
 use crate::add_timing::{begin_step, end_step};
 use crate::path_bytes_in_records::{hex_of_path, text_in_one_line};
 use crate::private_storage::sync_directory;
-use crate::worktree_add_binding::{Binding, planned_record};
+use crate::worktree_add_binding::{Binding, OwedCopy};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner};
 use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atomic, write_atomic_unsynced};
@@ -69,6 +69,30 @@ pub struct StageClaim {
 }
 
 impl StageClaim {
+    /// What:
+    ///  A claim this process did not create,
+    /// read from the files a dead owner left.
+    /// Why:
+    ///   Recovery finishes the copy the claim names,
+    /// so it needs the claim's own three files to settle them as the copying command would;
+    /// nothing here checks the container,
+    /// because the caller proves it first.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// StageClaim.adopt({ path, container, destinationRecord })
+    /// ```
+    pub fn adopted(path: &Path, container: &Path, destination_record: Option<&Path>) -> Option<StageClaim> {
+        if path.file_name().is_none() || container.file_name().is_none() {
+            return None;
+        }
+        return Some(StageClaim {
+            path: path.to_path_buf(),
+            container: container.to_path_buf(),
+            destination_record: destination_record.map(Path::to_path_buf),
+        });
+    }
+
     /// What:
     ///  The random name this claim was made under,
     /// which no other command of this process shares.
@@ -223,7 +247,8 @@ impl StageClaim {
             crate::diagnostic_log::debug("worktreeCopyStageClaim", format!("the Git of {} was started and its identity cannot be read; the record stays unnamed", destination.display()).as_str());
             return;
         };
-        if let Err(error) = write_atomic(record, crate::worktree_add_binding::planned_record_with_child(destination, &child).as_bytes(), "destination record") {
+        // The copy this add owes survives the rewriting: the name of its Git is written beside the source, not instead of it.
+        if let Err(error) = write_atomic(record, crate::worktree_add_binding::planned_record_with(destination, crate::worktree_add_binding::owed_copy_of(text.as_str()).as_ref(), Some(&child)).as_bytes(), "destination record") {
             crate::diagnostic_log::debug("worktreeCopyStageClaim", format!("the Git of {} could not be named in its record ({}); the record stays unnamed", destination.display(), error.0).as_str());
         }
     }
@@ -412,11 +437,11 @@ pub(crate) const DESTINATION_SUFFIX: &str = ".add";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const claim = copies && destination ? await claimStageForAdd({ commonDir, destinationRoot }) : undefined;
+/// const claim = copies && destination ? await claimStageForAdd({ commonDir, destinationRoot, owed }) : undefined;
 /// ```
-pub fn claim_stage_for_creation(common_dir: &Path, destination: Option<&Path>, copies: bool) -> Result<Option<StageClaim>, WorktreeCopyError> {
+pub fn claim_stage_for_creation(common_dir: &Path, destination: Option<&Path>, copies: bool, owed: Option<&OwedCopy>) -> Result<Option<StageClaim>, WorktreeCopyError> {
     let (true, Some(destination_root)) = (copies, destination) else { return Ok(None) };
-    return claim_stage_for_add(common_dir, destination_root).map(Some);
+    return claim_stage_for_add_as_owing(common_dir, destination_root, &current_copy_owner()?, owed).map(Some);
 }
 
 /// The suffix of the marker that says the worktree add the claim covers is complete.
@@ -450,9 +475,28 @@ pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result
 /// const claim = await claimStageForAddAs({ commonDir, destinationRoot, owner });
 /// ```
 pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner: &CopyOwner) -> Result<StageClaim, WorktreeCopyError> {
+    return claim_stage_for_add_as_owing(common_dir, destination_root, owner, None);
+}
+
+/// What:
+///  Claims a stage name for an add that owes a copy of a named source's ignored state,
+/// on behalf of a named owner.
+/// Why:
+///   The destination alone says nothing about where the ignored state would come from,
+/// so a command killed before its copy ran
+///  would leave a worktree no later command could fill.
+/// The source and which of its ignored paths the copy takes go into the record beside the
+///  destination,
+/// so the next command makes the copy the add owed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = await claimStageForAddAsOwing({ commonDir, destinationRoot, owner, owed });
+/// ```
+pub fn claim_stage_for_add_as_owing(common_dir: &Path, destination_root: &Path, owner: &CopyOwner, owed: Option<&OwedCopy>) -> Result<StageClaim, WorktreeCopyError> {
     let mut claim: StageClaim = claim_stage_for(common_dir, destination_root, owner)?;
     let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
-    write_atomic(record.as_path(), planned_record(destination_root).as_bytes(), "destination record")?;
+    write_atomic(record.as_path(), planned_record_with(destination_root, owed, None).as_bytes(), "destination record")?;
     claim.destination_record = Some(record);
     return Ok(claim);
 }

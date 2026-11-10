@@ -159,6 +159,11 @@ pub mod worktree_copy_owner;
 #[cfg(unix)]
 pub mod worktree_copy_registration_naming;
 
+/// The ignored-state copy an interrupted `git worktree add` still owes,
+/// made by the next command that finds it.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy;
+
 /// Recovery of interrupted copies:
 /// registration checks,
 /// discards with notices,

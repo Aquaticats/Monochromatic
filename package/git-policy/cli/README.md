@@ -3653,6 +3653,11 @@ which can hold gigabytes.
 The wrapper records that directory's name in the common Git directory before it creates it,
 so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
+A copy also writes the registration it was made for inside that directory before its first file,
+so the next command can tell a stage its own copy left,
+which it removes and fills again,
+from a directory another program put at that name,
+which it names and never removes.
 Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
 
 Each file the copy installs reaches its destination name only when it holds the source's bytes and permission bits.
@@ -3663,14 +3668,26 @@ so a credential is never readable at a wider mode than its source,
 not even while the copy runs,
 and a copy killed at any moment leaves nothing at a file's real name for the next command to refuse.
 
-A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
+A worktree whose ignored-state copy ended before it finished is filled by the next command in the repository,
+from the source its add recorded,
+and only a copy that truly cannot be made leaves the worktree named,
 with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
+Nothing the worktree gained since the add is ever replaced:
+an entry whose bytes differ from the source's is left alone and named,
+and the same line comes again from every later command.
 The add's own record is written before real Git runs and is handed to the copy rather than dropped once the checkout is
 done,
 so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.
 The copy writes its own record before its first entry and removes it when it completes,
 so a copy killed at any moment is resumed by the next command and a copy that truly cannot finish leaves the worktree
-named instead of forgetting what is missing there.
+named instead of forgetting what is missing there,
+with what ended it in that record,
+so the later lines say which entry differs,
+not only that files are missing.
+An add records the worktree its ignored state comes from and which of that worktree's ignored paths it takes,
+so a command killed after the checkout and before the copy's own records leaves enough for the next command to make
+that copy itself;
+a record written by an earlier release names no source and its worktree is named rather than filled.
 The line goes when the worktree is removed or is replaced by another one at the same path.
 
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the

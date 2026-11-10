@@ -42,6 +42,7 @@ use super::support::{Fixture, ServiceLaunch, fixture, hermetic, service_runtime,
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::os::unix::ffi::OsStrExt as _;
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -883,15 +884,76 @@ fn names_in(directory: &Path) -> Vec<String> {
     return std::fs::read_dir(directory).map(|entries| { return entries.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); }).unwrap_or_default();
 }
 
+/// Real Git's answer to `git -C directory arguments`,
+/// with no system or global configuration,
+/// which is what a walk of a checkout's ignored entries needs.
+fn real_git_text(directory: &Path, arguments: &[&str]) -> Vec<u8> {
+    let output: Output = Command::new("/usr/bin/git")
+        .current_dir(directory)
+        .args(arguments)
+        .env_clear()
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .output()
+        .expect("real Git starts");
+    assert!(output.status.success(), "git {arguments:?} in {}: {}", directory.display(), String::from_utf8_lossy(output.stderr.as_slice()));
+    return output.stdout;
+}
+
+/// What one ignored entry of a checkout is:
+/// its kind,
+/// its permission bits,
+/// and its bytes or its link target.
+/// Why:
+///   A worktree whose copy finished holds exactly what its source ignores,
+/// so a comparison of the two sets is the whole promise the copy makes,
+/// and a file that is present but empty or truncated is not the source's entry.
+fn ignored_state(where_: &Path) -> std::collections::BTreeMap<Vec<u8>, String> {
+    use std::os::unix::ffi::OsStrExt as _;
+    let mut state: std::collections::BTreeMap<Vec<u8>, String> = std::collections::BTreeMap::new();
+    if !where_.join(".git").exists() {
+        return state;
+    }
+    let listed: Vec<u8> = real_git_text(where_, &["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"]);
+    let mut visit = |relative: &Path, state: &mut std::collections::BTreeMap<Vec<u8>, String>| {
+        use std::os::unix::fs::MetadataExt as _;
+        let path: PathBuf = where_.join(relative);
+        let Ok(held) = std::fs::symlink_metadata(path.as_path()) else { return };
+        let name: Vec<u8> = relative.as_os_str().as_bytes().to_vec();
+        if held.file_type().is_symlink() {
+            state.insert(name, format!("link:{}", std::fs::read_link(path.as_path()).expect("target").to_string_lossy()));
+            return;
+        }
+        if held.is_dir() {
+            state.insert(name, format!("dir:{:o}", held.mode() & 0o7777));
+            for entry in std::fs::read_dir(path.as_path()).expect("directory").flatten() {
+                visit(relative.join(entry.file_name()).as_path(), state);
+            }
+            return;
+        }
+        let bytes: Vec<u8> = std::fs::read(path.as_path()).expect("bytes");
+        state.insert(name, format!("file:{:o}:{}:{}", held.mode() & 0o7777, bytes.len(), crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes.as_slice())));
+    };
+    for name in listed.split(|byte| { return *byte == 0_u8; }) {
+        if name.is_empty() {
+            continue;
+        }
+        let text: &Path = Path::new(std::ffi::OsStr::from_bytes(name.strip_suffix(b"/").unwrap_or(name)));
+        visit(text, &mut state);
+    }
+    return state;
+}
+
 /// After a worktree add killed anywhere:
 /// the next command in the repository answers;
 /// a command in the new worktree recovers what a dead owner left and names it;
 /// the worktree,
 /// if Git made it,
-/// has its ignored rules file once its copy finished or resumed;
-/// a stage an interrupted add left is kept and named,
-/// as `38e01bcd33` decided,
-/// and no pending journal is left.
+/// holds exactly the ignored entries its source holds,
+/// so no worktree is left looking ordinary and holding less than its source ignores;
+/// and no journal,
+/// claim,
+/// record or stage of the copy stays.
 fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain=v1"]);
     if status.code != Some(0) {
@@ -899,7 +961,7 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
     }
     let worktree: PathBuf = fixture.root.join("one");
     // What a recovery pass told the person: the first command in the repository settles a dead add's records and says
-    // which worktree it left unfilled, and a linked worktree runs such a pass before it forwards too.
+    // which worktree it filled or left unfilled, and a linked worktree runs such a pass before it forwards too.
     let mut told: String = String::from_utf8_lossy(status.stderr.as_slice()).into_owned();
     if worktree.join(".git").exists() {
         let inside = run_unsettled(fixture, worktree.as_path(), &["rev-parse", "--is-inside-work-tree"]);
@@ -922,26 +984,25 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
         }
     }
     let made: bool = worktree.join(".git").exists();
-    let rules: bool = worktree.join(".cache/forbidden-strings.rules.txt").exists();
+    if !made {
+        return Err(format!("the next commands made no worktree at {}: {told:?}", worktree.display()));
+    }
+    let source_state: std::collections::BTreeMap<Vec<u8>, String> = ignored_state(repo);
+    let worktree_state: std::collections::BTreeMap<Vec<u8>, String> = ignored_state(worktree.as_path());
+    if source_state != worktree_state {
+        let missing: Vec<String> = source_state.keys().filter(|name| { return !worktree_state.contains_key(*name); }).map(|name| { return String::from_utf8_lossy(name).into_owned(); }).collect();
+        let differing: Vec<String> = source_state.iter().filter(|(name, value)| { return worktree_state.get(*name).is_some_and(|found| { return found != *value; }); }).map(|(name, value)| { return format!("{}: {} is not {value}", String::from_utf8_lossy(name), worktree_state.get(name).cloned().unwrap_or_default()); }).collect();
+        let extra: Vec<String> = worktree_state.keys().filter(|name| { return !source_state.contains_key(*name); }).map(|name| { return String::from_utf8_lossy(name).into_owned(); }).collect();
+        return Err(format!("the worktree does not hold the ignored state of its source: missing {missing:?}, differing {differing:?}, extra {extra:?}; the next commands said {told:?}"));
+    }
     let journal_root: PathBuf = repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1");
-    let journals: Vec<String> = names_in(journal_root.as_path()).into_iter().filter(|name| { return name.ends_with(".json"); }).collect();
-    if !journals.is_empty() {
-        return Err(format!("a pending journal stays after the next commands: {journals:?}"));
+    let left: Vec<String> = names_in(journal_root.as_path());
+    if !left.is_empty() {
+        return Err(format!("records of the copy stay after the next commands: {left:?}"));
     }
     let staging: Vec<String> = names_in(fixture.root.as_path()).into_iter().filter(|name| { return name.starts_with(".cli-git-worktree-copy-"); }).collect();
-    if made && staging.is_empty() && !rules {
-        // The copy either finished (the file is there) or died before it could record anything about itself;
-        // then the recovery pass must name the worktree as one an interrupted add left possibly incomplete.
-        let shown: String = worktree.to_string_lossy().into_owned();
-        if !told.contains(shown.as_str()) {
-            return Err(format!("the worktree has no ignored rules file, no stage is left, and no recovery pass named it: {told:?}"));
-        }
-    }
-    // A stage of an interrupted `git worktree add` is kept and never removed (`38e01bcd33`): the recovery pass must name it.
-    for name in &staging {
-        if !told.contains(name.as_str()) {
-            return Err(format!("the stage {name} stays and no recovery pass named it: {told:?}"));
-        }
+    if !staging.is_empty() {
+        return Err(format!("a stage of the copy stays beside the worktree: {staging:?}; the next commands said {told:?}"));
     }
     return Ok(());
 }

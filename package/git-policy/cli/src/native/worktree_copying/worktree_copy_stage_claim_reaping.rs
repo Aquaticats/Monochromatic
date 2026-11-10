@@ -252,6 +252,24 @@ pub struct StageVerdicts {
     dead_temporaries: BTreeSet<String>,
 }
 
+impl StageVerdicts {
+    /// What:
+    ///  Whether the claim of this name has a dead owner.
+    /// Why:
+    ///   The pass that finishes an owed copy and the sweep that settles the claim act on one judgement,
+    /// taken before
+    ///  anything is changed,
+    /// so neither acts on a claim whose owner still runs or cannot be judged.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// verdicts.namesDeadClaim(name)
+    /// ```
+    pub fn names_dead_claim(&self, name: &str) -> bool {
+        return self.dead_claims.contains(name);
+    }
+}
+
 /// What:
 ///  Order two listed temporaries by name the way JavaScript's default sort does.
 /// Why:
