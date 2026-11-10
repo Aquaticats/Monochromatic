@@ -22,6 +22,7 @@
 //! ```
 
 use crate::config_snapshot::{ConfigEntry, read_config_snapshot};
+use crate::forwarding::NoChildRecorded;
 use crate::landed_summary::short_name;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::from_hex;
@@ -378,7 +379,7 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
 /// ```
 pub(crate) fn run_step(run_git: &mut dyn GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
     // A step of the ladder runs after the add's binding is recorded, so its Git needs no name in a record.
-    return match run_git.run(&GitStep::Other { arguments, environment }, &mut |_pid: u32| {}) {
+    return match run_git.run(&GitStep::Other { arguments, environment }, &mut NoChildRecorded) {
         Ok(status) => Ok(status),
         Err(error) => Err(error.0),
     };

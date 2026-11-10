@@ -61,6 +61,12 @@ pub(crate) mod umask_child_test_support;
 #[cfg(target_os = "linux")]
 pub(crate) mod no_threads_child_test_support;
 
+/// A test body run in a child process that may write no file past a size limit;
+/// never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+pub(crate) mod file_size_limit_child_test_support;
+
 /// A point where threads must all arrive,
 /// for controls that prove work overlapped.
 #[cfg(test)]

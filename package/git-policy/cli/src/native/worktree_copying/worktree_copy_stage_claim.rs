@@ -254,6 +254,26 @@ impl StageClaim {
     }
 
     /// What:
+    ///  Removes the claim and its records after marking the add complete without flushing either,
+    /// for an add whose destination a subvolume was swapped into.
+    /// Why:
+    ///   A snapshot that served an add swapped a subvolume into place,
+    /// and every flush after that swap in the same btrfs
+    ///  transaction is a commit of the whole filesystem,
+    /// which waits behind other writers' data;
+    /// the marker is published whole
+    ///  by a rename and the filesystem's own commit makes it durable.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.settleUnsynced();
+    /// ```
+    pub fn settle_unsynced(self) -> Result<(), WorktreeCopyError> {
+        self.mark_complete_unsynced()?;
+        return self.release_unsynced();
+    }
+
+    /// What:
     ///  Removes the claim file and makes the removal durable.
     /// Why:
     ///   Once a journal names the stage,
