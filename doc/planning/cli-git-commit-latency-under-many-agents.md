@@ -3084,13 +3084,13 @@ when the tree lived in the repository.
 
 ### The ranking
 
-1. **A shadow made ahead,
+1.  **A shadow made ahead,
    claimed with one rename.**
    It takes the single largest stage off the path every commit waits on,
    it leaves a commit working exactly as it does when the pool is empty,
    and its new risk is a trust question with one answer that a test can hold:
    a member is either the tree a creation makes or it is refused.
-2. **The shadow on another volume.**
+2.  **The shadow on another volume.**
    It removes more than any other candidate,
    40 percent of the blocking calls,
    and it needs no new trust in anything the wrapper made earlier.
@@ -3098,7 +3098,7 @@ when the tree lived in the repository.
    which the record above argues against,
    and because it still leaves the landing's writes
    on the stalled volume.
-3. **One shadow per worktree,
+3.  **One shadow per worktree,
    reset between commits.**
    It removes the same calls after the first commit,
    but its reset makes the same class of call it saves,
@@ -3106,7 +3106,7 @@ when the tree lived in the repository.
    a half-reset shadow,
    is the one the owner's data rule forbids
    without a proof the other two do not need.
-4. **Fewer metadata operations in the creation.**
+4.  **Fewer metadata operations in the creation.**
    Measured at no call worth removing,
    and the 13 links that would matter are required in writing.
    It cannot carry the tail and should not be built on its own.
@@ -3144,6 +3144,20 @@ never its target),
 so nothing in the wrapper deletes through it today,
 but a hook inside the shadow can reach every other commit's private index copy through it.
 Nothing was changed for it here.
+
+Note 2026-11-10T01:03:00-05:00:
+this is fixed.
+The shadow leaves both names of the record scratch root out now,
+through `is_private_shadow_entry` in `package/git-policy/cli/src/native/shadow/shadow_links.rs`,
+and `the_repository_scratch_root_never_reaches_the_shadow` beside it fails whenever the rule is removed.
+Measured by counting the links one shadow makes for this repository's common directory:
+27 before,
+25 after,
+because that directory held `monochromatic-git-policy-cli-scratch` and the earlier `cli-git-scratch` both.
+Nothing reads a scratch root through a shadow:
+the wrapper's own `shadow.join` calls name `config`,
+`objects` and the entries a shadow writes for itself,
+and no hook reads one either.
 
 ### What this record does not claim
 

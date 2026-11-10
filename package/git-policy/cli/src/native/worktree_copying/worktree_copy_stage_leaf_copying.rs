@@ -19,6 +19,7 @@ use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of}
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, stamp_of};
 use crate::worktree_copy_error::failure_with_cause;
 use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_vanished_entry::lstat_or_absent;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
@@ -213,6 +214,12 @@ pub(crate) fn stamp_is_settled(changed: (i64, i64)) -> bool {
 /// a source stamp that is
 ///  equal before and after it and old enough to be settled proves no write interleaved,
 /// and the final check compares it again.
+/// The source is opened by the plain-file reader,
+/// which waits for no writer and follows no link,
+///  so a name the walk listed as a file and a dev server replaced with a named pipe between the two passes
+///  is refused at once instead of waiting for a writer that may never come,
+/// with the checkout held and nothing
+///  said ("nothing should ever wait forever or indefinitely").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -224,7 +231,7 @@ pub fn copy_file_exclusive_with(
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
 ) -> Result<Option<FileStamp>, WorktreeCopyError> {
     let mut input: std::fs::File =
-        std::fs::File::open(source).map_err(raw_failure_of)?;
+        crate::plain_file::open_plain_file(source).map_err(raw_failure_of)?;
     let mut output: std::fs::File = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -428,13 +435,17 @@ pub enum CopiedLeaf {
 /// so a file a build removed between them is gone by now;
 ///  reading it is what discovers that,
 /// and the answer is a skip rather than a failure.
+/// An entry that changed kind in between is answered the same way:
+/// it holds none of what the
+///  listing promised,
+/// so the entry the copy listed is no more part of this copy than one that went away.
 /// A failure names the source path it
 ///  could not read,
 /// never only the checkout it was copying from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copyOneLeaf(sourceRoot, stagePath, entry): CopiedLeaf { try { return { kind: 'staged', stamp: copyFileExclusiveWith(...) }; } catch (e) { if (e.code === 'ENOENT') return { kind: 'gone' }; throw `${sourcePath} cannot be copied (${e})`; } }
+/// function copyOneLeaf(sourceRoot, stagePath, entry): CopiedLeaf { try { return { kind: 'staged', stamp: copyFileExclusiveWith(...) }; } catch (e) { if (e.code === 'ENOENT' || stillHoldsTheListedKind(sourcePath, entry.kind) === false) return { kind: 'gone' }; throw `${sourcePath} cannot be copied (${e})`; } }
 /// ```
 pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopyEntry, clone: fn(&std::fs::File, &std::fs::File) -> bool) -> Result<CopiedLeaf, WorktreeCopyError> {
     let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_slice())?;
@@ -442,7 +453,7 @@ pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopy
         EntryKind::Directory => Ok(CopiedLeaf::Staged(None)),
         EntryKind::File => match copy_file_exclusive_with(source_path.as_path(), stage_path, clone) {
             Ok(stamp) => Ok(CopiedLeaf::Staged(stamp)),
-            Err(_gone_now) if !still_there(&source_path) => Ok(CopiedLeaf::Gone),
+            Err(_no_longer_the_listed_entry) if !still_holds_the_listed_kind(&source_path, EntryKind::File) => Ok(CopiedLeaf::Gone),
             Err(error) => Err(named_source_failure(&source_path, "cannot be copied", &error)),
         },
         EntryKind::Symlink => match std::fs::read_link(source_path.as_path()) {
@@ -450,27 +461,38 @@ pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopy
                 symlink_at(target.as_path(), stage_path)?;
                 Ok(CopiedLeaf::Staged(None))
             }
-            Err(_gone_now) if !still_there(&source_path) => Ok(CopiedLeaf::Gone),
+            Err(_no_longer_the_listed_entry) if !still_holds_the_listed_kind(&source_path, EntryKind::Symlink) => Ok(CopiedLeaf::Gone),
             Err(error) => Err(named_source_failure(&source_path, "cannot be read", &failure_with_cause(format!("{error}").as_str(), None))),
         },
     };
 }
 
 /// What:
-///  Whether the source still holds an entry a step just failed on.
+///  Whether the source still holds the entry the walk listed,
+/// in the kind the walk recorded for it.
 /// Why:
 ///   A file and the directory holding it can both go between the walk and the copy,
 /// and only the
 ///  filesystem knows whether the failure was that,
 /// so the question is asked again after the failure rather than guessed
 ///  from its text.
+/// A kind that changed is the same answer as an entry that went away:
+/// a named pipe where a
+///  file was listed holds none of the bytes the listing promised,
+/// and the copy stage's answer stays the same
+///  whatever the entry became.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stillThere = (path) => { try { lstatSync(path); return true; } catch { return false; } };
+/// const stillHoldsTheListedKind = (path, kind) => { try { const found = lstatSync(path); return kind === 'directory' ? found.isDirectory() : kind === 'file' ? found.isFile() : found.isSymbolicLink(); } catch { return false; } };
 /// ```
-fn still_there(source_path: &Path) -> bool {
-    return std::fs::symlink_metadata(source_path).is_ok();
+fn still_holds_the_listed_kind(source_path: &Path, kind: EntryKind) -> bool {
+    let Ok(Some(metadata)) = lstat_or_absent(source_path) else { return false };
+    return match kind {
+        EntryKind::Directory => metadata.is_dir(),
+        EntryKind::File => metadata.is_file(),
+        EntryKind::Symlink => metadata.file_type().is_symlink(),
+    };
 }
 
 /// What:

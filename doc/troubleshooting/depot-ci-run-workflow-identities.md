@@ -91,14 +91,14 @@ No upstream issue or comment is proposed.
 The tracker search in `depot/cli` for the exact phrase `Run not found` returned no issue matches.
 That search is not evidence that every comparable report is absent.
 
-1.   Upstream fault is not established:
+1.  Upstream fault is not established:
      the command's declared argument is a run ID.
-2.   Automatic ID resolution could be added in principle,
+2.  Automatic ID resolution could be added in principle,
      but no change to that contract is needed for this research.
-3.   Workflow lookup is a supported use case through its dedicated command.
-4.   Contribution policy was not evaluated because no upstream defect is proposed.
-5.   Maintainer disposition was not evaluated for the same reason.
-6.   No upstream prototype is needed for the verified command correction.
+3.  Workflow lookup is a supported use case through its dedicated command.
+4.  Contribution policy was not evaluated because no upstream defect is proposed.
+5.  Maintainer disposition was not evaluated for the same reason.
+6.  No upstream prototype is needed for the verified command correction.
 
 The `.out-of-scope/` filing check is unnecessary because no filing or draft is being created.
 The durable artifact is this diagnosis and the working lookup,

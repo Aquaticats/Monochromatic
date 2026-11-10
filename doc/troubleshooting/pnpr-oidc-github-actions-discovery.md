@@ -340,31 +340,31 @@ Only pnpm/pnpm#14666 (the feature pull request)
  and pnpm/pnpm#14802 (the release) matched,
  and neither reports this failure.
 
-1.   **Is it really upstream's fault?**
+1.  **Is it really upstream's fault?**
       Yes.
       OpenID Connect Discovery 1.0 lists `authorization_endpoint` as required,
        so GitHub's document is incomplete by the letter of the spec,
        but pnpr documents GitHub Actions as its workload issuer,
        and workload verification never uses the authorization endpoint.
-2.   **Can upstream fix it?**
+2.  **Can upstream fix it?**
       Yes;
        the prototype confines the change to `pnpr/crates/auth/src/oidc`.
-3.   **Are they supporting this use case?**
+3.  **Are they supporting this use case?**
       Yes.
       `pnpr/crates/pnpr/OIDC.md` configures
        `issuer: https://token.actions.githubusercontent.com` for keyless publishing,
        and `verifies_rs256_workload_tokens` names the same issuer.
-4.   **Would the repo welcome our contribution?**
+4.  **Would the repo welcome our contribution?**
       Yes,
        with disclosure.
       `CONTRIBUTING.md` "AI-assisted contributions" welcomes agent-assisted work,
        asks contributors to understand and test it,
        and requires a footer naming the agent and model.
-5.   **Will they likely fix it?**
+5.  **Will they likely fix it?**
       Likely.
       OIDC publishing landed in pnpm/pnpm#14666 and shipped in `0.1.0-alpha.11`;
        no maintainer statement declines GitHub Actions support.
-6.   **Have we prototyped a minimal fix compatible with their architecture?**
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
       Yes.
       [`pnpr-oidc-github-actions-discovery.patch`](pnpr-oidc-github-actions-discovery.patch)
        keeps the existing cache,
