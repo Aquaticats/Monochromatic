@@ -13,7 +13,6 @@ import {
   hostSyncFailureText,
   MAX_LISTED_FAILURES,
   refreshOrReport,
-  refreshThenWait,
   runHostRefreshLoop,
   type GuardedRefresh,
 } from '../dist/final/node/bypass-host-refresh.mjs';
@@ -125,6 +124,7 @@ await describe({
         await refreshOrReport({
           state: STATE,
           absentCounts: new Map(),
+          hosts: ['crates.io',],
           lookup: () => Promise.resolve({ addresses: [], },),
           tools: { list: () => Promise.resolve('[]',), add: () => Promise.resolve(), remove: () => Promise.resolve(), },
           readDependencies: () => Promise.reject(new Error('resolvectl is unavailable',),),
@@ -137,6 +137,7 @@ await describe({
         await refreshOrReport({
           state: STATE,
           absentCounts: new Map(),
+          hosts: ['crates.io',],
           lookup: () => Promise.resolve({ addresses: [], },),
           tools: { list: () => Promise.resolve('[]',), add: () => Promise.resolve(), remove: () => Promise.resolve(), },
           readDependencies: () => Promise.resolve({ dnsServers: [], endpoints: [], },),
@@ -165,6 +166,7 @@ await describe({
         await refreshOrReport({
           state: STATE,
           absentCounts: new Map(),
+          hosts: ['crates.io',],
           lookup: () => Promise.resolve({ addresses: [{ family: '-4', address: '185.199.108.133', ttlSeconds: 60, },], },),
           tools: { list: () => Promise.resolve('[]',), add: () => Promise.resolve(), remove: () => Promise.resolve(), },
           readDependencies: () => Promise.resolve({ dnsServers: ['9.9.9.9',], endpoints: [], },),
@@ -197,14 +199,37 @@ await describe({
             controller.abort();
           return Promise.resolve(0,);
         };
-        await runHostRefreshLoop({ state: STATE, signal: controller.signal, deliver, refresh, },);
+        await runHostRefreshLoop({
+          state: STATE,
+          signal: controller.signal,
+          deliver,
+          refresh,
+          readHosts: () => Promise.resolve({ kind: 'read', hosts: ['crates.io',], },),
+        },);
         expect(rounds,).toHaveLength(2,);
         expect(rounds[0]?.deliver,).toBe(deliver,);
         expect(rounds[1]?.deliver,).toBe(deliver,);
         expect(rounds[0]?.absentCounts,).toBe(rounds[1]?.absentCounts,);
         expect(rounds[0]?.state,).toBe(STATE,);
-        await refreshThenWait({ state: STATE, absentCounts: new Map(), signal: AbortSignal.abort(), refresh, },);
-        expect(rounds[2]?.deliver,).toBeUndefined();
+        /**
+         Rounds of a loop that has no delivery of its own.
+         */
+        const undelivered: unknown[] = [];
+        /**
+         Stops that loop after its first round.
+         */
+        const withoutDelivery = new AbortController();
+        await runHostRefreshLoop({
+          state: STATE,
+          signal: withoutDelivery.signal,
+          refresh: (call,) => {
+            undelivered.push(call.deliver,);
+            withoutDelivery.abort();
+            return Promise.resolve(0,);
+          },
+          readHosts: () => Promise.resolve({ kind: 'read', hosts: ['crates.io',], },),
+        },);
+        expect(undelivered,).toEqual([undefined,],);
       },
     },),
   ],

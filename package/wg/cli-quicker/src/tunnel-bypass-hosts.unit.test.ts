@@ -570,6 +570,7 @@ await describe({
         const seconds = await refreshUpdateHostRules({
           state: STATE,
           absentCounts: new Map(),
+          hosts: CLEARNET_HOSTS,
           lookup: ({ host, },) => {
             asked.push(host,);
             return Promise.resolve({ addresses: [{ family: '-4', address: '185.199.108.133', ttlSeconds: 60, },], },);
@@ -618,6 +619,7 @@ await describe({
         const seconds = await refreshUpdateHostRules({
           state: STATE,
           absentCounts: new Map(),
+          hosts: CLEARNET_HOSTS,
           lookup: ({ host, },) => {
             asked.push(host,);
             return Promise.resolve({
@@ -647,6 +649,7 @@ await describe({
         expect(await refreshOrReport({
           state: STATE,
           absentCounts: new Map(),
+          hosts: CLEARNET_HOSTS,
           lookup: tableLookup({ table: {}, },),
           tools,
           readDependencies: () => Promise.reject(new Error('resolvectl is unavailable',),),
@@ -710,6 +713,7 @@ await describe({
         expect(await refreshOrReport({
           state: STATE,
           absentCounts: new Map(),
+          hosts: CLEARNET_HOSTS,
           lookup: tableLookup({ table: {}, },),
           tools: broken,
         },),).toBe(FAILED_REFRESH_RETRY_SECONDS,);

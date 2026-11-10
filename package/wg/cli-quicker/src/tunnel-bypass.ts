@@ -28,7 +28,10 @@ import {
   startBypassWatcher,
   stopBypassWatcher,
 } from './tunnel-bypass-watch-service.ts';
-import { refreshOrReport, } from './bypass-host-refresh.ts';
+import {
+  readClearnetHostsForStart,
+  refreshOrReport,
+} from './bypass-host-refresh.ts';
 import { IP_HOST_RULE_TOOLS, } from './tunnel-bypass-hosts.ts';
 import { removeUpdateHostRules, } from './tunnel-bypass-hosts-sync.ts';
 
@@ -277,6 +280,7 @@ export async function addExemptRule(
     await refreshOrReport({
       state,
       absentCounts: new Map(),
+      hosts: await readClearnetHostsForStart({},),
     },);
     if (watchRouteChanges)
       await startBypassWatcher({ state, },);

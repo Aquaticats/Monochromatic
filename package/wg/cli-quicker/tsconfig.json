@@ -1,3 +1,9 @@
 {
   "extends": "@monochromatic-dev/config-typescript/dom",
+  "include": [
+    "${configDir}/src/**/*.ts",
+    // The clearnet host lists are data, so the build emits them beside the bundles.
+    "${configDir}/src/**/*.json",
+    "${configDir}/*.config.ts",
+  ],
 }

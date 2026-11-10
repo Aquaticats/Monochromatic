@@ -3,6 +3,11 @@ import { setTimeout as sleep, } from 'node:timers/promises';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
+  type HostListRead,
+  type HostListReader,
+  createInstalledClearnetHostsReader,
+} from './installed-clearnet-hosts.ts';
+import {
   type HostLookup,
   type HostRuleTools,
   type HostSyncReport,
@@ -38,6 +43,11 @@ const l = tagged({ tag: 'bypass-host-refresh', },);
  because a refresh that installed only its own list would remove the other list's
  rules as unwanted,
  and each list keeps its own reason in the start notice.
+
+ This is the list this build compiles in.
+ A running watcher reads the same lists from the data file beside its bundle at every refresh,
+ so a newer build's lists reach a tunnel without a restart,
+ and this list is what a watcher falls back to when that file cannot be read.
  */
 export const CLEARNET_HOSTS: readonly string[] = [
   ...UPDATE_HOSTS,
@@ -180,6 +190,9 @@ export function noDnsFailure({ interfaceName, }: { readonly interfaceName: strin
 
  @param absentCounts - Per-rule absence counters.
 
+ @param hosts - Every host this refresh installs a rule set for,
+ read from the data file beside the running build.
+
  @param lookup - Resolver,
  replaceable in tests.
 
@@ -195,13 +208,14 @@ export function noDnsFailure({ interfaceName, }: { readonly interfaceName: strin
 
  @example
  ```ts
- await refreshUpdateHostRules({ state, absentCounts: new Map() });
+ await refreshUpdateHostRules({ state, absentCounts: new Map(), hosts: CLEARNET_HOSTS });
  ```
  */
 export async function refreshUpdateHostRules(
   {
     state,
     absentCounts,
+    hosts,
     lookup = createTunnelHostLookup({ interfaceName: state.interfaceName, },),
     tools = IP_HOST_RULE_TOOLS,
     readDependencies = readTunnelDependencies,
@@ -209,6 +223,7 @@ export async function refreshUpdateHostRules(
   }: {
     readonly state: BypassState;
     readonly absentCounts: Map<string, number>;
+    readonly hosts: readonly string[];
     readonly lookup?: HostLookup;
     readonly tools?: HostRuleTools;
     readonly readDependencies?: TunnelDependencyReader;
@@ -238,7 +253,7 @@ export async function refreshUpdateHostRules(
    */
   const report = await syncUpdateHostRules({
     state,
-    hosts: hasDns ? CLEARNET_HOSTS : [],
+    hosts: hasDns ? hosts : [],
     lookup,
     tools,
     absentCounts,
@@ -261,6 +276,8 @@ export async function refreshUpdateHostRules(
 
  @param absentCounts - Per-rule absence counters.
 
+ @param hosts - Every host this refresh installs a rule set for.
+
  @param lookup - Resolver,
  replaceable in tests.
 
@@ -276,13 +293,14 @@ export async function refreshUpdateHostRules(
 
  @example
  ```ts
- await refreshOrReport({ state, absentCounts: new Map() });
+ await refreshOrReport({ state, absentCounts: new Map(), hosts: CLEARNET_HOSTS });
  ```
  */
 export async function refreshOrReport(
   {
     state,
     absentCounts,
+    hosts,
     lookup,
     tools,
     readDependencies,
@@ -290,6 +308,7 @@ export async function refreshOrReport(
   }: {
     readonly state: BypassState;
     readonly absentCounts: Map<string, number>;
+    readonly hosts: readonly string[];
     readonly lookup?: HostLookup;
     readonly tools?: HostRuleTools;
     readonly readDependencies?: TunnelDependencyReader;
@@ -307,6 +326,7 @@ export async function refreshOrReport(
     return await refreshUpdateHostRules({
       state,
       absentCounts,
+      hosts,
       ...(lookup === undefined ? {} : { lookup, }),
       ...(tools === undefined ? {} : { tools, }),
       ...(readDependencies === undefined ? {} : { readDependencies, }),
@@ -374,18 +394,142 @@ export async function sleepUnlessAborted(
 }
 
 /**
+ What the refresh loop carries from one round to the next.
+ */
+type HostRefreshCarried = {
+  /**
+   Absence counters of the rules the kernel lists,
+   kept across rounds so a rotating address is not removed at once.
+   */
+  readonly absentCounts: Map<string, number>;
+
+  /**
+   Hosts of the last data file this watcher read.
+   */
+  hosts: readonly string[];
+};
+
+/**
  The guarded refresh the loop runs,
  replaceable in tests.
  */
-export type GuardedRefresh = typeof refreshOrReport;
+export type GuardedRefresh = (
+  call: {
+    readonly state: BypassState;
+    readonly absentCounts: Map<string, number>;
+    readonly hosts: readonly string[];
+    readonly deliver?: FailureDelivery;
+  },
+) => Promise<number>;
+
+/**
+ Waits out the time until the next refresh,
+ replaceable in tests.
+
+ @param call - Seconds asked for and the signal that ends the wait.
+
+ @returns Nothing once the wait is over.
+
+ @example
+ ```ts
+ await pauseUntilNextRefresh({ seconds: 30, signal });
+ ```
+ */
+export type RefreshPause = (call: {
+  readonly seconds: number;
+  readonly signal: AbortSignal
+},) => Promise<void>;
+
+/**
+ Builds the loud report of a host list that cannot be read.
+
+ The rules already installed stay in force,
+ because a list that cannot be read says nothing about which hosts belong outside the tunnel,
+ and nothing is removed because of it.
+
+ @param failure - What is wrong with the data file,
+ as the reader names it.
+
+ @param retrySeconds - Seconds until the next attempt.
+
+ @returns Report naming the policy,
+ the file,
+ and what stays in force.
+
+ @example
+ ```ts
+ hostListReadFailureText({ failure: 'x is not JSON', path: 'data.json', retrySeconds: 30 });
+ ```
+ */
+export function hostListReadFailureText(
+  {
+    failure,
+    retrySeconds,
+  }: {
+    readonly failure: string;
+    readonly retrySeconds: number;
+  },
+): string {
+  return policyNotInForce({
+    policy: POLICY_CLEARNET_HOSTS,
+    detail: `the host list installed beside the route watcher cannot be read: ${failure}; `
+      + `the list this watcher read last stays in force, `
+      + `so no rule is added or removed for the change and no routing is removed; `
+      + `retrying in ${String(retrySeconds,)} s`,
+  },);
+}
+
+/**
+ Reads the clearnet host list for a start of the tunnel.
+
+ A start installs the list compiled into its own build when the data file cannot be read,
+ because the file the running build carries is the list that build is,
+ and a start that installed nothing would leave every update and provider request in the tunnel.
+
+ @param read - Reader of the data file,
+ the installed copy beside the bundle by default.
+
+ @returns Every host to install rules for.
+
+ @example
+ ```ts
+ const hosts = await readClearnetHostsForStart({});
+ ```
+ */
+export async function readClearnetHostsForStart(
+  { read = createInstalledClearnetHostsReader({},), }: {
+    readonly read?: HostListReader;
+  } = {},
+): Promise<readonly string[]> {
+  /**
+   Reading of the data file besides this build.
+   */
+  const result: HostListRead = await read();
+  if (result.kind === 'read')
+    return result.hosts;
+  /**
+   Loud report of a build whose data file cannot be read.
+   */
+  const loud = policyNotInForce({
+    policy: POLICY_CLEARNET_HOSTS,
+    detail: `the host list installed beside this build cannot be read: ${result.failure}; `
+      + `this start installs the ${String(CLEARNET_HOSTS.length,)} hosts compiled into the build instead`,
+  },);
+  l.error(loud,);
+  return CLEARNET_HOSTS;
+}
 
 /**
  One round of the refresh loop:
- a guarded refresh, then the wait until the next one.
+ read the list the installed build carries now, reconcile with it, then wait for the next round.
+
+ A file that cannot be read leaves the list this watcher read last in force,
+ is reported where a person sees it,
+ and is read again after the short retry delay instead of the refresh interval.
+
+ @param carried - Hosts and absence counters the loop keeps between rounds.
 
  @param state - Claimed table and preference.
-
- @param absentCounts - Per-rule absence counters.
 
  @param signal - Aborted when the watcher is asked to stop.
 
@@ -394,38 +538,84 @@ export type GuardedRefresh = typeof refreshOrReport;
  @param refresh - The guarded refresh,
  replaceable in tests.
 
+ @param readHosts - Reader of the installed host list,
+ replaceable in tests.
+
+ @param pause - Wait until the next refresh,
+ replaceable in tests.
+
  @example
  ```ts
- await refreshThenWait({ state, absentCounts: new Map(), signal });
+ await runHostRound({ carried, state, signal: controller.signal });
  ```
  */
-export async function refreshThenWait(
+async function runHostRound(
   {
+    carried,
     state,
-    absentCounts,
     signal,
     deliver,
-    refresh = refreshOrReport,
+    refresh,
+    readHosts,
+    pause,
   }: {
+    readonly carried: HostRefreshCarried;
     readonly state: BypassState;
-    readonly absentCounts: Map<string, number>;
     readonly signal: AbortSignal;
     readonly deliver?: FailureDelivery;
-    readonly refresh?: GuardedRefresh;
+    readonly refresh: GuardedRefresh;
+    readonly readHosts: HostListReader;
+    readonly pause: RefreshPause;
   },
 ): Promise<void> {
-  await sleepUnlessAborted({
-    seconds: await refresh({
-      state,
-      absentCounts,
-      ...(deliver === undefined ? {} : { deliver, }),
-    },),
+  /**
+   This round's reading of the data file the installed build carries.
+   */
+  const read: HostListRead = await readHosts();
+  /**
+   Whether this round follows a data file that cannot be read.
+   */
+  const unreadable = read.kind === 'failed';
+  if (read.kind === 'read') {
+    carried.hosts = read.hosts;
+  }
+  else {
+    /**
+     Loud report of a list that cannot be read,
+     which leaves the list read last in force.
+     */
+    const loud = hostListReadFailureText({
+      failure: read.failure,
+      retrySeconds: FAILED_REFRESH_RETRY_SECONDS,
+    },);
+    l.error(loud,);
+    await deliver?.({
+      kind: KIND_UPDATE_HOST_REFRESH_FAILED,
+      line: loud,
+    },);
+  }
+  /**
+   Seconds the refresh asks to wait before the next one.
+   */
+  const seconds = await refresh({
+    state,
+    absentCounts: carried.absentCounts,
+    hosts: carried.hosts,
+    ...(deliver === undefined ? {} : { deliver, }),
+  },);
+  await pause({
+    seconds: unreadable ? FAILED_REFRESH_RETRY_SECONDS : seconds,
     signal,
   },);
 }
 
 /**
  Refreshes the clearnet-host rules, of the update hosts and the model provider hosts, until the watcher is asked to stop.
+
+ Each round reads the data file beside the running build first,
+ so a list a newer build installs there takes effect in this watcher without a restart,
+ between two rules that both lists name nothing is removed,
+ and a file that cannot be read leaves the list read last in force with a loud report.
 
  @param state - Claimed table and preference.
 
@@ -435,6 +625,12 @@ export async function refreshThenWait(
  which the detached watcher needs because its own output is discarded.
 
  @param refresh - The guarded refresh,
+ replaceable in tests.
+
+ @param readHosts - Reader of the installed host list,
+ replaceable in tests.
+
+ @param pause - Wait until the next refresh,
  replaceable in tests.
 
  @example
@@ -447,26 +643,38 @@ export async function runHostRefreshLoop(
     state,
     signal,
     deliver,
-    refresh,
+    refresh = refreshOrReport,
+    readHosts = createInstalledClearnetHostsReader({},),
+    pause = sleepUnlessAborted,
   }: {
     readonly state: BypassState;
     readonly signal: AbortSignal;
     readonly deliver?: FailureDelivery;
     readonly refresh?: GuardedRefresh;
+    readonly readHosts?: HostListReader;
+    readonly pause?: RefreshPause;
   },
 ): Promise<void> {
   /**
-   Absence counters kept between refreshes.
+   What the loop carries from one round to the next:
+   the absence counters of the rules the kernel lists,
+   and the hosts of the last data file this watcher read,
+   the list compiled into this build before the first read succeeds.
    */
-  const absentCounts = new Map<string, number>();
+  const carried: HostRefreshCarried = {
+    absentCounts: new Map<string, number>(),
+    hosts: CLEARNET_HOSTS,
+  };
   while (!signal.aborted) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- See doc/lint/no-await-in-loop-host-refresh.md: each refresh reads the rules the previous one left.
-    await refreshThenWait({
+    // oxlint-disable-next-line eslint/no-await-in-loop -- See doc/lint/no-await-in-loop-host-refresh.md: each round reads the list the installed build carries now and waits for the next one.
+    await runHostRound({
+      carried,
       state,
-      absentCounts,
       signal,
       ...(deliver === undefined ? {} : { deliver, }),
-      ...(refresh === undefined ? {} : { refresh, }),
+      refresh,
+      readHosts,
+      pause,
     },);
   }
 }

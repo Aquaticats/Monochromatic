@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "updateHosts": {
+    "plan": [
+      "api.adoptium.net",
+      "api.anaconda.org",
+      "api.github.com",
+      "awscli.amazonaws.com",
+      "conda.anaconda.org",
+      "crates.io",
+      "dl.google.com",
+      "files.pythonhosted.org",
+      "github.com",
+      "go.dev",
+      "nodejs.org",
+      "proxy.golang.org",
+      "pypi.org",
+      "registry.npmjs.org",
+      "static.rust-lang.org",
+      "unofficial-builds.nodejs.org",
+      "ziglang.org"
+    ],
+    "redirect": [
+      "index.crates.io",
+      "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com",
+      "static.crates.io"
+    ],
+    "nonFetch": [
+      "pnpm.io"
+    ]
+  },
+  "providerBaseUrls": [
+    {
+      "provider": "deepseek",
+      "baseUrl": "https://api.deepseek.com"
+    },
+    {
+      "provider": "neuralwatt",
+      "baseUrl": "https://api.neuralwatt.com/v1"
+    },
+    {
+      "provider": "opencode-go",
+      "baseUrl": "https://opencode.ai/inference/go/openai/v1"
+    },
+    {
+      "provider": "opencode-go",
+      "baseUrl": "https://opencode.ai/inference/go/anthropic"
+    },
+    {
+      "provider": "qwen-token-plan",
+      "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+    },
+    {
+      "provider": "qwen-token-plan-individual",
+      "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+    },
+    {
+      "provider": "qwen-token-plan-cn",
+      "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+    },
+    {
+      "provider": "synthetic",
+      "baseUrl": "https://api.synthetic.new/openai/v1"
+    }
+  ]
+}

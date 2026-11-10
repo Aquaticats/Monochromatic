@@ -9,6 +9,7 @@ import {
   FAILED_REFRESH_RETRY_SECONDS,
   runHostRefreshLoop,
 } from '../dist/final/node/bypass-host-refresh.mjs';
+import type { HostListRead, } from '../dist/final/node/installed-clearnet-hosts.mjs';
 import type { BypassState, } from '../dist/final/node/tunnel-bypass-hosts.mjs';
 
 /**
@@ -23,13 +24,6 @@ const STATE: BypassState = {
   ownerId: 'owner',
   routes: [],
 };
-
-/**
- One reading of the data file the watcher follows.
- */
-type Reading =
-  | { readonly kind: 'read'; readonly hosts: readonly string[] }
-  | { readonly kind: 'failed'; readonly failure: string };
 
 /**
  Records what one run of the loop did.
@@ -50,7 +44,7 @@ async function recordingLoop(
     readings,
     stopAfter,
   }: {
-    readonly readings: readonly Reading[];
+    readonly readings: readonly HostListRead[];
     readonly stopAfter: number;
   },
 ): Promise<{
@@ -79,7 +73,7 @@ async function recordingLoop(
   /**
    Reads made, so the last reading repeats.
    */
-  let reads = 0;
+  const counted = { reads: 0, };
   await runHostRefreshLoop({
     state: STATE,
     signal: controller.signal,
@@ -91,10 +85,10 @@ async function recordingLoop(
       /**
        Reading for this round.
        */
-      const reading = readings[Math.min(reads, readings.length - 1,)];
+      const reading = readings[Math.min(counted.reads, readings.length - 1,)];
       if (reading === undefined)
         throw new Error('A recording loop needs at least one reading.',);
-      reads += 1;
+      counted.reads += 1;
       return Promise.resolve(reading,);
     },
     refresh: ({ hosts, },) => {
@@ -144,7 +138,11 @@ await describe({
          What one run of the loop did.
          */
         const run = await recordingLoop({
-          readings: [{ kind: 'failed', failure: 'the data file is not there', },],
+          readings: [{
+            kind: 'failed',
+            failure: 'the data file is not there',
+            path: '/run/wg-quicker/clearnet-hosts.data.json',
+          },],
           stopAfter: 2,
         },);
         expect(run.reconciled,).toEqual([CLEARNET_HOSTS, CLEARNET_HOSTS,],);
@@ -165,7 +163,7 @@ await describe({
          */
         const run = await recordingLoop({
           readings: [
-            { kind: 'failed', failure: 'the data file is not there', },
+            { kind: 'failed', failure: 'the data file is not there', path: '/run/wg-quicker/clearnet-hosts.data.json', },
             { kind: 'read', hosts: ['api.deepseek.com',], },
           ],
           stopAfter: 2,
