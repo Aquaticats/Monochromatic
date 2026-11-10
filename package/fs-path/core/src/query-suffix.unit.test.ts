@@ -14,6 +14,7 @@
  */
 
 import {
+  mkdir,
   mkdtemp,
   readdir,
   rm,
@@ -36,6 +37,7 @@ import {
   ensureDir,
   ensureFile,
   ensurePath,
+  removeEmptyFilesInDir,
 } from '@monochromatic-dev/fs-path-core/node';
 
 //region Fixture helpers
@@ -224,6 +226,45 @@ await describe({
             );
             expect(await emptyDir(spelling,),).toBe(spelling,);
             expect(await readdir(target,),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'removeEmptyFilesInDir reaches the same directory',
+          fn: async () => {
+            await using temp = await createTempDir();
+            /**
+             Directory the spelling names once the suffix is stripped.
+             */
+            const target = join(
+              temp.path,
+              'generated',
+            );
+            /**
+             Spelling a caller passes, suffix included.
+             */
+            const spelling = `${target}${QUERY_SUFFIX}`;
+            /**
+             File the scan must remove, and file it must keep.
+             */
+            const removable = 'blank.txt';
+            const kept = 'content.txt';
+            await mkdir(target,);
+            await writeFile(
+              join(
+                target,
+                removable,
+              ),
+              '',
+            );
+            await writeFile(
+              join(
+                target,
+                kept,
+              ),
+              'content a generator wrote',
+            );
+            expect(await removeEmptyFilesInDir(spelling,),).toBe(spelling,);
+            expect((await readdir(target,)).toSorted(),).toEqual([ kept, ],);
           },
         },),
         it({

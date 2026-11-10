@@ -512,6 +512,64 @@ await chmod(directory, restoredMode);`,
           },
         },),
         it({
+          name: 'refuses a directory addressed with a query suffix, naming the path it checked',
+          fn: async () => {
+            await using temp = await createTempDir();
+            /**
+             Directory occupying the path the stripped spelling names.
+             */
+            const target = join(
+              temp.path,
+              'folder',
+            );
+            await mkdir(target,);
+            /**
+             Spelling a caller passes, suffix included.
+             */
+            const spelling = `${target}?raw`;
+            /**
+             Value thrown by the call.
+             */
+            const caught = await caughtFrom(() => ensureFile(spelling,),);
+            expect(caught,).toBeInstanceOf(Error,);
+            expect((caught as Error).message,).toContain('not a file',);
+            expect((caught as Error).message,).toContain(target,);
+          },
+        },),
+        it({
+          name: 'keeps the content of the file a symbolic link names',
+          fn: async () => {
+            await using temp = await createTempDir();
+            /**
+             File the link names, holding content the call must leave alone.
+             */
+            const linkTargetPath = join(
+              temp.path,
+              'link-target.txt',
+            );
+            /**
+             Link standing where the file is requested.
+             */
+            const linkPath = join(
+              temp.path,
+              'link.txt',
+            );
+            await writeFile(
+              linkTargetPath,
+              'content stays',
+            );
+            await symlink(
+              linkTargetPath,
+              linkPath,
+            );
+            expect(await ensureFile(linkPath,),).toBe(linkPath,);
+            expect(await readFile(
+              linkTargetPath,
+              'utf8',
+            ),).toBe('content stays',);
+          },
+        },),
+        it({
           name: 'throws when the path exists as a directory',
           fn: async () => {
             await using temp = await createTempDir();
