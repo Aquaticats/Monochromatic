@@ -8,7 +8,10 @@
  @module
  */
 
-import { parseMutationContractBlocks, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
+import {
+  BLOCK_TAG_NAMES,
+  parseMutationContractBlocks,
+} from '@monochromatic-dev/oxlint-plugin-shared/ts';
 import type { Comment, } from '@oxlint/plugins';
 import type { ReadonlyDeep, } from 'type-fest';
 
@@ -30,32 +33,6 @@ import type {
 //region Block vocabulary
 // The block tags that start a new segment at line start, one segment being
 // accumulated, and one finalized segment.
-
-/**
- TSDoc block tags whose appearance at line start opens a new content block.
- 
- Includes every standard BlockTag plus the plugin's custom `@yields`, so a
- following block tag correctly ends a preceding `@param`/`@returns` block.
- */
-const BLOCK_TAG_NAMES: ReadonlySet<string> = new Set([
-  '@decorator',
-  '@defaultValue',
-  '@deprecated',
-  '@example',
-  '@param',
-  '@privateRemarks',
-  '@remarks',
-  '@returns',
-  '@see',
-  '@throws',
-  '@typeParam',
-  '@jsx',
-  '@jsxRuntime',
-  '@jsxFrag',
-  '@jsxImportSource',
-  '@mutates',
-  '@yields',
-],);
 
 /**
  One block being accumulated as the scanner walks comment lines.
@@ -198,9 +175,10 @@ function parseReturnsSegment(text: string,): ParsedReturnsBlock {
 /**
  Groups normalized lines into block segments keyed by their opening tag.
  
- A non-fence line starting with a block tag opens a new segment; subsequent
- lines (including fenced example bodies and blank lines) extend the current
- segment (the last pushed one) until the next block tag or end of comment.
+ A non-fence line whose leading tag the shared block-tag list names opens a
+ new segment; subsequent lines (including fenced example bodies and blank
+ lines) extend the current segment (the last pushed one) until the next block
+ tag or end of comment.
  Lines before the first block tag (the summary) have no open segment and are
  dropped.
  
