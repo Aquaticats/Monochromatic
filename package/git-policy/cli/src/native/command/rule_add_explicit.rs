@@ -302,7 +302,7 @@ pub fn add_explicit_question(arguments: &[OsString]) -> Option<AddExplicitQuesti
             },
         });
     }
-    // `sort_by_key` orders the list by the value the closure returns for each item.
+    // `sort_by_key` orders the list by the token index `token_of` reads for each item.
     tokens.sort_by_key(token_of);
     if tokens.is_empty() {
         return None;
