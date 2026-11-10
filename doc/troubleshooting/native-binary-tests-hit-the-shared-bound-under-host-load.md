@@ -1039,6 +1039,47 @@ Controls that assert a notice or its absence (`binary_wait_notice_tests.rs`,
 `binary_lfs_hang_tests.rs`) read raw
 bytes and are unchanged.
 
+### The service's note that a commit is inside a write is a second such line (2026-11-10)
+
+`event_path_commit::an_untracked_name_that_is_not_utf8_does_not_stop_a_commit` failed in the whole binary suite on
+`main` at `b4ed7deb73` with
+
+```text
+thread 'event_path_commit::an_untracked_name_that_is_not_utf8_does_not_stop_a_commit' (2076808) panicked at src/native/binary/binary_event_path_commit_tests.rs:136:5:
+assertion `left == right` failed
+  left: (Some(0), "monochromatic-git-policy-cli: this commit is inside a write of the commit service, `git update-ref --stdin in .../repo` (it moves refs/heads/main to 3963eee51e143f603a9a31f314473488f583d480; the commit is also at refs/worktree/cli-git-service/1794345924936614 until the update ends), begun 0 seconds ago. ...")
+ right: (Some(0), "")
+```
+
+The control required standard error to be empty,
+and the client printed the service's note that its own request was inside a write.
+That note is intended:
+the owner asked that the client learn its commit may be on the branch when the write starts,
+not a minute later (`service_busy.rs`,
+`inside_notice`),
+and the landing's `git update-ref --stdin` held the write for 2,069 ms in that run,
+long enough for a beat to fall inside it (the same service line shows `lock_hold_ms=2089` and
+`git update-ref@489+2069`).
+So the line is the host being slow,
+which this control does not claim.
+
+`without_advisory_notices` (`binary_support_observation.rs`) is the reading that leaves out every line the wrapper prints
+about a wait:
+the wait notice,
+that note in its short words,
+and the longer words of a write that lasted whole minutes.
+`binary_event_path_commit_tests.rs` reads every command of the module through it,
+because those controls are about event bytes,
+an exit status and a repository,
+and `only_the_lines_about_a_wait_are_left_out_of_a_read_command` requires a finding line and another sentence of the
+wrapper's to stay.
+Verified:
+`event_path_commit::`
+13 of 13 pass (`Summary [54.673s] 13 tests run: 13 passed, 909 skipped`).
+Not measured:
+how often a beat falls inside a landing's write on this host;
+the control passed in the same run for every other commit it makes.
+
 ## Tests that looked slow in one gate and are not
 
 `candidate_prediction::tests::failures_report_git_and_leave_the_index_alone` and

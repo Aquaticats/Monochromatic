@@ -64,6 +64,17 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
 /// `service_index_lock.rs`).
 pub const WAIT_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: still waiting for ";
 
+/// How the service's note that the commit's own request is inside a write begins (`service_busy.rs`,
+/// `inside_notice`),
+/// in the short words sent when the write starts.
+pub const INSIDE_WRITE_NOTICE_PREFIX: &[u8] =
+    b"monochromatic-git-policy-cli: this commit is inside a write of the commit service";
+
+/// How that note begins once the write has lasted whole minutes (`service_busy.rs`,
+/// `describe`).
+pub const LONG_INSIDE_WRITE_NOTICE_PREFIX: &[u8] =
+    b"monochromatic-git-policy-cli: the commit service has been inside a write for ";
+
 /// What:
 ///  The bytes without the lines that are wait notices.
 /// Why:
@@ -84,6 +95,44 @@ pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
     return bytes
         .split_inclusive(|byte| { return *byte == b'\n'; })
         .filter(|line| { return !line.starts_with(WAIT_NOTICE_PREFIX); })
+        .flatten()
+        .copied()
+        .collect();
+}
+
+/// What:
+///  Whether a line is one the wrapper writes about a wait:
+///  a wait notice,
+///  or the service's note that the commit's own request is inside a write.
+/// Why:
+///   These are the sentences the wrapper prints whatever else it does,
+/// and a control reading them as a finding would report the host's speed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const advisory = (line) => line.startsWith(WAIT_NOTICE_PREFIX) || line.startsWith(INSIDE_WRITE_NOTICE_PREFIX) || line.startsWith(LONG_INSIDE_WRITE_NOTICE_PREFIX);
+/// ```
+pub fn is_advisory_notice(line: &[u8]) -> bool {
+    return line.starts_with(WAIT_NOTICE_PREFIX)
+        || line.starts_with(INSIDE_WRITE_NOTICE_PREFIX)
+        || line.starts_with(LONG_INSIDE_WRITE_NOTICE_PREFIX);
+}
+
+/// What:
+///  The bytes without the lines a healthy command prints about a wait.
+/// Why:
+///  A step that outlasts its notice grace,
+///  or a landing inside a write that a beat falls in,
+///  prints these however healthy it is,
+///  and a loaded host stretches both,
+///  so a control about a command's events,
+///  its repository or its exit status does not claim that the host was fast.
+/// Every other line stays,
+/// and a control that asserts one of these notices reads the raw bytes.
+pub fn without_advisory_notices(bytes: &[u8]) -> Vec<u8> {
+    return bytes
+        .split_inclusive(|byte| { return *byte == b'\n'; })
+        .filter(|line| { return !is_advisory_notice(line); })
         .flatten()
         .copied()
         .collect();
