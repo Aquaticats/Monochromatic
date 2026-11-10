@@ -18,7 +18,7 @@ on the branch `worktree-agent-afb65bb9babbe8ffa`.
 Note 2026-11-10T04:46:08-05:00:
 merge commit `81b7fd690f` (2026-10-29T10:43:18-04:00) brought this to `main` on the day it was written,
 no local branch of that name remains,
-and every module cited below is tracked on `main`;
+and the merge modules it cites are tracked on `main` under `src/native/merge/`;
 the sentence that followed the status said "not yet merged".
 The deviation below ships with the user's veto still open,
 not with a decision it waits for.
