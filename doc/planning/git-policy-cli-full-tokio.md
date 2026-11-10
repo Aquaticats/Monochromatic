@@ -8274,7 +8274,10 @@ the container gate,
   (`8b81d605d7`,
   `8e24183ae1`,
   `224c193ed8`),
-  the last at main `6c9ad05c97`.
+  each at the tip `origin/main` had when it was made
+  (`6c0f52b543`,
+  `cc31ef8afa`,
+  `80d528ae82`).
   Commits `3119b082ad` (the folder's awaited Git),
   `56ac3e5cff` (the sink through the caller and the completed fast-forward),
   `9ae3763224` (the renewal's stop)
