@@ -389,10 +389,11 @@ dir = "{{config_root}}"
 run = "node selected-search-question.mjs validate"
 
 [tasks."test:unit"]
-description = "Check the selected Fold Search artifact against its sanitized captures, then the package prose bans"
+description = "Check the selected Fold Search artifact against its sanitized captures, the offline completeness of every design page, then the package prose bans"
 dir = "{{config_root}}"
 run = [
   "node selected-search-question.mjs validate",
+  "node offline-design-pages-test.ts",
   "node prose-dashes-test.mjs",
   "node prose-emphasis-test.mjs",
   "node crease-floor-question-test.mjs",
@@ -654,3 +655,13 @@ run = ["node cover-picker-revisit.mjs build", "node cover-picker-revisit.mjs val
 description = "Exercise cover picker review image, metadata, cohort and ballot guards in disposable fixtures; `-- <guard>` deletes one"
 dir = "{{config_root}}"
 run = "node cover-picker-revisit-test.mjs"
+
+[tasks."test:offline-pages"]
+description = "Hold every design page to this tree: no host named, every local name resolves, the runtime loads vendored builds, only shipped typefaces"
+dir = "{{config_root}}"
+run = "node offline-design-pages-test.ts"
+
+[tasks."test:offline-pages:render"]
+description = "Render every design page in a headless browser and prove no request leaves this tree; needs `agent-browser` on PATH"
+dir = "{{config_root}}"
+run = "node offline-design-pages-render-test.ts"
