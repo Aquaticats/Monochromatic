@@ -13,7 +13,7 @@ import {
   readdirSync,
   writeFileSync,
 } from 'node:fs';
-import path from 'node:path';
+import { join, } from 'node:path';
 import process from 'node:process';
 
 import {
@@ -84,7 +84,7 @@ await describe({
         /**
          Absolute path of the default config file name.
          */
-        const configPath = path.join(directory, 'config.json',);
+        const configPath = join(directory, 'config.json',);
         writeConfigFile({
           directory,
           data: {
@@ -111,7 +111,7 @@ await describe({
         /**
          Absolute path of the default config file name.
          */
-        const configPath = path.join(directory, 'config.json',);
+        const configPath = join(directory, 'config.json',);
         writeConfigFile({
           directory,
           data: {
@@ -133,7 +133,7 @@ await describe({
         /**
          Absolute path of the default config file name.
          */
-        const configPath = path.join(directory, 'config.json',);
+        const configPath = join(directory, 'config.json',);
         writeConfigFile({
           directory,
           data: {
@@ -158,7 +158,7 @@ await describe({
         const handle = createDisposableHome();
 
         expect(process.env.HOME,).toBe(handle.home,);
-        expect(process.env.XDG_CONFIG_HOME,).toBe(path.join(handle.home, '.config',),);
+        expect(process.env.XDG_CONFIG_HOME,).toBe(join(handle.home, '.config',),);
         expect(existsSync(handle.home,),).toBe(true,);
 
         restoreHome(handle,);
@@ -259,7 +259,7 @@ await describe({
         /**
          Absolute path of the encrypted file under test.
          */
-        const filePath = path.join(directory, 'config.json',);
+        const filePath = join(directory, 'config.json',);
         /**
          Serialized store text protected on disk.
          */
@@ -288,7 +288,7 @@ await describe({
         /**
          Absolute path of the encrypted file under test.
          */
-        const filePath = path.join(directory, 'config.json',);
+        const filePath = join(directory, 'config.json',);
         /**
          Serialized store text protected on disk.
          */
@@ -317,7 +317,7 @@ await describe({
         /**
          Absolute path of the legacy file under test.
          */
-        const filePath = path.join(directory, 'legacy.json',);
+        const filePath = join(directory, 'legacy.json',);
         /**
          Serialized store text protected under the legacy salt layout.
          */
