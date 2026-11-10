@@ -218,7 +218,7 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
 fn waited_longer_than_a_claim(record: &Path) -> bool {
     let Ok(found) = std::fs::metadata(record) else { return false };
     let Ok(written) = found.modified() else { return false };
-    return written.elapsed().is_ok_and(|age: std::time::Duration| age > crate::service_work::CLAIM_LEASE);
+    return written.elapsed().is_ok_and(|age: std::time::Duration| return age > crate::service_work::CLAIM_LEASE);
 }
 
 /// Say what sits in the trash parent of `worktree` that nothing will empty.
@@ -504,7 +504,7 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let Some(parent) = holders.last() else { return Ok(()) };
     // Everything the trash held is gone, so only its parent's permissions kept it: a removal that names it deletes
     //  exactly what the snapshot made.
-    path_failure(with_idle_io_priority(|| remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true)), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
+    path_failure(with_idle_io_priority(|| return remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true)), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()

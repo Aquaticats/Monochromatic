@@ -151,7 +151,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
-        Some(Route { address, provision: host }) => match host.as_ref().map(|setup: &ProvisionHost| (reach.provisioner)(setup)) {
+        Some(Route { address, provision: host }) => match host.as_ref().map(|setup: &ProvisionHost| return (reach.provisioner)(setup)) {
             Some(Err(failure)) => Err(render(&failure)),
             _ => {
                 let config: ClientConfig = ClientConfig {

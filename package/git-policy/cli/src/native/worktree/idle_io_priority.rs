@@ -68,7 +68,7 @@ const IDLE: libc::c_int = (3 << 13) | 0;
 fn priority_here() -> Option<libc::c_int> {
     // The call answers the priority itself, or -1 with the reason in `errno`; nothing else is written.
     let found: libc::c_long = unsafe { libc::syscall(libc::SYS_ioprio_get, WHO_PROCESS, 0 as libc::c_int) };
-    return libc::c_int::try_from(found).ok().filter(|value: &libc::c_int| *value >= 0);
+    return libc::c_int::try_from(found).ok().filter(|value: &libc::c_int| return *value >= 0);
 }
 
 /// What:
@@ -125,7 +125,7 @@ pub fn with_idle_io_priority<T>(work: impl FnOnce() -> T) -> T {
 /// nothing when the kernel will not say.
 #[cfg(test)]
 pub(crate) fn class_here() -> Option<libc::c_int> {
-    return priority_here().map(|value: libc::c_int| value >> 13);
+    return priority_here().map(|value: libc::c_int| return value >> 13);
 }
 
 /// Priority controls stay out of the release executable.

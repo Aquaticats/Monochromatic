@@ -122,7 +122,7 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
 /// const alreadyExcluded = (text) => text.split('\n').map((line) => line.trim()).includes(TRASH_EXCLUDE_LINE);
 /// ```
 fn already_excluded(text: &str) -> bool {
-    return text.lines().any(|line: &str| line.trim() == TRASH_EXCLUDE_LINE);
+    return text.lines().any(|line: &str| return line.trim() == TRASH_EXCLUDE_LINE);
 }
 
 /// Exclude-line controls stay out of the release executable.

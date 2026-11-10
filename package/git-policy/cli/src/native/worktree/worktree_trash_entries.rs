@@ -158,7 +158,7 @@ struct RemoveEachEntry {
 fn remove_one(inside: &Path, trash: &File, manifest: &TrashManifest, remove: &RemoveOne, entry: usize) -> Result<Removal, String> {
     // The reason the removal gives is the person's, word for word: the entry's name is in it already, and a prefix would say it
     //  twice.
-    return crate::idle_io_priority::with_idle_io_priority(|| remove(inside, trash, OsStr::new(entry_name(entry).as_str()), Some(manifest.entries[entry])));
+    return crate::idle_io_priority::with_idle_io_priority(|| return remove(inside, trash, OsStr::new(entry_name(entry).as_str()), Some(manifest.entries[entry])));
 }
 
 impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
