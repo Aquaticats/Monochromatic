@@ -472,14 +472,27 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
 ///  Tells the service that work items were written for a repository,
 /// starting it through the operating system when it
 ///  is not running,
-/// and returns once the service has taken the message.
+/// and returns once the service has taken the message or the silence bound has passed since it was
+///  written.
 /// Why:
 ///   The wrapper never starts the service or runs the work itself;
 /// the message is the only thing the service needs to
 ///  look at the repository's work directory.
 /// The connection closes when the service has read the line,
-/// which is the
-///  confirmation that it will act.
+/// which is the usual
+///  confirmation that it will act,
+/// and the wait for that close ends at the silence bound whatever the service sends:
+///  a service that keeps answering resets the silence of every single read,
+/// so a loop that only reads waits for it
+///  without end,
+/// and the command that woke it waits behind it (owner,
+/// 2026-11-03:
+/// "nothing should ever wait forever or
+///  indefinitely").
+/// What is lost by reaching the bound is only the confirmation:
+/// the line was written,
+/// and the record
+///  it names is already durable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -493,8 +506,20 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     if reader.get_mut().write_all(line.as_bytes()).is_err() {
         return Err(ClientFailure::Unavailable);
     }
-    // The service closes the connection after it has read the line.
-    while read_message(&mut reader).is_some() {}
+    // The service closes the connection after it has read the line, and that close is the confirmation.
+    let closed_by: Instant = Instant::now() + config.heartbeat_silence;
+    loop {
+        let left: Duration = closed_by.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            debug(TAG, format!("the service did not close the connection within {:?} of the line being written", config.heartbeat_silence).as_str());
+            break;
+        }
+        // No read waits past the bound, whatever the service sends.
+        let _timeout = reader.get_ref().set_read_timeout(Some(left));
+        if read_message(&mut reader).is_none() {
+            break;
+        }
+    }
     return Ok(());
 }
 
