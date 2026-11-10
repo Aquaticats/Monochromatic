@@ -220,7 +220,6 @@ export async function importImage(
    Resolved absolute path to the source image.
    */
   const absPath = resolve(imagePath,);
-  rl.info(`importing ${absPath}`,);
 
   /**
    Final VM name, validated for safe characters before any image is read: a
@@ -236,6 +235,7 @@ export async function importImage(
       }
       : { kind: 'typed', },
   },);
+  rl.info(`importing ${absPath}`,);
 
   /**
    Image metadata from qemu-img.

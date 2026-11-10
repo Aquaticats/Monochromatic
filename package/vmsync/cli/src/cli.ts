@@ -109,10 +109,10 @@ try {
   }
 }
 catch (error) {
-  // A refused name is the user's own input, not a crash, so its explanation
-  // prints alone: an uncaught error would wrap the message in a stack trace of
-  // bundled internals. Every other failure keeps its stack, because it names a
-  // defect in vmsync rather than in what the user typed.
+  // A refused name is a naming decision, not a crash, so its explanation prints
+  // alone: an uncaught error would wrap the message in a stack trace of bundled
+  // internals. Every other failure keeps its stack, because it names a defect in
+  // vmsync rather than a name it will not use.
   if (!(error instanceof InvalidVmNameError))
     throw error;
   console.error(error.message,);

@@ -135,9 +135,11 @@ export function isVmNameChar(c: string,): boolean {
 
 /**
  The naming rule a refusal states, written once so every refusal says the same
- thing.
+ thing. The second sentence has to name the alphabet: the rule reads ASCII only,
+ so a letter such as `e` with an acute accent is refused, and calling the rule
+ "letters and digits" would contradict the refusal that quotes one.
  */
-const NAME_RULE = 'A VM name starts with a letter or a digit and holds only letters, digits, "_" and "-" after that.';
+const NAME_RULE = 'A VM name starts with a letter or a digit and holds only letters, digits, "_" and "-" after that. Letters and digits here are ASCII: A to Z, a to z and 0 to 9.';
 
 /**
  First position of a VM name that the naming rule refuses.

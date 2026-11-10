@@ -175,6 +175,17 @@ await describe({
         },),
 
         it({
+          name: 'says the letters and digits are ASCII, so a non-ASCII letter is no contradiction',
+          fn: async () => {
+            const message = refusalMessage('café',);
+            expect(message,)
+              .toContain('This name holds "é", which a name may not hold.',);
+            expect(message,)
+              .toContain('Letters and digits here are ASCII: A to Z, a to z and 0 to 9.',);
+          },
+        },),
+
+        it({
           name: 'asks for a different name when the user typed it',
           fn: async () => {
             const message = refusalMessage('_alpine',);
@@ -303,6 +314,22 @@ await describe({
             },);
             expect(config.importedFrom,).toBe('https://example.com/a.qcow2',);
             expect(config.name,).toBe('a /* b */ c',);
+          },
+        },),
+
+        it({
+          name: 'refuses a trailing block comment that is never closed',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              parseVmsyncConfig({ source: '{ "name": "alpine" } /* never closed', },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect((caught as Error).name,).toBe('JsoncParseError',);
+            expect((caught as Error).message,)
+              .toContain('unterminated block comment',);
           },
         },),
 
