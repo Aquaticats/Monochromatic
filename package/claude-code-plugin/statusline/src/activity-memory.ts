@@ -170,16 +170,14 @@ async function writeRememberedWord({
 /**
  Reads this render's activity word from a transcript.
 
- A test replaces it to observe when the two reads of a render start, since only a
- reader whose start it can see tells a concurrent pair from a sequential one.
+ A test substitutes it to see when a render's two reads start.
  */
 type FreshWordReader = (input: Readonly<{ transcriptPath: string }>,) => Promise<string>;
 
 /**
  Reads the activity word an earlier render of the same session kept.
 
- A test replaces it to observe when the two reads of a render start, since only a
- reader whose start it can see tells a concurrent pair from a sequential one.
+ A test substitutes it to see when a render's two reads start.
  */
 type RememberedWordReader = (input: Readonly<{ memoryPath: string }>,) => Promise<string>;
 
