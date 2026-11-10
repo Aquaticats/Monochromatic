@@ -3,9 +3,9 @@
 //        attribution face (`matches`, `line_matches`) on every line.
 // Why:   `fuzz_line_matches` compares two attribution paths against each other and
 //        `fuzz_from_bytes` calls the boolean and attribution queries without comparing
-//        their verdicts, so a defect shared by nothing and visible only as a disagreement
-//        between the two faces would go uncaught; this target is the only one that pins
-//        `is_match(line) == matches(line).next().is_some()` (TCV).
+//        their verdicts, so a defect confined to one face would go uncaught; this target
+//        is the only one that pins `is_match(line) == matches(line).next().is_some()`
+//        (TCV).
 
 #![no_main]
 
