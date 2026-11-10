@@ -8269,7 +8269,8 @@ the container gate,
 - Branch and worktree:
   `refactor/git-policy-cli-tokio-recovery-seam-and-claim-renewal` in
   `.claude/worktrees/pi-tokio-recovery-seam-and-claim-renewal`,
-  from main at `de4f941a05`.
+  from main at `de4f941a05`,
+  and main merged into it at `8e24183ae1` once the branch was done.
   Commits `3119b082ad` (the folder's awaited Git),
   `56ac3e5cff` (the sink through the caller and the completed fast-forward),
   `9ae3763224` (the renewal's stop)
@@ -8284,18 +8285,21 @@ the container gate,
   and `advance_local_branch_awaiting` awaits
   `settle_failed_merge_awaiting`
   (`merge/merge_isolation_recovery.rs`) directly.
-  Every Git step of the folder is one body with two faces:
+  Every Git step of the folder is one body,
+  with the faces its callers need:
   the awaited one a task calls,
-  and the synchronous one a caller outside the runtime keeps,
-  which enters the runtime once
-  (`run_on_runtime`),
+  and,
+  where code outside the runtime calls it,
+  a synchronous one that keeps its name and signature and enters the runtime
+  once (`run_on_runtime`),
   as the merge's second pass did.
   Converted:
   `settle_failed_merge`,
   `recover_interrupted_merges`,
   `merge_changes`,
   `judge_changes`,
-  `index_stands`/`index_entries`,
+  `index_standings`,
+  `index_entries`,
   `install_entries`,
   `take_aside`,
   `finish_asides`,
@@ -8411,17 +8415,23 @@ in this order:
   `service_work`,
   `service_claim` and
   `landing`:
-  1253 of 1253 passed in 32.5 s.
+  1253 of 1253 passed in 32.5 s,
+  and 1261 of 1261 in 31.8 s at the merged tip
+  (`8e24183ae1`,
+  main merged at `6c0f52b543` and then at `cc31ef8afa`),
+  where the eight more are the tests main brought into these folders.
   It is one more than the previous round's 1252:
   the removed thread's control and the renewal control that changed are gone,
   and three are new
   (`a_refused_fast_forward_is_settled_inside_the_task_that_asked_for_it`,
   `the_awaited_settle_answers_what_the_synchronous_one_answers`,
   `dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it`).
-- `native:clippy` on every target:
-  CLIPPY_RESULT.
-- `native:test:binary:host --no-run` builds the binary test target:
-  BINARY_RESULT.
+- `native:clippy` on every target clean
+  (`cargo clippy --locked --offline --all-targets -- -D warnings`),
+  after it refused two `clippy::implicit-return` arms of the capture's ref
+  deletion and the arms named their `return`.
+- `native:test:binary:host --no-run` builds the binary test target,
+  once at the tip and once at the merged tip.
 - `//:lint:monochromatic-lint --max-warnings 0` on every file this run touched:
   the recovery folder's twelve files are 0 errors and 0 warnings,
   and the merge folder's remaining findings are the debt listed above,
@@ -8545,8 +8555,12 @@ counted with `monochromatic-lint` on the folder at this tip:
   3 line breaks.
 
 Counted the same way before this run,
-every one of those counts is the same or higher,
-so no finding here is this run's.
+no count here is higher,
+and two are lower:
+`carry`'s three line breaks in `changes` and `carry` are gone,
+so no finding here is this run's,
+and the four the coordinator read on `merge_isolation_recovery.rs` are
+cleared.
 
 ## Limits
 
