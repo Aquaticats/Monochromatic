@@ -55,6 +55,11 @@ permissions:
 jobs:
   compile:
     runs-on: ubuntu-latest
+    # Measured cold: 5 m 58 s for the check from an empty target directory at 400
+    # percent CPU on eight host CPUs, then 5 s for Clippy; the crate fetch and a
+    # four-vCPU runner add to that. Thirty minutes bounds a step that hangs instead
+    # of leaving it to the six-hour default.
+    timeout-minutes: 30
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
