@@ -9,6 +9,7 @@ import {
   type ShellCommandAnalysis,
   type ShellCommandInfo,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer/ts';
+import { isAlphaNum, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
 //region Allowlist
 
@@ -16,24 +17,6 @@ import {
  Non-alphanumeric characters that are still safe as a command's leading char.
  */
 const ALLOW_LEADING_PUNCT = '_/.~"\'-';
-
-/**
- Whether character is ASCII alphanumeric.
- 
- @param c - one-character string to inspect
- 
- @returns whether character is alphanumeric
- 
- @example
- ```ts
- isAlphaNum('a');
- ```
- */
-function isAlphaNum(c: string,): boolean {
-  return ((c >= 'A') && (c <= 'Z'))
-    || ((c >= 'a') && (c <= 'z'))
-    || ((c >= '0') && (c <= '9'));
-}
 
 /**
  Whether `command` starts with an allowlisted leading character.

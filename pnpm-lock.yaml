@@ -755,6 +755,9 @@ importers:
 
   package/agent-harness-shared/shell-command-analyzer:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../text-scan
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -1168,6 +1171,9 @@ importers:
 
   package/claude-code-plugin/statusline:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/agent-harness-shared-usage-projection':
         specifier: workspace:*
         version: link:../../agent-harness-shared/usage-projection

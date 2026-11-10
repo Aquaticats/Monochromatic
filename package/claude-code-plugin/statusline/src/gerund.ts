@@ -12,82 +12,10 @@
  @module
  */
 
-//region Character classes
-
-/**
- Checks whether one character is an ASCII lowercase letter, the only character a gerund body holds.
- 
- @param character - one character, or the empty string where an index falls outside the text
- 
- @returns whether character sits in `a` through `z`
- 
- @example
- ```ts
- isLowerAsciiLetter('c'); // true
- ```
- */
-function isLowerAsciiLetter(character: string,): boolean {
-  return (character >= 'a') && (character <= 'z');
-}
-
-/**
- Checks whether one character is an ASCII uppercase letter.
- 
- Scanned text is lowercased first, yet the word class a boundary tests still counts uppercase,
- so the class stays complete rather than assuming the lowercasing removed them.
- 
- @param character - one character, or the empty string where an index falls outside the text
- 
- @returns whether character sits in `A` through `Z`
- 
- @example
- ```ts
- isUpperAsciiLetter('C'); // true
- ```
- */
-function isUpperAsciiLetter(character: string,): boolean {
-  return (character >= 'A') && (character <= 'Z');
-}
-
-/**
- Checks whether one character is an ASCII decimal digit.
- 
- @param character - one character, or the empty string where an index falls outside the text
- 
- @returns whether character sits in `0` through `9`
- 
- @example
- ```ts
- isAsciiDigit('7'); // true
- ```
- */
-function isAsciiDigit(character: string,): boolean {
-  return (character >= '0') && (character <= '9');
-}
-
-/**
- Checks whether one character continues a word, so a gerund can neither start nor end beside it.
- 
- The empty string counts as a non-word character, which makes both ends of the text behave as the
- boundary a word edge requires.
- 
- @param character - one character, or the empty string where an index falls outside the text
- 
- @returns whether character is an ASCII letter, an ASCII digit, or an underscore
- 
- @example
- ```ts
- isWordCharacter('_'); // true
- ```
- */
-function isWordCharacter(character: string,): boolean {
-  return isLowerAsciiLetter(character,)
-    || isUpperAsciiLetter(character,)
-    || isAsciiDigit(character,)
-    || (character === '_');
-}
-
-//endregion Character classes
+import {
+  isLowerAlpha,
+  isWordChar,
+} from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
 //region Character runs
 
@@ -116,7 +44,7 @@ function lowerLetterRunEnd({
    Index the scan has reached.
    */
   let cursor = start;
-  while (isLowerAsciiLetter(text.charAt(cursor,),))
+  while (isLowerAlpha(text.charAt(cursor,),))
     cursor += 1;
   return cursor;
 }
@@ -185,7 +113,7 @@ function isGerundRun({
     runEnd,
   ) !== GERUND_SUFFIX)
     return false;
-  return !isWordCharacter(text.charAt(runEnd,),);
+  return !isWordChar(text.charAt(runEnd,),);
 }
 
 /**
@@ -276,8 +204,8 @@ export function scanGerundMatches(text: string,): readonly string[] {
     /**
      Whether a gerund may start here: a word start holding a lowercase letter.
      */
-    const isCandidateStart = isLowerAsciiLetter(text.charAt(cursor,),)
-      && (!isWordCharacter(text.charAt(cursor - 1,),));
+    const isCandidateStart = isLowerAlpha(text.charAt(cursor,),)
+      && (!isWordChar(text.charAt(cursor - 1,),));
     if (!isCandidateStart) {
       cursor += 1;
       continue;

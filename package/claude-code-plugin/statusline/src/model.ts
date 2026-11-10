@@ -4,6 +4,8 @@
  @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 //region Defaults
 
 /**
@@ -113,22 +115,6 @@ function isAsciiLetter(character: string,): boolean {
 }
 
 /**
- Checks whether one character is an ASCII decimal digit, the only character a version number holds.
- 
- @param character - one character, or the empty string where an index falls outside the text
- 
- @returns whether character sits in `0` through `9`
- 
- @example
- ```ts
- isAsciiDigit('4'); // true
- ```
- */
-function isAsciiDigit(character: string,): boolean {
-  return (character >= '0') && (character <= '9');
-}
-
-/**
  Checks whether one character is whitespace, so a context piece can be told where it ends.
  
  The empty string reports false, which keeps the past-the-end index a caller passes from counting as
@@ -202,7 +188,7 @@ function digitRunEnd({
    Index the scan has reached.
    */
   let cursor = start;
-  while (isAsciiDigit(text.charAt(cursor,),))
+  while (isDigit(text.charAt(cursor,),))
     cursor += 1;
   return cursor;
 }

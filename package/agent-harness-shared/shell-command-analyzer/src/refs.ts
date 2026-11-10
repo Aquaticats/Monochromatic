@@ -4,6 +4,8 @@
  @module
  */
 
+import { isWordChar, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 //region Identifier helpers
 
 /**
@@ -22,23 +24,6 @@ function isIdentifierStart(c: string,): boolean {
   return ((c >= 'A') && (c <= 'Z'))
     || ((c >= 'a') && (c <= 'z'))
     || (c === '_');
-}
-
-/**
- Whether character continues POSIX-like shell identifier.
- 
- @param c - one-character string to inspect
- 
- @returns whether character can continue variable name
- 
- @example
- ```ts
- isIdentifierContinue('7');
- ```
- */
-function isIdentifierContinue(c: string,): boolean {
-  return isIdentifierStart(c,)
-    || ((c >= '0') && (c <= '9'));
 }
 
 //endregion Identifier helpers
@@ -88,7 +73,7 @@ function identifierEnd(
   },
 ): number {
   for (let cursor = start + 1;; cursor += 1) {
-    if (!isIdentifierContinue(source.charAt(cursor,),))
+    if (!isWordChar(source.charAt(cursor,),))
       return cursor;
   }
 }
