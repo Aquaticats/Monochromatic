@@ -94,7 +94,10 @@ fn ignored_among(
     named: &[&OsString],
 ) -> Result<Vec<Vec<u8>>, GitFailure> {
     let arguments: Vec<OsString> = ["check-ignore", "-z", "--stdin"].iter().map(OsString::from).collect();
-    let mut request: GitRequest = indexed_request(cwd, arguments.as_slice(), Some(real_index), None);
+    // The names are paths and not pathspecs, and Git refuses its own pathspec modes for this command:
+    // with `GIT_LITERAL_PATHSPECS=1` inherited it answers "pathspec magic not supported by this command: 'literal'".
+    // So the modes of the invocation are removed, and the names are read as the plain paths they are.
+    let mut request: GitRequest = indexed_request(cwd, arguments.as_slice(), Some(real_index), None).own_pathspecs();
     let mut input: Vec<u8> = Vec::new();
     for name in named {
         input.extend_from_slice(name.as_encoded_bytes());

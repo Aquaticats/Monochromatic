@@ -115,6 +115,9 @@ fn a_named_file_no_ignore_rule_matches_is_not_refused() {
 
 /// A path a glob mode makes ordinary text names that file,
 /// so the mode decides the refusal exactly as it decides the staging.
+///  The mode reaches the wrapper as a global option and as a variable,
+/// and the question is asked without either of them,
+/// because Git refuses its own pathspec modes for `check-ignore`.
 #[test]
 fn a_literal_glob_character_names_the_file_of_that_name() {
     let (root, repo, base) = ignored_repository("named-ignored-literal");
@@ -123,13 +126,19 @@ fn a_literal_glob_character_names_the_file_of_that_name() {
         global_prefix: vec![OsString::from("--literal-pathspecs")],
         ..git_context()
     };
+    let literal_variable: GitContext = GitContext {
+        overlay: [git_context().overlay.as_slice(), &[(OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("1"))]].concat(),
+        ..git_context()
+    };
     let specs: Vec<OsString> = ["st*r.js"].iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
-    assert_eq!(
-        named_ignored_files(&literal, repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
-            .expect("the question is answered"),
-        vec![b"st*r.js".to_vec()]
-    );
+    for context in [&literal, &literal_variable] {
+        assert_eq!(
+            named_ignored_files(context, repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
+                .expect("the question is answered"),
+            vec![b"st*r.js".to_vec()]
+        );
+    }
     remove(root.as_path());
 }
 
