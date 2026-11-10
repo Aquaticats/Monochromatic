@@ -1,5 +1,6 @@
 /**
- Disposable stand-in executables for the tests that run a subprocess.
+ Disposable stand-in executables for the tests that run a subprocess, and the
+ read that waits for a failure the daemon logs about one.
 
  A test that drove the real `ydotool` or `kstart` would inject keys into the
  owner's session or start applications, so the tests put a shell script of that
@@ -20,7 +21,18 @@ import {
   join,
 } from 'node:path';
 
+import {
+  wait,
+  withTimeout,
+} from '@monochromatic-dev/async-time-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+
+import { flushLogs, } from '../dist/final/node/testing.mjs';
+
+/**
+ Pause between reads of the daemon's log, in milliseconds.
+ */
+const POLL_MILLISECONDS = 20;
 
 /**
  Mode a stand-in needs to be run as a program.
@@ -266,4 +278,61 @@ export function capturedStandardError(spy: {
     .map(function chunkText(call: readonly unknown[]): string {
       return String(call[0]);
     });
+}
+
+/**
+ Read the lines a logged failure produced, until one names it, or the deadline
+ passes.
+ 
+ A program the daemon starts reports its own ending after the call that started
+ it has returned, so a case has to wait for the log line rather than read the
+ recorder once.
+ 
+ @param spy - Recorder over the daemon's log destination
+ 
+ @param matches - Whether a line names the failure the case is waiting for
+ 
+ @param deadlineMilliseconds - Longest the case waits for it
+ 
+ @returns The lines that matched, empty when none arrived in time
+ 
+ @example
+ ```ts
+ await reportedUntil({ spy: standardError, matches: namesFailure, deadlineMilliseconds: 5000 });
+ ```
+ */
+export async function reportedUntil({
+  spy,
+  matches,
+  deadlineMilliseconds,
+}: {
+  readonly spy: { readonly args: readonly (readonly unknown[])[]; };
+  readonly matches: (line: string) => boolean;
+  readonly deadlineMilliseconds: number;
+}): Promise<readonly string[]> {
+  return await withTimeout({
+    promise: (async function pollUntilReported(): Promise<readonly string[]> {
+      /**
+       Longest the poll keeps reading before the deadline above ends it.
+       */
+      const attempts = Math.ceil(deadlineMilliseconds / POLL_MILLISECONDS);
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- each read is of the log after the writes before it, so a later read supersedes an earlier one; see doc/lint/sequential-awaits.md
+        await flushLogs();
+        /**
+         Lines the daemon has reported so far.
+         */
+        const reported = capturedStandardError(spy)
+          .filter(matches);
+        if (reported.length > 0) {
+          return reported;
+        }
+        // oxlint-disable-next-line eslint/no-await-in-loop -- the interval is the design: the line is awaited after it, never concurrently; see doc/lint/sequential-awaits.md
+        await wait(POLL_MILLISECONDS,);
+      }
+      return [];
+    })(),
+    ms: deadlineMilliseconds,
+    label: 'the failure log line',
+  },);
 }

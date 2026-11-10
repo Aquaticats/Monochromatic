@@ -2768,6 +2768,9 @@ importers:
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
+      '@monochromatic-dev/const-core':
+        specifier: workspace:*
+        version: link:../../const/core
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
