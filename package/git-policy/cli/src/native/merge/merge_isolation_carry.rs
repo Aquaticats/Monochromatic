@@ -456,8 +456,8 @@ pub async fn drop_capture_ref_awaiting(context: &GitContext, root: &Path, captur
     ];
     match run_bytes_awaiting(context, root, arguments.as_slice(), None).await {
         Ok(output) if output.succeeded() => {}
-        Ok(output) => debug(TAG, format!("the capture's ref {reference} was left where it is: {}", output.error_text()).as_str()),
-        Err(error) => debug(TAG, format!("the capture's ref {reference} was left where it is: {error}").as_str()),
+        Ok(output) => return debug(TAG, format!("the capture's ref {reference} was left where it is: {}", output.error_text()).as_str()),
+        Err(error) => return debug(TAG, format!("the capture's ref {reference} was left where it is: {error}").as_str()),
     }
 }
 
