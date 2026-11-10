@@ -28,7 +28,7 @@ fn no_plan_means_the_persons_run() {
     assert_eq!(ladder.first_step(), GitStep::Person);
     let mut runner = no_runner();
     let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None, trash: None });
+    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None, placed: None, trash: None });
 }
 
 /// A source that cannot be snapshotted gets an empty subvolume at the destination,
@@ -45,7 +45,7 @@ fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of(
     assert_eq!(ladder.slow.as_ref().map(|route| { return route.word(); }), Some("not-subvolume"), "an ordinary directory on btrfs is told to be converted: {:?}", ladder.slow);
     let mut runner = no_runner();
     let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
-    assert_eq!(result, LadderResult { git: FAILED, carried: None, trash: None });
+    assert_eq!(result, LadderResult { git: FAILED, carried: None, placed: None, trash: None });
     assert!(!plan.destination.exists());
     remove(root.as_path());
 }
@@ -65,7 +65,7 @@ fn btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume() {
     assert!(!plan.destination.with_file_name(".cli-git-worktree-copy-stage").exists(), "the clone rung stages nothing");
     let mut runner = no_runner();
     let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
-    assert_eq!(result, LadderResult { git: FAILED, carried: None, trash: None });
+    assert_eq!(result, LadderResult { git: FAILED, carried: None, placed: None, trash: None });
     assert!(!plan.destination.exists(), "the empty subvolume is removed after a failed Git");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record is released");
     remove(root.as_path());
@@ -86,7 +86,7 @@ fn btrfs_an_eligible_source_runs_git_without_a_checkout_and_a_failure_releases_t
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the stage name is claimed durably");
     let mut runner = no_runner();
     let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
-    assert_eq!(result, LadderResult { git: FAILED, carried: None, trash: None });
+    assert_eq!(result, LadderResult { git: FAILED, carried: None, placed: None, trash: None });
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the claim is released");
     remove(root.as_path());
 }

@@ -11,6 +11,8 @@ import type {
   GoalControllerTransition,
 } from './types.ts';
 
+//region Manual completion
+
 /**
  Persist manual approval after every model reviewer attempt failed.
  
@@ -108,6 +110,10 @@ function manuallyApproveGoalCompletion(
   };
 }
 
+//endregion Manual completion
+
+//region Review unavailable
+
 /**
  Persist non-interactive reviewer exhaustion as terminal goal state.
  
@@ -201,6 +207,8 @@ function markGoalReviewUnavailable(
     ],
   };
 }
+
+//endregion Review unavailable
 
 export {
   manuallyApproveGoalCompletion,

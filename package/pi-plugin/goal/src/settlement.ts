@@ -10,6 +10,8 @@ import type {
   GoalControllerTransition,
 } from './types.ts';
 
+//region Deferred kickoff
+
 /**
  Deliver deferred kickoff for exact active generation.
  
@@ -99,6 +101,10 @@ function deliverPendingGoalKickoff(controller: GoalControllerState,): GoalContro
   };
 }
 
+//endregion Deferred kickoff
+
+//region Shutdown
+
 /**
  Stop delayed goal actions before runtime replacement or quit.
  
@@ -122,6 +128,8 @@ function shutdownGoalController(controller: GoalControllerState,): GoalControlle
     effects: [{ type: 'clear_footer', },],
   };
 }
+
+//endregion Shutdown
 
 export {
   deliverPendingGoalKickoff,
