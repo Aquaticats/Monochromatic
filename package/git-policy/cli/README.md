@@ -1738,7 +1738,10 @@ The rule is:
   and `git clean -X` while any ignored file does.
   A `git clean -fd`,
   which keeps the ignored files,
-  is unaffected.
+  is not rejected for an ignored file,
+  though the rules above still reject it in the main worktree and in a linked worktree that holds
+  uncommitted changes or untracked files,
+  so its rejection names `git clean --no-enforce-worktree -fd`.
   `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
   A `git clean -X` that names its own exclusions (`-e`,
   `--exclude`) is measured by Git's own dry run of that clean,
@@ -1776,7 +1779,10 @@ The rule is:
   so they are rejected in a linked worktree while the repository holds an entry,
   whatever that worktree's own status says.
   `git stash list` and `git stash show` read the stash,
-  and `git stash branch <branch>` moves an entry into its own branch and keeps the work.
+  and `git stash branch <branch>` moves an entry into its own branch and keeps the work,
+  which runs in a clean linked worktree and is rejected in the main worktree and in a linked
+  worktree that holds uncommitted changes,
+  because it is a stash form that changes state.
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else
@@ -2186,6 +2192,11 @@ or `--ff` or `--no-ff`) and every option
  and operand is one the wrapper reads exactly:
  the wrapper runs the pull's fetch,
  then the merge of `FETCH_HEAD` as a typed `git merge --no-edit FETCH_HEAD` would run.
+When the pull the wrapper completes cannot move the working tree along,
+the report keeps Git's own words
+(`fatal: Cannot fast-forward your working tree.` and the `git reset --hard` it names)
+and adds one line naming `git reset --no-enforce-worktree --hard`,
+because the worktree guard refuses a hard reset in the dirty worktree that made the move fail.
 Every other pull is native Git's whole (a rebase,
 `--ff-only`,
 `--autostash`,
@@ -3676,9 +3687,16 @@ The line goes when the worktree is removed or is replaced by another one at the 
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
  common Git directory.
 Every command that runs the recovery before it prints one line on standard error about that worktree,
-with `git -C <path> reset --hard` to finish the checkout and `git worktree remove --force <path>` to remove it,
+with `git -C <path> reset --no-enforce-worktree --hard` to finish the checkout and
+`git worktree remove --force <path>` to remove it,
 and names the worktree's `index.lock` first when a Git killed inside the index install left one,
 because that command cannot start while the lock stands.
+The hatch is in that line because the worktree guard reads a checkout that never ran as a worktree
+holding uncommitted changes,
+so it refuses a hard reset there,
+and the line says what the reset discards:
+`src/native/worktree/worktree_finish_commands.rs` holds the sentence,
+and the placement ladder's own incomplete-add report prints the same one.
 Every path in those commands is quoted the way a shell reads a word back
 (`src/native/worktree/shell_quote.rs`),
 so a `$`,
