@@ -376,9 +376,9 @@ function expectImpl(actual: unknown,): ExpectResult {
         .not,
       actual,
     },),
-    // oxlint-disable-next-line no-unsafe-type-assertion -- cast required for Promise.race pattern
+    // oxlint-disable-next-line no-unsafe-type-assertion -- expect accepts any value while the rejects builder declares a promise it only awaits, and awaiting a non-promise is well defined; the cast stays on this line
     rejects: buildRejectsMatchers(actual as Promise<unknown>,),
-    // oxlint-disable-next-line no-unsafe-type-assertion -- cast required for Promise.race pattern
+    // oxlint-disable-next-line no-unsafe-type-assertion -- expect accepts any value while the resolves builder declares a promise it only forwards to be awaited, and awaiting a non-promise is well defined; the cast stays on this line
     resolves: buildResolvesMatchers(actual as Promise<unknown>,),
   };
 }
