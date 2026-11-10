@@ -140,11 +140,18 @@ The lower-level `parseJsonc` (returning a `JsoncValue`) and `emitJsoncValue` are
 exported for callers that do not need the edit state.
 
 A path segment addresses a record member with a string and an array element with
-a non-negative integer. `-1`, a fraction, `NaN`, and `Infinity` name no element,
-so a read reports the path as absent (`jsoncHas` is `false`, `jsoncGetValue`
-throws `JsoncPathNotFoundError`) and an edit throws `JsoncPathNotFoundError`
-too. Deleting an address that holds nothing, such as a missing key or an index
-past the array length, leaves the document unchanged.
+a non-negative integer.
+`-1`,
+a fraction,
+`NaN`,
+and `Infinity` all name no element,
+so a read reports the path as absent (`jsoncHas` is `false`,
+`jsoncGetValue` throws `JsoncPathNotFoundError`,
+`jsoncKeys` and `jsoncGetComment` throw it too),
+and an edit throws `JsoncPathNotFoundError` as well.
+Deleting an address that holds nothing,
+such as a missing key or an index past the array length,
+leaves the document unchanged.
 
 ## Performance
 
