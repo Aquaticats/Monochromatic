@@ -28,7 +28,7 @@ use crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting;
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query_awaiting};
 use crate::diagnostic_log::debug;
 use crate::lfs_bounded_push::run_push_awaiting;
-use crate::push_held_back_by_a_blocked_commit::{QueueHistory, WhereThePushStops, where_the_push_stops};
+use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_push_stops_awaiting};
 use crate::work_item_holding::BlockedVerdict;
 use std::ffi::OsString;
 use std::io::Write;
@@ -160,12 +160,7 @@ pub async fn push_once_awaiting(
         Planned::Push { branch_ref: planned_ref, upstream, sent, set_upstream } => (planned_ref, upstream, sent, set_upstream),
     };
     // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it.
-    let stop: WhereThePushStops = where_the_push_stops(
-        &QueueHistory { git, upstream: upstream.clone() },
-        pushed_ref.as_str(),
-        upstream.as_deref(),
-        blocked,
-    );
+    let stop: WhereThePushStops = where_the_push_stops_awaiting(git, pushed_ref.as_str(), upstream.as_deref(), blocked).await;
     let Some(source) = source_of(&stop, &sent, pushed_ref.as_str()) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
     };

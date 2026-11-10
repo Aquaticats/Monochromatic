@@ -31,7 +31,9 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, ru
 use crate::lfs_bounded_push::run_push;
 /// The verdicts a post-commit gate kept,
 /// and where they make this push stop.
-use crate::push_held_back_by_a_blocked_commit::{QueueHistory, WhereThePushStops, held_back_line, unanswered_line, where_the_push_stops};
+use crate::blocked_commit_lines::{held_back_line, unanswered_line};
+use crate::blocked_commit_questions::QueueHistory;
+use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_push_stops};
 /// The blocked verdicts of the worktree the push is for.
 use crate::work_item_holding::BlockedVerdict;
 /// The diagnostic log of the wrapper.
@@ -415,12 +417,7 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, blocked: &[B
         Planned::Push { branch_ref: planned_ref, upstream, sent, set_upstream } => (planned_ref, upstream, sent, set_upstream),
     };
     // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it.
-    let stop: WhereThePushStops = where_the_push_stops(
-        &QueueHistory { git, upstream: upstream.clone() },
-        pushed_ref.as_str(),
-        upstream.as_deref(),
-        blocked,
-    );
+    let stop: WhereThePushStops = where_the_push_stops(&QueueHistory { git }, pushed_ref.as_str(), upstream.as_deref(), blocked);
     let Some(source) = source_of(&stop, &sent, pushed_ref.as_str()) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
     };

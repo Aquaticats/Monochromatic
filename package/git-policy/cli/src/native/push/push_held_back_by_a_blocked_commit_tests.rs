@@ -14,6 +14,8 @@
 
 use super::*;
 use crate::auto_push::{AutoPushOutcome, AutoPushResult, push_once};
+use crate::blocked_commit_lines::{UNRECORDED_REASON, held_back_line, named_reason, unanswered_line};
+use crate::blocked_commit_questions::{ContextHistory, held_back_lines};
 use crate::auto_push_single_flight::PushGit;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, git, git_context, git_text, remove};
@@ -266,11 +268,11 @@ fn the_line_names_the_branch_the_commit_and_its_verdict() {
     let blocked: String = commit(&world, "blocked\n");
     let _landed: String = commit(&world, "landed\n");
     record_the_verdict(&world, blocked.as_str(), "final-newline: the file does not end with a newline");
-    let work: PathBuf = work_directory(world.repo.join(".git").as_path());
+    let git_dir: PathBuf = world.repo.join(".git");
     // The questions are asked with the same Git context a command holds, in the worktree the command runs in.
     let context: crate::transaction_git::GitContext = git_context();
     let history: ContextHistory<'_> = ContextHistory { context: &context, cwd: world.repo.as_path() };
-    let lines: Vec<String> = held_back_lines(work.as_path(), &history);
+    let lines: Vec<String> = held_back_lines(git_dir.as_path(), &history);
     assert_eq!(lines.len(), 1, "{lines:?}");
     let line: &String = lines.first().expect("one line");
     assert!(line.starts_with("main is held back by the commit "), "{line}");
@@ -280,7 +282,7 @@ fn the_line_names_the_branch_the_commit_and_its_verdict() {
     // The commit is replaced, so the way out no longer runs through it and the line goes.
     git(&world.repo, &["reset", "--quiet", "--hard", "HEAD~2"]);
     commit(&world, "fixed\n");
-    assert_eq!(held_back_lines(work.as_path(), &history), Vec::<String>::new(), "a replaced commit holds nothing back");
+    assert_eq!(held_back_lines(git_dir.as_path(), &history), Vec::<String>::new(), "a replaced commit holds nothing back");
     remove(world.root.as_path());
 }
 
@@ -389,9 +391,6 @@ impl BranchHistory for Unanswered {
         return None;
     }
     fn merge_base(&self, _commits: &[String]) -> Option<String> {
-        return None;
-    }
-    fn upstream_of(&self, _branch_ref: &str) -> Option<String> {
         return None;
     }
 }
