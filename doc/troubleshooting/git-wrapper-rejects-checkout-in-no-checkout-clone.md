@@ -176,6 +176,40 @@ What that entry does not do:
   the command runs unguarded because such a form asks no measurement at all.
   The same is true today for uv's cache and mise's data directory.
 
+### The rules this case could have taken, and what each would have done
+
+The case:
+a Git command whose repository is a clone inside a directory a tool made for itself.
+Four rules were considered,
+with the shipped one first.
+
+1. An environment-named tool cache,
+   which is what the SPEC rule above already says:
+   the invocation's own environment names the directory,
+   and the repository inside it is exempt.
+   It reads no path of this host,
+   it covers both Cargo layouts (the host's relocated build directory and the default `<workspace>/target`),
+   and it narrows to one build step's own directory.
+   Its trust is the environment,
+   with the notice on standard error as the mitigation,
+   exactly as uv's cache and mise's data directory already work.
+2. A fixed path for this host's cargo build directory.
+   Rejected by the earlier session and still wrong:
+   host configuration decides that path,
+   the wrapper would carry one machine's cache in its source,
+   and a different `CARGO_BUILD_BUILD_DIR` would bring the refusal back.
+3. Any repository nested inside a Git-ignored path of an enclosing repository.
+   It would not have covered this case at all
+   (this host's build directory is outside every repository),
+   it costs an extra Git start to find the enclosing repository,
+   and it exempts a clone a person made deliberately inside an ignored folder.
+4. Any repository under a directory that carries a `CACHEDIR.TAG`.
+   It needs no environment trust,
+   but it adds a second reading of a tag file,
+   and it exempts a whole tagged tree,
+   including a person's own clone kept inside one,
+   where rule 1 exempts the one directory a build step was given.
+
 ## Upstream filing decision
 
 Not applicable:
