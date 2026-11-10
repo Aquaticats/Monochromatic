@@ -43,6 +43,54 @@ await describe({
               .toThrow('Vector length mismatch',);
           },
         },),
+        it({
+          name: 'throws instead of returning a partial sum when the first vector has a hole',
+          fn: async () => {
+            const firstWithHole = [1, 1, 1,];
+            /**
+             Deletes the element so index 1 holds a hole, the runtime shape a dense `number[]` type cannot express.
+             */
+            Reflect.deleteProperty(firstWithHole, 1,);
+            expect(function callWithHoleInFirst() {
+              dotProduct({
+                a: firstWithHole,
+                b: [1, 1, 1,],
+              },);
+            },)
+              .toThrow(TypeError,);
+            expect(function callWithHoleInFirst() {
+              dotProduct({
+                a: firstWithHole,
+                b: [1, 1, 1,],
+              },);
+            },)
+              .toThrow('index 1',);
+          },
+        },),
+        it({
+          name: 'throws instead of returning a partial sum when the second vector has an undefined element',
+          fn: async () => {
+            const secondWithUndefined = [1, 1, 1,];
+            /**
+             Stores an explicit `undefined` so index 1 breaks the dense `number[]` promise.
+             */
+            Reflect.set(secondWithUndefined, 1, undefined,);
+            expect(function callWithUndefinedInSecond() {
+              dotProduct({
+                a: [1, 1, 1,],
+                b: secondWithUndefined,
+              },);
+            },)
+              .toThrow(TypeError,);
+            expect(function callWithUndefinedInSecond() {
+              dotProduct({
+                a: [1, 1, 1,],
+                b: secondWithUndefined,
+              },);
+            },)
+              .toThrow('index 1',);
+          },
+        },),
       ],
     },),
     describe({

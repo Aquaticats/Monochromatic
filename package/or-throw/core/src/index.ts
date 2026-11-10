@@ -53,6 +53,15 @@ export {
 
 export { nonNullishOrThrow, } from './non-nullish-or-throw.ts';
 
+/**
+ Element-count detection behind {@link emptyOrThrow} and {@link nonemptyOrThrow},
+ exported so tests exercise it through the built artifact rather than package
+ source.
+ 
+ @internal
+ */
+export { getSize, } from './size.ts';
+
 export { truthyOrThrow, } from './truthy-or-throw.ts';
 
 export { falsyOrThrow, } from './falsy-or-throw.ts';

@@ -604,7 +604,7 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
   the guard options are in ..."),
   and the first is the same class,
   so this audit reports it as accepted rather than as a finding.
-- Whether a `merge` exclusion added by the *first* side and removed by the second should keep guarding the file.
+- Whether a `merge` exclusion added by the **first** side and removed by the second should keep guarding the file.
   This audit measured the case it can state (finding 1),
   and the two inputs that withdrew the worktree variant
   ("Withdrawn by measurement");

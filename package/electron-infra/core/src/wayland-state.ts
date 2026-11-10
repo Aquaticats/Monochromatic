@@ -19,6 +19,8 @@ import {
   stateReadyDeadlineMs,
 } from './wayland-constants.js';
 
+//region Expected state vocabulary
+
 /**
  Sentinel for an observed state file that has not been written yet.
  
@@ -76,6 +78,10 @@ function isReadonlyUnknownRecord(value: unknown,): value is Readonly<Record<stri
     && (value !== null)
     && (!Array.isArray(value,));
 }
+
+//endregion Expected state vocabulary
+
+//region Reading and validating the state file
 
 /**
  Parses observed JSON state written by an Electron main process.
@@ -147,6 +153,10 @@ async function readObservedState(
     throw error;
   }
 }
+
+//endregion Reading and validating the state file
+
+//region Polling until the expected entries match
 
 /**
  Checks whether observed state contains every expected entry.
@@ -225,3 +235,5 @@ export async function waitForObservedState(
   throw new Error(`Timed out waiting for observed state ${JSON.stringify(expected,)}`,
   );
 }
+
+//endregion Polling until the expected entries match

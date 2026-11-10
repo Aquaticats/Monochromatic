@@ -43,7 +43,6 @@ function buildCrc32Table(): Uint32Array {
     // `>>> 0` reinterprets the 32-bit result as unsigned. `Math.trunc` would
     // leave negative values from the signed-bitwise interpretation in place
     // and the table would store wrong values.
-    // oxlint-disable-next-line eslint-plugin-unicorn/prefer-math-trunc
     table[byte] = c >>> 0;
   }
   return table;
@@ -81,11 +80,10 @@ export function crc32(data: Uint8Array,): number {
       throw new Error('zip-writer: CRC32 table corrupted',);
     c = tableEntry ^ (c >>> BYTE_BITS);
   }
-  /* oxlint-disable eslint-plugin-unicorn/prefer-math-trunc -- See note on `>>> 0` in buildCrc32Table. */
   /**
-   Final CRC value after the standard finalize XOR; reinterpreted as unsigned 32-bit.
+   Final CRC value after the standard finalize XOR; `>>> 0` reinterprets it as
+   unsigned 32-bit, for the reason noted in {@link buildCrc32Table}.
    */
   const result = (c ^ CRC32_INIT) >>> 0;
-  /* oxlint-enable eslint-plugin-unicorn/prefer-math-trunc */
   return result;
 }

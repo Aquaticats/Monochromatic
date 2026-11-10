@@ -229,8 +229,8 @@ mutants.out.old/
 
 # The KWin script's main.js and metadata.json are genuine tracked source, not
 # stray build artifacts hidden by the blanket `*.js` and `metadata.json` ignores.
-!/packages/kwin/key-helper/kwin-script/contents/code/main.js
-!/packages/kwin/key-helper/kwin-script/metadata.json
+!/package/kwin/key-helper/kwin-script/contents/code/main.js
+!/package/kwin/key-helper/kwin-script/metadata.json
 
 # The music player design pages load these Design Component runtime files; they are tracked source, not build
 # output, so a clean clone renders every .dc.html page.
