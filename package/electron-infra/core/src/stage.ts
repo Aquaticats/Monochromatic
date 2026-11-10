@@ -20,6 +20,8 @@ import {
   type StagedPackageMetadata,
 } from './package-metadata.js';
 
+//region Stage options
+
 /**
  Static file copy mapping from source tree into staged app.
  
@@ -49,6 +51,10 @@ export type ElectronAppStageOptions = {
   readonly sourceRoot?: string;
   readonly staticAssets: readonly (string | StaticAssetMapping)[];
 };
+
+//endregion Stage options
+
+//region Asset and license inputs
 
 /**
  Returns copy mapping for a static asset shorthand or explicit mapping.
@@ -135,6 +141,10 @@ async function copyLicenseTexts(
     },
   );
 }
+
+//endregion Asset and license inputs
+
+//region Staged app output
 
 /**
  Writes static assets and runtime manifest into a staged Electron app directory.
@@ -234,3 +244,5 @@ export async function stageElectronApp(
     'utf8',
   );
 }
+
+//endregion Staged app output
