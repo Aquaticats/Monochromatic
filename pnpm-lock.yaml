@@ -1599,6 +1599,9 @@ importers:
       '@monochromatic-dev/css-core-edit':
         specifier: workspace:*
         version: link:../core-edit
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -2700,6 +2703,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/jsonc-edit-core-ts':
         specifier: workspace:*
         version: link:../core-ts
@@ -8030,6 +8036,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -8120,6 +8129,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -8162,6 +8174,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -8213,6 +8228,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -8274,6 +8292,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
@@ -8331,6 +8352,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -8376,6 +8400,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -8421,6 +8448,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/fuzz-core':
+        specifier: workspace:*
+        version: link:../../fuzz/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core

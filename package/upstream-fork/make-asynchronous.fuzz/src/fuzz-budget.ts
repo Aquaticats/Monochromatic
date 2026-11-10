@@ -1,37 +1,26 @@
 /**
  Per-property fast-check run count.
- 
- Default keeps the property files cheap when they run as part of the normal
- unit suite; the `fuzz` task raises `MAKE_ASYNCHRONOUS_FORK_FUZZ_RUNS` for a
- longer campaign.
- 
+
+ The default and the policy for an override that does not parse live once, in the shared fuzz tooling; this package
+ names the environment variable its `fuzz` task raises for a longer campaign.
+
  @module
  */
+
+import { fuzzRunsFromEnvironment, } from '@monochromatic-dev/fuzz-core/ts';
 
 //region Run budget
 
 /**
- Run count used when no campaign budget is supplied.
- */
-const DEFAULT_RUNS = 200;
+ Number of fast-check runs per property. Set `MAKE_ASYNCHRONOUS_FORK_FUZZ_RUNS` to override.
 
-/**
- Parsed override from the environment, or `NaN` when unset or unparseable.
- */
-const override = Number(process.env
-  .MAKE_ASYNCHRONOUS_FORK_FUZZ_RUNS,);
-
-/**
- Number of fast-check runs per property. Set
- `MAKE_ASYNCHRONOUS_FORK_FUZZ_RUNS` to override.
- 
  @example
  ```ts
  assert(property(arb, predicate), { numRuns: fuzzRuns, });
  ```
  */
-export const fuzzRuns: number = Number.isFinite(override,)
-  ? override
-  : DEFAULT_RUNS;
+export const fuzzRuns: number = fuzzRunsFromEnvironment({
+  envName: 'MAKE_ASYNCHRONOUS_FORK_FUZZ_RUNS',
+},);
 
 //endregion Run budget

@@ -114,7 +114,8 @@ function textOf(path: string,): string {
 /**
  Tracked TypeScript files of the packages, which is where a run budget can be copied into.
 
- Suites are left out: this file names the declarations it guards, and a suite that asserts on one is not a copy of it.
+ Newly written files count too, so a copy is caught before it is committed rather than after. Suites are left out: this
+ file names the declarations it guards, and a suite that asserts on one is not a copy of it.
 
  @returns repository-relative paths
 
@@ -126,7 +127,7 @@ function textOf(path: string,): string {
 function trackedPackageTypeScriptPaths(): readonly string[] {
   return execFileSync(
     'git',
-    ['ls-files', '-z', 'package',],
+    ['ls-files', '--cached', '--others', '--exclude-standard', '-z', 'package',],
     {
       cwd: repositoryRoot,
       encoding: 'utf8',
@@ -191,13 +192,19 @@ await describe({
     it({
       name: 'declares the default run count in the shared module alone',
       fn: async () => {
-        expect(pathsDeclaring('const DEFAULT_RUNS',),).toEqual([OWNER_PATH,],);
+        expect(pathsDeclaring('const DEFAULT_FUZZ_RUNS',),).toEqual([OWNER_PATH,],);
       },
     },),
     it({
       name: 'lists every file that declares a run count, so a new sidecar cannot skip the ledger',
       fn: async () => {
-        expect(pathsDeclaring('export const fuzzRuns',),).toEqual(SIDECARS_READING_A_RUN_BUDGET,);
+        /**
+         Files that declare the per-sidecar value; the shared module's own example shows the declaration a sidecar
+         writes, so it names the shape without being a sidecar.
+         */
+        const declaring = pathsDeclaring('export const fuzzRuns',)
+          .filter((path,) => path !== OWNER_PATH,);
+        expect(declaring,).toEqual(SIDECARS_READING_A_RUN_BUDGET,);
       },
     },),
   ],

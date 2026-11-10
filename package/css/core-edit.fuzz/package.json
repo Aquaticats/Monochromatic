@@ -7,6 +7,7 @@
   "private": true,
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/fuzz-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
     "@monochromatic-dev/css-core-edit": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
