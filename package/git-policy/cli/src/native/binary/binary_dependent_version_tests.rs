@@ -839,3 +839,49 @@ fn a_commit_leaves_behind_a_dependent_the_real_index_already_changes() {
     );
     remove(&fixture);
 }
+
+/// An index commit carries the same ripple:
+/// the mode that names no paths stages the raised manifest,
+/// and the dependents join the
+///  commit from the private index all the same.
+#[test]
+fn an_index_commit_adds_and_updates_the_dependents_of_a_hand_bump() {
+    let fixture: Fixture = fixture("dependent-version-index-commit");
+    let repo: PathBuf = chain_workspace(&fixture);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "package/module/a/package.json"],
+    );
+    // `--no-only` commits the whole index: the wrapper's commit-only transform otherwise demands a pathspec.
+    let landed: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--no-only", "--message=bump"],
+    );
+    assert_eq!(
+        landed.code,
+        Some(0),
+        "{}{}",
+        String::from_utf8_lossy(&landed.stdout),
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "b"),
+        manifest("@s/b", "2.0.1", Some("@s/a"))
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "c"),
+        manifest("@s/c", "3.0.1", Some("@s/b"))
+    );
+    assert_eq!(
+        read(repo.as_path(), "b"),
+        manifest("@s/b", "2.0.1", Some("@s/a")),
+        "the worktree copy takes the committed bytes"
+    );
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["status", "--porcelain"]),
+        ""
+    );
+    remove(&fixture);
+}
