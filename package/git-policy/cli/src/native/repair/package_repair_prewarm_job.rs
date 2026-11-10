@@ -160,7 +160,10 @@ const MARKER_SUFFIX: &str = ".owner";
 
 /// The text a marker carries,
 /// so a person who finds one knows which program wrote it and what it claims.
-const MARKER_TEXT: &[u8] = b"written by monochromatic-git-policy-cli's Cargo prewarm job: the directories whose names start with this file's name are the wrapper's own\n";
+const MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli's Cargo prewarm job wrote this file. \
+The directory whose name is this file's name without '.owner' is its staging copy, \
+and the '.target' directory beside it is the target its clean deletes from. \
+Both are the wrapper's own and are removed or published when the filling ends.\n";
 
 /// What:
 ///  The three names one filling of one workspace works in.
