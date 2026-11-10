@@ -28,8 +28,8 @@ const LIBRARY_SOURCE_SUFFIX = '.ts';
  Directory holding this package's library sources.
 
  A package test imports this module from the built artifact in `dist/final/node`, so the sources sit three levels
- above the running module; a test that reached this module from source would find no sources at all and fail its own
- non-empty check rather than pass on an empty scan.
+ above the running module. A module loaded from source instead resolves `package/src`, which does not exist, so the
+ scan fails with `ENOENT` naming that path rather than passing on an empty one.
  */
 const SOURCE_DIRECTORY = resolve(
   import.meta.dirname,
