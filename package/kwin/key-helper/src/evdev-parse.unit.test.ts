@@ -1,8 +1,11 @@
 /**
  Tests for the pure evdev helpers: sysfs bitmap parsing and the double-shift
  detector reducer. The reducer cases capture the exact fire/no-fire rules so the
- detector cannot silently regress.
- 
+ detector cannot silently regress, one case per branch of the reducer: a clean
+ single-key tap, a tap repeated inside and outside the window, a hold a
+ non-shift key disturbs, a hold the other Shift key joins, and the passthrough
+ paths for autorepeat, non-shift releases and releases of a key never pressed.
+
  @module
  */
 
@@ -16,8 +19,38 @@ import {
   INITIAL_SHIFT_STATE,
   parseBitmap,
   reduceShiftEvent,
-  type ShiftState,
-} from './evdev-parse.ts';
+} from '../dist/final/node/testing.mjs';
+
+/**
+ Detector state, named from the reducer's own parameter so the test follows the
+ built declarations instead of importing source.
+ */
+type ShiftState = Parameters<typeof reduceShiftEvent>[0]['state'];
+
+/**
+ One key event, named from the reducer's own parameter.
+ */
+type ShiftEvent = Parameters<typeof reduceShiftEvent>[0]['event'];
+
+/**
+ One physical Shift key, named from the event the reducer accepts.
+ */
+type ShiftKey = Extract<ShiftEvent, { readonly type: 'shift'; }>['key'];
+
+/**
+ evdev `value` for a key press.
+ */
+const KEY_PRESS = 1;
+
+/**
+ evdev `value` for a key release.
+ */
+const KEY_RELEASE = 0;
+
+/**
+ evdev `value` for an autorepeat while a key stays held.
+ */
+const KEY_AUTOREPEAT = 2;
 
 /** Timestamp of the first tap in a double-shift sequence. */
 const FIRST_TAP_MS = 1_000;
@@ -29,31 +62,120 @@ const SECOND_TAP_FAST_MS = 1_100;
 const SECOND_TAP_SLOW_MS = 1_400;
 
 /**
- Fold a press then release of Shift into the detector, returning the result of
- the release (where a double-shift, if any, fires).
+ Gap between the events of one hold, small enough to stay inside the window.
+ */
+const HOLD_STEP_MS = 10;
+
+/**
+ Build one Shift event.
+ 
+ @param key - Which Shift key changed
+ @param value - evdev value of the change
+ @param now - Timestamp of the event
+ @returns Event the reducer accepts
+ @example
+ ```ts
+ shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS });
+ ```
+ */
+function shift({ key, value, now }: {
+  readonly key: ShiftKey;
+  readonly value: number;
+  readonly now: number;
+}): ShiftEvent {
+  return {
+    type: 'shift',
+    key,
+    value,
+    now,
+  };
+}
+
+/**
+ Build one non-Shift key event.
+ 
+ @param value - evdev value of the change
+ @returns Event the reducer accepts
+ @example
+ ```ts
+ otherKey({ value: KEY_PRESS });
+ ```
+ */
+function otherKey({ value }: { readonly value: number; }): ShiftEvent {
+  return {
+    type: 'other',
+    value,
+  };
+}
+
+/**
+ Fold a press then release of one Shift key into the detector, returning the
+ result of the release (where a double-shift, if any, fires).
  
  @param state - State to start from
- @param releaseNow - Timestamp of the release event
+ @param releaseNow - Timestamp of the press and release events
+ @param key - Which Shift key is tapped
  @returns Reducer result for the release event
  @example
  ```ts
- tapShift({ state: INITIAL_SHIFT_STATE, releaseNow: 1000 });
+ tapShift({ state: INITIAL_SHIFT_STATE, releaseNow: FIRST_TAP_MS });
  ```
  */
-function tapShift({ state, releaseNow }: { state: ShiftState; releaseNow: number }): {
+function tapShift({ state, releaseNow, key = 'left' }: {
+  readonly state: ShiftState;
+  readonly releaseNow: number;
+  readonly key?: ShiftKey;
+}): {
   state: ShiftState;
   doubleShift: boolean;
 } {
   /** State after the Shift press. */
   const pressed = reduceShiftEvent({
     state,
-    event: { isShift: true, value: 1, now: releaseNow },
+    event: shift({ key, value: KEY_PRESS, now: releaseNow, }),
   }).state;
   return reduceShiftEvent({
     state: pressed,
-    event: { isShift: true, value: 0, now: releaseNow },
+    event: shift({ key, value: KEY_RELEASE, now: releaseNow, }),
   });
 }
+
+/**
+ Fold an event sequence into the detector.
+ 
+ @param events - Events in arrival order
+ @returns Final state and whether any event fired a double-shift
+ @example
+ ```ts
+ foldShiftEvents([shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS })]);
+ ```
+ */
+function foldShiftEvents(events: readonly ShiftEvent[]): {
+  readonly state: ShiftState;
+  readonly fired: boolean;
+} {
+  /** Running fold result. */
+  const folded = events.reduce(function step(
+    carried: { readonly state: ShiftState; readonly fired: boolean; },
+    event: ShiftEvent,
+  ) {
+    /** Result of folding this event in. */
+    const result = reduceShiftEvent({ state: carried.state, event, });
+    return { state: result.state, fired: carried.fired || result.doubleShift, };
+  }, { state: INITIAL_SHIFT_STATE, fired: false, });
+  return folded;
+}
+
+/**
+ Every one-key Shift tap pair the detector must complete, so no case depends on
+ a single key being the one the detector happens to favour.
+ */
+const TAP_KEY_PAIRS: readonly (readonly [ShiftKey, ShiftKey])[] = [
+  ['left', 'left'],
+  ['right', 'right'],
+  ['left', 'right'],
+  ['right', 'left'],
+];
 
 await describe({
   name: '',
@@ -90,14 +212,26 @@ await describe({
     describe({
       name: reduceShiftEvent.name,
       children: [
-        it({
-          name: 'fires on a second tap within the window',
-          fn: async () => {
-            expect(tapShift({
-              state: tapShift({ state: INITIAL_SHIFT_STATE, releaseNow: FIRST_TAP_MS }).state,
-              releaseNow: SECOND_TAP_FAST_MS,
-            }).doubleShift).toBe(true);
-          },
+        //region Clean taps
+
+        ...TAP_KEY_PAIRS.map(function mapKeyPair([firstKey, secondKey]: readonly [
+          ShiftKey,
+          ShiftKey,
+        ]) {
+          return it({
+            name: `fires on a second ${secondKey} Shift tap after a ${firstKey} one inside the window`,
+            fn: async () => {
+              expect(tapShift({
+                state: tapShift({
+                  state: INITIAL_SHIFT_STATE,
+                  releaseNow: FIRST_TAP_MS,
+                  key: firstKey,
+                }).state,
+                releaseNow: SECOND_TAP_FAST_MS,
+                key: secondKey,
+              }).doubleShift).toBe(true);
+            },
+          });
         }),
         it({
           name: 'does not fire on a second tap outside the window',
@@ -116,21 +250,6 @@ await describe({
           },
         }),
         it({
-          name: 'invalidates the tap when another key is pressed while Shift is held',
-          fn: async () => {
-            expect(reduceShiftEvent({
-              state: reduceShiftEvent({
-                state: reduceShiftEvent({
-                  state: INITIAL_SHIFT_STATE,
-                  event: { isShift: true, value: 1, now: FIRST_TAP_MS },
-                }).state,
-                event: { isShift: false, value: 1, now: FIRST_TAP_MS },
-              }).state,
-              event: { isShift: true, value: 0, now: FIRST_TAP_MS },
-            }).doubleShift).toBe(false);
-          },
-        }),
-        it({
           name: 'does not re-fire on an immediate third tap',
           fn: async () => {
             expect(tapShift({
@@ -138,10 +257,169 @@ await describe({
                 state: tapShift({ state: INITIAL_SHIFT_STATE, releaseNow: FIRST_TAP_MS }).state,
                 releaseNow: SECOND_TAP_FAST_MS,
               }).state,
-              releaseNow: SECOND_TAP_FAST_MS + 1,
+              releaseNow: SECOND_TAP_FAST_MS + HOLD_STEP_MS,
             }).doubleShift).toBe(false);
           },
         }),
+
+        //endregion Clean taps
+
+        //region Holds that are not a tap
+
+        it({
+          name: 'invalidates the tap when another key is pressed while Shift is held',
+          fn: async () => {
+            expect(foldShiftEvents([
+              shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+              otherKey({ value: KEY_PRESS, }),
+              shift({ key: 'left', value: KEY_RELEASE, now: FIRST_TAP_MS + HOLD_STEP_MS, }),
+            ]).fired).toBe(false);
+          },
+        }),
+        it({
+          name: 'fires nothing when a second Shift key joins a hold a letter disturbed',
+          fn: async () => {
+            expect(foldShiftEvents([
+              shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+              otherKey({ value: KEY_PRESS, }),
+              shift({ key: 'right', value: KEY_PRESS, now: FIRST_TAP_MS + HOLD_STEP_MS, }),
+              shift({ key: 'left', value: KEY_RELEASE, now: FIRST_TAP_MS + (2 * HOLD_STEP_MS), }),
+              shift({ key: 'right', value: KEY_RELEASE, now: FIRST_TAP_MS + (3 * HOLD_STEP_MS), }),
+            ]).fired).toBe(false);
+          },
+        }),
+        it({
+          name: 'completes no tap when the other Shift key is still held',
+          fn: async () => {
+            expect(foldShiftEvents([
+              shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+              shift({ key: 'right', value: KEY_PRESS, now: FIRST_TAP_MS + HOLD_STEP_MS, }),
+              shift({ key: 'left', value: KEY_RELEASE, now: FIRST_TAP_MS + (2 * HOLD_STEP_MS), }),
+            ]).fired).toBe(false);
+          },
+        }),
+        ...([['left', 'right'], ['right', 'left']] as const).map(function mapHoldOrder([
+          firstKey,
+          secondKey,
+        ]: readonly [ShiftKey, ShiftKey]) {
+          return it({
+            name: `fires nothing when both Shift keys are held and released together twice, ${firstKey} first`,
+            fn: async () => {
+              expect(foldShiftEvents([
+                shift({ key: firstKey, value: KEY_PRESS, now: FIRST_TAP_MS, }),
+                shift({ key: secondKey, value: KEY_PRESS, now: FIRST_TAP_MS + HOLD_STEP_MS, }),
+                shift({ key: firstKey, value: KEY_RELEASE, now: FIRST_TAP_MS + (2 * HOLD_STEP_MS), }),
+                shift({ key: secondKey, value: KEY_RELEASE, now: FIRST_TAP_MS + (3 * HOLD_STEP_MS), }),
+                shift({ key: firstKey, value: KEY_PRESS, now: FIRST_TAP_MS + (4 * HOLD_STEP_MS), }),
+                shift({ key: secondKey, value: KEY_PRESS, now: FIRST_TAP_MS + (5 * HOLD_STEP_MS), }),
+                shift({ key: firstKey, value: KEY_RELEASE, now: FIRST_TAP_MS + (6 * HOLD_STEP_MS), }),
+                shift({ key: secondKey, value: KEY_RELEASE, now: FIRST_TAP_MS + (7 * HOLD_STEP_MS), }),
+              ]).fired).toBe(false);
+            },
+          });
+        }),
+        it({
+          name: 'fires nothing when a second Shift key joins inside a pending window',
+          fn: async () => {
+            // A clean left tap starts the window; the next hold is disturbed by
+            // the right key and released left-first, so nothing may fire even
+            // though the left release lands inside the window.
+            expect(foldShiftEvents([
+              shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+              shift({ key: 'left', value: KEY_RELEASE, now: FIRST_TAP_MS, }),
+              shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS + HOLD_STEP_MS, }),
+              shift({ key: 'right', value: KEY_PRESS, now: FIRST_TAP_MS + (2 * HOLD_STEP_MS), }),
+              shift({ key: 'left', value: KEY_RELEASE, now: FIRST_TAP_MS + (3 * HOLD_STEP_MS), }),
+              shift({ key: 'right', value: KEY_RELEASE, now: FIRST_TAP_MS + (4 * HOLD_STEP_MS), }),
+            ]).fired).toBe(false);
+          },
+        }),
+        it({
+          name: 'still fires a genuine double-shift after a two-key hold',
+          fn: async () => {
+            expect(foldShiftEvents([
+              shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+              shift({ key: 'right', value: KEY_PRESS, now: FIRST_TAP_MS + HOLD_STEP_MS, }),
+              shift({ key: 'left', value: KEY_RELEASE, now: FIRST_TAP_MS + (2 * HOLD_STEP_MS), }),
+              shift({ key: 'right', value: KEY_RELEASE, now: FIRST_TAP_MS + (3 * HOLD_STEP_MS), }),
+              shift({ key: 'left', value: KEY_PRESS, now: SECOND_TAP_FAST_MS, }),
+              shift({ key: 'left', value: KEY_RELEASE, now: SECOND_TAP_FAST_MS + HOLD_STEP_MS, }),
+              shift({ key: 'left', value: KEY_PRESS, now: SECOND_TAP_FAST_MS + (2 * HOLD_STEP_MS), }),
+              shift({ key: 'left', value: KEY_RELEASE, now: SECOND_TAP_FAST_MS + (3 * HOLD_STEP_MS), }),
+            ]).fired).toBe(true);
+          },
+        }),
+
+        //endregion Holds that are not a tap
+
+        //region Passthroughs
+
+        it({
+          name: 'leaves state untouched on an autorepeat of a held Shift key',
+          fn: async () => {
+            /** State with the left Shift key held. */
+            const held = reduceShiftEvent({
+              state: INITIAL_SHIFT_STATE,
+              event: shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+            }).state;
+            /** Result of the autorepeat. */
+            const result = reduceShiftEvent({
+              state: held,
+              event: shift({
+                key: 'left',
+                value: KEY_AUTOREPEAT,
+                now: FIRST_TAP_MS + HOLD_STEP_MS,
+              }),
+            });
+            expect(result.state).toBe(held);
+            expect(result.doubleShift).toBe(false);
+          },
+        }),
+        it({
+          name: 'leaves state untouched on a non-shift release',
+          fn: async () => {
+            /** State with the left Shift key held. */
+            const held = reduceShiftEvent({
+              state: INITIAL_SHIFT_STATE,
+              event: shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+            }).state;
+            /** Result of the non-shift release. */
+            const result = reduceShiftEvent({ state: held, event: otherKey({ value: KEY_RELEASE, }), });
+            expect(result.state).toBe(held);
+            expect(result.doubleShift).toBe(false);
+          },
+        }),
+        it({
+          name: 'leaves state untouched on a non-shift press with no Shift held',
+          fn: async () => {
+            /** Result of the non-shift press. */
+            const result = reduceShiftEvent({
+              state: INITIAL_SHIFT_STATE,
+              event: otherKey({ value: KEY_PRESS, }),
+            });
+            expect(result.state).toBe(INITIAL_SHIFT_STATE);
+            expect(result.doubleShift).toBe(false);
+          },
+        }),
+        it({
+          name: 'completes no tap on a Shift release for a key never pressed',
+          fn: async () => {
+            /** Result of the stray release, after a clean tap opened a window. */
+            const result = reduceShiftEvent({
+              state: tapShift({
+                state: INITIAL_SHIFT_STATE,
+                releaseNow: FIRST_TAP_MS,
+                key: 'left',
+              }).state,
+              event: shift({ key: 'right', value: KEY_RELEASE, now: SECOND_TAP_FAST_MS, }),
+            });
+            expect(result.doubleShift).toBe(false);
+            expect(result.state.lastTapTime).toBe(FIRST_TAP_MS);
+            expect(result.state.rightPressed).toBe(false);
+          },
+        }),
+
+        //endregion Passthroughs
       ],
     }),
   ],
