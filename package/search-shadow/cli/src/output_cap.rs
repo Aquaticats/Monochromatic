@@ -342,8 +342,24 @@ pub fn run_capped(name: &str, real: &Path, arguments: &[OsString]) -> i32 {
         },
         Forwarding::Failed(error) => {
             eprintln!("search-shadow: could not pass {}'s output on: {error}", real.display());
-            let _ = stop(&mut child);
-            OUTPUT_FAILED_EXIT_CODE
+            // What:     The tool's own non-zero status is kept; a tool that reported success gets `OUTPUT_FAILED_EXIT_CODE`.
+            // Why:      A script may branch on how the search failed, and that reason survives a delivery failure; but a tool
+            // that said it succeeded cannot pass for one whose output arrived.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const toolCode = stop(child)?.code ?? 0;
+            // return toolCode === 0 ? OUTPUT_FAILED_EXIT_CODE : toolCode;
+            // ```
+            let tool_code: i32 = match stop(&mut child) {
+                Some(status) => shell_exit_code(status),
+                None => 0,
+            };
+            if tool_code == 0 {
+                OUTPUT_FAILED_EXIT_CODE
+            } else {
+                tool_code
+            }
         }
     };
 }

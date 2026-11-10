@@ -542,28 +542,56 @@ fn does_not_cap_an_output_a_terminal_shows() {
     assert_eq!(output.status.code(), Some(0), "the real tool's own status is kept");
 }
 
-/// An output that cannot be passed on (a full disk) must not pass for a complete one:
-/// the run fails and says why.
-#[test]
-fn fails_and_says_why_when_the_output_cannot_be_passed_on() {
-    let (root, path_variable) = make_world();
+/// What:
+/// `fn run_with_stdout_full(root: &Path, path_variable: &str) -> Output` runs the `rg` shadow link with its standard
+/// output on `/dev/full`,
+/// a device every write fails on.
+/// Why:
+/// A full disk is the second way an output is lost,
+/// and the case must show what a caller sees then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runWithStdoutFull(root, pathVariable) { ... }
+/// ```
+fn run_with_stdout_full(root: &Path, path_variable: &str) -> Output {
     let full = fs::OpenOptions::new().write(true).open("/dev/full").expect("open /dev/full");
-    let mut command = Command::new(root.path().join("shadow").join("rg"));
+    let mut command = Command::new(root.join("shadow").join("rg"));
     command.args(texts(&["X", "."]));
-    command.current_dir(root.path());
+    command.current_dir(root);
     command.env_clear();
-    command.env("PATH", &path_variable);
+    command.env("PATH", path_variable);
     command.stdin(Stdio::null());
     command.stdout(Stdio::from(full));
     command.stderr(Stdio::piped());
-
     let child = command.spawn().expect("run the shadow");
-    let output = child.wait_with_output().expect("wait for the shadow");
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    return child.wait_with_output().expect("wait for the shadow");
+}
 
-    assert_eq!(output.status.code(), Some(OUTPUT_FAILED_EXIT_CODE), "{stderr}");
-    assert!(stderr.contains("search-shadow:"), "{stderr}");
-    assert!(stderr.contains("No space left on device"), "the line must name what the output failed on: {stderr}");
+/// An output that cannot be passed on (a full disk) must not pass for a complete one:
+/// the run fails,
+/// says why,
+/// and keeps the real tool's own failure when the tool reported one.
+#[test]
+fn fails_and_says_why_when_the_output_cannot_be_passed_on() {
+    let (root, path_variable) = make_world();
+    let real_rg = root.path().join("real").join("rg");
+
+    // A tool that reported a failure of its own keeps that code, so a script branching on it is not misled.
+    write_script(&root.path().join("real"), "rg", "printf 'first\\n'\nexit 5");
+    let failed = run_with_stdout_full(root.path(), &path_variable);
+    let failed_stderr = String::from_utf8_lossy(&failed.stderr).to_string();
+    assert_eq!(failed.status.code(), Some(5), "{failed_stderr}");
+    assert!(failed_stderr.contains("search-shadow:"), "{failed_stderr}");
+    assert!(failed_stderr.contains("No space left on device"), "the line must name what the output failed on: {failed_stderr}");
+    assert!(failed_stderr.contains(&real_rg.display().to_string()), "the line must name the real tool: {failed_stderr}");
+
+    // A tool that reported success cannot pass for one whose output arrived, so the shadow fails instead.
+    write_script(&root.path().join("real"), "rg", "printf 'first\\n'\nexit 0");
+    let silent = run_with_stdout_full(root.path(), &path_variable);
+    let silent_stderr = String::from_utf8_lossy(&silent.stderr).to_string();
+    assert_eq!(silent.status.code(), Some(OUTPUT_FAILED_EXIT_CODE), "{silent_stderr}");
+    assert!(silent_stderr.contains("No space left on device"), "{silent_stderr}");
 }
 
 /// The lost-pipe refusal has no override:
