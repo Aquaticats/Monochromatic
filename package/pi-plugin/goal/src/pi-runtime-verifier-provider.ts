@@ -23,6 +23,8 @@ import {
   type ScriptedToolCall,
 } from './pi-runtime-verifier-provider-tools.ts';
 
+//region Scripted call constants
+
 /**
  Scripted provider identity.
  */
@@ -67,6 +69,10 @@ const AFTER_CLEAR_TOOL_CALL = FINAL_ABORT_CALL + 1;
  Seventh provider call waits so verifier can end cleared-goal turn.
  */
 const CLEAR_FINAL_ABORT_CALL = AFTER_CLEAR_TOOL_CALL + 1;
+
+//endregion Scripted call constants
+
+//region Assistant output
 
 /**
  Create empty assistant message for one scripted provider result.
@@ -116,6 +122,10 @@ function createAssistantOutput(
   };
 }
 
+//endregion Assistant output
+
+//region Abort waiting
+
 /**
  Resolve when supplied abort signal fires.
  
@@ -153,6 +163,10 @@ async function waitForAbort(
   );
   await promise;
 }
+
+//endregion Abort waiting
+
+//region Streams
 
 /**
  Emit complete scripted tool-use response.
@@ -334,6 +348,10 @@ function abortStream(
   return stream;
 }
 
+//endregion Streams
+
+//region Provider registration
+
 /**
  Register scripted local provider and return its model plus stage latches.
  
@@ -500,5 +518,7 @@ function registerInterruptionProvider(
     },
   };
 }
+
+//endregion Provider registration
 
 export { registerInterruptionProvider, };

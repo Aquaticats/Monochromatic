@@ -87,9 +87,9 @@ class Component extends DCLogic {
     const total = order.length;
     const subPart = playingSub ? playingSub.name + " · " : "";
     const captions = {
-      follow: "DESC-A — the list FOLLOWS playback. When In order walks into Live, the list navigates there and the chip becomes a breadcrumb (Camellia › Live). Press next ▶| to step.",
-      deck: "DESC-B — the list STAYS on Camellia. Only the deck's subtitle names the subfolder that is playing. Press next ▶| to step.",
-      highlight: "DESC-C — the list STAYS on Camellia, and the playing subfolder's row takes the playing highlight with the track named beneath it. Press next ▶| to step."
+      follow: "DESC-A: the list FOLLOWS playback. When In order walks into Live, the list navigates there and the chip becomes a breadcrumb (Camellia › Live). Press next ▶| to step.",
+      deck: "DESC-B: the list STAYS on Camellia. Only the deck's subtitle names the subfolder that is playing. Press next ▶| to step.",
+      highlight: "DESC-C: the list STAYS on Camellia, and the playing subfolder's row takes the playing highlight with the track named beneath it. Press next ▶| to step."
     };
     return {
       hasParentCrumb: !!viewSub, crumbParent: d.parent,

@@ -22,10 +22,16 @@ import {
 } from './constants.ts';
 import type { GoalEffect, } from './types.ts';
 
+//region Logger
+
 /**
  Root goal extension logger.
  */
 const logger: Logger = tagged({ tag: 'pi-goal', },);
+
+//endregion Logger
+
+//region Effect application
 
 /**
  Apply ordered goal effects at Pi's mutation boundary.
@@ -120,6 +126,8 @@ function applyGoalEffects(
     logger.error(effect.message,);
   }
 }
+
+//endregion Effect application
 
 export {
   applyGoalEffects,

@@ -18,6 +18,8 @@ import { verifyDiscoveredGoalFlow, } from './pi-runtime-verifier-goal-flow.ts';
 import { verifyInjectedReviewerOutcomes, } from './pi-runtime-verifier-review.ts';
 import { verifyOrdinaryToolsAfterAbort, } from './pi-runtime-verifier-tools.ts';
 
+//region Temporary directory
+
 /**
  Disposable async temporary directory owner.
  */
@@ -57,6 +59,10 @@ async function createTemporaryDirectory(): Promise<AsyncTemporaryDirectory> {
     },
   };
 }
+
+//endregion Temporary directory
+
+//region Verification
 
 /**
  Run all disposable Pi consumer-boundary checks.
@@ -149,5 +155,7 @@ async function verifyPiGoalRuntime(): Promise<string> {
   },);
   return `pi-goal Pi runtime verified: ${flow.summary}; ${exhaustion}; ${reviews}; tools ${tools.join(', ')}`;
 }
+
+//endregion Verification
 
 console.log(await verifyPiGoalRuntime(),);

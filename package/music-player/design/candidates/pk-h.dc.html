@@ -41,7 +41,7 @@ class Component extends DCLogic {
 
   // The extent claim is this candidate's whole argument, so it is measured, never
   // estimated: distinct item tops for the line count, scrollHeight/clientHeight for
-  // the screen count (review-notes #1 — every number comes from a source).
+  // the screen count (review-notes #1, every number comes from a source).
   measure() {
     const el = this.el;
     if (!el) return;
@@ -92,7 +92,7 @@ class Component extends DCLogic {
           pick: () => this.setState({ selected: n })
         };
       }),
-      caption: "PK-H — same rules as pk-g, denser: 14px instead of 16, and a muted middot doing the separating instead of a 24dp gap. More names per line, so the extent drops (counter above is measured off the DOM). The trade is that it reads more like running text than like a set of targets, and the middot is one more mark on screen."
+      caption: "PK-H: same rules as pk-g, denser: 14px instead of 16, and a muted middot doing the separating instead of a 24dp gap. More names per line, so the extent drops (counter above is measured off the DOM). The trade is that it reads more like running text than like a set of targets, and the middot is one more mark on screen."
     };
   }
 }

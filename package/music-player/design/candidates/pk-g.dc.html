@@ -41,7 +41,7 @@ class Component extends DCLogic {
 
   // The extent claim is this candidate's whole argument, so it is measured, never
   // estimated: distinct item tops for the line count, scrollHeight/clientHeight for
-  // the screen count (review-notes #1 — every number comes from a source).
+  // the screen count (review-notes #1, every number comes from a source).
   measure() {
     const el = this.el;
     if (!el) return;
@@ -92,7 +92,7 @@ class Component extends DCLogic {
           pick: () => this.setState({ selected: n })
         };
       }),
-      caption: "PK-G — the wrapped layout from unf-i with the chip styling taken off: plain 16px text, several names per line at their natural width, 24dp between them, 48dp tall targets, nothing truncated. No pill, no fill, no outline; the selected folder is primary-coloured with a 2dp underline. The counter above is MEASURED from the DOM, not estimated: names pack about 2.1 per line, so C (72 names) is 2.2 screens and the worst letter, S (90 names), is 2.5 — against 4+ screens for one name per row. Click through the rail to see it."
+      caption: "PK-G: the wrapped layout from unf-i with the chip styling taken off: plain 16px text, several names per line at their natural width, 24dp between them, 48dp tall targets, nothing truncated. No pill, no fill, no outline; the selected folder is primary-coloured with a 2dp underline. The counter above is MEASURED from the DOM, not estimated: names pack about 2.1 per line, so C (72 names) is 2.2 screens and the worst letter, S (90 names), is 2.5, against 4+ screens for one name per row. Click through the rail to see it."
     };
   }
 }
