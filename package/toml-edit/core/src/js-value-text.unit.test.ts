@@ -9,6 +9,9 @@ import {
   emptyTomlEdit,
   parseTomlEdit,
   tomlGetNode,
+  tomlGetValue,
+  tomlSet,
+  tomlStringify,
   TomlTypeError,
 } from '@monochromatic-dev/toml-edit-core';
 
@@ -28,6 +31,30 @@ await describe({
         expect(_jsValueToTomlText({ input: Number.NaN, options: OPTIONS, },),).toBe('nan',);
         expect(_jsValueToTomlText({ input: Infinity, options: OPTIONS, },),).toBe('inf',);
         expect(_jsValueToTomlText({ input: -Infinity, options: OPTIONS, },),).toBe('-inf',);
+      },
+    },),
+    it({
+      name: 'writes a bare negative zero as a float so the sign survives a reparse',
+      fn: async () => {
+        expect(_jsValueToTomlText({ input: -0, options: OPTIONS, },),).toBe('-0.0',);
+        /**
+         Positive zero keeps its unchanged integer spelling, so the branch covers
+         the sign rather than every zero.
+         */
+        expect(_jsValueToTomlText({ input: 0, options: OPTIONS, },),).toBe('0',);
+        const emitted = tomlStringify({
+          edit: tomlSet({ edit: emptyTomlEdit(), path: ['k',], value: -0, },),
+        },);
+        expect(emitted,).toBe('k = -0.0\n',);
+        /**
+         TOML integers carry no signed zero, so only the float spelling reads
+         back as negative zero.
+         */
+        const reparsed = tomlGetValue({
+          edit: parseTomlEdit({ source: emitted, },),
+          path: ['k',],
+        },);
+        expect(Object.is(reparsed, -0,),).toBe(true,);
       },
     },),
     it({
