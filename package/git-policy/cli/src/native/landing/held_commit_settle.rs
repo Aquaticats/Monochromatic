@@ -440,7 +440,12 @@ pub fn one(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
 ///  A Git directory beside the work tree is found only when it is named,
 ///  and the record's absolute paths must win over an earlier relative option
 ///  (`repository_selection.rs`,
-///  `of_paths`).
+///  `of_paths`):
+///  Git reads the last of two `--git-dir` options
+///  (measured on 2026-11-10 with 2.56.0,
+///  `git --git-dir=a --git-dir=b rev-parse --absolute-git-dir` answers `b`,
+///  and the same line the other way round answers `a`),
+///  so the record's selection goes after the caller's own.
 ///  The caller's own options stay in front,
 ///  so a plain layout keeps the context it was given and nothing starts Git that would not have.
 ///
