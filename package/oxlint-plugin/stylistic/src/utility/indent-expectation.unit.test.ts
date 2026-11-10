@@ -604,6 +604,82 @@ await describe({
         },);
       },
     },),
+    it({
+      name: 'bases the closer on the declaration line when its brace opens on a later line',
+      fn: async () => {
+        const sourceText = 'class Multi\n  extends Base\n{\n  value = 1;\n}';
+        const classBodyStart = offsetOf({
+          sourceText,
+          marker: '{',
+        },);
+        const memberStart = offsetOf({
+          sourceText,
+          marker: 'value',
+        },);
+        const expectations = expectationsOf({
+          sourceText,
+          root: {
+            type: 'Program',
+            start: 0,
+            end: sourceText.length,
+            body: {
+              type: 'ClassDeclaration',
+              start: 0,
+              end: sourceText.length,
+              body: {
+                type: 'ClassBody',
+                start: classBodyStart,
+                end: sourceText.length,
+                body: {
+                  type: 'PropertyDefinition',
+                  start: memberStart,
+                  end: memberStart + 'value'.length,
+                },
+              },
+            },
+          },
+          tokens: tokensOf(sourceText,),
+          visitorKeys: {
+            Program: ['body'],
+            ClassDeclaration: ['body'],
+            ClassBody: ['body'],
+            PropertyDefinition: [],
+          },
+        },);
+
+        expect(expectations,).toHaveLength(5,);
+        expectWidthAt({
+          expectations,
+          lineIndex: 0,
+          expectedWidth: 0,
+          route: 'ancestor',
+        },);
+        expectWidthAt({
+          expectations,
+          lineIndex: 1,
+          expectedWidth: 2,
+          route: 'ancestor',
+        },);
+        expectWidthAt({
+          expectations,
+          lineIndex: 2,
+          expectedWidth: 2,
+          route: 'ancestor',
+        },);
+        expectWidthAt({
+          expectations,
+          lineIndex: 3,
+          expectedWidth: 2,
+          route: 'ancestor',
+        },);
+        expectWidthAt({
+          expectations,
+          lineIndex: 4,
+          expectedWidth: 0,
+          route: 'closer',
+        },);
+      },
+    },),
   ],
 },);
 
