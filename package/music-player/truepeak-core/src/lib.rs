@@ -129,8 +129,10 @@ pub use crate::bucketpolicy::{BucketProbe, BucketTable, TrackProvenance};
 ///  the bench sidecar replays its corpus through them.
 pub use crate::probe_selection::{ProbeBins, ProbeGrid, ProbeSelection, select_probe_bins};
 
-/// Re-exports the lossless bones profiling helpers and their error.
-pub use crate::bones::{BonesError, bones_hot_bins, flac_bones_profile};
+/// Re-exports the lossless bones profiling helpers,
+///  the slot width they spread bytes over,
+///  and their error.
+pub use crate::bones::{BONES_SLOT_SECS, BonesError, bones_hot_bins, flac_bones_profile};
 
 /// Re-exports the gain decision and its kind.
 pub use crate::decision::{Decision, DecisionKind, PeakKind};

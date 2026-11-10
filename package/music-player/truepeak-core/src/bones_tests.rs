@@ -97,6 +97,17 @@ fn hot_frame_wins_the_bones_seed() {
     assert!((mass - (306.0 + 3006.0 + 306.0)).abs() < 1.0);
 }
 
+// The exported slot width is the grid the profile counts slots on, so a side-file
+// writer that states its slot length names the walk's own width.
+#[test]
+fn the_profile_counts_slots_at_the_exported_width() {
+    let buf = synthetic_flac(&[300, 3000, 300]);
+    let profile = flac_bones_profile(&buf).expect("profile builds");
+    let duration_secs = (3.0 * 4096.0) / 44100.0;
+    let expected_slots = ((duration_secs / BONES_SLOT_SECS).ceil() as usize).max(1);
+    assert_eq!(profile.len(), expected_slots);
+}
+
 // Garbage bytes are rejected with a message instead of a panic.
 #[test]
 fn garbage_is_rejected() {

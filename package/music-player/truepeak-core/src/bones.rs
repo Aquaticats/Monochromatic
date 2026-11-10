@@ -24,7 +24,15 @@
 
 /// Slot length in seconds;
 ///  matches the shipped probe window so hot slots map to probe bins.
-const SLOT_SECS: f64 = 0.1;
+///
+/// What:
+///  the profile's slot grid,
+///  and the slot length every side file that carries a profile states.
+/// Why:
+///  a reader joining slot indices against probe bins needs the same width the
+/// walk spread bytes over,
+///  so the writer names it from here instead of repeating the number.
+pub const BONES_SLOT_SECS: f64 = 0.1;
 /// Smallest plausible frame byte span;
 ///  the walk skips ahead by this after each frame.
 const MIN_FRAME_BYTES: usize = 9;
@@ -365,7 +373,7 @@ fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Resu
 pub fn flac_bones_profile(buf: &[u8]) -> Result<Vec<f64>, BonesError> {
     let (info, first_frame_offset) = parse_metadata(buf)?;
     let (frames, duration_secs) = walk_frames(buf, first_frame_offset, &info)?;
-    let slot_count = ((duration_secs / SLOT_SECS).ceil() as usize).max(1);
+    let slot_count = ((duration_secs / BONES_SLOT_SECS).ceil() as usize).max(1);
     let mut slots = vec![0.0f64; slot_count];
     let rate = f64::from(info.sample_rate);
     for frame in &frames {
@@ -375,13 +383,13 @@ pub fn flac_bones_profile(buf: &[u8]) -> Result<Vec<f64>, BonesError> {
             continue;
         }
         // Spread this frame's bytes across every slot it overlaps.
-        let first_slot = (start_secs / SLOT_SECS + 1e-9).floor() as usize;
-        let last_slot = (((end_secs / SLOT_SECS - 1e-9).ceil() as usize).max(first_slot + 1) - 1)
+        let first_slot = (start_secs / BONES_SLOT_SECS + 1e-9).floor() as usize;
+        let last_slot = (((end_secs / BONES_SLOT_SECS - 1e-9).ceil() as usize).max(first_slot + 1) - 1)
             .min(slot_count - 1);
         for (step, weight) in slots[first_slot..=last_slot].iter_mut().enumerate() {
             let slot = first_slot + step;
-            let lo = start_secs.max(slot as f64 * SLOT_SECS);
-            let hi = end_secs.min((slot + 1) as f64 * SLOT_SECS);
+            let lo = start_secs.max(slot as f64 * BONES_SLOT_SECS);
+            let hi = end_secs.min((slot + 1) as f64 * BONES_SLOT_SECS);
             if hi <= lo {
                 continue;
             }
