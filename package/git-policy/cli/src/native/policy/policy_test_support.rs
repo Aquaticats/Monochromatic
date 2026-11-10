@@ -59,6 +59,9 @@ pub(crate) struct ScriptedFacts {
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
     pub(crate) remote_guess: Result<bool, String>,
+    /// The answer to `main_worktree_root`,
+    ///  the checkout that owns the configuration file of a linked worktree's repository.
+    pub(crate) main_worktree: Result<PathBuf, String>,
     /// Every fact asked for,
     ///  in call order;
     ///  the location is logged once,
@@ -131,6 +134,11 @@ impl RepositoryFacts for ScriptedFacts {
         self.asked
             .push(format!("remote-guess:{}", target.to_string_lossy()));
         return self.remote_guess.clone();
+    }
+
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        self.asked.push(String::from("main-worktree"));
+        return self.main_worktree.clone();
     }
 
     /// Log the question,
@@ -233,6 +241,9 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         }),
         stash: Ok(false),
         remote_guess: Ok(false),
+        // The scripts below name `/r` as the repository whose linked worktree `/w` is,
+        // so the main checkout of a region that refuses there is `/r`.
+        main_worktree: Ok(PathBuf::from("/r")),
         ignored_and_tracked: Ok(Vec::<String>::new()),
         clean_deletes: Ok(false),
         asked: Vec::<String>::new(),

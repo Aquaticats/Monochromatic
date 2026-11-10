@@ -40,6 +40,9 @@ use crate::repo_read_adapter::{location_of, sequencer_of};
 use crate::git_system_config::with_real_git;
 use crate::kept_names_in_the_git_directories::settle_kept_names;
 use crate::repo_read_layout::{RepoLayout, read_layout};
+/// The one query for the main checkout,
+///  which a linked-worktree refusal names.
+use crate::repo_read_main_worktree::{main_worktree_from_answer, main_worktree_query_arguments};
 use crate::repository_location::{
     RepositoryLocation, location_query_arguments, parse_location_output,
 };
@@ -48,12 +51,7 @@ use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_f
 use crate::command_clean::clean_would_delete_from_answer;
 /// The answer one `git add` selection question gives.
 use crate::rule_add_explicit::StagedSelection;
-/// The expression Git resolves for a shorthand only `switch` and `checkout` read.
-use crate::command_discard::previous_branch_expression;
-use crate::rule_worktree_dirty::{
-    DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
-    ignored_paths_queries, nul_separated_paths, replaced_answers, with_ancestors,
-};
+use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
 use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
 use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
@@ -134,6 +132,12 @@ pub trait RepositoryFacts {
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
+    /// The directory of the main checkout,
+    ///  the worktree that owns the configuration file every worktree of the
+    /// repository shares.
+    /// Asked by a refusal in a linked worktree,
+    ///  which must name where the setting belongs.
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String>;
     /// Whether `git switch <target>` or `git checkout <target>` would create a local
     /// branch from the one remote branch of that name.
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String>;
@@ -328,44 +332,6 @@ impl GitFacts {
         return self.layout.as_ref().and_then(Option::as_ref);
     }
 
-    /// What:
-    ///  Every path the given revision's tree holds,
-    ///  as Git printed them;
-    ///  nothing when Git cannot
-    ///       resolve the revision.
-    ///  `Result<Option<Vec<Vec<u8>>>, String>` is "the paths,
-    ///  no such revision,
-    ///  or why Git could
-    ///       not be asked".
-    /// Why:
-    ///   A name that is not a revision (a path of a checkout that names no tree) is resolved through `HEAD` by the
-    ///  caller,
-    ///  while a Git that cannot start or answer at all is a failure;
-    ///  `-r` reads the whole tree and
-    ///  `-z` keeps every path's bytes exactly as they are.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// async treePaths(revision: string): Promise<Buffer[] | undefined>;
-    /// ```
-    fn tree_paths(&mut self, revision: &OsStr) -> Result<Option<Vec<Vec<u8>>>, String> {
-        // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git does
-        //  resolve wherever an object name is read.
-        let named: OsString = match previous_branch_expression(revision.as_encoded_bytes()) {
-            Some(expression) => OsString::from(String::from_utf8_lossy(expression).into_owned()),
-            None => revision.to_os_string(),
-        };
-        let mut arguments: Vec<OsString> = self.global_prefix.clone();
-        for token in ["ls-tree", "-r", "-z", "--name-only"] {
-            arguments.push(OsString::from(token));
-        }
-        arguments.push(named);
-        let output: MetadataOutput = self.query(arguments, "the tree of a revision")?;
-        if !output.success {
-            return Ok(None);
-        }
-        return Ok(Some(nul_separated_paths(output.stdout.as_slice())));
-    }
 }
 
 /// What:
@@ -454,42 +420,8 @@ impl RepositoryFacts for GitFacts {
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
-        // The revision the command names, when Git can resolve it; every form that names no tree writes `HEAD`'s.
-        let named: Option<Vec<Vec<u8>>> = match revision {
-            Some(name) => self.tree_paths(name)?,
-            None => None,
-        };
-        let tracked: Vec<Vec<u8>> = match named {
-            Some(paths) => paths,
-            None => match self.tree_paths(OsStr::new("HEAD"))? {
-                Some(paths) => paths,
-                None => {
-                    return Err(String::from(
-                        "monochromatic-git-policy-cli could not read the tree of HEAD, so the ignored files \
-                         cannot be compared with the tree this command writes into.",
-                    ));
-                }
-            },
-        };
-        if tracked.is_empty() {
-            return Ok(Vec::<String>::new());
-        }
-        // A tree creates the directories its paths need, so a file the worktree holds where one of them must go
-        //  is lost too: every directory on the way to a tracked path is asked about as well.
-        let asked: Vec<Vec<u8>> = with_ancestors(tracked.as_slice());
-        // Git answers for these paths alone, so no query walks the worktree's ignored files.
-        let mut shared: Vec<String> = Vec::<String>::new();
-        for query in ignored_paths_queries(self.global_prefix.as_slice(), asked.as_slice()) {
-            let output: MetadataOutput = self.query(query, "the ignored files")?;
-            for path in replaced_answers(
-                asked.as_slice(),
-                tracked.as_slice(),
-                ignored_paths_from_answer(&output)?.as_slice(),
-            ) {
-                shared.push(String::from_utf8_lossy(path.as_slice()).into_owned());
-            }
-        }
-        return Ok(shared);
+        // The query and its reading live beside this provider, as the `git add` fact's do.
+        return crate::repository_facts_ignored_files::ignored_files_the_tree_tracks(self, revision);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
@@ -510,6 +442,14 @@ impl RepositoryFacts for GitFacts {
             cherry_pick_head: head_file_exists(paths[1].as_slice()),
             revert_head: head_file_exists(paths[2].as_slice()),
         }));
+    }
+
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        // `--porcelain -z` prints the main worktree's path on the first line, whatever its bytes are.
+        let arguments: Vec<OsString> =
+            main_worktree_query_arguments(self.global_prefix.as_slice());
+        let output: MetadataOutput = self.query(arguments, "the worktrees of the repository")?;
+        return main_worktree_from_answer(&output);
     }
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {

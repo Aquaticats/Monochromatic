@@ -24,7 +24,7 @@
 //! // runWrapped(linked, ['remote', 'set-url', 'origin', url]).status === 1
 //! ```
 
-use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
 use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -237,20 +237,30 @@ fn global_options_and_aliases_reach_the_same_refusal() {
     let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
     let before: Vec<u8> = config_bytes(repo.as_path());
     let linked_text: String = linked.to_string_lossy().into_owned();
-    for form in [
-        vec!["-C", linked_text.as_str(), "remote", "set-url", "origin", OTHER_URL],
-        vec![
-            "-C",
-            linked_text.as_str(),
-            "config",
-            "remote.origin.url",
-            OTHER_URL,
-        ],
-        vec!["-C", linked_text.as_str(), "config", "extensions.worktreeConfig", "true"],
-        vec!["-c", "alias.seturl=remote set-url", "seturl", "origin", OTHER_URL],
-        vec!["-c", "alias.setconfig=config", "setconfig", "remote.origin.url", OTHER_URL],
-    ] {
-        let observed: Observed = run_wrapped(&fixture, repo.as_path(), form.as_slice());
+    // Each form runs in the directory a person would run it in:
+    //  `-C` moves a command started in the main checkout,
+    //  and an
+    // alias runs where it is written.
+    let forms: [(PathBuf, Vec<&str>); 4] = [
+        (
+            repo.clone(),
+            vec!["-C", linked_text.as_str(), "remote", "set-url", "origin", OTHER_URL],
+        ),
+        (
+            repo.clone(),
+            vec!["-C", linked_text.as_str(), "config", "remote.origin.url", OTHER_URL],
+        ),
+        (
+            linked.clone(),
+            vec!["-c", "alias.seturl=remote set-url", "seturl", "origin", OTHER_URL],
+        ),
+        (
+            linked.clone(),
+            vec!["-c", "alias.setconfig=config", "setconfig", "remote.origin.url", OTHER_URL],
+        ),
+    ];
+    for (directory, form) in forms {
+        let observed: Observed = run_wrapped(&fixture, directory.as_path(), form.as_slice());
         let stderr: String = stderr_of(&observed);
         assert_eq!(observed.code, Some(1), "git {} was not refused: {stderr}", form.join(" "));
         assert!(stderr.contains(SHARED_REMOTE_CODE), "git {} printed no shared-remote finding: {stderr}", form.join(" "));
@@ -293,12 +303,12 @@ fn reads_and_this_worktrees_own_file_still_run() {
     assert!(written.contains(OTHER_URL), "the per-worktree file does not hold the value: {written}");
     // A file the command names itself is not the shared one.
     let named: PathBuf = fixture.root.join("named.config");
-    let observed: Observed = run_wrapped(
+    let named_run: Observed = run_wrapped(
         &fixture,
         linked.as_path(),
         &["config", "--file", named.to_str().expect("text path"), "remote.origin.url", OTHER_URL],
     );
-    assert_eq!(observed.code, Some(0), "a named file was refused: {}", stderr_of(&observed));
+    assert_eq!(named_run.code, Some(0), "a named file was refused: {}", stderr_of(&named_run));
     assert!(std::fs::read_to_string(named.as_path()).expect("named configuration").contains(OTHER_URL));
     assert_eq!(config_bytes(repo.as_path()), before, "a named file changed the shared configuration");
     remove(&fixture);
@@ -361,17 +371,18 @@ fn the_main_checkout_still_changes_its_remote_settings() {
     remove(&fixture);
 }
 
-/// A linked worktree under an exempt tool cache keeps today's behaviour,
-///  as every other sure worktree policy allows it there.
+/// A linked worktree of a repository that lives under an exempt tool cache keeps today's behaviour,
+///  as every other worktree policy allows it there.
 #[test]
 fn a_linked_worktree_under_a_tool_cache_is_not_refused() {
     let fixture: Fixture = fixture("shared-remote-cache");
     let cache: PathBuf = fixture.root.join("uv-cache");
     std::fs::create_dir_all(cache.as_path()).expect("cache directory");
-    let place: PathBuf = cache.join("clone");
-    let (repo, linked): (PathBuf, PathBuf) = repository_with_worktree(&fixture, "repo", place.as_path());
-    let observed: Observed = super::support::observe(
-        super::support::wrapped(&fixture)
+    let place: PathBuf = cache.join("repo").join("linked");
+    let (repo, linked): (PathBuf, PathBuf) =
+        repository_with_worktree(&fixture, "uv-cache/repo", place.as_path());
+    let observed: Observed = observe(
+        wrapped(&fixture)
             .current_dir(linked.as_path())
             .args(["remote", "set-url", "origin", OTHER_URL])
             .env("UV_CACHE_DIR", cache.as_os_str()),

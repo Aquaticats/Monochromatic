@@ -141,6 +141,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.remote_guess_creates_branch(target);
     }
 
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        return self.inner.main_worktree_root();
+    }
+
     fn candidates(&mut self, request: &CandidateRequest) -> Result<PreparedCandidates, CandidateError> {
         let context: GitContext = self.inner.transaction_context();
         let mut overlay: Vec<(OsString, OsString)> = context.overlay.clone();
@@ -198,6 +202,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
         return (**self).remote_guess_creates_branch(target);
+    }
+
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        return (**self).main_worktree_root();
     }
 
     fn candidates(&mut self, request: &CandidateRequest) -> Result<PreparedCandidates, CandidateError> {
