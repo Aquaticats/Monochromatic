@@ -101,7 +101,7 @@ type RawRunScanState = {
  
  @example
  ```ts
- rawCommandWordRuns({ source: 'cd x && bun test "', }); // [['cd', 'x'], ['bun', 'test', '"']]
+ rawCommandWordRuns({ source: 'cd x && bun test "', }); // [['cd', 'x'], ['bun', 'test']]
  ```
  */
 function rawCommandWordRuns({ source, }: { readonly source: string; },): readonly (readonly string[])[] {

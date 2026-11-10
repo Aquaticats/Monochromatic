@@ -49,7 +49,7 @@ const BUN_TEST_BAN_REASON: string = [
  
  A command the parser rejects is read from its raw words instead of answering "no":
  the visible text is the only evidence there is, and a guard that reads nothing from an
- unparsable command lets `bun test "\`unterminated\`"` through.
+ unparsable command lets `bun test "unterminated` through.
  
  @param command - shell command from agent harness Bash tool input
  
