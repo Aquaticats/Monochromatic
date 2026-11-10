@@ -377,20 +377,40 @@ async function callsBeforeDeclarations(file: string,): Promise<readonly string[]
  ```
  */
 async function outOfOrderCalls(): Promise<readonly string[]> {
-  return (
-    await Promise.all((await productModules()).map(
-      async function scan(file,) {
-        return { file, reports: await callsBeforeDeclarations(file,), };
-      },
-    ),)
-  ).flatMap(function toReports(module,) {
-    return module.reports.map(function withFile(report,) {
-      return report;
-    },);
-  },);
+  /**
+   One report list per module, gathered in parallel.
+   */
+  const perModule = await Promise.all((await productModules()).map(function scanModule(file,) {
+    return callsBeforeDeclarations(file,);
+  },),);
+  return perModule.flat();
+}
+
+/**
+ File name a report line belongs to.
+
+ @param report - one report line, which opens with the file name and a colon
+
+ @returns the file name before the first colon
+
+ @example
+ ```ts
+ reportFileName('index.ts:12 calls serve, declared at 40');
+ ```
+ */
+function reportFileName(report: string,): string {
+  return report.slice(
+    0,
+    report.indexOf(':',),
+  );
 }
 
 //endregion Helpers
+
+/**
+ Every out-of-order call in this package, scanned once for both guards.
+ */
+const OUT_OF_ORDER_CALLS: readonly string[] = await outOfOrderCalls();
 
 await describe({
   name: '',
@@ -404,14 +424,11 @@ await describe({
             /**
              Report lines whose module is not recorded as awaiting the reorder.
              */
-            const unrecorded = (await outOfOrderCalls()).filter(function isUnrecorded(report,) {
+            const unrecorded = OUT_OF_ORDER_CALLS.filter(function isUnrecorded(report,) {
               /**
-               File name a report line belongs to, which precedes its first colon.
+               File name a report line belongs to.
                */
-              const file = report.slice(
-                0,
-                report.indexOf(':',),
-              );
+              const file = reportFileName(report,);
               return !(MODULES_AWAITING_DECLARATION_ORDER.includes(file,));
             },);
 
@@ -425,11 +442,8 @@ await describe({
              Files that carry an out-of-order call.
              */
             const violating = new Set(
-              (await outOfOrderCalls()).map(function toFile(report,) {
-                return report.slice(
-                  0,
-                  report.indexOf(':',),
-                );
+              OUT_OF_ORDER_CALLS.map(function toFile(report,) {
+                return reportFileName(report,);
               },),
             );
             /**
