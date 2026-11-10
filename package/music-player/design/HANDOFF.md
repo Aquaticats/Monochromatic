@@ -3309,9 +3309,11 @@ the user as decisions;
    the design system's own faces,
    `Roboto Flex` for product text plus `Google Sans`,
   `Google Sans Text` and `Material Symbols`,
-   all served from
+   served from the page's own
   `_ds/material-design-3-design-system-503c3571-4db9-4b54-8695-7f53861f5059/tokens/fonts.css`.
   No page asks a font host.
+   The copy under `candidates/_ds/` carries the font assets as well,
+  since a candidate links that copy rather than traversing to the root one.
 - Every page renders with no network.
    React,
    ReactDOM and Babel stand beside the pages in
