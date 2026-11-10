@@ -58,8 +58,9 @@ const logger = tagged({ tag: 'pi-agent-settled-notification', },);
    await notifyAgentSettled({});
  }
  catch (error) {
-   if (error instanceof NotificationUnavailableError)
-     logger.warn(error.message);
+   if (!(error instanceof NotificationUnavailableError))
+     throw error;
+   logger.warn(error.message);
  }
  ```
  */
@@ -266,8 +267,9 @@ async function invokeDefaultNotification(
    await notifyAgentSettled({});
  }
  catch (error) {
-   if (error instanceof NotificationUnavailableError)
-     logger.warn(error.message);
+   if (!(error instanceof NotificationUnavailableError))
+     throw error;
+   logger.warn(error.message);
  }
  ```
  */
