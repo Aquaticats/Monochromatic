@@ -43,8 +43,8 @@ import {
   judge,
 } from './native-perf-judge.ts';
 import {
+  assertSamplesSucceededAndBoundsHeld,
   reportLine,
-  violationLine,
 } from './native-perf-lines.ts';
 import { collectEvidence } from './native-perf-evidence.ts';
 import { removeScratchRoot } from './native-perf-scratch.ts';
@@ -460,11 +460,8 @@ if (values.output !== undefined) {
 for (const entry of report) {
   console.log(reportLine(entry));
 }
-if (failures.length > 0) {
-  console.log(`FAILED samples: ${String(failures.length)}; first: ${JSON.stringify(failures[0])}`);
-  process.exitCode = 1;
-}
-for (const violation of violations) {
-  console.log(violationLine(violation));
-  process.exitCode = 1;
-}
+// A standard exit status is the throw's, so nothing assigns one here (PP6).
+assertSamplesSucceededAndBoundsHeld({
+  failures,
+  violations,
+});
