@@ -24,8 +24,12 @@ Warnings retain their yellow underline but lose the olive background fill.
 
 ## Compatibility
 
-Requires IntelliJ platform build 233 or later (2023.3+).
-Tested with WebStorm but works with any JetBrains IDE that ships the Islands Dark theme.
+Requires IntelliJ platform build 252 or later (2025.2+),
+the first line whose bundled themes include the Islands Dark theme this one
+overrides:
+the platform resolves a theme's parent by id,
+and that id is registered from 252 (see `doc/troubleshooting/intellij-scheme-colors-and-islands-theme-lines.md`).
+Tested with WebStorm.
 
 ## How it works
 

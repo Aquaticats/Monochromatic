@@ -39,7 +39,20 @@ pub(super) fn world(name: &str) -> World {
 ///  lock is given up,
 /// and the batch stays open for a restart,
 /// as after a build that ran out of space.
+/// The landing runs inside a landing of its own,
+/// as the service's loop runs every landing,
+/// so each record it writes is flushed by the background thread and not on this control's own thread:
+/// a host other sessions fill makes one flush wait for seconds,
+/// and this control's subject is the batch a killed landing leaves,
+/// not the disk.
 pub(super) fn land_with_failed_index(world: &World, seq: u64, requests: &[CommitRequest]) {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        land_with_failed_index_in_a_landing(world, seq, requests);
+    });
+}
+
+/// `land_with_failed_index` with the landing already begun by its caller.
+fn land_with_failed_index_in_a_landing(world: &World, seq: u64, requests: &[CommitRequest]) {
     crate::service_fault::hooks::fail_at("build-index");
     let outcomes = land_batch(&world.context, seq, requests).expect("the commits land whatever the index does");
     crate::service_fault::hooks::clear_failures();

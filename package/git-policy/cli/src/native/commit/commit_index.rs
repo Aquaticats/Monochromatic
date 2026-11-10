@@ -198,7 +198,8 @@ pub fn initialize_commit_index(
 /// in the order the selection mode needs.
 /// Why:
 ///   The copies and the staging are one step,
-/// and the refresh of the private index is the other one, after it
+/// and the refresh of the private index is the other one,
+/// after it
 /// (`initialize_commit_index`).
 /// `real_index_present` is asked by the caller before it makes an empty index for a repository that has none,
 /// because the file exists by the time this runs.

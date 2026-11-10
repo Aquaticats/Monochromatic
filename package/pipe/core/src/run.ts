@@ -1,17 +1,15 @@
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { prepareRun, } from './prepare-run.ts';
 
-import {
-  assertContiguousSteps,
-  assertNoOverflowStep,
-} from './run-steps.ts';
-
-import type {
-  RunArgs,
-  RunCallableArgs,
-} from './types.ts';
+import type { RunArgs, } from './types.ts';
 
 /**
  Applies synchronous pipeline steps with wide implementation types.
+ 
+ Its ladder and the one in {@link runPipeAsync} are hand-written twins, on purpose: both dispatch
+ the same arities with the same step labels, and the asynchronous side differs only by awaiting
+ each application, which no shared ladder can express without hiding an `await` behind a callback.
+ {@link prepareRun} owns the front half both sides share, so a change to the logger, the widening,
+ or the validation lands once; a change to an arity branch must be mirrored in {@link runPipeAsync}.
  
  Dispatches on the first absent `fnN` through an explicit if-chain of nested calls; no array
  indexing, no recursion. Argument validation runs before step execution so a gap or overflow logs
@@ -34,26 +32,10 @@ import type {
  */
 export function runPipe(args: RunArgs,): unknown {
   /**
-   Logger tagged at the synchronous core boundary.
-   */
-  const l = tagged(args.l === undefined
-    ? { tag: runPipe.name, }
-    : {
-      tag: runPipe.name,
-      l: args.l,
-    },);
-  l.debug('entry',);
-
-  /* oxlint-disable typescript/no-unsafe-type-assertion -- widen each step's `never` input to `unknown` for application; RunCallableArgs preserves `this: void`, so this is parameter-variance widening only and the typed overloads remain the type-safe public surface */
-  /**
-   Callable arguments with step inputs widened for internal invocation.
-   */
-  const callableArgs = args as RunCallableArgs;
-  /* oxlint-enable typescript/no-unsafe-type-assertion */
-  /**
-   Callable value and steps destructured so step functions are invoked without method-style `this`.
+   Prepared call: the tagged logger, the initial value, and the validated step slots.
    */
   const {
+    l,
     value,
     fn1,
     fn2,
@@ -64,31 +46,10 @@ export function runPipe(args: RunArgs,): unknown {
     fn7,
     fn8,
     fn9,
-    fn10,
-  } = callableArgs;
-  /**
-   Ordered step slots used only for runtime contiguity validation.
-   */
-  const steps = [
-    fn1,
-    fn2,
-    fn3,
-    fn4,
-    fn5,
-    fn6,
-    fn7,
-    fn8,
-    fn9,
-  ] as const;
-
-  try {
-    assertNoOverflowStep(fn10,);
-    assertContiguousSteps(steps,);
-  }
-  catch (error) {
-    l.error(`invalid pipe arguments: ${String(error,)}`,);
-    throw error;
-  }
+  } = prepareRun({
+    args,
+    tag: runPipe.name,
+  },);
 
   try {
     if (fn2 === undefined) {
@@ -192,6 +153,10 @@ export function runPipe(args: RunArgs,): unknown {
 /**
  Applies asynchronous pipeline steps with wide implementation types.
  
+ Its ladder and the one in {@link runPipe} are hand-written twins, and that declaration states the
+ arrangement: both dispatch the same arities with the same step labels and must move together, and
+ {@link prepareRun} owns the front half both sides share.
+ 
  Awaits the initial value first (so a `T | Promise<T>` is accepted), awaits every intermediate
  before the next step so steps run strictly sequentially, and awaits the final application so a
  last-step rejection stays inside the execution `try` and is logged before it propagates.
@@ -214,26 +179,10 @@ export function runPipe(args: RunArgs,): unknown {
  */
 export async function runPipeAsync(args: RunArgs,): Promise<unknown> {
   /**
-   Logger tagged at the asynchronous core boundary.
-   */
-  const l = tagged(args.l === undefined
-    ? { tag: runPipeAsync.name, }
-    : {
-      tag: runPipeAsync.name,
-      l: args.l,
-    },);
-  l.debug('entry',);
-
-  /* oxlint-disable typescript/no-unsafe-type-assertion -- widen each step's `never` input to `unknown` for application; RunCallableArgs preserves `this: void`, so this is parameter-variance widening only and the typed overloads remain the type-safe public surface */
-  /**
-   Callable arguments with step inputs widened for internal invocation.
-   */
-  const callableArgs = args as RunCallableArgs;
-  /* oxlint-enable typescript/no-unsafe-type-assertion */
-  /**
-   Callable value and steps destructured so step functions are invoked without method-style `this`.
+   Prepared call: the tagged logger, the possibly promised value, and the validated step slots.
    */
   const {
+    l,
     value,
     fn1,
     fn2,
@@ -244,31 +193,10 @@ export async function runPipeAsync(args: RunArgs,): Promise<unknown> {
     fn7,
     fn8,
     fn9,
-    fn10,
-  } = callableArgs;
-  /**
-   Ordered step slots used only for runtime contiguity validation.
-   */
-  const steps = [
-    fn1,
-    fn2,
-    fn3,
-    fn4,
-    fn5,
-    fn6,
-    fn7,
-    fn8,
-    fn9,
-  ] as const;
-
-  try {
-    assertNoOverflowStep(fn10,);
-    assertContiguousSteps(steps,);
-  }
-  catch (error) {
-    l.error(`invalid pipe arguments: ${String(error,)}`,);
-    throw error;
-  }
+  } = prepareRun({
+    args,
+    tag: runPipeAsync.name,
+  },);
 
   try {
     if (fn2 === undefined) {

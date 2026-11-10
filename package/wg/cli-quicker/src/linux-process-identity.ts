@@ -1,6 +1,9 @@
 import { readFile, } from 'node:fs/promises';
 
-import { BypassRouteError, } from './errors.ts';
+import {
+  BypassRouteError,
+  isErrnoException,
+} from './errors.ts';
 
 /**
  Sentinel representing process absent from procfs.
@@ -20,24 +23,6 @@ export type LinuxProcessIdentity = {
  Zero-based start-time offset after proc stat command field.
  */
 const PROC_START_TIME_OFFSET = 19;
-
-/**
- Narrows caught value to Node filesystem error.
- 
- @param error - Caught value.
- 
- @returns Whether value carries error code.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' }); // true
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error);
-}
 
 /**
  Parses proc stat fields after parenthesized command name.
