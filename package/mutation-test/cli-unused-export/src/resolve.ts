@@ -10,6 +10,8 @@
 
 import { posix, } from 'node:path';
 
+//region Specifier markers
+
 /**
  Workspace package scope every internal import starts with.
  */
@@ -21,6 +23,10 @@ const WORKSPACE_SCOPE = '@monochromatic-dev/';
  visible to reference counting.
  */
 const DIST_MARKER = '/dist/final/';
+
+//endregion Specifier markers
+
+//region Candidate probing
 
 /**
  Returns the first candidate present among analyzable sources.
@@ -50,6 +56,10 @@ function firstPresent({
   }
   return null;
 }
+
+//endregion Candidate probing
+
+//region Resolver
 
 /**
  Creates the yuku-analyzer resolver for one discovered workspace.
@@ -183,3 +193,5 @@ export function workspaceResolver({
     },);
   };
 }
+
+//endregion Resolver

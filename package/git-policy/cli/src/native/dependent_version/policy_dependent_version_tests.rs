@@ -17,7 +17,7 @@
 #![cfg(unix)]
 
 /// Import the check under test.
-use super::check_dependent_version;
+use super::DependentCheck;
 /// The modes a correction keeps.
 use crate::candidate_object::CandidateMode;
 /// What a lifecycle asks the candidate layer for.
@@ -51,6 +51,28 @@ use std::rc::Rc;
 /// The dependencies block of a manifest that names one workspace package.
 fn dependency_block(depended: &str) -> String {
     return format!(",\n  \"dependencies\": {{\n    \"{depended}\": \"workspace:*\"\n  }}");
+}
+
+/// The check as a direct command runs it:
+///  no forwarded commit and no real index.
+/// Why:
+///  Every control here but the commit path's own is a direct command,
+///  and one wrapper
+///       keeps that fact out of each call.
+fn check_dependent_version(
+    content: &mut ContentState,
+    lifecycle: &LifecycleContent,
+    facts: &mut ScriptedFacts,
+    trigger: Trigger,
+) -> PolicyOutcome {
+    return super::check_dependent_version(DependentCheck {
+        content,
+        lifecycle,
+        facts,
+        trigger,
+        forwards_commit: false,
+        real_index: None,
+    });
 }
 
 /// A manifest as two-space JSON with a final newline.
@@ -349,7 +371,9 @@ fn broken_manifest(repo: &Path) {
     write(repo, &path_of("b"), "{ \"name\": \"@s/b\",\n");
 }
 
-/// Give `@s/b` a version the patch bump does not support.
+/// Give `@s/b` a version the patch bump does not support,
+///  committed alone,
+///  so it is not raised itself.
 fn prerelease_dependent(repo: &Path) {
     write(
         repo,
@@ -357,7 +381,10 @@ fn prerelease_dependent(repo: &Path) {
         &manifest("@s/b", "2.0.0-rc.1", Some("@s/a")),
     );
     git(repo, &["add", path_of("b").as_str()]);
-    git(repo, &["commit", "--quiet", "--message=prerelease"]);
+    git(
+        repo,
+        &["commit", "--quiet", "--message=prerelease", "--", path_of("b").as_str()],
+    );
 }
 
 /// Make `@s/b`'s worktree copy unreadable.
@@ -550,4 +577,183 @@ fn a_fix_without_a_location_reports_it() {
         }
     );
     remove(root.as_path());
+}
+
+/// The lifecycle content of a commit that names `paths`,
+/// and the real index it read them from.
+fn commit_naming(repo: &Path, paths: &[&str]) -> (LifecycleContent, PathBuf) {
+    let head: String = String::from_utf8_lossy(
+        crate::test_support::git(repo, &["rev-parse", "HEAD"])
+            .stdout
+            .as_slice(),
+    )
+    .trim()
+    .to_string();
+    let base = crate::candidate_object::parse_object_id(head.as_bytes()).expect("a commit name");
+    let pathspecs: Vec<OsString> = paths
+        .iter()
+        .map(|path: &&str| return OsString::from(format!(":(top,literal){path}")))
+        .collect();
+    return (
+        LifecycleContent::Requested(CandidateRequest::StagedAtBase {
+            base: Some(base),
+            pathspecs,
+        }),
+        repo.join(".git/index"),
+    );
+}
+
+/// One commit-path check after `change`,
+/// its outcome and the corrections it proposed.
+fn committed(
+    name: &str,
+    change: fn(&Path),
+    paths: &[&str],
+) -> (PolicyOutcome, Vec<Correction>) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = workspace(root.as_path());
+    let (lifecycle, real_index): (LifecycleContent, PathBuf) =
+        commit_naming(repo.as_path(), paths);
+    // The commit's selection: the raised manifest, which every control below names.
+    git(repo.as_path(), &["add", "--", path_of("a").as_str()]);
+    change(repo.as_path());
+    let mut facts: ScriptedFacts = facts_in(repo.as_path());
+    let mut content: ContentState = ContentState::new();
+    let outcome: PolicyOutcome = super::check_dependent_version(DependentCheck {
+        content: &mut content,
+        lifecycle: &lifecycle,
+        facts: &mut facts,
+        trigger: Trigger::PreForward,
+        forwards_commit: true,
+        real_index: Some(real_index.as_path()),
+    });
+    let proposals: Vec<Correction> = content.take_proposals();
+    remove(root.as_path());
+    return (outcome, proposals);
+}
+
+/// Leave every copy as `HEAD` holds it but the raised manifest the commit names.
+fn nothing(_repo: &Path) {}
+
+/// A commit proposes one bump per dependent while every copy of its manifest holds the file
+/// the bump was computed against,
+/// so the hand bump and its ripple land together.
+#[test]
+fn a_commit_proposes_every_clean_dependent() {
+    let (outcome, proposals) = committed(
+        "dependent-commit-clean",
+        nothing,
+        &[path_of("a").as_str()],
+    );
+    assert_eq!(
+        outcome,
+        PolicyOutcome::Findings(vec![
+            stale("b", "2.0.0", "2.0.1"),
+            stale("c", "3.0.0", "3.0.1"),
+        ])
+    );
+    assert_eq!(
+        proposals,
+        vec![bump("b", "2.0.0", "2.0.1"), bump("c", "3.0.0", "3.0.1")]
+    );
+}
+
+/// A commit leaves out only the dependent whose copies hold something the commit does not
+/// carry:
+/// it proposes the rest,
+/// names the file it left alone,
+/// and states the reason,
+/// so nothing is overwritten and the commit still lands.
+#[test]
+fn a_commit_names_the_dependent_it_leaves_behind() {
+    let (outcome, proposals) = committed(
+        "dependent-commit-kept",
+        unstaged_edit,
+        &[path_of("a").as_str()],
+    );
+    let PolicyOutcome::FindingsWithNotes { findings, notes } = outcome else {
+        panic!("a note is expected beside the findings, got {outcome:?}");
+    };
+    assert_eq!(findings, vec![stale("c", "3.0.0", "3.0.1")]);
+    assert_eq!(proposals, vec![bump("c", "3.0.0", "3.0.1")]);
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].path, Some(EventPath::display(&path_of("b"))));
+    assert_eq!(
+        notes[0].message,
+        crate::policy_added_path::commit_added_path_message(
+            &path_of("b"),
+            "@s/b",
+            "2.0.0",
+            "2.0.1",
+            "its worktree copy has unstaged changes"
+        )
+    );
+}
+
+/// A ripple the planner cannot judge costs the commit its report and never its landing:
+/// the reason is a note,
+/// no finding and no correction,
+/// and the pass goes on.
+#[test]
+fn a_commit_reports_what_it_cannot_judge_instead_of_failing() {
+    for (name, change, cause) in [
+        (
+            "dependent-commit-no-registry",
+            no_registry_configuration as fn(&Path),
+            "the publish set of package/config/pnpr/config.yaml cannot be read",
+        ),
+        (
+            "dependent-commit-empty-publish-set",
+            empty_publish_set as fn(&Path),
+            "the publish set of package/config/pnpr/config.yaml cannot be read",
+        ),
+    ] {
+        let (outcome, proposals) =
+            committed(name, change, &[path_of("a").as_str()]);
+        let PolicyOutcome::FindingsWithNotes { findings, notes } = outcome else {
+            panic!("a note is expected for {name}, got {outcome:?}");
+        };
+        assert_eq!(findings, Vec::<PolicyFinding>::new(), "{name}");
+        assert_eq!(proposals, Vec::<Correction>::new(), "{name}");
+        assert_eq!(notes.len(), 1, "{name}");
+        assert!(notes[0].message.contains(cause), "{name}: {}", notes[0].message);
+    }
+}
+
+/// A dependent whose version cannot be bumped automatically is named and left alone;
+///  a
+/// commit never stops for it.
+#[test]
+fn a_commit_names_a_dependent_it_cannot_bump() {
+    let root: PathBuf = fixture("dependent-commit-unsupported");
+    let repo: PathBuf = workspace(root.as_path());
+    // `@s/b`'s unsupported version sits in `HEAD`, so the dependent is stale rather than raised itself.
+    prerelease_dependent(repo.as_path());
+    let (lifecycle, real_index): (LifecycleContent, PathBuf) =
+        commit_naming(repo.as_path(), &[path_of("a").as_str()]);
+    git(repo.as_path(), &["add", "--", path_of("a").as_str()]);
+    let mut facts: ScriptedFacts = facts_in(repo.as_path());
+    let mut content: ContentState = ContentState::new();
+    let outcome: PolicyOutcome = super::check_dependent_version(DependentCheck {
+        content: &mut content,
+        lifecycle: &lifecycle,
+        facts: &mut facts,
+        trigger: Trigger::PreForward,
+        forwards_commit: true,
+        real_index: Some(real_index.as_path()),
+    });
+    let proposals: Vec<Correction> = content.take_proposals();
+    remove(root.as_path());
+    let PolicyOutcome::FindingsWithNotes { findings, notes } = outcome else {
+        panic!("a note is expected, got {outcome:?}");
+    };
+    assert_eq!(findings, Vec::<PolicyFinding>::new());
+    assert_eq!(proposals, Vec::<Correction>::new());
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].path, None);
+    assert!(
+        notes[0].message.contains("@s/b"),
+        "{}",
+        notes[0].message
+    );
 }

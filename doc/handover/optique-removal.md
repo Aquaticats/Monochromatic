@@ -81,8 +81,18 @@ Do not edit,
 move,
 or absorb that work into this migration.
 Optique catalog and lockfile entries may therefore remain while cli-git still needs them.
+Since cli-git dropped Optique (2026-07-15 `be3c522375` dropped it from the management facade),
+the entries remain only for the thirteen manifests listed here and the paused consumer,
+so no outside dependency holds them open.
 Success is no Optique dependency or import outside cli-git,
 not zero repository-wide string matches.
+
+Re-measured 2026-11-10 at `ac6f5822b1`:
+same thirteen manifests,
+same twenty-one consumer files,
+and `package/git-policy/cli/` holds no Optique reference in its manifest or source.
+`package/mutation-test/cli/` still declares both packages with zero imports,
+so it is removable without waiting on the parser design.
 
 ## Current result-shape proposal
 

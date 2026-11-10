@@ -24,12 +24,12 @@ ucore-hci (immutable, rpm-ostree, Fedora CoreOS base)
 
 Two artifacts define the entire environment:
 
-1. **Custom container image** (`Containerfile` + TypeScript orchestration in `src/build-and-import.ts`):
-    OS layer,
-    rarely changes
-2. **First-login provisioner** (file-enforcer config in this monorepo):
-    user layer,
-    changes often
+1.  **Custom container image** (`Containerfile` + TypeScript orchestration in `src/build-and-import.ts`):
+     OS layer,
+     rarely changes
+2.  **First-login provisioner** (file-enforcer config in this monorepo):
+     user layer,
+     changes often
 
 ## Decisions made
 

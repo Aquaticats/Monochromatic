@@ -216,9 +216,15 @@ Read-only commands,
   (measured with Git 2.56.0,
   `src/native/landing/service_index_unheld_removal.rs`);
   widening the removal to such locks is the owner's to decide.
-- A record from another PID namespace that is older than 20 minutes (`FOREIGN_OWNER_PATIENCE`) is never taken over (the owner,
-   2026-11-04:
+- A record from another PID namespace that is older than two minutes (`FOREIGN_OWNER_PATIENCE`) is never taken over (the owner,
+  2026-11-04:
   "Refuse and name it (Recommended)").
+  The owner chose the two minutes (2026-11-10:
+  "Two minutes (Recommended)"),
+  which is twice the one minute a merge waits for another program's `index.lock`;
+  the record's age is
+   the whole hold of its owner,
+  so a hold that runs longer is refused as this paragraph says instead of being waited for.
   A merge recovery,
   a conversion claim or a worktree add that finds one stops with an
    error that names the record file,
@@ -382,6 +388,12 @@ Read-only commands,
    `mono/dependent-version-bump`,
    `mono/catalog-specifiers` and
   `security/forbidden-strings` check or rewrite what a commit contains.
+  One of them adds content:
+   a hand-raised workspace manifest makes `mono/dependent-version-bump` bump every dependent it reaches
+   and put those manifests in the same commit,
+   and the worktree copies follow the committed bytes while they still hold what the bump was computed on.
+  A dependent whose copy holds anything else is left out of the commit and named on standard error,
+   so the commit lands and nobody's work is overwritten.
   The same content policies scan what a manual `git push` newly publishes.
 - After a landed commit.
   The wrapper checks the committed bytes again,
@@ -639,12 +651,8 @@ Read-only commands,
      other checkouts,
      caches
    and run records aside in a trash directory under `.claude/`,
-     and the add empties that trash before it returns,
-     deleting
-   only the directories the snapshot itself moved there (recorded with their identities) and never following a link.
-   Those directories are emptied side by side,
-     within the threads and memory the host allows,
-     beside the package repair.
+     and the add hands that trash to the commit service and returns
+   without waiting for it.
    A directory set aside whole is swept for those containers first,
      at any depth,
      a nested worktree and another checkout among them,
@@ -655,47 +663,73 @@ Read-only commands,
    Another command's stage container is not put in that trash at all:
      it is removed before the worktree is installed,
      so
-   nothing it holds is in the new worktree while an `git add --all` could stage it
-     (a container of 20,000 one-kilobyte
-   files takes about half a second to remove on this host,
+   those bytes never reach a worktree,
+     not even an ignored trash directory
+     (a container of 20,000 one-kilobyte files takes
+   about half a second to remove on this host,
      against a tenth of a millisecond to rename).
-   Nothing the leave-out set aside is left in the new worktree when the command ends:
-     a commit that stops ignoring
-   `.claude/cli-git-trash` would otherwise let `git add --all` stage another command's stage container,
-     credentials
-   included.
-   A trash an earlier add left in the source under `.claude/cli-git-trash` is moved into this add's trash,
-     so the
-   emptying that runs before this command returns covers it too,
-     whichever add made it:
-     a kill before that emptying otherwise
-   left another command's stage container to be carried into the next worktree,
-     where nothing would dispose of it.
+   A standing trash cannot be staged,
+     whatever the target commit ignores:
+     before the leave-out asks Git whether the
+   trash place is ignored,
+     the wrapper adds `/.claude/cli-git-trash/` to the repository's common `info/exclude`,
+     which
+   no commit writes.
+     Measured with Git 2.56.0:
+     a linked worktree reads that file and never its own worktree's,
+     `git add --all`
+   stages nothing of a trash standing there,
+     and a target commit that ignores nothing under `.claude/`,
+     or that tries to
+   re-include the trash parent,
+     does not change that.
+     A directory of that name outside the trash parent is no trash and is
+   never touched.
+     When that file cannot be read or written the question falls back to the rules the repository has,
+     and a
+   `false` answer removes the directories in the foreground instead.
+   The record the hand-over writes names the new worktree,
+     the common directory it is read from,
+     the trash and the
+   identities of everything moved into it,
+     and it sits under the common directory,
+     so one repository's service empties
+   its trashes one at a time whichever worktree holds each of them;
+     the claim the drain takes is the lease every other
+   kind of work already uses,
+     so no lock is added.
+     Each removal runs at I/O priority class `idle`,
+     the lowest Linux offers.
+   Unless `--quiet` is given the add prints one line saying how many directories were set aside,
+     which worktree
+   they were left out of,
+     and that the commit service empties them after the command returns.
+     A wake that fails is a warning
+   that names the worktree,
+     the trash and the record,
+     which still empties it when the repository's service next runs,
+     and
+   never the add's failure:
+     the worktree is whole either way.
+     A path that is not valid UTF-8 cannot be named by a record,
+   so the hand-over writes none and says so,
+     and only the person removes that trash.
+   A work item of kind `trash` that an
+   earlier release wrote is emptied by the same handler with the same checks,
+     so a repository that ran one keeps its promise,
+   and a trash an earlier add left in the source is moved into this add's trash and covered by its record.
+   A trash the service cannot empty is reported by the service with its reason and its record settles as failed;
+     every
+   later command run in that worktree,
+     unless its output is read by a program,
+     then names each directory in
+   `.claude/cli-git-trash` that no pending or claimed record accounts for,
+     with its path,
+     and deletes nothing.
    It does decline when a registered nested worktree holds a file the main checkout tracks.
-     A trash that cannot be
-   emptied is reported with its path and the reason,
-     the worktree is whole either way,
-     and the line says that nothing else will
-   empty it:
-     no work item names it,
-     only the person will remove it,
-     and it gives the `rm --recursive --force` command that does
-   when that command deletes exactly what the snapshot made.
-     It gives no removal command when the emptying kept something
-   (a directory the snapshot did not make under the recorded name,
-     an entry that changed,
-     or a file somebody put in the trash),
-     and names the path and the reason instead,
-     because removing that path recursively would delete what the emptying left alone.
-     A trash that could not be emptied stays there,
-   and the next command run in that worktree names it,
-     with its path;
-     the same command
-   names,
-     without deleting,
-     every directory in `.claude/cli-git-trash` that nothing will empty,
-     which is
-   one no record names and one only a record the service gave up on names.
+     A copy of the ignored state
+   leaves the trash parent out of its source as well,
+     so no copied worktree carries another command's trash.
      Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
    command:
@@ -932,6 +966,14 @@ An absolute path to the real Git,
  a GUI with an embedded Git library and direct
 libgit2 consumers bypass the wrapper completely,
  including its policies.
+
+There is no switch that forces one command or one repository through the native route,
+and no plan for one:
+the owner answered a request for such a switch (2026-11-10)
+with "No switch,
+/usr/bin/git is it (Recommended)".
+A person who wants a command to skip the wrapper's policies runs `/usr/bin/git` itself,
+which is the same way out that the paragraph above describes.
 
 ## Commands
 
@@ -2608,6 +2650,19 @@ Listing one with a severity is the only way to turn it on,
 - `mono/dependent-version-bump`:
    default `error`.
   Packages that depend on a package with a bumped version follow the bump.
+  A wrapped `git commit` of a hand-raised manifest carries its dependents' patch bumps in the same commit,
+   through the whole chain of dependents,
+   and brings their worktree copies to the committed bytes
+   while those copies still match `HEAD`.
+  A dependent whose worktree or index copy holds something else is left out of the commit and named on standard error,
+   with the reason and both remedies,
+   so the commit lands with the rest and nothing is overwritten.
+  A publish set the commit cannot read,
+   or a dependent whose version cannot be bumped automatically,
+   is named the same way;
+   a commit never fails over the ripple.
+  `git monochromatic-git-policy-cli check` and
+   `git monochromatic-git-policy-cli fix` report the same ripple for the worktree.
 - `mono/catalog-specifiers`:
    default `error`,
    no options.
@@ -2807,6 +2862,13 @@ Nothing the wrapper waits for waits for ever (owner,
 "nothing should ever wait forever or indefinitely"),
 and the
 wrapper never waits without saying so.
+A wait with no bound of the wrapper's own is a scratch `git commit` the kernel has taken:
+once the ceiling's `SIGKILL` reaches a process in uninterruptible sleep it cannot act on it,
+and the commit waits until the kernel releases the step,
+saying so in one line
+(owner,
+2026-11-10,
+"Keep waiting and say so").
 Every bound is in `src/native/service/wait_ceilings.rs` with its measurement,
 and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
@@ -3209,6 +3271,22 @@ Each line names what the command waits for,
    whose steps ran 26,256,
    36,651 and 171,383 ms,
    and the owner asked for each of them to be investigated.
+   A step the kernel does not release is waited for with no bound:
+   a process in uninterruptible sleep (state `D`,
+   a stalled disk or a file system that stopped answering)
+   cannot act on the `SIGKILL` until the call it is inside returns,
+   so one line names that `git commit` (its process),
+   says the stop was sent and the kernel has not released it,
+   says that nothing was committed and that the person's index and files are as they were,
+   and says the terminal stays there until the kernel lets go.
+   The owner chose that wait,
+   over leaving after a bound and failing the commit
+   (2026-11-10,
+   "Keep waiting and say so"),
+   as an exception to "nothing should ever wait forever or indefinitely";
+   the write-up is `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`.
+   The line is said only of a step that still reports that state one look interval after the signal,
+   so a step that acts on its stop in that interval is never said to be held.
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
   `service/wait_ceilings.rs`;
@@ -3428,6 +3506,16 @@ the commit service and their tests are expected to work under these conditions:
 - slow fsync and unusual filesystems;
 - DNS or mirror trouble,
   where the wrapper recovers or falls back instead of wedging.
+
+The wrapper's guarantees are those of one host.
+It supports one host per repository,
+and a checkout used from two machines is not protected:
+the owner answered a request to support a repository two hosts share (2026-11-10)
+with "Not supported (Recommended)".
+A command of another host counts as an owner of another PID namespace,
+so the wrapper judges it by the age of its record and not by its process number (see "What it does"),
+and the claims and leases of the commit service are compared by machine and boot identity,
+which tells a restarted host from a running one and never closes a race between two.
 
 ### Latency requirements
 
@@ -3678,6 +3766,12 @@ and a copy killed at any moment leaves nothing at a file's real name for the nex
 
 A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
 with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
+No command fills an existing worktree,
+and none is planned:
+the owner answered a request for one (2026-11-10)
+with "No,
+remove and add again",
+so removing the worktree and adding it again stays the remedy.
 The add's own record is written before real Git runs and is handed to the copy rather than dropped once the checkout is
 done,
 so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.
@@ -4004,6 +4098,15 @@ In a Rust test that is `.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0")`
 A test that has to see the prompt program start (the controls in `src/native/landing/service_push_retry_tests.rs`) points
 `SSH_ASKPASS` at a recorder that answers a name,
 so no window opens.
+
+### Controls that depend on timing
+
+WFR:
+ A control's verdict comes from the order of events:
+ release its fixture from the wait's own line,
+ never from a sleep whose passing only the host's speed decides.
+
+The same defect was fixed twice in the index-lock tests (`2b33c7bd32` and `35cd5ae7e5`).
 
 ### Git's own fsmonitor
 

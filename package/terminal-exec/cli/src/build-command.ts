@@ -8,6 +8,8 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ResolvedTerminal, } from './resolve.ts';
 
+//region Logger root
+
 /**
  Logger root for terminal-exec after removing the package log shim.
  
@@ -25,6 +27,10 @@ const l = tagged({
   tag: 'build-command',
   l: parentLogger,
 },);
+
+//endregion Logger root
+
+//region User option shape
 
 /**
  Options passed by the user to `xdg-terminal-exec`.
@@ -51,6 +57,10 @@ export type UserOptions = {
    */
   readonly command: readonly string[];
 };
+
+//endregion User option shape
+
+//region Argument token building
 
 /**
  Builds the token(s) for one terminal argument using the trailing-`=` convention.
@@ -85,6 +95,10 @@ function appendArg(
     value,
   ];
 }
+
+//endregion Argument token building
+
+//region Command building
 
 /**
  Builds the final command array from a resolved terminal and user options.
@@ -172,3 +186,5 @@ export function buildCommand({
   l.info(`final command: ${JSON.stringify(args,)}`,);
   return args;
 }
+
+//endregion Command building
