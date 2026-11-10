@@ -12,6 +12,14 @@ import {
 
 import { emptyOrThrow, } from '@monochromatic-dev/or-throw-core';
 
+/**
+ Caller-owned class with own enumerable fields, standing in for every domain
+ type whose keys must not be read as a container size.
+ */
+class SampleRecord {
+  readonly first = 1;
+}
+
 await describe({
   name: emptyOrThrow.name,
   children: [
@@ -50,6 +58,19 @@ await describe({
         expect(() => emptyOrThrow(true,)).toThrow('sized container',);
         expect(() => emptyOrThrow(1n,)).toThrow('sized container',);
         expect(() => emptyOrThrow(Symbol('non container symbol value',),)).toThrow('sized container',);
+      },
+    },),
+
+    it({
+      name: 'throws when an object is not a plain object',
+      fn: async () => {
+        expect(() => emptyOrThrow(new WeakSet(),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(new WeakMap(),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(new Date(),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(/a/,)).toThrow('sized container',);
+        expect(() => emptyOrThrow(Object(5,),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(Object('ab',),)).toThrow('sized container',);
+        expect(() => emptyOrThrow(new SampleRecord(),)).toThrow('sized container',);
       },
     },),
   ],
