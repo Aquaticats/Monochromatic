@@ -46,7 +46,7 @@ use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
-use crate::wait_ceilings::NEVER_ENDED_STEP_SLOW_AFTER;
+use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
 use crate::service_protocol::{
     FailureCode, RELEASE, ServiceMessage,
 };
@@ -185,6 +185,11 @@ pub struct ServeSettings {
     pub own_git_dir: Option<PathBuf>,
     /// How often the serving loop asks whether `own_git_dir` is still there.
     pub own_worktree_check: Duration,
+    /// How long the plan of the pushes waiting for a new try and the repositories an earlier service was woken for
+    /// are read for before the service starts without them
+    /// (`the_journal_restored_within`);
+    /// a control shortens it.
+    pub journal_restore_ceiling: Duration,
     /// What the service does when that directory is gone:
     /// the shipped one stops this service's own socket through the user manager
     ///  (`service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone`),
@@ -205,6 +210,7 @@ impl ServeSettings {
             place_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
+            journal_restore_ceiling: START_CEILING,
             own_units_stop: crate::service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone,
         };
     }
@@ -215,8 +221,8 @@ impl ServeSettings {
 /// a service that goes on
 ///  without its after-commit work never pushes the person's commits,
 /// while an ended service is started again by the manager.
-/// The plan and the watch are read by the caller,
-///  on its thread outside the runtime,
+/// The plan and the watch are read before this call,
+///  by a thread of their own (`the_journal_restored_within`),
 /// so the task starts with what the service that stopped last left and no storage wait of
 ///  that reading holds a worker.
 fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, push_retries: PushRetries, watch: ClaimWatch) {
@@ -237,6 +243,35 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
 ///  remembers (`DONE_RETAINED`),
 /// since a client that withdrew sends nothing more for its request.
 const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
+
+/// What:
+///  The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
+/// read from this instance's journal on a thread of its own,
+/// and nothing learned when that thread gives no answer within `ceiling`.
+/// Why:
+///   Both are storage: the plan is one file per waiting branch and the watch one file per repository,
+/// and a filesystem that stopped answering holds a read of either in the kernel with no end.
+/// The landing thread reads neither itself, so a journal that is slow delays the after-commit work and never
+///  the greeting of a client or the answer to a commit.
+/// A read that gives no answer leaves the service with nothing restored,
+///  which loses no commit: the plan only repeats a push the person's failure record already names,
+/// and the watch only saves a wake.
+fn the_journal_restored_within(ceiling: Duration, plan_directory: PathBuf, watch_directory: PathBuf, instance: Option<String>) -> (PushRetries, ClaimWatch) {
+    let restored = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
+        let retries: PushRetries = PushRetries::restored_from_environment(plan_directory.as_path());
+        let watch: ClaimWatch = ClaimWatch::restored(watch_directory.as_path(), instance.as_deref());
+        return (retries, watch);
+    });
+    return match restored {
+        Some(pair) => pair,
+        None => {
+            crate::service_warn!(
+                "the plan of the pushes waiting for a new try and the repositories an earlier service was woken for gave no answer within {ceiling:?}, so this service starts without them: a push that was waiting is planned again by the next round that names its branch, and the repositories of an earlier wake are looked at when a commit names them again"
+            );
+            (PushRetries::from_environment(), ClaimWatch::in_memory())
+        }
+    };
+}
 
 /// What:
 ///  Whether this service should stop serving because the worktree whose units are its own is gone.
@@ -309,11 +344,6 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     // The repositories this instance was woken for are kept in the journal the same way, so a restarted service looks at them.
     let watch_directory: PathBuf = context.journal.join(WATCH_DIRECTORY);
     let watch_instance: Option<String> = settings.instance.clone();
-    // The plan and the watch are read here, before the task that runs the loop starts, so that reading them is this thread's
-    //  and the loop's task begins with what a service that stopped last left.
-    let started_retries: PushRetries = PushRetries::restored_from_environment(plan_directory.as_path());
-    let started_watch: ClaimWatch = ClaimWatch::restored(watch_directory.as_path(), watch_instance.as_deref());
-    start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     // What:
     //  The acceptor starts here,
     // before the recovery of the batch an earlier service left open.
@@ -326,6 +356,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     // a connection accepted before the
     //  recovery is greeted and beaten every second,
     // so a slow recovery reads as a service that works.
+    // The plan and the watch of the after-commit work are read after this,
+    // and on a thread of their own,
+    // so a
+    //  journal that stopped answering delays them and never the greeting either.
     // A request that arrives
     //  meanwhile waits in the queue,
     // which only the landing thread reads,
@@ -346,6 +380,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             instance: settings.instance.clone(),
         },
     );
+    // The plan and the watch are read here, after the acceptor started and before the task that runs the loop starts, so the
+    //  loop's task begins with what a service that stopped last left and neither reading delays a client's greeting.
+    let (started_retries, started_watch): (PushRetries, ClaimWatch) = the_journal_restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
+    start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     let _reports = settle_open_batches(context, settings.instance.as_deref());
     // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.
     let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED);
@@ -604,3 +642,9 @@ mod own_worktree_tests;
 #[cfg(test)]
 #[path = "service_server_beats_while_recovering_tests.rs"]
 mod beats_while_recovering_tests;
+
+/// Controls for the greeting of a client while the journal of the after-commit work gives no answer stay out of the
+/// release executable.
+#[cfg(test)]
+#[path = "service_server_greets_before_the_journal_is_restored_tests.rs"]
+mod greets_before_the_journal_is_restored_tests;
