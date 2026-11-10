@@ -5,13 +5,15 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  type HostControlRun,
   hostControlLimitSeconds,
   hostControlTask,
-  judgeHostControlRun,
   measuredFullRunDate,
   measuredFullRunSeconds,
   requiredHostControls,
+} from './native-release-host-control-requirements.ts';
+import type { HostControlRun } from './native-release-host-control-run.ts';
+import {
+  judgeHostControlRun,
   runHostControlGate,
 } from './native-release-host-controls.ts';
 
@@ -119,28 +121,53 @@ function passingOutput({ extra = [], }: { readonly extra?: readonly string[]; } 
  A finished run judged by the gate.
 
  @param output - the run's captured output
- @param exitCode - the run's exit status
+ @param status - the status the run exited with
  @param timedOut - whether the deadline stopped it
  @returns the run
 
  @example
  ```ts
- run({ output: passingOutput(), exitCode: 0, timedOut: false });
+ run({ output: passingOutput(), status: 0, timedOut: false });
  ```
  */
 function run({
   output,
-  exitCode = 0,
+  status = 0,
   timedOut = false,
 }: {
   readonly output: string;
-  readonly exitCode?: number | null;
+  readonly status?: number;
   readonly timedOut?: boolean;
 }): HostControlRun {
   return {
-    exitCode,
+    ending: {
+      kind: 'exited',
+      status,
+    },
     output,
     timedOut,
+  };
+}
+
+/**
+ A run that the deadline stopped, which has no exit status.
+
+ @param output - the run's captured output
+ @returns the run
+
+ @example
+ ```ts
+ stopped({ output: passingOutput() });
+ ```
+ */
+function stopped({ output, }: { readonly output: string; }): HostControlRun {
+  return {
+    ending: {
+      kind: 'stopped',
+      signal: 'SIGKILL',
+    },
+    output,
+    timedOut: true,
   };
 }
 
@@ -159,25 +186,25 @@ await describe({
       children: [
         it({
           name: 'passes a run that holds every required control and the one line a btrfs host prints for a control that needs another filesystem',
-          fn: function passes() {
+          fn: async function passes() {
             const verdict = judgeHostControlRun(run({ output: passingOutput() }));
             expect(verdict.kind).toBe('green');
           },
         }),
         it({
           name: 'requires controls from more than one suite, so one binary passing is no evidence for the other',
-          fn: function bothSuites() {
+          fn: async function bothSuites() {
             expect(new Set(requiredSuites).size).toBeGreaterThan(1);
           },
         }),
         it({
           name: 'refuses a run whose test failed, naming the suite and the test',
-          fn: function failing() {
-            const failed = requiredHostControls[0];
+          fn: async function failing() {
+            const [failed] = requiredHostControls;
             if (failed === undefined)
               throw new Error('the gate requires no control, so this test checks nothing');
             const verdict = judgeHostControlRun(run({
-              exitCode: 1,
+              status: 1,
               output: [
                 passingOutput(),
                 failingLine(failed),
@@ -197,7 +224,7 @@ await describe({
         }),
         it({
           name: 'refuses a run that printed a control which did not run, quoting the line it printed',
-          fn: function notRun() {
+          fn: async function notRun() {
             const skipped = notRunLine({
               control: 'worktree-snapshot',
               reason: 'fixture root /btrfs/fixtures is on Ext4',
@@ -217,9 +244,9 @@ await describe({
         }),
         it({
           name: 'refuses a run that ended nonzero and printed no failing test, showing the run\'s last lines',
-          fn: function noFailureLine() {
+          fn: async function noFailureLine() {
             const verdict = judgeHostControlRun(run({
-              exitCode: 101,
+              status: 101,
               output: 'error: could not compile `monochromatic-git-policy-cli`',
             }));
             expect(verdict.kind).toBe('refused');
@@ -232,35 +259,33 @@ await describe({
         }),
         it({
           name: 'refuses a run that lacks one required control, naming the suite and the test that is missing',
-          fn: function missing() {
-            const missing = requiredHostControls[0];
-            if (missing === undefined)
+          fn: async function lacksOne() {
+            const [absent] = requiredHostControls;
+            if (absent === undefined)
               throw new Error('the gate requires no control, so this test checks nothing');
-            const verdict = judgeHostControlRun(run({
-              output: [
-                ...requiredHostControls.filter(function isNotTheMissingOne(control) {
-                  return control !== missing;
-                }).map(function line(control) {
-                  return passingLine(control);
-                }),
-              ].join('\n'),
-            }));
+            /**
+             The status lines of every required control but the absent one.
+             */
+            const printed = requiredHostControls
+              .filter(function isNotTheAbsentOne(control) {
+                return control !== absent;
+              })
+              .map(function line(control) {
+                return passingLine(control);
+              });
+            const verdict = judgeHostControlRun(run({ output: printed.join('\n') }));
             expect(verdict.kind).toBe('refused');
             if (verdict.kind !== 'refused')
               throw new Error('unreachable');
             const text = verdict.lines.join('\n');
-            expect(text).toContain(`${missing.suite} ${missing.test}`);
+            expect(text).toContain(`${absent.suite} ${absent.test}`);
             expect(text).toContain('not evidence');
           },
         }),
         it({
           name: 'refuses a run that the deadline stopped, quoting the limit and the full run it was sized from',
-          fn: function deadline() {
-            const verdict = judgeHostControlRun(run({
-              output: passingOutput(),
-              exitCode: null,
-              timedOut: true,
-            }));
+          fn: async function deadline() {
+            const verdict = judgeHostControlRun(stopped({ output: passingOutput() }));
             if (verdict.kind !== 'refused')
               throw new Error('a stopped run is not evidence');
             const text = verdict.lines.join('\n');
@@ -302,7 +327,7 @@ await describe({
               filters: [],
               runHostControls: async function runHostControls() {
                 return run({
-                  exitCode: 1,
+                  status: 1,
                   output: failingLine({
                     suite: 'monochromatic-git-policy-cli',
                     test: 'subvolume::a_control',
