@@ -497,29 +497,29 @@ task.ts(7,39): error TS6307: File '<root>/package/monorepo-task/cli/src/types.ts
 
 ### Verification
 
-On the 2026-11-10T04:45 tree
-(`9f42989137`),
-`mise run //package/<path>:lint:types` over ten packages returned exit code 0 for
-the five that passed without the probe
-(`package/claude-code-plugin/bash-output-filter`,
+On the 2026-11-10T04:52:20-05:00 tree
+(`337be7160a`),
+`mise run //package/<path>:lint:types` returned exit code 0 for all eight
+TypeScript packages sampled:
+`package/claude-code-plugin/bash-output-filter`,
+ `package/claude-code-plugin/terminal-title`,
+ `package/agent-harness-shared/truncate`,
+ `package/async-time/core`,
  `package/fs-path/core`,
- `package/linter/monochromatic-lint`,
  `package/logger/core.fuzz`,
- and `package/toml-edit/core`),
-and exit code 1 for the five that already failed without it
-(`package/ide/app`,
- `package/terminal/app`,
- `package/config/pnpr`,
- `package/forbidden-strings/cli`,
- `package/music-player/desktop-app`).
+ `package/toml-edit/core`,
+ and `package/env-local-json/core`.
 With `${configDir}/task.ts` added to the preset,
-`package/fs-path/core`,
-`package/logger/core.fuzz`,
- and `package/toml-edit/core`
-moved from exit code 0 to exit code 1 with the two codes above,
-and `package/claude-code-plugin/bash-output-filter` stayed at exit code 0,
+the four whose `task.ts` carries that import
+(`package/fs-path/core`,
+ `package/logger/core.fuzz`,
+ `package/toml-edit/core`,
+ and `package/env-local-json/core`)
+moved to exit code 1 with the two codes above,
+and the four without it stayed at exit code 0,
+including `package/claude-code-plugin/bash-output-filter`,
 whose `task.ts` declares no import.
-Reverting the preset returns every package to its earlier result.
+Reverting the preset returns every package to exit code 0.
 
 ## Narrowing not preserved inside function declarations
 
