@@ -8,5 +8,7 @@
   "include": [
     "bin/**/*.ts",
     "../cli/bin/**/*.ts",
+    // Reached through `../cli/bin/port-betterleaks.ts`, which imports the relaxation table from the scanner's src.
+    "../cli/src/**/*.ts",
   ],
 }
