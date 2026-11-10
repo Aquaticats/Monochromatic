@@ -51,7 +51,7 @@ const TAG: &str = "packageRepairPrewarmJob";
 const PROGRAM: &str = "cargo";
 
 /// Where a worktree keeps its own link to the toolchain's Cargo,
-/// relative to the worktree,
+/// relative to the worktree root,
 /// as the toolchain repair resolves `mpm-shadow`.
 const OWN_CARGO_LINK: &str = ".cache/toolchain-bin/cargo";
 
@@ -80,10 +80,12 @@ pub(crate) struct Fill {
 ///   The service is a user unit whose search path need not hold the toolchain the worktree's
 /// launchers name,
 /// and the worktree's own link is the one its commands use.
+/// The link sits at the worktree's root,
+/// so the caller passes the worktree root and not the workspace below it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const cargoFor = (root, environment) => findProgram('cargo', environment.path()) ?? (exists(join(root, OWN_CARGO_LINK)) ? join(root, OWN_CARGO_LINK) : undefined);
+/// const cargoFor = (worktreeRoot, environment) => findProgram('cargo', environment.path()) ?? (exists(join(worktreeRoot, OWN_CARGO_LINK)) ? join(worktreeRoot, OWN_CARGO_LINK) : undefined);
 /// ```
 fn cargo_for(root: &Path, environment: &RepairEnvironment) -> Option<PathBuf> {
     if let Some(found) = find_program(PROGRAM, environment.path()) {
@@ -466,10 +468,12 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
         Ok(decoded) => decoded,
         Err(reason) => return Verdict::Failed(reason),
     };
-    let Some(first) = entries.first() else {
+    if entries.is_empty() {
         return Verdict::Skipped(String::from("the record names no workspaces"));
-    };
-    let Some(cargo) = cargo_for(first.root.as_path(), environment) else {
+    }
+    // The worktree's own link to the toolchain's Cargo sits at the worktree's root, whatever workspace the first entry
+    //  names, so the record's repository is what the lookup starts from.
+    let Some(cargo) = cargo_for(item.repository.as_path(), environment) else {
         return Verdict::Failed(format!("no `{PROGRAM}` could be found to clean the copies with"));
     };
     let fill: Fill = Fill { cargo, limits: environment.limits() };
