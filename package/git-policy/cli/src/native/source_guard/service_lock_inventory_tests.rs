@@ -80,6 +80,7 @@ const REASON_MARKER: &str = "Lock kept:";
 /// and in `SPEC.md`.
 const INVENTORY: &[&str] = &[
     "service/journald_native.rs",
+    "commit/commit_build_part_durations.rs",
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
     "landing/service_index_prestage.rs",
