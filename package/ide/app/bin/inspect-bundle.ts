@@ -11,6 +11,7 @@ import { inflateSync } from 'node:zlib';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
+import { namesApplicationVersion } from './application-version-line.ts';
 import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
 import { loggedElapsedMicroseconds } from './logged-elapsed-time.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
@@ -357,7 +358,7 @@ const rewrittenPhrase = 'cached language parser differs from the embedded one; w
 checks['lone-copy-highlights'] = async () => {
   const application = loneCopy('lone');
   const version = spawnSync(application, ['--version'], { cwd: '/', env: {}, encoding: 'utf8' });
-  demand({ condition: version.status === 0 && /^monochromatic-ide \d+\.\d+\.\d+/.test(version.stdout), message: 'the copy did not report its version: ' + JSON.stringify([version.status, version.stdout, version.stderr]) });
+  demand({ condition: version.status === 0 && namesApplicationVersion(version.stdout), message: 'the copy did not report its version: ' + JSON.stringify([version.status, version.stdout, version.stderr]) });
   const cache = join(artifact, 'lone-home', 'cache');
   const { output, frame, settledAfter, ending } = await session({ name: 'lone-session', application, cache, config: join(artifact, 'lone-home', 'config') });
   const spans = spansOf({ output, what: 'the lone copy' });
