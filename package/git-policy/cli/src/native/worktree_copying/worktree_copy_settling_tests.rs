@@ -403,13 +403,66 @@ fn a_pipe_that_replaces_a_file_before_its_copy_is_left_out_without_waiting() {
             return copy_manifest_entries_with(wanted.0.as_path(), wanted.1.as_path(), wanted.2.as_slice(), changing_clone);
         },
     );
-    let Some(copied) = answered else {
+    let Some(staged) = answered else {
         panic!("the copy of cache/b.txt waited for a writer of the named pipe that replaced it and never came; opening a source entry for reading must not wait");
     };
-    let copied: CopiedManifest = copied.expect("a pipe where a file was listed is no failure of the copy");
+    let copied: CopiedManifest = staged.expect("a pipe where a file was listed is no failure of the copy");
     assert_eq!(copied.gone, vec![b"cache/b.txt".to_vec()], "the entry the pipe replaced is named as gone");
     assert!(!stage.join("cache/b.txt").exists(), "and nothing of it was staged");
     assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a is staged"), b"the first one\n", "its neighbour is copied as before");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
+///  A named pipe that replaced a source file before its copy is named by the staging pass that follows,
+/// and the staging
+///  answers instead of waiting for a writer that never comes.
+/// Why:
+///   The manifest walk refuses a named pipe,
+/// a socket and a device node before any of them is opened (SPEC,
+///  "Linked-worktree ignored-state synchronization"),
+/// because none of the three can be copied into a worktree;
+/// a name
+///  that became one between the listing and the copy is the same entry,
+/// so the pass that settles the stage
+///  reports it by its path rather than the copy waiting on an open.
+/// The add is refused with the entry named,
+/// which
+///  is the sentence a pipe in the source produced before this copy learned to skip the entry it
+///  cannot read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = await finishedWithinAt(PATIENCE, () => copyAndSettle(...A_PIPE_REPLACES_A_FILE)); expect(settled.unwrapErr().message).toContain('cache/b.txt'); expect(settled.unwrapErr().message).toContain('has unsupported filesystem type');
+/// ```
+#[cfg(unix)]
+#[test]
+fn staging_names_a_pipe_that_replaced_a_file_instead_of_waiting() {
+    let (held, root, source, stage, entries) = two_ignored_files("settling-pipe-named", A_PIPE_REPLACES_A_FILE);
+    let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) = (source.clone(), stage.clone(), entries.clone());
+    let answered: Option<Result<Settled, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
+        crate::parallel_test_support::PATIENCE,
+        move || {
+            return copy_and_settle(wanted.0.as_path(), wanted.1.as_path(), wanted.2);
+        },
+    );
+    let Some(outcome) = answered else {
+        panic!("the staging of the copy waited for a writer of the named pipe that replaced cache/b.txt and never came");
+    };
+    let failure: WorktreeCopyError = match outcome {
+        Ok(settled) => panic!(
+            "an entry no worktree can hold is named by the staging, and the staging answered with {} entries instead",
+            settled.entries.len()
+        ),
+        Err(failure) => failure,
+    };
+    assert!(
+        failure.0.contains("cache/b.txt") && failure.0.ends_with(" has unsupported filesystem type."),
+        "the refusal names the entry the pipe replaced: {}",
+        failure.0
+    );
+    assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a is staged"), b"the first one\n", "its neighbour was staged before the pass answered");
     drop(held);
     remove(root.as_path());
 }
