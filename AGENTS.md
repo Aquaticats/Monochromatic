@@ -719,8 +719,7 @@ RXS:
  `systemd-run --user --scope` with `CPUQuota`,
  `MemoryMax`,
  `TasksMax`,
- `IOWeight`;
- never set `IOWeight` above 10.
+ `IOWeight=1`.
 
 HXR:
  Commands that risk exhausting the host:
