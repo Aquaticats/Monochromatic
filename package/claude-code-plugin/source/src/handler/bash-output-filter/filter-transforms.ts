@@ -67,6 +67,8 @@ function shouldStripLine(line: string,): boolean {
 
 /**
  Minimum consecutive identical non-word, non-whitespace characters before collapsing.
+ Set above the nine-dash ASCII table border (`+---------+`), so borders survive,
+ while decorative separators (`====...====`, typically forty and more) still collapse.
  */
 const COLLAPSE_THRESHOLD = 10;
 
@@ -91,10 +93,11 @@ function isCollapseCandidate(c: string,): boolean {
 }
 
 /**
- Collapses runs of repeated characters beyond {@link MAX_REPEATED_CHARS}.
- Only collapses runs of {@link COLLAPSE_THRESHOLD}+ non-word, non-whitespace
- characters. Mirrors the original regex `([^\w\s])\1{9,}` without invoking
- the regex engine.
+ Collapses runs of repeated characters at or beyond {@link COLLAPSE_THRESHOLD}.
+ Only collapses runs of non-word, non-whitespace characters.
+ Each collapsed run becomes {@link MAX_REPEATED_CHARS} copies of its character,
+ followed by the run length.
+ Mirrors the original regex `([^\w\s])\1{9,}` without invoking the regex engine.
  
  @param line - line to process
  
@@ -103,7 +106,7 @@ function isCollapseCandidate(c: string,): boolean {
  @example
  ```ts
  collapseRepeatedChars('====================');
- // '==== (x20 repeated characters)'
+ // '=== (x20 repeated characters)'
  ```
  */
 function collapseRepeatedChars(line: string,): string {

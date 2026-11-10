@@ -31,9 +31,9 @@ const MAX_LINE_LENGTH = 500;
 const DEDUP_THRESHOLD = 3;
 
 /**
- Maximum consecutive repetitions of a single character before collapsing.
- Set high enough to preserve ASCII table borders (`+---------+` is 9 dashes)
- while catching decorative separators (`====...====` is typically 40+).
+ Characters a collapsed run keeps before its `(xN)` count.
+ A collapse replaces the whole run with this many of the character plus the count;
+ `collapseRepeatedChars` in `filter-transforms.ts` owns what counts as long enough to collapse.
  */
 const MAX_REPEATED_CHARS = 3;
 
