@@ -9,9 +9,25 @@
 
 import { dirname, } from 'node:path';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
+
 import type { Diagnostic, } from './nvim-client.ts';
+import { rootLogger, } from './log.ts';
 import { findAncestorWithFile, } from './oxlint-parse.ts';
 import { spawnOxlint, } from './oxlint-spawn.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site so a log line names the call that produced it.
+ */
+const lintRunnerLogger = tagged({
+  l: rootLogger,
+  tag: 'lint-runner',
+},);
+
+//endregion Logging
 
 //region Types: lint result shape
 
@@ -81,9 +97,11 @@ export async function runOxlint(
     filename: 'oxlint.config.ts',
   },);
   if (configDir === null) {
-    console.error(
-      '[mcp-nvim] Could not find oxlint.config.ts in any ancestor directory',
-    );
+    tagged({
+      tag: runOxlint.name,
+      l: lintRunnerLogger,
+    },)
+      .error('Could not find oxlint.config.ts in any ancestor directory',);
     return {
       diagnostics: new Map(),
       notes: [],

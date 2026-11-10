@@ -9,6 +9,7 @@
   "dependencies": {
     "@monochromatic-dev/hyperscript-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",
     "pdfjs-dist": "catalog:",
     "typesafe-i18n": "catalog:"

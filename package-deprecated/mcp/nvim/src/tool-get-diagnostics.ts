@@ -8,9 +8,12 @@
  */
 
 import type { ToolCallResult, } from '@monochromatic-dev/mcp-stdio';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
 import { dedupDiagnostics, } from './dedup.ts';
 import { formatDiagnostic, } from './format.ts';
 import { runOxlint, } from './lint-runner.ts';
+import { rootLogger, } from './log.ts';
 import {
   type Diagnostic,
   getAllDiagnostics,
@@ -22,6 +25,19 @@ import {
   formatNotes,
   modifiedCaveat,
 } from './tool-helpers.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site so a log line names the call that produced it.
+ */
+const getDiagnosticsLogger = tagged({
+  l: rootLogger,
+  tag: 'tool-get-diagnostics',
+},);
+
+//endregion Logging
 
 /**
  * Fetches current-buffer diagnostics from all Neovim instances,
@@ -181,15 +197,16 @@ export async function handleGetDiagnostics(): Promise<ToolCallResult> {
       },],
     };
   }
-  catch (err: unknown) {
+  catch (error: unknown) {
     /**
      * Surface-friendly error text for the MCP response; preserves `Error.message` when available, otherwise stringifies.
      */
-    const message = err instanceof Error ? err.message : String(err,);
-    console.error(
-      '[mcp-nvim] get_diagnostics failed:',
-      err,
-    );
+    const message = caughtValueText(error,);
+    tagged({
+      tag: handleGetDiagnostics.name,
+      l: getDiagnosticsLogger,
+    },)
+      .error(`get_diagnostics failed: ${message}`,);
     return {
       content: [{
         type: 'text',

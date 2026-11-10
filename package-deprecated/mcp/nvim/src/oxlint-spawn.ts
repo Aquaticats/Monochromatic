@@ -9,7 +9,10 @@
 
 import spawn from 'nano-spawn';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
+
 import type { Diagnostic, } from './nvim-client.ts';
+import { rootLogger, } from './log.ts';
 import { parseOxlintOutput, } from './oxlint-parse.ts';
 import type { OxlintJsonOutput, } from './oxlint-types.ts';
 
@@ -21,6 +24,19 @@ import type { OxlintJsonOutput, } from './oxlint-types.ts';
 const OXLINT_TIMEOUT_MS = 10_000;
 
 //endregion Constants
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site so a log line names the call that produced it.
+ */
+const oxlintSpawnLogger = tagged({
+  l: rootLogger,
+  tag: 'oxlint-spawn',
+},);
+
+//endregion Logging
 
 //region Process spawning: low-level oxlint invocation
 
@@ -80,7 +96,11 @@ export async function spawnOxlint({
     if (stdout.trim()
       .length
       === 0) {
-      console.error('[mcp-nvim] oxlint produced no output (exit code 0)',);
+      tagged({
+        tag: spawnOxlint.name,
+        l: oxlintSpawnLogger,
+      },)
+        .error('oxlint produced no output (exit code 0)',);
       return new Map();
     }
 
@@ -124,14 +144,22 @@ export async function spawnOxlint({
        * Exit code surfaced to the log when oxlint produced no diagnostics; `'unknown'` when nano-spawn omits the field.
        */
       const exitCode = 'exitCode' in err ? String(err.exitCode,) : 'unknown';
-      console.error(`[mcp-nvim] oxlint produced no output (exit code ${exitCode})`,);
+      tagged({
+        tag: spawnOxlint.name,
+        l: oxlintSpawnLogger,
+      },)
+        .error(`oxlint produced no output (exit code ${exitCode})`,);
       return new Map();
     }
     /**
      * Fallback error description used when the caught value isn't an oxlint result; covers spawn failures, timeouts, etc.
      */
     const message = err instanceof Error ? err.message : String(err,);
-    console.error(`[mcp-nvim] Failed to run oxlint: ${message}`,);
+    tagged({
+      tag: spawnOxlint.name,
+      l: oxlintSpawnLogger,
+    },)
+      .error(`Failed to run oxlint: ${message}`,);
     return new Map();
   }
 }

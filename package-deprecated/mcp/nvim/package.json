@@ -21,7 +21,9 @@
     "src"
   ],
   "devDependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/config-tsdown": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/mcp-stdio": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",

@@ -7,7 +7,10 @@
  * @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
 import { uniqueDiagnostics, } from './dedup.ts';
+import { rootLogger, } from './log.ts';
 import { getAllClients, } from './nvim-connection.ts';
 import {
   LUA_GET_ALL_DIAGNOSTICS,
@@ -17,6 +20,19 @@ import type {
   Diagnostic,
   FileDiagnostics,
 } from './nvim-types.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site so a log line names the call that produced it.
+ */
+const allDiagnosticsLogger = tagged({
+  l: rootLogger,
+  tag: 'nvim-client-all-diagnostics',
+},);
+
+//endregion Logging
 
 /**
  * Returns diagnostics across all buffers from all Neovim instances, grouped by file path.
@@ -39,7 +55,7 @@ export async function getAllDiagnostics(): Promise<FileDiagnostics[]> {
    * Per-instance file-grouped diagnostic lists; merged into a single path-keyed map below.
    */
   const instanceResults = await Promise.all(
-    nvimClients.map(async function queryInstance(nvim,) {
+    nvimClients.map(async function queryAllBuffers(nvim,) {
       try {
         /* oxlint-disable typescript-eslint/no-unsafe-type-assertion -- Neovim executeLua returns msgpack data matching our Lua query */
         /**
@@ -74,11 +90,12 @@ export async function getAllDiagnostics(): Promise<FileDiagnostics[]> {
           };
         },);
       }
-      catch (err: unknown) {
-        console.error(
-          '[mcp-nvim] Failed to query instance for all diagnostics:',
-          err,
-        );
+      catch (error: unknown) {
+        tagged({
+          tag: queryAllBuffers.name,
+          l: allDiagnosticsLogger,
+        },)
+          .error(`Failed to query instance for all diagnostics: ${caughtValueText(error,)}`,);
         return [];
       }
     },),

@@ -7,6 +7,9 @@
  * @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
+import { rootLogger, } from './log.ts';
 import { getAllClients, } from './nvim-connection.ts';
 import {
   LUA_GET_CURRENT_BUF_DIAGNOSTICS,
@@ -33,6 +36,19 @@ export type {
   FileDiagnostics,
 } from './nvim-types.ts';
 
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site so a log line names the call that produced it.
+ */
+const nvimClientLogger = tagged({
+  l: rootLogger,
+  tag: 'nvim-client',
+},);
+
+//endregion Logging
+
 //region Public API: query diagnostics and file info across all Neovim instances
 
 /**
@@ -56,7 +72,7 @@ export async function getDiagnostics(): Promise<Diagnostic[]> {
    * Per-instance diagnostic arrays; flattened before return so callers see one combined list.
    */
   const results = await Promise.all(
-    nvimClients.map(async function queryInstance(nvim,) {
+    nvimClients.map(async function queryCurrentBuffer(nvim,) {
       try {
         /* oxlint-disable typescript-eslint/no-unsafe-type-assertion -- Neovim executeLua returns msgpack data matching our Lua query */
         /**
@@ -73,11 +89,16 @@ export async function getDiagnostics(): Promise<Diagnostic[]> {
             return mapRawDiagnostic(d,);
           },);
       }
-      catch (err: unknown) {
-        console.error(
-          '[mcp-nvim] Failed to query instance for current buffer diagnostics:',
-          err,
-        );
+      catch (error: unknown) {
+        tagged({
+          tag: queryCurrentBuffer.name,
+          l: nvimClientLogger,
+        },)
+          .error(
+            `Failed to query instance for current buffer diagnostics: ${
+              caughtValueText(error,)
+            }`,
+          );
         return [];
       }
     },),
@@ -108,7 +129,7 @@ export async function getCurrentFiles(): Promise<CurrentFile[]> {
    * Per-instance current-file records or `null` when the instance failed; nulls are filtered out below.
    */
   const results = await Promise.all(
-    nvimClients.map(async function queryInstance(nvim,) {
+    nvimClients.map(async function queryCurrentFile(nvim,) {
       try {
         /* oxlint-disable typescript-eslint/no-unsafe-type-assertion -- Neovim executeLua returns msgpack data matching our Lua query */
         /**
@@ -128,11 +149,12 @@ export async function getCurrentFiles(): Promise<CurrentFile[]> {
           modified: ((typeof result.modified) === 'boolean') ? result.modified : false,
         };
       }
-      catch (err: unknown) {
-        console.error(
-          '[mcp-nvim] Failed to query instance for current file:',
-          err,
-        );
+      catch (error: unknown) {
+        tagged({
+          tag: queryCurrentFile.name,
+          l: nvimClientLogger,
+        },)
+          .error(`Failed to query instance for current file: ${caughtValueText(error,)}`,);
         return null;
       }
     },),

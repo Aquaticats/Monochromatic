@@ -8,9 +8,12 @@
  */
 
 import type { ToolCallResult, } from '@monochromatic-dev/mcp-stdio';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
 import { dedupDiagnostics, } from './dedup.ts';
 import { formatDiagnostic, } from './format.ts';
 import { runOxlint, } from './lint-runner.ts';
+import { rootLogger, } from './log.ts';
 import {
   type Diagnostic,
   type FileDiagnostics,
@@ -18,6 +21,19 @@ import {
 } from './nvim-client.ts';
 
 import { formatNotes, } from './tool-helpers.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site so a log line names the call that produced it.
+ */
+const getAllDiagnosticsLogger = tagged({
+  l: rootLogger,
+  tag: 'tool-get-all-diagnostics',
+},);
+
+//endregion Logging
 
 /**
  * Fetches all-buffer diagnostics from every Neovim instance,
@@ -127,15 +143,16 @@ export async function handleGetAllDiagnostics(): Promise<ToolCallResult> {
       },],
     };
   }
-  catch (err: unknown) {
+  catch (error: unknown) {
     /**
      * Surface-friendly error text for the MCP response; preserves `Error.message` when available, otherwise stringifies.
      */
-    const message = err instanceof Error ? err.message : String(err,);
-    console.error(
-      '[mcp-nvim] get_all_diagnostics failed:',
-      err,
-    );
+    const message = caughtValueText(error,);
+    tagged({
+      tag: handleGetAllDiagnostics.name,
+      l: getAllDiagnosticsLogger,
+    },)
+      .error(`get_all_diagnostics failed: ${message}`,);
     return {
       content: [{
         type: 'text',

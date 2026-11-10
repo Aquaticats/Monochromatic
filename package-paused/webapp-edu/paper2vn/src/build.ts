@@ -1,12 +1,12 @@
 /**
- * Build script: assembles the self-contained paper2vn HTML.
- *
- * Reads the bundled client JavaScript, the placeholder sprite manifest,
- * and the per-locale i18n bundle, then renders the HTML shell with
- * everything inlined so the output works from `file://` or any static host.
- *
- * Requires `mise run build:js:client` to have run first so
- * `dist/client/main.js` exists.
+ Build script: assembles the self-contained paper2vn HTML.
+ 
+ Reads the bundled client JavaScript, the placeholder sprite manifest,
+ and the per-locale i18n bundle, then renders the HTML shell with
+ everything inlined so the output works from `file://` or any static host.
+ 
+ Requires `mise run build:js:client` to have run first so
+ `dist/client/main.js` exists.
  */
 import {
   mkdir,
@@ -15,13 +15,22 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import { l as packageLogger, } from './log.ts';
 import { renderPage, } from './page.ts';
 import { renderStyles, } from './styles.ts';
 
-export {};
+/**
+ Logger for this build script, tagged below the package root logger.
+ */
+const l = tagged({
+  tag: 'build',
+  l: packageLogger,
+},);
 
 /**
- * Absolute path to this package's root directory
+ Absolute path to this package's root directory
  */
 const PACKAGE_DIR: string = new URL(
   '..',
@@ -30,7 +39,7 @@ const PACKAGE_DIR: string = new URL(
   .pathname;
 
 /**
- * Output directory for the generated single-file app
+ Output directory for the generated single-file app
  */
 const DIST_DIR = join(
   PACKAGE_DIR,
@@ -38,10 +47,10 @@ const DIST_DIR = join(
   'final',
 );
 
-console.error('[paper2vn] building...',);
+l.info('building...',);
 
 /**
- * Pre-bundled client SPA, produced by tsdown
+ Pre-bundled client SPA, produced by tsdown
  */
 const js = await readFile(
   join(
@@ -54,9 +63,9 @@ const js = await readFile(
 );
 
 /**
- * Sprite pack manifest read as raw text so it can be embedded as a
- * JSON island. Reading instead of importing keeps TS from inferring
- * the parsed-object shape.
+ Sprite pack manifest read as raw text so it can be embedded as a
+ JSON island. Reading instead of importing keeps TS from inferring
+ the parsed-object shape.
  */
 const spritePackManifest = await readFile(
   join(
@@ -70,12 +79,12 @@ const spritePackManifest = await readFile(
 );
 
 /**
- * Minified CSS stylesheet
+ Minified CSS stylesheet
  */
 const css = renderStyles();
 
 /**
- * Complete self-contained HTML document
+ Complete self-contained HTML document
  */
 const html = renderPage({
   css,
@@ -88,7 +97,7 @@ await mkdir(
   { recursive: true, },
 );
 /**
- * Final HTML output path inside the dist directory.
+ Final HTML output path inside the dist directory.
  */
 const outPath = join(
   DIST_DIR,
@@ -100,4 +109,4 @@ await writeFile(
   'utf8',
 );
 
-console.error(`[paper2vn] wrote ${outPath}`,);
+l.info(`wrote ${outPath}`,);
