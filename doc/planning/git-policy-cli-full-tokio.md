@@ -9675,14 +9675,21 @@ and no step of the loop runs storage on a worker:
   a failure on main that this branch inherits,
   not one it makes.
 - `native:clippy` on every target:
-  `Finished` of the `dev` profile in
-  48.08 s,
+  `Finished` of the `dev` profile in 16.09 s after the last change
+  (48.08 s on the run before it),
   after it refused two closures without `return` in
   `service_claim_watch.rs`,
   which are now one `holds` helper.
-- `//:lint:monochromatic-lint --max-warnings 0 package/git-policy/cli`
-  on this run's files:
-  LINT_RESULT.
+- `//:lint:monochromatic-lint --max-warnings 0` on this run's files and on
+  the whole `service` folder:
+  0 errors and 0 warnings,
+  after `format:monochromatic-lint` wrote the line breaks the prose rule
+  asked for in five of them,
+  the journal read moved into
+  `service/service_journal_restored_at_start.rs` because
+  `service_server.rs` had gone past the 300-code-line limit,
+  and two closures that captured nothing became loops in
+  `service_round.rs`.
 
 ### What is left
 
@@ -9708,15 +9715,23 @@ and no step of the loop runs storage on a worker:
   that job lasts,
   which is the cost of bounding the wait and is recorded here rather than
   measured.
-- The service did not stop answering because of a step this run moved,
-  as far as this run can tell.
-  The one path of this run that could have stopped it,
-  finding 3,
-  is a read on the landing thread before the acceptor starts,
-  which needs a journal that does not answer for the client to read
-  silence,
-  and today's live reports are a service under dozens of agents,
-  which the agent `commit-waiting-path-with-dozens-of-agents` measures.
+- Whether today's "the commit service stopped answering" comes from a step
+  this run moved is not answered here,
+  and this run says what it checked instead:
+  the greeting of a client needs a landing thread that is not inside a
+  storage read (finding 3,
+  which this run fixed),
+  and a beat needs a runtime worker that is not inside a storage call
+  (findings 4 and 5,
+  which this run fixed),
+  while the live reports are five re-asks in one commit under about fifty
+  agents,
+  where a landing thread that is merely slow,
+  or a client's own patience,
+  produces the same line with no stalled filesystem at all.
+  Distinguishing those needs the whole commit measured under that load,
+  which the agent `commit-waiting-path-with-dozens-of-agents` does,
+  and this run left it to that agent.
 
 ## Limits
 
