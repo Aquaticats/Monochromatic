@@ -75,6 +75,10 @@ pub mod merge_isolation_recovery;
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
 
+/// Whether the recovery of an interrupted merge may write the index now,
+/// and the clearing of a lock a killed Git left.
+pub mod merge_isolation_recovery_index_lock;
+
 /// Finishing a merge from its record:
 /// the install and the branch move,
 /// with the checks it needs.

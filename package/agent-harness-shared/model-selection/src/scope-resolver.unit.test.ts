@@ -60,7 +60,7 @@ await describe({
   children: [
     it({
       name: 'prefers live scope over argv',
-      fn: async function testLiveScopePrecedence() {
+      fn: async function testLiveScopePrecedence(): Promise<void> {
         const scope = await resolveEffectiveScope({
           ctx: {
             ...baseContext,
@@ -86,7 +86,7 @@ await describe({
     },),
     it({
       name: 'uses argv scope before settings',
-      fn: async function testArgvScope() {
+      fn: async function testArgvScope(): Promise<void> {
         const scope = await resolveEffectiveScope({
           ctx: baseContext,
           argv: [
@@ -101,7 +101,7 @@ await describe({
     },),
     it({
       name: 'uses settings scope before available fallback',
-      fn: async function testSettingsScope() {
+      fn: async function testSettingsScope(): Promise<void> {
         await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-scope-test-',
@@ -143,7 +143,7 @@ await describe({
     },),
     it({
       name: 'falls back to all available models',
-      fn: async function testAvailableFallback() {
+      fn: async function testAvailableFallback(): Promise<void> {
         await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-scope-test-',

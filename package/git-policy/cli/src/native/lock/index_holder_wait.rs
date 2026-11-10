@@ -36,6 +36,10 @@
 //!  release between the look and the wait is not missed;
 //! where no watch can be set it looks again after a short pause.
 //!  It never removes a lock.
+//!  A merge that has nothing of itself in the checkout does not wait at all:
+//! one look at the lock decides whether a gone
+//!  process left it,
+//! and the command goes on either way (`look_at_the_index_lock_once`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -50,9 +54,9 @@ use crate::index_lock_evidence::{
 /// The sentence a merge's ceiling line ends on before its own apply.
 const MERGE_CONSEQUENCE: &str = "git merge stops waiting and reports what Git says";
 
-/// The sentence a merge's dead owner's line ends on:
-/// the merge clears such a lock when nothing else holds it and goes on.
-const MERGE_DEAD_ENDING: &str = "the merge clears that lock when nothing else holds it and goes on; if anything else holds it, nothing was changed and the lock was left in place";
+/// The sentence a command's dead owner's line ends on when nothing else holds the lock:
+/// the command clears it and goes on.
+pub const CLEARS_A_DEAD_OWNERS_LOCK: &str = "the merge clears that lock when nothing else holds it and goes on; if anything else holds it, nothing was changed and the lock was left in place";
 
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;
@@ -182,6 +186,58 @@ pub fn wait_for_index_release_within(real_index: &Path, command: &str, ceiling: 
     return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
 }
 
+/// What the one look at the index lock found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type IndexLook = { kind: 'free' } | { kind: 'held' } | { kind: 'left-by-a-gone-process'; pid: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IndexLook {
+    /// Nobody holds it.
+    Free,
+    /// A program holds it,
+    /// or nothing proves which:
+    /// either way a merge with nothing of itself in the checkout does not wait.
+    Held,
+    /// The PID file names a process that no longer runs,
+    /// so nothing will release it.
+    LeftByAGoneProcess(
+        /// The number the PID file holds.
+        i64,
+    ),
+}
+
+/// What:
+///  The index lock,
+/// looked at once and never waited for.
+/// Why:
+///  A merge that is saved on its record and its side ref has nothing of itself in the checkout,
+/// so a lock cannot be in
+///  its way:
+/// the next command finishes the merge once the lock is free.
+/// Waiting cost every command (a `git rev-parse HEAD`
+///  included) the whole ceiling again for as long as the lock stood,
+/// and a lock a killed Git left never goes by
+///  itself (finding 3 of the merge-and-pull audit of 2026-11-09).
+/// The holder is classified exactly as the wait
+///  classifies it,
+/// so a lock a gone process left is treated the same way by both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const look = lookAtTheIndexLockOnce(realIndex); // 'free' | 'held' | { leftByAGoneProcess: pid }
+/// ```
+pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
+    if std::fs::symlink_metadata(lock_path_of(real_index)).is_err() {
+        return IndexLook::Free;
+    }
+    return match look_at(real_index, &gather_here) {
+        Proof::Dead(pid) => IndexLook::LeftByAGoneProcess(pid),
+        Proof::Alive(..) | Proof::Nothing(_) => IndexLook::Held,
+    };
+}
+
 /// What:
 ///  The sentence that says what becomes of the command when a recovery's wait for a held index reaches its bound.
 /// Why:
@@ -193,7 +249,7 @@ pub fn wait_for_index_release_within(real_index: &Path, command: &str, ceiling: 
 /// ```ts
 /// const consequence = 'the interrupted merge stays unfinished and a later command finishes it once that program is done';
 /// ```
-const RECOVERY_CONSEQUENCE: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it once that program is done";
+pub const RECOVERY_CONSEQUENCE: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it once that program is done";
 
 /// What:
 ///  Wait while any program holds `index.lock` of `real_index`,
@@ -209,6 +265,9 @@ const RECOVERY_CONSEQUENCE: &str = "the interrupted merge stays unfinished, and 
 /// and only the outcome differs:
 ///  recovery writes nothing when the wait ends,
 /// and leaves the record for the next command.
+///  A lock a gone process left is cleared by recovery on the same proof the merge's own path acts on,
+/// so the line ends
+///  on the same promise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -219,12 +278,39 @@ pub fn wait_for_index_release_while_finishing_a_merge(real_index: &Path, out: &m
         real_index,
         "merge",
         RECOVERY_CONSEQUENCE,
-        DEAD_OWNER_LOCK_LEFT,
-        MERGE_LOCK_CEILING,
+        CLEARS_A_DEAD_OWNERS_LOCK,
+        recovery_ceiling(),
         Cadence::from_environment(),
         out,
         &Watch::on,
     );
+}
+
+/// What:
+///  The ceiling the recovery's wait for the index lock ends at.
+/// Why:
+///  A control about a holder that keeps the lock has to reach the ceiling,
+/// and waiting the shipping minute for every
+///  such control would add a minute to every test run;
+/// production reads `MERGE_LOCK_CEILING`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recoveryCeiling = () => SHORTENED?.get() ?? MERGE_LOCK_CEILING;
+/// ```
+fn recovery_ceiling() -> Duration {
+    #[cfg(test)]
+    if let Some(shortened) = RECOVERY_LOCK_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get) {
+        return shortened;
+    }
+    return MERGE_LOCK_CEILING;
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A shortened ceiling for the recovery's wait for the index lock,
+    /// so a control reaches it in a moment.
+    pub(crate) static RECOVERY_LOCK_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
 }
 
 /// What:
@@ -247,7 +333,7 @@ pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock(real_index:
         real_index,
         "merge",
         MERGE_CONSEQUENCE,
-        MERGE_DEAD_ENDING,
+        CLEARS_A_DEAD_OWNERS_LOCK,
         MERGE_LOCK_CEILING,
         Cadence::from_environment(),
         out,

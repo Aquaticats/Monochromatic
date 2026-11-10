@@ -66,15 +66,24 @@ pub enum Phase {
     /// repeatable,
     /// numbered by occurrence.
     ServicePrepared,
+    /// The service answered that this attempt did not land the commit,
+    /// and the command has not yet read the private index of that attempt to capture its change for the rebuild;
+    /// repeatable,
+    /// numbered by occurrence.
+    /// Why:
+    ///   A tree the service removes under that read is the one race of the retry,
+    /// so a control needs the instant between the answer and the read.
+    ServiceSentBack,
 }
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 4] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 5] = [
     Phase::MergeIntent,
     Phase::MergeApplied,
     Phase::ServiceStaged,
     Phase::ServicePrepared,
+    Phase::ServiceSentBack,
 ];
 
 /// Phase names in the order a command reaches them.
@@ -94,6 +103,7 @@ impl Phase {
             Phase::MergeApplied => return "merge-applied",
             Phase::ServiceStaged => return "service-staged",
             Phase::ServicePrepared => return "service-prepared",
+            Phase::ServiceSentBack => return "service-sent-back",
         }
     }
 }

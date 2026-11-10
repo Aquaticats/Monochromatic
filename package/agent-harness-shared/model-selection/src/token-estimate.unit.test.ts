@@ -45,7 +45,7 @@ await describe({
   children: CAPTURED_ESTIMATES.map(function capturedEstimate(entry) {
     return it({
       name: entry.name,
-      fn: async function testEstimateAdvisorInputTokens() {
+      fn: async function testEstimateAdvisorInputTokens(): Promise<void> {
         expect(estimateAdvisorInputTokens({
           systemPrompt: entry.systemPrompt,
           contextText: entry.contextText,
