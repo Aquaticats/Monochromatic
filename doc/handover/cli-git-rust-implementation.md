@@ -1690,11 +1690,13 @@ Still to do:
 - The landing's in-process index reset wrote the commit's paths with all-zero stat data,
   which the next commit refreshed once;
   closed by
-  "The landing records the stat data it can prove, and the staleness question walks its entries in parallel"
+  "The landing records the stat data it can prove,
+  and the staleness question walks its entries in parallel"
   (2026-11-08T19:20:00-05:00).
 - The question's pass was single-threaded;
   closed by that same record,
-  "The landing records the stat data it can prove, and the staleness question walks its entries in parallel"
+  "The landing records the stat data it can prove,
+  and the staleness question walks its entries in parallel"
   (2026-11-08T19:20:00-05:00).
 - A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
   (Git answers a held lock at once,
