@@ -271,6 +271,22 @@ try {
     data: traversal,
     diagnostic: 'outside the allowed evidence boundary'
   });
+  // The name rule is case-sensitive and anchored, so a slug the class does not cover is outside the boundary too.
+  const uppercaseSlug = structuredClone(comparison);
+  uppercaseSlug.witnesses[0]
+    .file = 'search-filename-comparison-inner-DARK-s100.png';
+  expectRejection({
+    data: uppercaseSlug,
+    diagnostic: 'outside the allowed evidence boundary'
+  });
+  // A witness with no name at all takes the same rejection, not a type error: the name rule reads the coerced value.
+  const unnamedWitness = structuredClone(comparison);
+  delete unnamedWitness.witnesses[0]
+    .file;
+  expectRejection({
+    data: unnamedWitness,
+    diagnostic: 'outside the allowed evidence boundary'
+  });
   // The digest case that used to reach this condition is gone with D88; a wrong recorded width reaches it directly.
   const wrongWidth = structuredClone(comparison);
   wrongWidth.witnesses[0]
