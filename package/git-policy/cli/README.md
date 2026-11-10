@@ -5034,7 +5034,12 @@ all durations in whole milliseconds taken from the monotonic clock:
   `ended` or `stopped`) and `exitCode` say which
   commit it was.
 - `totalMs` is the whole command.
-  It is the sum of `prepareMs` (policies,
+  It is the sum of `routeMs` (finding the worktree's route to a service,
+  this commit's identity,
+  the standard input a pathspec file is read from,
+  and the client's settings,
+  none of which a phase covered before),
+  `prepareMs` (policies,
   hooks,
   the private index,
   the tree and the objects;
@@ -5137,6 +5142,32 @@ all durations in whole milliseconds taken from the monotonic clock:
   a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
   and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
   It is what lets a reading name the in-process work a slow `prepareMs` holds.
+- `buildParts` is the same shape for the build phase:
+  `{"branch": {"ms": 1, "calls": 1}, "shadow skeleton": {"ms": 3, "calls": 1}, ...}`,
+  with a name for every stretch that held no Git child.
+  The shadow repository's creation is the one this was added for:
+  it is in-process filesystem work,
+  so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure
+  (`doc/planning/cli-git-commit-latency-under-many-agents.md`
+  holds that reading under what the build phase waits on).
+  Its names are `branch`,
+  `message` (the identity and the message),
+  `amend tree`,
+  `fitting request`,
+  `request`,
+  `shadow` (what the shadow must carry),
+  `shadow skeleton`,
+  `shadow config`,
+  `shadow links`,
+  `shadow conclusion`,
+  `shadow refs`,
+  `client build` (the scratch `git commit`,
+  whose own figure is in `steps`),
+  `commit read back` and `amend fields`,
+  and `buildPartsDropped` counts the stretches beyond the sixty-four the record lists.
+  A build that stops inside itself still states its time,
+  because the phase is closed where the command stops and in the record's own writer,
+  so no build is ever reported as time that no phase covers.
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:
