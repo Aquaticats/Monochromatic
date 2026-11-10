@@ -35,6 +35,42 @@ await describe({
       },
     },),
     it({
+      name: 'emits negative zero as -0.0 so the sign survives a reparse',
+      fn: async () => {
+        const emitted = tomlStringify({
+          edit: tomlSet({
+            edit: emptyTomlEdit(),
+            path: ['k',],
+            value: tomlFloat(-0,),
+          },),
+        },);
+        expect(emitted,).toBe('k = -0.0\n',);
+        /**
+         Read back through this package's own parser, which keeps the sign.
+         */
+        const reparsed = tomlGetValue({
+          edit: parseTomlEdit({ source: emitted, },),
+          path: ['k',],
+        },);
+        expect(Object.is(reparsed, -0,),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'keeps the sign of a parsed -0.0 when the same value is re-set',
+      fn: async () => {
+        /**
+         Document whose sign must survive the edit.
+         */
+        const source = 'k = -0.0\n';
+        const edit = tomlSet({
+          edit: parseTomlEdit({ source, },),
+          path: ['k',],
+          value: tomlFloat(-0,),
+        },);
+        expect(tomlStringify({ edit, },),).toBe(source,);
+      },
+    },),
+    it({
       name: 'treats a non-string tomlKind as an ordinary inline table',
       fn: async () => {
         expect(_jsValueToTomlText({

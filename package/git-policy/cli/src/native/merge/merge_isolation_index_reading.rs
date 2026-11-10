@@ -10,15 +10,22 @@
 //!  sides it knows,
 //! and the reading lives in a file of its own so the file that installs a merge stays readable.
 //!
+//!  Both reads are two faces of one body:
+//! the awaited one a task of the runtime calls,
+//! and the synchronous one a caller outside it keeps,
+//!  which enters the runtime once.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const staged = await indexEntries({ place, root, oid }); const standings = changes.map((change) => standingOfIndex(entryOf(staged, change.path), change, change));
 //! ```
 
+use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_changes::{Change, parse_raw_changes};
 use crate::merge_isolation_recovery_steps::{RecoveryPlace, Standing};
 use crate::recovery_error::RecoveryError;
-use crate::transaction_git::{GitRequest, run_git_checked};
+use crate::transaction_git::GitRequest;
+use crate::transaction_git_awaiting::run_git_checked_awaiting;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -47,7 +54,30 @@ pub fn index_standings(
     old_oid: &str,
     changes: &[Change],
 ) -> Result<Vec<Standing>, RecoveryError> {
-    let staged: Vec<Change> = index_entries(place, root, old_oid)?;
+    return match run_on_runtime(index_standings_awaiting(place, root, old_oid, changes)) {
+        Ok(found) => found,
+        Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
+    };
+}
+
+/// What:
+///  The same standings,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The synchronous face enters the runtime around the index read,
+/// which a task cannot do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function indexStandings({ place, root, oldOid, changes }): Promise<Standing[]>;
+/// ```
+pub async fn index_standings_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    old_oid: &str,
+    changes: &[Change],
+) -> Result<Vec<Standing>, RecoveryError> {
+    let staged: Vec<Change> = index_entries_awaiting(place, root, old_oid).await?;
     // One pass over the index records builds the map every changed path is then looked up in, so the index is read once
     //  for all of them rather than walked once per change (`AGENTS.md` `RG2`: both lists grow with the repository).
     let entries: HashMap<&[u8], &Change> = entries_by_path(staged.as_slice());
@@ -95,11 +125,29 @@ pub fn entries_by_path(staged: &[Change]) -> HashMap<&[u8], &Change> {
 /// parseRawChanges(await git(['diff-index', '--cached', '-z', '--raw', oldOid, '--']));
 /// ```
 pub fn index_entries(place: &RecoveryPlace, root: &Path, old_oid: &str) -> Result<Vec<Change>, RecoveryError> {
+    return match run_on_runtime(index_entries_awaiting(place, root, old_oid)) {
+        Ok(found) => found,
+        Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
+    };
+}
+
+/// What:
+///  The same staged records,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///  `index_entries` enters the runtime around the read,
+/// which a task cannot do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function indexEntries({ place, root, oldOid }): Promise<Change[]>;
+/// ```
+pub async fn index_entries_awaiting(place: &RecoveryPlace, root: &Path, old_oid: &str) -> Result<Vec<Change>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
         &["diff-index", "--cached", "-z", "--raw", "--no-renames", "--no-abbrev", old_oid, "--"],
     );
-    let output = match run_git_checked(&place.git, &request) {
+    let output = match run_git_checked_awaiting(&place.git, &request).await {
         Ok(done) => done,
         Err(error) => return Err(RecoveryError(error.to_string())),
     };
