@@ -91,8 +91,10 @@ const TEST_MODULE_SUFFIX = '.test.ts';
  Opening header of a counted loop with a mutable counter binding.
  
  A counted loop is the sanctioned form for an indexed or lookahead scan, so a
- justified one edits this guard: it fails until the module states why the
- counter is needed.
+ module needing one is justified only by an edit here: the guard fails until
+ someone adds the exception and writes why the counter is required. The header
+ is matched as written, so a loop spelled with other spacing escapes this
+ check, which is a limit to widen rather than a reason to trust it.
  */
 const COUNTED_LOOP_HEADER = 'for (let';
 
@@ -102,15 +104,22 @@ const COUNTED_LOOP_HEADER = 'for (let';
 const GUARDED_MODULE = 'parsers.ts';
 
 /**
- Names of the shipped TypeScript modules in this package's source directory.
+ Names of the shipped TypeScript modules anywhere under the source directory.
  
- @returns Module file names in sorted order, so a failure message is stable
+ Read recursively so a source folder added later stays covered rather than
+ silently escaping the guard.
+ 
+ @returns Module paths relative to the source directory, sorted so a failure
+ message is stable
  */
 async function shippedModuleNames(): Promise<string[]> {
   /**
-   Directory entries in filesystem order.
+   Directory entries in filesystem order, nested folders walked.
    */
-  const entries = await readdir(SOURCE_DIR,);
+  const entries = await readdir(
+    SOURCE_DIR,
+    { recursive: true, },
+  );
   return entries.filter(function isShippedModule(name,): boolean {
     if (!name.endsWith('.ts',))
       return false;
@@ -255,6 +264,13 @@ await describe({
           },
         },),
         it({
+          name: 'ends the device field at whichever separator comes first',
+          fn: async () => {
+            expect(parseDfDevice('/dev/disk5s1 10\t5\t5\t50%\t/\n',),).toBe('/dev/disk5s1',);
+            expect(parseDfDevice('/dev/disk5s2\t10 5 5 50% /\n',),).toBe('/dev/disk5s2',);
+          },
+        },),
+        it({
           name: 'reads a tab-separated row as the same device field',
           fn: async () => {
             expect(parseDfDevice('/dev/disk4s2\t10\t5\t5\t50%\t/Volumes/Data\n',),)
@@ -371,7 +387,7 @@ await describe({
           },
         },),
         it({
-          name: 'holds no counted loop without an index need',
+          name: 'holds no counted loop with a let binding in the shipped modules',
           fn: async () => {
             /**
              Shipped modules this package compiles.
