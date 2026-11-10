@@ -60,7 +60,7 @@ use std::time::Instant;
 const TAG: &str = "packageRepair";
 
 /// What:
-///  What the add's hand-over of the copied package state came to, per tool.
+///  What the add's hand-over of the copied package state came to for each tool.
 /// Why:
 ///   The report has always named pnpm's findings first,
 /// then Cargo's,
