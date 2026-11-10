@@ -17,6 +17,7 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
+import { typescriptInStore } from './typescript-in-store.ts';
 
 const binary = resolve('target/debug/ide-language-inspect');
 const store = resolve('../../../node_modules/.pnpm');
@@ -95,8 +96,10 @@ for (let group = 0; group < 40; group++) {
 // The displayed file imports from another file; removing the export there makes an error here.
 write({ root: ts, relative: 'src/g00/dep.ts', text: 'export const local: number = 1;\n' });
 write({ root: ts, relative: 'src/g00/f00.ts', text: 'import { value } from "pkg-0000";\nimport { local } from "./dep";\nexport const doubled: number = value * 2 + local;\n' });
-cpSync(join(store, 'typescript@7.0.2', 'node_modules', 'typescript'), join(ts, 'node_modules', 'typescript'), { recursive: true });
-cpSync(join(store, '@typescript+typescript-linux-x64@7.0.2', 'node_modules', '@typescript', 'typescript-linux-x64'), join(ts, 'node_modules', '@typescript', 'typescript-linux-x64'), { recursive: true });
+// The compiler the workspace installs, whose folder name carries the version; the check copies what the store holds.
+const typescript = typescriptInStore(store);
+cpSync(join(store, typescript.compiler, 'node_modules', 'typescript'), join(ts, 'node_modules', 'typescript'), { recursive: true });
+cpSync(join(store, typescript.platformBinary, 'node_modules', '@typescript', 'typescript-linux-x64'), join(ts, 'node_modules', '@typescript', 'typescript-linux-x64'), { recursive: true });
 filler(ts);
 const countDirectories = (root: string): number => {
   let count = 0;
