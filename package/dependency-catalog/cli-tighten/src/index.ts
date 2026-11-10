@@ -162,33 +162,6 @@ const workspaceYamlContent = await readWorkspaceYaml(workspaceYamlPath,);
 const modulesDir = await readModulesDir(monorepoRoot,);
 
 /**
- Returns true when every char in `s` is ASCII whitespace (space, tab,
- newline, carriage return, form feed, vertical tab). Empty strings are
- vacuously whitespace-only, matching `\s*$` semantics for a blank trailing
- tail.
- 
- @param s - candidate string
- 
- @returns whether `s` consists solely of whitespace
- */
-function isWhitespaceOnly(s: string,): boolean {
-  for (const c of s) {
-    /**
-     Whether the current char satisfies regex `\s`.
-     */
-    const ok = (c === ' ')
-      || (c === '\t')
-      || (c === '\n')
-      || (c === '\r')
-      || (c === '\f')
-      || (c === '\v');
-    if (!ok)
-      return false;
-  }
-  return true;
-}
-
-/**
  Reports whether `path` exists on disk, async (the repo bans sync fs).
  
  @param path - absolute filesystem path to probe
@@ -224,8 +197,6 @@ const catalog = parsedCatalog.defaultCatalog;
 if (Object.keys(catalog,)
   .length
   === 0) {
-  console.error('No catalog found in pnpm-workspace.yaml',);
-  process.exitCode = 1;
   throw new Error('No catalog found in pnpm-workspace.yaml',);
 }
 

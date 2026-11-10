@@ -10,6 +10,8 @@ import {
 } from './constants.ts';
 import type { ParsedGoalCommand, } from './types.ts';
 
+//region Reserved command surface
+
 /**
  Removed command prefixes reserved for direct rejection.
  */
@@ -20,6 +22,10 @@ export const REMOVED_COMMAND_PREFIXES = [
   'resume',
   '--tokens',
 ] as const;
+
+//endregion Reserved command surface
+
+//region Parsing
 
 /**
  Return first whitespace-delimited token without regular expression parsing.
@@ -102,5 +108,7 @@ function parseGoalCommand(args: string,): ParsedGoalCommand {
     objective: normalized,
   };
 }
+
+//endregion Parsing
 
 export { parseGoalCommand, };

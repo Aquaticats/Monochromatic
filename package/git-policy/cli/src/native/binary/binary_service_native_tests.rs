@@ -475,24 +475,58 @@ fn a_branch_that_keeps_moving_stops_the_rebuilds_at_the_ceiling() {
     remove_settled(&fixture);
 }
 
-/// An amend is never built again on a new tip,
-/// signed or not:
-/// the person asked to replace the commit they saw.
+/// What:
+///  A signed amend whose branch moves lands as a new commit on the tip as it is now
+///  (the owner's choice,
+///   2026-11-09),
+///  so a branch that moves on every build is built again until the ceiling ends it,
+///  naming the builds it made.
+/// Why:
+///  `doc/decision/cli-git-concurrent-commits.md`,
+/// "Serial landing":
+/// "An `--amend` whose `HEAD` moved lands its changes as a new commit on top of the moved branch".
+///  The rule holds for every build and not only the first:
+///  a refusal after the amendment became a commit of its own would end the person's commit for another session's commit.
+///  The stand-in signer lands a commit on every signature,
+///  so no build ever meets the branch it was made on,
+///  and the ceiling is what ends the command:
+///  nothing lands,
+///  and the commit the person asked to replace is still the last commit of the branch's own history.
+///  `--cleanup=scissors` is what sends this line to Git at all,
+///  and so to the signer (the service embeds an `--amend --no-edit`
+///  and builds it without the signer):
+///  the service embeds an `--amend --no-edit` and builds it without the signer.
 #[test]
-fn a_signed_amend_is_not_built_again_when_the_branch_moves() {
+fn a_signed_amend_is_built_again_as_a_new_commit_until_the_ceiling_ends_the_branch_that_keeps_moving() {
     let fixture: Fixture = fixture("service-native-rebuild-amend");
-    let (repo, _start_commit) = repository_with_programs(&fixture);
+    let (repo, start_commit) = repository_with_programs(&fixture);
     let calls: PathBuf = ssh_signing_through(&fixture, &repo, racing_commit(&repo, None).as_str());
     let name: String = format!("native-rebuild-amend-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     edit_a(&repo);
     let before: usize = finished(&fixture);
-    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--amend", "--no-edit", "--cleanup=scissors", "--", "a.txt"]);
+    let output: Output = through_service_with(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &["commit", "--amend", "--no-edit", "--cleanup=scissors", "--", "a.txt"],
+        &[(git_policy_cli::service_commit_rebuild_ceiling::REBUILD_CEILING_VARIABLE, CONTROL_REBUILD_CEILING)],
+    );
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    assert!(stderr.contains("moved while this commit was being prepared"), "{stderr}");
-    assert_eq!(finished(&fixture), before);
-    assert_eq!(lines_in(&calls), 2, "one build, and the other commit's signature");
+    assert!(
+        !stderr.contains("cannot be moved onto a different last commit"),
+        "no refusal of the amendment for another session's commit: {stderr}"
+    );
+    assert!(stderr.contains("moved while this commit was being built"), "each rebuild is said: {stderr}");
+    let builds: usize = builds_named(stderr.as_str());
+    assert!(builds >= 2, "the amendment is built again on the branch as it is now: {stderr}");
+    assert_eq!(finished(&fixture), before, "nothing landed");
+    assert_eq!(lines_in(&calls), 2 * builds, "a build and the other commit's signature, for each attempt");
+    assert_eq!(query(&fixture, &repo, &["log", "--format=%s", "--grep=edited: root"]), "", "the amendment never landed");
+    assert_eq!(query(&fixture, &repo, &["show", "HEAD:a.txt"]), "base", "the worktree's edit is not on the branch");
+    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "raced", "the other session's commits are what the branch holds");
+    assert_ne!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), start_commit, "the branch moved, by the other session's commits only");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
