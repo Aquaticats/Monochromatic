@@ -3656,6 +3656,21 @@ with the conflicting paths named,
 only where no resolution exists.
 The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
 
+The owner on 2026-11-10:
+"Dozens of agents at once is normal operation."
+That is the load every command is built for,
+not an exception to plan around.
+A `git worktree add`,
+commit,
+merge or push that slows down,
+waits on another command,
+or fails because dozens of agents run Git in this repository at once has a defect in the wrapper;
+the number of agents is never the explanation.
+An add or a commit whose own work grows with the number of other worktrees,
+adds or commits is such a defect.
+The owner said the same day that unblocking these jams means fixing the wrapper:
+"By "prioritize on unblocking jams" I also meant fix the wrapper."
+
 A `git pull` that is stated to merge (`--no-rebase`,
 `pull.rebase` or `branch.<name>.rebase` false,
 or `--ff`

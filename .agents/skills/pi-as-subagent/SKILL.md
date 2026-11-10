@@ -104,6 +104,15 @@ so prefer neuralwatt."
 New runs fill standard Neuralwatt,
 then flex with twice the wall clock,
 then `opencode-go`.
+The owner on 2026-11-10:
+"And you should almost always keep all slots filled."
+and
+"Dozens of agents at once is normal operation."
+So count the free slots whenever a run ends or a batch finishes starting,
+and start work in them the same turn,
+wrapper work first.
+A tool that slows down with dozens of agents running has a defect to fix;
+the number of agents is never the explanation and never a reason to start fewer.
 Audits and reviews sit outside that limit and use other models.
 Reviews of a change run on Kimi K3.1 Pro alone,
 and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
