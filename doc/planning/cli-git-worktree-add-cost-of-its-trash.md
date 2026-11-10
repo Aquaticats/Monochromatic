@@ -49,7 +49,60 @@ and every add emptied its own trash before it returned.
 
 ## Measured on 2026-11-11: the change, on this volume
 
-TBD-ADD-MEASUREMENT
+The owner stopped this measurement to land the fix, so the numbers below are what was collected before
+that, and nothing is estimated.
+
+The fixture:
+one disposable repository whose source is a btrfs subvolume,
+holding 15,000 ignored entries the leave-out sets aside
+(half in `.cache/alpha`, half in `target/debug/incremental`)
+and 2,500 it keeps,
+made by `${HOME}/temp/agent/wt-add-measure/measure3.ts`.
+Each arm ran three adds at the same moment and the arms alternated,
+so the same-binary spread is visible:
+the arm order was before, after, before, after.
+
+- before arm, three adds at once: 144.48, 133.37 and 133.98 s,
+  144.48 s until the last returned.
+- after arm, three adds at once: 244.33, 244.35 and 268.78 s,
+  268.80 s until the last returned.
+- before arm again: 273.91, 272.74 and 272.73 s, 273.94 s.
+- after arm again: 100.28, 104.37 and 103.12 s, 104.64 s.
+
+What the adds' own timing records say they spent on the trash
+(`.git/monochromatic-git-policy-cli-worktree-add-timing.jsonl`):
+
+- The before arm's emptying (`disposeTrash`) took 156, 175 and 181 ms in the first arm and
+  185, 203 and 212 ms in the third.
+- The after arm's hand-over (`handOverTrash`) took 12,075 and 12,158 ms in the two adds that
+  found the repository's service not yet running, and 1 ms in the add that found it answering.
+  In the fourth arm it took 1, 4,187 and 1 ms.
+
+What this says, and what it does not:
+
+- The same-binary spread is 1.9 times within the before arm (144 s against 274 s) and 2.6 times
+  within the after arm (105 s against 269 s),
+  so the host's load moved these numbers far more than the change did,
+  and this fixture cannot separate the two.
+- With 15,000 entries the emptying was 156 to 212 ms of a 133 to 274 s add on this drive today,
+  so this volume under today's load does not reproduce the 2026-11-10 condition,
+  where 2,182 of 2,796 blocked samples were inside `unlink` or `rmdir` and btrfs commits took
+  9.2 s each.
+- The first hand-over in a repository whose service is not running waits for the service's greeting,
+  bounded by the same start wait a commit uses; 12.1 s was measured under this load.
+  Every later hand-over in that repository answered in 1 ms.
+- What the change does remove is in the records themselves:
+  the before arm has `disposeTrash` work and a `disposeTrashWait` step,
+  the after arm has neither,
+  and the deletions it used to run now happen in the service after the add returns,
+  at I/O priority class `idle`, one trash at a time for the repository.
+
+Not measured, and stated as missing rather than estimated:
+
+- How long the service takes to empty one of these trashes at the idle class,
+  and how much the idle class helps on this drive.
+- An add whose trash is as large as the real repository's,
+  which the leave-out counting section below bounds but does not settle.
 
 ## The four steps the owner set
 
@@ -135,16 +188,80 @@ and the emptying is correct either way.
 
 ## What the trash divides up into
 
-TBD-ADD-LEAVE-OUT-COUNTS
+The owner stopped this walk to land the fix, so it did not finish:
+`${HOME}/temp/agent/trash-leave-out-probe/probe2.ts` had walked 28,000 of the main checkout's
+directories and had not reached the largest trees when it was stopped.
+No count below is an estimate: each is what the walk had counted at that point,
+written as it went, at about 40% of the walk.
+
+- the run record `.monochromatic` below a `node_modules`: 202 directories, 165,161 entries
+- `.pnpm-store`: 1 directory, 37,501 entries
+- `zig-global-cache` below a `target`: 1 directory, 24,392 entries
+- `incremental` below a `target`: 7 directories, 17,992 entries
+- another checkout, a directory holding `.git`: 28 directories, 16,537 entries
+- the run record `verification` in a `target`: 7 directories, 2,661 entries
+- the run record `mutants.out` and `mutants.out.old`: 1 each, 1,740 entries each
+- a `.cache` directory below the root: 221 directories, 1,106 entries
+- `.gradle`: 4 directories, 135 entries
+- `.kotlin`: 2 directories, 18 entries
+- the run records `test-results`: 3 directories, 18 entries together
+- the run record `playwright-report`: 1 directory, 2 entries
+
+At that point the walk had counted 269,003 entries moved into a trash by one snapshot,
+and 111,052 entries a new worktree keeps.
+The largest single directories it had found were
+`package/git-policy/cli/node_modules/.monochromatic` with 160,034 entries and
+`.pnpm-store` with 37,501.
+The main checkout has 345 registered worktrees,
+which this count does not include:
+most are subvolumes, which a snapshot does not carry at all.
 
 ## What would disappear if the largest folder were a subvolume
 
-TBD-ADD-SUBVOLUME-ANSWER
+This is the owner's choice; nothing of it was built.
+
+Measured on this volume by `${HOME}/temp/agent/pi-runs/probe-btrfs-subvolume-delete-and-rename.ts`:
+a snapshot does not carry a nested subvolume,
+so if a folder the leave-out sets aside were a subvolume of the main checkout,
+the snapshot would show an empty stand-in where it stands,
+and the add would neither delete it nor move it.
+
+From the counts above, the largest folder is `node_modules/.monochromatic`,
+the run records of this repository's own tooling:
+were it a subvolume in the main checkout,
+roughly 165,000 of the 269,000 deletions that one snapshot's leave-out causes would not happen,
+which is the largest single share of them.
+The next two, `.pnpm-store` and `target/*/zig-global-cache`, would take another 62,000 with them,
+so those three kinds alone are most of what an add used to delete.
+
+Nothing measured says what makes a folder a subvolume again:
+`pnpm` and `zig` recreate their cache folders as plain directories,
+and this repository's own tooling recreates `.monochromatic` as one,
+so a subvolume made once would be replaced by an ordinary folder the next time the tool runs.
+That is why this is a question for the owner and not a change:
+making it work means either teaching each tool to leave a subvolume in place,
+or having the wrapper make the folder a subvolume again when it finds it plain,
+and both are design changes of their own.
 
 ## What the add now takes
 
-TBD-ADD-WHAT-CHANGED
+- One record and one wake, instead of emptying the trash inside the command.
+  In the fixture above that was 1 ms once the repository's service was answering,
+  and 12.1 s the first time in a repository whose service was not running,
+  which is the same bounded start wait a commit uses.
+- Adding `/.claude/cli-git-trash/` to the repository's `info/exclude` once,
+  inside the step the add already ran to ask Git whether that place is ignored:
+  1,057 ms of work in the fixture's first add under this load, once per repository.
+- No `disposeTrash` work and no `disposeTrashWait` step in the add at all.
+- The deletions moved off the add's path are the manifest's entries:
+  7,500 in the fixture (one left-out directory of 7,500 names and one of 7,500),
+  and in the real main checkout at least 269,003 by the unfinished count above.
 
 ## What is left for the owner
 
-TBD-ADD-OWNER
+1. The subvolume question above, which is a design change of its own.
+2. The first hand-over's wait for a service that is not running (12.1 s measured).
+   The alternatives are a wake that writes its line and returns without the service's greeting,
+   which loses the confirmation that the service took the message,
+   and a wake that only connects to a socket that already answers,
+   which leaves the record for the next command that reaches the service.
