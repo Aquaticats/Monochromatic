@@ -82,20 +82,23 @@ fn a_build_directory_that_exists_is_never_replaced() {
 ///  A staging directory a killed run left is removed before the copy is made,
 /// and neither the destination nor the staging directory survives a clean that fails.
 /// Why:
-///   The staging name belongs to this job alone,
-/// so what it holds is never a person's work,
+///   A killed run leaves the marker that claims the staging name and the target beside it,
+/// so what the next filling finds there is its own,
 /// and a failure must leave no half-filled directory for a later run to trip over.
 #[test]
 fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
     let root: PathBuf = fixture("prewarm-failed-clean");
     let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
     std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
     std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     let staged: PathBuf = staging_of(entry.to.as_path());
     std::fs::create_dir_all(staged.join("left-by-a-killed-run")).expect("a staging directory an earlier run left");
+    super::write_marker(super::marker_of(staged.as_path()).as_path()).expect("the marker an earlier run left");
     let failed: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
     assert!(failed.is_err(), "a clean that could not run is reported: {failed:?}");
-    assert!(!staged.exists(), "the staging directory is removed");
+    assert!(!staged.exists(), "the staging directory this job's marker claims is removed");
+    assert!(!super::marker_of(staged.as_path()).exists(), "and the marker goes with it");
     assert!(!entry.to.exists(), "and nothing is published under the worktree's name");
     remove(root.as_path());
 }
