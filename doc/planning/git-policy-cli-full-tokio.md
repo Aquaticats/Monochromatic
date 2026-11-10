@@ -8688,18 +8688,22 @@ cleared.
   frame that starts it,
   so the handlers are a shared value and no longer a borrow.
 - What the previous record had wrong,
-  and what this run read instead:
+  and what this run measured instead:
   `review_item` is not refused inside the runtime.
-  Its contained job runs on a plain `standards-review` thread
+  `the_synchronous_wait_answers_from_inside_the_runtime`
+  (`standards_review/standards_review_run_tests.rs`) makes that wait from a
+  task and gets the job's value,
+  so a task calling `review_item` did not fail:
+  it held its worker for up to `REVIEW_CEILING`.
+  The reason is in the code the record pointed at:
+  the contained job runs on a plain `standards-review` thread
   (`run_contained_in`,
   `standards_review/standards_review_run.rs:519`),
-  and what that thread does with the runtime is `run_on_runtime` at
-  `standards_review/standards_review_client.rs:474`,
-  which is not inside it.
-  The synchronous wait is `mpsc::recv_timeout`,
+  and the `run_on_runtime` at
+  `standards_review/standards_review_client.rs:474` is that thread's own,
+  not the caller's,
+  while the synchronous wait is `mpsc::recv_timeout`,
   which no runtime refuses.
-  So a task calling `review_item` did not fail:
-  it held its worker for up to `REVIEW_CEILING`.
   What the awaited face removes is the held worker,
   not a refusal.
 - Measured,
@@ -8775,6 +8779,11 @@ cleared.
   by making the awaited face answer a failure,
   it fails on `the two faces answer one review the same way`,
   with the planted failure against the synchronous `Done`.
+- `the_synchronous_wait_answers_from_inside_the_runtime` is the measurement the
+  paragraph above rests on:
+  a task that makes the synchronous wait for a review's job gets
+  `Contained::Finished(4)`,
+  so nothing refuses it and the awaited face is about the worker it holds.
 - The three plants were made in one build,
   each on its own path,
   and the three controls passed again once the plants were restored:

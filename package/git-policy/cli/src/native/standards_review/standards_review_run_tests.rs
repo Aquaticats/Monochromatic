@@ -539,3 +539,19 @@ fn the_awaited_runner_answers_what_the_synchronous_one_answers() {
     assert!(OWN.change(admitted, RUNNING, IDLE));
     assert_eq!(crate::merge_second_pass::tests::await_it(run_contained_in_awaiting(&OWN, || return 3_u8, roomy)), Contained::Finished(3));
 }
+
+/// The synchronous wait for a job answers from inside the runtime as well,
+/// which is why a round of tasks that called it lost a worker rather than a review:
+/// the contained job runs on a thread of its own,
+/// and `mpsc::recv_timeout` is no call a runtime refuses.
+/// The measurement the shape of the round rests on:
+/// what a task needs is the awaited wait,
+/// never a refusal to work around.
+#[test]
+fn the_synchronous_wait_answers_from_inside_the_runtime() {
+    static OWN: Containment = Containment::new();
+    let answered: Contained<u8> = crate::merge_second_pass::tests::await_it(async {
+        return run_contained_in(&OWN, || return 4_u8, Duration::from_secs(60));
+    });
+    assert_eq!(answered, Contained::Finished(4), "no runtime refuses the synchronous wait, so a task that made it held its worker");
+}
