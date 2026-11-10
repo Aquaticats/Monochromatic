@@ -47,8 +47,8 @@ const PKG_ROOT = await findRootCached({
 /** Args prefix for running mvm from any working directory. */
 const MVM_ARGS = [join(PKG_ROOT, '..', 'mvm', 'src', 'cli.ts'),];
 
-/** Absolute path to the tsdown bundle. */
-const BUNDLE_PATH = join(PKG_ROOT, 'dist', 'final', 'node', 'index.mjs',);
+/** Absolute path to the built bin bundle. */
+const BUNDLE_PATH = join(PKG_ROOT, 'dist', 'final', 'node', 'cli.mjs',);
 
 /** Text `mvm push` prints between the host path and the guest path it landed at. */
 const PUSH_ARROW = ' -> ';

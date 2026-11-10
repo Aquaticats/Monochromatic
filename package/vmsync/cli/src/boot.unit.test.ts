@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { parseMemoryToBytes, } from './boot.ts';
+import { parseMemoryToBytes, } from '../dist/final/node/index.mjs';
 
 /** Iteration count for the long-run stack-safety cases; far exceeds the V8 recursion depth the old digit/whitespace walkers would have overflowed at, yet computes instantly. */
 const LONG_RUN = 100_000;
