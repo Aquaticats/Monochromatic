@@ -26,6 +26,11 @@
     "email": "an@aquati.cat",
     "url": "https://aquati.cat"
   },
+  "devDependencies": {
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
   "exports": {
     ".": "./tsconfig.options.json",
     "./dom": "./tsconfig.dom.json",
