@@ -589,11 +589,11 @@ settled from the worktree's own record of it, and the file may be removed once t
         if !selected {
             continue;
         }
-        let git: GitContext = GitContext {
-            common_dir: Some(intent.common_dir.clone()),
-            global_prefix: crate::repository_selection::of_paths(intent.git_dir.as_path(), intent.repository.as_path()),
-            ..context.git.clone()
-        };
+        // The selection follows whatever this service already ran its Git with, so an absolute path it names wins over a
+        //  relative one an earlier option wrote.
+        let mut prefix: Vec<std::ffi::OsString> = context.git.global_prefix.clone();
+        prefix.extend(crate::repository_selection::of_paths(intent.git_dir.as_path(), intent.repository.as_path()));
+        let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), global_prefix: prefix, ..context.git.clone() };
         let Some(decision) = decision_for(&git, &intent) else {
             crate::service_error!("batch {} stays open: Git gave no answer about {} in {}, so its intent is kept", intent.seq, intent.reference, intent.repository.display());
             continue;
