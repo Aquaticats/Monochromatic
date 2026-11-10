@@ -34,12 +34,14 @@ export async function flushLogs(): Promise<void> {
 //region Child processes and failures
 
 /**
- Running one command to completion, the daemon's single child-process shape.
+ Running one command to completion and starting one that keeps running, the
+ daemon's two child-process shapes.
 
  @internal
  */
 export {
   runCommand,
+  startCommand,
   type RunCommandOptions,
 } from './child-process.ts';
 
