@@ -10855,6 +10855,13 @@ The commit is made from:
   signed again by `git commit-tree -S` with the `-S` option the command line named,
   whose other header lines a signature cannot carry are dropped with a warning.
 
+The rule holds for every build,
+not only the first:
+a branch that moves again while the new commit is being made makes that commit again on the branch as it is now,
+and the rebuilding ceiling is what ends an amend whose branch never stops moving,
+naming the builds it made and landing nothing
+(`service_commit.rs`,
+the arm for a branch that moved).
 Nothing waits for another command and nothing is refused for it.
 The person is told what the amend became after it lands:
 a line naming the branch,
@@ -11413,7 +11420,8 @@ and leaves those trees where they are
 The command releases such a tree beside itself once the answer's arm has read the change it captured
 (`HandedBackTree` in `src/native/landing/service_prepare_ready_shapes.rs`),
 so the recursive removal never makes the command wait,
-and the removal starts only after that read, never before it.
+and the removal starts only after that read,
+never before it.
 The tree is named after the request and the attempt,
 so the next attempt never shares a directory with one a removal is taking,
 and a tree whose removal never ran is collected by the age sweep of the repository scratch directory.

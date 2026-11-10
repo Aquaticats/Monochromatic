@@ -260,6 +260,24 @@ fn note_history(
 }
 
 /// What:
+///  The revision the walk over the landed history leaves out,
+///  nothing for a change captured on a branch that did not exist yet.
+/// Why:
+///   Such a change has no commit to leave out,
+///  so every commit the branch holds is a candidate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const exclusion = captured.unborn ? undefined : `^${captured.base}`;
+/// ```
+fn the_exclusion_of(captured: &Captured) -> Option<String> {
+    if captured.unborn {
+        return None;
+    }
+    return Some(format!("^{}", captured.base));
+}
+
+/// What:
 ///  The decision of every shared path,
 ///  from one walk over the history since the base.
 /// Why:
@@ -289,7 +307,7 @@ pub fn capture_order_of_each(
     }
     let stamps: HashMap<&str, u64> = stamps_by_commit(captured.landed.as_slice());
     // A change captured on a branch that did not exist yet has no commit to leave out of the walk.
-    let exclusion: Option<String> = (!captured.unborn).then(|| { return format!("^{}", captured.base); });
+    let exclusion: Option<String> = the_exclusion_of(captured);
     let arguments: Vec<&str> = history_arguments(tip, exclusion.as_deref());
     let request: GitRequest = GitRequest::new(site.cwd, arguments.as_slice());
     let listed = run_git_checked(site.context, &request)?;

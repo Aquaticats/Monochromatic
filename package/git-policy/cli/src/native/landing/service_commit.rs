@@ -326,8 +326,11 @@ pub fn service_commit<F: RepositoryFacts>(
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
                 // An amend whose branch moved is not made as an amend again: its changes become a new commit on the branch as
                 //  it is now, leaving the commit that moved it as it is (the owner's choice, 2026-11-09).
+                //  The branch can move again while that new commit is being made, and then the same rule applies again:
+                //  anything else would refuse the person's commit for another session's commit
+                //  ("Agents should never wait on each other on commits or merges").
                 //  No one waits, and no command is refused for another's commit.
-                if sent.amend && amended.is_some() {
+                if amended.is_some() {
                     if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                         return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
                     }

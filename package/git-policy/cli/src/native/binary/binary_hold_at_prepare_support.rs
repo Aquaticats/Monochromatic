@@ -84,8 +84,7 @@ impl Held {
 /// What a control gives the held commit:
 /// its command line,
 /// what its standard input carries,
-/// and the environment variables it reads
-/// (the editor a line opens, above all).
+/// and the environment variables it reads (the editor such a line opens above all).
 pub(super) struct Hold<'a> {
     /// The arguments after the wrapper's own name.
     pub(super) arguments: &'a [&'a str],

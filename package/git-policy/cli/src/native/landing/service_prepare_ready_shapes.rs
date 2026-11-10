@@ -213,8 +213,9 @@ pub struct Ready {
     /// Why:
     ///   A conclusion's parents come from the state the worktree holds,
     ///  so the same build makes it on the tip as it is now;
-    ///  a branch that did not exist is not one of these, because the change captured against it is a whole root tree
-    ///  that the replay puts on the branch as it is now.
+    ///  a branch that did not exist is not one of these:
+    ///  the change captured against it is a whole root tree,
+    ///  which the replay puts on the branch as it is now.
     pub fixed_parents: bool,
     /// When the worktree's bytes were captured (`service_replay::capture_stamp`);
     /// a retry keeps the first capture's stamp.

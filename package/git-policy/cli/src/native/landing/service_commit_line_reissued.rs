@@ -2,7 +2,9 @@
 //!  The command line a commit Git built is built again with once its editor has run and the branch moved:
 //!  the line without the options whose content the preparation already settled.
 //! Why:
-//!  A commit that took its message and authorship from another commit (`-C`, `-c`),
+//!  A commit that took its message and authorship from another commit
+//!  (`-C`,
+//! `-c`),
 //!  or that named a fixup commit,
 //!  was refused on a moved branch because nothing could be made of the line alone
 //! (`doc/decision/cli-git-concurrent-commits.md`,
@@ -39,7 +41,8 @@ const SEPARATOR: &str = "--";
 /// the selection the private index already holds.
 const SELECTION_LETTERS: [char; 2] = ['p', 'i'];
 
-/// Short option letters whose value is attached, so that what follows is never read as a flag.
+/// Short option letters whose value is attached,
+/// so that what follows is never read as a flag.
 const ATTACHED_VALUE_LETTERS: [char; 2] = ['S', 'u'];
 
 /// The authorship a commit reused from another commit,
@@ -57,7 +60,9 @@ pub(crate) struct BorrowedAuthor {
 /// What:
 ///  Whether one option takes the message and the authorship of the commit it names.
 /// Why:
-///   `-c`, `-C`, `--reuse-message` and `--reedit-message` take both,
+///   `-c`,
+/// `-C`,
+/// `--reuse-message` and `--reedit-message` take both,
 ///  so a rebuild that keeps the message in a file must supply the authorship itself.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,10 +74,21 @@ fn borrows_its_author(token: &str) -> bool {
     return matches!(name, "-c" | "-C" | "--reuse-message" | "--reedit-message");
 }
 
+/// One argument as text,
+/// with bytes that are not valid text replaced.
+fn lossy_text(token: &OsString) -> String {
+    return token.to_string_lossy().into_owned();
+}
+
+/// The name half of an option split at the `=` that attached its value.
+fn name_before_the_value<'a>(halves: (&'a str, &'a str)) -> &'a str {
+    return halves.0;
+}
+
 /// The name of an option,
 /// without the value an `=` attached to it.
 fn name_of(token: &str) -> &str {
-    return token.split_once('=').map_or(token, |(name, _)| { return name; });
+    return token.split_once('=').map_or(token, name_before_the_value);
 }
 
 /// What:
@@ -86,9 +102,11 @@ fn name_of(token: &str) -> &str {
 /// const rewords = (token) => /^--(fixup|squash)=reword(:|$)/.test(token);
 /// ```
 fn rewords_another_commit(token: &str) -> bool {
-    let Some(value) = token.strip_prefix("--fixup=").or_else(|| { return token.strip_prefix("--squash="); }) else {
-        return false;
+    let named: Option<&str> = match token.strip_prefix("--fixup=") {
+        Some(value) => Some(value),
+        None => token.strip_prefix("--squash="),
     };
+    let Some(value) = named else { return false; };
     return value == "reword" || value.starts_with("reword:");
 }
 
@@ -296,7 +314,7 @@ pub(crate) fn reissued_arguments(
     prepared: Option<&str>,
     interactive: bool,
 ) -> Result<Option<Vec<OsString>>, TransactionStop> {
-    let text: Vec<String> = arguments.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
+    let text: Vec<String> = arguments.iter().map(lossy_text).collect();
     let region: Vec<String> = normalise_commit_args(text.get(subcommand + 1..).unwrap_or(&[]));
     let (mut rebuilt, borrowed): (Vec<String>, Option<BorrowedAuthor>) = match without_settled_options(region.as_slice(), interactive, None) {
         Settled::Line(kept) => (kept, None),

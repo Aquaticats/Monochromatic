@@ -410,6 +410,12 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
 }
 
 
+/// The revision a walk of the landed history leaves out,
+/// which is the base the change was prepared against.
+fn excluded_from_the_walk(revision: &str) -> String {
+    return format!("^{revision}");
+}
+
 /// What:
 ///  The first commit after `base`,
 /// up to `tip`,
@@ -426,7 +432,7 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
 /// await firstLanded(context, cwd, base, tip, paths) // { short, subject } | undefined
 /// ```
 pub fn first_landed(context: &GitContext, cwd: &Path, base: Option<&str>, tip: &str, paths: &[Vec<u8>]) -> Result<Option<LandedFirst>, TransactionStop> {
-    let exclusion: Option<String> = base.map(|revision| { return format!("^{revision}"); });
+    let exclusion: Option<String> = base.map(excluded_from_the_walk);
     let mut words: Vec<&str> = vec!["log", "--reverse", "--format=%h%x00%s", "--no-color", "--no-show-signature", tip];
     if let Some(left_out) = exclusion.as_deref() {
         words.push(left_out);
