@@ -929,26 +929,42 @@ await describe({
 
     describe({
       name: 'product module parameter names',
-      children: (await productModules(SOURCE_DIRECTORY,)).map(function mapModule(path,) {
-        /**
-         Module name relative to the source directory, as a reader would write it.
-         */
-        const name = path.slice(SOURCE_DIRECTORY.length + 1,);
-        return it({
-          name: `names every ${name} parameter with a role word`,
+      children: [
+        it({
+          name: 'reads the package entry module, so the walk reaches the package root',
           fn: async () => {
             /**
-             Module text with comment content removed.
+             Product modules the walk found.
              */
-            const text = await commentFreeText(path,);
-            expect(
-              singleCharacterParameterNames(text,).map(function toReport(offender,) {
-                return `${name}:${String(offender.line,)} names a parameter ${offender.name}`;
-              },).join('\n',),
-            ).toBe('',);
+            const modules = await productModules(SOURCE_DIRECTORY,);
+            /**
+             Entry module of the package, which the walk reaches only from its root.
+             */
+            const entry = join(SOURCE_DIRECTORY, 'index.ts',);
+            expect(modules,).toContain(entry,);
           },
-        },);
-      },),
+        },),
+        ...(await productModules(SOURCE_DIRECTORY,)).map(function mapModule(path,) {
+          /**
+           Module name relative to the source directory, as a reader would write it.
+           */
+          const name = path.slice(SOURCE_DIRECTORY.length + 1,);
+          return it({
+            name: `names every ${name} parameter with a role word`,
+            fn: async () => {
+              /**
+               Module text with comment content removed.
+               */
+              const text = await commentFreeText(path,);
+              expect(
+                singleCharacterParameterNames(text,).map(function toReport(offender,) {
+                  return `${name}:${String(offender.line,)} names a parameter ${offender.name}`;
+                },).join('\n',),
+              ).toBe('',);
+            },
+          },);
+        },),
+      ],
     },),
 
     //endregion product modules
