@@ -3674,6 +3674,18 @@ quoted by their chosen labels:
 - a plain `git commit` with unmerged files lands as the merge commit with the markers and warns per file:
   "Warn and finish the merge (Recommended)".
 
+A branch lock a killed Git left behind (owner,
+question tool,
+2026-11-09,
+verbatim)
+"Make it,
+hold until lock goes (Recommended)":
+the commit is written and kept on a side ref,
+the command exits `0`,
+says the branch has not moved yet and names the lock,
+and the next command that finds the lock gone moves the branch
+(see "A commit held behind a reference lock").
+
 The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
 for a `git merge` the person types,
 and for a `git commit`:
@@ -7187,29 +7199,103 @@ The locks are judged and cleared by the judgement above,
 through the same proof,
 notice and set-aside removal,
 and the landing tries its write again as soon as nothing stands.
-A lock that is still there at the bound,
-or one that a proof does not reach,
-ends the commit with a plain message that names the lock,
-says what is known about its holder,
-gives the exact command that clears it,
-and says that nothing in the repository changed
-(`FailureCode::ReferenceLocked`,
-`ClientFailure::ReferenceLocked`).
 No lock is removed on a claim about this service's own killed child,
 for the reasons above.
 The words of the judgement also go to the journal,
 with the lock's size,
 age and the evidence it was judged by.
+
+##### A commit held behind a reference lock
+
+A lock that is still there at the bound,
+or one that a proof does not reach,
+no longer ends the commit.
+The owner chose,
+verbatim,
+"Make it,
+hold until lock goes (Recommended)"
+(2026-11-09),
+and the rule it answers is "Commits should never fail."
+The landing keeps what the batch already has:
+its intent,
+the scratch reference `refs/worktree/cli-git-service/<batch>` that holds its commits
+and the witness of the index file it saw,
+and it publishes a record of the hold,
+whole or absent,
+before the client is answered
+(`src/native/landing/held_commit_record.rs`).
+The record names the two branch values,
+the commits,
+the journal,
+the index,
+the message the branch move writes in the reflog,
+the locks that stood and the instant the commit was held,
+in `monochromatic-git-policy-cli/held-commits/<batch>.held` below the worktree's own Git directory.
+The batch's held push records are given back,
+because no branch names the commit yet.
+The answer is `ServiceMessage::Held` with the words,
+the client prints them and exits `0`,
+and the commit is on the side reference.
+
+A kill at any instruction leaves a state the next command settles again,
+and the commit is never lost and never applied twice:
+a kill before the record leaves the intent and the side reference,
+which a restart drops with the commit kept on `refs/cli-git/kept/<batch>`;
+a kill after it leaves a record whose batch is settled from the branch.
+
+Every command in the worktree reads the records and says what each held commit waits for:
+a heading with the count,
+then one line per record naming the branch,
+the commit and the lock,
+with the exact `rm --` that clears it when no Git process uses the repository.
+A command whose output a program reads prints nothing and settles the same.
+The first command that finds the locks gone settles them,
+and so does the service before its next batch and at its start
+(`src/native/landing/held_commit_settle.rs`).
+
+The settlement reads the branch and moves it by one compare-and-swap,
+with the side reference removed in the same transaction.
+The index entries are installed under Git's index lock,
+which the settlement takes before the move and records the witness of under it,
+so nothing another program staged is overwritten and the entries are not left to the
+owed record when the locked commands of a worktree have touched the index since the landing.
+A branch that moved while the lock stood takes the change merged onto the tip from the base the
+batch was prepared on
+(`git merge-tree --write-tree --merge-base`,
+the primitive "Retry after a moved branch" uses),
+and the commit is written again with its own authorship,
+committer and message,
+each commit of a batch on the one before,
+its one parent the tip
+(`src/native/landing/held_commit_replay.rs`).
+A path that conflicts is not landed:
+the record stays,
+the commit stays on its side reference and the paths are named.
+A commit that concludes a merge,
+one prepared for a branch that did not exist and that another session created,
+and a signed commit are kept and named the same way,
+because a command that resumes a commit runs no policy,
+no hook and no signing program,
+and no command starts a wait for a key on its own.
+
+Nothing released the commit's push:
+the command that made it had ended,
+so no post-commit gate ran.
+The next commit or push from the branch carries the commit,
+which the held push notice says.
+
 Tests,
 red first:
-`a_reference_lock_nothing_proves_gone_is_named_with_the_command_that_clears_it`,
-with `a_lock_a_live_process_has_open_is_named_and_left`,
-`a_staging_file_with_no_lock_is_cleared_and_the_write_may_be_tried_again`,
-`nothing_standing_costs_no_wait`,
-`a_young_lock_is_looked_at_again_until_the_deadline_and_then_named`,
+`a_standing_lock_keeps_the_branch_without_losing_the_commit`,
+`a_held_commit_lands_once_the_lock_is_gone`,
+`a_held_commit_lands_on_the_branch_another_session_moved`,
+`a_held_commit_that_conflicts_keeps_its_record_and_names_the_paths`,
+`a_record_reads_back_as_it_was_written`,
+`holding_writes_the_record_the_intent_describes`,
 and the binary controls
-`a_commit_that_meets_a_reference_lock_names_it_with_the_command_that_clears_it` and
-`a_commit_that_meets_a_live_reference_lock_waits_for_it_and_lands`.
+`a_commit_that_meets_a_lock_nothing_proves_gone_is_held_and_moves_the_branch_when_it_goes`,
+`a_held_commit_lands_on_the_branch_another_session_moved` and
+`two_held_commits_wait_beside_each_other_and_both_land_in_order`.
 
 #### Races, and how each is handled
 
@@ -8514,45 +8600,128 @@ The wrapper recognizes its flag only before Git's `--` separator and removes it 
 
 ### Bulk staging
 
-`add-explicit` decides from the arguments and the caller's pathspec-mode variable alone,
-reads no file and starts no process.
-It rejects `-A`,
+`add-explicit` refuses a `git add` whose pathspec selects every path it could reach,
+however that pathspec is spelled,
+and the finding says how many paths it selected.
+
+`-A`,
 `--all`,
 `-u`
-and `--update`
-with the option spellings Git accepts,
-and it rejects a positional pathspec equal to one of nine fixed spellings that Git resolves to
-the whole worktree
-(or,
-for `.` and `./`,
-to every changed path below the working directory):
+and `--update` are decided from the arguments alone,
+with the option spellings Git accepts.
+They stage every changed path whatever the tree holds,
+so they are refused without asking the repository anything,
+and the finding says whether every changed path or every changed tracked path is swept up.
+
+A positional pathspec is judged by what Git says it selects.
+An ordinary named path,
+meaning one with no pathspec magic,
+no glob character and no `.` or `..` segment
+(`file.ts`,
+`dir/`,
+`.hidden`),
+stages what its name holds:
+it is let through and starts no process.
+Every other spelling is measured,
+with two listings after the caller's own global options:
+
+- `ls-files -z --cached --others --exclude-standard` with the caller's own pathspecs,
+  in the caller's own pathspec mode,
+  so `--literal-pathspecs` and `GIT_LITERAL_PATHSPECS` answer for that caller.
+  `--cached` and `--others` together are the paths `git add` can stage,
+  and `--exclude-standard` leaves out the ignored ones it would skip.
+- when that listing holds at least one path,
+  `--no-literal-pathspecs ls-files -z --cached --others --exclude-standard --full-name -- :/`
+  is every path the worktree gives.
+  The wrapper wrote that pathspec,
+  so no caller mode may read it as a name,
+  and the paths under the caller's own directory prefix are the set that directory gives.
+
+`require-root` refuses a command run below the worktree's top level before this check,
+so the directory set decides only where that policy is off,
+or where `-C` names a directory below the top with the command itself still at the root.
+It keeps the guard as strict as it was for such callers,
+who had `.` and `./` refused before.
+
+A selection is always a subset of those paths,
+so equal counts are equal sets,
+and the policy refuses a pathspec when its selection is the repository's whole set
+or the set of the directory the command runs in,
+and only then when the spelling names no character of a name:
+a pattern of wildcards alone (`*`,
+`**`,
+`:(glob)**`),
+a spelling that resolves to a directory (`sub/..`,
+`.//`,
+`././`),
+an exclusion (`:!x`,
+`:^x`,
+`:(exclude)x`,
+`:(attr:!nope)`),
+or a filter such as case-insensitive matching with no pattern that names anything.
+A spelling that names a character of a name is let through even where the tree happens to fit it,
+because `*.txt` in a repository whose every path is a `.txt` file stages by name and not by reach.
+Several pathspecs of one command are measured together,
+and only the reach-only ones are named.
+
+The finding names every refused token as the caller wrote it,
+says what it selects
+(`It selects all 5 paths of this repository.`,
+`It selects all 2 paths of this directory.`),
+and offers `--no-enforce-bulk-add` for one invocation.
+A flag alone says the set it reaches instead,
+which needs no measurement:
+`It selects every changed path in this repository.` or
+`It selects every changed tracked path in this repository.`
+
+Under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1` the pattern of a spelling is a name,
+so only a spelling that resolves to a directory is reach-only:
 `.`,
-`./`,
-`*`,
-`:/`,
-`:/*`,
-`:/**`,
-`:(top)`,
-`**`
-and `:(glob)**`.
-The list is a fixed enumeration in `command/command_add.rs` and is therefore incomplete by nature:
-pathspec magic and globs can select the same set in further spellings.
-`:(top)/*` is not in it because Git 2.56.0 fails in its own pathspec preparation
-(`fatal: oops in prep_exclude`),
-so the command stops as an engine failure naming `content-unavailable` before the policy is asked.
-The rejection names every matched token as the caller wrote it and offers
-`--no-enforce-bulk-add` for one invocation.
-A token that names the working directory still does so whatever pathspec mode the caller set,
-so `.` and `./` stay bulk under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1`;
-every other spelling of the list is one plain name under that mode
-(so `**` stages a file named `**`,
-and `:/` names no file and is left to Git's own refusal),
-and the policy reads the caller's mode
-(the last of `--literal-pathspecs` and `--no-literal-pathspecs` among its global options,
-and otherwise the variable's own boolean reading)
-before it judges a spelling.
-A variable value Git would refuse to read as a boolean is no mode,
-so an unmodelled spelling keeps the rejection rather than lifting it.
+`./`
+and `sub/..` are refused there,
+while `**` stages the one file of that name.
+The mode is the last of `--literal-pathspecs` and `--no-literal-pathspecs` among the caller's global options,
+and otherwise the variable's own boolean reading;
+a value Git would refuse to read as a boolean is no mode.
+
+A listing that cannot start,
+fails or reaches the read ceiling never blocks the command:
+the add runs unchanged,
+and one line on standard error says the check could not be made with the reason Git gave.
+The read is bounded by `READ_CEILING` in `repo_read/git_metadata.rs`,
+which is `PLUMBING_STEP_CEILING` in `service/wait_ceilings.rs`,
+two minutes,
+and the person is never held longer.
+A spelling Git itself cannot prepare,
+such as `:(top)/*` (Git 2.56.0 fails in its own `prep_exclude`),
+gets that line and then Git's own refusal,
+unless an enabled content policy reads the command's candidates first:
+the candidate prediction runs that same `git add` on a private index and stops on its failure,
+which names Git's refusal and no line of this check.
+
+The two listings run before Git does,
+so a path that appears between them and the forwarded command is not counted:
+a spelling that covered every path up to then is still refused,
+and one that covered all but that new path is let through.
+The window is the policy pass's own,
+and no file is read twice.
+
+A pattern written only in wildcard syntax,
+such as a class holding `*` or an escaped `*`,
+is read as naming no character of a name,
+because Git's character classes and escapes are not modelled here:
+a repository whose entire content is one file of that name is refused,
+and nothing else is,
+since such a spelling names no path a person means.
+
+An ordinary name costs nothing;
+a spelling that is no ordinary name costs two listing reads,
+the second only when the first found a path.
+Measured on 2026-11-10 in a worktree of 22,993 paths,
+five samples of each:
+the selection listing took 8.9 to 9.7 ms and the worktree listing 46.8 to 49.2 ms,
+so the guard adds under 60 ms to a `git add` whose pathspec is no ordinary name,
+and the whole worktree listing is the larger part.
 
 ## Whole-sequence fixing
 
@@ -12220,7 +12389,13 @@ the attempts of one landing are `LANDING_ATTEMPTS` in `src/native/landing/servic
 The service keeps a journal of each batch it lands and settles an unfinished batch before its next batch;
 a service's start settles only an earlier release's shared journal,
 and the wrapper recovers nothing for a commit.
-A batch whose branch does not show its commit is dropped:
+A batch whose branch does not show its commit is dropped,
+unless a record of a hold names it:
+a held batch is settled first
+(`held_commit_settle.rs`),
+and one whose lock still stands is left with `Handled::Held` and `Recovery::Hold`,
+because dropping it would take a commit the person made and kept.
+Otherwise it is dropped:
 its commit is written to `refs/cli-git/kept/<batch>` before the intent goes
 (`keep_what_the_branch_does_not_show` in `src/native/landing/service_land_finish.rs`),
 so the commit of a branch write that a stop left running,
@@ -13063,10 +13238,16 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 10,
-the first whose landing answers `reference-locked`
-when a reference lock refused its branch write;
-a client of version 9 reads a failure word it does not know as an answer it cannot read.
+The commit request speaks protocol version 11,
+the first whose landing answers `held`
+when a reference lock keeps a commit off its branch:
+the answer carries the commit and the words the command prints,
+and a client of version 10 reads a message type it does not know as a line it cannot read,
+so a service of that version retires before a request is sent.
+Version 10 was the first whose landing answers `reference-locked`
+when a reference lock refused its branch write,
+which version 11 keeps for the one case a commit still ends on:
+a hold whose record cannot be written.
 Version 9 was the first that names the commit's scratch tree in a field of its own.
 A service of version 8 works the tree out from the request's index,
 which is the worktree's real index rather than a tree,

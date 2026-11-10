@@ -7472,14 +7472,28 @@ post-commit trigger.
 The direct route got the same defect and its fix in `1899e041ef`;
 the commit route's two arms were not changed and have no control.
 Separately,
-`add-explicit` names four whole-tree pathspec spellings and lets five that Git
-resolves to the whole tree pass,
+`add-explicit` named four whole-tree pathspec spellings and let five that Git
+resolved to the whole tree pass,
 `:/*`,
 `:/**`,
 `:(top)`,
 `**` and
 `:(glob)**`,
-while `:(top)/*` fails inside Git and is reported as `content-unavailable`.
+while `:(top)/*` failed inside Git and was reported as `content-unavailable`.
+Status 2026-11-10:
+the fixed list is gone;
+a pathspec is now refused when real Git finds it selects every path of the
+repository or of the caller's directory and the spelling names no character of a
+name,
+so all nine of those spellings and `.//`,
+`sub/..`,
+`:(icase)*` and
+`:!x` are refused,
+and the finding names the count
+(branch `fix/git-policy-cli-git-add-refuses-a-whole-tree-however-spelled`,
+`e9f349911c`;
+`SPEC.md`,
+"Bulk staging").
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,

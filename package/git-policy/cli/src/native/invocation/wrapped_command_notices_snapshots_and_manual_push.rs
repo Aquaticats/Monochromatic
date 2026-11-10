@@ -199,6 +199,74 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
 }
 
 /// What:
+///  Settles the commits a reference lock keeps off their branch,
+///  and says what became of them,
+///  on standard error.
+/// Why:
+///   The owner chose "Make it,
+/// hold until lock goes" (2026-11-09):
+///  the commit is written and kept,
+///  the command exits `0`,
+///  and the next command that finds the lock gone moves the branch.
+///  This is that next command,
+///  in every command of the worktree,
+///  because the record is the only place the state exists and nothing waits for anything:
+///  a lock that still stands costs one look and names the lock,
+///  and the count says when held commits are collecting.
+///  A command whose output a program reads settles them too,
+///  because a script's command is still the next command,
+///  and only the words are kept from it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [held, settled] of settleHeldCommits(gitDir)) if (!machineRead) console.error(lineOf(held, settled));
+/// ```
+pub(crate) fn show_held_commits<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
+    let Some(git_dir) = checks.facts.known_git_dir() else { return };
+    let context: GitContext = checks.facts.transaction_context();
+    let (settled, damaged) = crate::held_commit_settle::all(&context, git_dir.as_path(), crate::held_commit_settle::Clearing::Never);
+    if settled.is_empty() && damaged.is_empty() {
+        return;
+    }
+    let silent: bool = is_machine_read(command_word(stripped), command_region(stripped));
+    let mut lines: Vec<String> = Vec::new();
+    let mut waiting: Vec<String> = Vec::new();
+    for (held, outcome) in &settled {
+        match outcome {
+            crate::held_commit_settle::Settled::Landed { commit } => lines.push(crate::held_commit_words::landed(held, commit, false)),
+            crate::held_commit_settle::Settled::LandedTheIndexWaits { commit } => lines.push(crate::held_commit_words::landed(held, commit, true)),
+            crate::held_commit_settle::Settled::AlreadyThere { commit } => lines.push(crate::held_commit_words::already_there(held, commit)),
+            crate::held_commit_settle::Settled::WaitsForLocks(_standing) => {
+                // The record names the locks it was held behind, which is what the words give; the ones that stand now are the
+                //  same set unless another program took one meanwhile, and the next command settles the commit either way.
+                waiting.push(crate::held_commit_words::waiting(held, commit_name_of(&context, held).as_str()));
+            }
+            crate::held_commit_settle::Settled::Conflicts { commit, paths } => waiting.push(crate::held_commit_words::conflicts(held, commit, paths.as_slice())),
+            crate::held_commit_settle::Settled::Cannot { commit, because } => waiting.push(crate::held_commit_words::cannot(held, commit, because.as_str())),
+        }
+    }
+    if !waiting.is_empty() {
+        lines.push(crate::held_commit_words::heading(waiting.len()));
+        lines.extend(waiting);
+    }
+    if !damaged.is_empty() {
+        lines.push(crate::held_commit_words::unreadable(damaged.as_slice()));
+    }
+    if silent {
+        return;
+    }
+    for line in lines {
+        let _written = writeln!(std::io::stderr(), "{}: {line}", crate::wrapper_names_old_and_new::PROGRAM.current);
+    }
+}
+
+/// The name Git gives the held commit in this repository as it is now.
+fn commit_name_of(context: &GitContext, held: &crate::held_commit_record::Held) -> String {
+    let objects: std::path::PathBuf = held.common_dir.join("objects");
+    return crate::landed_summary::short_name(context, held.repository.as_path(), objects.as_path(), None, held.new.as_str());
+}
+
+/// What:
 ///  The failures the service recorded since one was last shown.
 /// Why:
 ///   Each comes with what removes it once its words are out,
