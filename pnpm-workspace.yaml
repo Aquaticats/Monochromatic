@@ -14,9 +14,10 @@ modulesCacheMaxAge: 0
 
 # TODO: Ideally we want all deps here to be TypeScript (little to no JS) and fuzzed.
 catalog:
-  # `Paused consumer` names the package-paused/ manifest an entry serves. Paused
-  # packages are not workspace members (`package/*/*` glob), so nothing in the
-  # active workspace installs these entries; see package-paused/README.md.
+  # `Paused consumer` (or `Paused consumers`) names the package-paused/ manifest
+  # directories an entry serves. Paused packages are outside the `package/*/*`
+  # workspace glob, so nothing in the active workspace installs these entries;
+  # see package-paused/README.md.
   '@anthropic-ai/sdk': '>=1.6.0'
   '@changesets/cli': '>=3.0.3'
   '@clack/prompts': '>=1.8.1'
