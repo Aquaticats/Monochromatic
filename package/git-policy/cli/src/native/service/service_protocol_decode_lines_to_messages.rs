@@ -333,6 +333,11 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
                 Some(landing) => Some(landing_figures(landing)?),
             },
         }),
+        "held" => Ok(ServiceMessage::Held {
+            id: field(&value, "id")?.to_string(),
+            commit: field(&value, "commit")?.to_string(),
+            words: field(&value, "words")?.to_string(),
+        }),
         "retry-prepare" => Ok(ServiceMessage::RetryPrepare {
             id: field(&value, "id")?.to_string(),
             base: field(&value, "base")?.to_string(),

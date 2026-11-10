@@ -109,13 +109,14 @@ pub async fn merge_tree_awaiting(
     }
     arguments.push(head);
     arguments.push(target);
-    let probing: ContextRunner<'_> = ContextRunner { context: &session.context, cwd: Path::new("."), without_prefix: false, object_directory: None, environment: Vec::new() };
+    let probing: ContextRunner<'_> = ContextRunner { context: &session.context, cwd: Path::new("."), without_prefix: false, repository: Vec::new(), object_directory: None, environment: Vec::new() };
     let variables: Vec<(OsString, OsString)> = environment_with_overlay(environment, session.context.overlay.as_slice());
     let probe: AttributeProbe<'_> = AttributeProbe { directory: root, global_prefix: session.context.global_prefix.as_slice(), variables: variables.as_slice(), runner: &probing };
     let runner: ContextRunner<'_> = ContextRunner {
         context: &session.context,
         cwd: Path::new("."),
         without_prefix: false,
+        repository: Vec::new(),
         object_directory: None,
         environment: attribute_tree_variables(head, &probe).await,
     };

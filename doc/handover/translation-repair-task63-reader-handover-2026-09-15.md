@@ -190,27 +190,27 @@ Before any new reader work,
 run a checkpoint that includes this file in the targeted test list.
 The established pattern:
 
-1. Copy the previous stage generator,
-   `harness/prepare-registration-stage.mjs`,
-   and adapt it,
-   or write a new `prepare-geometry-test-stage.mjs`
-   that derives its check worker from `harness/registration-worker.mjs`
-   by inserting `'src/preparation-root-protection.unit.test.ts',`
-   at the front of the `devtest` file list.
-2. Generate `run-geometry-test-check.mjs` and a `verify-geometry-test-r1.mjs`
-   from `verify-registration-stage-r2.mjs`
-   by the same replacements used by every `prepare-*-stage.mjs`.
-3. Execute with Node
-   `/var/home/user/.local/share/mise/installs/node/26.8.2/bin/node`.
-   The sequence is
-   devbuild,
-   native,
-   devbootstrap,
-   devtypes,
-   devtest,
-   devlint256go1.
-   Expect roughly two minutes.
-   Read the exact failure before changing anything if it refuses.
+1.  Copy the previous stage generator,
+    `harness/prepare-registration-stage.mjs`,
+    and adapt it,
+    or write a new `prepare-geometry-test-stage.mjs`
+    that derives its check worker from `harness/registration-worker.mjs`
+    by inserting `'src/preparation-root-protection.unit.test.ts',`
+    at the front of the `devtest` file list.
+2.  Generate `run-geometry-test-check.mjs` and a `verify-geometry-test-r1.mjs`
+    from `verify-registration-stage-r2.mjs`
+    by the same replacements used by every `prepare-*-stage.mjs`.
+3.  Execute with Node
+    `/var/home/user/.local/share/mise/installs/node/26.8.2/bin/node`.
+    The sequence is
+    devbuild,
+    native,
+    devbootstrap,
+    devtypes,
+    devtest,
+    devlint256go1.
+    Expect roughly two minutes.
+    Read the exact failure before changing anything if it refuses.
 
 The generator scripts and per-stage result JSON files
 under the reader root are the working examples;
@@ -218,76 +218,76 @@ do not invent a new harness shape.
 
 ## Remaining work in order
 
-1. Execute the geometry golden checkpoint that "The one pending verification" describes.
-2. Implement the whole-root reader.
-   A module such as `src/preparation-input-read-root.ts` decodes the closed root keys
-   `scope`,
-   `selection`,
-   `references`,
-   `rawDocuments`,
-   `listedEntryIds`,
-   `population`,
-   `excluded`,
-   `entries`,
-   `parents`,
-   `obligations`,
-   `registry`,
-   `unalignedDefinitions`,
-   `questionAliases`,
-   `sectionPairing`,
-   then checks cross-record relations.
-   The reviewed relation plan is recorded in the planning record under
-   "Whole-root relationship implementation boundary";
-   honor every listed distinction,
-   including:
-   - Raw sides follow listed-entry order with source before archive,
-     exactly two sides unless the unique exclusion is `missing-corpus-side`.
-   - Registry order is selected parents in frozen selection order,
-     then definition-bearing unselected parents of selected entries
-     in native population order.
-   - Registry roles,
-     domains,
-     dispatch,
-     `freeOrder` and block correspondence derive from selection and population,
-     never from registry claims alone.
-   - Namespace nodes are absent by identity from aligned parents,
-     not geometrically disjoint;
-     do not infer inventory completeness without reparsing.
-   - Alias groups derive from exact `JSON.stringify` of decoded questions
-     in registry order,
-     grouped before hashing,
-     only where more than one occurrence exists;
-     equal historical keys with different question bytes must not alias.
-   - Reference bindings:
-     the first three references carry their mandatory selection roles exactly once each,
-     frames bind exactly once per selected entry,
-     parent notes exactly once per selected parent,
-     optional entry note zero or once;
-     consumers stay within those identity sets.
-   - The selection reference projection carries `path` and `hash` only.
-     Never invent a per-reference `bytes` field.
-   - Registry `sourceHash` and `targetHash` are complete-entry hashes,
-     not parent-side hashes.
-   - `sectionPairing` stays `'not-registered'`.
-3. Add the public byte-reader result:
-   bytes in,
-   observed identity plus `DeepReadonlyData<PreparationRootInputs>` out,
-   with a runtime deep-freeze walk as evidence.
-   The annotation alone is not immutability proof.
-4. Whole-root unit tests and an actual-artifact native consumer
-   covering every root relation and the frozen result tree.
-5. Full suite run,
-   mutation guards with successful builds and designated assertions,
-   import-closure and standalone-closure checks,
-   and ordinary positive lint controls.
-6. Documentation updates
-   (the planning record,
-   the package README where the reader becomes user-visible),
-   exact evidence retention of the reader root,
-   and removal of only owned stopped diagnostic containers,
-   preserving every unselected container ID.
-7. Close task63 only within that full checked scope,
-   then proceed to task64.
+1.  Execute the geometry golden checkpoint that "The one pending verification" describes.
+2.  Implement the whole-root reader.
+    A module such as `src/preparation-input-read-root.ts` decodes the closed root keys
+    `scope`,
+    `selection`,
+    `references`,
+    `rawDocuments`,
+    `listedEntryIds`,
+    `population`,
+    `excluded`,
+    `entries`,
+    `parents`,
+    `obligations`,
+    `registry`,
+    `unalignedDefinitions`,
+    `questionAliases`,
+    `sectionPairing`,
+    then checks cross-record relations.
+    The reviewed relation plan is recorded in the planning record under
+    "Whole-root relationship implementation boundary";
+    honor every listed distinction,
+    including:
+    - Raw sides follow listed-entry order with source before archive,
+      exactly two sides unless the unique exclusion is `missing-corpus-side`.
+    - Registry order is selected parents in frozen selection order,
+      then definition-bearing unselected parents of selected entries
+      in native population order.
+    - Registry roles,
+      domains,
+      dispatch,
+      `freeOrder` and block correspondence derive from selection and population,
+      never from registry claims alone.
+    - Namespace nodes are absent by identity from aligned parents,
+      not geometrically disjoint;
+      do not infer inventory completeness without reparsing.
+    - Alias groups derive from exact `JSON.stringify` of decoded questions
+      in registry order,
+      grouped before hashing,
+      only where more than one occurrence exists;
+      equal historical keys with different question bytes must not alias.
+    - Reference bindings:
+      the first three references carry their mandatory selection roles exactly once each,
+      frames bind exactly once per selected entry,
+      parent notes exactly once per selected parent,
+      optional entry note zero or once;
+      consumers stay within those identity sets.
+    - The selection reference projection carries `path` and `hash` only.
+      Never invent a per-reference `bytes` field.
+    - Registry `sourceHash` and `targetHash` are complete-entry hashes,
+      not parent-side hashes.
+    - `sectionPairing` stays `'not-registered'`.
+3.  Add the public byte-reader result:
+    bytes in,
+    observed identity plus `DeepReadonlyData<PreparationRootInputs>` out,
+    with a runtime deep-freeze walk as evidence.
+    The annotation alone is not immutability proof.
+4.  Whole-root unit tests and an actual-artifact native consumer
+    covering every root relation and the frozen result tree.
+5.  Full suite run,
+    mutation guards with successful builds and designated assertions,
+    import-closure and standalone-closure checks,
+    and ordinary positive lint controls.
+6.  Documentation updates
+    (the planning record,
+    the package README where the reader becomes user-visible),
+    exact evidence retention of the reader root,
+    and removal of only owned stopped diagnostic containers,
+    preserving every unselected container ID.
+7.  Close task63 only within that full checked scope,
+    then proceed to task64.
 
 ## Standing constraints
 
@@ -422,12 +422,12 @@ they were intentionally preserved by earlier cleanups.
 
 ## Session-start checklist
 
-1. Confirm `git status --short` shows only `mise.lock`
-   and confirm the branch and remote state.
-2. Re-read the planning record
-   `doc/planning/translation-repair-persisted-input-reader-2026-09-15.md`
-   and this handover.
-3. Run the pending geometry golden checkpoint before new code.
-4. Follow the remaining-work order without skipping qualification steps.
-5. Record every checkpoint result in the planning record as it lands,
-   including failures and their exact diagnostics.
+1.  Confirm `git status --short` shows only `mise.lock`
+    and confirm the branch and remote state.
+2.  Re-read the planning record
+    `doc/planning/translation-repair-persisted-input-reader-2026-09-15.md`
+    and this handover.
+3.  Run the pending geometry golden checkpoint before new code.
+4.  Follow the remaining-work order without skipping qualification steps.
+5.  Record every checkpoint result in the planning record as it lands,
+    including failures and their exact diagnostics.

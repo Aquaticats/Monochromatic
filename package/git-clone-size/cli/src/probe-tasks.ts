@@ -25,6 +25,8 @@ import {
 import type { ShallowResult, } from './probe-shallow.ts';
 import type { RemoteSource, } from './source.ts';
 
+//region Signal shape
+
 /**
  One settled probe signal, discriminated by `kind`. `none` marks a probe that
  yielded nothing (unsupported, failed, or budget-aborted), so the snapshot
@@ -63,6 +65,10 @@ export type Signal =
       readonly kind: 'none';
       readonly which: string
     };
+
+//endregion Signal shape
+
+//region Shallow and deepen signals
 
 /**
  Resolves the shared shallow-clone promise into a shallow signal.
@@ -150,6 +156,10 @@ export async function deepenSignal(
   };
 }
 
+//endregion Shallow and deepen signals
+
+//region Host API signals
+
 /**
  Counts refs via `git ls-remote`.
  
@@ -233,6 +243,10 @@ export async function commitSignal({ source, }: { readonly source: RemoteSource;
     commit,
   };
 }
+
+//endregion Host API signals
+
+//region Partial-clone signals
 
 /**
  Counts commits via a tree:0 partial clone.
@@ -326,6 +340,10 @@ export async function churnSignal(
   };
 }
 
+//endregion Partial-clone signals
+
+//region Signal accumulator
+
 /**
  Folds a settled signal into the accumulator, returning a new {@link Signals}.
  A `none` signal yields the input unchanged, advancing the stream without a
@@ -388,3 +406,5 @@ export function applySignal(
     };
   return signals;
 }
+
+//endregion Signal accumulator

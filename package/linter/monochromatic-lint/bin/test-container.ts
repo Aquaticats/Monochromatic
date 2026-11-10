@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  Run the full suite by default, or one explicitly named slice in the same isolated source snapshot.
+ Throws when more than one filter is given or the run fails.
  */
 import {
   cp,
@@ -230,42 +231,28 @@ async function buildAndRun({
 }
 
 /**
- Read the optional test-name filter, then run the suite in a build context that is removed afterwards.
-
- @throws Error when more than one filter is given or the run fails
-
- @example
- ```ts
- await main();
- ```
+ The optional nextest test-name filter, then anything extra, which is rejected.
  */
-async function main(): Promise<void> {
-  /**
-   The optional nextest test-name filter, then anything extra, which is rejected.
-   */
-  const [filter, ...extra] = process.argv
-    .slice(2);
-  if (extra.length > 0) throw new Error('Expected at most one nextest test-name filter');
-  await mkdir(
-    scratchBase,
-    { recursive: true },
-  );
-  /**
-   The disposable build context, removed when this function ends.
-   */
-  await using context = await mkdtempDisposable(join(
-    scratchBase,
-    'monochromatic-lint-test-',
-  ));
-  await buildAndRun({
-    source: process.cwd(),
-    context: context.path,
-    // Concurrent worktrees set MONOCHROMATIC_LINT_IMAGE_TAG so one snapshot never runs another's image.
-    testImage: `localhost/monochromatic-lint-test:${process.env
-      .MONOCHROMATIC_LINT_IMAGE_TAG
-      ?? 'development'}`,
-    ...(filter === undefined ? {} : { filter }),
-  });
-}
-
-await main();
+const [filter, ...extra] = process.argv
+  .slice(2);
+if (extra.length > 0) throw new Error('Expected at most one nextest test-name filter');
+await mkdir(
+  scratchBase,
+  { recursive: true },
+);
+/**
+ The disposable build context, removed when this function ends.
+ */
+await using context = await mkdtempDisposable(join(
+  scratchBase,
+  'monochromatic-lint-test-',
+));
+await buildAndRun({
+  source: process.cwd(),
+  context: context.path,
+  // Concurrent worktrees set MONOCHROMATIC_LINT_IMAGE_TAG so one snapshot never runs another's image.
+  testImage: `localhost/monochromatic-lint-test:${process.env
+    .MONOCHROMATIC_LINT_IMAGE_TAG
+    ?? 'development'}`,
+  ...(filter === undefined ? {} : { filter }),
+});

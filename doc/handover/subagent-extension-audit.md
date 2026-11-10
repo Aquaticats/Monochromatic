@@ -508,49 +508,49 @@ No existing candidate is a clean pass on all hard requirements.
 
 Personal ranking by fit for the stated requirements and auditability:
 
-1. A minimal custom extension,
-    unvalidated until implemented.
-    Use a single explicit child descriptor with `id`,
-    `systemPrompt`,
-    `task`,
-    `tools`,
-    `cwd`,
-    and `timeoutMs`;
-    capture every JSONL child event;
-    show a scrollable complete transcript;
-    expose selected-child and all-child interruption;
-    use `--no-extensions` unless explicitly granted;
-    preserve an explicit read-only profile.
-2. `nicobailon/pi-subagents`,
-    the closest existing implementation.
-    It needs per-task timeout fields and a clean current-Pi integration proof;
-    its measured 39,712 production code lines are a substantial audit surface.
-3. `@the-forge-flow/sub-agents-pi`,
-    the clearest small reference.
-    Its measured 1,421 production code lines and selected-child TUI kill are attractive,
-    but it needs a timeout field,
-    complete live history,
-    current `@earendil-works` imports,
-    and a fixed coverage dependency.
-4. `pi-multiagent`,
-    strong authority and raw-event foundations,
-    but its live UI summarizes activity and its timeout is shared per step rather than individually specified.
-5. `pi-crew`,
-    broad dashboard and transcript features,
-    but its measured 76,740 production code lines and explicit not-hardened warning make it a poor auditability fit.
-6. `jwu/pi-subagents`,
-    measured 1,800 code lines with 111 passing tests and expanded tool logs,
-    but no user control action or per-child timeout.
-7. `@e9n/pi-subagent`,
-    measured 2,541 code lines with full message capture and pool kill internals,
-    but no tests,
-    no adequate operator UI,
-    and settings-level timeout only.
-8. `mjakl/pi-subagent`,
-    measured 37 passing tests and a small surface,
-    but no timeout or operator control action.
-9. The official Pi subagent example and `cmf/pi-subagent` remain reference or low-signal implementations,
-    not viable hard-filter finalists.
+1.  A minimal custom extension,
+     unvalidated until implemented.
+     Use a single explicit child descriptor with `id`,
+     `systemPrompt`,
+     `task`,
+     `tools`,
+     `cwd`,
+     and `timeoutMs`;
+     capture every JSONL child event;
+     show a scrollable complete transcript;
+     expose selected-child and all-child interruption;
+     use `--no-extensions` unless explicitly granted;
+     preserve an explicit read-only profile.
+2.  `nicobailon/pi-subagents`,
+     the closest existing implementation.
+     It needs per-task timeout fields and a clean current-Pi integration proof;
+     its measured 39,712 production code lines are a substantial audit surface.
+3.  `@the-forge-flow/sub-agents-pi`,
+     the clearest small reference.
+     Its measured 1,421 production code lines and selected-child TUI kill are attractive,
+     but it needs a timeout field,
+     complete live history,
+     current `@earendil-works` imports,
+     and a fixed coverage dependency.
+4.  `pi-multiagent`,
+     strong authority and raw-event foundations,
+     but its live UI summarizes activity and its timeout is shared per step rather than individually specified.
+5.  `pi-crew`,
+     broad dashboard and transcript features,
+     but its measured 76,740 production code lines and explicit not-hardened warning make it a poor auditability fit.
+6.  `jwu/pi-subagents`,
+     measured 1,800 code lines with 111 passing tests and expanded tool logs,
+     but no user control action or per-child timeout.
+7.  `@e9n/pi-subagent`,
+     measured 2,541 code lines with full message capture and pool kill internals,
+     but no tests,
+     no adequate operator UI,
+     and settings-level timeout only.
+8.  `mjakl/pi-subagent`,
+     measured 37 passing tests and a small surface,
+     but no timeout or operator control action.
+9.  The official Pi subagent example and `cmf/pi-subagent` remain reference or low-signal implementations,
+     not viable hard-filter finalists.
 
 Do not create a decision document until the user selects whether to patch
 an existing extension or implement the custom design.
@@ -559,8 +559,8 @@ an existing extension or implement the custom design.
 
 ## Continuation checklist
 
-1. Preserve this synthesis during any context compaction.
-2. If the user requests implementation,
-    prototype the custom event contract in a disposable path before editing the main worktree.
-3. Exercise the real Pi integration boundary before adopting any candidate.
-4. Write `doc/decision/<project>.md` after the user selects an option.
+1.  Preserve this synthesis during any context compaction.
+2.  If the user requests implementation,
+     prototype the custom event contract in a disposable path before editing the main worktree.
+3.  Exercise the real Pi integration boundary before adopting any candidate.
+4.  Write `doc/decision/<project>.md` after the user selects an option.

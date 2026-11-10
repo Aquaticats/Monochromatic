@@ -45,6 +45,8 @@ use git_policy_cli::policy_content::LifecycleContent;
 use git_policy_cli::policy_registry::{POLICY_REGISTRY, PolicyId};
 use git_policy_cli::repository_facts::RepositoryFacts;
 use git_policy_cli::repository_location::RepositoryLocation;
+/// The answer one `git add` selection question gives.
+use git_policy_cli::rule_add_explicit::StagedSelection;
 use git_policy_cli::rule_commit_index::IndexVsHead;
 use git_policy_cli::rule_commit_sequencer::SequencerState;
 use git_policy_cli::rule_worktree_dirty::DirtyScope;
@@ -399,7 +401,7 @@ pub fn check_separator(arguments: &[OsString], separator: usize) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean; ignoredAndTracked: string[]; stash: boolean; cleanDeletesOnlyByItsPatterns: boolean };
+/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean; ignoredAndTracked: string[]; stash: boolean; cleanDeletesOnlyByItsPatterns: boolean; selection: StagedSelection };
 /// ```
 #[derive(Clone, Debug)]
 pub struct FixedFacts {
@@ -422,6 +424,9 @@ pub struct FixedFacts {
     /// Whether the dry run of a clean as typed names a path only its own `-e`/`--exclude` patterns call ignored,
     ///  and the same clean without them names nothing.
     pub clean_deletes: bool,
+    /// The answer to `staged_selection`,
+    ///  for whichever pathspecs were asked about.
+    pub selection: StagedSelection,
 }
 
 /// What:
@@ -443,6 +448,10 @@ impl RepositoryFacts for FixedFacts {
 
     fn index_vs_head(&mut self) -> Result<IndexVsHead, String> {
         return Ok(self.index);
+    }
+
+    fn staged_selection(&mut self, _pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+        return Ok(self.selection.clone());
     }
 
     fn worktree_dirty(&mut self, _scope: DirtyScope) -> Result<bool, String> {
@@ -634,6 +643,13 @@ pub fn fixed_facts(mode: u8) -> FixedFacts {
         },
         stash: mode & 64 == 64,
         clean_deletes: mode & 128 == 128,
+        // The fake repository holds one path, and the whole worktree and the directory the command runs in
+        //  both give it, so a reach-only spelling of `git add` covers a set here as it does in a real one.
+        selection: StagedSelection {
+            selected: 1,
+            repository: 1,
+            directory: 1,
+        },
     };
 }
 

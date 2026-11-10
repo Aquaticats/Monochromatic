@@ -775,12 +775,12 @@ or modify the phased combined direction.
 If accepted or delegated,
 create production implementation tasks for:
 
-1. opt-in prose-preserving markup;
-2. owned CSS formatting and the dprint process adapter;
-3. the learning package contract checker;
-4. shadow Stylelint responsibility migration;
-5. CSS and HTML live-diagnostic clients;
-6. final Stylelint dependency removal.
+1.  opt-in prose-preserving markup;
+2.  owned CSS formatting and the dprint process adapter;
+3.  the learning package contract checker;
+4.  shadow Stylelint responsibility migration;
+5.  CSS and HTML live-diagnostic clients;
+6.  final Stylelint dependency removal.
 
 Leave production configuration,
 package source,

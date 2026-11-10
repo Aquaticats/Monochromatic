@@ -22,7 +22,7 @@ use crate::service_pruned::batch_content_missing;
 use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
 use crate::service_land_finish::finish_after_move;
 use crate::service_land_start::witness_of;
-use crate::service_index_lock::{Announce, Announcer, IndexLock};
+use crate::service_index_lock::{Announcer, IndexLock};
 use crate::service_timing::LandTiming;
 use crate::service_scratch_ref_of_a_dropped_batch::scratch_ref;
 use crate::service_land_follow::storage_failure;
@@ -268,7 +268,7 @@ pub(crate) fn land_batch_body(
         let moving: Vec<std::ffi::OsString> = vec![
             std::ffi::OsString::from("update-ref"),
             std::ffi::OsString::from("-m"),
-            reflog,
+            reflog.clone(),
             std::ffi::OsString::from("--stdin"),
         ];
         let ref_began: Instant = Instant::now();
@@ -285,15 +285,10 @@ pub(crate) fn land_batch_body(
         };
         timing.ref_update += ref_began.elapsed();
         if !moved.succeeded() {
-            // The branch moved under the batch: forget the intent, what the batch owes and the scratch branch, and build it again.
-            let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
-            crate::service_server_land_group::forget_what_a_batch_owes(&intent);
-            remove_start(context.journal.as_path(), seq);
-            let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
-            // A branch that is no longer where this batch found it is the race the loop is built for. A branch that still
-            //  names it did not move, so something else refused the write, and a reference lock is what refuses it when one
-            //  stands: the wrapper clears the ones nothing live holds, waits out a live holder within one bound, and names the
-            //  rest with the command that clears them. Neither a lock nor a wait for one is a branch that changed.
+            // A branch that is no longer where this batch found it is the race the loop is built for. A branch that still names
+            //  it did not move, so something else refused the write, and a reference lock is what refuses it when one stands: the
+            //  wrapper clears the ones nothing live holds, waits out a live holder within one bound, holds the commit behind the
+            //  rest, and names them with the command that clears them. Neither a lock nor a wait for one is a branch that changed.
             let standing: String = checked(&git, repository, &["rev-parse", "--verify", "--quiet", branch_commit.as_str()], None).unwrap_or_default();
             if standing == old {
                 // The index lock is given up while the wait runs, so another program's commit is not held behind this one.
@@ -307,36 +302,62 @@ pub(crate) fn land_batch_body(
                     }
                 };
                 let within_bound: bool = Instant::now() < deadline;
-                if within_bound {
-                    // The journal keeps what the landing waits for and how long, so a person reading it sees the lock a commit met.
-                    crate::service_warn!(
-                        "batch {seq} was refused the write of {} while the branch still names {old}, so a reference lock stands in the way; the landing waits for it until {} seconds after the first refusal",
-                        first.reference,
-                        crate::wait_ceilings::REFERENCE_LOCK_WAIT.as_secs()
-                    );
-                }
+                crate::service_land_hold_a_batch::say_it_waits(seq, first.reference.as_str(), old.as_str(), within_bound);
                 match wait_out_the_reference_locks(lock_roots.as_slice(), &crate::stale_ref_locks::Judge::here(), deadline) {
                     // Nothing stands any more and the bound for waiting on one has not passed: the branch is where it was,
                     //  so the write may be tried again.
                     Waiting::Gone if within_bound => {
                         timing.hold += hold_began.elapsed();
+                        let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+                        crate::service_server_land_group::forget_what_a_batch_owes(&intent);
+                        remove_start(context.journal.as_path(), seq);
+                        let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
                         continue;
                     }
                     // The bound has passed and nothing stands now: the refusal this batch keeps meeting is Git's own, and
-                    //  its words are what the person is told.
+                    //  its words are what the person is told (`service_land_hold_a_batch.rs`).
                     Waiting::Gone => {
-                        let said: String = String::from_utf8_lossy(moved.stderr.as_slice()).trim().to_string();
-                        crate::service_error!("batch {seq} could not move {}: {said}", first.reference);
-                        announce.announce(Announce::Holder(format!("The wait for the lock has ended, and Git said: {said}")));
-                        return Err(FailureCode::ReferenceLocked);
+                        return Err(crate::service_land_hold_a_batch::give_up(&crate::service_land_hold_a_batch::GivenUp {
+                            git: &git,
+                            context,
+                            repository,
+                            seq,
+                            intent: &intent,
+                            scratch: scratch.as_str(),
+                            reference: first.reference.as_str(),
+                            stderr: moved.stderr.as_slice(),
+                            announce,
+                        }));
                     }
-                    Waiting::Blocked(words) => {
-                        crate::service_error!("batch {seq} could not move {}: a reference lock stands in the way; {words}", first.reference);
-                        announce.announce(Announce::Holder(words));
-                        return Err(FailureCode::ReferenceLocked);
+                    // The owner chose "Make it, hold until lock goes" (2026-11-09): the commit is written and kept, the command
+                    //  exits 0, and the next command that finds the lock gone moves the branch (`service_land_hold_a_batch.rs`).
+                    Waiting::Blocked { words, locks } => {
+                        let refused: crate::service_land_hold_a_batch::ARefusedBatch<'_> = crate::service_land_hold_a_batch::ARefusedBatch {
+                            git: &git,
+                            context,
+                            repository,
+                            first,
+                            seq,
+                            intent: &intent,
+                            scratch: scratch.as_str(),
+                            new: new.as_str(),
+                            reflog: &reflog,
+                            locks,
+                            words,
+                            announce,
+                            timing,
+                            held_at: hold_began,
+                            requests: requests.len(),
+                        };
+                        return crate::service_land_hold_a_batch::hold_the_batch(refused);
                     }
                 }
             }
+            // The branch moved under the batch: forget the intent, what the batch owes and the scratch branch, and build it again.
+            let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            crate::service_server_land_group::forget_what_a_batch_owes(&intent);
+            remove_start(context.journal.as_path(), seq);
+            let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
             timing.hold += hold_began.elapsed();

@@ -13,7 +13,7 @@
 
 use crate::conflict_side_modes::MODE_VARIABLES;
 use crate::service_prepare_unmerged_staging::unmerged_staging_request;
-use crate::transaction_git::GitRequest;
+use crate::transaction_git::{GitContext, GitRequest};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -22,7 +22,8 @@ use std::path::Path;
 /// instead of appending one `--no-...` flag for one of them.
 #[test]
 fn the_unmerged_staging_start_declares_its_pathspecs_the_wrapper_own() {
-    let request: GitRequest = unmerged_staging_request(Path::new("sub"), Path::new(".git/commit.index"), Path::new(".git/objects"), &[b"sub/f".to_vec()]);
+    let context: GitContext = crate::test_support::git_context();
+    let request: GitRequest = unmerged_staging_request(&context, Path::new("sub"), Path::new(".git/commit.index"), Path::new(".git/objects"), &[b"sub/f".to_vec()]);
     assert!(request.own_pathspecs, "the pathspecs are the wrapper's own");
     assert!(request.without_prefix, "the start names its repository by its directory");
     let arguments: Vec<String> = request.arguments.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();

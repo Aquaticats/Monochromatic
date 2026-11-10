@@ -7078,30 +7078,30 @@ new branch work needs its own `git worktree add -b`.
 
 Queue after the in-flight work:
 
-1. Integrate the annotation branch,
-   then connect `State::annotations` to its renderer,
-   and verify all five language feature paths in the nested compositor on `main`,
-   confined,
-   against disposable projects.
-2. Measure the IDE's scale-change latency in a release build.
-   In the debug build the compositor showed the IDE's previous buffer,
-   scaled and soft,
-   for about 330 ms after a switch from 1 to 2 before the first new frame;
-   a cold glyph cache at the new scale is a guess,
-   not a measured cause.
-3. Confirm the two find flakes are gone with repeated native runs on the final `main`.
-   `native_find_paints_visible_matches_only_and_reveals_far_columns` failed 3 of 8 runs on unmodified `8995633b0`
-   because the query `n` also yields its `1/301` count;
-   `native_find_recomputes_after_external_reload_and_follows_selection_correspondence`
-   failed 1 of 8 with selection `(2, 5)`,
-   because the prefix `am ` also yields `1/1`.
-   `4ab83c59e` adds `status_for`,
-   which also waits for the active match to spell the whole query.
-4. The final package gates:
-   guard-removal reruns on the final `main`,
-   packaging,
-   consumer-boundary checks,
-   and the behavior-difference record.
+1.  Integrate the annotation branch,
+    then connect `State::annotations` to its renderer,
+    and verify all five language feature paths in the nested compositor on `main`,
+    confined,
+    against disposable projects.
+2.  Measure the IDE's scale-change latency in a release build.
+    In the debug build the compositor showed the IDE's previous buffer,
+    scaled and soft,
+    for about 330 ms after a switch from 1 to 2 before the first new frame;
+    a cold glyph cache at the new scale is a guess,
+    not a measured cause.
+3.  Confirm the two find flakes are gone with repeated native runs on the final `main`.
+    `native_find_paints_visible_matches_only_and_reveals_far_columns` failed 3 of 8 runs on unmodified `8995633b0`
+    because the query `n` also yields its `1/301` count;
+    `native_find_recomputes_after_external_reload_and_follows_selection_correspondence`
+    failed 1 of 8 with selection `(2, 5)`,
+    because the prefix `am ` also yields `1/1`.
+    `4ab83c59e` adds `status_for`,
+    which also waits for the active match to spell the whole query.
+4.  The final package gates:
+    guard-removal reruns on the final `main`,
+    packaging,
+    consumer-boundary checks,
+    and the behavior-difference record.
 
 Do not restart technology selection for the IDE architecture:
 Helix reuse and the standalone Rust/Slint design are approved.

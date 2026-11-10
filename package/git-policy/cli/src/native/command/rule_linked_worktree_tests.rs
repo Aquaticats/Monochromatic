@@ -19,10 +19,11 @@ use super::{
     ignored_file_message, main_worktree_message, outside_worktree_message, repository_stash_message,
     resolve_linked_worktree, target_tree,
 };
-use crate::command_test_support::os_arguments;
+use crate::command_test_support::{fixture, git, git_status, os_arguments, remove, repository};
 use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
 use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
 /// The index of a form,
 /// so the coverage control can tell a full list from one with a hole.
@@ -116,6 +117,8 @@ fn destructive_forms_need_the_worktree_kind() {
         (vec!["mv", "--force", "a", "b"], GuardedCommand::Move),
         (vec!["checkout-index", "-f", "-a"], GuardedCommand::CheckoutIndex),
         (vec!["read-tree", "--reset", "HEAD"], GuardedCommand::ReadTree),
+        (vec!["read-tree", "-m", "-u", "HEAD"], GuardedCommand::ReadTree),
+        (vec!["read-tree", "HEAD"], GuardedCommand::ReadTree),
         (vec!["merge", "--abort"], GuardedCommand::AbortMerge),
         (vec!["rebase", "--abort"], GuardedCommand::AbortRebase),
         (vec!["cherry-pick", "--abort"], GuardedCommand::AbortPick),
@@ -212,7 +215,10 @@ fn harmless_forms_pass() {
         vec!["mv", "a", "b"],
         vec!["merge", "topic"],
         vec!["rebase", "main"],
-        vec!["read-tree", "HEAD"],
+        vec!["read-tree", "-n", "-m", "-u", "HEAD"],
+        vec!["read-tree", "--dry-run", "--reset", "-u", "HEAD"],
+        vec!["read-tree", "--debug-unpack", "-m", "-u", "HEAD"],
+        vec!["read-tree", "--merge", "HEAD"],
         vec!["checkout", "--no-such-option"],
         vec!["switch", "--no-such-option"],
         vec!["clean", "--no-such-option"],
@@ -342,7 +348,7 @@ fn the_readme_documents_what_the_texts_recommend() {
         (GuardedCommand::Remove, "git rm --cached <path>"),
         (GuardedCommand::Move, "git rm <destination>"),
         (GuardedCommand::CheckoutIndex, "git checkout-index --prefix=<directory>/ --all"),
-        (GuardedCommand::ReadTree, "git read-tree -m"),
+        (GuardedCommand::ReadTree, "git read-tree --dry-run"),
         (GuardedCommand::AbortMerge, "--quit"),
         (GuardedCommand::AbortRebase, "--quit"),
         (GuardedCommand::AbortPick, "--quit"),
@@ -424,4 +430,162 @@ fn the_ignored_file_text_names_the_paths_and_the_tree() {
     assert!(!listed.contains("ignored/5.bin"), "{listed}");
     assert!(listed.contains("and 2 more"), "{listed}");
     assert!(listed.contains("would replace them"), "{listed}");
+}
+
+/// How real Git answers one `git read-tree` region,
+/// measured in a repository that holds each kind of work a read can discard.
+/// An `enum` is a closed set of named alternatives.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum GitAnswer {
+    /// Git wrote the index,
+    ///  a worktree file,
+    ///  or both.
+    Writes,
+    /// Git wrote nothing.
+    WritesNothing,
+    /// Git refused the region before writing anything.
+    Refuses,
+}
+
+/// What:
+///  A repository holding the three kinds of uncommitted work a `git read-tree` can discard:
+///  a staged edit,
+///  a staged new file and an unstaged edit.
+/// Why:
+///  Each kind is what one column of `git status` shows,
+///  and a reading that only saw staged edits would miss
+///  the worktree file `-u` writes over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // write second.txt, add it, commit it, stage an edit plus new.txt, then edit tracked.txt
+/// ```
+fn repository_with_staged_work(directory: &Path, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(directory, name);
+    std::fs::write(repo.join("second.txt"), b"SECOND\n").expect("second file");
+    git(repo.as_path(), &["add", "--", "second.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    std::fs::write(repo.join("second.txt"), b"SECOND-STAGED\n").expect("staged edit");
+    std::fs::write(repo.join("new.txt"), b"NEW-STAGED\n").expect("staged new file");
+    git(repo.as_path(), &["add", "--", "second.txt", "new.txt"]);
+    std::fs::write(repo.join("tracked.txt"), b"UNSTAGED\n").expect("unstaged edit");
+    return repo;
+}
+
+/// The index entries,
+///  the porcelain status and every top-level file of a repository,
+///  as one text.
+/// Why:
+///  A read that rewrites the index,
+///  the index and the worktree,
+///  or one worktree file alone must show in at least one of the three.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // ls-files --stage + status --porcelain + readFileSync of each top-level file
+/// ```
+fn repository_state(repo: &Path) -> String {
+    let mut state: String = String::new();
+    for arguments in [
+        vec!["ls-files", "--stage"],
+        vec!["status", "--porcelain=v1", "--untracked-files=all"],
+    ] {
+        state.push_str(String::from_utf8_lossy(git_status(repo, arguments.as_slice()).stdout.as_slice()).as_ref());
+    }
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(repo)
+        .expect("read repository")
+        .map(|entry| return entry.expect("directory entry").path())
+        .filter(|path| return path.is_file())
+        .collect();
+    paths.sort();
+    for path in paths {
+        state.push_str(format!("{}={:?}\n", path.display(), std::fs::read(&path).expect("file")).as_str());
+    }
+    return state;
+}
+
+/// What:
+///  Every `git read-tree` form is decided the way real Git acts:
+///  the forms that write the index or a worktree file are guarded,
+///  the two that write nothing are not,
+///  and a region Git refuses changes nothing.
+/// Why:
+///  `git read-tree -m -u HEAD` reverted a staged edit and deleted a staged new file from the worktree
+///  with no guard,
+///  because only `--reset` was read as destructive;
+///  a reading written from Git's option table alone can miss a writing form,
+///  so the table is measured against the repository each form leaves behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // decide(['read-tree', '-m', '-u', 'HEAD']) is guarded, and git read-tree -m -u HEAD changes the worktree
+/// ```
+#[test]
+fn every_read_tree_form_is_decided_the_way_real_git_acts() {
+    let directory: PathBuf = fixture("read-tree-forms");
+    for (index, (region, answer)) in [
+        (vec!["HEAD"], GitAnswer::Writes),
+        (vec!["-m", "HEAD"], GitAnswer::Writes),
+        (vec!["-m", "-u", "HEAD"], GitAnswer::Writes),
+        (vec!["-u", "-m", "HEAD"], GitAnswer::Writes),
+        (vec!["--reset", "HEAD"], GitAnswer::Writes),
+        (vec!["--res", "HEAD"], GitAnswer::Writes),
+        (vec!["--reset", "-u", "HEAD"], GitAnswer::Writes),
+        (vec!["-m", "-i", "HEAD"], GitAnswer::Writes),
+        (vec!["--empty"], GitAnswer::Writes),
+        (vec![], GitAnswer::Writes),
+        (vec!["--no-reset", "HEAD"], GitAnswer::Writes),
+        (vec!["--no-empty", "HEAD"], GitAnswer::Writes),
+        (vec!["--prefix=sub/", "HEAD"], GitAnswer::Writes),
+        (vec!["--prefix=sub/", "-u", "HEAD"], GitAnswer::Writes),
+        (vec!["-v", "-m", "-u", "HEAD"], GitAnswer::Writes),
+        (vec!["-q", "-m", "-u", "HEAD"], GitAnswer::Writes),
+        (vec!["--super-prefix=super/", "HEAD"], GitAnswer::Writes),
+        (vec!["-n", "-m", "-u", "HEAD"], GitAnswer::WritesNothing),
+        (vec!["--dry-run", "--reset", "-u", "HEAD"], GitAnswer::WritesNothing),
+        (vec!["--debug-unpack", "-m", "-u", "HEAD"], GitAnswer::WritesNothing),
+        (vec!["-u", "HEAD"], GitAnswer::Refuses),
+        (vec!["-m", "--prefix=sub/", "HEAD"], GitAnswer::Refuses),
+        (vec!["--merge", "HEAD"], GitAnswer::Refuses),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let repo: PathBuf = repository_with_staged_work(directory.as_path(), format!("form-{index}").as_str());
+        let before: String = repository_state(repo.as_path());
+        let mut invocation: Vec<&str> = vec!["read-tree"];
+        invocation.extend(region.iter().copied());
+        let output: std::process::Output = git_status(repo.as_path(), invocation.as_slice());
+        let after: String = repository_state(repo.as_path());
+        let measured: GitAnswer = if before != after {
+            GitAnswer::Writes
+        } else if !output.status.success() {
+            GitAnswer::Refuses
+        } else {
+            GitAnswer::WritesNothing
+        };
+        assert_eq!(
+            measured,
+            answer,
+            "{region:?}: git said {}",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        );
+        let decision: LinkedWorktreeDecision = decide(invocation.as_slice());
+        match answer {
+            GitAnswer::Writes => assert_eq!(
+                decision,
+                LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::ReadTree),
+                "{region:?} writes and must be guarded"
+            ),
+            GitAnswer::WritesNothing => assert_eq!(
+                decision,
+                LinkedWorktreeDecision::Pass,
+                "{region:?} writes nothing and must pass"
+            ),
+            // A region Git refuses changes nothing; the reading may still see a writing form in it, which only
+            //  rejects a command Git would refuse anyway.
+            GitAnswer::Refuses => assert_eq!(after, before, "{region:?} changed a repository Git refused"),
+        }
+    }
+    remove(directory.as_path());
 }

@@ -175,3 +175,40 @@ fn a_directory_holding_dot_git_is_another_checkout() {
     assert!(!SKIPPING.skips_checkout(&[b".github".to_vec(), b"gitignore".to_vec()]));
     assert!(!SKIPPING.skips_checkout(&[]));
 }
+
+/// What:
+///  Only a directory named the way the wrapper names a trash is left out below the trash parent;
+/// a directory of
+///  the person's own there is state of the source and is copied with the rest.
+/// Why:
+///  `info/exclude` keeps the whole trash parent out of every commit,
+/// so a person may keep their own files
+///  there;
+/// leaving out every path below the parent drops those files from the new worktree,
+/// and on the
+///  snapshot path it moves them into this add's trash,
+/// where the service deletes them as if the wrapper had made
+///  them.
+/// The wrapper names a trash with forty lowercase hexadecimal digits (`new_trash_name`),
+/// so a name of any
+///  other shape is not a trash.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const prune of [Prune.Never, Prune.main_checkout()]) {
+///   assert(prune.skipsPath(`.claude/cli-git-trash/${"a".repeat(40)}/d0/payload`));
+///   assert(!prune.skipsPath('.claude/cli-git-trash/personal/important-notes.txt'));
+/// }
+/// ```
+#[test]
+fn a_directory_below_the_trash_parent_that_is_no_trash_name_is_state_of_the_source() {
+    let trash: String = format!(".claude/cli-git-trash/{}", "a".repeat(40));
+    for prune in [SKIPPING, COPYING, Prune::Never] {
+        assert!(prune.skips_path(trash.as_bytes()), "{trash} is a trash the wrapper made");
+        assert!(prune.skips_path(format!("{trash}/d0/payload").as_bytes()), "and everything below it is its own");
+        assert!(!prune.skips_path(b".claude/cli-git-trash"), "the parent is walked, so the person's own directories below it are seen");
+        assert!(!prune.skips_path(b".claude/cli-git-trash/personal/important-notes.txt"), "a directory of the person's own below the parent is copied");
+        assert!(!prune.skips_path(format!(".claude/cli-git-trash/{}", "b".repeat(39)).as_bytes()), "a name one digit short is not one the wrapper makes");
+        assert!(!prune.skips_path(format!(".claude/cli-git-trash/{}", "A".repeat(40)).as_bytes()), "and neither is one in upper case");
+    }
+}

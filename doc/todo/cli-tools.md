@@ -192,6 +192,8 @@ Create a custom MCP server for better mise integration with Claude/AI tools.
 - Avoid creating main() functions
   - Instead of wrapping code in a main() function,
      write top-level code directly
+  - Enforced by the lint rule `no-restricted-syntax/no-main-wrapper`,
+     which reports a file-level `main()` whose function exists only for that call
   - Bad:
      `function main() { /* code */ } main();`
   - Good:

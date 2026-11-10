@@ -142,6 +142,40 @@ Metadata `dup` against `single` shows no measurable difference.
   Agent `zfs-and-btrfs-delete-stalls-in-a-vm` is queued,
   and writes `doc/planning/zfs-and-btrfs-delete-stalls-in-a-vm.md`.
 
+## TRIM results at 2026-11-10T07:14:14-05:00
+
+The full trim finished with status 0 after 1,524 seconds and trimmed 223.2 GiB.
+Each sample is 120 seconds of `sda` and the volume's commits,
+from `~/temp/agent/pi-runs/enable-trim-on-the-860.log`:
+
+- Before enabling:
+  1,681 reads and 4,282 writes per second,
+  read wait 2.38 ms,
+  write wait 3.70 ms,
+  busy 98%,
+  mean queue 19.9,
+  21 commits averaging 4,631 ms.
+- After enabling,
+  before the full trim:
+  1,272 reads and 2,242 writes per second,
+  read wait 3.31 ms,
+  write wait 7.36 ms,
+  busy 99%,
+  mean queue 20.7,
+  11 commits averaging 10,227 ms.
+- After the full trim:
+  3,002 reads and 2,176 writes per second,
+  read wait 1.36 ms,
+  write wait 3.74 ms,
+  busy 100%,
+  mean queue 12.2,
+  8 commits averaging 17,246 ms.
+
+These do not show whether TRIM helped.
+The last sample overlapped the start of a batch of new agents,
+the workload differed between all three,
+and a commit that spans a sample boundary inflates the time counted as committing.
+
 ## Earlier decision on ZFS
 
 `doc/decision/cachyos-zfs-desktop.md` records the owner on 2026-09-14:

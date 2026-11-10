@@ -92,7 +92,7 @@ export function isFenceLine(line: string,): boolean {
  
  Returns the input verbatim when the line does not begin with `*`.
  
- @param s - line text after `trimStart`
+ @param line - line text after `trimStart`
  
  @returns line text with leading `*` removed when present
  
@@ -102,8 +102,8 @@ export function isFenceLine(line: string,): boolean {
  stripCommentLineMarker('@param x foo'); // '@param x foo'
  ```
  */
-export function stripCommentLineMarker(s: string,): string {
-  return s.startsWith('*',) ? s.slice(1,) : s;
+export function stripCommentLineMarker(line: string,): string {
+  return line.startsWith('*',) ? line.slice(1,) : line;
 }
 
 /**
@@ -137,45 +137,45 @@ export function getCommentLines(comment: ReadonlyDeep<Comment>,): readonly strin
  cursor resumes past the closing delimiter, so each character is visited a
  bounded number of times and the stack stays flat.
  
- @param s - line content
+ @param line - line content
  
- @returns `s` with every backtick-delimited span removed
+ @returns `line` with every backtick-delimited span removed
  
  @example
  ```ts
  stripInlineCodeSpans('a `code` b'); // 'a  b'
  ```
  */
-export function stripInlineCodeSpans(s: string,): string {
+export function stripInlineCodeSpans(line: string,): string {
   /**
    Plain-text segments collected between code spans; joined into the result.
    */
   const parts: string[] = [];
-  for (let from = 0; from <= s
+  for (let from = 0; from <= line
     .length;) {
     /**
      Position of the next opening backtick; -1 means the rest is plain text.
      */
-    const open = s.indexOf(
+    const open = line.indexOf(
       INLINE_CODE_DELIMITER,
       from,
     );
     if (open === (-1)) {
-      parts.push(s.slice(from,),);
+      parts.push(line.slice(from,),);
       break;
     }
     /**
      Position of the closing backtick; -1 means the line ends inside inline code.
      */
-    const close = s.indexOf(
+    const close = line.indexOf(
       INLINE_CODE_DELIMITER,
       open + 1,
     );
     if (close === (-1)) {
-      parts.push(s.slice(from,),);
+      parts.push(line.slice(from,),);
       break;
     }
-    parts.push(s.slice(
+    parts.push(line.slice(
       from,
       open,
     ),);

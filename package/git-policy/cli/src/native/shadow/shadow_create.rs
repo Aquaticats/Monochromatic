@@ -25,7 +25,7 @@ use crate::capture_invocation::{InvocationCapture, InvocationLayout};
 /// The in-process entries of an empty bare repository.
 use crate::shadow_skeleton::create_shadow_skeleton;
 /// Format copy and config text.
-use crate::shadow_config::{format_shadow_config, read_repository_format, repository_format_from_snapshot};
+use crate::shadow_config::{RepositoryFormat, format_shadow_config, read_repository_format, repository_format_from_snapshot};
 /// Entry links.
 use crate::shadow_links::link_shadow_entries;
 /// Conclusion copy and ref snapshot.
@@ -151,18 +151,18 @@ pub(crate) const SHADOW_CREATION_ATTEMPTS: u32 = 2;
 /// ```
 fn init_with_git(
     context: &GitContext,
-    layout: &InvocationLayout,
+    template: &ShadowTemplate,
     shadow: &Path,
 ) -> Result<(), GitFailure> {
     let arguments: Vec<String> = vec![
         String::from("init"),
         String::from("--bare"),
         String::from("--template="),
-        format!("--object-format={}", layout.object_format),
+        format!("--object-format={}", template.object_format),
         String::from("--ref-format=reftable"),
         shadow.display().to_string(),
     ];
-    let mut init: GitRequest = GitRequest::new(layout.common_dir.as_path(), &arguments);
+    let mut init: GitRequest = GitRequest::new(template.common_dir.as_path(), &arguments);
     init.without_prefix = true;
     init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().copied().map(OsString::from).collect();
     let mut attempt: u32 = 1;
@@ -260,6 +260,98 @@ fn named_step_failure<T>(result: std::io::Result<T>, phrase: &str) -> Result<T, 
 }
 
 /// What:
+///  The facts a shadow repository is made from,
+///  resolved once so a member made ahead and a creation made here cannot disagree.
+/// Why:
+///   The creation writes the repository format,
+/// the common directory,
+/// the worktree root,
+/// the object directory and the ref
+/// backend into the shadow;
+///  the pool's fill and the pool's claim compare those same facts,
+/// so a member is only ever taken by a commit that would have written it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ShadowTemplate = { commonDir; gitDir; repositoryRoot; objectDirectory; objectFormat; refFormat; format };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ShadowTemplate {
+    /// The repository's common Git directory,
+    /// whose `config` the shadow includes.
+    pub common_dir: PathBuf,
+    /// The worktree's own Git directory,
+    /// whose per-worktree state is copied.
+    pub git_dir: PathBuf,
+    /// The worktree root the shadow's `core.worktree` names.
+    pub repository_root: PathBuf,
+    /// The real object directory the shadow's alternates name.
+    pub object_directory: PathBuf,
+    /// The object hash algorithm the shadow is made with.
+    pub object_format: String,
+    /// The ref storage backend of the repository.
+    pub ref_format: crate::transaction_journal::RefFormat,
+    /// The format facts the shadow's `config` copies from the real common config.
+    pub format: RepositoryFormat,
+}
+
+impl ShadowTemplate {
+    /// What:
+    ///  The facts of one invocation.
+    /// Why:
+    ///   The format facts come from the configuration snapshot the invocation already read when that read proves them,
+    /// and from the common config file alone otherwise.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ShadowTemplate.of(context, layout)
+    /// ```
+    pub fn of(context: &GitContext, layout: &InvocationLayout) -> Result<ShadowTemplate, GitFailure> {
+        let format: RepositoryFormat = match layout.config_snapshot.as_ref().and_then(repository_format_from_snapshot) {
+            Some(from_snapshot) => from_snapshot,
+            None => read_repository_format(context, layout.common_dir.as_path())?,
+        };
+        return Ok(ShadowTemplate {
+            common_dir: layout.common_dir.clone(),
+            git_dir: layout.git_dir.clone(),
+            repository_root: layout.repository_root.clone(),
+            object_directory: layout.object_directory.clone(),
+            object_format: layout.object_format.clone(),
+            ref_format: layout.ref_format,
+            format,
+        });
+    }
+
+    /// What:
+    ///  The text of the shadow's `config` for these facts.
+    /// Why:
+    ///   The creation writes it and a claim compares a member's own file with it,
+    /// so one function says what the file holds.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// template.configText()
+    /// ```
+    pub fn config_text(&self) -> String {
+        return format_shadow_config(&self.format, self.common_dir.as_path(), self.repository_root.as_path());
+    }
+
+    /// What:
+    ///  The text of the shadow's `objects/info/alternates` for these facts.
+    /// Why:
+    ///   The alternates are what lets the shadow's Git read the real object store,
+    /// and a claim checks a member names this invocation's object directory.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// template.alternatesText()
+    /// ```
+    pub fn alternates_text(&self) -> String {
+        return format!("{}\n", self.object_directory.display());
+    }
+}
+
+/// What:
 ///  Creates the shadow repository of one published transaction.
 /// Why:
 ///   Every step runs before any native Git command reads the shadow,
@@ -338,38 +430,123 @@ pub fn create_shadow_repository_carrying(
     carry_conclusion: bool,
     clock: &mut BuildPartClock,
 ) -> Result<(), GitFailure> {
-    let layout = &capture.layout;
+    let template: ShadowTemplate = ShadowTemplate::of(context, &capture.layout)?;
+    create_shadow_template(context, &template, shadow, clock)?;
+    return carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock);
+}
+
+/// What:
+///  The shadow of one commit:
+/// a finished one this invocation can use,
+/// or one made here when the pool holds none that is what a creation would make.
+/// Why:
+///   The creation is about 40 calls that create a directory entry on the volume the commit already waits on:
+/// ten `mkdir`,
+///  two file writes and three mode changes,
+/// one link per shared entry,
+/// one directory for the conclusion copies,
+///  and the ref store.
+/// A commit that takes a finished member makes one `rename` instead,
+/// and a commit the pool cannot serve
+///  makes the creation exactly as it did before
+/// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+/// "What each part of a commit's private repository is for,
+/// and how many commits need it").
+///   The ref store and the conclusion state are always this commit's,
+/// after a claim as well as after a creation:
+/// they name the branch and base of this invocation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await takeOrCreateShadow({ context, cwd, capture, shadow, transactionDirectory, carryConclusion, clock });
+/// ```
+pub fn take_or_create_shadow(
+    context: &GitContext,
+    cwd: &Path,
+    capture: &InvocationCapture,
+    shadow: &Path,
+    transaction_directory: &Path,
+    carry_conclusion: bool,
+    clock: &mut BuildPartClock,
+) -> Result<(), GitFailure> {
+    let template: ShadowTemplate = ShadowTemplate::of(context, &capture.layout)?;
+    clock.next("shadow pool");
+    if crate::shadow_pool::take(&template, shadow) {
+        return carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock);
+    }
     clock.next("shadow skeleton");
-    if layout.ref_format == crate::transaction_journal::RefFormat::Reftable {
+    create_shadow_template(context, &template, shadow, clock)?;
+    return carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock);
+}
+
+/// What:
+///  Creates everything of a shadow that does not depend on the commit or its branch:
+/// the skeleton,
+/// the config,
+/// the alternates and the links.
+/// Why:
+///   These are the stretches a pool member holds,
+/// and the two callers of them (a commit's own creation and the pool's fill) must make
+///  the same entries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await createShadowTemplate({ context, template, shadowPath, clock });
+/// ```
+pub fn create_shadow_template(
+    context: &GitContext,
+    template: &ShadowTemplate,
+    shadow: &Path,
+    clock: &mut BuildPartClock,
+) -> Result<(), GitFailure> {
+    if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
         // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
-        init_with_git(context, layout, shadow)?;
+        init_with_git(context, template, shadow)?;
     } else {
         step_failure(create_shadow_skeleton(shadow), "creating", shadow)?;
     }
     step_failure(set_private_directory_mode(shadow), "protecting", shadow)?;
     clock.next("shadow config");
-    let format = match layout.config_snapshot.as_ref().and_then(repository_format_from_snapshot) {
-        Some(from_snapshot) => from_snapshot,
-        None => read_repository_format(context, layout.common_dir.as_path())?,
-    };
-    let config_text: String =
-        format_shadow_config(&format, layout.common_dir.as_path(), layout.repository_root.as_path());
     named_step_failure(
-        overwrite_private(shadow.join("config").as_path(), config_text.as_bytes()),
+        overwrite_private(shadow.join("config").as_path(), template.config_text().as_bytes()),
         "writing the shadow config",
     )?;
     named_step_failure(
         overwrite_private(
             shadow.join("objects").join("info").join("alternates").as_path(),
-            format!("{}\n", layout.object_directory.display()).as_bytes(),
+            template.alternates_text().as_bytes(),
         ),
         "writing the shadow alternates",
     )?;
     clock.next("shadow links");
     named_step_failure(
-        link_shadow_entries(shadow, layout.common_dir.as_path(), layout.git_dir.as_path()),
+        link_shadow_entries(shadow, template.common_dir.as_path(), template.git_dir.as_path()),
         "linking the shadow entries",
     )?;
+    return Ok(());
+}
+
+/// What:
+///  Adds what belongs to this commit alone:
+/// the conclusion state it concludes and the ref store it points at.
+/// Why:
+///   A member of the pool is made before any commit names a branch,
+/// so these two run after the claim as they run after a creation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await carryTheCommitParts({ context, cwd, capture, shadow, transactionDirectory, carryConclusion, clock });
+/// ```
+fn carry_the_commit_parts(
+    context: &GitContext,
+    cwd: &Path,
+    capture: &InvocationCapture,
+    shadow: &Path,
+    transaction_directory: &Path,
+    carry_conclusion: bool,
+    clock: &mut BuildPartClock,
+) -> Result<(), GitFailure> {
+    let layout = &capture.layout;
     clock.next("shadow conclusion");
     if carry_conclusion {
         copy_conclusion_state(
@@ -395,9 +572,10 @@ pub fn create_shadow_repository_carrying(
 }
 
 /// What:
-///  Gives the shadow directory the private mode.
+///  Gives a shadow directory the private mode.
 /// Why:
-///   The shadow holds the transaction's objects and refs.
+///   A shadow holds the transaction's objects and refs,
+/// and a pool member is a shadow whose owner is not known until a commit claims it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

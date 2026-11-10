@@ -81,7 +81,8 @@ The script runs four steps in sequence:
     restores `output/` from root:
    root to current user
 4. **Import**:
-    `virt-install --import` registers the qcow2 as a libvirt domain
+    `virsh --connect qemu:///session define` registers the qcow2 as a libvirt domain,
+   from the document rendered into `output/domain.xml`
 
 After the script finishes,
  start the VM:
@@ -104,7 +105,7 @@ The `output/` directory is recreated if absent.
 
 ## Configuration
 
-VM defaults (edit `src/build-and-import.ts` to change):
+VM defaults (edit `src/dev-vm.ts` to change):
 
 - Memory:
    16 GiB
@@ -135,6 +136,17 @@ See the TODO comments in that file for ZFS encryption status.
    bootc-image-builder disk layout
 - `src/build-and-import.ts`:
    orchestration script
+- `src/dev-vm.ts`:
+   domain name,
+   guest size,
+   image tags and disk paths shared by the three entry scripts
+- `src/libvirt-import.ts`:
+   copy into the libvirt images directory,
+   `virsh define`,
+   virt-manager Flatpak grant
+- `src/image-signing.ts`:
+   `podman tag`,
+   `podman push` and `cosign sign`
 - `src/exec.ts`:
    private process runner for the probes and `virsh`/`flatpak` calls
    (direct spawn through `nano-spawn`,
@@ -142,6 +154,7 @@ See the TODO comments in that file for ZFS encryption status.
    `SubprocessError` on non-zero exit,
    signal kill,
    or spawn failure;
-   optional `timeoutMs`)
+   optional `timeoutMs`),
+   and its streaming variant that leaves the child on the terminal
 - `output/`:
    build artifacts (gitignored)

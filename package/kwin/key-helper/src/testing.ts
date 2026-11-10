@@ -88,6 +88,10 @@ export {
   sendKeys,
 } from './keys.ts';
 
+//endregion Keys
+
+//region Neovim
+
 /**
  Neovim listen-socket discovery and the msgpack-rpc input sender.
 
@@ -120,9 +124,9 @@ export {
   type DeviceOpener,
 } from './evdev.ts';
 
-//endregion Keys
+//endregion evdev
 
-//region Neovim
+//region evdev-parse
 
 /**
  The pure double-shift detector and sysfs bitmap parser.
@@ -139,7 +143,7 @@ export {
   type ShiftState,
 } from './evdev-parse.ts';
 
-//endregion evdev
+//endregion evdev-parse
 
 //region Launching
 

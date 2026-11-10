@@ -280,6 +280,12 @@ pub fn encode_service(message: &ServiceMessage) -> String {
             }
             object(entries)
         }
+        ServiceMessage::Held { id, commit, words } => object(vec![
+            ("type", Value::from("held")),
+            ("id", Value::from(id.as_str())),
+            ("commit", Value::from(commit.as_str())),
+            ("words", Value::from(words.as_str())),
+        ]),
         ServiceMessage::RetryPrepare { id, base, landed } => object(vec![
             ("type", Value::from("retry-prepare")),
             ("id", Value::from(id.as_str())),

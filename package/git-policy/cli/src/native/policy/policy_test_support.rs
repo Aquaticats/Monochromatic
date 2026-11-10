@@ -22,6 +22,7 @@ use crate::config_schema::PolicyConfig;
 use crate::policy_registry::{PolicyId, Severity};
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::RepositoryLocation;
+use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
 use crate::rule_worktree_dirty::DirtyScope;
@@ -47,6 +48,9 @@ pub(crate) struct ScriptedFacts {
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
+    /// The answer to `staged_selection`,
+    /// whatever the pathspecs.
+    pub(crate) selection: Result<StagedSelection, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
     /// The paths the dry run of the clean as typed names,
@@ -96,6 +100,29 @@ impl RepositoryFacts for ScriptedFacts {
         return self.dirty.clone();
     }
 
+    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+        self.asked.push(format!(
+            "selection:{}",
+            pathspecs.join(OsStr::new(" ")).to_string_lossy()
+        ));
+        return self.selection.clone();
+    }
+
+    /// What:
+    ///  Answer the two dry runs of one clean apart by the patterns the query carries:
+    ///  the one written with `-e`/`--exclude` names `clean_deletes`,
+    ///  and the same clean without them names `clean_deletes_without_exclusions`.
+    /// Why:
+    ///   Only a path the typed dry run names and the other does not is one the patterns alone call ignored,
+    ///  and that path is what the policy still refuses.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// cleanDeletedPaths(arguments) {
+    ///   return arguments.some((one) => one.startsWith('-e') || one.startsWith('--exclude'))
+    ///     ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
+    /// }
+    /// ```
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
         // The script answers the two dry runs of one clean apart by the patterns the query carries.
@@ -225,6 +252,11 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         index: Ok(IndexVsHead::Matches),
         sequencer: Ok(SequencerState::NotInProgress),
         dirty: Ok(false),
+        selection: Ok(StagedSelection {
+            selected: 0,
+            repository: 1,
+            directory: 1,
+        }),
         stash: Ok(false),
         remote_guess: Ok(false),
         ignored_and_tracked: Ok(Vec::<String>::new()),

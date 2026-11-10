@@ -22,6 +22,11 @@ const l = tagged({
   tag: 'llama',
 },);
 
+/**
+ Signal the server's processes are asked to take, for the two stop paths.
+ */
+type StopSignal = 'KILL' | 'TERM';
+
 //region Server configuration
 // The weights, the binary, the port, and the health-poll bounds one server run uses.
 
@@ -65,6 +70,16 @@ const HEALTH_POLL_MS = 500;
  OpenAI-compatible chat completions endpoint served by llama-server.
  */
 export const API_URL: string = `http://127.0.0.1:${PORT}/v1/chat/completions`;
+
+/**
+ Regular expression matched against every process's command line to find this
+ daemon's server.
+
+ `distrobox` owns the pid the server actually runs under, so a signal sent to the
+ stored handle ends the wrapper and can leave the server behind; `pkill` matches
+ the server's own command line instead, where the port identifies it.
+ */
+const SERVER_MATCH_PATTERN = `llama-server.*--port ${PORT}`;
 
 //endregion Server configuration
 
@@ -204,44 +219,19 @@ export async function awaitChildEnd({ child, }: Readonly<{ child: ChildProcess; 
 // Starting, stopping, and force-cleaning one llama-server, and polling its health endpoint.
 
 /**
- Starts llama-server inside a distrobox container with AMD GPU overrides.
- No-ops if the server is already running. Blocks via {@link waitForHealth}
- until the health endpoint reports ready or the timeout expires.
- 
- @throws when llama-server fails to become healthy within {@link HEALTH_TIMEOUT_MS}
- 
+ Starts the server inside a distrobox container with the AMD GPU overrides the
+ model needs.
+
+ @returns the wrapper's child handle, whose stdio is ignored because the server
+   reports its state through the health endpoint
+
  @example
  ```ts
- await start();
- // server is ready for inference
+ watchChildEnd({ child: spawnWrappedServer() });
  ```
  */
-export async function start(): Promise<void> {
-  /**
-   Start logger, tagged with this function's name under the module's subsystem tag.
-   */
-  const fnLog = tagged({
-    l,
-    tag: start.name,
-  },);
-
-  /**
-   Stored handle, which may belong to a server that already ended.
-   */
-  const existingServer = state.server;
-  if (existingServer !== undefined) {
-    if (!childHasEnded({ child: existingServer },))
-      return;
-    fnLog.debug('Discarding a llama-server handle whose process already exited.',);
-    forgetServer({ child: existingServer, },);
-  }
-
-  fnLog.debug('Starting llama-server via distrobox...',);
-  /**
-   Fresh server child, watched from the moment it exists so its handle cannot
-   outlive it.
-   */
-  const server = cpSpawn(
+function spawnWrappedServer(): ChildProcess {
+  return cpSpawn(
     'distrobox',
     [
       'enter',
@@ -271,16 +261,110 @@ export async function start(): Promise<void> {
       'ignore',
     ], },
   );
+}
+
+/**
+ Asks the operating system to end every process this daemon's server runs as.
+
+ @param signal - TERM for a graceful stop, KILL for the shutdown path
+
+ @throws when `pkill` is missing or refuses the call
+
+ @example
+ ```ts
+ await signalServerByPattern({ signal: 'TERM' });
+ ```
+ */
+async function signalServerByPattern({ signal, }: Readonly<{ signal: StopSignal; }>,): Promise<void> {
+  await spawn(
+    'pkill',
+    signal === 'KILL'
+      ? [
+        '-9',
+        '-f',
+        SERVER_MATCH_PATTERN,
+      ]
+      : [
+        '-f',
+        SERVER_MATCH_PATTERN,
+      ],
+  );
+}
+
+/**
+ Ends the server's processes without killing the wrapper abruptly, for
+ {@link stop}.
+ */
+function signalServerGracefully(): Promise<void> {
+  return signalServerByPattern({ signal: 'TERM', },);
+}
+
+/**
+ Starts the server inside a distrobox container with AMD GPU overrides.
+ No-ops if the server is already running. Blocks until the health endpoint
+ reports ready or the timeout expires.
+
+ @param spawnServer - starts the server process; the distrobox-wrapped one by
+   default, and another one only so a test drives this module without a GPU
+
+ @param waitForReady - resolves once the started server answers its health
+   endpoint; the real poll by default, and a no-op only in a test whose child is
+   not a server
+ 
+ @throws when llama-server fails to become healthy within {@link HEALTH_TIMEOUT_MS}
+ 
+ @example
+ ```ts
+ await start();
+ // server is ready for inference
+ ```
+ */
+export async function start({
+  spawnServer = spawnWrappedServer,
+  waitForReady = waitForHealth,
+}: Readonly<{
+  spawnServer?: () => ChildProcess;
+  waitForReady?: () => Promise<void>;
+}> = {},): Promise<void> {
+  /**
+   Start logger, tagged with this function's name under the module's subsystem tag.
+   */
+  const fnLog = tagged({
+    l,
+    tag: start.name,
+  },);
+
+  /**
+   Stored handle, which may belong to a server that already ended.
+   */
+  const existingServer = state.server;
+  if (existingServer !== undefined) {
+    if (!childHasEnded({ child: existingServer },))
+      return;
+    fnLog.debug('Discarding a llama-server handle whose process already exited.',);
+    forgetServer({ child: existingServer, },);
+  }
+
+  fnLog.debug('Starting llama-server via distrobox...',);
+  /**
+   Fresh server child, watched from the moment it exists so its handle cannot
+   outlive it.
+   */
+  const server = spawnServer();
   state.server = server;
   watchChildEnd({ child: server, },);
 
-  await waitForHealth();
+  await waitForReady();
   fnLog.debug('Server ready.',);
 }
 
 /**
  Gracefully stops llama-server by killing the wrapped process by name
  (distrobox prevents direct PID signalling), then awaits subprocess exit.
+
+ @param signalServer - asks the operating system to end the server's processes;
+   `pkill` by default, and another one only so a test ends its own child at a
+   known moment
  
  @example
  ```ts
@@ -288,8 +372,17 @@ export async function start(): Promise<void> {
  // VRAM is freed
  ```
  */
-export async function stop(): Promise<void> {
-  if (!state.server)
+export async function stop({
+  signalServer = signalServerGracefully,
+}: Readonly<{ signalServer?: () => Promise<void>; }> = {},): Promise<void> {
+  /**
+   Handle taken before anything awaits, which is the only moment it is certainly
+   held: the process can end while the call below is delivering its signal, and
+   the `exit` listener attached at spawn time clears the stored handle when it
+   does.
+   */
+  const currentServer = state.server;
+  if (currentServer === undefined)
     return;
   /**
    Stop logger, tagged with this function's name under the module's subsystem tag.
@@ -300,15 +393,8 @@ export async function stop(): Promise<void> {
   },);
   fnLog.debug('Stopping llama-server...',);
 
-  // Kill the actual llama-server process by name since distrobox wraps it
   try {
-    await spawn(
-      'pkill',
-      [
-        '-f',
-        `llama-server.*--port ${PORT}`,
-      ],
-    );
+    await signalServer();
   }
   catch (error: unknown) {
     reportExpectedFailure({
@@ -323,11 +409,6 @@ export async function stop(): Promise<void> {
    */
   const PORT_FREE_DELAY_MS = 500;
 
-  /**
-   Pinned reference to the current server handle, so the wait still refers to this child after
-   `state.server` is cleared.
-   */
-  const currentServer = state.server;
   currentServer.kill();
   // The child may have ended while `pkill` ran, and Node emits `exit` once, so this wait settles
   // from the recorded exit state rather than from an event that already fired.
@@ -358,14 +439,7 @@ export async function forceCleanup(): Promise<void> {
   },);
 
   try {
-    await spawn(
-      'pkill',
-      [
-        '-9',
-        '-f',
-        `llama-server.*--port ${PORT}`,
-      ],
-    );
+    await signalServerByPattern({ signal: 'KILL', },);
   }
   catch (error: unknown) {
     reportExpectedFailure({

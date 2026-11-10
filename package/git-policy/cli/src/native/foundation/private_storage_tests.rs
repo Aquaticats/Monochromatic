@@ -302,3 +302,84 @@ fn the_read_is_capped_beyond_the_reported_size() {
     let whole: Vec<u8> = read_regular_file(path, 4096).expect("whole record");
     assert!(whole.len() > 10);
 }
+
+/// How long a read that must not wait may take to answer in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// A named pipe at `path`,
+///  which blocks whoever opens it for reading until a writer comes.
+#[cfg(unix)]
+fn make_pipe(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  A named pipe where a record is expected is refused,
+///  not waited for.
+/// Why:
+///  `open(2)` without `O_NONBLOCK` waits for a writer of a pipe,
+/// and this reader is the one a commit's preparation reads the index with,
+///  so the commit waited before the check that refuses a file that is not a regular one,
+/// with no bound and nothing said
+/// (`SPEC.md`,
+/// "Every wait has a bound";
+/// a cross-vendor audit's finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo('.git/index'); const answer = await within(PATIENCE, () => readRegularFile(path, 1 << 20)); expect(answer).toEqual(notRegular);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_named_pipe_where_a_record_is_expected_is_refused_without_waiting() {
+    let root: PathBuf = fixture("private-read-pipe");
+    let path: PathBuf = root.join("record");
+    make_pipe(path.as_path());
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Vec<u8>, ReadRefusal>>();
+    let asked: PathBuf = path.clone();
+    std::thread::spawn(move || {
+        let _ = sender.send(read_regular_file(asked.as_path(), 1 << 20));
+    });
+    let answer: Result<Vec<u8>, ReadRefusal> = match receiver.recv_timeout(PATIENCE) {
+        Ok(found) => found,
+        Err(_) => panic!("the read waited for a writer of a pipe for {PATIENCE:?}"),
+    };
+    assert!(
+        matches!(answer, Err(ReadRefusal::NotRegular)),
+        "a pipe is not a regular file, and is never waited for"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The process's durability answer decides whether a file is flushed at all,
+/// not only whether the flush is recorded.
+/// Why:
+///   A control that reads the sync records cannot tell a kept flush from a made one:
+/// both record.
+/// A pipe's write end cannot be flushed at all,
+/// so the flush's own refusal is what tells the two branches of `flush_file_when_faithful` apart.
+#[cfg(unix)]
+#[test]
+fn the_durability_answer_decides_whether_a_file_is_flushed() {
+    use std::os::fd::FromRawFd;
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `pipe` writes the two descriptors it created into the array.
+    let made: libc::c_int = unsafe { libc::pipe(ends.as_mut_ptr()) };
+    assert_eq!(made, 0, "a pipe is made");
+    // SAFETY: the read end is closed here and the write end is handed to exactly one `File`, which closes it.
+    let read_end: libc::c_int = ends[0];
+    let write_end: File = unsafe { File::from_raw_fd(ends[1]) };
+    let refused: std::io::Result<()> = flush_file_when_faithful(&write_end, Path::new("a pipe"));
+    assert!(refused.is_err(), "a pipe holds no data to flush: {refused:?}");
+    crate::private_storage::skip_the_durability_syncs_here();
+    let kept: std::io::Result<()> = flush_file_when_faithful(&write_end, Path::new("a pipe"));
+    assert!(kept.is_ok(), "the answer skips the flush the pipe refuses: {kept:?}");
+    // SAFETY: the read end is a descriptor this control opened and closes once.
+    let closed: libc::c_int = unsafe { libc::close(read_end) };
+    assert_eq!(closed, 0, "the read end is closed");
+}

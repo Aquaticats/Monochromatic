@@ -39,7 +39,7 @@ const RELEASE_POLL: Duration = Duration::from_millis(20);
 /// What:
 ///  One phase a marker can name.
 /// Why:
-///   The isolated merge reaches two of them and a commit headed for the service the other two;
+///   The isolated merge reaches most of them and a commit headed for the service the last three;
 /// the phases of the landing
 ///  that the commit service replaced (`capture-locked` to `index-installed`,
 /// `race-lost`) are gone,
@@ -48,7 +48,7 @@ const RELEASE_POLL: Duration = Duration::from_millis(20);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TestPhase = 'merge-carried' | 'merge-cleared' | 'merge-intent' | 'merge-applied' | 'merge-carried-back' | 'service-staged' | 'service-prepared';
+/// type TestPhase = 'merge-carried' | 'merge-intent' | 'merge-clear-index' | 'merge-clear-file' | 'merge-cleared' | 'merge-applied' | 'merge-carry-index' | 'merge-carry-file' | 'merge-carried-back' | 'service-staged' | 'service-prepared' | 'service-sent-back';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Phase {
@@ -56,6 +56,15 @@ pub enum Phase {
     /// and the bytes of the person's own work in its paths are objects on a ref of their own,
     /// and no byte of the checkout has changed.
     MergeCarried,
+    /// The index records of one clear are written,
+    /// and no worktree file of that clear yet.
+    /// Why:
+    ///   A control needs the instant after the index moved and before the first file does.
+    MergeClearIndex,
+    /// One worktree file of a clear is written;
+    /// repeatable,
+    /// numbered by occurrence.
+    MergeClearFile,
     /// The paths that held the person's own work are back to the branch's content,
     /// so Git's own update of the checkout can take them.
     MergeCleared,
@@ -64,6 +73,16 @@ pub enum Phase {
     /// The checkout was updated and the branch moved for an isolated merge,
     /// whose intent record is still on disk.
     MergeApplied,
+    /// The index records of one carry back are written,
+    /// and no worktree file of that carry yet.
+    /// Why:
+    ///   The person's two layers are written in one step of the index and one file at a time after it,
+    /// so a control needs the instant between them.
+    MergeCarryIndex,
+    /// One carried worktree file is written;
+    /// repeatable,
+    /// numbered by occurrence.
+    MergeCarryFile,
     /// The person's own work is merged with the merge and written back to the index and the worktree,
     /// and the record of the merge is still on disk.
     MergeCarriedBack,
@@ -88,11 +107,15 @@ pub enum Phase {
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 8] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 12] = [
     Phase::MergeCarried,
-    Phase::MergeCleared,
     Phase::MergeIntent,
+    Phase::MergeClearIndex,
+    Phase::MergeClearFile,
+    Phase::MergeCleared,
     Phase::MergeApplied,
+    Phase::MergeCarryIndex,
+    Phase::MergeCarryFile,
     Phase::MergeCarriedBack,
     Phase::ServiceStaged,
     Phase::ServicePrepared,
@@ -113,8 +136,12 @@ impl Phase {
     pub fn name(self) -> &'static str {
         match self {
             Phase::MergeCarried => return "merge-carried",
+            Phase::MergeClearIndex => return "merge-clear-index",
+            Phase::MergeClearFile => return "merge-clear-file",
             Phase::MergeCleared => return "merge-cleared",
             Phase::MergeIntent => return "merge-intent",
+            Phase::MergeCarryIndex => return "merge-carry-index",
+            Phase::MergeCarryFile => return "merge-carry-file",
             Phase::MergeCarriedBack => return "merge-carried-back",
             Phase::MergeApplied => return "merge-applied",
             Phase::ServiceStaged => return "service-staged",

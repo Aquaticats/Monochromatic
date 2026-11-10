@@ -34,7 +34,7 @@ use crate::commit_preparation::{PreparationRequest, read_prepared_commit, run_na
 use crate::commit_build_part_durations::BuildPartClock;
 use crate::commit_transaction::TransactionStop;
 use crate::global_arguments::global_layout;
-use crate::shadow_create::create_shadow_repository_carrying;
+use crate::shadow_create::take_or_create_shadow;
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
 use std::ffi::OsString;
@@ -218,7 +218,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
     }
     let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && has_conclusion_state);
     // The creation names each of its own stretches, so the shadow is named here only as the surface they run on.
-    create_shadow_repository_carrying(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch, carry_conclusion, input.clock)?;
+    take_or_create_shadow(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch, carry_conclusion, input.clock)?;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
     let (globals, commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);

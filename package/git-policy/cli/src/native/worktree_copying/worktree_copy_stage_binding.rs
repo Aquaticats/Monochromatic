@@ -70,6 +70,12 @@ pub fn record_stage_binding(container: &Path, binding: &Binding) -> Result<(), W
 ///   A stage an earlier release staged has no record,
 /// and its journal is settled as before.
 /// A record that does not read as a registration is reported instead of guessed at.
+///  The record is read as a plain file,
+///  opened without waiting and refused when the path is not one:
+///  a named pipe at the name would otherwise hold a recovery for a writer that may never come
+///  (`SPEC.md`,
+///  "Every wait has a bound";
+///  a cross-vendor review's finding).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,7 +84,7 @@ pub fn record_stage_binding(container: &Path, binding: &Binding) -> Result<(), W
 pub fn stage_binding(container: &Path) -> Result<Option<Binding>, WorktreeCopyError> {
     let path: PathBuf = container.join(STAGE_BINDING_NAME);
     // `match` treats an absent record as a stage of an earlier release, and every other failure as a fault.
-    let text: String = match std::fs::read_to_string(path.as_path()) {
+    let text: String = match crate::plain_file::read_plain_text(path.as_path()) {
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {

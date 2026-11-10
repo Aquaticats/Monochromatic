@@ -119,7 +119,7 @@ fn btrfs_a_snapshot_of_main_sets_aside_exactly_what_the_rule_leaves_out() {
     let trash: PathBuf = trash_of(stage.as_path()).expect("a trash directory");
     assert!(is_trash_name(trash.file_name().expect("name").to_str().expect("utf8")));
     let aside: Vec<String> = std::fs::read_dir(&trash).expect("trash listing").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
-    assert_eq!(aside.len(), 6, "{aside:?}: the ordinary worktree, the clone, and four left-out directories");
+    assert_eq!(aside.len(), 8, "{aside:?}: the ordinary worktree, the clone, four left-out directories, the worktree folder whose stand-in went with it, and the snapshot's own .git");
     // The pointer of the copied ordinary worktree is gone before anything else could use it.
     for entry in std::fs::read_dir(&trash).expect("trash listing").flatten() {
         let pointer: PathBuf = entry.path().join(".git");
@@ -274,41 +274,48 @@ fn btrfs_a_snapshot_of_a_linked_worktree_sets_another_commands_stage_aside() {
 }
 
 /// What:
-///  The trash a snapshot made is emptied before the command returns,
-/// with no service involved and no work
-///  item left behind.
+///  The trash a snapshot made is left in the new worktree by the add,
+/// which hands it to the commit service with
+///  one line to the person,
+/// and the service's emptying of it is what deletes anything.
 /// Why:
 ///   The trash sits inside the new worktree,
-/// so anything still in it is a path the worktree's Git can list
-///  and `git add --all` can stage once the target commit stops ignoring it,
-/// another command's stage container with its
-///  credentials included.
-/// Nothing is queued for a later run,
-/// because a queued emptying is exactly the window that finding
-///  is about.
+/// so a target commit that stops ignoring `.claude/` would make it
+///  stageable;
+/// what keeps it out of the index is the repository's own exclude line,
+/// never an emptying the person waits for
+///  (`worktree_trash_exclude_line.rs`).
+/// The add's own work is the record,
+/// and the emptying belongs to the service that runs
+///  it one trash at a time for the repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await disposePendingTrash({ destination, gitDir, trash, notices });
-/// expect(existsSync(join(worktree, TRASH_PARENT))).toBe(false); expect(pendingItems(gitDir)).toEqual([]);
+/// handOverTrash({ destination, commonDir, manifest, notices });
+/// expect(existsSync(join(worktree, TRASH_PARENT, name))).toBe(true); expect(pendingRecord(commonDir, name)).toBeDefined();
 /// ```
 #[test]
-fn the_trash_is_emptied_before_the_command_returns() {
-    let root: PathBuf = fixture("trash-fallback");
+fn the_add_hands_the_trash_over_and_leaves_it_standing() {
+    let root: PathBuf = fixture("trash-hand-over");
     let worktree: PathBuf = root.join("topic");
-    let git_dir: PathBuf = root.join("admin");
-    std::fs::create_dir_all(&git_dir).expect("admin");
+    let common_dir: PathBuf = root.join("common");
+    std::fs::create_dir_all(common_dir.join("worktrees").join("topic")).expect("admin");
     std::fs::create_dir_all(&worktree).expect("worktree");
-    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", common_dir.join("worktrees").join("topic").display())).expect(".git file");
     let name: String = "a".repeat(40);
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 2);
+    let pending_trash: PendingTrash = PendingTrash { destination: worktree.clone(), common_dir: common_dir.clone(), manifest: manifest.clone(), taken_over: 0, quiet: false };
     let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices).expect("emptied here");
-    assert!(!worktree.join(TRASH_PARENT).join(&name).exists(), "emptied here");
-    assert!(!worktree.join(TRASH_PARENT).exists(), "and its parent goes with the last one");
-    let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
-    assert!(!pending.exists(), "nothing is left for a service to find, because nothing was handed over");
-    assert!(String::from_utf8_lossy(notices.as_slice()).contains("emptying the directories left out"), "the person is told why the command takes longer: {}", String::from_utf8_lossy(notices.as_slice()));
+    let _why: String = hand_over_with(&git_context(), &pending_trash, &mut notices, &Reach { router: &|_git: &Path, _directory: &Path| return None, provisioner: &|_host: &crate::service_provision::ProvisionHost| return Ok(()), start_wait: std::time::Duration::from_millis(400) })
+        .expect_err("a session with no service is reported to the caller");
+    assert!(worktree.join(TRASH_PARENT).join(&name).join("d0/file").is_file(), "the add deletes nothing");
+    let record: PathBuf = state_directory(work_directory(common_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
+    let item: WorkItem = WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the record").as_str()).expect("a work item");
+    assert_eq!(item.git_dir, common_dir, "the record belongs to the repository, so one service empties its trashes one at a time");
+    assert_eq!(item.parent, manifest.encode(), "and it carries the identities the leave-out wrote");
+    assert_eq!(empty_trash(&item), Verdict::Done, "the handler is what deletes a trash");
+    assert!(!worktree.join(TRASH_PARENT).exists(), "and the trash goes, with the parent that held only it");
+    assert!(String::from_utf8_lossy(notices.as_slice()).is_empty(), "a hand-over that reached no service says nothing of it; its caller reports the reason");
     remove(root.as_path());
 }
 

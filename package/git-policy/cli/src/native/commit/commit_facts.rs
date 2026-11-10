@@ -23,6 +23,7 @@ use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_
 /// Rule facts.
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::RepositoryLocation;
+use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
 use crate::rule_worktree_dirty::DirtyScope;
@@ -112,6 +113,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.index_vs_head();
     }
 
+    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+        return self.inner.staged_selection(pathspecs);
+    }
+
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         return self.inner.worktree_dirty(scope);
     }
@@ -165,6 +170,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn index_vs_head(&mut self) -> Result<IndexVsHead, String> {
         return (**self).index_vs_head();
+    }
+
+    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+        return (**self).staged_selection(pathspecs);
     }
 
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {

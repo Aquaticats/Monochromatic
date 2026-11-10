@@ -24,7 +24,6 @@
 //! const done = await finishAfterMove(git, intent, lock, journal, headCheck) // true: every obligation of the batch is settled
 //! ```
 
-use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref;
 use crate::service_head::still_checked_out;
 use crate::service_instance::instance_of;
 use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, list_intents_read_only, mark_done, mark_indexed, read_start, recovery_for, remove_start};
@@ -32,7 +31,7 @@ use crate::service_land_follow::{IndexPaths, build_index};
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
 use crate::service_scratch_ref_marker_of_a_batch::clear_recorded_scratch_refs;
-use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, clear_after_dropped_batch, kept_ref, value_of};
+use crate::service_scratch_ref_of_a_dropped_batch::clear_after_dropped_batch;
 use crate::autostash_carry::carry_stages;
 use crate::service_land_context::LandContext;
 use crate::service_protocol::FailureCode;
@@ -307,6 +306,10 @@ pub enum Handled {
     /// its commit is written to `refs/cli-git/kept/<number>` when Git writes that ref,
     /// and its intent and records are removed.
     Dropped,
+    /// The batch waits for a reference lock that nothing proves gone,
+    /// so its intent and its commit are left as they are
+    /// (`held_commit_record.rs`).
+    Held,
     /// The batch looks as if it never landed,
     /// and its journal is another service's:
     /// the intent and records stay on disk.
@@ -340,55 +343,6 @@ enum JournalOwner {
     ///  "about to land",
     /// and the intent stays for that helper's own start-up recovery.
     EarlierHelper,
-}
-
-/// What:
-///  Keeps the commit of a batch that recovery drops on `refs/cli-git/kept/<number>`,
-/// the ref the wrapper names for a commit it did not land,
-/// before the batch's intent goes,
-/// and never replaces a kept ref that already names another commit.
-/// Why:
-///   A service stopped inside the branch write never cuts that write:
-/// it ends at its bound with the write still running,
-/// so the landing cannot unwind and keep its commit,
-/// and a service killed between its intent and its branch move leaves the same shape.
-///   A commit only Git can build makes no scratch branch for that write to leave behind,
-/// so this is the only place its commit reaches a ref;
-/// where the batch did make one,
-/// the drop keeps the commit here and then removes the scratch branch
-/// (`service_scratch_ref_of_a_dropped_batch.rs`).
-///   A kept ref that already names another commit is work an earlier batch was kept under,
-/// so it is left alone and said;
-/// only a number the clock and the journal deal twice can bring that about.
-/// A write that cannot be made keeps nothing,
-/// and it does not hold up the drop either:
-/// the drop is what releases the worktree's index lock and forgets the batch,
-/// so a commit whose ref cannot be written is still the commit the person runs again.
-fn keep_what_the_branch_does_not_show(git: &GitContext, intent: &Intent) {
-    let kept: String = kept_ref(intent.seq);
-    match value_of(git, intent.repository.as_path(), kept.as_str()) {
-        RefValue::Names(named) if named == intent.new => {
-            crate::service_log!("batch {} is not on its branch, and its commit {} is already kept at {kept}", intent.seq, intent.new);
-        }
-        RefValue::Names(named) => crate::service_error!(
-            "batch {} is not on its branch, and {kept} names {named}, so its commit {} is not kept there and is left where the landing put it",
-            intent.seq,
-            intent.new
-        ),
-        RefValue::Unasked => crate::service_error!(
-            "batch {} is not on its branch, and {kept} cannot be read, so its commit {} is left where the landing put it",
-            intent.seq,
-            intent.new
-        ),
-        RefValue::Absent => match keep_on_a_side_ref(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
-            None => crate::service_log!("batch {} is not on its branch, so its commit {} is kept at {kept}", intent.seq, intent.new),
-            Some(words) => crate::service_error!(
-                "batch {} is not on its branch, and its commit {} could not be kept at {kept} ({words}), so the commit is left where the landing put it",
-                intent.seq,
-                intent.new
-            ),
-        },
-    }
 }
 
 /// What:
@@ -589,15 +543,27 @@ settled from the worktree's own record of it, and the file may be removed once t
         if !selected {
             continue;
         }
-        let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };
+        // The selection follows whatever this service already ran its Git with, so an absolute path it names wins over a
+        //  relative one an earlier option wrote.
+        let mut prefix: Vec<std::ffi::OsString> = context.git.global_prefix.clone();
+        prefix.extend(crate::repository_selection::of_paths(intent.git_dir.as_path(), intent.repository.as_path()));
+        let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), global_prefix: prefix, ..context.git.clone() };
+        // A batch a reference lock keeps off its branch is not one a restart decides from the branch: the settlement tries it first,
+        //  and one still waiting is left where it is for the next command (`held_commit_settle.rs`).
+        if let Some(report) = crate::held_commit_settle::settle_a_recorded_hold(&git, context.journal.as_path(), &intent) {
+            reports.push(report);
+            continue;
+        }
         let Some(decision) = decision_for(&git, &intent) else {
             crate::service_error!("batch {} stays open: Git gave no answer about {} in {}, so its intent is kept", intent.seq, intent.reference, intent.repository.display());
             continue;
         };
         let handled: Handled = match (decision, owner) {
+            // The branch holds no batch of this one's kind: a held batch's own record decided above, so nothing here reaches Hold.
+            (Recovery::Hold, _) => Handled::Held,
             (Recovery::Drop, JournalOwner::EarlierHelper) => Handled::Left,
             (Recovery::Drop, JournalOwner::ThisService) => {
-                keep_what_the_branch_does_not_show(&git, &intent);
+                crate::service_land_kept_commit::keep_what_the_branch_does_not_show(&git, &intent);
                 remove_stale(intent.index.as_path(), intent.seq);
                 // The batch will never land, so the scratch reference its killed landing left is removed here; the commit it
                 //  holds is kept first, on the batch's side reference (`service_scratch_ref_of_a_dropped_batch.rs`).
