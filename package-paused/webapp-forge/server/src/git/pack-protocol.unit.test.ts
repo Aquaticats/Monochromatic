@@ -178,6 +178,30 @@ await describe({
               .toThrow();
           },
         },),
+        it({
+          name: 'throws when a length prefix holds a non-hex digit',
+          async fn() {
+            await Promise.resolve();
+            // `Number.parseInt` stops at the `z`, so this prefix decodes as 0
+            // and would end the triplet scan as if it were the flush-pkt.
+            const corrupted = new TextEncoder().encode('000z',);
+            expect(function attemptParse() {
+              parseReceivePackBody(corrupted,);
+            },)
+              .toThrow('000z',);
+          },
+        },),
+        it({
+          name: 'throws when the header is truncated',
+          async fn() {
+            await Promise.resolve();
+            const truncated = new TextEncoder().encode('00',);
+            expect(function attemptParse() {
+              parseReceivePackBody(truncated,);
+            },)
+              .toThrow('truncated',);
+          },
+        },),
       ],
     },),
     describe({

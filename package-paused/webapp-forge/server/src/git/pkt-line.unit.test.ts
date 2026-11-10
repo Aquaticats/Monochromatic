@@ -138,5 +138,18 @@ await describe({
           .toThrow();
       },
     },),
+    it({
+      name: 'decode throws when a length prefix holds a non-hex digit',
+      async fn() {
+        await Promise.resolve();
+        // `Number.parseInt` stops at the first non-hex character, so this
+        // prefix decodes as 0 and would be taken for a flush-pkt.
+        const corrupted = new TextEncoder().encode('000z',);
+        expect(function attemptDecode() {
+          decodePktLines(corrupted,);
+        },)
+          .toThrow('000z',);
+      },
+    },),
   ],
 },);
