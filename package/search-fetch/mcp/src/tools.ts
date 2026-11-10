@@ -24,28 +24,10 @@ import {
   type ToolContent,
   type ToolEntry,
 } from '@monochromatic-dev/mcp-stdio/ts';
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type {
   ResponseStore,
 } from './response-store.ts';
-
-//region Logger
-
-/**
- Logger root for the search-fetch MCP server.
- */
-const searchFetchMcpLogger = tagged({ tag: 'search-fetch-mcp', },);
-
-/**
- Module logger.
- */
-const l = tagged({
-  tag: 'tools',
-  l: searchFetchMcpLogger,
-},);
-
-//endregion Logger
 
 //region Types
 
