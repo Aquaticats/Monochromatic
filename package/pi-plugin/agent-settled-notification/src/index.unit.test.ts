@@ -13,6 +13,7 @@ import agentSettledNotification, {
   NOTIFICATION_ARGUMENTS,
   NOTIFICATION_COMMAND,
   NOTIFICATION_TIMEOUT_MS,
+  NotificationUnavailableError,
   invokeNotification,
   notifyAgentSettled,
   registerAgentSettledNotification,
@@ -134,6 +135,37 @@ await describe({
         },),
 
         it({
+          name: 'absorbs delivery failure so settlement continues',
+          fn: async () => {
+            /** Fake Pi registration harness. */
+            const harness = createFakePiHarness();
+            /** Recording logger standing in for the module root logger. */
+            const recording = createRecordingLogger();
+
+            registerAgentSettledNotification({
+              pi: harness.api,
+              l: recording.logger,
+              invoke: async function rejectNotification(): Promise<void> {
+                throw new Error('notify-send unavailable',);
+              },
+            },);
+
+            /** Settled-event callback registered by the extension. */
+            const handler = getOnlyHandler({
+              handlersByEvent: harness.handlersByEvent,
+              event: 'agent_settled',
+            },);
+            // Awaiting a rejection here fails this test, which is the claim: a
+            // desktop failure must not escape Pi's lifecycle hook.
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+            expect(recording.calls.warn,).toHaveLength(1,);
+          },
+        },),
+
+        it({
           name: 'warns once about unavailable delivery and logs repeats at debug',
           fn: async () => {
             /** Fake Pi registration harness. */
@@ -169,7 +201,9 @@ await describe({
             expect(recording.calls.warn[0],).toContain('settled-agent desktop notification unavailable',);
             expect(recording.calls.warn[0],).toContain(unavailable.message,);
             expect(recording.calls.debug,).toHaveLength(1,);
-            expect(recording.calls.debug[0],).toContain('settled-agent desktop notification remains unavailable',);
+            expect(recording.calls.debug[0],).toContain(
+              'settled-agent desktop notification remains unavailable',
+            );
           },
         },),
       ],
@@ -216,22 +250,37 @@ await describe({
       name: notifyAgentSettled.name,
       children: [
         it({
-          name: 'returns delivery failure without throwing',
+          name: 'resolves after successful delivery',
           fn: async () => {
-            /** Delivery failure returned by an unavailable desktop-notification executable. */
+            await notifyAgentSettled({
+              invoke: function acceptNotification(): Promise<void> {
+                return Promise.resolve();
+              },
+            },);
+          },
+        },),
+
+        it({
+          name: 'throws NotificationUnavailableError carrying the desktop failure',
+          fn: async () => {
+            /** Delivery failure raised by an unavailable desktop-notification executable. */
             const unavailable = new Error('notify-send unavailable',);
 
-            /** Settled-notification result after injected delivery failure. */
-            const delivery = await notifyAgentSettled({
+            /** Settled-notification attempt refused by the injected desktop boundary. */
+            const delivery = notifyAgentSettled({
               invoke: async function rejectNotification(): Promise<void> {
                 throw unavailable;
               },
             },);
 
-            expect(delivery,).toEqual({
-              delivered: false,
-              error: unavailable,
-            },);
+            await expect(delivery,).rejects.toBeInstanceOf(NotificationUnavailableError,);
+            await expect(delivery,).rejects.toHaveProperty('cause', unavailable,);
+            await expect(delivery,).rejects.toSatisfy(
+              (refusal: unknown) =>
+                refusal instanceof NotificationUnavailableError
+                && refusal.message.includes(unavailable.message)
+                && refusal.message.includes(NOTIFICATION_COMMAND),
+            );
           },
         },),
       ],

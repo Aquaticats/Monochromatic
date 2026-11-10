@@ -44,6 +44,55 @@ const logger = tagged({ tag: 'pi-agent-settled-notification', },);
 //region Notification boundary
 
 /**
+ Reports that the local desktop-notification boundary refused a delivery request.
+ 
+ A settlement can arrive when no desktop notification service answers: the
+ executable is absent from `PATH`, the session has no D-Bus server, or the
+ bounded delivery expires. The caller, not this package, decides what such a
+ failure means, so delivery reports it as a thrown error the caller can log
+ without the value crossing Pi's lifecycle boundary.
+ 
+ @example
+ ```ts
+ try {
+   await notifyAgentSettled({});
+ }
+ catch (error) {
+   if (error instanceof NotificationUnavailableError)
+     logger.warn(error.message);
+ }
+ ```
+ */
+class NotificationUnavailableError extends Error {
+  /**
+   Stable error classification independent of minification.
+   */
+  override readonly name = 'NotificationUnavailableError';
+
+  /**
+   Creates a delivery failure naming the executable that could not deliver.
+   
+   @param command - executable whose delivery attempt failed
+   
+   @param cause - value the operating-system notification boundary threw
+   */
+  constructor(
+    {
+      command,
+      cause,
+    }: {
+      readonly command: string;
+      readonly cause: unknown;
+    },
+  ) {
+    super(
+      `desktop notification through ${command} failed: ${caughtValueText(cause,)}`,
+      { cause, },
+    );
+  }
+}
+
+/**
  Command and arguments passed to the desktop-notification executable.
  */
 type NotificationInvocation = {
@@ -356,6 +405,7 @@ export {
   NOTIFICATION_ARGUMENTS,
   NOTIFICATION_COMMAND,
   NOTIFICATION_TIMEOUT_MS,
+  NotificationUnavailableError,
   invokeNotification,
   notifyAgentSettled,
   registerAgentSettledNotification,
