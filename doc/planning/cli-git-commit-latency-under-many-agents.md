@@ -2649,6 +2649,13 @@ six commits of one service:
   and the creation named whenever it cost anything (`shadow skeleton` 7 ms and 5 ms).
 - `routeMs` is 0 to 2 ms in those six records and 3 ms in the record of another run,
   which is the size of the stretch that used to be part of `otherMs`.
+- After `main` was merged into the branch,
+  twelve more commits of the same fixture:
+  `buildMs` median 8 ms,
+  max 10 ms,
+  `otherMs` 0 in all twelve,
+  `routeMs` 0 in eleven of them and 3 ms in one,
+  and the creation named when it cost anything (`shadow skeleton` 2 ms once).
 
 What this does not claim:
 these commits met no stall,
