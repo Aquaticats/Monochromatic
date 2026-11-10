@@ -93,9 +93,12 @@ Three packages are paused at the user's direction;
 "Status:
  development paused" section in its README pointing back here:
 
-- `package/webapp-edu/paper2vn` -- 5 sites
-- `package/webapp-content/messages-demo` -- 13 sites
-- `package/webapp-forge/server` -- 13 sites
+- `package/webapp-edu/paper2vn`:
+  5 sites
+- `package/webapp-content/messages-demo`:
+  13 sites
+- `package/webapp-forge/server`:
+  13 sites
 
 To resume any of those,
  apply the patterns in the
@@ -255,7 +258,8 @@ above;
    ensure the existing function's TSDoc comment
   stays directly before its declaration.
    Don't insert new TSDoc-bearing
-  helpers between an existing TSDoc and the function it documents — the
+  helpers between an existing TSDoc and the function it documents;
+  the
   TSDoc will bind to your new helper and the original function will be
   reported as missing TSDoc.
    (Hit again this session in
@@ -276,7 +280,8 @@ above;
    Note:
    `//:format`
   runs across the whole workspace.
-- **Cannot run `dprint`/`pnpm exec dprint` directly** — auto-mode
+- **Cannot run `dprint`/`pnpm exec dprint` directly**:
+  auto-mode
   classifier denies it.
    Use `mise run //:format`.
 - **`cli-git` pre-commit hook requires explicit pathspecs**:
@@ -400,10 +405,12 @@ unless the user asks otherwise.
     If new packages surface,
    they'll need the same treatment (refactor where feasible,
     scoped
-   disable with the four-part justification — why regex,
+   disable with the four-part justification;
+   why regex,
     input bounds,
    backtracking safety,
-    why no string-API alternative — otherwise).
+    why no string-API alternative,
+   otherwise).
 
 2. **Closing out**:
     when `mise run //:lint` is fully clean,

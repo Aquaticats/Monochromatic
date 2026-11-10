@@ -345,7 +345,7 @@ nightly + cargo-fuzz + cargo-miri;
  the SIMD differential reproduces on AVX2 too,
 so x86 is a valid second SIMD lane and runs the correctness/fuzz lanes.
 
-## Findings (2026-06-11 01:30) -- 8 root causes, committed
+## Findings (2026-06-11 01:30): 8 root causes, committed
 
 All in `doc/audit/resharp-fuzz-2026-06-11/` (README + one file per bug +
 `verification-2026-06-04.md` + `code-quality.md` + `test-coverage.md`).
@@ -483,7 +483,8 @@ happened BEFORE 04:03,
 order.
  The substantive error this caused is corrected in the 04:03 entry.
 
-- 05:06 (clock-verified via `date`) -- OVERNIGHT FUZZERS COMPLETE,
+- 05:06 (clock-verified via `date`):
+  OVERNIGHT FUZZERS COMPLETE,
    FINAL HARVEST,
   NO NEW CRASH SITE.
    The three x86 cargo-fuzz targets reached their full 4h budget
@@ -535,7 +536,8 @@ order.
      all documented under
   `doc/audit/resharp-fuzz-2026-06-11/`.
 
-- 04:03 (clock-verified) -- HARVESTED FOCUS LEAN ROUND + ARM-CONFIRMED THE
+- 04:03 (clock-verified):
+  HARVESTED FOCUS LEAN ROUND + ARM-CONFIRMED THE
   SECONDARY TIER + CORRECTED A TIMING ERROR.
   (1) CORRECTION:
    the `09:30` entry's claim that the x86 fuzzers were "CONVERGED
@@ -611,7 +613,8 @@ order.
   ARM-demonstrated,
    not inferred.
 
-- 09:20 -- DONE.
+- 09:20:
+  DONE.
    Two closing consistency passes from the stronger-reviewer
   done-check,
    both committed:
@@ -648,7 +651,8 @@ order.
   ship it,
    do not reopen the tier analysis or hunt a 14th bug.
 
-- 08:55 -- CONSOLIDATION POINT.
+- 08:55:
+  CONSOLIDATION POINT.
    bug-06/09 perf confirmed rust-specific:
    dotnet
   compiles `\w{24}` in 6ms and the bug-09 `.n...n.n` unit in 21ms vs rust's ~3.3s
@@ -656,7 +660,8 @@ order.
    committed (bc480603).
    Final overnight fuzzer harvest:
    NO new
-  crash site -- diff_regex 1184 crashes ALL bug-04 (algebra:
+  crash site;
+  diff_regex 1184 crashes ALL bug-04 (algebra:
   2724),
    match_invariants
   3 ALL bug-05 (`lib.rs`:
@@ -701,7 +706,8 @@ order.
   machines for completeness;
    harvest periodically (only bug-04/05 expected).
 
-- 08:40 -- MAJOR HONEST REFRAME via the dotnet reference (the integrity moment).
+- 08:40:
+  MAJOR HONEST REFRAME via the dotnet reference (the integrity moment).
   Installed dotnet on Mac (`brew install dotnet`),
    built `resharp-dotnet`
   (ieviev's OTHER RE# impl),
@@ -722,14 +728,15 @@ order.
   762/772) but DELIBERATELY accepts a SUPERSET ("to unlock some patterns
   outside RE# fragment",
    `lib.rs`:
-  803) -- so the Tier-2 defect is rust failing on
+  803);
+  so the Tier-2 defect is rust failing on
   patterns its OWN guard blessed,
    not just diverging from a stricter peer.
   TWO TIERS (`dotnet-adjudication.md`):
    * LOAD-BEARING (in-subset / self-evident):
       bug-04 & bug-05 CRASHES (dotnet
      matches the patterns cleanly -> `[(0,3)]` / `[(0,2),(2,2)]`,
-      rust panics --
+      rust panics:
      CLEAN rust-specific crashes,
       lead with these);
       bug-02 `(?<=a)` (dotnet im=
@@ -746,10 +753,11 @@ order.
      INTERNAL self-inconsistencies (default-vs-hardened,
       im-vs-find_all,
       find_anch-
-     vs-find_all -- demonstrable w/o any reference,
+     vs-find_all:
+     demonstrable w/o any reference,
       only caveat is rust should
      reject the pattern);
-      bug-12/13 Lean-corroborated wrong spans (weakest --
+      bug-12/13 Lean-corroborated wrong spans (weakest:
      stopped treating Lean as sole authority for these out-of-subset patterns).
   Headline restructured around tiers (NOT "13 distinct");
       per-file banners added;
@@ -767,18 +775,21 @@ order.
       STOPPING active mining;
       consolidating.
 
-- 08:05 -- trust0 region EXHAUSTED + complement-of-anchor frontier opened.
+- 08:05:
+  trust0 region EXHAUSTED + complement-of-anchor frontier opened.
   Refined `trust()` to context-aware (anchor inside complement/lookbehind ->
   trust1;
    bare `\A`/`\z` -> trust0;
    lookbehind-of-lookaround -> trust1),
    then
-  re-diffed ALL harvested rounds (no new Mac evals -- reused saved outputs).
+  re-diffed ALL harvested rounds (no new Mac evals;
+  reused saved outputs).
    Every
   trust0 disagreement reduces to a KNOWN bug:
    R1612=bug-11,
    R2280=bug-12,
-  R48/R292/R2739=bug-13 (R2739 `((c[ab])|(?=a))?&.` = form B again -- nullable LHS
+  R48/R292/R2739=bug-13 (R2739 `((c[ab])|(?=a))?&.` = form B again;
+  nullable LHS
   matching only zero-width/width-2,
    intersected with width-1 `.`,
    leaks `.`'s
@@ -790,7 +801,7 @@ order.
    recurring under many forms.
   NEW FRONTIER (trust1,
    unadjudicated):
-   complement-of-anchor over-matches --
+   complement-of-anchor over-matches;
   `a(~(\z))` -> rust `[(0,1)]`,
    `b(~((c|\z)))` -> rust `1:2`,
    where Lean says none.
@@ -809,7 +820,8 @@ order.
   the complement-of-anchor suspects -> possible bug-14;
    timeboxed.
 
-- 07:40 -- FOCUSED round + ARM parity.
+- 07:40:
+  FOCUSED round + ARM parity.
    Focused Lean round (FOCUS flag,
   inter/neg/lookaround heavy,
    single-file eval = 466s/3199 cases,
@@ -848,7 +860,8 @@ order.
   stock-confirmed,
    bug-11/12/13 also ARM-confirmed.
 
-- 07:15 -- 13TH ROOT CAUSE (bug-13),
+- 07:15:
+  13TH ROOT CAUSE (bug-13),
    seed-4004 R48.
    `a?&(?=a)?` -> find_all
   `[(0,1),(1,1),(2,2)]` and find_anchored `Some((0,1))`,
@@ -883,15 +896,16 @@ order.
    Seed-4004 also re-derived bug-05 (`((_)*)+(?!b)`).
   LEAN LANE TOTAL:
    3 new root causes (bug-11/12/13),
-   all intersection+lookaround
-  -- this subsystem is clearly fragile.
+   all intersection+lookaround;
+  this subsystem is clearly fragile.
    NEXT:
    focused round (FOCUS flag biases
   inter/neg/lookaround) with single-file eval (the per-chunk import reload was the
   ~13min/seed bottleneck;
    one file = one import load).
 
-- 06:50 -- bug-11 REFRAMED (forward-pass fault) + trust() gap fixed.
+- 06:50:
+  bug-11 REFRAMED (forward-pass fault) + trust() gap fixed.
    Stronger
   reviewer caught a fresh unverified claim:
    I wrote bug-11 "over-proposes" but the
@@ -934,7 +948,8 @@ order.
    2 new root causes (bug-11,
   bug-12).
 
-- 06:25 -- 12TH ROOT CAUSE (bug-12),
+- 06:25:
+  12TH ROOT CAUSE (bug-12),
    Lean multi-seed round (seed 1001).
    R2280
   (trust0) = `find_all` SILENTLY drops the leftmost match,
@@ -980,13 +995,15 @@ order.
   (seeds 3003/4004);
    will harvest remaining trust0 diffs.
 
-- 05:50 -- bug-11 HARDENED + fuzzer harvest.
+- 05:50:
+  bug-11 HARDENED + fuzzer harvest.
    CORRECTION:
    `is_match` ALSO panics
   (`ldfa.rs`:
   906 on `"abca"`,
    :
-  833 on `"ca"`) -- it routes through `scan_fwd_all`
+  833 on `"ca"`):
+  it routes through `scan_fwd_all`
   for this intersection class,
    so the crash is NOT find_all-only (broader DoS).
   Release `is_match` stays correct (a match still exists);
@@ -1010,7 +1027,8 @@ order.
   1824);
    compile 0 crashes (52 slow/timeout = bug-06/09
   perf).
-   NO new crash site from random fuzzing -- `ldfa.rs`/bug-11 was never sampled
+   NO new crash site from random fuzzing;
+  `ldfa.rs`/bug-11 was never sampled
   (the random corpora don't produce the precise intersection+complement+neg-
   lookahead shape;
    the Lean AST generator does by construction).
@@ -1021,7 +1039,8 @@ order.
    depth<=5,
   ~6000 each) RUNNING on the Mac (bkrl3ybcf).
 
-- 05:25 -- 11TH ROOT CAUSE (bug-11),
+- 05:25:
+  11TH ROOT CAUSE (bug-11),
    found by the Lean lane on its FIRST run,
    a
   THIRD distinct crash site.
@@ -1043,7 +1062,8 @@ order.
   `ldfa.rs:833/878/906`.
    Minimal `((?!a)|b)&(~((c)))` (zero-width-nullable
   alternation & complement;
-   all three ingredients required -- `(?!a)` alone or
+   all three ingredients required;
+  `(?!a)` alone or
   `()`/`(?=a)` in its place do not fire).
    On `"abca"` -> panic at 906;
    on `"ca"`
@@ -1051,7 +1071,8 @@ order.
    RELEASE (debug-assertions off,
    what ships):
    no panic but
-  `find_all` DROPS the reverse-proposed match -- `"ca"` returns `[(2,2)]` missing
+  `find_all` DROPS the reverse-proposed match;
+  `"ca"` returns `[(2,2)]` missing
   the leftmost `(0,0)` (Lean ground truth `0:0`),
    `"c"` returns `[(1,1)]` missing
   `(0,0)`.
@@ -1085,7 +1106,8 @@ order.
   Lean comparator (spAll) for silent completeness drops that do not hit the
   assert.
 
-- 04:55 -- LEAN POSITION LANE STOOD UP on the Mac (the major unexplored lane).
+- 04:55:
+  LEAN POSITION LANE STOOD UP on the Mac (the major unexplored lane).
   Installed elan via `brew install elan-init` (4.2.3;
    also pulled coreutils,
    so
@@ -1146,10 +1168,12 @@ order.
    This catches the self-consistent-but-WRONG-span
   class the internal oracles structurally cannot see.
 
-- 04:20 -- HARDENING the headline (stronger-reviewer checkpoint flagged that the
+- 04:20:
+  HARDENING the headline (stronger-reviewer checkpoint flagged that the
   five oracle-only bugs had only ever run through the INSTRUMENTED engine,
    so the
-  "instrumentation is neutral at override=0" assumption was untested -- the exact
+  "instrumentation is neutral at override=0" assumption was untested;
+  the exact
   assumption this campaign rejects).
    Closed it:
    built `tools/pristine-repro`
@@ -1202,11 +1226,13 @@ order.
    Lean position-level lane on
   the MAC (installs authorized there;
    the curl|sh elan install was denied only on
-  THIS x86 box) -- the one major unexplored lane,
+  THIS x86 box):
+  the one major unexplored lane,
    catches self-consistent-but-
   wrong-span correctness bugs the oracles structurally cannot.
 
-- 03:25 -- 10TH ROOT CAUSE found and committed.
+- 03:25:
+  10TH ROOT CAUSE found and committed.
    The FANSPANDIFF oracle over the
   79k combined corpus fired on 30 distinct patterns:
    bug-10,
@@ -1219,7 +1245,8 @@ order.
   complement-with-end-anchor patterns.
    Also surfaced HARDDIFF_IM (default
   is_match=false vs hardened true,
-   `1?a~(~((1?){2,}\z+){2}){2}` on `"a"`) -- the
+   `1?a~(~((1?){2,}\z+){2}){2}` on `"a"`):
+  the
   existence-level face of bug-07,
    folded in (stronger witness,
    not a new root
@@ -1248,7 +1275,8 @@ order.
   variants (stream_first/stream_ends untested),
    overnight fuzzers still running.
 
-- 03:10 -- FOOTGUN:
+- 03:10:
+  FOOTGUN:
    the `repro-fixtest` binary (the arm-bug-01 fix copy) has NO
   per-pattern timeout,
    and its `--patbatch < adv_pats.hex` regression run hung 50
@@ -1273,7 +1301,8 @@ order.
   is a clean 10th root cause.
    Awaiting results.
 
-- 02:50 -- big2 oracle reconfirms the same families (FANDIFF/FANINCONSIST =
+- 02:50:
+  big2 oracle reconfirms the same families (FANDIFF/FANINCONSIST =
   bug-02,
    PANIC = bug-04).
    STREAMINCONSIST (stream empty while is_match true,
@@ -1302,7 +1331,8 @@ order.
    only 2 panic sites,
    SIMD = arm-bug-01 only).
 
-- 02:30 -- 9 root causes committed (bug-09 added:
+- 02:30:
+  9 root causes committed (bug-09 added:
    full/js dot-literal concat
   compile blowup,
    >40s,
@@ -1316,7 +1346,8 @@ order.
   not a release soundness bug (writeup already says so).
    DIVERGE null reconfirmed.
   Lean position-level lane:
-   ABANDONED this box -- `curl|sh` elan install denied
+   ABANDONED this box;
+   >`curl|sh` elan install denied
   by the auto-mode classifier (external code exec;
    install authz was Mac-only),
   too heavy to reroute.
@@ -1333,7 +1364,8 @@ order.
    Overnight fuzzers still running on
   both machines.
 
-- 02:05 -- DIVERGE lane (is_match resharp-ascii vs regex-crate over 20k
+- 02:05:
+  DIVERGE lane (is_match resharp-ascii vs regex-crate over 20k
   shared-subset patterns x22 haystacks,
    panic-tolerant in `repro --divergebatch`)
   is a CLEAN NULL:
@@ -1352,7 +1384,8 @@ order.
   (bug-09,
    perf):
    a long `.`-and-literal concatenation blows up COMPILE in
-  javascript/full mode -- the fuzzer's `compile` timeout
+  javascript/full mode;
+  the fuzzer's `compile` timeout
   `.n.................  n...  n` (hexpat 2e6e...20206e) takes ~71s.
    Bisection by
   prefix length is NON-MONOTONIC (len 22 = 16.8s,
@@ -1373,7 +1406,8 @@ order.
   libfuzzer-sys's abort-at-panic hook (use repro for the is_match diff,
    done).
 
-- 01:45 -- 8 root causes committed (README,
+- 01:45:
+  8 root causes committed (README,
    8 bug files,
    verification,
    code-quality,

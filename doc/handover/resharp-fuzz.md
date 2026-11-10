@@ -760,7 +760,8 @@ BUG-20 follow;
    `\Bb+`,
   `(?<=[^a])b+`.
 - BUG-7 `bug-07-...`:
-   negated perl classes `\D \S \W` nullable (ascii) -- they match
+   negated perl classes `\D \S \W` nullable (ascii):
+  they match
   EVERYTHING including word chars and the empty string.
    `\D`.
    Root cause now PINNED:

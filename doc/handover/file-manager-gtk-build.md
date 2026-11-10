@@ -1,4 +1,4 @@
-# Building the real GTK4 file manager (Niri column-strip UI) — handover
+# Building the real GTK4 file manager (Niri column-strip UI): handover
 
 > References below this note that no longer resolve in the tree.
 > Each entry gives the value that identifier has now:
@@ -190,7 +190,8 @@ require-rustdoc):
    `main.rs` (thin bin).
    Calibration:
    the repo rust linter flags
-  every `use` for missing rustdoc (the retired spike never passed it) — code here documents each
+  every `use` for missing rustdoc (the retired spike never passed it):
+  code here documents each
   `use`.
    Verified:
    debug build clean (30s);
@@ -560,7 +561,8 @@ require-rustdoc):
    Note:
    this session gives GtkApplication no
   D-Bus single-instance lock,
-   so relaunches pile up windows -- always kill before relaunch.
+   so relaunches pile up windows;
+  always kill before relaunch.
    Confirmed
   live:
    one window,
@@ -614,11 +616,13 @@ require-rustdoc):
      Not yet root-caused.
      Debug offset logging is IN (`tracing::debug!`
     "tether pass" with per-column offsets,
-     and "snap column" before/after/max/page/upper) -- reproduce
+     and "snap column" before/after/max/page/upper);
+    reproduce
     with `RUST_LOG=file_manager=debug` and read the offsets to see which column resets and whether
     `max`/`upper` are as expected.
   - Likely-relevant facts to check next time:
-     (a) there are TWO vertical scrolls -- the COLUMN scroll
+     (a) there are TWO vertical scrolls:
+    the COLUMN scroll
     (moves whole panes;
      the tether+snap act here) and each pane's FILE-LIST scroll (independent,
     untouched);
@@ -626,7 +630,8 @@ require-rustdoc):
      (b) every column's canvas is
     sized to the GLOBAL max content height (`set_content_height`) so equal offsets align rows,
      which
-    means a short column can scroll DOWN into empty space below its panes -- reconsider whether that
+    means a short column can scroll DOWN into empty space below its panes;
+    reconsider whether that
     is desired.
      (c) panes are `PANE_HEIGHT=520` tall,
      so only ~1.7 fit per viewport -> at least one
@@ -634,7 +639,8 @@ require-rustdoc):
      a smaller `PANE_HEIGHT` may make the snap moot.
   - UNRESOLVED REQUIREMENT:
      "tint each pane's available scroll region" / what exactly the snap should
-    do -- the phrasing wasn't fully understood this session;
+    do;
+    the phrasing wasn't fully understood this session;
      clarify before more snap changes.
   - DEBUG SCAFFOLDING (gated,
      safe to keep or delete):
@@ -666,7 +672,8 @@ require-rustdoc):
    Open regression left IN PLACE (per user "keep the
   change") as a repro to investigate next session:
    adding `.fm-canvas { background-color: ... }` to
-  `DEBUG_CSS` (tinting the scrollable `GtkFixed` inside each column -- the "available scroll region")
+  `DEBUG_CSS` (tinting the scrollable `GtkFixed` inside each column;
+  the "available scroll region")
   makes the whole window render PURE BLACK,
    and ALL the other debug tints vanish too.
    So a background

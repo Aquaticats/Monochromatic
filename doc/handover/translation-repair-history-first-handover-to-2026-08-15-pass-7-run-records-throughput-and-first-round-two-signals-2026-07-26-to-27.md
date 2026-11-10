@@ -242,8 +242,8 @@ TRANSIENT API THROUGHPUT IS NOW RULED OUT:
 independent runs hours apart,
   at 8.2 then 7.5 min/slice against round one's
 2.75.
-  The remaining hypothesis is that the slices now carry DIFFERENT CONTENT
--- the aligner pairs different blocks,
+  The remaining hypothesis is that the slices now carry DIFFERENT CONTENT;
+the aligner pairs different blocks,
   so the models face different (and
 plausibly more real) work than the misaligned pairings gave them.
   That is
@@ -387,7 +387,7 @@ the 13 PhotoScroll claims were exactly the graded false positive (sheet item
    the change is CATEGORICAL
 (to exactly zero,
    not a smaller number);
-   and the mechanism is DETERMINISTIC --
+   and the mechanism is DETERMINISTIC;
 unwrapping makes those blocks peers on both sides,
    so the critic no longer sees
 a component present on one side and absent on the other.
@@ -510,8 +510,8 @@ PRECISION CHANGE and must not be recorded as one:
    the
 seven models are individually unreliable so counts move run to run regardless,
 and this is a single entry.
-   It is also a WEAK test of the fixes by construction
--- AmbeR_the_anpa contributed no CLEAR false positive to the graded fifty (its
+   It is also a WEAK test of the fixes by construction:
+AmbeR_the_anpa contributed no CLEAR false positive to the graded fifty (its
 two sampled items were the "Yes-ish" Bilibili gloss and a true positive),
    so
 nothing here was expected to change.

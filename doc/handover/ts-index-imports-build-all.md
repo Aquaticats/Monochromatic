@@ -201,7 +201,7 @@ Recommended confirmation before Phase B:
 touched package and the inference-canary-viewer consumer;
  additive exports cannot change existing type-checking).
 
-## Phase B: DONE — every non-exempt cross-package import resolves to `/ts`
+## Phase B: DONE, every non-exempt cross-package import resolves to `/ts`
 
 Approach decided WITH the user:
  NOT a heavy AST codemod.
@@ -221,7 +221,7 @@ which is DEFERRED).
 
 ### The tools (repo root, UNTRACKED, throwaway)
 
-`mise.rewrite-ts-imports.ts` — run per target:
+Run `mise.rewrite-ts-imports.ts` per target:
  `bun mise.rewrite-ts-imports.ts <target-unscoped> [--dry]`.
  Prints the
 changed-file list to stdout,
@@ -239,7 +239,7 @@ touches bare string-literal package names (verified skips:
  Boundary-safe,
  idempotent.
 
-`mise.detect-merge-sites.ts` — run per target:
+Run `mise.detect-merge-sites.ts` per target:
  reports files that would have DUPLICATE import statements after collapse
 (condition:
  `valueCount + typeCount > 1` for the target's `/ts`;
@@ -292,7 +292,7 @@ reported consumer package varies run-to-run due to tsgo `--build` incremental ca
 that consumer to /dom" and commit it with the target.
 )
 
-### The duplicate-import rule — EMPIRICAL findings (correct the earlier guess)
+### The duplicate-import rule: EMPIRICAL findings (correct the earlier guess)
 
 The active rule is `eslint/no-duplicate-imports`,
  NOT `import/no-duplicates`,
@@ -333,7 +333,7 @@ PRE-EXISTING oxlint debt is IGNORED (user instruction);
 constraint observed is "do not ADD a `no-duplicate-imports` violation",
  handled by the merges above.
 
-### Progress — ALL targets committed (newest last)
+### Progress: ALL targets committed (newest last)
 
 Pilot + prep (prior session):
  `06b6afca` favicon dynamic->static;
@@ -394,7 +394,7 @@ Targets with 0 cross-package specifiers (nothing to do):
 self-imports.
 )
 
-### Doc examples — DEFERRED (not code imports; out of the rewrite scope, fix in a docs pass)
+### Doc examples: DEFERRED (not code imports; out of the rewrite scope, fix in a docs pass)
 
 TSDoc/README `@example` blocks still show old import forms.
  Known:
@@ -402,7 +402,8 @@ TSDoc/README `@example` blocks still show old import forms.
 `module/logger/src/tagged.ts:17` (`/tagged`,
  escaped `\@`),
  `claude-code-plugin/hook-type/src/index.ts:11`
-(`@monochromatic-dev/claude-code-hook-types` — ALSO a WRONG package name,
+(`@monochromatic-dev/claude-code-hook-types`:
+ALSO a WRONG package name,
  missing `plugins`).
  These do not affect
 lint:
@@ -435,7 +436,8 @@ Done (one commit each):
  `./tagged`,
  `./types`);
  `pi-shared-model-selection` (all 5
-per-feature dist entries `./core`/`./scope`/`./cost`/`./budget`/`./pi-coding-agent` AND their `/ts` twins — leaving
+per-feature dist entries `./core`/`./scope`/`./cost`/`./budget`/`./pi-coding-agent` AND their `/ts` twins;
+leaving
 `.`+`./ts`;
  the per-feature dist BUNDLES are collapsed to a single index in Phase C);
  `cli-mvm` (10 feature entries);
@@ -472,7 +474,7 @@ DEFERRED to Phase C (structural,
    just not in B2.
   )
 
-## Phase C: IN PROGRESS — convert source-only and bin packages to builds
+## Phase C: IN PROGRESS, convert source-only and bin packages to builds
 
 Everything imports `/ts`,
  so flipping `.` from src to dist affects no in-repo consumer.
@@ -496,7 +498,8 @@ Everything imports `/ts`,
    `extends`,
     and a `buildAndTest` task.
     CAVEAT:
-    the test-task wiring VARIES per package — some have
+    the test-task wiring VARIES per package;
+   some have
    `[tasks."test:unit"] extends = "test:unit"` (then `buildAndTest = "mise run build; mise run test:unit"`),
     others a
    custom `[tasks.test] run = "bun src/self.unit.test.ts"` (then `buildAndTest = "mise run build; mise run test"`).
@@ -523,7 +526,8 @@ Everything imports `/ts`,
     unlike a relative `../dist/...` path which the precedent used).
     KEY:
     tests that ALREADY import
-   by name (e.g. `module-function-arity`'s) need NO edit at all -- they follow `.` automatically.
+   by name (e.g. `module-function-arity`'s) need NO edit at all;
+   they follow `.` automatically.
     Only relative source
    imports (`} from './foo.ts';`) need switching,
     to `} from '@monochromatic-dev/<pkg>';`.
@@ -629,24 +633,28 @@ Everything imports `/ts`,
   `dependencies`),
    `neverBundle: ['@earendil-works/pi-coding-agent', 'typebox', '@earendil-works/pi-ai']` (pi runtime
   peer deps,
-   provided at load time -- bundling them causes CJS/ESM "exports is not defined").
+   provided at load time;
+  bundling them causes CJS/ESM "exports is not defined").
    Relevant to pi-shared and
   any pi-* / CLI package consuming those peers.
 - THE BY-NAME SMOKE-TEST LEVER (sharpens step 4):
    the dist's ONLY new risk vs source is re-export/bundle integrity;
   the source unit tests already cover the logic and bundling adds no code paths.
    So you do NOT need every public test
-  routed through the dist -- you need the public surface exercised BY-NAME once (executes the bundle) PLUS the dts emit
+  routed through the dist;
+  you need the public surface exercised BY-NAME once (executes the bundle) PLUS the dts emit
   (which fails the build if any index re-export is missing,
    covering re-export completeness for free).
    Practical rule:
   if a package already has a by-name test (e.g. a `public-api.unit.test.ts`),
-   it IS the smoke test -- flip with ZERO
+   it IS the smoke test;
+  flip with ZERO
   test edits.
    If not,
    switch ONE or TWO broad round-trip tests to by-name and leave the rest on source.
    Internal-symbol
-  tests (symbols NOT in the index) CANNOT route through dist and MUST stay on source -- this is forced,
+  tests (symbols NOT in the index) CANNOT route through dist and MUST stay on source;
+  this is forced,
    not a choice.
 - A THIRD throwaway tool exists:
    `mise.switch-tests-byname.ts` (repo root,
@@ -664,72 +672,88 @@ Everything imports `/ts`,
   all single-binding public).
    buildAndTest is the oracle for internal-symbol mistakes.
 
-### Done (neutral unless noted; ALL conversions complete — repo-wide lint:types PASSED, build+test+resolution gate pending, see Final verification)
+### Done (neutral unless noted; ALL conversions complete: repo-wide lint:types PASSED, build+test+resolution gate pending, see Final verification)
 
 - `module-async-time` (`test:unit` variant;
-   tests switched to relative-to-dist) — `build(module-async-time): produce neutral dist (Phase C pilot)`.
+   tests switched to relative-to-dist):
+  `build(module-async-time): produce neutral dist (Phase C pilot)`.
 - `module-const` (custom `test` aggregator variant;
-   5 tests switched to relative-to-dist) — `build(module-const): produce neutral dist`.
+   5 tests switched to relative-to-dist):
+  `build(module-const): produce neutral dist`.
 - `module-function-arity` (`test:unit`;
    test already by-name,
-   NO test edit) — `build(module-function-arity): produce neutral dist`.
+   NO test edit):
+  `build(module-function-arity): produce neutral dist`.
 - `agent-harness-shared-current-time-context` (`test:unit`;
-   1 test switched to by-name) — `build(module-current-time-context): produce neutral dist`.
+   1 test switched to by-name):
+  `build(module-current-time-context): produce neutral dist`.
 - `module-numeric-format` (custom `test` aggregator;
    3 leaf tests switched to by-name;
    FIRST built lib WITH workspace
-  deps -- module-const + module-or-throw inlined) — `build(module-numeric-format): produce neutral dist`.
+  deps;
+  module-const + module-or-throw inlined):
+  `build(module-numeric-format): produce neutral dist`.
 - `module-or-throw` (`test:unit`;
-   25 single-binding public tests switched to by-name via `mise.switch-tests-byname.ts`)
-  — `build(module-or-throw): produce neutral dist`.
+   25 single-binding public tests switched to by-name via `mise.switch-tests-byname.ts`);
+  `build(module-or-throw): produce neutral dist`.
 - `module-i18n-compose` (`test:unit`;
    `public-api.unit.test.ts` already by-name = the smoke test,
-   ZERO test edits)
-  — `build(module-i18n-compose): produce neutral dist`.
+   ZERO test edits);
+  `build(module-i18n-compose): produce neutral dist`.
 - `module-toml-edit` (`test:unit`;
    two clean all-public round-trips `canonical`+`toml-delete` hand-merged to by-name;
   toml-eslint-parser stays external;
-   internal `tomlFloat`/`tomlInteger`/`encodeKey`/`isAttachedGap` tests stay on source)
-  — `build(module-toml-edit): produce neutral dist`.
-- `mcp-stdio` (NODE bundle — uses process.
+   internal `tomlFloat`/`tomlInteger`/`encodeKey`/`isAttachedGap` tests stay on source);
+  `build(module-toml-edit): produce neutral dist`.
+- `mcp-stdio` (NODE bundle;
+  uses process.
   stdin/stdout;
    `private: true`;
-   FIRST node build) — per user direction the
+   FIRST node build):
+  per user direction the
   index was EXPANDED to re-export the previously-internal `JSON_RPC_*` codes + `PROTOCOL_VERSION` + `readLines`,
    so all
   4 tests route through dist:
    json-rpc + line-reader via the tool,
    transport (3) + server (5) hand-merged;
    added the
-  missing `test:unit` task — `build(mcp-stdio): produce node dist`.
+  missing `test:unit` task;
+  `build(mcp-stdio): produce node dist`.
 - `cli-fy` (NODE bin;
-   FIRST pure-CLI bin) — bin repointed to `dist/final/node/index.mjs`;
+   FIRST pure-CLI bin):
+  bin repointed to `dist/final/node/index.mjs`;
    `cli.unit.test.ts` repointed
   to spawn the built bin (13-scenario smoke-run) and its latent cwd bug fixed via `findMiseMonorepoRootCached`;
    unit
   tests (resolve,
-   coerce) stay on source — `build(cli-fy): produce node bin dist` + `fix(cli-fy): resolve spawn cwd ...`.
+   coerce) stay on source;
+  `build(cli-fy): produce node bin dist` + `fix(cli-fy): resolve spawn cwd ...`.
 - `module-image-diff` (NODE lib+bin;
    FIRST proven dual-entry,
-   commit `943e0f1a`) — `tsdown.node.config.ts` dual-entry
+   commit `943e0f1a`):
+  `tsdown.node.config.ts` dual-entry
   (`['./src/index.ts', './src/cli.ts']`) emits `index.mjs` (lib) + `cli.mjs` (bin);
    `.` -> node dist,
    `bin` -> `cli.mjs`.
   `similarity` switched to by-name (lib bundle smoke test);
    ADDED `cli.unit.test.ts` spawning `cli.mjs --help` (bin
-  execution — `dts` can't verify `cli.mjs` since `cli.ts` has no exports);
+  execution;
+  `dts` can't verify `cli.mjs` since `cli.ts` has no exports);
    network test renamed to
   `client.expensive.unit.test.ts`
-  (excluded from default `test:unit`) —
+  (excluded from default `test:unit`):
   `build(module-image-diff): produce dist (lib + bin, node)`.
 - `cli-rgffplay` (NODE pure-CLI,
-   commit `86e55896`) — bin -> `dist/final/node/index.mjs`.
+   commit `86e55896`):
+  bin -> `dist/final/node/index.mjs`.
    ADDED `index.unit.test.ts`
-  spawning the built bin with NO args (prints usage + exits non-zero BEFORE any rg/ffplay spawn — the only inert path;
+  spawning the built bin with NO args (prints usage + exits non-zero BEFORE any rg/ffplay spawn;
+  the only inert path;
   a real query plays audio).
    nano-spawn inlined by the node config's alwaysBundle.
 - `module-token-count` (NODE lib+bin,
-   commit ~`token-count`) — dual-entry;
+   commit ~`token-count`):
+  dual-entry;
    ADDED two tests (had none):
    `index.unit.test.ts`
   imports the pure `DEFAULT_MODEL` const by-name (lib smoke,
@@ -738,7 +762,8 @@ Everything imports `/ts`,
   (optique exits before any API call).
    Counting itself is paid/network so no counting test.
 - `cli-mvm` (NODE lib+bin,
-   commit `dd02f9dd`) — dual-entry;
+   commit `dd02f9dd`):
+  dual-entry;
    `list.unit.test.ts` (`splitOnWhitespace`,
    public via index
   `export *`) switched to by-name (lib smoke);
@@ -748,7 +773,8 @@ Everything imports `/ts`,
    every subcommand mutates KVM VMs).
 - `cli-terminal-exec` (NODE lib+bin,
    INVERTED split,
-   commit `50dda7b5`) — LIBRARY entry is `src/launch.ts` -> `launch.mjs`
+   commit `50dda7b5`):
+  LIBRARY entry is `src/launch.ts` -> `launch.mjs`
   (the `.` export),
    BIN entry is `src/index.ts` -> `index.mjs`.
    ADDED `launch.unit.test.ts` importing `launchTerminal`
@@ -761,7 +787,8 @@ Everything imports `/ts`,
   tests stay on source.
 - `mcp-mvm` (NODE pure-CLI,
    MCP stdio server,
-   commit `05e86703`) — bin -> dist;
+   commit `05e86703`):
+  bin -> dist;
    cli-mvm + mcp-stdio inlined.
    ADDED
   `index.unit.test.ts` spawning the bin with `stdin: 'ignore'` (EOF):
@@ -770,7 +797,8 @@ Everything imports `/ts`,
    EOF is the only inert invocation.
 - `dev-script-vm-builder` (NODE pure-CLI,
    custom entry,
-   commit `ffe93377`) — no `src/index.ts`;
+   commit `ffe93377`):
+  no `src/index.ts`;
    entry overridden to the
   bin `src/build-and-import.ts`.
    NO smoke test:
@@ -781,7 +809,8 @@ Everything imports `/ts`,
 - `dev-script-task-util` (NODE multi-bin,
    SIX entries,
    HIGHEST RISK,
-   commit `8d719386`) — six bins
+   commit `8d719386`):
+  six bins
   (command/append/depends/oxlint-wrapper/pnpm-filter/tsgo-filter).
    BOOTSTRAP ORDER MATTERS:
    task-oxlint/task-tsgo are
@@ -798,12 +827,14 @@ Everything imports `/ts`,
    8 internal tests stay on source.
    RELOCATED three
   flaky-under-parallel-load tsgo-filter CLI integration tests to `tsgo-filter.expensive.unit.test.ts` (pre-existing
-  flakiness — leftover dirs from a 2026-05-23 run;
+  flakiness;
+  leftover dirs from a 2026-05-23 run;
    `par-each` starves the tsgo subprocess -> empty stdout).
    Fast file is
   deterministic 3/3.
 - `module-fs-path` (NEUTRAL cross-runtime,
-   commit `3650453d`) — neutral dist;
+   commit `3650453d`):
+  neutral dist;
    TLA dynamic `node:path`/`node:fs/promises`
   imports survive as runtime externals;
    happy-opfs external.
@@ -817,7 +848,8 @@ Everything imports `/ts`,
   node/bun-only;
    browser cross-runtime support is via `/ts` source (nothing in-repo loads the `.` dist in a browser).
 - `pi-shared-model-selection` (NODE single-index normalize,
-   commit `2715d0bd`) — collapsed the per-feature tsdown entries
+   commit `2715d0bd`):
+  collapsed the per-feature tsdown entries
   (core/scope/cost/budget/pi-coding-agent) to a single `src/index.ts`;
    `package.json`/export-map were already single-index
   correct from B2.
@@ -827,7 +859,8 @@ Everything imports `/ts`,
    bundle imports with all 37 exports.
 - `cli-vmsync` (NODE pure-CLI,
    deferred-B2 finish,
-   commit `519c2f66`) — `src/index.ts` IS the bin (shebang),
+   commit `519c2f66`):
+  `src/index.ts` IS the bin (shebang),
    so it took
   the cli-git shape:
    DROPPED all nine orphaned feature exports (no consumer;
@@ -841,10 +874,12 @@ Everything imports `/ts`,
   expensive e2e stay on source.
 - `build-tool-css` (NODE lib+bin,
    deferred-B2 finish,
-   commit `3f4dd3f9`) — dual-entry (`index.ts` + `cli.ts`) so build-css
+   commit `3f4dd3f9`):
+  dual-entry (`index.ts` + `cli.ts`) so build-css
   bin emits `cli.mjs`;
    FIXED the broken `.`/main/module/typings pointers (they referenced `.js`/`.d.ts` but the build
-  emits `.mjs`/`.d.mts` — a dangling `.` export nothing consumed);
+  emits `.mjs`/`.d.mts`:
+  a dangling `.` export nothing consumed);
    consolidated `./ts/fs-registry`+`./ts/process-shim`
   into `./ts/*`;
    `build.unit.test.ts` switched to by-name (`.` lib smoke) + ADDED `cli.unit.test.ts` (`--help`).
@@ -859,9 +894,11 @@ Everything imports `/ts`,
   owns a distinct `dist/test-output-<fixture>-<test>.css` path;
    deterministic 4/4.
    (module-test runs it-blocks within a
-  describe concurrently — a key gotcha for any test sharing mutable disk/registry state.
+  describe concurrently;
+  a key gotcha for any test sharing mutable disk/registry state.
   )
-- `claude-code-plugin-hook-type` — DECIDED EXEMPT (pure types,
+- `claude-code-plugin-hook-type`:
+  DECIDED EXEMPT (pure types,
    zero value exports;
    the `.d.mts` IS the source,
    no
@@ -887,20 +924,25 @@ by-name form.
 Pick the lightest rung the bin's safety allows;
  each executes the built artifact:
 1. By-name lib import + `typeof` check,
-    never calling the side-effecting export (cli-terminal-exec) — when the only
+    never calling the side-effecting export (cli-terminal-exec):
+   when the only
    public symbol has side effects but its module is side-effect-free at import.
 2. `--help`/`--version` spawn (image-diff,
     token-count,
-    cli-mvm) — when the parser short-circuits before any handler.
-3. No-args spawn asserting usage + non-zero exit (cli-rgffplay) — when no-args errors BEFORE the dangerous action.
-4. EOF-stdin spawn asserting clean exit (mcp-mvm) — when a server loop terminates on closed stdin without acting.
+    cli-mvm):
+   when the parser short-circuits before any handler.
+3. No-args spawn asserting usage + non-zero exit (cli-rgffplay):
+   when no-args errors BEFORE the dangerous action.
+4. EOF-stdin spawn asserting clean exit (mcp-mvm):
+   when a server loop terminates on closed stdin without acting.
 5. NO execution,
-    build + dts only (dev-script-vm-builder) — when every entrypoint path has an unavoidable side effect
+    build + dts only (dev-script-vm-builder):
+   when every entrypoint path has an unavoidable side effect
    (sudo build) and the module can't be imported inertly.
     Document WHY in the commit + buildAndTest description.
 Relocate any flaky/slow/network/VM test that the new `test:unit` glob activates to `<name>.expensive.unit.test.ts`.
 
-### Remaining — bundle sets determined (deps + `node:` built-in scan)
+### Remaining: bundle sets determined (deps + `node:` built-in scan)
 
 NEUTRAL,
  no bin:
@@ -910,7 +952,8 @@ NEUTRAL,
 (`common.ts` + event/tool-input types;
  verified zero `export const|function|class|let|var|default` value exports).
  A
-build would emit only a `.d.mts` (or an empty `.mjs`) with no runtime code -- there is no source-to-dist
+build would emit only a `.d.mts` (or an empty `.mjs`) with no runtime code;
+there is no source-to-dist
 TRANSFORMATION,
  exactly the pure-data config exemption rationale.
  It keeps `.` + `./ts` + `./ts/*` at source;
@@ -923,7 +966,8 @@ preference,
  so it was decided rather than asked.
 
 VERIFY-THEN-ROUTE:
- `mcp-stdio` — DONE (node bundle;
+ `mcp-stdio`:
+DONE (node bundle;
  see its entry in the Done list).
  Confirmed it uses `process` stdin/stdout.
 
@@ -933,7 +977,7 @@ NEUTRAL but cross-runtime/OPFS:
 may need a non-node/DOM env).
  Do as its own mini-pilot.
 
-### BIN sub-batch — recipes + per-package safety (read before fanning out)
+### BIN sub-batch: recipes + per-package safety (read before fanning out)
 
 SHEBANG PRE-FLIGHT (done):
  all 9 bin entries ALREADY carry `#!/usr/bin/env bun` on line 1 (checked via `head -1`).
@@ -948,8 +992,10 @@ without it).
 Two bin shapes:
 
 PURE-CLI (bin only,
- NO library `.` export — exemplar `cli-git`):
- ALL DONE — `cli-fy`,
+ NO library `.` export;
+exemplar `cli-git`):
+ ALL DONE;
+`cli-fy`,
  `cli-rgffplay`,
  `mcp-mvm`,
 `dev-script-task-util` (multi-bin),
@@ -988,7 +1034,8 @@ PURE-CLI (bin only,
    `import { findMiseMonorepoRootCached } from '@monochromatic-dev/module-fs-path/ts'` (async,
     no args,
     cached;
-   `const REPO_ROOT = await findMiseMonorepoRootCached();` at module top -- TLA is fine).
+   `const REPO_ROOT = await findMiseMonorepoRootCached();` at module top;
+   TLA is fine).
     Do NOT hand-roll
    `'../../../..'` (brittle;
     the user corrected this).
@@ -1003,10 +1050,13 @@ PURE-CLI (bin only,
     `mcp-mvm` + `dev-script-vm-builder` spin VMs -> ONLY `--help`/
    `--version` after confirming help is inert;
     `cli-terminal-exec` (its lib and bin packages) must NOT be run at all (`AGENTS.md`:
-   probing terminal-exec opens a terminal) -- verify it by build + shebang + parser-read only.
+   probing terminal-exec opens a terminal):
+   verify it by build + shebang + parser-read only.
 
-LIB+BIN (BOTH `.`/`./ts` exports AND a bin from a SEPARATE entry -- DUAL-ENTRY):
- ALL DONE — `module-image-diff` (commit
+LIB+BIN (BOTH `.`/`./ts` exports AND a bin from a SEPARATE entry;
+DUAL-ENTRY):
+ ALL DONE;
+`module-image-diff` (commit
 `943e0f1a`),
  `module-token-count`,
  `cli-mvm`,
@@ -1018,7 +1068,8 @@ run).
  Recipe (PROVEN on module-image-diff;
  in-repo precedent
 `package/dev-script/deps-cube/tsdown.node.config.ts` is the same dual-entry shape):
-1. Confirm lib AND bin share a platform (else two configs -- the hardest shape;
+1. Confirm lib AND bin share a platform (else two configs;
+   the hardest shape;
     avoid for the first pilot).
     Check with
    the node-builtins grep.
@@ -1092,7 +1143,8 @@ GENERAL:
  `cli-mvm`'s bin is `src/cli.ts`;
  `dev-script-inference-canary`'s would be `src/canary.ts` (already split in
 Phase A,
- but inference-canary is a dev tool -- assess separately).
+ but inference-canary is a dev tool;
+assess separately).
  (`claude-code-plugin-source` is exempt.
 )
 
@@ -1134,7 +1186,8 @@ Gate status:
    ~21s;
    all packages incl.
    build-tool-css consumers
-  messages-demo/done-postcss/ssg-test — no cross-package regression from the cli-vmsync export drop or build-tool-css
+  messages-demo/done-postcss/ssg-test;
+  no cross-package regression from the cli-vmsync export drop or build-tool-css
   changes).
    RE-RUN this once more at the very end as the final confirmation.
 - TODO:
@@ -1148,7 +1201,8 @@ Gate status:
    Some packages use a custom `test` aggregator instead of
   `test:unit` (numeric-format,
    const,
-   fs-path) — those run via `mise run '//package/...:test'` or their own task.
+   fs-path):
+  those run via `mise run '//package/...:test'` or their own task.
 - TODO:
    re-run the resolution analysis.
    Criterion:
@@ -1174,9 +1228,11 @@ Gate status:
    zero (Phase B rewrote every cross-package import to `/ts`).
 
 Close-out TODO (not yet done):
- decide the 3 throwaway tools at repo root — `mise.rewrite-ts-imports.ts`,
+ decide the 3 throwaway tools at repo root;
+`mise.rewrite-ts-imports.ts`,
 `mise.detect-merge-sites.ts`,
- `mise.switch-tests-byname.ts` (untracked) — commit or delete.
+ `mise.switch-tests-byname.ts` (untracked):
+commit or delete.
  Surface in the final
 summary:
  the hook-types exemption and the fs-path `.`-dist-is-node-only README note.

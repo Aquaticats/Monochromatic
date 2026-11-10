@@ -73,13 +73,15 @@ non-translation,
    one failing to anchor):
    (1) require a MINIMUM critics-heard
 count on the slice before any block (2/7 heard is too few to make a severe call;
-degrade instead) -- cleanest,
+degrade instead):
+cleanest,
    targets the failure mode directly,
    needs the
 minimum chosen so the 3/7 true case still blocks when those 3 are among the
 heard;
    (2) require non-translation votes as a fraction of the FULL roster
-treating silent critics as not-non-translation (e.g. >= 3) -- must not exceed 3
+treating silent critics as not-non-translation (e.g. >= 3):
+must not exceed 3
 or it breaks the true case;
    (3) both.
    The English-epigraph-in-both trigger is a
@@ -192,7 +194,8 @@ issues,
    AkiraComplex is the
 headline:
    the three-vote block holds in the full pass exactly as the probe
-predicted -- the once-false-blocked slice now repairs cleanly,
+predicted;
+the once-false-blocked slice now repairs cleanly,
    no
 regression elsewhere.
    Acheron alone ate the 25-min soft budget,
@@ -216,7 +219,8 @@ PASS 5 RUN 002 (2026-07-24,
 45 accepted,
    44 resolved,
    6 findings,
-   2088s) -- a single large document
+   2088s):
+a single large document
 that overran the 25-min soft budget on its own,
    so no second entry
 dispatched.
@@ -237,7 +241,8 @@ PASS 5 RUN 003 (2026-07-24,
 accepted,
    25 resolved,
    13 findings,
-   1806s) -- the once-false-blocked
+   1806s):
+the once-false-blocked
 divergence-heavy pair,
    repairing cleanly again.
    One transient event:
@@ -254,7 +259,8 @@ gracefully via quorum,
    and the entry still repaired.
    Reads as an API-side
 slowdown burst,
-   not a code fault -- logged,
+   not a code fault;
+logged,
    no fix triggered.
    4/92 settled.
 Run 004 launched on tip `0384097b7`.
@@ -270,7 +276,8 @@ PASS 5 RUN 004 (2026-07-24,
 accepted,
    ALL 95 resolved,
    34 findings,
-   2540s) -- the largest document
+   2540s):
+the largest document
 yet by issue count,
    running ~42 min,
    just under the 45-min hard cap.
@@ -300,14 +307,16 @@ accepted,
    1498s).
    ArtsEpiphany unchanged (0
 issues,
-   15s) -- correct:
+   15s):
+correct:
    a 120-char placeholder stub whose desc is blank
 by intent and whose source equals its target,
    nothing to repair.
    Arita
 BLOCKED-non-translation (0 issues,
    14 findings,
-   255s) -- the FIRST block
+   255s):
+the FIRST block
 under the three-vote regime,
    and it demanded investigation before the
 loop could continue.
@@ -327,7 +336,8 @@ exactly 13 nodes corresponding 1:1,
    yet `subdivideChunkPair` mis-paired
 them with a one-paragraph drift,
    so critics correctly read each mismatched
-slice as non-translation and 6-7 of 7 voted -- genuine ensemble agreement
+slice as non-translation and 6-7 of 7 voted;
+genuine ensemble agreement
 on genuinely mispaired input.
    Root cause:
    the slicer grouped each side
@@ -347,7 +357,8 @@ likely mis-sliced many entries subtly;
 drift made EVERY slice a mismatch.
 ARITA FIX (2026-07-24,
    commit `7a5117727`):
-   `groupNodesLockstep` -- when
+   `groupNodesLockstep`:
+when
 both sides carry equal node counts,
    group them together,
    extending a slice
@@ -376,7 +387,8 @@ regression)` added;
 accepted,
    7 findings,
    4110s) with 0 non-translation votes on every critic
-stage -- the false block gone end-to-end.
+stage;
+the false block gone end-to-end.
 ARITA FIX BLAST RADIUS (2026-07-24,
    deterministic corpus survey,
    zero
@@ -386,8 +398,10 @@ quota):
 (64%) carry equal node counts and so take the lockstep path;
    replaying the
 old independent-budget grouping,
-   68 of those 182 pairs -- spread over 46
-of the 92 entries -- had divergent per-side run boundaries,
+   68 of those 182 pairs;
+spread over 46
+of the 92 entries;
+had divergent per-side run boundaries,
    i.e. the old
 code actually mis-sliced them.
    Most drifted entries still REPAIRED before

@@ -23,7 +23,8 @@ pass is a NEW pass;
 Note lessons banked while landing this:
   run package tasks ONLY by scoped
 name (`//package/module/translation-repair:<task>` (moved on 2026-10-18 to
-`//package/translation-repair/<package>:<task>`)) -- a bare `mise run
+`//package/translation-repair/<package>:<task>`)):
+a bare `mise run
 build`/`test` from the worktree root fans out to the whole monorepo
 (cargo/podman/rust),
   spikes load,
@@ -131,7 +132,8 @@ PASS 6 RUN 003 (2026-07-24,
 accepted,
    all 52 resolved,
    10 findings,
-   1764s) -- the original
+   1764s):
+the original
 contradiction-screen false-block entry,
    repairing cleanly again.
    4/92
@@ -149,7 +151,8 @@ Diagnosis (NOT a regression,
    the log shows transport
 `terminated` failures with retries plus two critic timeout bursts,
    and
-only 6 of 7 slices finished in 45 min -- a bad API window at ~20:27Z,
+only 6 of 7 slices finished in 45 min;
+a bad API window at ~20:27Z,
    not
 a workload change.
    Deterministic slice-count check (anilovr-slices.mjs)
@@ -193,7 +196,8 @@ CORPUS-PASS BUDGET FIX (2026-07-24,
 surfaced.
    (1) The hard ceiling was armed ONCE for the whole loop,
    so its
-abort signal was shared -- an entry starting near the soft budget got only
+abort signal was shared;
+an entry starting near the soft budget got only
 the sliver left before the cap.
    Fixed:
    a fresh `armCallDeadline` per entry
@@ -216,7 +220,8 @@ LARGE-ENTRY TAIL (2026-07-24,
    deterministic slice survey
 slice-distribution.mjs):
    the corpus slice-count distribution is
-median 8 but long-tailed -- aiyysk 77 slices,
+median 8 but long-tailed;
+aiyysk 77 slices,
    hulicaijia 65,
    shihai4h 45,
 interrgned 43,
@@ -233,7 +238,8 @@ single-run cap.
    the tail
 needs slice-level RESUMABILITY (cache completed slices,
    resume across
-runs) -- a change to the pure function's contract (inject a slice cache,
+runs):
+a change to the pure function's contract (inject a slice cache,
 like the client is injected).
    Flagged to the user as a decision before
 building.
@@ -267,7 +273,8 @@ findings,
 resolved,
    2 findings,
    1590s).
-   The per-entry cap did its job -- three
+   The per-entry cap did its job;
+three
 entries packed before the soft budget instead of one blocking the run.
 7/92 settled.
    Run 007 launched.
@@ -302,7 +309,8 @@ guards each file (a half-write recomputes),
    and drops the dir on settle.
    A
 huge entry (aiyysk 77 slices) now completes over several 90-min attempts
-instead of losing all work each abort -- it deprioritizes between attempts
+instead of losing all work each abort;
+it deprioritizes between attempts
 but caches ~16 more slices each.
    Persist takes a SERIALIZED STRING,
    not the
@@ -352,7 +360,8 @@ completed,
    all
 77 resolved,
    4 findings,
-   3119s ~52 min) -- an entry that would have hit
+   3119s ~52 min):
+an entry that would have hit
 the old 45-min per-run cap but fits the 90-min per-entry budget;
    the cap
 fix earned its keep.

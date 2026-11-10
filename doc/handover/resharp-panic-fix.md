@@ -128,7 +128,8 @@ tasks (`fuzz:build`,
 
 **Status:
 ** 60s fuzz on main now PASSES cleanly (34328 iterations).
-120s fuzz in reverted worktree still in progress -- hit a second
+120s fuzz in reverted worktree still in progress;
+hit a second
 timeout shape (`(?i) ###(?:\s&üü)(?:####)+...`) without complement,
 fixed by widening `complement_intersection_quantified_group` in
 cbc1616e (drop the complement requirement;
@@ -146,7 +147,8 @@ e5ab8c6f fix: pre-validate resharp algebra-hang shape
 9ac0b3a9 fix: pre-validate nested grouped quantifiers
 ```
 
-**Bug E (new) -- root cause traced via gdb:
+**Bug E (new):
+root cause traced via gdb:
 **
 
 The intersection+quantified-group hang traces to
@@ -339,7 +341,8 @@ historical context only:
      gate).
       But the wider literal alphabet also lets the
      generator construct rule sources combining `&` (intersection)
-     with `(?=`/`(?!` (lookahead) -- a shape neither
+     with `(?=`/`(?!` (lookahead):
+     a shape neither
      `intersection_with_lookbehind` (covers lookBEHIND only) nor
      `intersection_with_word_end_alternation` (covers `&`+`\w`+`$`)
      catches.
@@ -350,7 +353,8 @@ historical context only:
      Crash artifacts left over from the failed 60s gate on main
      (post-widening,
       with stacked-quant fix in place):
-     - `crash-8cba104f0805ccb567513aff895398a4f652200c` — Alt
+     - `crash-8cba104f0805ccb567513aff895398a4f652200c`:
+       Alt
        containing `Lookaround(NotAhead, ...)` siblings with
        intersection.
         The reproducer panics on
@@ -358,7 +362,7 @@ historical context only:
        overflow shape),
         but the rule shape is lookahead+intersect.
 
-     - `slow-unit-0cfbc4b8b9945074fe5214a96c503f6e994e3b97` —
+     - `slow-unit-0cfbc4b8b9945074fe5214a96c503f6e994e3b97`:
        same hash as the original slow-unit,
         but the bytes now
        represent the grouped-quantifier shape under (?
@@ -385,7 +389,8 @@ historical context only:
      hitting the lookahead+intersect resharp panic and the
      grouped-quantifier slow-unit.
       The user instructed
-     "Don't revert it" -- the widening stays in HEAD as commit
+     "Don't revert it":
+     the widening stays in HEAD as commit
      `4d5563cb` (reapplied via revert-of-revert;
       `1976d0b9` is
      the discarded revert).
@@ -400,7 +405,8 @@ historical context only:
       The fuzz target cannot reach it because the
      generator's `synth_content` does not produce
      Unicode-case-flipped variants of the rule's non-ASCII
-     bytes -- mutations there are uniform random 0..=255 byte
+     bytes;
+     mutations there are uniform random 0..=255 byte
      writes,
       so converging on the `0xA9` -> `0x89` flip is
      stochastic.
@@ -451,7 +457,8 @@ historical context only:
       bias
      `synth_content` (in `fuzz/src/generators.rs` near
      line 1383) to emit Unicode-case-flipped variants of any
-     non-ASCII letter bytes in the rule's literals -- not
+     non-ASCII letter bytes in the rule's literals;
+     not
      uniform 0..=255 mutations.
       Or add a deterministic seed.
 
@@ -470,20 +477,25 @@ historical context only:
   actual fuzz-rendered source).
 
 - Commit log on `main` (newest first):
-  - `4d5563cb` — Reapply widening (un-revert per user
+  - `4d5563cb`:
+    Reapply widening (un-revert per user
     instruction).
-  - `1976d0b9` — Revert of widening (discarded;
+  - `1976d0b9`:
+    Revert of widening (discarded;
      superseded by
     `4d5563cb`).
-  - `903d973f` — docs(handover):
+  - `903d973f`:
+    docs(handover):
      record stacked-quantifier
     slow-unit fix and remaining phase 11 blockers (this file's
     PREVIOUS state;
      the current update supersedes it).
-  - `2f4d27b0` — feat(forbidden-strings):
+  - `2f4d27b0`:
+    feat(forbidden-strings):
      widen fuzz literal
     alphabet to include Unicode lowercase letters.
-  - `cd9b2dbf` — fix(forbidden-strings):
+  - `cd9b2dbf`:
+    fix(forbidden-strings):
      pre-validate stacked
     quantifiers to skip regex-crate compile blowup.
 - `fuzz:run` arg-spread fixed in commit `202ed6b6`:
@@ -505,7 +517,8 @@ historical context only:
 1. Fix two upstream resharp panics by **both** mechanisms:
    - `std::panic::catch_unwind` wrapping (defense in depth)
    - Pre-validator pre-flight rejection of known-bad shapes
-2. **Do NOT** file upstream issues yet -- only update
+2. **Do NOT** file upstream issues yet;
+   only update
    `TROUBLESHOOTING.resharp.md`.
 3. Per their later note:
     do not skip when probing fails to reproduce;
@@ -532,8 +545,10 @@ historical context only:
        test,
        lint,
        lint:
-      clippy -- all pass)
-- [x] Commit fixes (committed as `23ca7a1f` -- single commit,
+      clippy;
+      all pass)
+- [x] Commit fixes (committed as `23ca7a1f`:
+      single commit,
        not the
       two-commit split originally planned,
        due to time pressure)
@@ -554,7 +569,8 @@ historical context only:
 
 - `panic = "abort"` → `panic = "unwind"`.
    `catch_unwind` cannot
-  intercept under "abort" -- the process aborts before the unwind
+  intercept under "abort":
+  the process aborts before the unwind
   barrier runs.
 - Added `overflow-checks = true`.
    Rust's default release profile
@@ -643,7 +659,8 @@ character-class interiors.
 - `intersection_with_word_end_alternation_fires_on_minimal_shape`
 - `intersection_with_word_end_alternation_skips_safe_shapes`
 - `compile_rule_src_does_not_panic_on_known_bad_shapes`
-  (end-to-end -- drives `compile_rule_src` on every minimum
+  (end-to-end;
+  drives `compile_rule_src` on every minimum
   reproducer;
    asserts `Err` rather than process panic)
 - `find_all_catches_runtime_panic_via_catch_unwind`
@@ -653,8 +670,7 @@ character-class interiors.
 
 `mise run //package/cli/forbidden-strings:test` reports 121 unit
 tests passing (was 115 pre-patch).
- `cargo check` + `clippy --release
--- -D warnings` both clean.
+ `cargo check` + `clippy --release -- -D warnings` both clean.
 
 ## Bisection notes (worth saving even after resharp 6.0)
 
@@ -662,7 +678,7 @@ Reproducing requires `RUSTFLAGS="-C overflow-checks=on -C
 debug-assertions=on"` (`cargo fuzz` sets these by default;
  plain
 `cargo run --release` does NOT).
- This was the load-bearing clue --
+ This was the load-bearing clue;
 without it both shapes silently return `Ok` instead of panicking
 during ad-hoc probing.
 
@@ -672,7 +688,8 @@ Minimum reproducer:
  `(?:(?=a)&(?<=_))` with content ≥ 64 bytes.
 Trigger:
  intersection where one side has a lookahead and the other
-has a lookbehind (specifically `(?<=_)` -- bare `_` wildcard inside
+has a lookbehind (specifically `(?<=_)`:
+bare `_` wildcard inside
 the lookbehind matters;
  `(?<=b)` does NOT crash).
 
@@ -699,12 +716,14 @@ return `Algebra(UnsupportedPattern)` (clean Err,
    plain on right)
 - `(?:\w|$)&a` → Err (no neg-lookahead-with-class on either side)
 - `(?u:~(\_))` → Ok (scoped-flag + escaped-_ + complement is fine
-  in isolation -- the issue is the COMBINATION above)
+  in isolation;
+  the issue is the COMBINATION above)
 
 So pre-validators 1 & 2 are **conservative supersets** of the
 actual panic surface.
  They will reject some patterns that would
-have returned `Err(UnsupportedPattern)` upstream -- which we
+have returned `Err(UnsupportedPattern)` upstream,
+which we
 consider a wash,
  because both routes refuse the rule.
 
@@ -712,7 +731,8 @@ consider a wash,
 
 - `/tmp/fs-crash-artifacts/crash-aba4ef4e...` (crash 1 artifact)
 - `/tmp/fs-crash-artifacts/crash-ecaf28b2...` (crash 2 artifact)
-- `/tmp/fs-fuzz-validate/` — disposable worktree at commit
+- `/tmp/fs-fuzz-validate/`:
+  disposable worktree at commit
   `c6792310` (the pre-fix state).
    The probe-shapes helper binary
   has been cleaned up.
@@ -740,7 +760,8 @@ mise run //package/cli/forbidden-strings:test
 Likely fallout to expect:
 
 - `resharp::Error` variants may have moved or been renamed
-  (used in `engine.rs` via `.map_err(|_| ())` -- which is
+  (used in `engine.rs` via `.map_err(|_| ())`,
+  which is
   variant-agnostic,
    so probably fine).
 - `Regex::new` API stayed put in 0.5.
@@ -892,4 +913,5 @@ My read:
  Keep the
 catch_unwind + Cargo profile work always.
  But this is the user's
-call -- surface it in the resharp-6.0-bump session.
+call;
+surface it in the resharp-6.0-bump session.

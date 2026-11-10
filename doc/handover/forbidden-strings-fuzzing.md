@@ -147,7 +147,8 @@ curated seeds,
  and bounded local verification.
  CI is
 deferred.
- Final criterion is **soundness-by-revert** — confirm
+ Final criterion is **soundness-by-revert**:
+confirm
 `fuzz_extract_gate_soundness` catches a real bug when run against a
 reverted commit.
 
@@ -163,7 +164,8 @@ Plan path:
    use `cargo +nightly` for fuzz commands.
 - `cargo-fuzz 0.13.1` installed via `cargo install cargo-fuzz --version 0.13.1 --locked`.
   Binary lives at `/home/user/.cargo/bin/cargo-fuzz`.
-- `cargo +nightly fuzz build` succeeds on the bare scaffold (verified — 18s cold).
+- `cargo +nightly fuzz build` succeeds on the bare scaffold (verified;
+  18s cold).
 - `mise run lint`,
    `mise run lint:clippy`,
    and `mise run test` for
@@ -179,7 +181,7 @@ cfc33f68 refactor(forbidden-strings): extract library boundary with run_cli_from
 5ebe3ed1 docs(forbidden-strings): record fuzzing-tool decision
 ```
 
-## Plan phases — status
+## Plan phases: status
 
 <table>
 <thead>
@@ -230,7 +232,7 @@ cfc33f68 refactor(forbidden-strings): extract library boundary with run_cli_from
 <td>6</td>
 <td>Shared structured generator</td>
 <td>TODO</td>
-<td>`fuzz/src/generators.rs` (the file does not exist yet — `src/` dir is unmaterialized).</td>
+<td>`fuzz/src/generators.rs` (the file does not exist yet; `src/` dir is unmaterialized).</td>
 </tr>
 <tr>
 <td>7</td>
@@ -261,7 +263,7 @@ cfc33f68 refactor(forbidden-strings): extract library boundary with run_cli_from
 <td>11</td>
 <td>Final verification (incl. soundness-by-revert)</td>
 <td>TODO</td>
-<td>The soundness validation is the load-bearing Done criterion — proves `fuzz_extract_gate_soundness` is real.
+<td>The soundness validation is the load-bearing Done criterion; proves `fuzz_extract_gate_soundness` is real.
  Use a disposable worktree, revert `e49d8694`, run for 120s, confirm failure with a redacted reproducer.</td>
 </tr>
 </tbody>
@@ -281,9 +283,9 @@ package/cli/forbidden-strings/fuzz/
 
 The `src/` and `src/bin/` and `dictionaries/` and `corpus/` subdirectories do NOT exist yet.
 
-## Next session — concrete steps to resume
+## Next session: concrete steps to resume
 
-### Step A — Add the structured generator (phase 6)
+### Step A: Add the structured generator (phase 6)
 
 Create `fuzz/src/generators.rs`.
  The file must define `Arbitrary`-deriving
@@ -324,7 +326,7 @@ declared in `fuzz/Cargo.toml`.
 `src/lib.rs` that re-exports the generators module.
 )
 
-### Step B — Write the 7 fuzz targets (phase 7)
+### Step B: Write the 7 fuzz targets (phase 7)
 
 For each target listed in plan §7,
  create `fuzz/fuzz_targets/<name>.rs`
@@ -332,7 +334,8 @@ and add a matching `[[bin]]` block to `fuzz/Cargo.toml`.
  Order by
 priority:
 
-1. **`fuzz_extract_gate_soundness`** — primary.
+1. **`fuzz_extract_gate_soundness`**:
+   primary.
     Per §7.1:
     assert that for
    every regex match in haystack,
@@ -348,7 +351,8 @@ priority:
     Panic message:
     pattern source +
    content length + SHA-256 hex digest only (never raw bytes).
-2. **`fuzz_ruleset_scan_invariants`** — build a bounded ruleset,
+2. **`fuzz_ruleset_scan_invariants`**:
+   build a bounded ruleset,
     run
    `scan_content`,
     assert:
@@ -359,7 +363,8 @@ priority:
     hit set invariant to rule order,
     hit format matches the
    `path:line:cols rule=N` shape.
-3. **`fuzz_regex_engine_dispatch`** — assert resharp-only constructs
+3. **`fuzz_regex_engine_dispatch`**:
+   assert resharp-only constructs
    route to resharp;
     plain constructs route to `regex` crate.
     For the
@@ -369,32 +374,36 @@ priority:
     Gate the comparison via
    `both_engines_agree(src)` so the target stays sound as either engine
    evolves.
-4. **`fuzz_regex_syntax_walkers`** — panic-freedom + index invariants for
+4. **`fuzz_regex_syntax_walkers`**:
+   panic-freedom + index invariants for
    `group_body_start`,
     `find_matching_close_paren`,
     `skip_any_quantifier`,
    `quantifier_is_required`,
     `skip_class_body`,
     `walk_literal_bytes`.
-5. **`fuzz_scan_format`** — line-index construction,
+5. **`fuzz_scan_format`**:
+   line-index construction,
     byte-to-line/column,
    hit-end clipping,
     `format_hit` redaction.
     Negative invariant:
     the
    formatted hit never contains any matched byte from the content slice.
-6. **`fuzz_residual_shards`** — each input regex appears exactly once
+6. **`fuzz_residual_shards`**:
+   each input regex appears exactly once
    across shards;
     if any member regex matches a haystack,
     the combined-
    shard gate returns `Ok(true)` or `Err(())`,
     never `Ok(false)`.
-7. **`fuzz_literal_roundtrip`** — keep only if cheap.
+7. **`fuzz_literal_roundtrip`**:
+   keep only if cheap.
 
 Delete `fuzz/fuzz_targets/fuzz_target_1.rs` when the first real target
 lands.
 
-### Step C — Dictionary and seeder (phase 8)
+### Step C: Dictionary and seeder (phase 8)
 
 - Write `fuzz/dictionaries/forbidden-strings.dict` per plan §8.1.
    Token
@@ -411,11 +420,13 @@ lands.
    verify with `git check-ignore`
   that the seeder never reads `forbidden-strings.local.txt`.
 
-### Step D — Tooling integration (phase 9)
+### Step D: Tooling integration (phase 9)
 
-1. Root `mise.toml` `[tools]` — add `"cargo:cargo-fuzz" = "0.13.1"`
+1. Root `mise.toml` `[tools]`:
+   add `"cargo:cargo-fuzz" = "0.13.1"`
    next to the existing `"cargo:fastmod"`.
-2. Per-package nightly pinning — either add to
+2. Per-package nightly pinning;
+   either add to
    `package/cli/forbidden-strings/mise.toml` `[tools]` (preferred per
    plan),
     or set `RUSTUP_TOOLCHAIN=nightly` per fuzz task as the
@@ -429,12 +440,13 @@ lands.
     `[tasks.fuzz:run]`,
    `[tasks.fuzz:seed]`.
     Plan §9.3 spells out the command bodies.
-4. **DO NOT** add a `fuzz:install` task — mise's tool system handles
+4. **DO NOT** add a `fuzz:install` task;
+   mise's tool system handles
    installation (per plan §9.4).
 5. Document the bounded container wrapper in README:
    `podman run --memory=2g --cpus=2 --rm -v "$PWD":/work -w /work <image> mise run //package/cli/forbidden-strings:fuzz:build`.
 
-### Step E — Documentation (phase 10)
+### Step E: Documentation (phase 10)
 
 Update `package/cli/forbidden-strings/README.md` with the sections in
 plan §10.1.
@@ -448,7 +460,7 @@ scan-time cliff during smoke runs.
  no `PERF.md` edit
 needed.
 
-### Step F — Final verification (phase 11)
+### Step F: Final verification (phase 11)
 
 Run in order:
 
@@ -512,15 +524,19 @@ cd9b2dbf fix: pre-validate stacked quantifiers
 **Pre-validators now in `compile_rule_src` (resharp path):
 **
 
-1. `stacked_quantifier` (cd9b2dbf) -- bare-stacked `a**`/`\D{5,11}{5,11}`.
-2. `nested_grouped_quantifier` (9ac0b3a9) -- grouped-via-`(?:)` chain
+1. `stacked_quantifier` (cd9b2dbf):
+   bare-stacked `a**`/`\D{5,11}{5,11}`.
+2. `nested_grouped_quantifier` (9ac0b3a9):
+   grouped-via-`(?:)` chain
    of `){quant}` adjacencies at depth 4+.
     Probe shows slow-unit
    `(?iu)(?:(?:(?:(?:(?:\d){5,11}){5,11}){5,11}){5,11}){5,11}(?:(?:(?:(?:(?:\d)*)*)*)*)*aa`
    rejects in 4.98us (was 3.26s).
-3. `intersection_with_lookbehind` (4fb14f4c) -- widened to cover any
+3. `intersection_with_lookbehind` (4fb14f4c):
+   widened to cover any
    lookaround direction (was lookbehind-only).
-4. `lookaround_in_alternation_with_sibling` (4fb14f4c) -- catches
+4. `lookaround_in_alternation_with_sibling` (4fb14f4c):
+   catches
    `(a|(?![_]))(?!a)` shape that hits resharp `engine.rs:1020`
    `debug_assert!` during `scan_fwd_all`.
     Bisected from
@@ -529,13 +545,15 @@ cd9b2dbf fix: pre-validate stacked quantifiers
    in 8.89us (was compile-OK then find_all-panic).
 5. `complement_intersection_quantified_group` (e5ab8c6f,
     widened
-   cbc1616e) -- catches `&` + quantified group (`)*`/`)+`/etc.)
+   cbc1616e):
+   catches `&` + quantified group (`)*`/`)+`/etc.)
    anywhere in source.
     Bisected from
    `timeout-00179d433e26fbcc3bedf2b7b38b6ce1ff9e6438` and
    `timeout-0815a95346bfa16ae0c6454162d9af0b8c05779c`.
 
-**Bug E -- new finding documented in TROUBLESHOOTING.
+**Bug E**:
+new finding documented in TROUBLESHOOTING.
 `resharp.md`:
 **
 
@@ -628,7 +646,8 @@ prototypes and stay deferred.
    and `(?:(?!X)){m,n}aaa` (3+ trail,
     also compiles cleanly).
 
-2. Tightened (29f5f495) to be PRECISE — fires only on shapes that
+2. Tightened (29f5f495) to be PRECISE;
+   fires only on shapes that
    actually panic upstream:
    - VARIABLE bound `{m,n}` with m < n (and `*`/`+`/`?` which are
      variable).
@@ -656,7 +675,8 @@ prototypes and stay deferred.
 **
 
 Same overflow line (`resharp-algebra/src/lib.rs:2470`) but DIFFERENT
-upstream trigger — NO lookahead,
+upstream trigger;
+NO lookahead,
  just alternation+complement+intersection.
 
 - Artifact:
@@ -686,7 +706,8 @@ aaaaaa` has 8+ trailing atoms after the quantified-LA,
  so the tightened
 validator correctly doesn't fire (it would be a false positive on the
 "3+ trail OK" rule).
- But upstream still panics — bisect shows the
+ But upstream still panics;
+bisect shows the
 TRIGGER depends on LA body length AND complement body length,
  both
 above some threshold.
@@ -699,7 +720,8 @@ fix is to install a custom panic hook in the fuzz target (see "Next
 session priority" below) rather than chase iterative validators per
 upstream-bug-shape.
 
-**Resume work next session — priority:
+**Resume work next session,
+priority:
 **
 
 1. **Install a custom panic hook in the fuzz target.
@@ -742,13 +764,19 @@ upstream-bug-shape.
 **
 
 - `/tmp/probe-slow-unit/src/bin/`:
-  - `bisect_complement.rs` — complement-after-LA variants
-  - `bisect_artifact.rs` — artifact vs minimal divergence
+  - `bisect_complement.rs`:
+    complement-after-LA variants
+  - `bisect_artifact.rs`:
+    artifact vs minimal divergence
   - `bisect_g.rs`,
-     `bisect_g2.rs` — Bug G triggers
-  - `verify_tightened.rs` — confirms tightened validator behavior
-  - `decode_7e6.rs` — decodes Bug G crash artifact
-  - `verify_a219.rs` — confirms Bug F a219 artifact handling
+     `bisect_g2.rs`:
+    Bug G triggers
+  - `verify_tightened.rs`:
+    confirms tightened validator behavior
+  - `decode_7e6.rs`:
+    decodes Bug G crash artifact
+  - `verify_a219.rs`:
+    confirms Bug F a219 artifact handling
 
 **Verification status:
 **
@@ -926,7 +954,8 @@ a08b45ed fuzz(forbidden-strings): bias synth_content for Unicode case-flip
   `(?iu)café` vs `CAFÉ` IS reachable;
    the gap was random mutations.
 
-**KNOWN GAP — Bug F validator is too narrow:
+**KNOWN GAP**:
+Bug F validator is too narrow:
 **
 
 After biasing case-flip,
@@ -1060,7 +1089,8 @@ quant + trailing literal" case.
   gone;
    `compile_plain_rule_to_compiled` is its replacement.
 - **`load_ruleset_from_source(content, label)`** has an unused `_label`
-  parameter today — present for future error-context use.
+  parameter today;
+  present for future error-context use.
 - **`fuzz/Cargo.toml` needs a `[lib]` entry** once the generators
   module lands,
    so each target can `use forbidden_strings_fuzz::generators::*;`.
@@ -1120,7 +1150,8 @@ f5bc49c6 fix(forbidden-strings): pre-validate nested complement `~(~(...))`
 **Three new pre-validators in `compile_rule_src`'s resharp branch:
 **
 
-1. `nested_quantifier_after_wildcard` (9c3e06cd) -- chain >= 3 of
+1. `nested_quantifier_after_wildcard` (9c3e06cd):
+   chain >= 3 of
    `){quant}` adjacencies immediately following a bare `_` wildcard
    outside a class.
     Decoded from `slow-unit-8c41` (compile 409ms +
@@ -1129,7 +1160,8 @@ f5bc49c6 fix(forbidden-strings): pre-validate nested complement `~(~(...))`
    is `_` triad (wildcard);
     nesting depth 3+ explodes resharp's NFA.
 
-2. `nested_chain_in_lookaround_body` (9c3e06cd) -- chain >= 3 of
+2. `nested_chain_in_lookaround_body` (9c3e06cd):
+   chain >= 3 of
    `){quant}` pairs occurring while any open lookaround frame
    (`(?!`/`(?=`/`(?<!`/`(?<=`) remains higher up the stack.
     Decoded
@@ -1139,7 +1171,8 @@ f5bc49c6 fix(forbidden-strings): pre-validate nested complement `~(~(...))`
     Resharp's algebra walks derivative
    shapes per-prefix per-suffix inside lookarounds.
 
-3. `nested_complement` (f5bc49c6) -- inner `~(...)` complement
+3. `nested_complement` (f5bc49c6):
+   inner `~(...)` complement
    nested inside an open outer `~(...)`.
     Both back-to-back
    `~(~(...))` and group-transparent `~((?:~(...)))` forms caught
@@ -1209,7 +1242,7 @@ f5bc49c6 fix(forbidden-strings): pre-validate nested complement `~(~(...))`
 **Diagnostic infrastructure additions:
 **
 
-- `/tmp/probe-slow-unit/src/bin/test_nested_complement.rs` --
+- `/tmp/probe-slow-unit/src/bin/test_nested_complement.rs`:
   timing probe for the back-to-back and group-transparent
   complement forms.
    Confirms both compile in ~915ms (1000x slower
@@ -1224,21 +1257,32 @@ f5bc49c6 fix(forbidden-strings): pre-validate nested complement `~(~(...))`
 
 In `compile_rule_src` order (both branches considered):
 
-1. `stacked_quantifier` (regex branch + resharp) -- `a**` / `\D{5,11}{5,11}` bare-stacked shapes.
-2. `nested_grouped_quantifier` (regex branch + resharp) -- chain >= 4 of `){quant}` pairs anywhere.
-3. `lookaround_in_complement` (resharp only) -- `\b`/`^`/`$`/lookaround inside `~(...)`.
-4. `intersection_with_lookbehind` (resharp only) -- `&` with any lookaround.
+1. `stacked_quantifier` (regex branch + resharp):
+   `a**` / `\D{5,11}{5,11}` bare-stacked shapes.
+2. `nested_grouped_quantifier` (regex branch + resharp):
+   chain >= 4 of `){quant}` pairs anywhere.
+3. `lookaround_in_complement` (resharp only):
+   `\b`/`^`/`$`/lookaround inside `~(...)`.
+4. `intersection_with_lookbehind` (resharp only):
+   `&` with any lookaround.
 5. `intersection_with_word_end_alternation` (resharp only).
-6. `lookaround_in_alternation_with_sibling` (resharp only) -- `(a|(?![X]))(?!Y)` shape.
-7. `complement_intersection_quantified_group` (resharp only) -- `&` + quantified group + `~(`.
-8. `nested_lookahead_in_quantified_group` (resharp only) -- Bug F core:
+6. `lookaround_in_alternation_with_sibling` (resharp only):
+   `(a|(?![X]))(?!Y)` shape.
+7. `complement_intersection_quantified_group` (resharp only):
+   `&` + quantified group + `~(`.
+8. `nested_lookahead_in_quantified_group` (resharp only):
+   Bug F core:
     nested LA in quantified group,
     outer min >= 2.
-9. `quantified_lookahead_with_sibling_content` (resharp only) -- Bug F variant:
+9. `quantified_lookahead_with_sibling_content` (resharp only):
+   Bug F variant:
     quantified LA + short trailing.
-10. `nested_quantifier_after_wildcard` (resharp only) -- chain >= 3 immediately after bare `_` (new this session).
-11. `nested_chain_in_lookaround_body` (resharp only) -- chain >= 3 inside open lookaround body (new this session).
-12. `nested_complement` (resharp only) -- `~(...)` body contains another `~(...)` (new this session).
+10. `nested_quantifier_after_wildcard` (resharp only):
+    chain >= 3 immediately after bare `_` (new this session).
+11. `nested_chain_in_lookaround_body` (resharp only):
+    chain >= 3 inside open lookaround body (new this session).
+12. `nested_complement` (resharp only):
+    `~(...)` body contains another `~(...)` (new this session).
 
 (Counted to 12 above.
  The 8th and 9th overlap conceptually but each
@@ -1246,7 +1290,7 @@ catches a distinct upstream-bug shape;
  both kept.
 )
 
-### 2026-05-17 late session: PHASE 11 COMPLETE — soundness-by-revert verified
+### 2026-05-17 late session: PHASE 11 COMPLETE: soundness-by-revert verified
 
 **Commits landed this session,
  most recent first:
@@ -1285,7 +1329,8 @@ iu) flag,
  25% Unicode-shape literal,
  50%
 case-flip) all stacked the deck to ~3% of iterations hitting
-soundness shape — but every one of those rejected at find_all=0.
+soundness shape,
+but every one of those rejected at find_all=0.
 
 Root cause confirmed via `/tmp/probe-slow-unit/src/bin/check_render.rs`:
 pre-fix rendered source for `é` literal had bytes
@@ -1358,7 +1403,8 @@ integration tests = all green.
 **Sentinel verification (post-fix):
 **
 
-- `find . -maxdepth 1 \( -name HEAD -o -name config -o ... \)` -- no
+- `find . -maxdepth 1 \( -name HEAD -o -name config -o ... \)`:
+  no
   fuzz output escaped gitignore.
 - `git check-ignore --verbose package/cli/forbidden-strings.fuzz/Cargo.lock`
   exits 1.
@@ -1389,7 +1435,7 @@ integration tests = all green.
 </tr>
 <tr>
 <td>11</td>
-<td>DONE — soundness-by-revert verified; crash artifact triggers panic on reverted worktree, runs clean on main</td>
+<td>DONE; soundness-by-revert verified; crash artifact triggers panic on reverted worktree, runs clean on main</td>
 </tr>
 </tbody>
 </table>

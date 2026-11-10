@@ -240,7 +240,7 @@ no build preamble;
  see #231):
  `mise run //package/markdownlint-plugins/no-pipe-tables:build`.
 
-### Task 4: migrate existing pipe tables -- BLOCKED on a scope decision
+### Task 4: migrate existing pipe tables: BLOCKED on a scope decision
 
 CRITICAL,
  not yet resolved:

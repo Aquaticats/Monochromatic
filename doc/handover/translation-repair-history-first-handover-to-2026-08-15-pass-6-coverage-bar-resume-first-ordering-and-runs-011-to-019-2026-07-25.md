@@ -28,15 +28,18 @@ already yield hundreds of accepted issues,
 ago and the full-92 pass was never load-bearing for it.
    What the gate needs
 is a REPRESENTATIVE sample,
-   and the pool was skewed small -- 9 small / 2
+   and the pool was skewed small;
+9 small / 2
 medium / 1 large by page.md byte-size tertiles (small <=1.8KB,
    medium
 1.8-3.6KB,
    large >=3.6KB up to 40.7KB),
    with the single large entry sitting
 at the bottom of its band.
-   The heavily-sliced large tail -- exactly where
-the lockstep slicing fix most affects precision -- was un-sampled.
+   The heavily-sliced large tail;
+exactly where
+the lockstep slicing fix most affects precision;
+was un-sampled.
    Target:
 ~10 settled per band (need ~1 small,
    ~8 medium,
@@ -49,7 +52,8 @@ The skew is a throughput artifact:
 large ones consume it,
    so equal wall-clock settles many small + few large.
 DRIVER FIX (same day,
-   DRIVER-ONLY so NO restart/wipe -- repair outputs per
+   DRIVER-ONLY so NO restart/wipe;
+repair outputs per
 entry are identical):
    corpus-pass now sorts the small band LAST in `pending`
 (`SMALL_PAGE_BYTES=1843`,
@@ -84,7 +88,8 @@ aborted=true,
 finished slices persisted to `slice-cache/Dethelly/` and the cache was
 correctly RETAINED on abort (discard is success-only).
    This exposed an
-ordering flaw -- `attempts[Dethelly]` incremented to 1 and the within-band
+ordering flaw;
+`attempts[Dethelly]` incremented to 1 and the within-band
 tiebreak was fewest-attempts-first,
    so Dethelly sorted BEHIND every
 0-attempt non-small entry;
@@ -103,7 +108,8 @@ slice;
    before attempts) so
 an in-flight large document finishes before a fresh one starts.
    Safe against
-livelock because `repairChunk` never throws -- every failure path (votes
+livelock because `repairChunk` never throws;
+every failure path (votes
 stand / no claims / no envelopes / no surviving ops / lost voices) returns
 an unchanged outcome that gets persisted,
    and a cap-abort always completes
@@ -117,8 +123,8 @@ and `--plan` first=Dethelly,Everythings99,... (resumable sorts first).
 VERIFICATION CAVEAT (do NOT overstate):
 >only the PERSIST-on-abort half of
 resumability is proven in production (the 13 files exist).
->The RESUME half
--- next run reads them back,
+>The RESUME half:
+>next run reads them back,
 >skips them with ZERO model calls,
 >continues on
 new slices,
@@ -161,7 +167,8 @@ accepted,
 artifact is present AND `slice-cache/Dethelly/` is GONE (cache root empty):
 the full skip->continue->settle->discard cycle observed.
 >Both halves now
-proven -- persist-on-abort (run 011) and resume+discard (run 012).
+proven;
+>persist-on-abort (run 011) and resume+discard (run 012).
 >The
 resume-first ordering also proved correct:
 >run 012 processed only Dethelly
@@ -214,7 +221,8 @@ resolved,
 abort,
 >cache empty after.
 >Large settled 2->3 (a large entry that fits the
-single-run budget -- only the biggest large entries, >~6-12KB,
+single-run budget;
+>only the biggest large entries, >~6-12KB,
 >need resume).
 Bands now 9 small / 3 medium / 3 large.
 >Run 015 launched.
@@ -237,7 +245,8 @@ will start capping and needing resume).
 large.
 >OPERATIONAL NOTE:
 >run 015's FIRST launch was chained onto the commit
-with a bare `&` (untracked) -- no completion notification,
+with a bare `&` (untracked):
+>no completion notification,
 >and the tracked
 watcher I added was itself killed after ~1 min.
 >Fixed by killing the
@@ -300,7 +309,8 @@ transient kill),
 min and settled TWO entries:
 >Katerina RESUMED (`8 slices`,
 >first completion
-`chunk 3` -- the 3 cached chunks skipped with zero model calls,
+`chunk 3`:
+>the 3 cached chunks skipped with zero model calls,
 >so resume is
 now proven across an EXTERNAL KILL,
 >not just a cap-abort;
@@ -318,7 +328,8 @@ now proven across an EXTERNAL KILL,
 010/011 first launches,
 >a watcher,
 >run 017 x2) are HARMLESS under
-resumability -- each costs at most the in-flight slice;
+resumability;
+>each costs at most the in-flight slice;
 >on a `killed`
 notification just relaunch and resume-first continues the entry.
 >Recomputed

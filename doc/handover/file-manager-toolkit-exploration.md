@@ -276,7 +276,7 @@ This read is preliminary and must be confirmed by actually building each on macO
 
 ## Verified findings per toolkit
 
-### Slint (winit) — rejected
+### Slint (winit): rejected
 
 - winit 0.30 has no Wayland DnD (winit#1881);
    inherited by every winit toolkit (Slint,
@@ -297,7 +297,7 @@ This read is preliminary and must be confirmed by actually building each on macO
   maintained Slint fork.
    Ownership too high.
 
-### Qt (cxx-qt) — works, with an accepted on-exit crash
+### Qt (cxx-qt): works, with an accepted on-exit crash
 
 - cxx-qt 0.9.1 against system Qt 6.11.1.
    Native Wayland QML window verified on KWin
@@ -350,7 +350,7 @@ This read is preliminary and must be confirmed by actually building each on macO
   C++ shim needed just to route logging,
    and the bridge-macro sharp edges.
 
-### GTK4 (gtk4-rs) — cleanest so far
+### GTK4 (gtk4-rs): cleanest so far
 
 - gtk4-rs 0.11 (feature `v4_10`) against system GTK 4.22.
    Package:

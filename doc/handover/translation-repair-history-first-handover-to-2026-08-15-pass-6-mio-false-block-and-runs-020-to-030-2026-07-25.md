@@ -24,7 +24,8 @@ Mio status=blocked-non-translation (93 accepted issues,
 >FALSE
 BLOCK discovered and fixed (commit `398007d4c`).
 >Mio's en page is a faithful
-translation that ALSO translates its embedded images -- WeChat chat logs,
+translation that ALSO translates its embedded images;
+>WeChat chat logs,
 Twitter posts,
 >and a final chat that the zh page.md carries only as
 `<PhotoScroll>` photos,
@@ -64,7 +65,8 @@ document-dominance layer ONLY):
 >added `sliceAnchorsTranslation` (a
 non-standing slice carrying an accepted target-anchored content critique) and
 `assessNonTranslationDominance` now vetoes the block whenever ANY slice
-anchors translation -- a threshold-free discriminator from 4-false-vs-1-true,
+anchors translation;
+>a threshold-free discriminator from 4-false-vs-1-true,
 keeping the calibrated err-toward-not-blocking direction.
 >Because the change
 only flips the block branch and only toward NOT blocking,
@@ -94,9 +96,11 @@ because the anchors veto it).
 reset to 0 so it re-settles as a fair medium candidate during accumulation;
 settled dropped to 21/92 (9 small / 6 medium / 6 large).
 >Accumulation resumed
-at run 021 (NO pass restart or wipe -- only Mio was stale).
+at run 021 (NO pass restart or wipe;
+>only Mio was stale).
 >Surface the
-4/4-false-block pattern in the milestone writeup -- it is a real finding about
+4/4-false-block pattern in the milestone writeup;
+>it is a real finding about
 this feature's value on this all-real-translation corpus.
 
 ## Pass 6 runs 021 to 030
@@ -181,7 +185,8 @@ any that abort;
 >no stall risk),
 >and redirect ACTIVE effort to tasks 31/32
 (judge crosscheck + stratified sample tooling) which are unblocked against the
-24 already-settled entries -- only the final draw waits on band fill.
+24 already-settled entries;
+>only the final draw waits on band fill.
 >Run 024
 launched.
 PASS 6 RUN 024 (2026-07-25,
@@ -233,7 +238,8 @@ PASS 6 RUN 026 (2026-07-25,
 >tip `5b0f818877`,
 >2731s wall ~46 min;
 >a first
-launch was KILLED ~2 min in on Proselyte093 with 0 slices done -- intermittent
+launch was KILLED ~2 min in on Proselyte093 with 0 slices done;
+>intermittent
 non-resource kill,
 >empty cache dir removed,
 >relaunched):
@@ -280,7 +286,7 @@ Susiethegamer RESUMED and settled repaired in ~3.4 min (its last 1 of 19 slices
   187 issues,
   179 accepted,
   179 resolved,
-  56 findings) --
+  56 findings):
 clean proof the resume path finishes a one-slice-short hard-cap abort cheaply.
 Large settled 7->8.
   The run then started TianqiChen666 (LARGE,
@@ -306,7 +312,8 @@ PASS 6 RUN 029 (2026-07-25,
   47
 findings).
   Large settled 8->9.
-  Bands now 9 small / 10 medium / 9 large -- all
+  Bands now 9 small / 10 medium / 9 large;
+  all
 three bands at/around the ~10 bar;
   large needs ~1 more to reach 10.
   Run 030
@@ -321,7 +328,8 @@ PASS 6 RUN 030 (2026-07-25,
   1 settled,
 29/92.
   Toka_ls repaired (MEDIUM,
-  3660B -- 26 bytes under the 3686 large cut;
+  3660B;
+  26 bytes under the 3686 large cut;
   74
 issues,
   72 accepted,
@@ -340,7 +348,8 @@ medium over-covers at 11.
   If small=9 counts as "~10" (it must,
   given the
 deprioritization),
-  large=9 counts equally -- so 9/11/9 is a defensible "~10/10/
+  large=9 counts equally,
+  so 9/11/9 is a defensible "~10/10/
 10".
   Advisor consulted on whether to declare the bar met + run the FINAL draw,
 or push one more for large=10.

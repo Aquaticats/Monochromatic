@@ -95,7 +95,8 @@ the identity BOTH pages declare.
    `parse-document.ts` had been putting
 `frontMatter` on `RepairDocument` since forever,
    and a grep proved NO downstream
-consumer ever read it -- so critics judged names with the declaration withheld.
+consumer ever read it,
+so critics judged names with the declaration withheld.
 New `identity-context.ts`:
    `extractDeclaredIdentity` (reads `name` top-level,
 `alias`/`location` under `info`,
@@ -141,7 +142,8 @@ optional,
 M3 FIX B DIAGNOSIS (2026-07-26,
    task 37,
    read from the real corpus at the user's
-instruction -- do NOT re-derive this from artifacts alone).
+instruction;
+do NOT re-derive this from artifacts alone).
    The "segmentation"
 cluster is THREE distinct causes,
    and the earlier "it's plumbing" framing was
@@ -191,7 +193,8 @@ positive generator by design.
    not segmentation at all.
    Susiethegamer item 41's real
 defect claim is that the en attributes a game to "Nekomaki" where the zh says
-姐姐 (sister) -- but Nekomaki IS the sister.
+姐姐 (sister),
+but Nekomaki IS the sister.
    That is fix A's territory,
    and it
 shows the graded "segmenting" labels are the user's shorthand,
@@ -231,7 +234,8 @@ the sheet (items 1-17 small,
    18-34 medium,
    35-50 large;
    verified mechanically).
-PRECISION vs the 0.9 bar -- strict (partials against) 28/50 = 0.56;
+PRECISION vs the 0.9 bar;
+strict (partials against) 28/50 = 0.56;
    partials
 excluded 28/44 = 0.64;
    generous (both "Yes-ish" as Y) 30/46 = 0.65;
@@ -255,7 +259,8 @@ reading of the ambiguous grades can move the verdict,
 noise.
    Precision is roughly FLAT across bands,
    so entry size is not the driver
-and the stratification bought a null result -- worth knowing,
+and the stratification bought a null result;
+worth knowing,
    not a wasted
 control.
    NOT a sheet-context artifact:
@@ -274,7 +279,9 @@ ROOT CAUSES of the 16 clear false positives,
 5 items (18,
    38,
    40,
-   41, 46) -- the user named it directly ("this is a segmenting
+   41,
+46):
+the user named it directly ("this is a segmenting
 error in our system/pipeline");
    the zh span and en span compared were never a
 translation pair,
@@ -287,7 +294,9 @@ texts.
    (2) FRONTMATTER NOT
 CONSULTED,
    3 items (7,
-   14, 19) -- names and aliases are declared in each page's
+   14,
+19):
+names and aliases are declared in each page's
 frontmatter but the pipeline feeds body text only,
    so a correct sourced English
 name reads as an unsubstantiated substitution;
@@ -298,7 +307,9 @@ ASYMMETRY,
    5 items (2,
    10,
    17,
-   23, 29) -- English obligatorily encodes what
+   23,
+29):
+English obligatorily encodes what
 Chinese leaves implicit (subject pronouns,
    quotation marks,
    plural address) and
@@ -311,7 +322,9 @@ repairs a source deficiency is not a defect.
    (4) DOMAIN/LOCAL CONTEXT,
    3 items
 (15,
-   24, 31) -- community slang the model did not know,
+   24,
+31):
+community slang the model did not know,
    and word choices judged
 in isolation when the adjacent half-sentence licenses them;
    common shape is
@@ -320,7 +333,7 @@ OTHER SIGNALS:
    addition-class claims have no gradable source context (item 16
 ungradable,
    zh side rendered `(none)`);
-   checked the code rather than guessing --
+   checked the code rather than guessing;
 `sideQuotes` in `sample-grading.ts` drops empty quote strings,
    so `(none)` means
 no non-empty source span existed,
@@ -340,10 +353,12 @@ some true positives are NOT actionable (items 6,
    44:
    utterance-final
 particles,
-   poetic imagery) -- real precision wins that predict no repair gain,
+   poetic imagery):
+real precision wins that predict no repair gain,
    so
 precision alone overstates deliverable value.
-SAFETY INVARIANTS CHECKED CLEAN -- the gate failed on precision,
+SAFETY INVARIANTS CHECKED CLEAN;
+the gate failed on precision,
    NOT safety.
 Every `repaired` entry genuinely differs from its input and the single
 `unchanged` entry is byte-identical,
@@ -378,7 +393,8 @@ all-real-translation corpus this is a finding about the feature's VALUE here,
    not
 just its threshold.
 CONSEQUENCES FOR THE RE-MEASURE:
-   (a) it needs a NEW draw seed -- `DEFAULT_SAMPLE_
+   (a) it needs a NEW draw seed;
+`DEFAULT_SAMPLE_
 SEED` is the fixed constant `'milestone-three-precision'`,
    so re-drawing with it
 over a changed pool would partially RE-SELECT the just-graded items and
@@ -391,7 +407,8 @@ accumulation pass,
    not a re-draw over the current artifacts.
    TASK 31 (judge
 crosscheck) STAYS DEFERRED,
-   on a NEW rationale -- the old "wait until human
+   on a NEW rationale;
+the old "wait until human
 grades exist" expired the moment they arrived;
    the live reason is that 8 of the
 16 clear false positives come from input the PIPELINE assembles,
@@ -419,7 +436,8 @@ rather than plumbing,
 TASK 30 COMPLETE + FINAL SHEET DRAWN (2026-07-25,
    advisor-confirmed).
    Advisor:
-declare the bar MET at 9/11/9 -- the parity argument is decisive (small is
+declare the bar MET at 9/11/9:
+the parity argument is decisive (small is
 structurally pinned at 9 by the driver deprioritization and is already accepted
 as "~10";
    by parity large=9 is "~10";
@@ -468,7 +486,8 @@ crosscheck) stays DEFERRED until those grades exist;
 band + overall precision vs 0.9,
    plus the safety invariants pre-checked clean)
 waits on the grades.
-   Do NOT build ahead of grading -- the bottleneck is now
+   Do NOT build ahead of grading;
+the bottleneck is now
 entirely the user's grading time.
 
 ## Stratified precision-sample tooling
@@ -484,7 +503,8 @@ green (build/format 0-0/types/tests).
   `sample-
 grading.ts` (band cuts 1843/3686 B matching accumulation;
   `classifyBand`;
-`GradableIssue`/`GradableClaim`/`GradableSpan` -- a MINIMAL input shape a real
+`GradableIssue`/`GradableClaim`/`GradableSpan`:
+  a MINIMAL input shape a real
 `AdjudicatedIssue` and an artifact-parsed issue both satisfy;
   `extractGrading-
 Candidate` dedupes source/target quotes,
@@ -499,7 +519,7 @@ a band so one issue-heavy entry never dominates),
 box per issue with zh source + en target quotes + claim),
   and `artifact-read.ts`
 (`parseSettledArtifact`:
-  a MEASUREMENT INSTRUMENT not a lenient deserializer --
+  a MEASUREMENT INSTRUMENT not a lenient deserializer;
 structural-guards-only,
   THROWS `ArtifactParseError` on a malformed ACCEPTED
 issue rather than skipping it,
@@ -524,7 +544,8 @@ loudly on mismatch.
 Validated the sheet is HUMAN-GRADABLE from quotes alone across all bands and
 multi-claim issues (e.g. "确认脑死亡" -> "confirmed to be dead";
   multi-claim
-renders quotes joined by ` · `) -- no corpus open needed to judge Y/N.
+renders quotes joined by ` · `):
+  no corpus open needed to judge Y/N.
   Sheet
 lives OUTSIDE the repo (`node_modules/.monochromatic/.../grading-sheet-
 preliminary.md`) since it quotes UNLICENSED corpus text;
@@ -556,7 +577,8 @@ don't,
   the artifacts record `status`,
 `repairedText`,
   `findings`,
-  and the issue fates -- enough to verify STATUS/TEXT
+  and the issue fates;
+enough to verify STATUS/TEXT
 CONSISTENCY,
   but NOT the "zero deterministic-gate violations" or "zero
 regression-majority selections" invariants directly (no envelope/patch-op or
@@ -568,7 +590,8 @@ Those two invariants are guaranteed BY CONSTRUCTION (fail-closed patch +
 resolution gates;
   `selectRepairCandidate` keeps UNCHANGED as the floor so a
 repaired status means a candidate strictly beat the input) and covered by the
-apply-patch / select-candidate / tally-resolution unit tests -- so task 33 will
+apply-patch / select-candidate / tally-resolution unit tests,
+so task 33 will
 CITE those,
   not re-measure from artifacts.
   What IS artifact+corpus-verifiable,
