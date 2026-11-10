@@ -9,6 +9,8 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { isErrnoException, } from '@monochromatic-dev/type-guard-core/ts';
+
 import { validateNetwork, } from './asn-network.ts';
 
 /**
@@ -25,24 +27,6 @@ export type CacheAbsent = typeof CACHE_ABSENT;
  Sentinel representing filesystem path absence.
  */
 const PATH_ABSENT = Symbol('filesystem path is absent',);
-
-/**
- Narrows unknown caught value to Node filesystem error shape.
- 
- @param error - Caught value.
- 
- @returns Whether value carries Node error code.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' }); // true
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error);
-}
 
 /**
  Stats path while representing absence explicitly.

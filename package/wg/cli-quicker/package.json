@@ -31,6 +31,7 @@
   "dependencies": {
     "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "@monochromatic-dev/wg-core-allowedips": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",
     "string-dedent": "catalog:"

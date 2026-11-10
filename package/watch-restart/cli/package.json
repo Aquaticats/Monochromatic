@@ -27,9 +27,10 @@
   "dependencies": {
     "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
-    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "@optique/core": "catalog:",
     "@optique/run": "catalog:",
     "chokidar": "catalog:",

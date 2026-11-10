@@ -8,6 +8,7 @@ import { join, } from 'node:path';
 import { json, } from 'node:stream/consumers';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isErrnoException, } from '@monochromatic-dev/type-guard-core/ts';
 
 /**
  Minimal Onionoo relay record consumed by this script.
@@ -216,25 +217,6 @@ function parseOrPort443Cidr(address: string,): string | NoOrPort443Cidr {
       portSeparatorIndex,
     )
   }/32`;
-}
-
-/**
- Narrows an unknown caught value to {@link NodeJS.ErrnoException} so callers can
- branch on `error.code` without an unsafe `as` assertion (oxlint bans that cast).
- 
- @param error - Caught value, which `try` lifts to `unknown`.
- 
- @returns Whether value is an {@link Error} carrying a `code` property.
- 
- @example
- ```ts
- if (isErrnoException(error,) && (error.code === 'ENOENT')) return ABSENT;
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error);
 }
 
 /**

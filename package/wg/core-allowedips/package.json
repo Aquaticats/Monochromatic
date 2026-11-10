@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "cidr-tools": "catalog:"
   },
   "version": "0.0.1",

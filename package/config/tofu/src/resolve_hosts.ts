@@ -10,6 +10,7 @@ import { join, } from 'node:path';
 import { json, } from 'node:stream/consumers';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isErrnoException, } from '@monochromatic-dev/type-guard-core/ts';
 
 /**
  OpenTofu `data.external` query carrying comma-separated service hostnames.
@@ -193,25 +194,6 @@ function assertHostname(hostname: string,): string {
     throw new Error(`Wildcard hostnames cannot be resolved; configure concrete hostnames: ${hostname}`,);
 
   return hostname;
-}
-
-/**
- Narrows an unknown caught value to {@link NodeJS.ErrnoException} so callers can
- branch on `error.code` without an unsafe `as` assertion (oxlint bans that cast).
- 
- @param error - Caught value, which `try` lifts to `unknown`.
- 
- @returns Whether value is an {@link Error} carrying a `code` property.
- 
- @example
- ```ts
- if (isErrnoException(error,) && (error.code === 'ENOENT')) return ABSENT;
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error);
 }
 
 /**

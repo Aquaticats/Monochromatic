@@ -23,7 +23,8 @@
   ],
   "dependencies": {
     "@monochromatic-dev/logger-core": "workspace:*",
-    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

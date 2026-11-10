@@ -1,12 +1,15 @@
 /**
- The package holds one errno-exception guard, and every caller imports it.
+ The errno-exception guard has one body, and every caller reaches it through
+ `errors.ts`.
  
  A hand-written copy per module is what let two spellings spread: a guard
  testing only `Error.isError` and a guard testing only `'code' in error` treat
  the same thrown value differently, so the same failure is read as a missing
- file in one module and rethrown in another. `errors.ts` owns the guard. This
- suite fails when a source module declares its own, or reaches a guard it does
- not import from that module.
+ file in one module and rethrown in another. That guard now lives in
+ `@monochromatic-dev/type-guard-core`, so this package declares none of its
+ own; `errors.ts` re-exports the shared one and every caller imports it from
+ there. This suite fails when a source module declares a guard, or reaches a
+ guard without importing it from `errors.ts`.
  */
 import {
   readdirSync,
@@ -34,9 +37,14 @@ const sourceDirectory = import.meta.dirname;
 const testFileSuffix = '.test.ts';
 
 /**
- Name of the one guard this package may declare.
+ Name of the guard this package reaches through `errors.ts`.
  */
 const guardName = 'isErrnoException';
+
+/**
+ Import specifier of the package that owns the guard body.
+ */
+const sharedGuardSpecifier = '@monochromatic-dev/type-guard-core/ts';
 
 /**
  Text that opens a guard declaration.
@@ -44,12 +52,7 @@ const guardName = 'isErrnoException';
 const declarationPrefix = `function ${guardName}`;
 
 /**
- Text that opens an exported guard declaration.
- */
-const exportedDeclarationPrefix = `export ${declarationPrefix}`;
-
-/**
- Module that owns the guard.
+ Module that re-exports the guard to this package's callers.
  */
 const ownerModuleName = 'errors.ts';
 
@@ -175,17 +178,20 @@ await describe({
   name: 'errno exception guard sites',
   children: [
     it({
-      name: 'declares the guard once, in the module that owns the error types',
+      name: 'declares no guard of its own, because the shared package owns the body',
       fn: async () => {
-        expect(guardDeclarationModules(),).toEqual([ownerModuleName,],);
+        expect(guardDeclarationModules(),).toEqual([],);
       },
     },),
     it({
-      name: 'exports the one declaration, so every caller reaches the same body',
+      name: 're-exports the shared guard from the error module callers import',
       fn: async () => {
-        expect(
-          sourceTextOf(join(sourceDirectory, ownerModuleName,),).includes(exportedDeclarationPrefix,),
-        ).toBe(true,);
+        /**
+         Source text of the module callers import the guard from.
+         */
+        const ownerText = sourceTextOf(join(sourceDirectory, ownerModuleName,),);
+        expect(ownerText.includes(sharedGuardSpecifier,),).toBe(true,);
+        expect(ownerText.includes(`export { ${guardName}, } from`,),).toBe(true,);
       },
     },),
     it({

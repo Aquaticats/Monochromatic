@@ -7,6 +7,7 @@ import {
 } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isErrnoException, } from '@monochromatic-dev/type-guard-core/ts';
 
 import { RealGitNotFoundError, } from './error.ts';
 import { commonGitPathsForPlatform, } from './platform-paths.ts';
@@ -250,25 +251,6 @@ function buildCandidateSequence({
 //endregion Candidate construction
 
 //region Candidate scanning and cache
-
-/**
- Narrows caught value to Node filesystem error shape.
- 
- @param error - Caught value from candidate access or inspection.
- 
- @returns Whether value carries Node error code.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' });
- // => true
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error);
-}
 
 /**
  Reports candidate-unavailable filesystem outcomes that need no diagnostic.

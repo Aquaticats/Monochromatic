@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "@monochromatic-dev/wg-core-allowedips": "workspace:*"
   },
   "devDependencies": {

@@ -1,32 +1,14 @@
 import ignore, { type Ignore, } from 'ignore';
 import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
+
+import { isErrnoException, } from '@monochromatic-dev/type-guard-core/ts';
+
 import type {
   WatchCtx,
   WatchEvent,
   WatchFilter,
 } from '../types.ts';
-
-/**
- Narrows an unknown caught value to {@link NodeJS.ErrnoException}; lets
- the caller branch on `error.code === 'ENOENT'` without an unsafe
- `as` assertion (oxlint hard-bans `as NodeJS.ErrnoException`).
- 
- @param error - caught value (anything; `try` lifts to `unknown`)
- 
- @returns `true` when `error` is an Error with a `code` property
- 
- @example
- ```ts
- try { await readFile(p,); } catch (error) {
-   if (isErrnoException(error,) && error.code === 'ENOENT') return undefined;
-   throw error;
- }
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return (Error.isError(error,)) && ('code' in error);
-}
 
 /**
  Real sentinel for "the candidate gitignore file does not exist". A unique
