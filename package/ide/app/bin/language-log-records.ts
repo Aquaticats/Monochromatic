@@ -1,6 +1,6 @@
 // The readers a language-server lifetime check applies to the application's log, written as cursor scans.
-// What: the text of a record without the colour escapes it carries, the level a record states, and whether the text
-// reports its own shutdown as a failure.
+// What: the text of a record without the colour escapes it carries, the level a record states, whether the text
+// reports its own shutdown as a failure, and which of the three record shapes a healthy server prints it is.
 // Why: the application colours every record for a terminal, so a lifetime check that reads a record's level or the
 // shape helix-lsp wrote would read the escape instead of the field when the escape is left in place, and it accepts
 // a run only when no record states ERROR.
@@ -182,4 +182,78 @@ function holdsIgnoringAsciiCase(text: string, phrase: string): boolean {
  */
 export function isBareShutdownError(text: string): boolean {
   return BARE_SHUTDOWN_PHRASES.some(phrase => holdsIgnoringAsciiCase(text, phrase));
+}
+
+/// The module path helix-lsp writes at the start of a record about one server's transport.
+const HELIX_TRANSPORT_PREFIX = 'helix_lsp::transport: ';
+
+/// The wording a server's standard error line carries after the server's name.
+const SERVER_STANDARD_ERROR = ' err <- "';
+
+/**
+ Whether one code unit ends a line, which is where the pattern's `.` stopped.
+ 
+ What: the four line terminators, the set `.` never crossed.
+ 
+ Why: a record carries a quoted line that holds the escape `\n` rather than a newline, so a quote after a real line
+ terminator closes nothing and the record is not this shape.
+ 
+ @param codeUnit - one code unit of the text, from `String#charCodeAt`
+ @returns whether the character is a line terminator
+ */
+function isLineTerminator(codeUnit: number): boolean {
+  return (codeUnit === 0x000a) || (codeUnit === 0x000d) || (codeUnit === 0x2028) || (codeUnit === 0x2029);
+}
+
+/**
+ Whether one of the transport record's tails answers yes, read from any place the module path stands in the line.
+ 
+ What: for each occurrence of the module path in the line, the server's name as a run of non-whitespace characters and
+ the text after it, handed to the shape that decides; the first tail that answers yes decides the line.
+ 
+ Why: the three shapes are anchored at the end of a record but not at its start, because a log line carries its level
+ and target in front of the module path, so a shape that read only the line's start would answer no to every record
+ the application writes. A line that holds the module path twice is read from each position in turn, as the pattern
+ read it.
+ 
+ @param line - one record of the application's log, with its colour sequences already removed
+ @param answers - the shape's question about the text that follows one server's name
+ @returns whether any of the tails answers yes
+ */
+function someHelixTransportTail(line: string, answers: (tail: string) => boolean): boolean {
+  let searchFrom = 0;
+  for (;;) {
+    const prefixAt = line.indexOf(HELIX_TRANSPORT_PREFIX, searchFrom);
+    if (prefixAt < 0) return false;
+    let index = prefixAt + HELIX_TRANSPORT_PREFIX.length;
+    const nameStart = index;
+    while ((index < line.length) && !isPatternWhitespace(line.charCodeAt(index))) index += 1;
+    // A server's name is one or more non-whitespace characters, and every shape continues past one.
+    if ((index !== nameStart) && answers(line.slice(index))) return true;
+    searchFrom = prefixAt + 1;
+  }
+}
+
+/**
+ Whether a record is a line of a server's standard error.
+ 
+ What: the transport prefix, the server's name, the standard error wording and one quoted line that ends the record; the
+ answer an anchored `helix_lsp::transport: \S+ err <- ".*"$` match gave to the same record.
+ 
+ Why: helix-lsp re-labels every transport record, and this shape is the one a healthy server produces for each line it
+ writes to standard error, so the lifetime check has to tell it from the records that report a failure.
+ 
+ @param line - one record of the application's log, with its colour sequences already removed
+ @returns whether the record is a server standard error line
+ */
+export function isServerStandardErrorLine(line: string): boolean {
+  return someHelixTransportTail(line, tail => {
+    if (!tail.startsWith(SERVER_STANDARD_ERROR)) return false;
+    const quoted = tail.slice(SERVER_STANDARD_ERROR.length);
+    if (!quoted.endsWith('"')) return false;
+    for (let index = 0; index < (quoted.length - 1); index += 1) {
+      if (isLineTerminator(quoted.charCodeAt(index))) return false;
+    }
+    return true;
+  });
 }

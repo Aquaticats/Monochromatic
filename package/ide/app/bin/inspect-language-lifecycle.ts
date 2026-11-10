@@ -15,7 +15,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { isBareShutdownError, levelOf, withoutColourSequences } from './language-log-records.ts';
+import { isBareShutdownError, isServerStandardErrorLine, levelOf, withoutColourSequences } from './language-log-records.ts';
 import { isProcessNumberName } from './process-number-name.ts';
 
 const binary = resolve('target/debug/ide-language-inspect');
@@ -102,10 +102,10 @@ const logRecords = (text: string): string[] => withoutColourSequences(text).spli
 // the log at WARN or ERROR, or outside any record; below WARN it is labelled for what it is.
 const bareLevels = new Set<string | undefined>(['WARN', 'ERROR', undefined]);
 // The three helix-lsp record shapes for a healthy server, worded as helix-lsp words them.
-const helixShapes: [string, RegExp][] = [
-  ['server standard error line', /helix_lsp::transport: \S+ err <- ".*"$/],
-  ['end of server standard error', /helix_lsp::transport: \S+ err: <- StreamClosed$/],
-  ['moot error answer', /helix_lsp::transport: \S+ <- ServerError\(-3280[01]\): /],
+const helixShapes: [string, (line: string) => boolean][] = [
+  ['server standard error line', isServerStandardErrorLine],
+  ['end of server standard error', line => /helix_lsp::transport: \S+ err: <- StreamClosed$/.test(line)],
+  ['moot error answer', line => /helix_lsp::transport: \S+ <- ServerError\(-3280[01]\): /.test(line)],
 ];
 const tomlTable = (variables: Record<string, string>): string => '{ ' + Object.entries(variables).map(([name, value]) => name + ' = ' + JSON.stringify(value)).join(', ') + ' }';
 // endregion
@@ -170,7 +170,7 @@ for (const item of cases) {
   const errors = lines.filter(line => levelOf(line) === 'ERROR');
   const bare = lines.filter(line => isBareShutdownError(line) && bareLevels.has(levelOf(line)));
   // Each re-labelled record with its level; one at WARN or ERROR fails, as any ERROR record does.
-  const relabelled = lines.flatMap(line => helixShapes.filter(([, pattern]) => pattern.test(line)).map(([shape]) => ({ shape, level: levelOf(line), line })));
+  const relabelled = lines.flatMap(line => helixShapes.filter(([, matches]) => matches(line)).map(([shape]) => ({ shape, level: levelOf(line), line })));
   const loud = relabelled.filter(entry => !(['INFO', 'DEBUG'] as (string | undefined)[]).includes(entry.level));
   const shapes = Object.fromEntries(helixShapes.map(([shape]) => [shape, relabelled.filter(entry => entry.shape === shape).map(entry => entry.level)]));
   const state = join(base, 'app-cache', 'monochromatic-ide', 'language');

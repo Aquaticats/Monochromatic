@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isBareShutdownError, levelOf, withoutColourSequences } from './language-log-records.ts';
+import { isBareShutdownError, isServerStandardErrorLine, levelOf, withoutColourSequences } from './language-log-records.ts';
 
 test(
   'removes the colour sequence a tracing record carries',
@@ -227,5 +227,79 @@ test(
     // never stands for an `s` and a Kelvin sign never stands for a `k`.
     assert.equal(isBareShutdownError('\u017ftreamclosed'), false);
     assert.equal(isBareShutdownError('\u212aey'), false);
+  }
+);
+
+test(
+  'reads the record helix-lsp writes for a line of a server standard error',
+  () => {
+    // The shapes are the ones doc/troubleshooting/helix-lsp-transport-error-level-records.md captured from real servers.
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "context canceled\\n"'), true);
+    assert.equal(
+      isServerStandardErrorLine(
+        'helix_lsp::transport: rust-analyzer err <- "2026-10-05T14:50:17.468643919-04:00  WARN notify error: No path was found.\\n"'
+      ),
+      true
+    );
+  }
+);
+
+test(
+  'reads a quoted line that holds quotation marks and no text',
+  () => {
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- ""'), true);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "a "quoted" b"'), true);
+  }
+);
+
+test(
+  'reads no standard error line from a record that quotes nothing or never closes its quote',
+  () => {
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "unterminated'), false);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "a" and more'), false);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "a" '), false);
+  }
+);
+
+test(
+  'reads no standard error line from a record that carries a line terminator after the source name',
+  () => {
+    // What the pattern's `.` reached ends at a line terminator, so a quote after one closes nothing.
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "a\nb"'), false);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "a\rb"'), false);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "a\u2028b"'), false);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls err <- "a\u2029b"'), false);
+  }
+);
+
+test(
+  'reads the standard error line of a record that carries its level in front of the module path',
+  () => {
+    // The pattern is anchored at the end of the record and not at its start, because a log line states its level and
+    // target before the module path, so the shape is found anywhere the line holds it.
+    assert.equal(isServerStandardErrorLine('ERROR helix_lsp::transport: scripted-ls err <- "context canceled\\n"'), true);
+    assert.equal(isServerStandardErrorLine('2026-11-10T12:00:00.123456Z  WARN helix_lsp::transport: scripted-ls err <- "a"'), true);
+  }
+);
+
+test(
+  'reads the standard error line of a record that holds the module path twice',
+  () => {
+    // The first place the module path stands is followed by something else, so the scan has to read the second.
+    assert.equal(
+      isServerStandardErrorLine('helix_lsp::transport: a helix_lsp::transport: b err <- "x"'),
+      true
+    );
+  }
+);
+
+test(
+  'reads no standard error line from another transport record or another text',
+  () => {
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: typescript-native err: <- StreamClosed'), false);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: rust-analyzer <- ServerError(-32801): content modified'), false);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport: scripted-ls ERR <- "a"'), false);
+    assert.equal(isServerStandardErrorLine('helix_lsp::transport:  err <- "a"'), false);
+    assert.equal(isServerStandardErrorLine(''), false);
   }
 );
