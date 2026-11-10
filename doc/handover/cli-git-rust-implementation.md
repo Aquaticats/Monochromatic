@@ -6611,8 +6611,11 @@ no longer reproduce here:
 `S2_FILES=1500` two-mutation runs ended `exit=0` with no leftover,
 and a `\xff\xfe.b` name is copied by its bytes.
 Still open:
-the pre-existing `monochromatic-lint` errors in files no commit of this branch changed,
-and the reference-lock judgement above.
+the twelve `monochromatic-lint` errors `main` carries in `commit/`,
+`invocation/`,
+`landing/` and `testing/`,
+which no commit of this branch changed,
+and the linter's package run therefore still ends non-zero.
 
 ### The source layout waits for the owner's read (2026-11-08T23:57:46-05:00)
 
