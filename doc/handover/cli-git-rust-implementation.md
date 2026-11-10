@@ -3301,7 +3301,8 @@ and four owner questions,
 picked under the delegation in `75cf58f345`
 ("Picks made under the owner's delegation").
 Where main stands on the first of the three,
-checked 2026-11-10T15:10-05:00:
+checked 2026-11-10T14:55-05:00
+(the control passed in 42.3 s with 920 tests skipped):
 a Git child that shows no work is ended at its class's quiet window
 (60 s for a query step,
 300 s for a bulk step,
