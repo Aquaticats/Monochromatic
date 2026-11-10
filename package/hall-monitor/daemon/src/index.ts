@@ -22,6 +22,8 @@ import { log, } from './infra/syslog.ts';
 
 
 
+//region Interval
+
 /**
  Minutes per cycle interval.
  */
@@ -32,6 +34,10 @@ const INTERVAL_MINUTES = 5;
  */
 const INTERVAL_MS = INTERVAL_MINUTES * SECONDS_PER_MINUTE
   * MS_PER_SECOND;
+
+//endregion Interval
+
+//region Command line
 
 /**
  Parsed CLI arguments for the hall-monitor daemon.
@@ -44,6 +50,10 @@ const { values: args, } = parseArgs({
     default: false,
   }, },
 },);
+
+//endregion Command line
+
+//region Shutdown
 
 /**
  Shutdown signal the loop watches and the signal handlers request.
@@ -113,6 +123,10 @@ process.on(
   onSignal,
 );
 
+//endregion Shutdown
+
+//region Entry point
+
 /**
  Main daemon entry point.
  Acquires the lock (falling back to {@link killExisting} when
@@ -173,3 +187,5 @@ async function runMain(): Promise<void> {
 
 // oxlint-disable-next-line unicorn/prefer-top-level-await -- bun build --compile does not support top-level await
 void runMain();
+
+//endregion Entry point

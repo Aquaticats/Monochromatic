@@ -22,6 +22,9 @@ const l = tagged({
   tag: 'capture',
 },);
 
+//region Capture configuration
+// The ffmpeg long-edge bounds and the private directory the screenshot handoff lives in.
+
 /**
  Maximum long-edge resolution for downscaled screenshots.
  */
@@ -52,6 +55,11 @@ const HANDOFF_FILE_NAME = 'screen.png';
  */
 const WEBCAM_LONG_EDGE = 720;
 
+//endregion Capture configuration
+
+//region Scale filter
+// One ffmpeg filter string, so both captures constrain the same dimension the same way.
+
 /**
  Builds an ffmpeg scale filter that constrains the longer edge to
  {@link longEdge} pixels while preserving aspect ratio.
@@ -68,6 +76,11 @@ const WEBCAM_LONG_EDGE = 720;
 function scaleFilter(longEdge: number,): string {
   return `scale='if(gt(iw,ih),${longEdge},-2)':'if(gt(iw,ih),-2,${longEdge})'`;
 }
+
+//endregion Scale filter
+
+//region Screenshot handoff
+// The private directory Spectacle writes into and ffmpeg reads back from.
 
 /**
  A private directory holding one screenshot handoff file, plus the release that
@@ -164,6 +177,11 @@ export async function createScreenshotHandoff({
     },
   };
 }
+
+//endregion Screenshot handoff
+
+//region Captures
+// The two capture entry points: a Spectacle screenshot and a v4l2 webcam frame.
 
 /**
  Captures a full-screen screenshot via Spectacle, downscales it with ffmpeg,
@@ -273,3 +291,5 @@ export function captureWebcam(): Promise<Buffer> {
     emptyOutputMessage: 'Webcam capture produced empty output',
   },);
 }
+
+//endregion Captures

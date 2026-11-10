@@ -22,6 +22,9 @@ const l = tagged({
   tag: 'llama',
 },);
 
+//region Server configuration
+// The weights, the binary, the port, and the health-poll bounds one server run uses.
+
 // LFM2.5-VL-1.6B: smaller/faster than Qwen3-VL-2B while still vision-capable
 /**
  Path to the quantized LFM2.5-VL model weights.
@@ -63,12 +66,15 @@ const HEALTH_POLL_MS = 500;
  */
 export const API_URL: string = `http://127.0.0.1:${PORT}/v1/chat/completions`;
 
+//endregion Server configuration
+
+//region Child lifecycle
+// The stored handle, and the end-of-child bookkeeping every wait depends on.
+
 /**
  Module-singleton mutable state for the running llama-server subprocess handle; wrapped so it satisfies no-module-root-let.
  */
 const state: { server?: ChildProcess; } = {};
-
-//region Child lifecycle
 
 /**
  Reports whether a child has already ended.
@@ -193,6 +199,9 @@ export async function awaitChildEnd({ child, }: Readonly<{ child: ChildProcess; 
 }
 
 //endregion Child lifecycle
+
+//region Server run
+// Starting, stopping, and force-cleaning one llama-server, and polling its health endpoint.
 
 /**
  Starts llama-server inside a distrobox container with AMD GPU overrides.
@@ -424,3 +433,5 @@ async function waitForHealth(): Promise<void> {
     `llama-server failed to become healthy within ${MAX_HEALTH_POLLS} polls`,
   );
 }
+
+//endregion Server run

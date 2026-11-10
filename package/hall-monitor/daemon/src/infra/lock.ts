@@ -27,9 +27,13 @@ const l = tagged({
   tag: 'lock',
 },);
 
+//region Lock configuration
+// The socket name, the `/proc` field the scan reads, and the takeover retry bounds.
+
 /**
  Abstract Unix socket name used for single-instance enforcement.
  */
+
 const SOCKET_NAME = '\0hall-monitor';
 
 /**
@@ -57,8 +61,14 @@ const SIGKILL_RETRIES = 7;
  */
 const state: { lockServer?: Server; } = {};
 
+//endregion Lock configuration
+
+//region Single-instance lock
+// The abstract socket the daemon listens on, and the state that holds its handle.
+
 /**
  Closes the held lock socket, if any.
+
  Used during shutdown; a no-op when no lock is currently held.
  
  @example
@@ -125,8 +135,14 @@ export function acquireLock(): Promise<boolean> {
   },);
 }
 
+//endregion Single-instance lock
+
+//region Text helpers
+// Two linear scanners the `/proc` walk needs, exported so their behavior is testable on its own.
+
 /**
  Returns true when every character in `s` is an ASCII digit `0`-`9`.
+
  Empty string returns false so PID-shape gates do not accept it.
  
  @param s - candidate string
@@ -209,8 +225,14 @@ export function splitOnWhitespace(s: string,): string[] {
   })();
 }
 
+//endregion Text helpers
+
+//region Owner lookup
+// Cross-referencing `/proc/net/unix` with every process's descriptors to name the socket's owner.
+
 /**
  Finds the PID of the process holding the hall-monitor abstract socket
+
  by cross-referencing `/proc/net/unix` inodes with `/proc/{pid}/fd` symlinks.
  
  @returns PID of the socket owner
@@ -274,8 +296,14 @@ async function findSocketOwnerPid(): Promise<number> {
   throw new Error('Socket in use but could not find owner PID.',);
 }
 
+//endregion Owner lookup
+
+//region Takeover
+// Signalling the owner found above, and retrying the lock until it is free.
+
 /**
  Sends `signal` to `pid`, reporting a target that has already exited.
+
 
  The owner is looked up by walking every `/proc/<pid>/fd`, so it can exit
  between that walk and this call. `process.kill` throws `ESRCH` for a PID no
@@ -393,3 +421,5 @@ export async function killExisting(): Promise<void> {
 
   throw new Error('Failed to take over lock after killing existing instance.',);
 }
+
+//endregion Takeover

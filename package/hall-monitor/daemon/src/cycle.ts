@@ -40,6 +40,10 @@ import { log, } from './infra/syslog.ts';
 const state: { decisions: DecisionWindow; } = { decisions: initialDecisionWindow(), };
 //endregion
 
+//endregion Decision tracking
+
+//region Capture cycle
+
 /**
  Executes one capture-analyze-notify cycle.
  Captures a screenshot ({@link captureScreenshot}) and webcam frame
@@ -173,3 +177,5 @@ export async function cycle(): Promise<void> {
     }
   }
 }
+
+//endregion Capture cycle

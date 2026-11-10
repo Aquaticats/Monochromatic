@@ -11,9 +11,13 @@ import type { CaptureSet, } from './analyze/memory.ts';
 import { API_URL, } from './analyze/llama.ts';
 import { log, } from './infra/syslog.ts';
 
+//region Request shape
+// The prompt, the token cap, and the response type the daemon reads.
+
 /**
  Maximum number of capture sets sent to the LLM in a single request.
  */
+
 const MAX_CAPTURE_SETS = 3;
 
 /**
@@ -59,9 +63,15 @@ function buildImageEntry(
   };
 }
 
+//endregion Request shape
+
+//region Verdict parsing
+// The canonical line the prompt demands, and the keyword fallback when the model writes none.
+
 /**
  Literal keyword that prefixes the canonical verdict line in LLM output.
  */
+
 const VERDICT_PREFIX = 'VERDICT:';
 
 /**
@@ -246,8 +256,14 @@ export function parseVerdict(result: string,): 'PRODUCTIVE' | 'UNPRODUCTIVE' {
   return 'PRODUCTIVE';
 }
 
+//endregion Verdict parsing
+
+//region Analysis request
+// One chat completion against the local llama-server, with the capture sets inlined as data URLs.
+
 /**
  Sends buffered capture sets to the local vision LLM at {@link API_URL} for
+
  productivity analysis. Constructs a multimodal prompt with timestamped
  screenshot/webcam pairs and returns the raw LLM response text containing
  the verdict.
@@ -396,3 +412,5 @@ export async function analyze(sets: readonly CaptureSet[],): Promise<string> {
   return firstChoice.message
     .content;
 }
+
+//endregion Analysis request

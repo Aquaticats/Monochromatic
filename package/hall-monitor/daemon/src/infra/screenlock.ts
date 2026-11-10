@@ -25,6 +25,8 @@ const l = tagged({
   tag: 'screenlock',
 },);
 
+//region Probe shape
+
 /**
  Standard output of one session-bus call.
  */
@@ -73,6 +75,10 @@ async function probeScreenSaver(): Promise<ScreenLockProbeResult> {
   return { stdout, };
 }
 
+//endregion Probe shape
+
+//region Locked-session check
+
 /**
  Checks whether the desktop session is locked via the freedesktop ScreenSaver
  D-Bus interface, which works on KDE, GNOME, and other compliant desktops.
@@ -112,3 +118,5 @@ export async function isScreenLocked({
     return false;
   }
 }
+
+//endregion Locked-session check
