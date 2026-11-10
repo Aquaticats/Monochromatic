@@ -1,6 +1,7 @@
 //! What:
 //!  The refresh of an index's stat data:
-//! the private commit index's, which the scratch commit reads,
+//! the private commit index's,
+//! which the scratch commit reads,
 //! and the copy's that a landing installs as the real index.
 //! Why:
 //!  Git's own `git commit` refreshes the stat data of the index it commits and writes that index back,

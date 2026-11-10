@@ -118,6 +118,16 @@ const RETIREMENT_CASES: readonly RetirementCase[] = [
     ],
   },
   {
+    name: 'retires a snapshot dated past the old day-bound year in favor of the alias',
+    entries: [
+      entry({ provider: 'openrouter', modelId: 'deepseek/deepseek-v4-pro', },),
+      entry({ provider: 'openrouter', modelId: 'deepseek/deepseek-v4-pro-3201', },),
+    ],
+    expected: [
+      { retiredId: 'deepseek/deepseek-v4-pro-3201', keeperId: 'deepseek/deepseek-v4-pro', },
+    ],
+  },
+  {
     name: 'retires the earlier of two dated snapshots',
     entries: [
       entry({ provider: 'openrouter', modelId: 'openai/gpt-4o-2024-05-13', },),
@@ -387,6 +397,15 @@ await describe({
             expect(compareRecency({
               left: parseModelId('deepseek-v4-pro',),
               right: parseModelId('deepseek-v4-pro-0813',),
+            },),).toBe('left',);
+          },
+        },),
+        it({
+          name: 'prefers the rolling alias over a snapshot dated in a later decade',
+          fn: async function runLaterDecadeAliasPreference() {
+            expect(compareRecency({
+              left: parseModelId('deepseek-v4-pro',),
+              right: parseModelId('deepseek-v4-pro-9912',),
             },),).toBe('left',);
           },
         },),

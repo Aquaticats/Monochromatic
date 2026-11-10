@@ -220,6 +220,40 @@ fn each_refusal_leaves_the_worktree_untouched() {
     remove(parent.as_path());
 }
 
+/// A kill between creating the converting subvolume and recording it leaves an empty one,
+/// which the next run adopts instead of leaving the worktree blocked by the conversion's own leftover:
+/// the journal was at the phase that creates it and holds nothing yet,
+/// so the object at that name is the one this conversion made.
+#[test]
+fn a_stage_created_but_not_recorded_is_adopted_by_the_next_run() {
+    let (parent, root, worktree) = quiet_worktree("convert-stage-unrecorded");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let git_file: Vec<u8> = std::fs::read(worktree.join(".git")).expect(".git");
+    let killed = run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("stage-unrecorded", 0));
+    assert!(killed.is_err(), "the run was killed between creating the stage and recording it");
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert_eq!(std::fs::read_dir(converting.as_path()).expect("listing").count(), 0, "the stage the kill left holds nothing");
+    let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(verdict.expect("resumed"), Verdict::Resumed, "{lines:#?}");
+    assert_converted(&platform, root.as_path(), worktree.as_path(), git_file.as_slice());
+    remove(parent.as_path());
+}
+
+/// The abandon of that state destroys the empty stage,
+/// so the person is not left with a directory only a hand can remove.
+#[test]
+fn abandon_destroys_the_unrecorded_empty_stage() {
+    let (parent, _root, worktree) = quiet_worktree("convert-stage-unrecorded-abandon");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("stage-unrecorded", 0)).is_err());
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let undone = run_quiet(&platform, worktree.as_path(), ConvertOptions { dry_run: false, abandon: true, command_line_attributes: false }, &Interrupt::never());
+    assert_eq!(undone.expect("abandoned"), Verdict::Abandoned);
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the empty stage this conversion made is gone");
+    assert_eq!(std::fs::read(worktree.join("README.md")).expect("original intact"), b"readme\n");
+    remove(parent.as_path());
+}
+
 /// A kill at every phase is finished by running the command again,
 /// with the same final state and nothing foreign deleted.
 #[test]
