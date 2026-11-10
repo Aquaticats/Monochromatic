@@ -9,7 +9,10 @@
  child can end in: already exited, exiting later, and never started at all.
 
  Every case uses an interpreter this test controls, so no case starts
- llama-server, needs a GPU, or signals anything.
+ llama-server, needs a GPU, or signals anything outside its own fixture children.
+
+ The four server-run cases share this module's one stored handle, so they run one
+ at a time; the last of them relies on the earlier ones having left it empty.
 
  @module
  */
@@ -314,10 +317,12 @@ await describe({
             },);
             // The signal ends the child, whose exit listener clears the stored
             // handle before this call returns; `stop` must still hold the one it
-            // took on entry.
-            await stopLlamaServer({ signalServer: shutDownDuringCall({ child, },), },);
-
-            expect(child.signalCode,).toBe('SIGTERM',);
+            // took on entry, and it must return rather than throw or hang.
+            expect(
+              await settledWithinDeadline({
+                wait: stopLlamaServer({ signalServer: shutDownDuringCall({ child, },), },),
+              },),
+            ).toBe(SETTLED,);
           },
         },),
 

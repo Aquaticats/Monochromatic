@@ -300,14 +300,16 @@ function signalServerGracefully(): Promise<void> {
 }
 
 /**
- Starts llama-server inside a distrobox container with AMD GPU overrides.
- No-ops if the server is already running. Blocks via {@link waitForHealth}
- until the health endpoint reports ready or the timeout expires.
+ Starts the server inside a distrobox container with AMD GPU overrides.
+ No-ops if the server is already running. Blocks until the health endpoint
+ reports ready or the timeout expires.
 
- @param spawnServer - starts the server process
+ @param spawnServer - starts the server process; the distrobox-wrapped one by
+   default, and another one only so a test drives this module without a GPU
 
  @param waitForReady - resolves once the started server answers its health
-   endpoint
+   endpoint; the real poll by default, and a no-op only in a test whose child is
+   not a server
  
  @throws when llama-server fails to become healthy within {@link HEALTH_TIMEOUT_MS}
  
@@ -321,15 +323,7 @@ export async function start({
   spawnServer = spawnWrappedServer,
   waitForReady = waitForHealth,
 }: Readonly<{
-  /**
-   Starts the server process; the distrobox-wrapped one by default, and another
-   one only so a test drives this module without a GPU.
-   */
   spawnServer?: () => ChildProcess;
-  /**
-   Resolves once the started server answers its health endpoint; the real poll by
-   default, and a no-op only in a test whose child is not a server.
-   */
   waitForReady?: () => Promise<void>;
 }> = {},): Promise<void> {
   /**
@@ -368,7 +362,9 @@ export async function start({
  Gracefully stops llama-server by killing the wrapped process by name
  (distrobox prevents direct PID signalling), then awaits subprocess exit.
 
- @param signalServer - asks the operating system to end the server's processes
+ @param signalServer - asks the operating system to end the server's processes;
+   `pkill` by default, and another one only so a test ends its own child at a
+   known moment
  
  @example
  ```ts
@@ -378,13 +374,7 @@ export async function start({
  */
 export async function stop({
   signalServer = signalServerGracefully,
-}: Readonly<{
-  /**
-   Asks the operating system to end the server's processes; `pkill` by default,
-   and another one only so a test ends its own child at a known moment.
-   */
-  signalServer?: () => Promise<void>;
-}> = {},): Promise<void> {
+}: Readonly<{ signalServer?: () => Promise<void>; }> = {},): Promise<void> {
   /**
    Handle taken before anything awaits, which is the only moment it is certainly
    held: the process can end while the call below is delivering its signal, and
