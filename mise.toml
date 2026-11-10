@@ -502,18 +502,35 @@ const ownedByPackageSuite = (file) => {
 // config root holds is counted before the filters, so neither the `--all` opt-in nor the paused-tree skip can make a
 // package look empty. A package whose tree truly holds none states itself in [vars] unit_test_exempt_packages with its
 // reason, and that entry is itself an error once the package gains a file, so an exemption cannot outlive the gap.
+// Both checks belong to a discovery run: a caller that names files has made its own claim about what runs.
 {{vars.unit_test_exempt_packages}}
-const packagePath = relative(process.env.MISE_MONOREPO_ROOT ?? taskConfigRoot, taskConfigRoot).split(sep).join('/')
-const exemptReason = unitTestExemptPackages.get(packagePath)
 const taskLabel = process.env.MISE_TASK_NAME ?? 'test:unit'
 let files
-let discovered = 0
 if (args.length === 0) {
+  const monorepoRoot = process.env.MISE_MONOREPO_ROOT
+  if (monorepoRoot === undefined) {
+    throw new Error(`${taskLabel} cannot read [vars] unit_test_exempt_packages: mise did not set MISE_MONOREPO_ROOT, so this run cannot tell which package it covers`)
+  }
+  const packagePath = relative(monorepoRoot, taskConfigRoot).split(sep).join('/')
+  const exemptReason = unitTestExemptPackages.get(packagePath)
   files = []
+  let discovered = 0
   for await (const file of glob('**/*.unit.test.ts', { exclude: (name) => name.includes('node_modules') })) {
     if (isInactiveTest(file)) { continue }
     discovered += 1
     if ((all || !file.includes('.expensive.')) && !ownedByPackageSuite(file)) { files.push(file) }
+  }
+  if (discovered === 0) {
+    if (exemptReason === undefined) {
+      throw new Error(`${taskLabel} found no *.unit.test.ts file under ${packagePath === '' ? 'the monorepo root' : packagePath}, so it would report success without running a test. Add a unit test file to the package, or, when the package truly has none, add its path and the reason to [vars] unit_test_exempt_packages in the root mise.toml.`)
+    }
+    console.error(`${taskLabel} runs no file: ${packagePath} is exempt in [vars] unit_test_exempt_packages because ${exemptReason}`)
+  } else if (exemptReason !== undefined) {
+    throw new Error(`${taskLabel} found ${discovered} *.unit.test.ts file(s) under ${packagePath}, so its [vars] unit_test_exempt_packages entry no longer applies: remove the entry so those files run.`)
+  } else if (files.length === 0) {
+    // Deliberate: `*.expensive.*` is opt-in and a package's own [tasks.test] owns its files, so a full tree with
+    // nothing runnable here is a skip the caller asked for, not the empty package this task refuses.
+    console.error(`${taskLabel} runs no file: ${discovered} *.unit.test.ts file(s) exist here, and neither *.expensive.* without --all nor a file a package's own [tasks.test] owns is run by this task`)
   }
 } else {
   // Package-scoped tasks run with cwd = MISE_CONFIG_ROOT (the package dir), so a repo-root-relative
@@ -521,18 +538,6 @@ if (args.length === 0) {
   // (modern mise), then the mise invocation dir, then cwd.
   const base = process.env.MISE_MONOREPO_ROOT ?? process.env.MISE_ORIGINAL_CWD ?? process.cwd()
   files = args.map((file) => existsSync(file) ? file : join(base, file))
-}
-// The discovery cases above never reach here with args, so an explicit file list is the caller's own claim about what
-// runs and stays unfiltered. Only a discovery run can report that it found nothing to run.
-if (args.length === 0 && discovered === 0) {
-  if (exemptReason === undefined) {
-    throw new Error(`${taskLabel} found no *.unit.test.ts file under ${packagePath === '' ? 'the monorepo root' : packagePath}, so it would report success without running a test. Add a unit test file to the package, or, when the package truly has none, add its path and the reason to [vars] unit_test_exempt_packages in the root mise.toml.`)
-  }
-  console.error(`${taskLabel} runs no file: ${packagePath} is exempt in [vars] unit_test_exempt_packages because ${exemptReason}`)
-} else if (exemptReason !== undefined) {
-  throw new Error(`${taskLabel} found ${discovered} *.unit.test.ts file(s) under ${packagePath}, so its [vars] unit_test_exempt_packages entry no longer applies: remove the entry so those files run.`)
-} else if (files.length === 0) {
-  console.error(`${taskLabel} runs no file: ${discovered} *.unit.test.ts file(s) exist here, and neither *.expensive.* without --all nor a file a package's own [tasks.test] owns is run by this task`)
 }
 await runTestFiles(files, [])
 """
