@@ -20,6 +20,10 @@ export {
   isWordChar,
 } from '@monochromatic-dev/oxlint-plugin-shared/ts';
 
+//region Delimiters, escapes, and line shape
+// The two backtick delimiters, the escape that shields an at sign from tag
+// scanning, and the per-line record the scanner passes between passes.
+
 /**
  Triple-backtick delimiter that opens or closes a fenced code block.
  */
@@ -52,6 +56,12 @@ export type NormalizedLine = {
    */
   readonly inFence: boolean;
 };
+
+//endregion Delimiters, escapes, and line shape
+
+//region Comment line access
+// Whether a line opens or closes a fence, the leading marker stripped off a
+// block-comment line, and a comment's own lines.
 
 /**
  Checks whether `line` is a fenced-code-block delimiter (allows leading
@@ -107,6 +117,12 @@ export function getCommentLines(comment: ReadonlyDeep<Comment>,): readonly strin
   return comment.value
     .split('\n',);
 }
+
+//endregion Comment line access
+
+//region Inline code and escape stripping
+// Removing the regions a tag scan must ignore: single-backtick code spans,
+// then backslash-escaped at signs.
 
 /**
  Removes inline-code spans bounded by single backticks via a linear scan.
@@ -184,6 +200,12 @@ export function stripInlineCodeAndEscapes(line: string,): string {
     '',
     );
 }
+
+//endregion Inline code and escape stripping
+
+//region Token scans
+// Bounded forward scans for one word run, one non-whitespace token, and one
+// whitespace run; each answers an exclusive end index.
 
 /**
  Returns the exclusive end index of the ASCII word run starting at `start`.
@@ -293,6 +315,12 @@ export function whitespaceRunEnd({
   return text.length;
 }
 
+//endregion Token scans
+
+//region Tag extraction
+// The leading tag of a normalized line, and every literal tag word the caller
+// can collect from a stripped line.
+
 /**
  Sentinel meaning "line has no leading tag"; never a real tag string.
  
@@ -394,6 +422,12 @@ export function collectTags(stripped: string,): readonly string[] {
   return out;
 }
 
+//endregion Tag extraction
+
+//region Line normalization
+// The pass that turns a comment into per-line text plus the running fenced-code
+// state later passes read.
+
 /**
  Normalizes a comment into per-line text plus running fenced-code state.
  
@@ -489,3 +523,5 @@ export function normalizeLines({
   );
   return folded.rows;
 }
+
+//endregion Line normalization

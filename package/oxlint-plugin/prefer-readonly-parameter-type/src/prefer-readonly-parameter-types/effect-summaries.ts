@@ -34,6 +34,10 @@ export {
   NO_EFFECT_SUMMARY,
 } from './effect-summary-index.ts';
 
+//region Inclusion scope
+// One derived inclusion scope and its per-project identity, so the digest is
+// derived once rather than per file.
+
 /**
  One derived inclusion scope: which files it covers and the digest naming them.
  */
@@ -66,6 +70,12 @@ const inclusionScopeByProject = new WeakMap<
   Project,
   Map<string, InclusionScope>
   >();
+
+//endregion Inclusion scope
+
+//region Source selection
+// The exact non-declaration source scope ownership policy admits, and the seeding
+// of requested active source into a mutable demand index.
 
 /**
  Selects exact non-declaration source scope admitted by ownership policy.
@@ -157,6 +167,11 @@ function includeActiveSource({
         index.get(node,);
     },);
 }
+
+//endregion Source selection
+
+//region Building the index
+// The exported build, from active source and the owned callables it reaches.
 
 /**
  Builds effect summaries from active source and reached owned callables.
@@ -347,3 +362,4 @@ export function buildEffectSummaryIndex({
   },);
   return index;
 }
+//endregion Building the index

@@ -354,7 +354,10 @@ export async function checkCases(
     );
   }
   return {
-    failures: [...byCase,].map(function toFailure([id, messages,],) {
+    failures: [...byCase,].map(function toFailure([id, messages,]: readonly [
+      number,
+      readonly string[]
+    ],) {
       /**
        Span of this case, for quoting its source.
        */

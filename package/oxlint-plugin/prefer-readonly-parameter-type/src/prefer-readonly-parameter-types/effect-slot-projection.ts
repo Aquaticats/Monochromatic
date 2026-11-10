@@ -25,6 +25,10 @@ import type {
   SlotOwnership,
 } from './effect-summary-model.ts';
 
+//region Projecting origins onto slots
+// The caller origins an edge supplies for one callee slot, never answering
+// short.
+
 /**
  Reads the caller origins an edge supplies for one callee slot, never answering short.
  
@@ -78,6 +82,11 @@ export function calleeSlotOrigins({
     return [];
   return edge.originsByCalleeSlot[owner] ?? [];
 }
+
+//endregion Projecting origins onto slots
+
+//region Slot ownership queries
+// The parameters owning a set of slots, and the slots a set of parameters owns.
 
 /**
  Collects the parameters owning a set of slots.
@@ -148,6 +157,12 @@ export function slotsOfParameters({
   return owned;
 }
 
+//endregion Slot ownership queries
+
+//region Uncertainty and effect queries
+// The uncertainty provenance recorded against every slot one parameter owns,
+// and whether any of those slots carries an effect.
+
 /**
  Unions the uncertainty provenance recorded against every slot one parameter owns.
  
@@ -217,3 +232,4 @@ export function parameterCarriesSlot({
       return slots.has(slot,);
     },);
 }
+//endregion Uncertainty and effect queries

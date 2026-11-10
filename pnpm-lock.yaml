@@ -542,6 +542,9 @@ importers:
       '@monochromatic-dev/llm-image-diff':
         specifier: workspace:*
         version: link:package/llm/image-diff
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:package/logger/core
       '@monochromatic-dev/monorepo-task-core-exec':
         specifier: workspace:*
         version: link:package/monorepo-task/core-exec
@@ -2768,6 +2771,9 @@ importers:
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
+      '@monochromatic-dev/const-core':
+        specifier: workspace:*
+        version: link:../../const/core
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core

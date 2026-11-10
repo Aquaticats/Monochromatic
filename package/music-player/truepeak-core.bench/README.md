@@ -8,8 +8,8 @@ This is Stage two of the shared true-peak plan:
 the production [`truepeak-core`](../truepeak-core) meter,
  gain,
  window-placement,
- and
-policy math,
+ policy math,
+ and probe selection,
  so the benchmark cannot diverge from what playback runs.
 
 ## What it does
@@ -22,6 +22,16 @@ bins are exact per-second meter peaks,
  any window policy can be simulated by re-slicing
 them,
  so the search never re-decodes audio.
+
+The probe's bin selection is the shipped one:
+the frontier zoom and the bucket composite ask
+`truepeak_core::select_probe_bins` which bins to measure,
+which is the same function the production probe calls.
+What the bench simulates is the measurement it feeds that selection:
+the corpus carries bin peaks a collector already measured,
+so the selection reads those instead of decoded windows.
+A core test drives both measurement shapes over a synthetic bin corpus and fails if the
+bins they measure ever differ.
 
 For a candidate policy `(window_count, window_seconds, probe_margin_db)` it:
 

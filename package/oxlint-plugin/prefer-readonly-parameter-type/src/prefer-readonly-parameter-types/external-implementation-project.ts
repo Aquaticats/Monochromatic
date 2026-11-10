@@ -21,10 +21,20 @@ import {
   nativeApiChild,
 } from './typescript-sync-native-shutdown.ts';
 
+//region Shadow-discovery bound
+// The declaration-shadow passes allowed before the project is rejected
+// conservatively.
+
 /**
  Maximum declaration-shadow discovery passes before conservative rejection.
  */
 const MAX_RUNTIME_SHADOW_PASSES = 32;
+
+//endregion Shadow-discovery bound
+
+//region Session shapes and state
+// The sentinel for an unopenable project, the disposable session, the session
+// cache by generated config, and the sentinel for the API before it starts.
 
 /**
  Sentinel when external implementation project cannot be opened.
@@ -52,6 +62,12 @@ const sessionByConfig = new Map<string, ExternalImplementationSession>();
  Sentinel for the external API before it is started.
  */
 const NO_EXTERNAL_API = undefined;
+
+//endregion Session shapes and state
+
+//region The shared external child
+// One native child per process, started before oxlint reserves its per-worker
+// buffers.
 
 /**
  One native child shared by every external implementation project in this process.
@@ -86,6 +102,12 @@ export function initializeExternalImplementationApi(): void {
   memoizeApiSnapshotRequests({ api, },);
   externalApiState.current = api;
 }
+
+//endregion The shared external child
+
+//region Project identity and opening
+// The identity a project's source snapshot hashes to, the one open that does not
+// publish to the cache, and the exported open that does.
 
 /**
  Computes stable identity from project source snapshot signatures.
@@ -262,6 +284,11 @@ export function openExternalImplementation({
   return EXTERNAL_IMPLEMENTATION_PROJECT_UNAVAILABLE;
 }
 
+//endregion Project identity and opening
+
+//region Closing
+// Disposing every process-local external implementation project.
+
 /**
  Closes every process-local external implementation project.
  
@@ -281,3 +308,4 @@ export function closeExternalImplementationProjects(): void {
     .close();
   externalApiState.current = NO_EXTERNAL_API;
 }
+//endregion Closing

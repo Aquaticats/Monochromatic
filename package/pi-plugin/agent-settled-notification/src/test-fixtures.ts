@@ -88,10 +88,10 @@ function createFakePiHarness(): FakePiHarness {
    */
   const handlersByEvent = new Map<string, AgentSettledHandler[]>();
 
+  /* oxlint-disable typescript/no-unsafe-type-assertion -- Fake API records lifecycle registrations; only `on()` is exercised here. */
   /**
    Fake Pi API implementing only the event-registration surface under test.
    */
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Fake API records lifecycle registrations; only `on()` is exercised here.
   const api = {
     on(
       event: string,
@@ -111,6 +111,7 @@ function createFakePiHarness(): FakePiHarness {
       );
     },
   } as unknown as ExtensionAPI;
+  /* oxlint-enable typescript/no-unsafe-type-assertion */
 
   return {
     api,

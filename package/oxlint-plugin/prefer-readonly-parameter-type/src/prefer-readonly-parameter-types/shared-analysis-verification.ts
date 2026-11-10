@@ -16,6 +16,9 @@ import type { ExternalEffectIndexBuilder, } from './external-callable-effect.ts'
 import { serializeEffectSummaries, } from './effect-summary-serialization.ts';
 import { recordSharedHit, } from './shared-analysis-telemetry.ts';
 
+//region Snapshot shape
+// What one side of a comparison knows about a source.
+
 /**
  What one side of the comparison knows about a source.
  */
@@ -25,6 +28,12 @@ export type SourceAnalysisSnapshot = {
   readonly omissionReasons: readonly EffectSummaryOmissionReason[];
   readonly externalOmissions: readonly ExternalOmissionRecord[];
 };
+
+//endregion Snapshot shape
+
+//region Differing parts
+// The per-callable serialization that lets a difference be named by callable,
+// and the list of parts that differ between two snapshots.
 
 /**
  Serializes each summary on its own so a difference can be named by callable.
@@ -106,6 +115,12 @@ function differingParts({
     parts.push('externalOmissions differ',);
   return parts;
 }
+
+//endregion Differing parts
+
+//region Comparing
+// The comparison of a shared hit with a fresh analysis, and the fresh analysis
+// itself.
 
 /**
  Compares a shared hit with a fresh analysis and records the outcome.
@@ -218,3 +233,4 @@ export function verifySharedSource({
     },
   },);
 }
+//endregion Comparing

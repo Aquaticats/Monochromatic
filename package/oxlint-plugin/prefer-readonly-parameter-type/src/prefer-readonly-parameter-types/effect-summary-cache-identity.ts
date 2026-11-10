@@ -23,6 +23,10 @@ import { version as typescriptVersion, } from 'typescript';
 
 import { ancestorDirectories, } from './ancestor-directories.ts';
 
+//region Schema identity
+// The persistent cache schema identity and the memo of the analyzer
+// implementation digest.
+
 /**
  Persistent cache schema identity.
  
@@ -56,6 +60,12 @@ export const EFFECT_CACHE_SCHEMA = 10;
  */
 const analyzerDigestMemo = new Map<'digest', string>();
 
+//endregion Schema identity
+
+//region Content hashing
+// The SHA-256 digest of exact UTF-8 text, which every identity below is built
+// from.
+
 /**
  Hashes exact UTF-8 text through SHA-256.
  
@@ -73,6 +83,12 @@ export function contentDigest(text: string,): string {
     .update(text,)
     .digest('hex',);
 }
+
+//endregion Content hashing
+
+//region Analyzer identity
+// The analyzer's own package root, the TypeScript sources under it, and the
+// digest of both plus the runtime.
 
 /**
  Finds package root containing current analyzer module.
@@ -220,6 +236,12 @@ export function analyzerDigest(): string {
   return result;
 }
 
+//endregion Analyzer identity
+
+//region Cache location
+// The dependency root a configured project resolves through, and the persistent
+// cache root it places there.
+
 /**
  Finds dependency-root ancestor for configured project.
  
@@ -273,3 +295,4 @@ export function effectCacheRoot({
     'prefer-readonly-parameter-type',
   );
 }
+//endregion Cache location

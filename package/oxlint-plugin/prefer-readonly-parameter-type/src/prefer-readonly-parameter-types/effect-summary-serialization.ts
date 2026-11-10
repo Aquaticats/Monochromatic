@@ -21,6 +21,9 @@ import {
   type SlotOwnership,
 } from './effect-summary-model.ts';
 
+//region Callback identity
+// The two serialized callback identities and the JSON-safe union they form.
+
 /**
  Serialized unavailable callback identity.
  */
@@ -42,6 +45,12 @@ export type SerializedCallbackKey =
       readonly kind: typeof OWNED_CALLBACK;
       readonly key: string;
     };
+
+//endregion Callback identity
+
+//region JSON-safe shapes
+// One call edge, one direct summary, and the summary map, as written to the
+// payload.
 
 /**
  JSON-safe call edge.
@@ -97,6 +106,12 @@ export type SerializedEffectSummaries = readonly (
     SerializedEffectSummary
   ]
 )[];
+
+//endregion JSON-safe shapes
+
+//region Restoring payload parts
+// Rebuilding slot ownership from a restored payload, and rebranding the plain
+// slot numbers it holds.
 
 /**
  Rebuilds slot ownership from a restored payload.
@@ -160,6 +175,12 @@ function restoredSlots(slots: readonly number[],): Set<EffectSlot> {
   return new Set(restoredSlotList(slots,),);
 }
 
+//endregion Restoring payload parts
+
+//region Callback identity conversion
+// Serializing a callback identity without process-local symbols, and restoring
+// one.
+
 /**
  Serializes callback identity without process-local symbols.
  
@@ -202,6 +223,12 @@ function deserializeCallbackKey(
     ? OWNED_CALLABLE_UNAVAILABLE
     : key.key;
 }
+
+//endregion Callback identity conversion
+
+//region Summaries both ways
+// Serializing the direct summaries of one exact source, and deserializing them
+// after the envelope is validated.
 
 /**
  Serializes direct summaries for persistent cache storage.
@@ -408,3 +435,4 @@ export function deserializeEffectSummaries(
     ];
   },),);
 }
+//endregion Summaries both ways

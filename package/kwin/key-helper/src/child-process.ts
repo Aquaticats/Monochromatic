@@ -1,5 +1,7 @@
 /**
- Running one external command to completion and reporting how it ended.
+ Running external commands from the daemon, in the two shapes it needs: one that
+ ends and whose output is a diagnostic, and one that starts an application which
+ keeps running past the call.
 
  The daemon starts `ydotool` and the launcher and can do nothing about their
  failures, but it must not lose them either: a nonzero exit, a signal, or a
@@ -7,33 +9,114 @@
  the command, how it ended, and what it wrote to stderr. Callers log the error
  and carry on, so a broken injection never crashes the daemon.
 
- The one child-process shape of this package lives here, so `ydotool` and the
- launcher cannot drift apart in how they report a failure.
+ Both shapes live here, so `ydotool` and the launcher cannot drift apart in how
+ they report a failure, and neither ends a child for writing more than the
+ daemon wanted to read: a launched application writes for its whole lifetime,
+ and a bound that terminated it would close the window this helper just opened.
 
  @module
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import type { Readable, } from 'node:stream';
+
+import { BYTES_PER_MIB, } from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { CommandFailedError } from './errors.ts';
 
-//region Promisified exec
+//region Logging
 
 /**
- Specialized promisified `execFile`, typed through Node's own adapter contract.
- The generic `promisify(execFile)` form trips `strict-void-return`;
- see `doc/troubleshooting/oxlint-promisify-void-return.md`.
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
  */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+const childProcessLogger = tagged({ tag: 'kwin-key-helper-child-process', },);
+
+//endregion Logging
+
+//region Diagnostic capture
 
 /**
- Runs a program without a shell and waits for it to end, rejecting with the
- runtime's own failure object, which carries `code`, `signal` and `stderr`.
- */
-const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFile);
+ Bytes of a child's stderr kept for its failure message.
 
-//endregion Promisified exec
+ This is the bound Node's `execFile` applies by default (`maxBuffer`), kept
+ because the failure lines an operator reads have always been bounded by it.
+ What differs is what happens past it: the text kept here is truncated and
+ named as truncated, and the daemon keeps draining the stream, so the child
+ finishes writing and runs on instead of being ended for exceeding it.
+ */
+const DIAGNOSTIC_LIMIT_BYTES: number = BYTES_PER_MIB;
+
+/**
+ Drain one child's stderr into a text with a fixed bound.
+
+ The stream is read continuously, so a child writing more than the bound never
+ blocks on a full pipe: only the first {@link DIAGNOSTIC_LIMIT_BYTES} are kept,
+ and everything the child writes after them is discarded as it arrives.
+
+ @param stream - The child's stderr, which this module always pipes
+
+ @returns Read of the text kept so far, naming the bound when it was passed
+
+ @example
+ ```ts
+ const standardErrorText = boundedStandardError({ stream: child.stderr });
+ ```
+ */
+function boundedStandardError({ stream }: {
+  readonly stream: Readable;
+}): () => string {
+  /**
+   Chunks kept so far, in the order the child wrote them.
+   */
+  const chunks: Buffer[] = [];
+  /**
+   The reader's own counters: bytes kept, and whether the child wrote past the
+   bound, so the kept text is a prefix of what it wrote.
+   */
+  const kept = {
+    bytes: 0,
+    truncated: false,
+  };
+  stream.on(
+    'data',
+    function keepWithinBound(chunk: Buffer): void {
+      if (kept.truncated) {
+        return;
+      }
+      /**
+       Bytes that still fit below the bound.
+       */
+      const room = DIAGNOSTIC_LIMIT_BYTES - kept.bytes;
+      if (chunk.byteLength > room) {
+        chunks.push(chunk.subarray(
+          0,
+          room,
+        ),);
+        kept.bytes = DIAGNOSTIC_LIMIT_BYTES;
+        kept.truncated = true;
+        return;
+      }
+      chunks.push(chunk,);
+      kept.bytes += chunk.byteLength;
+    },
+  );
+  return function standardErrorText(): string {
+    /**
+     Everything kept, decoded as the child's own text.
+     */
+    const text = Buffer.concat(chunks,)
+      .toString('utf8',);
+    if (!kept.truncated) {
+      return text;
+    }
+    return `${text}\n[stderr truncated after ${String(DIAGNOSTIC_LIMIT_BYTES,)} bytes]`;
+  };
+}
+
+//endregion Diagnostic capture
 
 //region Reporting
 
@@ -260,7 +343,8 @@ function failureTextOf({
  
  A successful child resolves; a nonzero exit, a signal, or a command that could
  not be started throws {@link CommandFailedError}, whose message names the
- command, how it ended, and any stderr it wrote.
+ command, how it ended, and any stderr it wrote. Output past the diagnostic
+ bound is truncated rather than ending the child.
  
  @param command - Executable to run
  
@@ -277,10 +361,29 @@ export async function runCommand({
   command,
   args
 }: RunCommandOptions): Promise<void> {
+  /**
+   Child running the command, with its stderr piped for the failure message and
+   its other streams discarded.
+   */
+  const child = spawn(
+    command,
+    [...args],
+    { stdio: [
+      'ignore',
+      'ignore',
+      'pipe'
+    ], },
+  );
+  /**
+   What it wrote to stderr, drained into a bounded text.
+   */
+  const standardErrorText = boundedStandardError({ stream: child.stderr, });
   try {
-    await execFileAsync(
-      command,
-      [...args]
+    // `close` rather than `exit`: it fires once the piped stderr has closed too,
+    // so the text read below is everything the child wrote.
+    await once(
+      child,
+      'close',
     );
   } catch (error) {
     throw new CommandFailedError(failureTextOf({
@@ -289,6 +392,116 @@ export async function runCommand({
       failure: childFailureOf(error),
     },));
   }
+  if (child.exitCode === 0) {
+    return;
+  }
+  throw new CommandFailedError(failureTextOf({
+    command,
+    args,
+    failure: {
+      exitCode: numberTextOf(child.exitCode,),
+      signal: textOf(child.signalCode,),
+      standardError: standardErrorText(),
+      message: '',
+    },
+  },));
+}
+
+/**
+ Start one command and return while it keeps running.
+ 
+ The shape for an application: a launcher starts a program that outlives the
+ call, so waiting for it to end would hold the daemon's promise for the whole
+ session, and buffering its output would end it once the application wrote
+ enough. The call therefore resolves as soon as the program has started, and
+ reports a program that could not be started, or one that later ended
+ unsuccessfully, through the daemon's log rather than by throwing.
+ 
+ @param command - Executable to run
+ 
+ @param args - Arguments passed to it
+ 
+ @throws {@link CommandFailedError} when the command could not be started
+ 
+ @example
+ ```ts
+ await startCommand({ command: 'ghostty', args: ['--gtk-single-instance=false'] });
+ ```
+ */
+export async function startCommand({
+  command,
+  args
+}: RunCommandOptions): Promise<void> {
+  /**
+   Child running the command, with its stderr piped so a later failure can say
+   what it wrote.
+   */
+  const child = spawn(
+    command,
+    [...args],
+    { stdio: [
+      'ignore',
+      'ignore',
+      'pipe'
+    ], },
+  );
+  /**
+   What it wrote to stderr, drained into a bounded text.
+   */
+  const standardErrorText = boundedStandardError({ stream: child.stderr, });
+  try {
+    // `spawn` fires once the program is running, and `error` fires instead when
+    // it could not be started at all.
+    await once(
+      child,
+      'spawn',
+    );
+  } catch (error) {
+    throw new CommandFailedError(failureTextOf({
+      command,
+      args,
+      failure: childFailureOf(error),
+    },));
+  }
+  // A started program is out of this module's hands: it may run for the whole
+  // session, or fail later on its own. Both endings are logged, never thrown,
+  // because the caller has already returned by then.
+  child.on(
+    'error',
+    function reportLateError(error: Error): void {
+      tagged({
+        tag: startCommand.name,
+        l: childProcessLogger,
+      },)
+        .error(failureTextOf({
+          command,
+          args,
+          failure: childFailureOf(error),
+        },));
+    },
+  );
+  child.once(
+    'close',
+    function reportFailureOnExit(): void {
+      if (child.exitCode === 0) {
+        return;
+      }
+      tagged({
+        tag: startCommand.name,
+        l: childProcessLogger,
+      },)
+        .error(failureTextOf({
+          command,
+          args,
+          failure: {
+            exitCode: numberTextOf(child.exitCode,),
+            signal: textOf(child.signalCode,),
+            standardError: standardErrorText(),
+            message: '',
+          },
+        },));
+    },
+  );
 }
 
 //endregion Running

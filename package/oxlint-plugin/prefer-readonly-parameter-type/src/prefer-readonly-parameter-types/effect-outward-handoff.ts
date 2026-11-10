@@ -86,6 +86,10 @@ import type {
   SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Constructor handoffs
+// Opacity for caller state handed to a constructor, whether or not the
+// constructor does anything with it.
+
 /**
  Records opacity for caller state handed to a constructor.
  
@@ -195,6 +199,12 @@ export function recordConstructionHandoff({
     },);
 }
 
+//endregion Constructor handoffs
+
+//region Yield handoffs
+// Opacity for caller state handed out of a generator, since whoever drives the
+// iterator holds it.
+
 /**
  Records opacity for caller state handed out of a generator.
  
@@ -260,6 +270,12 @@ export function recordYieldHandoff({
   },);
 }
 
+//endregion Yield handoffs
+
+//region Captured handoffs
+// Opacity for every capture a handed value carries, shared by the four sites
+// that differ only in syntax.
+
 /**
  Records opacity for every capture a handed value carries.
  
@@ -307,6 +323,12 @@ function recordHandoffCaptures({
     provenance,
   },);
 }
+
+//endregion Captured handoffs
+
+//region Tagged template handoffs
+// Opacity for caller state interpolated into a tagged template, which is a call
+// the analysis never saw as one.
 
 /**
  Records opacity for caller state interpolated into a tagged template.
@@ -385,6 +407,12 @@ export function recordTaggedTemplateHandoff({
     },);
 }
 
+//endregion Tagged template handoffs
+
+//region Throw handoffs
+// Opacity for caller state thrown out of the callable, which hands it to
+// whoever catches it.
+
 /**
  Records opacity for caller state thrown out of the callable.
  
@@ -457,6 +485,12 @@ export function recordThrowHandoff({
   },);
 }
 
+//endregion Throw handoffs
+
+//region The handoff scan
+// Asking every handoff site about one body node, collected here because the body
+// scan has one place to call.
+
 /**
  Asks every handoff site about one body node.
  
@@ -515,3 +549,4 @@ export function recordOutwardHandoffs({
     node,
   },);
 }
+//endregion The handoff scan

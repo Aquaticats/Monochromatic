@@ -15,6 +15,10 @@ import { threadId, } from 'node:worker_threads';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+//region Telemetry logger and switches
+// The module logger, the environment variables that switch verification and
+// closure tracing on, and the mismatch record kept per process.
+
 /**
  Shared-analysis telemetry logger.
  */
@@ -50,6 +54,12 @@ export type SharedMismatch = {
   readonly parts: readonly string[];
 };
 
+//endregion Telemetry logger and switches
+
+//region Process counters
+// The mutable counters of one process, the fallback counts by reason, and the
+// bounded examples and mismatch records the counter file holds.
+
 /**
  Mutable counters of one process.
  */
@@ -84,6 +94,12 @@ const MAX_FALLBACK_EXAMPLES = 60;
  One line per early fallback naming the source and what caused it.
  */
 const fallbackExamples: string[] = [];
+
+//endregion Process counters
+
+//region Switching, flushing, and tracing
+// Whether verification is on, the rewrite of this process's counter file, and
+// the per-process trace file beside it.
 
 /**
  Tests whether verification is switched on for this process.
@@ -183,6 +199,12 @@ function trace({
     l.debug(`trace skipped: ${String(error,)}`,);
   }
 }
+
+//endregion Switching, flushing, and tracing
+
+//region Recording events
+// The key computed for one source, the closure entries behind it, the fallback
+// that kept a per-project entry, and the shared entry and hit outcomes.
 
 /**
  Counts one source whose cross-project key was computed and traces its components.
@@ -356,3 +378,4 @@ export function recordSharedHit({
   }
   flush();
 }
+//endregion Recording events
