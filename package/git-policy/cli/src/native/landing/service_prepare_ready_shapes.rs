@@ -94,32 +94,6 @@ impl Scratch {
     pub fn held_by_the_service(&mut self, held: bool) {
         self.1 = held;
     }
-
-    /// What:
-    ///  Takes a tree the service handed back to this command,
-    ///  and starts its removal beside the command.
-    /// Why:
-    ///   A request the service answered without landing (a commit sent back to be prepared again,
-    /// a branch that moved)
-    ///  leaves its tree to this process,
-    ///  which reads the change it captured from the tree's private index to make the commit again
-    ///  (`service_server.rs`,
-    ///  `remove_the_trees`).
-    ///  The read is over when this is called,
-    ///  and the removal is recursive and bounded by `SCRATCH_REMOVAL_CEILING`,
-    ///  so it runs beside the command and never makes it wait.
-    ///  A process killed before it calls this leaves the tree inside the repository scratch directory,
-    ///  where the sweep of a later command removes it.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// scratch.releaseBesideTheCommand();
-    /// ```
-    pub fn release_beside_the_command(&mut self) {
-        // The removal started here is this tree's only remover, so the drop must not start another.
-        self.1 = true;
-        crate::service_scratch_release_removal::start(self.0.clone());
-    }
 }
 
 impl Drop for Scratch {

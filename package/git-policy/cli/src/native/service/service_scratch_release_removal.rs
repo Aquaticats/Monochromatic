@@ -20,7 +20,7 @@
 //!  that request's command still reads the private index of the attempt that captured its change,
 //!  so it is the command's to release beside itself
 //!  (`service_prepare_ready_shapes.rs`,
-//!  `release_beside_the_command`).
+//!  `HandedBackTree`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

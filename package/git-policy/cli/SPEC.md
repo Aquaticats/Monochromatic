@@ -11411,8 +11411,9 @@ and leaves those trees where they are
 (`handed_back` in `src/native/service/service_server_land_group.rs`,
 `remove_the_trees` in `src/native/service/service_server.rs`).
 The command releases such a tree beside itself once the answer's arm has read the change it captured
-(`release_beside_the_command` and `HandedBackTree` in `src/native/landing/service_prepare_ready_shapes.rs`),
-so the recursive removal never makes the command wait.
+(`HandedBackTree` in `src/native/landing/service_prepare_ready_shapes.rs`),
+so the recursive removal never makes the command wait,
+and the removal starts only after that read, never before it.
 The tree is named after the request and the attempt,
 so the next attempt never shares a directory with one a removal is taking,
 and a tree whose removal never ran is collected by the age sweep of the repository scratch directory.
