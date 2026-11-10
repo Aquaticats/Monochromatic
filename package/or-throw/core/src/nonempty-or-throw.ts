@@ -11,8 +11,8 @@ import { getSize, } from './size.ts';
  returning the same value.
  
  Recognized container shapes (see {@link getSize} in `size.ts`): strings, arrays,
- `Set`, `Map`, plain objects. Values without a recognized size shape throw,
- as do values whose size is zero.
+ `Set`, `Map`, and plain objects (`Object.prototype` or `null` prototype). Values
+ without a recognized size shape throw, as do values whose size is zero.
  
  Type narrowing is intentionally pass-through; TypeScript cannot express
  "array with at least one element" as a refinement of the parameter type
