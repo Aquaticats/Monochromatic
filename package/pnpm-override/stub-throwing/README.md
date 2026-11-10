@@ -10,7 +10,8 @@ in the policy table at the repo root's `.pnpmfile.policies.json`
 the pnpm install hook rewrites every transitive dependency entry
 pointing at the blocked package to point here instead.
 Any consumer that loads the stub at runtime evaluates `index.cjs`,
- which immediately throws an error naming the policy file.
+ which immediately throws an error naming that policy table
+ and the decision rule in `doc/dependency-blocklist.md`.
 Consumers wrapping the import in `try`/`catch` see the same error inside their catch.
 
 See `doc/dependency-blocklist.md` for the full mechanism and the decision rule for choosing between `throw`,

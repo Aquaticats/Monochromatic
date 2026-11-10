@@ -22,6 +22,10 @@ extends = "format:oxlint"
 [tasks."test:unit"]
 extends = "test:unit"
 
-[tasks.buildAndTest]
-description = "Build the archive-helper bundle, then run the unit tests against it"
+[tasks.test]
+description = "Build the bundle the unit tests import, then run the whole unit suite"
 run = ["mise run build:js", "mise run test:unit"]
+
+[tasks.buildAndTest]
+description = "Alias of test, under the name packages here use for a build-then-test run"
+run = ["mise run test"]
