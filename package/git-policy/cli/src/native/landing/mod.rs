@@ -221,6 +221,9 @@ pub mod service_commit_args;
 /// Whether a `commit` command line opens an editor.
 pub mod service_commit_args_editor_opening;
 
+/// The command line a commit is built again with once its editor has run and the branch moved.
+pub mod service_commit_line_reissued;
+
 /// The one summary line a landed commit prints,
 /// with the abbreviated name Git would print.
 pub mod landed_summary;

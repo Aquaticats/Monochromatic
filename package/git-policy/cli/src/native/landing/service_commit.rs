@@ -55,7 +55,7 @@ use crate::random_id::random_uuid;
 use crate::repository_facts::RepositoryFacts;
 use crate::service_client::{ClientConfig, Submitted};
 use crate::service_commit_waiting_notices::submit_saying_where_it_stands;
-use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
+use crate::service_commit_args::{opens_editor, parse_service_commit};
 use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again, may_rebuild};
 /// Provisioning the service before the first submission.
@@ -74,10 +74,12 @@ use crate::service_amend_replayed::{AmendedCommit, AmendsTree, amended_fields, t
 use crate::service_protocol::CommitRequest;
 use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use crate::transaction_phase::Phase;
+/// The base a preparation read,
+/// which says whether the branch existed at all.
+use crate::transaction_journal::Base;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Instant;
-
 /// What the service path returns:
 /// the transaction result for the lifecycle,
 /// and the handoff when the commit landed.
@@ -131,6 +133,8 @@ pub fn service_commit<F: RepositoryFacts>(
     let mut decided: bool = false;
     // The message the person typed once the editor has run, kept in a file so a commit moved by a tip that changed is built again from it.
     let mut fixed_message: Option<PathBuf> = None;
+    // The command line that rebuild reads, made once from what the preparation captured; nothing while no rebuild is due.
+    let mut reissued_line: Option<Vec<OsString>> = None;
     // The message of the command as the last preparation settled it, kept for the person when the commit cannot be made.
     let mut last_message: Option<String> = None;
     // What the previous preparation captured when the service sent the commit back because the branch moved: the next
@@ -246,11 +250,9 @@ pub fn service_commit<F: RepositoryFacts>(
             }
             None => match embedded_in_use {
             None => {
-                let layout_prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
-                let rebuilt_arguments: Option<Vec<OsString>> = match fixed_message.as_deref() {
-                    Some(file) => with_fixed_message(native_inputs.arguments.as_slice(), layout_prefix, file),
-                    None => None,
-                };
+                // A commit Git built before, whose editor has run and whose branch moved, is built again from the line that
+                //  rebuild was made with; every other attempt builds from the person's own line.
+                let rebuilt_arguments: Option<Vec<OsString>> = reissued_line.clone();
                 let built: GitBuilt = build_with_git(&BuildInput {
                     context: invocation.context,
                     cwd: invocation.cwd,
@@ -360,7 +362,11 @@ pub fn service_commit<F: RepositoryFacts>(
                 //  the tip: its parents come from `MERGE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD`, so the same rebuild makes
                 //  it on the branch as it is now, and the preparation refuses when that state is no longer the same.
                 let conclusion_may_move: bool = ready.cleanup.is_some();
-                if native && !sent.amend && !editor_possible && !ready.interactive && (!ready.fixed_parents || conclusion_may_move) {
+                // A branch that did not exist when this commit was prepared names no parent to keep: the change it captured is
+                //  a whole root tree, which the replay puts on the branch as another session created it
+                //  (`service_replay.rs`, `Captured::unborn`).
+                let parents_are_fixed: bool = ready.fixed_parents && !matches!(native_inputs.capture.base, Base::Unborn);
+                if native && !sent.amend && !editor_possible && !ready.interactive && (!parents_are_fixed || conclusion_may_move) {
                     if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                         return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
                     }
@@ -374,15 +380,23 @@ pub fn service_commit<F: RepositoryFacts>(
                     let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!("monochromatic-git-policy-cli-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
                     match std::fs::write(&file, text) {
                         Ok(()) => {
-                            // After the editor the message is fixed: while the bound allows, Git builds the commit again on the new
-                            //  tip from `-F <file>`, with no editor and no person, unless the line borrows its author or its parents.
+                            // After the editor the message is fixed, and so is everything else the line took from somewhere other
+                            //  than itself: while the bound allows, Git builds the commit again on the new tip from the arguments
+                            //  `reissued_arguments` makes of what the preparation captured, with no editor and no person.
                             let prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
-                            let repeatable: bool = !sent.amend
-                                && !ready.interactive
-                                && (!ready.fixed_parents || conclusion_may_move)
-                                && with_fixed_message(native_inputs.arguments.as_slice(), prefix, file.as_path()).is_some();
+                            let reissued: Option<Vec<OsString>> = crate::service_commit_line_reissued::reissued_arguments(
+                                invocation.context,
+                                invocation.cwd,
+                                native_inputs.arguments.as_slice(),
+                                prefix,
+                                file.as_path(),
+                                sent.commit.as_deref(),
+                                ready.interactive,
+                            )?;
+                            let repeatable: bool = !sent.amend && (!parents_are_fixed || conclusion_may_move) && reissued.is_some();
                             if repeatable && may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                                 fixed_message = Some(file);
+                                reissued_line = reissued;
                                 retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
                                 unlanded.extend(sent.commit.clone());
                                 continue;

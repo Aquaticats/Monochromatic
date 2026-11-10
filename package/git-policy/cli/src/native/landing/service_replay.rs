@@ -63,9 +63,14 @@ const CORE_ID: &str = "concurrent-commit";
 /// kept for the retry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Captured {
-    /// The commit the change was prepared against,
-    /// which is the merge base of every retry.
+    /// The revision the replay merges from:
+    /// the commit the change was prepared against,
+    /// or the empty tree for a branch that did not exist yet,
+    /// because such a commit's change is a whole root tree and there is no commit to merge from.
     pub base: String,
+    /// Whether the branch did not exist when the change was captured,
+    /// so no history stands between the base and the branch as it is now.
+    pub unborn: bool,
     /// The tree of that base with the captured change applied.
     pub tree: String,
     /// When the worktree's bytes were captured (`CommitRequest::captured`);
@@ -187,9 +192,13 @@ pub struct MergeSite<'a> {
 /// ```
 pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<LandedCapture>) -> Result<Captured, TransactionStop> {
     let tree: String = captured_tree(context, cwd, ready.inputs.commit_index.as_path(), ready.inputs.capture.layout.object_directory.as_path())?;
+    // A branch that did not exist yet named the all-zero object as its base, which no Git step reads as a tree; the empty tree
+    //  is what that base holds, and the change captured against it is the whole root tree the person staged.
+    let unborn: bool = matches!(ready.inputs.capture.base, crate::transaction_journal::Base::Unborn);
+    let base: String = if unborn { ready.inputs.capture.layout.empty_tree_oid.clone() } else { ready.base.clone() };
     // The state the preparation saw, not a reading now: another command may have concluded the operation while this commit
     //  waited, and the retry must find the same one.
-    return Ok(Captured { base: ready.base.clone(), tree, captured: ready.captured_at, landed, conclusion: ready.conclusion_state.clone() });
+    return Ok(Captured { base, unborn, tree, captured: ready.captured_at, landed, conclusion: ready.conclusion_state.clone() });
 }
 
 /// What:
@@ -392,17 +401,21 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
 /// Why:
 ///   The conflict names the commit that landed first,
 /// in the words the person sees in their own log.
+///  A change captured on a branch that did not exist yet has no commit to leave out,
+///  so every commit the branch holds is a candidate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await firstLanded(context, cwd, base, tip, paths) // { short, subject } | undefined
 /// ```
-pub fn first_landed(context: &GitContext, cwd: &Path, base: &str, tip: &str, paths: &[Vec<u8>]) -> Result<Option<LandedFirst>, TransactionStop> {
-    let exclusion: String = format!("^{base}");
-    let mut spec_words: GitRequest = GitRequest::new(
-        cwd,
-        &["log", "--reverse", "--format=%h%x00%s", "--no-color", "--no-show-signature", tip, exclusion.as_str(), "--"],
-    );
+pub fn first_landed(context: &GitContext, cwd: &Path, base: Option<&str>, tip: &str, paths: &[Vec<u8>]) -> Result<Option<LandedFirst>, TransactionStop> {
+    let exclusion: Option<String> = base.map(|revision| { return format!("^{revision}"); });
+    let mut words: Vec<&str> = vec!["log", "--reverse", "--format=%h%x00%s", "--no-color", "--no-show-signature", tip];
+    if let Some(left_out) = exclusion.as_deref() {
+        words.push(left_out);
+    }
+    words.push("--");
+    let mut spec_words: GitRequest = GitRequest::new(cwd, words.as_slice());
     for path in paths {
         let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
         pathspec.extend_from_slice(path.as_slice());

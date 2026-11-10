@@ -159,8 +159,13 @@ fn stamps_by_commit(landed: &[LandedCapture]) -> HashMap<&str, u64> {
 /// ```ts
 /// ['log', '-m', '-r', '--raw', '-z', '--no-renames', '--no-abbrev', '--format=%H', tip, `^${base}`]
 /// ```
-fn history_arguments<'a>(tip: &'a str, exclusion: &'a str) -> Vec<&'a str> {
-    return vec!["log", "-m", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", "--format=%H", tip, exclusion];
+fn history_arguments<'a>(tip: &'a str, exclusion: Option<&'a str>) -> Vec<&'a str> {
+    let mut words: Vec<&'a str> = vec!["log", "-m", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", "--format=%H", tip];
+    match exclusion {
+        Some(left_out) => words.push(left_out),
+        None => {}
+    }
+    return words;
 }
 
 /// What:
@@ -284,8 +289,9 @@ pub fn capture_order_of_each(
         return Ok(decisions(&states));
     }
     let stamps: HashMap<&str, u64> = stamps_by_commit(captured.landed.as_slice());
-    let exclusion: String = format!("^{}", captured.base);
-    let arguments: Vec<&str> = history_arguments(tip, exclusion.as_str());
+    // A change captured on a branch that did not exist yet has no commit to leave out of the walk.
+    let exclusion: Option<String> = (!captured.unborn).then(|| { return format!("^{}", captured.base); });
+    let arguments: Vec<&str> = history_arguments(tip, exclusion.as_deref());
     let request: GitRequest = GitRequest::new(site.cwd, arguments.as_slice());
     let listed = run_git_checked(site.context, &request)?;
     match note_history(listed.stdout.as_slice(), &stamps, captured.captured, &mut states) {
