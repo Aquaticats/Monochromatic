@@ -396,6 +396,50 @@ raw `.ts` from a module touching `FileSystemWritableFileStream`,
 `config-typescript/dom` everywhere) satisfies the constraint at the
 workspace boundary.
 
+## A bare include or exclude path in an extended config resolves against the declaring file
+
+### Problem
+
+A shared preset's `exclude` list claims to filter a consuming package's
+generated or backup trees,
+ yet `tsc --showConfig` in the consumer still lists files from them.
+The preset looks right to whoever edits it,
+ because each bare path names a directory beside the preset,
+ not beside the consumer.
+
+### Root cause
+
+TypeScript resolves every relative `include` and `exclude` path against the config
+file that declares it,
+ not against the config file that extends it.
+Only `${configDir}` (TypeScript 5.5 and later) expands to the directory of the
+project being compiled.
+`package/config/typescript/tsconfig.options.json` therefore filtered
+`package/config/typescript/dist`,
+ `package/config/typescript/bak`,
+ and `package/config/typescript/node_modules`
+in every one of the packages extending it,
+ and a consumer whose `include` reached its own `dist` or `bak` tree type-checked
+generated sources the preset claimed to exclude (issue #1275).
+
+### Solution
+
+Spell out `${configDir}` in every `include` and `exclude` path of a shared preset.
+Keep consumer-specific filtering in the consumer's own tsconfig,
+ where a bare relative path already resolves against that consumer.
+
+### Verification
+
+`package/config/typescript/src/tsconfig-options.unit.test.ts` runs the workspace
+compiler's `--showConfig` on a disposable consumer holding
+`src/retained.ts`,
+ `dist/generated.ts`,
+ `bak/copied.ts`,
+ and `deprecated/retired.ts`.
+It asserts that every resolved `exclude` path lands inside that consumer and that
+only `src/retained.ts` survives in the resolved file list.
+Restoring the bare prefixes fails two of its three cases.
+
 ## Narrowing not preserved inside function declarations
 
 ### Problem
