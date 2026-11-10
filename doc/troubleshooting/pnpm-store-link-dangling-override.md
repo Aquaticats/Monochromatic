@@ -82,3 +82,60 @@ console.log(r.resolve('proper-lockfile'))"
 - Pointing the link into a worktree makes it dangle when that worktree is removed,
   so prefer a path that survives,
   such as the main checkout.
+
+## The same mechanism reached `@ungap/structured-clone`
+
+Probed on 2026-11-10 in the `pi-electron-lint-and-listener-sites` worktree.
+`mise run //package/ssg/aquati.cat:test:unit` failed in twenty files with:
+
+```text
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@ungap/structured-clone' imported from
+/var/home/user/.local/share/pnpm/store/v11/links/@/mdast-util-to-hast/13.2.1/<hash>/node_modules/mdast-util-to-hast/lib/footer.js
+```
+
+That dependency is also a `link:` override
+(`pnpm-workspace.yaml`,
+`'@ungap/structured-clone': 'link:package/pnpm-override/shim-ungap-structured-clone'`),
+and its store-link target overshot the filesystem root the same way:
+
+```sh
+readlink /var/home/user/.local/share/pnpm/store/v11/links/@/mdast-util-to-hast/13.2.1/<hash>/node_modules/@ungap/structured-clone
+# ../../../../../../../../../../../../../../var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/<other-worktree>/package/pnpm-override/shim-ungap-structured-clone
+```
+
+Fourteen `..` segments from a directory fifteen levels below `/` land on `/var`,
+so appending `var/mnt/...` resolves to `/var/var/mnt/...`.
+The target named a different worktree,
+so the link was written by whichever worktree installed last.
+
+### Repair that worked here
+
+A forced reinstall in the affected worktree rewrote that worktree's own store links:
+
+```sh
+mise exec -- pnpm install --offline --frozen-lockfile --force
+```
+
+It took 49.6 s over 241 workspace projects,
+reported `resolved 628, reused 628, downloaded 0`,
+and afterwards the same link resolved:
+
+```text
+../../../../../../../../../../../../../../mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-electron-lint-and-listener-sites/package/pnpm-override/shim-ungap-structured-clone
+```
+
+The suite then passed,
+and the parent `readlink -f` resolved to the shim inside this worktree.
+
+### Limits of that repair
+
+- One package version carries a store-link directory per project:
+  `store/v11/links/@/mdast-util-to-hast/13.2.1/` held 629 of them,
+  and a forced install repairs only the running project's own entries.
+- The repair therefore writes machine-global state that other worktrees also resolve through,
+  so it can leave a sibling worktree's entry pointing at this worktree.
+  Prefer the single-link repair above when only one dependency is broken,
+  and expect a concurrent install elsewhere to rewrite it again.
+- `pnpm install --offline --frozen-lockfile` without `--force` answers
+  `Lockfile is up to date` and `Already up to date`,
+  leaving every broken link in place.
