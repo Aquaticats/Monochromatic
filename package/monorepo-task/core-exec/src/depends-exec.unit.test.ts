@@ -11,9 +11,13 @@
 import {
   spawnSync,
 } from 'node:child_process';
+import { mkdtempDisposableSync, writeFileSync, } from 'node:fs';
+import { join, } from 'node:path';
 import {
   fileURLToPath,
 } from 'node:url';
+
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
   describe,
@@ -214,6 +218,48 @@ await describe({
         expect(outcome.stderr,).toContain(missingCommand,);
         expect(outcome.stderr,).toContain('ENOENT',);
         expect(outcome.stderr,).toContain('PATH',);
+      },
+    },),
+    it({
+      name: 'reports a start it was told to allow and leaves the exit status alone',
+      fn: async () => {
+        const missingCommand = 'no-such-command-for-an-allowed-collapsed-output-test';
+        const outcome = runExecutorInChild({
+          command: missingCommand,
+          commandArgs: [],
+          verbose: false,
+          allowFailure: true,
+          commandTimeoutMs: FINISHING_CHILD_BOUND_MS,
+        },);
+        expect(outcome.status,).toBe(SUCCESS_STATUS,);
+        expect(outcome.stderr,).toContain(missingCommand,);
+      },
+    },),
+    it({
+      name: 'names the permission reason when the file exists and cannot be run',
+      fn: async () => {
+        /**
+         Disposable folder holding a file this account may not execute.
+         */
+        using folder = mkdtempDisposableSync(join(
+          scratchRoot(),
+          'task-depends-exec-test-',
+        ),);
+        /**
+         Path of a script written without any execute bit.
+         */
+        const notExecutable = join(folder.path, 'not-executable',);
+        writeFileSync(notExecutable, '#!/bin/sh\necho should-not-run\n',);
+        const outcome = runExecutorInChild({
+          command: notExecutable,
+          commandArgs: [],
+          verbose: false,
+          allowFailure: false,
+          commandTimeoutMs: FINISHING_CHILD_BOUND_MS,
+        },);
+        expect(outcome.status,).toBe(UNREPORTED_STATUS,);
+        expect(outcome.stderr,).toContain('EACCES',);
+        expect(outcome.stderr,).toContain('may run it',);
       },
     },),
     it({
