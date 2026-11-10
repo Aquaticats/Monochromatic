@@ -80,16 +80,16 @@ gh pr create --base dev --head feature/my-feature --title "feat: my feature" --b
 
 **Main branch protection rules** (configured in GitHub web UI):
 
-1. Navigate to:
-    Repository Settings → Branches
-2. Add branch protection rule for `main`
-3. Enable:
-    "Require a pull request before merging"
-4. Optional settings to consider later:
-   - Require approvals
-   - Require status checks to pass
-   - Require conversation resolution
-   - Require branches to be up to date
+1.  Navigate to:
+     Repository Settings → Branches
+2.  Add branch protection rule for `main`
+3.  Enable:
+     "Require a pull request before merging"
+4.  Optional settings to consider later:
+    - Require approvals
+    - Require status checks to pass
+    - Require conversation resolution
+    - Require branches to be up to date
 
 **Current configuration**:
  Prevent direct pushes only
@@ -110,10 +110,10 @@ git push -u origin dev
 **Switch default branch** (optional,
  via GitHub web UI):
 
-1. Go to:
-    Repository Settings → General → Default branch
-2. Change from `main` to `dev`
-3. This makes `dev` the default for new clones and PRs
+1.  Go to:
+     Repository Settings → General → Default branch
+2.  Change from `main` to `dev`
+3.  This makes `dev` the default for new clones and PRs
 
 ### Common Scenarios
 
@@ -187,10 +187,10 @@ git push origin dev
 
 ### IDE Integration Improvements
 
-1. **Set up IDE integration**:
-   - Configure format-on-save for all developers
-   - Ensure TypeScript language server is properly configured
-   - Document recommended VS Code extensions in the project
+1.  **Set up IDE integration**:
+    - Configure format-on-save for all developers
+    - Ensure TypeScript language server is properly configured
+    - Document recommended VS Code extensions in the project
 
 ## Development Tools and Environment
 

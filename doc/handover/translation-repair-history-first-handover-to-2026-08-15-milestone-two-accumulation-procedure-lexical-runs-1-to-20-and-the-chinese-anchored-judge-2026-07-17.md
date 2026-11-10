@@ -27,38 +27,38 @@ Standing procedure was one run at a time
 (never concurrent;
 one stream per model is the fastest dispatch on
 this plan):
-1. Launch a budgeted benchmark pass:
-   `cd <worktree> && mise exec -- node <scratchpad>/repair-benchmark-run.ts`
-   where `<scratchpad>` is this session's scratchpad dir.
-   The driver
-   uses a 25-minute run budget,
-   4-minute per-call deadlines,
-   a 45-minute
-   outer safety net,
-   oversamples 6 shuffled small entries (700 to 2500
-   chars;
-   XIEPT2,
-   BI4PBV,
-   and shi_Yumiaoya quarantined),
-   and grades
-   with the zh-anchored judge as headline plus the lexical grader for
-   comparison.
-2. On completion (task notification re-invokes you):
-   read the run's
-   output file,
-   extract SCORECARD and the per-entry `judgments`
-   (headline),
-   `detection`,
-   and `lexical` lines.
-3. Append the run to the milestone-two run log below,
-   update the
-   JUDGE ACCUMULATED and detection tallies,
-   commit with
-   `/usr/bin/git` (docs(*) message),
-   push (auto-push on).
-4. Relaunch the next pass.
-   Repeat until the user returns or a genuine
-   blocker appears.
+1.  Launch a budgeted benchmark pass:
+    `cd <worktree> && mise exec -- node <scratchpad>/repair-benchmark-run.ts`
+    where `<scratchpad>` is this session's scratchpad dir.
+    The driver
+    uses a 25-minute run budget,
+    4-minute per-call deadlines,
+    a 45-minute
+    outer safety net,
+    oversamples 6 shuffled small entries (700 to 2500
+    chars;
+    XIEPT2,
+    BI4PBV,
+    and shi_Yumiaoya quarantined),
+    and grades
+    with the zh-anchored judge as headline plus the lexical grader for
+    comparison.
+2.  On completion (task notification re-invokes you):
+    read the run's
+    output file,
+    extract SCORECARD and the per-entry `judgments`
+    (headline),
+    `detection`,
+    and `lexical` lines.
+3.  Append the run to the milestone-two run log below,
+    update the
+    JUDGE ACCUMULATED and detection tallies,
+    commit with
+    `/usr/bin/git` (docs(*) message),
+    push (auto-push on).
+4.  Relaunch the next pass.
+    Repeat until the user returns or a genuine
+    blocker appears.
 Artifacts persist in this session's scratchpad across compaction:
 `repair-benchmark-run.ts` (driver),
    `repair-benchmark-accumulator.jsonl`
