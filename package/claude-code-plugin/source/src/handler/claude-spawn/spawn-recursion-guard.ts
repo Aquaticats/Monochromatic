@@ -215,7 +215,7 @@ function spawnChainDecision(env: Environment,): SpawnChainDecision {
       diagnostic: [
         `spawn-claude: refusing to spawn: this session is ${String(depth,)} spawn generations deep`,
         `and the limit is ${String(limit,)}. No terminal was opened.`,
-        'The guard stops one runaway turn from opening windows without end.',
+        'The guard bounds how deep a chain of spawned sessions may go, not how wide.',
         `Raise the limit with ${MAX_SPAWN_DEPTH_ENV}=<generations> in the environment`,
         'of the session that spawns, or do the work in this session.',
       ]

@@ -315,7 +315,7 @@ await describe({
       name: 'plugin documentation',
       children: [
         it({
-          name: 'states the limit, the variable that raises it, and no unbounded promise',
+          name: 'states the limit, the marker, the variable that raises it, and no unbounded promise',
           fn: async () => {
             /**
              Plugin README text, read once for every documented claim below.
@@ -325,9 +325,11 @@ await describe({
               'utf8',
             );
             expect(readme,)
-              .toContain(`\`${MAX_SPAWN_DEPTH_ENV}\``,);
+              .toContain(`nest up to ${String(DEFAULT_MAX_SPAWN_DEPTH,)} spawn generations deep`,);
             expect(readme,)
-              .toContain(String(DEFAULT_MAX_SPAWN_DEPTH,),);
+              .toContain(`\`${SPAWN_DEPTH_ENV}\``,);
+            expect(readme,)
+              .toContain(`\`${MAX_SPAWN_DEPTH_ENV}\``,);
             expect(readme,)
               .not
               .toContain('Arbitrary nesting depth is supported',);
