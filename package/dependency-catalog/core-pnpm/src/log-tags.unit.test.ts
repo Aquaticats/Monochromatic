@@ -8,6 +8,10 @@
  test drives the path that emits the line and reads the text the console sink
  writes.
 
+ The console sink is the destination these tests read, so a host that sets
+ `MONOCHROMATIC_LOG_CONSOLE=off` or `MONOCHROMATIC_WARN=false` makes them time
+ out; the repository's own build and test tasks set neither.
+
  @module
  */
 
