@@ -82,9 +82,10 @@ export const PNPM_BIN_DIR = '/tmp/cbin';
  repository that spell the store the way pnpm resolved the workspace's
  `storeDir` at install time, so a store written under the home the installing
  shell named is linked as `<home>/.local/share/pnpm/store/v11` even when that
- home is a mount of somewhere else. pnpm reports the store at the canonical
- path instead, and a container has no `/repo`-external path beyond the mounts
- it is given, so the mount destination has to be the spelling the links use.
+ home is a mount of somewhere else. pnpm's own report of the store carries
+ either spelling depending on where it runs, and a container has no
+ `/repo`-external path beyond the mounts it is given, so the mount destination
+ has to be the spelling the links use.
  
  @param hostStoreDir - store path pnpm reports, on the host
  

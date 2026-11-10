@@ -83,6 +83,11 @@ podman container:
 - The monorepo is bind-mounted read-only at `/repo`,
    so catalog-tighten and its
   `yaml` dependency resolve through the mounted symlinks without a build.
+- The pnpm store those symlinks point into is bind-mounted read-only too,
+   at the spelling the workspace's `node_modules` links use,
+   because a link out of `/repo` reaches nothing the container is not given.
+  `pnpm store path` can report either spelling of the same home,
+   so `containerStoreDir` maps its answer to the one the links name.
 - The fixture is written and installed in a writable tmpfs at `/work`.
 - pnpm is provisioned by corepack at the pinned version;
    the rootfs is
@@ -110,6 +115,19 @@ mise run //package/dependency-catalog/cli-tighten.matrix:test:unit
 - `src/combos.ts`:
    the combinations and the fixture file content (pure,
    unit-tested).
+- `src/container-paths.ts`:
+   the host and in-container paths, plus the store mount destination
+   the workspace's `node_modules` links name (pure, unit-tested).
+- `src/host-pnpm.ts`:
+   the pnpm spec and store directory the host's pnpm reports,
+   read from its output and not from a pinned version (unit-tested).
+- `src/podman-args.ts`:
+   the `podman run` argv for one combination,
+   read-only mounts included (pure, unit-tested).
+- `src/mutations.ts`:
+   the post-install mutations applied before the tool runs.
+- `src/tool-result.ts`:
+   the classification of one tool run, shared with the host-only tests.
 - `src/in-container.ts`:
    the per-combination entrypoint that runs inside a container.
 - `src/matrix.unit.matrix.test.ts`:
