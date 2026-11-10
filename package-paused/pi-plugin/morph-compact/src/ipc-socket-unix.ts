@@ -76,17 +76,19 @@ export type OneShotSocketServerResult = {
  
  @returns the socket path and a cleanup function
  
- @throws when the socket cannot be created or bound
+ @throws when the per-user runtime directory is unset, or when the socket cannot be created or bound; a bind failure
+ arrives on the server's asynchronous `error` event, so it is reported by rejecting the returned promise and carries
+ the socket error
  
  @example
  ```typescript
- const { socketPath, cleanup } = createOneShotSocketServer(compressedText);
+ const { socketPath, cleanup } = await createOneShotSocketServer(compressedText);
  // pass socketPath to new pi session via --morph-compact-socket
  ```
  */
-export function createOneShotSocketServer(
+export async function createOneShotSocketServer(
   text: string,
-): OneShotSocketServerResult {
+): Promise<OneShotSocketServerResult> {
   /**
    Per-user runtime directory, the only place a short socket path is guaranteed; the system temporary directory is
    never used because its backing device is unknowable.
@@ -155,7 +157,10 @@ export function createOneShotSocketServer(
     })();
   }
 
-  handles.server = createServer(
+  /**
+   Server serving the one-shot payload to its first accepted client.
+   */
+  const server = createServer(
     /**
      Serves text through accepted host socket.
      
@@ -186,17 +191,75 @@ export function createOneShotSocketServer(
       queueMicrotask(close,);
     },
   );
+  handles.server = server;
 
-  handles.server
-    .listen(socketPath,);
+  /* oxlint-disable eslint-plugin-promise/avoid-new -- wrapping the server's asynchronous `listening` and `error` events requires manual Promise construction */
+  /**
+   Settles once the socket is bound and listening, and rejects with the bind
+   failure `listen` reports on the server's `error` event. Without the
+   rejection a bind failure would leave the caller launching a session against
+   a socket path nobody serves.
+   */
+  const listening = new Promise<void>(
+    function awaitListening(
+      resolve,
+      reject,
+    ): void {
+      server.once(
+        'listening',
+        function onListening(): void {
+          resolve();
+        },
+      );
+      server.once(
+        'error',
+        /**
+         Rejects the bind with the host error that stopped it.
+         
+         @param err - Host-owned socket server failure retained as rejection reason.
+         
+         @mutates err - Promise rejection retains error as its rejection reason.
+         */
+        function onBindError(
+          err: ForeignBorrowed<Error>,
+        ): void {
+          reject(err,);
+        },
+      );
+    },
+  );
+  /* oxlint-enable eslint-plugin-promise/avoid-new */
 
-  handles.server
-    .on(
+  server.listen(socketPath,);
+  try {
+    await listening;
+  }
+  catch (error: unknown) {
+    // The bind failed: release the handle and the socket file, then report it.
+    close();
+    throw error;
+  }
+
+  server.on(
     'error',
-    function handleError(): void {
+    /**
+     Records a failure that arrives after the socket started listening, and
+     releases the server; the bind failures that matter to callers already
+     rejected the promise above.
+     
+     @param err - Host-owned socket server failure.
+     */
+    function handleServerError(
+      err: ForeignBorrowed<Error>,
+    ): void {
+      tagged({
+        tag: handleServerError.name,
+        l,
+      },)
+        .debug(`Socket server failed after listening: ${String(err,)}`,);
       close();
     },
-    );
+  );
 
   // Auto-cleanup after idle timeout
   handles.idleTimer = setTimeout(

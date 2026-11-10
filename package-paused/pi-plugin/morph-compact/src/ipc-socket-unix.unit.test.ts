@@ -16,6 +16,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   createOneShotSocketServer,
+  type OneShotSocketServerResult,
   readFromUnixSocket,
 } from './ipc-socket-unix.ts';
 
@@ -72,7 +73,7 @@ async function runProbeChild(body: string,): Promise<string> {
 
 /** Wrap a socket server result so `using` calls cleanup automatically. */
 function usingSocketServer(
-  result: ReturnType<typeof createOneShotSocketServer>,
+  result: OneShotSocketServerResult,
 ): Disposable & {
   socketPath: string;
 } {
@@ -93,7 +94,7 @@ await describe({
           timeout: 15_000,
           fn: async () => {
             const text = 'compressed context via socket';
-            using server = usingSocketServer(createOneShotSocketServer(text,),);
+            using server = usingSocketServer(await createOneShotSocketServer(text,),);
 
             const received = await readFromUnixSocket(server.socketPath,);
             expect(received,).toBe(text,);
@@ -104,7 +105,7 @@ await describe({
           timeout: 15_000,
           fn: async () => {
             const text = 'x'.repeat(150_000,);
-            using server = usingSocketServer(createOneShotSocketServer(text,),);
+            using server = usingSocketServer(await createOneShotSocketServer(text,),);
 
             const received = await readFromUnixSocket(server.socketPath,);
             expect(received,).toBe(text,);
@@ -115,7 +116,7 @@ await describe({
           timeout: 15_000,
           fn: async () => {
             const text = 'hello\nworld\t"quotes" \'single\' $var `backtick` \\slash\\';
-            using server = usingSocketServer(createOneShotSocketServer(text,),);
+            using server = usingSocketServer(await createOneShotSocketServer(text,),);
 
             const received = await readFromUnixSocket(server.socketPath,);
             expect(received,).toBe(text,);
@@ -124,8 +125,8 @@ await describe({
         it({
           name: 'creates unique socket paths for each call',
           fn: async () => {
-            const first = createOneShotSocketServer('first',);
-            const second = createOneShotSocketServer('second',);
+            const first = await createOneShotSocketServer('first',);
+            const second = await createOneShotSocketServer('second',);
 
             expect(first.socketPath,).not.toBe(second.socketPath,);
 
@@ -138,7 +139,7 @@ await describe({
           timeout: 15_000,
           fn: async () => {
             const text = 'one-shot data';
-            using server = usingSocketServer(createOneShotSocketServer(text,),);
+            using server = usingSocketServer(await createOneShotSocketServer(text,),);
 
             // First read succeeds
             const received = await readFromUnixSocket(server.socketPath,);
@@ -173,7 +174,7 @@ await describe({
           timeout: 15_000,
           fn: async () => {
             const text = 'round-trip via Unix socket';
-            using server = usingSocketServer(createOneShotSocketServer(text,),);
+            using server = usingSocketServer(await createOneShotSocketServer(text,),);
 
             const received = await readFromUnixSocket(server.socketPath,);
             expect(received,).toBe(text,);
@@ -198,7 +199,7 @@ await describe({
           timeout: 15_000,
           fn: async () => {
             const childOutput = await runProbeChild(`
-const { socketPath } = moduleUnderTest.createOneShotSocketServer(${JSON.stringify(PROBE_TEXT,)});
+const { socketPath } = await moduleUnderTest.createOneShotSocketServer(${JSON.stringify(PROBE_TEXT,)});
 const text = await moduleUnderTest.readFromUnixSocket(socketPath);
 console.log(text);
 `,);
