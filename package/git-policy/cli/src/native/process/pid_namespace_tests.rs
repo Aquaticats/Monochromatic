@@ -215,9 +215,10 @@ fn the_patience_is_twice_the_merge_ceiling() {
     assert_eq!(FOREIGN_OWNER_PATIENCE, Duration::from_secs(2 * 60), "the owner's two minutes");
 }
 
-/// The patience outlasts the longest hold of this population that was ever measured
+/// The patience outlasts the longest hold of a lock this repository ever measured
 /// (119,721 ms,
-/// the commit service's hold of an index in its journal),
+/// the commit service's hold of an index in its journal,
+/// the closest proxy there is for the age of a record of another namespace),
 /// so a live owner's record is still not judged past the patience while its hold runs.
 /// The longest whole command in the commit timing log (1,228,797 ms) is a command's length,
 /// not the age of a record.

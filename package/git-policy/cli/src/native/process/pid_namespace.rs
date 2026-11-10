@@ -48,7 +48,9 @@ use std::time::{Duration, SystemTime};
 /// which the add's work can move,
 /// so its age is at most the add's
 ///  length.
-/// The patience must outlast the longest such hold.
+/// The patience should outlast the longest such hold;
+/// the owner chose a shorter one than the longest add measured here,
+/// and "Limit" below says what that costs.
 ///  Basis:
 /// twice `MERGE_LOCK_CEILING` (one minute,
 /// `wait_ceilings.rs`),
@@ -73,12 +75,15 @@ use std::time::{Duration, SystemTime};
 ///  rule (2026-11-03,
 /// "nothing should ever wait forever or indefinitely") bounded those waits instead.
 /// Measured:
-/// the longest hold of this population in the commit service's journal is the `lock_hold_ms` of
+/// the longest hold of a lock the commit service's journal records is the `lock_hold_ms` of
 ///  119,721 ms (4,386 `answered` lines,
 /// 2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00),
 /// a hold of the index,
 /// which leaves 239 ms
 ///  inside this patience.
+/// That figure is the closest proxy there is:
+/// the journal times the service's own holds,
+/// and no log keeps the age of a record of another namespace.
 /// The longest whole commands of the same logs are longer
 /// (539.7 s for the longest of 79 worktree adds,
 ///  750.6 s for the longest of 1,838 commits,

@@ -4841,9 +4841,11 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   it was 20 minutes,
   twice a ten minute lock ceiling that no wait took and that this release deleted.
   Measured:
-  the longest hold of this population in the service journal is the `lock_hold_ms` of 119,721 ms (4,386 answers,
+  the longest hold of a lock the service journal records is the `lock_hold_ms` of 119,721 ms (4,386 answers,
   2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00),
-  which the patience clears by 239 ms;
+  which the patience clears by 239 ms,
+  and it is the closest proxy there is,
+  since no log keeps the age of a record of another namespace;
   the longer figures of the same logs (a 751 s commit,
   a 540 s worktree add,
   a 1,228,797 ms command) time whole commands of this host's own PID namespace and not a record of another one.
