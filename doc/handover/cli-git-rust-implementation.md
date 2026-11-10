@@ -167,6 +167,46 @@ branch and checked-out files,
 and no ignored state.
 The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
 
+#### Wrapper landings on the evening of the overlay fix, and what they left open (2026-11-09T19:38:39-05:00)
+
+Landed on main,
+each tested on main first:
+
+- `994813362d`:
+  recovery clears the index lock a killed Git left and finishes the merge (305 unit and 44 end-to-end tests).
+- `72031f5156`:
+  a branch write refused by a reference lock names every standing lock (415 unit and 10 end-to-end tests).
+  The commit still does not land past a dead lock;
+  `doc/handover/questions-for-the-owner.md` asks the owner which of its options to take.
+- `355bacb1cd`:
+  the lock scan reads an overlay descriptor in a bounded child.
+  Its full container run ended 18 failed of 6,832,
+  and none of the 18 is an overlay test.
+- `7ef420a0e8`:
+  the two word-merge controls wait on the pass itself through a gated stand-in Git (9 unit and 40 end-to-end tests).
+
+Still open before a fresh release gate:
+
+- That run's 17 binary failures are in the `budget`,
+  `service_lane`,
+  `service_native`,
+  `service_replay`,
+  `service_provision`,
+  `dependent_version` and `option_order_guard` groups.
+  `fix/git-policy-cli-gate-failures-after-todays-landings` is working on gate failures,
+  and whether it covers all 17 is not known until it reports.
+  The one unit failure,
+  `worktree_copy_stage_claim::tests::a_record_whose_named_git_still_runs_is_kept_while...`,
+  has no owner yet.
+- `fix/git-policy-cli-worktree-copy-install-keeps-modes-and-finishes` passes 715 of 715 unit tests on main,
+  but `fault_trace::a_worktree_copy_killed_at_each_mkdir_leaves_a_recoverable_repository` failed:
+  a kill at the third `mkdir` left a worktree with no ignored rules file and no record naming it.
+  It went back to its agent and has not landed.
+
+The installed wrapper printed `could not stage ignored state from "/var/mnt/encrypted/repository/Monochromatic". Cause: No such file or directory (os error 2)` on five `git worktree add` runs during a landing.
+Each worktree stayed registered on its branch,
+and the agent runs restarted in them.
+
 #### Landings while the gate on `283d7d9053` runs, and what they left open (2026-11-09T19:02:02-05:00)
 
 Landed on main,
@@ -1536,7 +1576,8 @@ now worded as this host's reading of the record.
 ### A sent-back commit keeps its private index, and a reference lock is named (2026-11-09T19:30:00-05:00)
 
 Branch `fix/git-policy-cli-commit-survives-dead-ref-lock-and-a-moved-branch`,
-from the Sonnet audit `~/temp/agent/sonnet-audits/commit-kills-and-concurrency/` (`final.md`, `findings.md`).
+from the Sonnet audit `~/temp/agent/sonnet-audits/commit-kills-and-concurrency/` (`final.md`,
+`findings.md`).
 Two findings,
 each with its control and its fix:
 a commit the service sent back to be prepared again read the private index of the attempt that captured it
