@@ -277,3 +277,70 @@ the worktree's own crate is cleaned out of it,
 and the source checkout's build directory is untouched.
 
 The records and counts of the six runs are in `${HOME}/temp/agent/prewarm-fixture/measure`.
+
+## What the review of the hand-over found
+
+Kimi K3.1 Pro reviewed the merged change at `aa7f601c6d` and wrote five findings
+(`${HOME}/temp/agent/kimi-reviews/worktree-add-package-repair-handover-1/review.md`).
+Each one was reproduced against this package's own code before anything changed.
+The controls that show them fail on `fc750a295d` and pass on the commits after it.
+
+### The service's clean rewrote `Cargo.lock`
+
+Reproduced with the job's own `prewarm_awaiting` against a real Cargo workspace.
+`cargo clean` resolves the worktree's workspace even though `CARGO_BUILD_BUILD_DIR` and
+`CARGO_TARGET_DIR` name directories of this job's own,
+so a lock that no longer matches its manifest is rewritten and a missing one is created,
+after the add has returned and the person may be working in the worktree.
+The lock is now read before the clean and put back exactly as checked out,
+through the same `package_repair_cargo_lock.rs` the add's own clean uses
+(`repair::package_repair_prewarm_job::tests::the_filling_puts_the_lock_back_as_checked_out`).
+
+### A directory at the staging name was removed without proof of ownership
+
+`fill_one` ran `remove_dir_all` on `<destination>.monochromatic-prewarm` whenever the destination
+was absent,
+so a directory at that name that this job did not make was deleted.
+The reviewer's own path to it,
+a build directory named `<other>.monochromatic-prewarm`,
+cannot happen:
+`doc/decision/cargo-build-dir-host-cache.md` hashes the workspace root into
+`<cache>/<two hex>/<fourteen hex>`,
+and no name with a suffix can be one of those hashes.
+The deletion itself is the defect, so the names are now claimed by a marker this job writes
+exclusively before it clones,
+and only names its own marker claims are removed.
+A directory no marker claims is somebody's work:
+the filling leaves it and stages under names of this run's own instead
+(`repair::package_repair_prewarm_job::tests::a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed`).
+
+### The clean's target directory was left behind
+
+`Filled::Published` returned before removing `<staging>.target`,
+so a directory of private build state stayed behind for every build directory successfully filled.
+The target directory is now given back whatever the filling came to
+(`repair::package_repair_prewarm_job::tests::a_published_filling_leaves_no_target_directory_of_its_own`).
+
+### The worktree-local Cargo fallback looked in the wrong directory
+
+The fallback after the search path is the worktree's own `.cache/toolchain-bin/cargo`,
+which sits at the worktree root,
+and the filling looked for it under the record's first workspace root.
+A record whose workspace is nested,
+such as `package/example`,
+found nothing there and failed the whole filling.
+The lookup now starts from the record's repository, which is the worktree root
+(`repair::package_repair_prewarm_job::tests::the_worktrees_own_cargo_link_is_found_from_the_worktree_root_for_a_nested_workspace`).
+
+### A worktree added again at one path was answered as already known
+
+The record's object name was a digest of the worktree's path alone,
+and the queue answers an id it already knows as known in `pending`, `claimed`, `done` and `failed`.
+A worktree removed and added again at the same path was therefore queued as known and never filled,
+and a filling that failed could never be asked for again:
+the service settles a failure into `failed` and reads no record back.
+The object name is now a digest of the worktree's path and the millisecond the add asked,
+so each hand-over is its own record.
+A second record for one destination costs nothing when it runs:
+the destination-exists check answers `Filled::Kept` before anything is cloned
+(`repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`).
