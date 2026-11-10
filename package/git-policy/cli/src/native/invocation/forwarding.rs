@@ -243,7 +243,8 @@ pub trait ChildStarted {
 pub struct NoChildRecorded;
 
 impl ChildStarted for NoChildRecorded {
-    /// Keep nothing: this caller has no record to name the child in.
+    /// Keep nothing:
+    /// this caller has no record to name the child in.
     fn started(&mut self, _pid: u32) {}
 }
 
