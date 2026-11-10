@@ -88,10 +88,30 @@ const loggedStepCounts = [
 /**
  Source text of the execution module.
  
- @returns module text the assertions scan
+ @returns module text the documentation assertions scan
  */
 function runModuleSource(): string {
   return readFileSync(runModulePath, 'utf8',);
+}
+
+/**
+ Source text of the execution module without comment lines.
+ 
+ Code assertions scan this text, so a statement in prose never counts as a declaration and a
+ name mentioned in prose never reads as a call.
+ 
+ @returns module lines that carry code
+ */
+function runModuleCode(): string {
+  return runModuleSource()
+    .split('\n',)
+    .filter(function isCodeLine(line,) {
+      const trimmed = line.trim();
+      return !(trimmed.startsWith('*',)
+        || trimmed.startsWith('//',)
+        || trimmed.startsWith('/*',));
+    },)
+    .join('\n',);
 }
 
 /**
@@ -187,7 +207,7 @@ await describe({
         it({
           name: 'calls the shared prologue once per ladder instead of repeating it',
           fn: async () => {
-            const source = runModuleSource();
+            const source = runModuleCode();
 
             expect(occurrences(source, `${sharedPrologue}(`,),).toBe(
               laddersSharingPrologue,
@@ -200,7 +220,7 @@ await describe({
         it({
           name: 'dispatches the same arity guards and step labels on both ladders',
           fn: async () => {
-            const source = runModuleSource();
+            const source = runModuleCode();
 
             for (const arity of guardedArities)
               expect(occurrences(source, `if (fn${String(arity,)} === undefined)`,),).toBe(
