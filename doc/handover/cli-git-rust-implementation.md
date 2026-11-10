@@ -96,19 +96,33 @@ drops the record and the ref,
 and makes the round again on what the file holds now
 (`a_clear_that_met_newer_bytes` in `merge_isolation_apply.rs`),
 so a save during a merge neither fails the command nor is replaced,
-and the round loop's ceiling (`MAX_ROUNDS`, twenty) bounds a file saved again and again.
+and the round loop's ceiling (`MAX_ROUNDS`,
+twenty) bounds a file saved again and again.
 
 Evidence:
-`cargo nextest run --test native_binary -- merge_carries_edits` is 17 tests,
+`cargo nextest run --test native_binary -- merge_carries_edits` is 19 tests,
 all passing,
-including the five new controls:
+including the six new controls:
 a kill between the layers,
 a kill before the clear writes anything,
 a kill between two carried files,
 a kill after the carried files (which also asserts no line claims a change that did not happen),
-and a save between the index step and the file.
+a save between the index step and the file,
+and a save that keeps the file's length and its modification time (which only the bytes can see).
 Each was run failing before the fix;
-the two reported cases failed exactly as the script showed.
+the two reported cases failed exactly as the script showed,
+and the same-length control fails when the byte comparison is taken out (identity alone kept the older line).
+The whole binary suite ran once:
+900 tests,
+894 passed,
+and of the five failures one was this branch's
+(`merge_isolation::a_relative_directory_option_carries_a_merge_over_an_untracked_file`,
+a relative `-C` applied twice to the placement's reads,
+fixed in `e7f4216e14`),
+three were the fixture service running out of threads under the suite's own parallelism,
+and one was the commit path's "inside a write of the commit service" note on standard error in
+`service_sequencer::a_pathspec_commit_during_a_revert_is_what_git_makes`,
+which `without_wait_notices` does not filter and which fails alone under load.
 
 Limits and unknowns:
 the take's check is the file's identity and then its bytes,
@@ -117,7 +131,8 @@ not seen,
 which is the limit finding 4 of that planning doc already records for the second pass.
 Killing the process between the take and the placing leaves the judged entry under a `cli-git-recovery-*`
 private name with the path empty until the next command puts it back;
-the controls for that are the second pass's, not this branch's.
+the controls for that are the second pass's,
+not this branch's.
 
 Next action:
 review and merge this branch;
