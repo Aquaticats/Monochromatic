@@ -27,6 +27,8 @@ export {
   copiedAssetsPlugin,
 } from './copied-assets.ts';
 
+//region Resolved targets and bundle-inclusion lists
+
 /**
  Resolved Browserslist targets shared by Node builds, via
  {@link browserslistTargets}.
@@ -55,6 +57,10 @@ export const NODE_ALWAYS_EXTERNAL: readonly string[] = [
   '@earendil-works/pi-ai',
 ];
 
+//endregion Resolved targets and bundle-inclusion lists
+
+//region Externals: manifest dependencies and pi runtime peers
+
 /**
  Build the Node flavor external list for a custom bundle-inclusion set.
  
@@ -81,6 +87,10 @@ export async function nodeExternal({ alwaysBundle, }: {
     },),
   ];
 }
+
+//endregion Externals: manifest dependencies and pi runtime peers
+
+//region Shared build pieces: plugins, options and output
 
 /**
  Plugins shared by every Node build:
@@ -129,6 +139,10 @@ const baseOutput = {
     codegen: true,
   },
 };
+
+//endregion Shared build pieces: plugins, options and output
+
+//region One-package Node builds: input narrowing and config
 
 /**
  Narrow a flavor input union to its list form.
@@ -209,6 +223,10 @@ export function nodeConfig(
     },
   },);
 }
+
+//endregion One-package Node builds: input narrowing and config
+
+//region Family library builds
 
 /**
  Build a library member of a package family: its family siblings stay
@@ -291,6 +309,10 @@ export async function familyLibraryNodeConfig({
   },);
 }
 
+//endregion Family library builds
+
+//region Default and per-entry configs
+
 /**
  Default single-input Node build config via {@link nodeConfig}.
  
@@ -363,6 +385,10 @@ export function perEntryNodeConfig(
   },),);
 }
 
+//endregion Default and per-entry configs
+
+//region Consumer-facing config types
+
 /**
  Consumer-facing alias for Node flavor config values, so package configs
  can annotate their exported const without depending on rolldown directly.
@@ -373,3 +399,5 @@ export type NodeFlavorConfig = RolldownOptions;
  Consumer-facing alias for per-entry Node flavor config arrays.
  */
 export type NodeFlavorConfigs = RolldownOptions[];
+
+//endregion Consumer-facing config types
