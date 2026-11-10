@@ -14,22 +14,20 @@ import {
 
 import {
   byPidDir,
-  reportedStatePath,
-  spawnsDir,
-  spawnStatePath,
-  type SpawnState,
-} from './paths.ts';
-import {
   checkCompletedChildren,
   claimSpawn,
   completeSpawn,
   formatSpawnResult,
   isSpawnJsonFilename,
   NOTHING_TO_REPORT,
+  reportedStatePath,
   spawnIdFromJsonFilename,
+  spawnsDir,
+  spawnStatePath,
+  type SpawnState,
   writeInitialSpawnState,
   writePidMapping,
-} from './state.ts';
+} from '../dist/final/node/testing.mjs';
 import {
   envVar,
   tempDir,

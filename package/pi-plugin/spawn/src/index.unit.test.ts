@@ -3,6 +3,7 @@ import {
   readFileSync,
 } from 'node:fs';
 import { join, } from 'node:path';
+import { fileURLToPath, } from 'node:url';
 
 import {
   describe,
@@ -12,18 +13,17 @@ import {
 
 import spawnPi, {
   deliverCompletedChildren,
-} from './index.ts';
-import {
-  SPAWN_EXTENSION_PATH_ENV,
-  SPAWN_ID_ENV,
-  SPAWN_PI_CUSTOM_TYPE,
-} from './constants.ts';
+} from '@monochromatic-dev/pi-plugin-spawn';
 import {
   byPidDir,
   reportedStatePath,
+  SPAWN_EXTENSION_PATH_ENV,
+  SPAWN_ID_ENV,
+  SPAWN_PI_CUSTOM_TYPE,
   spawnStatePath,
   type SpawnState,
-} from './paths.ts';
+  writeInitialSpawnState,
+} from '../dist/final/node/testing.mjs';
 import {
   createAgentEndEvent,
   createExtensionContext,
@@ -31,15 +31,19 @@ import {
   createSessionStartEvent,
   fakePiApi,
   onlyHandler,
-} from './pi-test-harness.ts';
-import {
-  writeInitialSpawnState,
-} from './state.ts';
+} from './pi-api-fixture.ts';
 import {
   CLEAR_ENV,
   envVar,
   tempDir,
 } from './test-support.ts';
+
+/**
+ The extension module the exports map names, which is what the entry propagates to a
+ child pi process as its own module path. Derived here rather than spelled out, so the
+ assertion grounds on the artifact this package builds.
+ */
+const EXTENSION_MODULE_PATH = fileURLToPath(import.meta.resolve('@monochromatic-dev/pi-plugin-spawn',),);
 
 /**
  Fields tests may override on default extension spawn state fixture.
@@ -145,7 +149,7 @@ await describe({
           },),
         );
 
-        expect(process.env[SPAWN_EXTENSION_PATH_ENV]?.endsWith('/index.ts',),).toBe(true,);
+        expect(process.env[SPAWN_EXTENSION_PATH_ENV],).toBe(EXTENSION_MODULE_PATH,);
         expect(readFileSync(join(
           byPidDir(),
           String(process.pid,),

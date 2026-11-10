@@ -11,8 +11,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { byPidDir, } from './paths.ts';
 import {
+  byPidDir,
   findByMostRecent,
   findCallingSession,
   readByPidDir,
@@ -20,12 +20,12 @@ import {
   readPidMapping,
   SESSION_NOT_FOUND,
   walkProcessTreeFrom,
-} from './session-finder.ts';
+  writePidMapping,
+} from '../dist/final/node/testing.mjs';
 import {
   envVar,
   tempDir,
 } from './test-support.ts';
-import { writePidMapping, } from './state.ts';
 
 /**
  Writes mapping fixture directly to PID mapping directory.

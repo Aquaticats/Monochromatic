@@ -18,7 +18,7 @@ import {
   isBuiltExtensionPath,
   NO_CLI_SETUP_WARNING,
   packageRootFromExtensionPath,
-} from './setup-cli.ts';
+} from '../dist/final/node/testing.mjs';
 import {
   envVar,
   tempDir,

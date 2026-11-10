@@ -9,7 +9,7 @@ import {
   extractLastAssistantText,
   isAssistantMessage,
   isTextBlock,
-} from './message-extract.ts';
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: '',

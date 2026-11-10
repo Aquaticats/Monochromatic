@@ -16,7 +16,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { SESSION_NOT_FOUND_WARNING, } from './cli-core.ts';
+import { SESSION_NOT_FOUND_WARNING, } from '../dist/final/node/testing.mjs';
 import { tempDir, } from './test-support.ts';
 
 /**

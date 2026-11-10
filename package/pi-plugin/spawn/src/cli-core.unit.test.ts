@@ -10,9 +10,9 @@ import {
   piCommandArguments,
   SESSION_NOT_FOUND_WARNING,
   terminalInvocation,
+  type PidMapping,
   UNLINKED_SPAWN_TITLE,
-} from './cli-core.ts';
-import type { PidMapping, } from './paths.ts';
+} from '../dist/final/node/testing.mjs';
 
 /**
  Parent mapping fixture used by CLI core tests.

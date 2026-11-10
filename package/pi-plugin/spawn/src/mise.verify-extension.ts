@@ -21,7 +21,7 @@ import {
   createSessionStartEvent,
   fakePiApi,
   onlyHandler,
-} from './pi-test-harness.ts';
+} from './pi-api-fixture.ts';
 import {
   envVar,
   tempDir,
