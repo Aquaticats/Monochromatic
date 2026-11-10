@@ -8869,6 +8869,178 @@ cleared.
   and the plan puts T13 after the whole move for that reason.
 
 
+## Step T12, the trash the drain dropped: a work item of every kind goes through the awaited drain, 2026-11-10T01:34:09-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-drain-pending-and-landing-round` in
+  `.claude/worktrees/pi-tokio-drain-pending-and-landing-round`.
+  Main was merged into it as `13967bfec9` by the coordinator,
+  and again by this run as `7856e87e96` when `origin/main` had moved to
+  `dc63e09c24`.
+  Commit `3a42f1aa05` is the fix,
+  and the commit that carries this section is named in it.
+  Not merged into main.
+- What the coordinator measured,
+  and what this run found:
+  `worktree::worktree_trash::tests::the_drain_empties_a_trash_item` failed
+  alone and in the selection at `13967bfec9`,
+  and the wrapper's own word for the reason was in the test's stderr:
+
+  ```text
+  the trash ... could not be emptied: the runtime that runs this command's waits was asked for
+  from inside itself, where waiting for it would never end; nothing was run.
+  ```
+
+- The cause:
+  `WorkHandlers::trash` reached `empty_trash`
+  (`worktree/worktree_trash_dispose.rs`),
+  which reached `remove_entries`
+  (`worktree/worktree_trash_entries.rs`),
+  and that face enters the process's runtime for its entry removals
+  (`run_on_runtime`).
+  The drain of a round is a task of the runtime since the previous section,
+  so the entry removals were refused inside it,
+  the trash stayed,
+  and the item was settled as failed with the refusal as its reason.
+  The item was not dropped in silence:
+  it was settled,
+  and the person's line named the refusal as a defect.
+  What was lost was the emptying.
+- Why the previous record did not see it:
+  it listed `WorkHandlers::trash` as the last kind still synchronous,
+  and judged it safe because `empty_trash` starts no Git.
+  The judgement was about Git and missed the runtime:
+  a synchronous face is only safe for a task's caller when it does not enter
+  the runtime,
+  and the records merged from main made this one do so
+  (`delete_trash_awaiting`,
+  `dispose_pending_trash_awaiting` and `remove_entries_awaiting`).
+- Done:
+  `empty_trash_awaiting` (`worktree/worktree_trash_dispose_awaiting.rs`) is the
+  twin a task asks:
+  the same record decode,
+  the same reasons and `delete_trash_awaiting`'s awaited disposal.
+  `WorkHandlers::trash_awaiting` is the face the drain calls,
+  its default keeps the synchronous handler for a handler that knows nothing of
+  the runtime,
+  and `GitHandlers` answers through the awaited one.
+  The drain awaits it,
+  so no kind of work item reaches a synchronous face there any more.
+- Two supporting changes the awaited face needed,
+  both measured by the compiler rather than chosen:
+  - The awaited ordered runner's consumer is the caller's own type instead of
+    a `dyn` value
+    (`foundation/parallel_runner_on_the_runtime_awaiting.rs`,
+    `foundation/parallel_runner_on_the_runtime.rs` and
+    `foundation/parallel_runner.rs`).
+    A run's future held `&mut dyn OrderedEvents<R>`,
+    which is never `Send`,
+    so no task could reach an entry removal through it.
+    With the consumer named,
+    a run whose work and consumer are `Send` is a future a task may await,
+    and the consumers that lend a sink which is not `Send` (the worktree
+    conversion's report and the index refresh's lines) keep exactly the shape
+    they had:
+    their runs stay futures only a caller outside the runtime awaits,
+    and nothing in their files changed.
+  - `remove_entries` removes the entries in turn where it is called from
+    inside the runtime
+    (`worktree/worktree_trash_entries.rs`),
+    where entering the runtime is refused and a job of the blocking pool cannot
+    await either.
+    The per-entry body is one function (`remove_one`) for the pool job,
+    for the
+    awaited face and for this fallback,
+    so a trash emptied here holds what a trash emptied there holds;
+    only a handler written against the synchronous face takes that path,
+    which the drain of the service never does.
+    The reasons are the removal's own,
+    unchanged:
+    a prefix that named the entry again would say its name twice,
+    which
+    `worktree::worktree_trash_entries::tests::the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go`
+    caught while this run was written.
+
+### What pins each kind of work item
+
+- Push:
+  `landing::service_work::tests::pending_pushes_of_one_branch_become_one_push`
+  (one push for a branch's burst) and
+  `landing::service_work::push_retry_tests::the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers`
+  (the awaited face delivers what the synchronous one does).
+- Maintenance:
+  `landing::service_work::tests::upkeep_and_review_that_ran_leave_entries` and
+  `landing::service_work::push_retry_tests::the_awaited_maintenance_of_the_handlers_answers_what_the_synchronous_one_answers`.
+- Review:
+  `landing::service_work::tests::every_review_item_is_reviewed_once_after_the_pushes`,
+  `landing::service_work::tests::a_review_runs_through_the_real_handlers_in_a_service_context`
+  and
+  `landing::service_work::tests::the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers`.
+- Trash:
+  `worktree::worktree_trash::tests::the_drain_empties_a_trash_item` (the
+  coordinator's failing control,
+  green again) and
+  `worktree::worktree_trash::tests::the_two_faces_of_the_trash_handler_empty_what_a_task_and_a_thread_ask_about`
+  (the product's two faces,
+  one asked from a plain thread and one from a task).
+- All four kinds in one task:
+  `landing::service_work::tests::the_awaited_drain_runs_every_kind_of_item`,
+  which asks one item of each kind through the awaited drain,
+  requires each handler to be asked once,
+  and requires all four to be in `done` with nothing left claimed.
+  Planted,
+  by asking the synchronous trash face from the drain as before,
+  the trash item is settled as failed with the refusal of the runtime and the
+  directory stays,
+  which is the failing output of the coordinator's control quoted above.
+
+### Checks
+
+- The coordinator's selection,
+  one run,
+  in a `systemd-run --user --scope` at `CPUQuota=600%`,
+  `MemoryMax=24G` and `TasksMax=4000`,
+  with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`,
+  over `the_drain`,
+  `service_work`,
+  `landing` and
+  `drain`:
+  866 of 866 passed in 88.1 s at `13967bfec9` with `3a42f1aa05` applied,
+  and 866 of 866 in 159.4 s at the merged tip (`7856e87e96`).
+  It is one more than the coordinator's 865:
+  `the_awaited_drain_runs_every_kind_of_item` is new.
+- The trash folder alone,
+  `worktree::worktree_trash`:
+  55 of 55 passed in 16.5 s,
+  which holds the coordinator's control,
+  the two new ones and the entries folder's own reasons control.
+- The binary target's landing tests,
+  `native:test:binary:host`,
+  the same four as the previous section:
+  4 of 4 passed in 11.2 s at the unmerged tip and 4 of 4 in 35.3 s at the
+  merged tip.
+- `native:clippy` clean on every target at both tips
+  (`Finished \`dev\` profile ... in 30.98s`,
+  then `in 34.52s`).
+- `//:lint:monochromatic-lint --max-warnings 0` on the thirteen files this run
+  touched:
+  0 errors and 0 warnings
+  (`Finished in 24.61s`).
+- Not run:
+  the whole `native:test:host` suite and the container gate (the coordinator
+  runs them),
+  `native:perf` (nothing of this run is in a forwarded command's path),
+  `native:clippy:windows`,
+  and any mutation campaign (paused by the owner).
+- Still blocking on the runtime,
+  unchanged by this run:
+  the service's work loop is a thread that calls `run_round` and enters the
+  runtime once,
+  `landing/service_land.rs` and the commit path are untouched,
+  and T13's guards are not started,
+  for the reason the previous section gives.
+
+
 ## Limits
 
 - Every tokio claim is read from tokio 1.54.1;
