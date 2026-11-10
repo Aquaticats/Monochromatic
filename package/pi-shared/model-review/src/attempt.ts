@@ -14,6 +14,7 @@ import type {
   ForeignHostCapability,
 } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import { packageLogger, } from './logger.ts';
 import type { ReviewSimpleStreamOptions, } from './provider-data.ts';
 import { streamStructuredReview, } from './provider-streams.ts';
 import {
@@ -31,18 +32,19 @@ import type {
   StructuredReviewToolRequest,
 } from './types.ts';
 
-/**
- Shared package logger.
- */
-const parentLogger = tagged({ tag: 'model-review', },);
+//region Logger -- package-tagged log lines for this module
 
 /**
  Attempt transport logger.
  */
 const l = tagged({
   tag: 'attempt',
-  l: parentLogger,
+  l: packageLogger,
 },);
+
+//endregion Logger -- package-tagged log lines for this module
+
+//region Cancellation signal -- caller abort beside the attempt deadline
 
 /**
  Build cancellation signal covering caller abort and complete attempt timeout.
@@ -83,6 +85,10 @@ function structuredReviewSignal(
       timeoutSignal,
     ],);
 }
+
+//endregion Cancellation signal -- caller abort beside the attempt deadline
+
+//region Request construction -- provider options, prompt context, and one JSON request
 
 /**
  Build Pi AI stream options without widening absent fields.
@@ -204,6 +210,10 @@ function runDirectJsonRequest(
   },);
 }
 
+//endregion Request construction -- provider options, prompt context, and one JSON request
+
+//region Public API -- initial forced-tool request and direct-JSON retry
+
 /**
  Run initial forced-tool request without caller-specific parsing or retry logic.
  
@@ -310,6 +320,8 @@ async function runStructuredJsonRetries(
     return runDirectJsonRequest(request,);
   }
 }
+
+//endregion Public API -- initial forced-tool request and direct-JSON retry
 
 export {
   runStructuredJsonRetries,
