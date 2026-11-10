@@ -7,7 +7,7 @@ import {
 import {
   IGNORED_EXTENSIONS,
   shouldIgnoreFile,
-} from './tsdoc-utils.ts';
+} from '../dist/final/node/index.mjs';
 
 await describe({
   name: shouldIgnoreFile.name,

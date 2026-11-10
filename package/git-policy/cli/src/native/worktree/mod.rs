@@ -260,6 +260,10 @@ pub mod worktree_trash;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_dispose;
 
+/// The service's handler for a trash work item,
+/// awaited by a caller that is itself a task of the runtime.
+pub mod worktree_trash_dispose_awaiting;
+
 /// Whether Git ignores the place a snapshot's trash would be made at in one worktree.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_ignore_rule;

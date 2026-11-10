@@ -20,7 +20,10 @@ export default {
   'lint:oxlint': { extends: 'lint:oxlint', },
   'format:oxlint': { extends: 'format:oxlint', },
   'lint:types': { extends: 'lint:types', },
-  'test:unit': { extends: 'test:unit', depends: ['build',], },
+  'test:unit': {
+    extends: 'test:unit',
+    depends: ['build',],
+  },
   'test:semantic-bridge-host': {
     description: 'Exercise built semantic bridge lifecycle on current host',
     run: 'node src/typescript-sync-adapter.unit.test.ts',

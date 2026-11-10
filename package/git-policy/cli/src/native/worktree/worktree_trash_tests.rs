@@ -13,7 +13,7 @@ use crate::claim_time::ClaimTime;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::iso_time::now_iso;
-use crate::service_work::{Verdict, WorkHandlers, drain, work_directory};
+use crate::service_work::{GitHandlers, Verdict, WorkHandlers, drain, work_directory};
 use crate::work_item::{WorkItem, WorkKind, enqueue};
 use crate::test_support::{age, fixture, git, git_context, remove, repository};
 use crate::worktree_copy_selection::STAGE_PREFIX;
@@ -386,6 +386,51 @@ fn the_drain_empties_a_trash_item() {
     let _next = drain(git_dir.as_path(), &Handler, &ClaimTime::read());
     assert!(!worktree.join(TRASH_PARENT).exists(), "emptied by the drain");
     assert!(state_directory(work_directory(git_dir.as_path()).as_path(), DONE).read_dir().expect("done listing").count() > 0, "settled as done");
+    remove(root.as_path());
+}
+
+/// What:
+///  The two faces of the service's trash handler empty the trash a task and a plain thread ask about,
+/// and they answer the same.
+/// Why:
+///   The drain of a round is a task of the runtime,
+/// and the synchronous face enters the runtime for the entry removals,
+///  which is refused from inside it:
+/// a task that asked it kept the trash and settled the item as failed (measured on
+///  `the_drain_empties_a_trash_item` before this face existed).
+/// So the two faces are asked about one fixture each,
+/// and each must empty its own trash and answer done.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(handlers.trash(threadItem)).toBe('done'); expect(await handlers.trashAwaiting(taskItem)).toBe('done')
+/// ```
+#[test]
+fn the_two_faces_of_the_trash_handler_empty_what_a_task_and_a_thread_ask_about() {
+    let root: PathBuf = fixture("trash-handler-faces");
+    std::fs::create_dir_all(root.as_path()).expect("the fixture's folder");
+    let name: String = "d".repeat(40);
+    let mut planted: Vec<PathBuf> = Vec::new();
+    for face in ["thread", "task"] {
+        let worktree: PathBuf = root.join(face).join("topic");
+        let git_dir: PathBuf = root.join(face).join("admin");
+        std::fs::create_dir_all(&git_dir).expect("admin");
+        std::fs::create_dir_all(&worktree).expect("worktree");
+        std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display()).as_str()).expect(".git file");
+        let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 2);
+        let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+        let handlers: GitHandlers = GitHandlers::new(git_context());
+        let answered: Verdict = if face == "thread" {
+            handlers.trash(&item)
+        } else {
+            // The task of the runtime a drain runs in, which cannot enter it.
+            crate::merge_second_pass::tests::await_it(handlers.trash_awaiting(&item))
+        };
+        assert_eq!(answered, Verdict::Done, "the {face} face empties the trash it is told about");
+        assert!(!worktree.join(TRASH_PARENT).exists(), "the {face} face emptied {TRASH_PARENT} and its parent");
+        planted.push(worktree);
+    }
+    assert_eq!(planted.len(), 2);
     remove(root.as_path());
 }
 
