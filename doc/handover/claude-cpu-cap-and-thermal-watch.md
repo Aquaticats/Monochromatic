@@ -1221,7 +1221,7 @@ No
 IOMMU group list for the user's CPU and kernel was seen.
 The Taichi Lite's Wi-Fi chip is unconfirmed,
 which no longer
-matters if the user buys a card (next section).
+matters if the user buys a card (see the "Wi-Fi card allowed" entry).
 
 ### Wi-Fi card allowed (user decision, about 23:45 EDT)
 

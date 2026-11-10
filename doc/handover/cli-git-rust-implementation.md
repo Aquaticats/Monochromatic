@@ -2402,9 +2402,11 @@ Still to do:
 
 - The landing's in-process index reset wrote the commit's paths with all-zero stat data,
   which the next commit refreshed once;
-  closed by the section below.
+  closed by "The landing records the stat data it can prove,
+  and the staleness question walks its entries in parallel".
 - The question's pass was single-threaded;
-  closed by the section below.
+  closed by "The landing records the stat data it can prove,
+  and the staleness question walks its entries in parallel".
 - Closed 2026-11-09:
   a preparation names no real index at all any more,
   so it never meets another program's `index.lock` and cannot wait on one.
