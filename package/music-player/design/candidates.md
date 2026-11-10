@@ -74,7 +74,12 @@ which were left as historical style comparisons.
   that was killed (D17).
 - **support.js**:
   generated Design Component runtime.
-   Never edit.
+   Never edit it to change what a candidate
+  renders;
+   it was edited once so its React,
+   ReactDOM and Babel builds load from
+  `vendor/` instead of a content delivery network,
+   which `vendor/README.md` describes.
 
 ---
 
@@ -970,6 +975,12 @@ see open-questions.md #3).
   MD3 baseline with selected Expressive touches.
 
 ### Identity explorations (MD3 won)
+Each page here keeps the typeface character it was explored with, using a face the design
+system ships, because no page asks a font host any more.
+ id-own takes `Google Sans Text`, id-fluent
+`Google Sans`, id-protool `Roboto Flex` with the system monospace for its labels, since no
+monospace face is shipped.
+ Their weights above 500 are synthesised by the browser.
 - **id-fluent**:
   Fluent-flavoured.
    **id-protool**:

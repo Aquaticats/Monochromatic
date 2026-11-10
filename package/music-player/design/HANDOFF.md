@@ -3300,10 +3300,24 @@ the user as decisions;
    Use it
   through the logic class rather than hand-typing folder lists.
 - **candidates/support.js** is generated runtime plumbing.
-   Never edit it.
+   Never edit it to change what a
+  candidate renders.
+   It was edited once to load its builds from `vendor/` instead of a content
+  delivery network;
+   `vendor/README.md` records what that change was.
 - Fonts:
-   Roboto (400/500) via Google Fonts,
-   matching MD3’s default typeface.
+   the design system's own faces,
+   `Roboto Flex` for product text plus `Google Sans`,
+  `Google Sans Text` and `Material Symbols`,
+   all served from
+  `_ds/material-design-3-design-system-503c3571-4db9-4b54-8695-7f53861f5059/tokens/fonts.css`.
+  No page asks a font host.
+- Every page renders with no network.
+   React,
+   ReactDOM and Babel stand beside the pages in
+  `vendor/`;
+   `mise run //package/music-player/design:test:offline-pages` and its
+  `:render` sibling hold that.
 - Preview sizes are declared per file in its props as `$preview: {width, height}`.
   For device layouts these are set to the real dp figures.
 
