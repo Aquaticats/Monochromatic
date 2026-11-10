@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { containsBoundedAccessTag, } from './tag-validation.ts';
+import { containsBoundedAccessTag, } from '../../dist/final/node/index.mjs';
 
 /** Count of near-miss repetitions used to exercise the walk across many candidates. */
 const LONG_RUN = 1_000;

@@ -6,6 +6,10 @@ import type {
   Token,
 } from '@oxlint/plugins';
 
+//region Constants
+// The comma itself, the two absence sentinels, and the delimiters that can
+// follow a comma-delimited list.
+
 /**
  Token value required at list tails.
  */
@@ -30,6 +34,11 @@ const CLOSE_DELIMITERS: ReadonlySet<string> = new Set([
   '}',
   '>',
 ],);
+//endregion Constants
+
+//region Types
+// The absence sentinels' unions, the runtime field views, and the parameter
+// shape of every exported check.
 
 /**
  AST node or absence sentinel accepted by comma-dangle checks.
@@ -150,6 +159,11 @@ type InsertionTokenParams = {
    */
   readonly useContainerPenultimateToken: boolean;
 };
+//endregion Types
+
+//region Node and field reading
+// oxlint types a visitor node as bare `Span`, so the fields each list lives in
+// are read through runtime guards instead of casts at every site.
 
 /**
  Reports whether a value is an object with readable fields.
@@ -306,6 +320,11 @@ function lastNode(items?: readonly unknown[],): OptionalNode {
 
   return NO_NODE;
 }
+//endregion Node and field reading
+
+//region Last-item lookups
+// Where each supported list keeps its tail, including the two containers whose
+// tail is not a plain field.
 
 /**
  Returns last node from a named array field.
@@ -430,6 +449,11 @@ export function lastImportExpressionItem(node: ForeignBorrowed<Node>,): Optional
 
   return NO_NODE;
 }
+//endregion Last-item lookups
+
+//region Token lookups
+// The neighbouring tokens an insertion point needs, each reported as a sentinel
+// rather than a nullish union.
 
 /**
  Returns token after a node or token, or sentinel when absent.
@@ -534,6 +558,11 @@ function containerPenultimateToken(
     .getTokenBefore(closeToken,);
   return token ?? NO_TOKEN;
 }
+//endregion Token lookups
+
+//region Insertion point
+// Container-tail lists and brace-delimited lists pick the token that receives
+// the comma by different rules.
 
 /**
  Chooses token that should receive inserted comma.
@@ -606,6 +635,11 @@ function insertionTokenForList({
     node: lastItem,
   },);
 }
+//endregion Insertion point
+
+//region Reporting
+// One report per list whose tail lacks a comma, fixed by inserting it after the
+// located token.
 
 /**
  Reports and fixes a missing trailing comma for one list.
@@ -661,3 +695,4 @@ export function checkTrailingComma({
     },
   },);
 }
+//endregion Reporting

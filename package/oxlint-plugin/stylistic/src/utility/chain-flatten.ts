@@ -17,6 +17,9 @@ import {
   selectBreaks,
 } from './chain-render.ts';
 
+//region Constants
+// The shared attached segment, and the sentinel that ends a receiver descent.
+
 /**
  Shared attached-segment value: rides on the previous segment's line, never a break point.
  */
@@ -29,6 +32,11 @@ const ATTACHED: ChainSegment = { isBreak: false, };
  `no-nullish-union`); the walk gates on `=== LEAF`.
  */
 const LEAF: unique symbol = Symbol('oxlint-stylistic:chain-flatten:leaf',);
+//endregion Constants
+
+//region Wrapper and token offsets
+// Transparent wrappers, and the lead offsets of the two token kinds a
+// continuation line can start with: a member dot and an operator.
 
 /**
  Reports whether a node type is a transparent chain wrapper.
@@ -156,6 +164,11 @@ function operatorTokenStart({
   }
   return token.start;
 }
+//endregion Wrapper and token offsets
+
+//region Receiver-spine flattening
+// Walk down a member/call receiver spine and emit one segment per step, the
+// leaf first.
 
 /**
  Parameters for the chain-walk functions keyed on a single node.
@@ -292,6 +305,11 @@ export function chainSegments({
       },),
   ];
 }
+//endregion Receiver-spine flattening
+
+//region Operator chains
+// A binary or logical run flattens across its operands on axes decoupled from
+// the member steps inside them, so neither inflates the other.
 
 /**
  Parameters for {@link collectOperatorChain} and {@link operatorChainBreakOffsets}.
@@ -488,6 +506,10 @@ function operatorChainBreaks({
       - second.breakOffset;
   },);
 }
+//endregion Operator chains
+
+//region Chain entry point
+// Dispatch on the root kind and return its breaks already in source order.
 
 /**
  Returns the breaks for any chain root, in ascending source order.
@@ -526,3 +548,4 @@ export function chainBreaks({
     node,
   },),);
 }
+//endregion Chain entry point

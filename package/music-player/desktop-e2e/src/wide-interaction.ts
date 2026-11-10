@@ -35,10 +35,18 @@ import {
 } from './conditions.ts';
 import type { RunContext, } from './context.ts';
 import { expect, } from './errors.ts';
+import { selectFolderByName, } from './folder-choice.ts';
 import {
+  CLICK_THROUGH_TRACK_ROWS,
+  TRACK_ROW_STEP_PX,
   WIDE_CLICK_POINTS,
   WIDE_POINTS,
 } from './layout.ts';
+import {
+  longestFolder,
+  topLevelFolders,
+  walkStepLimit,
+} from './library-folders.ts';
 import {
   noEffect,
   press,
@@ -68,12 +76,6 @@ const NOTICE_GONE_MS = 5_200;
 const TOAST_FADE_MS = 300;
 
 /**
- Distance from the first track row's click point to a point on the second row, in pixels: a row is about 72 px tall with
- its supporting line, so the second row spans the 70 px to 140 px below the first row's top edge.
- */
-const SECOND_ROW_OFFSET_PX = 90;
-
-/**
  Row A: the first track row of the folder on screen, the point the track menu checks use as well.
  */
 const ROW_A = WIDE_POINTS.trackRow;
@@ -86,7 +88,7 @@ const ROW_B = {
     .x,
   y: WIDE_POINTS.trackRow
     .y
-    + SECOND_ROW_OFFSET_PX,
+    + TRACK_ROW_STEP_PX,
 } as const;
 
 /**
@@ -376,18 +378,24 @@ export async function checkClickThrough(
         playingB.playing}, paused ${!pausedB.playing}`;
     },
   },);
-  // The click points need a track row under each of them, so the pane shows the folder of thirty tracks.
+  // The click points need a track row under each of them, so the pane shows the fullest folder of the scratch library.
   /**
-   The folder shown before the click.
+   The top-level folders of the library the run built, with the tracks each holds.
    */
-  const folderBefore = (await session.last()).folder;
-  await press({
+  const folders = await topLevelFolders({ library: context.library, },);
+  /**
+   The folder with the most tracks, which fills the track pane past the lowest click point.
+   */
+  const longFolder = longestFolder({
+    folders,
+    minimumTracks: CLICK_THROUGH_TRACK_ROWS,
+  },);
+  // The folder is chosen by the name the app shows for it, through the folder list's own keys, so no row position or
+  // window size decides which folder the click points land in.
+  await selectFolderByName({
     session,
-    act: clickAt(WIDE_CLICK_POINTS.longFolder,),
-    until: function otherFolderShown(state: UiState,): boolean {
-      return state.folder !== folderBefore;
-    },
-    what: 'the folder of thirty tracks shown in the track pane',
+    name: longFolder.name,
+    stepLimit: walkStepLimit({ folders, },),
   },);
   await recorder.check({
     id: 'click-through/search-wide',
@@ -438,7 +446,7 @@ export async function checkClickThrough(
         what: 'the track row answering the same click on the player page, by loading or by toggling play (the control for the clicks above)',
         after: before.seq,
       },);
-      return `query "${typed.search_query}" typed after the clicks; the same click on the player page answers`;
+      return `over ${longFolder.name} (${String(longFolder.trackCount,)} tracks) query "${typed.search_query}" typed after the clicks; the same click on the player page answers`;
     },
   },);
   await recorder.check({

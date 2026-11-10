@@ -1,4 +1,7 @@
-import { homedir, } from 'node:os';
+import {
+  mkdtempDisposable,
+  readFile,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import {
@@ -6,15 +9,21 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
   extractZipEntries,
   parseFigmaFile,
 } from '@monochromatic-dev/figma-kiwi/ts';
+import {
+  FIGMA_EXPORT_FIXTURES,
+  figmaExportFixturePath,
+} from '@monochromatic-dev/figma-kiwi/ts/fixture.figma-export.ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   convertFigmaToPenpot,
   figmaColorToHex,
+  figmaToPenpot,
   serializePenpotZip,
 } from '../dist/final/node/index.mjs';
 
@@ -31,23 +40,6 @@ const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
  its own absent-document symbol, which differs nominally from the parser's.
  */
 type FigmaFile = Parameters<typeof convertFigmaToPenpot>[0]['figmaFile'];
-
-/**
- Directory holding the maintainer's personal Figma export fixtures.
- 
- These integration tests read real `.fig`/`.deck`/`.jam` exports that are
- not checked into the repo; they only run on a machine where the files are
- present at this path under the home directory. `homedir()` keeps the path
- independent of the `/home` vs `/var/home` mount.
- */
-const FIGMA_EXPORT_DIR = join(
-  homedir(),
-  'Seafile',
-  'Plain',
-  'Text',
-  'Reference',
-  'Figma export',
-);
 
 // region Test fixtures
 
@@ -820,6 +812,95 @@ await describe({
     },),
     // endregion
 
+    // region figmaToPenpot
+    describe({
+      name: figmaToPenpot.name,
+      children: [
+        it({
+          name: 'returns the archive without an output path',
+          fn: async () => {
+            const bytes = await figmaToPenpot({ figmaFile: buildTestFigmaFile(), },);
+            expect(bytes,).toBeInstanceOf(Uint8Array,);
+            // ZIP local-file header, the same signature serializePenpotZip emits.
+            expect([...bytes.slice(0, 2,),],).toEqual([0x50, 0x4B,],);
+            expect(bytes.length,).toBeGreaterThan(1_000,);
+          },
+        },),
+        it({
+          name: 'writes the archive it returns to the given output path',
+          fn: async () => {
+            await using directory = await mkdtempDisposable(join(
+              scratchRoot(),
+              'figma-to-penpot-output-',
+            ),);
+            const outputPath = join(directory.path, 'converted.penpot',);
+            const bytes = await figmaToPenpot({
+              figmaFile: buildTestFigmaFile(),
+              outputPath,
+            },);
+            const written = await readFile(outputPath,);
+            expect([...written,],).toEqual([...bytes,],);
+          },
+        },),
+        it({
+          name: 'rejects when the output path names a directory that does not exist',
+          fn: async () => {
+            await using directory = await mkdtempDisposable(join(
+              scratchRoot(),
+              'figma-to-penpot-absent-directory-',
+            ),);
+            const outputPath = join(
+              directory.path,
+              'absent',
+              'converted.penpot',
+            );
+            let caught: unknown;
+            try {
+              await figmaToPenpot({
+                figmaFile: buildTestFigmaFile(),
+                outputPath,
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(Error,);
+            expect((caught as NodeJS.ErrnoException).code,).toBe('ENOENT',);
+          },
+        },),
+      ],
+    },),
+    // endregion
+
+    // region conversion options
+    describe({
+      name: 'conversion options',
+      children: [
+        it({
+          name: 'prefers the caller file name over the Figma metadata one',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({
+              figmaFile: buildTestFigmaFile(),
+              options: { fileName: 'Renamed File', },
+            },);
+            expect(doc.file.name,).toBe('Renamed File',);
+            expect(doc.manifest.files.map(file => file.name),).toEqual(['Renamed File',],);
+          },
+        },),
+        it({
+          name: 'records the caller generator string in the manifest',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({
+              figmaFile: buildTestFigmaFile(),
+              options: { generatedBy: 'fixture-generator/9', },
+            },);
+            expect(doc.manifest.generatedBy,).toBe('fixture-generator/9',);
+          },
+        },),
+      ],
+    },),
+    // endregion
+
     // region Integration: real file conversion
     describe({
       name: 'integration: real file conversion',
@@ -829,7 +910,7 @@ await describe({
           timeout: 30_000,
           fn: async () => {
             const figFile = await decodeFigmaExport(
-              join(FIGMA_EXPORT_DIR, 'Color palette - base.fig',),
+              figmaExportFixturePath(FIGMA_EXPORT_FIXTURES.fig,),
             );
             const figDoc = convertFigmaToPenpot({ figmaFile: figFile, },);
             const figZip = serializePenpotZip(figDoc,);
@@ -843,7 +924,7 @@ await describe({
           timeout: 30_000,
           fn: async () => {
             const deckFile = await decodeFigmaExport(
-              join(FIGMA_EXPORT_DIR, 'MTM6162-040 participation 2 cover.deck',),
+              figmaExportFixturePath(FIGMA_EXPORT_FIXTURES.deck,),
             );
             const deckDoc = convertFigmaToPenpot({ figmaFile: deckFile, },);
             expect(deckDoc.pages.size,).toBeGreaterThanOrEqual(1,);
@@ -856,7 +937,7 @@ await describe({
           timeout: 30_000,
           fn: async () => {
             const jamFile = await decodeFigmaExport(
-              join(FIGMA_EXPORT_DIR, 'Todo app - Brainstorming.jam',),
+              figmaExportFixturePath(FIGMA_EXPORT_FIXTURES.jam,),
             );
             const jamDoc = convertFigmaToPenpot({ figmaFile: jamFile, },);
             expect(jamDoc.pages.size,).toBeGreaterThan(0,);

@@ -3,7 +3,8 @@
 //! the refusals that leave Git to
 //!  make its ordinary directory,
 //! Git filling and removing a created subvolume,
-//! and the cleanup after a failed Git.
+//! and the cleanup after a failed Git,
+//! for a subvolume and for the ordinary directory the copy route reserves.
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -29,7 +30,7 @@ fn btrfs_a_missing_destination_becomes_an_empty_subvolume_and_settles_away() {
     assert_eq!(created.path, plan.destination);
     assert!(is_subvolume_root(plan.destination.as_path()).expect("probe"));
     assert_eq!(std::fs::metadata(plan.destination.as_path()).expect("metadata").ino(), BTRFS_SUBVOLUME_ROOT_INODE);
-    settle_subvolume_destination(&created);
+    assert_eq!(settle_created_destination(&created), CreatedDestinationSettlement::Removed);
     assert!(!plan.destination.exists(), "an empty subvolume is removed");
     remove(root.as_path());
 }
@@ -63,12 +64,12 @@ fn btrfs_a_filled_destination_is_not_removed() {
     let plan: AddPlan = plan_for(root.join("topic"));
     let created: CreatedSubvolume = prepare_subvolume_destination(&plan).expect("created");
     std::fs::write(plan.destination.join(".git"), b"gitdir: elsewhere\n").expect("a file Git wrote");
-    settle_subvolume_destination(&created);
+    assert_eq!(settle_created_destination(&created), CreatedDestinationSettlement::HoldsSomething);
     assert!(plan.destination.join(".git").is_file());
     // A destination that is already gone is not an error either.
     std::fs::remove_file(plan.destination.join(".git")).expect("empty it");
     std::fs::remove_dir(plan.destination.as_path()).expect("remove it");
-    settle_subvolume_destination(&created);
+    assert_eq!(settle_created_destination(&created), CreatedDestinationSettlement::Gone);
     remove(root.as_path());
 }
 
@@ -85,7 +86,7 @@ fn creation_happens_exactly_when_the_parent_is_on_btrfs() {
     assert_eq!(created.is_some(), on_btrfs);
     assert_eq!(root.join("topic").exists(), on_btrfs);
     if let Some(found) = created {
-        settle_subvolume_destination(&found);
+        settle_created_destination(&found);
     }
     remove(root.as_path());
 }
@@ -104,7 +105,7 @@ fn btrfs_real_git_fills_the_subvolume_and_removes_it() {
     let plan: AddPlan = plan_for(root.join("wt"));
     let created: CreatedSubvolume = prepare_subvolume_destination(&plan).expect("created");
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
-    settle_subvolume_destination(&created);
+    assert_eq!(settle_created_destination(&created), CreatedDestinationSettlement::HoldsSomething, "the checkout stays");
     assert!(is_subvolume_root(plan.destination.as_path()).expect("probe"), "Git filled the subvolume in place");
     assert_eq!(std::fs::read(plan.destination.join("tracked.txt")).expect("checked out"), b"tracked\n");
     git(repo.as_path(), &["worktree", "remove", "../wt"]);
@@ -127,7 +128,7 @@ fn btrfs_a_failed_git_leaves_nothing_after_settling() {
     let failed: Output = git_output(repo.as_path(), &["worktree", "add", "-b", "taken", "../wt"]);
     assert!(!failed.status.success());
     assert!(plan.destination.exists(), "Git itself leaves the destination it did not create");
-    settle_subvolume_destination(&created);
+    assert_eq!(settle_created_destination(&created), CreatedDestinationSettlement::Removed);
     assert!(!plan.destination.exists());
     remove(root.as_path());
 }
@@ -142,8 +143,41 @@ fn btrfs_a_replacement_subvolume_is_not_settled_away() {
     let created: CreatedSubvolume = prepare_subvolume_destination(&plan).expect("created");
     std::fs::rename(plan.destination.as_path(), root.join("topic.moved")).expect("move the created subvolume away");
     crate::fs_btrfs_ioctl::subvolume_create_at(plan.destination.as_path()).expect("another subvolume at the same path");
-    settle_subvolume_destination(&created);
+    assert_eq!(settle_created_destination(&created), CreatedDestinationSettlement::LeftAlone);
     assert!(plan.destination.is_dir(), "the replacement is not ours to remove");
     assert!(root.join("topic.moved").is_dir(), "neither is the moved one");
+    remove(root.as_path());
+}
+
+/// The ordinary directory the copy route reserves is removed again while it is empty,
+/// and a directory another program wrote into stays with everything in it:
+/// this is the guard that keeps a refused add from deleting anything.
+#[test]
+fn a_reserved_destination_is_removed_while_empty_and_kept_when_it_holds_anything() {
+    let root: PathBuf = fixture("created-destination-settlement");
+    let empty: PathBuf = root.join("empty");
+    let Reservation::Mine(made) = reserve_destination(empty.as_path()) else { panic!("the first creation owns its destination") };
+    assert_eq!(settle_created_destination(&made), CreatedDestinationSettlement::Removed);
+    assert!(!empty.exists(), "the empty directory this command made is removed");
+    let holding: PathBuf = root.join("holding");
+    let Reservation::Mine(reserved) = reserve_destination(holding.as_path()) else { panic!("the first creation owns its destination") };
+    std::fs::write(holding.join("someone-elses-file"), b"theirs").expect("another program's file");
+    assert_eq!(settle_created_destination(&reserved), CreatedDestinationSettlement::HoldsSomething);
+    assert_eq!(std::fs::read(holding.join("someone-elses-file")).expect("the other program's file"), b"theirs");
+    remove(root.as_path());
+}
+
+/// A directory that replaced the one this command made is not this command's to remove.
+#[test]
+fn a_replacement_directory_is_left_alone() {
+    let root: PathBuf = fixture("created-destination-replaced");
+    let destination: PathBuf = root.join("topic");
+    let moved: PathBuf = root.join("topic.moved");
+    let Reservation::Mine(made) = reserve_destination(destination.as_path()) else { panic!("the first creation owns its destination") };
+    std::fs::rename(destination.as_path(), moved.as_path()).expect("move the created directory away");
+    std::fs::create_dir(destination.as_path()).expect("another directory at the same name");
+    assert_eq!(settle_created_destination(&made), CreatedDestinationSettlement::LeftAlone);
+    assert!(destination.is_dir(), "the replacement is not ours to remove");
+    assert!(moved.is_dir(), "neither is the moved one");
     remove(root.as_path());
 }

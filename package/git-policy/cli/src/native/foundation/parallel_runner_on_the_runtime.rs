@@ -400,13 +400,16 @@ where
 /// ```ts
 /// while (stillRunning()) { await either(message(), oneReturned()); } drain(); return firstFailure(joinAll());
 /// ```
-pub(crate) async fn finish_the_run<R>(
+pub(crate) async fn finish_the_run<R, E>(
     mut receiver: UnboundedReceiver<Message<R>>,
     still_running: &SlotsStillRunning,
     item_count: usize,
-    on_event: &mut dyn OrderedEvents<R>,
+    on_event: &mut E,
     slots: &mut tokio::task::JoinSet<Result<(), BlockingJobError>>,
-) -> Result<(), OrderedRunError> {
+) -> Result<(), OrderedRunError>
+where
+    E: OrderedEvents<R> + ?Sized,
+{
     let mut cursor: Cursor<R> = Cursor::new(item_count);
     // The first item begins before any job says anything, as in the scoped form.
     cursor.advance(on_event);
