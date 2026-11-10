@@ -25,6 +25,7 @@ import {
   asyncProperty,
   constantFrom,
   scheduler,
+  schedulerFor,
 } from 'fast-check';
 
 import {
@@ -293,6 +294,52 @@ await describe({
         );
         // A campaign interrupted by its time limit abandons the run in flight;
         // let it finish so its late breadcrumbs stay out of the next property.
+        await settleRuns();
+      },
+    },),
+
+    it({
+      name: 'a sink whose verification never answers leaves the model one verdict short, so a build that retires it at the deadline throws here and nowhere else',
+      timeout: run.timeout,
+      fn: async ({ sinon, },) => {
+        /**
+         Breadcrumbs the run writes, captured through the stubbed console.
+         */
+        const warn = sinon.stub(
+          console,
+          'warn',
+        );
+        /**
+         Pinned witness the campaign shrank a stale build's failure to: the one
+         probe never answers and every write resolves, so a build that retires a
+         sink at its verify deadline has no backend left and throws on the log
+         call while the model still owes the sink a verdict.
+         */
+        const scripts: SinkScript[] = [
+          {
+            verify: {
+              head: [],
+              tail: 'never',
+            },
+            write: {
+              head: [],
+              tail: 'resolve',
+            },
+          },
+        ];
+        const finished = await runProgram({
+          scheduler: schedulerFor([],),
+          scripts,
+          ops: ['flush', 'log',],
+        },);
+        checkRun({
+          finished,
+          scripts,
+          breadcrumbs: warn.getCalls()
+            .map(function toMessage(call,) {
+              return String(call.args[0],);
+            },),
+        },);
         await settleRuns();
       },
     },),
