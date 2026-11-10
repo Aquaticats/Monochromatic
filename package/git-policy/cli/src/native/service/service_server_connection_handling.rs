@@ -205,7 +205,10 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
                 crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
                 send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected }).await;
             }
-            Some(false) => queue_a_commit(request, write_half, shared, accepted).await,
+            Some(false) => {
+                let deciding = is_foreign(shared.instance.as_deref(), request.git_dir.clone());
+                queue_a_commit(request, write_half, shared, accepted, deciding).await;
+            }
             None => send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable }).await,
         },
         Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared.instance.as_deref(), git_dir.clone()).await {
@@ -234,17 +237,60 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
     };
 }
 
-/// Queues a commit and writes its answers,
+/// What:
+///  Queues a commit and writes its answers,
 /// with beats,
 /// until the landing has answered.
-async fn queue_a_commit(request: Box<crate::service_protocol::CommitRequest>, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant) {
+/// Why:
+///   The beats begin with the connection,
+/// and the answer of the check that says whether this request is this instance's goes through the same
+/// writer,
+///  so a check whose own read waits on storage never leaves the client silent.
+/// A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`,
+///  `service_client.rs`),
+/// sends the commit again and may report it failed although it landed;
+/// the check resolves a Git directory's real path
+///  through the filesystem,
+/// which under a busy disk took thirty-two seconds in the record of 2026-11-10T17:50:19Z.
+/// The request reaches the landing only when the check says it is this instance's,
+/// so a request for another
+///  worktree still never lands here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [beats, queued] = await Promise.all([writeUntilAnswered(socket, messages), decide().then(queueOrRefuse)]);
+/// ```
+async fn queue_a_commit<Decide>(request: Box<crate::service_protocol::CommitRequest>, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant, decide: Decide)
+where
+    Decide: std::future::Future<Output = Option<bool>> + Send,
+{
     let id: String = request.id.clone();
     let (reply, mut messages) = Reply::new();
-    let _queued = shared.queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
-    crate::service_fault::queued(id.as_str());
+    let answering: UnboundedSender<ServiceMessage> = reply.sender();
+    let queue: UnboundedSender<Job> = shared.queue.clone();
+    // What a beat asks for before it, held here because the writer borrows it for the whole wait.
+    let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(id.clone()));
+    // What the check's answer is written with, and what it does with the request it decides about.
+    let checking = async move {
+        match decide.await {
+            // A request for another worktree is not this instance's to land, so it never reaches the landing.
+            Some(true) => {
+                let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Rejected });
+            }
+            // Nothing could say whose the request is: the client is told, and the landing never sees it.
+            None => {
+                let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Unavailable });
+            }
+            Some(false) => {
+                let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
+                crate::service_fault::queued(id.as_str());
+            }
+        }
+    };
     // This task has nothing else to do until the request is answered, so it writes the answers the landing thread
     //  queues and keeps the client told that the service lives, and what it is stuck in when it is stuck in a write.
-    write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(id))).await;
+    let beats = write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut notice);
+    tokio::join!(beats, checking);
 }
 
 /// Answers the withdrawal of a request.
