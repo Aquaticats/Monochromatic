@@ -143,10 +143,10 @@ async function createGoalRuntimeHarness(
     sessionManager,
     messages,
   },);
+  /* oxlint-disable typescript/no-unsafe-type-assertion -- Disposable verifier implements only context members exercised by loaded goal callbacks. */
   /**
    Focused context for loaded command, lifecycle, and tool callbacks.
    */
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Disposable verifier implements only context members exercised by loaded goal callbacks.
   const context = {
     cwd: packageDirectory,
     mode: 'rpc',
@@ -172,6 +172,7 @@ async function createGoalRuntimeHarness(
       return false;
     },
   } as unknown as ExtensionCommandContext;
+  /* oxlint-enable typescript/no-unsafe-type-assertion */
   return {
     extension,
     runtime: result.runtime,

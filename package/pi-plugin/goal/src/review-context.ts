@@ -23,10 +23,16 @@ import type {
 } from './completion-types.ts';
 import { isGoalEvent, } from './events.ts';
 
+//region Omission sentinel
+
 /**
  Sentinel for branch entries intentionally excluded from reviewer evidence.
  */
 const EVIDENCE_ENTRY_OMITTED: unique symbol = Symbol('goal/evidence-entry-omitted',);
+
+//endregion Omission sentinel
+
+//region Message content text
 
 /**
  Convert finalized content block to reviewer-visible text.
@@ -76,6 +82,10 @@ function messageContentText(
     .join('\n',);
 }
 
+//endregion Message content text
+
+//region Goal message detection
+
 /**
  Validate current-generation task-message provenance.
  
@@ -118,6 +128,10 @@ function isCurrentGoalMessageDetails(
     && ((typeof details.marker) === 'string')
     && ((details.kind === 'kickoff') || (details.kind === 'continuation'));
 }
+
+//endregion Goal message detection
+
+//region Evidence serialization and assembly
 
 /**
  Serialize one eligible branch entry or return omission sentinel.
@@ -284,6 +298,8 @@ function buildGoalReviewEvidence(
     transcriptChunks,
   };
 }
+
+//endregion Evidence serialization and assembly
 
 export {
   buildGoalReviewEvidence,

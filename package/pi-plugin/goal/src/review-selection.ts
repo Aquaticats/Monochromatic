@@ -26,6 +26,8 @@ import {
   ReviewerContextTooLargeError,
 } from './review-contract.ts';
 
+//region Pool contracts
+
 /**
  Prompted scoped candidate before auth resolution.
  */
@@ -89,6 +91,10 @@ class NoEligibleGoalReviewerError extends Error {
     this.name = 'NoEligibleGoalReviewerError';
   }
 }
+
+//endregion Pool contracts
+
+//region Candidate prompting
 
 /**
  Build model-specific prompts for context-eligible distinct scoped models.
@@ -186,6 +192,10 @@ async function promptedReviewers(
   };
 }
 
+//endregion Candidate prompting
+
+//region Ranking
+
 /**
  Sort prompted candidates by expected model-specific request cost.
  
@@ -243,6 +253,10 @@ function rankPromptedReviewers(
     return candidate;
   },);
 }
+
+//endregion Ranking
+
+//region Authentication
 
 /**
  Authenticate ranked reviewer candidates before bounded fallback orchestration.
@@ -320,6 +334,10 @@ async function authenticateReviewers(
   };
 }
 
+//endregion Authentication
+
+//region Pool resolution
+
 /**
  Resolve complete authenticated reviewer pool for one completion claim.
  
@@ -367,6 +385,8 @@ async function resolveGoalReviewerPool(
     ],
   };
 }
+
+//endregion Pool resolution
 
 export {
   authenticateReviewers,

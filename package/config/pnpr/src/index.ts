@@ -40,6 +40,7 @@ export {
   NPM_FORBIDDEN_MARKER,
   publishWithForbiddenRetry,
 } from './publish-retry.ts';
+export { requestPublishToken, } from './publish-steps.ts';
 export {
   readWorkspaceEntries,
   type WorkspaceEntry,
