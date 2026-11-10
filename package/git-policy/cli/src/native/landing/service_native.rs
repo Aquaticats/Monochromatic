@@ -29,6 +29,9 @@
 use crate::capture_invocation::InvocationCapture;
 use crate::commit_args::{resolve_private_commit_args, split_commit_invocation, without_all_flag};
 use crate::commit_preparation::{PreparationRequest, read_prepared_commit, run_native_commit};
+/// The build phase's stretches,
+/// which the creation and Git's build mark as they go.
+use crate::commit_build_part_durations::BuildPartClock;
 use crate::commit_transaction::TransactionStop;
 use crate::global_arguments::global_layout;
 use crate::shadow_create::create_shadow_repository_carrying;
@@ -139,6 +142,9 @@ pub struct BuildInput<'a> {
     /// so that Git
     ///  is not given those options again.
     pub selected_privately: bool,
+    /// The build phase's clock,
+    /// which the shadow's creation and Git's build name their stretches under.
+    pub clock: &'a mut BuildPartClock,
 }
 
 /// The parents named by a stored commit's header block.
@@ -197,7 +203,7 @@ pub fn private_invocation(
 ///  failed,
 /// a signer that failed);
 /// `TransactionStop::Message` when Git could not be started.
-pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
+pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
     let shadow = input.scratch.join("shadow");
     // Named paths while another session's merge, cherry-pick or revert is unfinished: real Git refuses that as a partial commit,
     //  and a commit never fails for another session's unfinished work, so the scratch repository holds none of that state and
@@ -211,7 +217,8 @@ pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionSto
         }
     }
     let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && has_conclusion_state);
-    create_shadow_repository_carrying(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch, carry_conclusion)?;
+    // The creation names each of its own stretches, so the shadow is named here only as the surface they run on.
+    create_shadow_repository_carrying(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch, carry_conclusion, input.clock)?;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
     let (globals, commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
@@ -224,6 +231,7 @@ pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionSto
         commit_args: commit_args.as_slice(),
         object_directory: Some(input.capture.layout.object_directory.as_path()),
     };
+    input.clock.next("client build");
     let status: i32 = match run_native_commit(input.context, input.cwd, &request) {
         Ok(code) => code,
         Err(error) => return Err(TransactionStop::Message(error.to_string())),
@@ -231,6 +239,7 @@ pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionSto
     if status != 0 {
         return Err(TransactionStop::NativeExit(status));
     }
+    input.clock.next("commit read back");
     let prepared = read_prepared_commit(input.context, shadow.as_path())?;
     return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid });
 }

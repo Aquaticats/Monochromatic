@@ -2,6 +2,7 @@
 //!  each in its own disposable directory.
 
 use super::*;
+use crate::file_size_limit_child_test_support::{LIMITED_DIRECTORY_VARIABLE, run_child_under_file_size_limit};
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
@@ -128,7 +129,7 @@ fn protection_sets_the_requested_mode() {
 #[test]
 #[ignore = "started as a child process, under a file-size limit, by the controls of the writers"]
 fn child_writes_a_record_past_the_size_limit() {
-    let directory: PathBuf = PathBuf::from(std::env::var_os(crate::test_support::LIMITED_DIRECTORY_VARIABLE).expect("directory"));
+    let directory: PathBuf = PathBuf::from(std::env::var_os(LIMITED_DIRECTORY_VARIABLE).expect("directory"));
     let record: Vec<u8> = vec![b'x'; 1000];
     assert!(write_private_file(directory.join("private.json").as_path(), record.as_slice()).is_err());
     assert!(write_exclusive_synced(directory.join("synced.json").as_path(), record.as_slice()).is_err());
@@ -143,7 +144,7 @@ fn child_writes_a_record_past_the_size_limit() {
 #[test]
 fn a_write_cut_half_way_leaves_nothing_behind() {
     let root: PathBuf = fixture("private-cut-write");
-    let status = crate::test_support::run_child_under_file_size_limit(
+    let status = run_child_under_file_size_limit(
         "foundation::private_storage::tests::child_writes_a_record_past_the_size_limit",
         100,
         root.as_path(),

@@ -104,7 +104,8 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
 
 
 /// What:
-///  The line for a destination this command will not copy into.
+///  The line for a destination this command will not copy into,
+/// where `record_stays` says whether this command keeps a record of it.
 /// Why:
 ///   A worktree that receives no ignored-state copy must say so,
 /// and the person needs the two facts that decide what to do:
@@ -113,16 +114,20 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
 /// or their own directory),
 /// and the commands that
 ///  show or remove a worktree.
+/// A refused add whose destination carries another command's proof settles its own record,
+/// so
+///  promising that a later command reports one would send the person looking for a record nothing keeps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `monochromatic-git-policy-cli: ${quote(destination)} received no ignored-state copy: ...`
 /// ```
-pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership: DestinationOwnership) -> String {
+pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership: DestinationOwnership, record_stays: bool) -> String {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let why: &str = match ownership {
         DestinationOwnership::MadeAgain => "the worktree this command registered is no longer at that path, so the ignored state was not copied into it and the record of this add stays; `git worktree list` shows where it is now",
-        DestinationOwnership::GitFailed => "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it",
+        DestinationOwnership::GitFailed if record_stays => "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it",
+        DestinationOwnership::GitFailed => "this command's own `git worktree add` did not succeed, and the worktree at that path was made by another command, so nothing was copied into it and this command keeps no record of it",
         DestinationOwnership::Mine => "it is not this command's to fill",
     };
     return format!(
@@ -247,5 +252,52 @@ pub(crate) fn unsettled_notice(source_root: &Path, unsettled: &[Vec<u8>]) -> Str
         unsettled.len(),
         quote(source_root.to_string_lossy().as_ref()),
         named.join(", ")
+    );
+}
+
+/// The line a successful `git worktree add` prints when its command line has a form whose destination is not read.
+pub const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `git worktree add` names its worktree in a form monochromatic-git-policy-cli does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
+
+/// What:
+///  The line for a destination Git made whose registration could not be confirmed.
+/// Why:
+///   A worktree that gets no copy must say so;
+/// here the pointer in its `.git` file and the registration it names do not
+///  name each other,
+/// so monochromatic-git-policy-cli cannot tell the worktree is the command's own and copies nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: ${quote(destination)} was made by git worktree add, but ...`
+/// ```
+pub(crate) fn unconfirmed_destination_notice(destination: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
+        quote(destination.to_string_lossy().as_ref())
+    );
+}
+
+
+
+/// What:
+///  The line for a destination another command registered while this one's real Git ran.
+/// Why:
+///   Git refuses this command's add because the destination exists,
+/// and the worktree there is the other command's:
+///  this command copies nothing into it,
+///  and the person is told which process made it and how to see the worktrees of the repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: ${quote(destination)} was registered by another git worktree add (process ${pid}) ...`
+/// ```
+pub(crate) fn registered_by_another_notice(destination: &Path, other: &str) -> String {
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    let owner: String = match crate::worktree_copy_owner::CopyOwner::from_token(other) {
+        Some(found) => format!("process {}", found.pid),
+        None => String::from("another command"),
+    };
+    return format!(
+        "monochromatic-git-policy-cli: {shown} was registered by another `git worktree add` ({owner}) while this one ran, so this command copied nothing into it. `git worktree list` shows the worktrees of this repository.\n"
     );
 }
