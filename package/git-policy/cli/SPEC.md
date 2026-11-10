@@ -2784,6 +2784,19 @@ and an unfinished push is reported as one that may not have finished even though
 still exists and the service still runs it.
 Repairing a worktree before another removal runs avoids both.
 
+A commit a reference lock holds in a linked worktree lives in that worktree's own Git directory,
+and on the per-worktree reference `refs/worktree/cli-git-service/<batch>`,
+which the removal deletes as well,
+and the wrapper hands a `--force` removal to Git and cannot look afterwards:
+before `git worktree remove` or `git worktree prune` runs,
+every held commit of every linked worktree is kept on `refs/cli-git/kept/<batch>` of the common Git directory,
+and the person is told,
+before Git runs,
+that the branch stays where it is because no command in a removed worktree can move it
+(`src/native/worktree/worktree_removal_held_commits.rs`).
+A kept reference that already names another commit is left alone and the person is told,
+and a removal Git then refuses leaves that reference naming the commit the batch still holds.
+
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory
 below the tree's parent without following a link or crossing a mount,
@@ -5705,6 +5718,11 @@ now inside these bounds:
   and an open batch (`<seq>.intent`) names the commit it is making,
   which the branch then says is made or not yet;
   a commit either of them shows is a landed commit and the command returns it with exit 0 through the same function.
+  A request whose open batch is held behind a reference lock is the state the branch cannot show:
+  its record (`monochromatic-git-policy-cli/held-commits/<seq>.held`) is found from that open batch,
+  and the command ends exactly as the `held` answer it never received would have ended,
+  with the words about the lock and exit 0 (`service_landed_aftermath.rs`),
+  because the commit is made and kept and no branch names it yet.
   The look waits only while an open batch names the request,
   so a request nothing is landing costs one look and no wait.
   A failure to reach a service again after a request was sent is never the "this commit was not made" text,
@@ -7218,7 +7236,10 @@ hold until lock goes (Recommended)"
 and the rule it answers is "Commits should never fail."
 The landing keeps what the batch already has:
 its intent,
-the scratch reference `refs/worktree/cli-git-service/<batch>` that holds its commits
+the scratch reference `refs/worktree/cli-git-service/<batch>` that holds its commits,
+a commit real Git built included
+(`src/native/landing/service_land_objects_of_batch.rs` keeps it there,
+so no maintenance that drops objects no reference names can take it while the lock stands),
 and the witness of the index file it saw,
 and it publishes a record of the hold,
 whole or absent,
@@ -7255,6 +7276,15 @@ and so does the service before its next batch and at its start
 
 The settlement reads the branch and moves it by one compare-and-swap,
 with the side reference removed in the same transaction.
+Every round reads the batch's record again after it reads the branch,
+because another settlement of the same record rewrites that record before it moves the branch:
+a decision taken from the value read before that rewrite would put one held change on the branch twice
+(`src/native/landing/held_commit_settle.rs`).
+A record a kill leaves after its batch landed on a branch that moved names the commit the batch started with,
+while the branch names the commit made from it:
+the finished record (`<seq>.done`) names the commit that landed,
+so the record is recognized as landed,
+said and removed instead of being reported as never landed for ever.
 The index entries are installed under Git's index lock,
 which the settlement takes before the move and records the witness of under it,
 so nothing another program staged is overwritten and the entries are not left to the
@@ -7294,8 +7324,14 @@ red first:
 `holding_writes_the_record_the_intent_describes`,
 and the binary controls
 `a_commit_that_meets_a_lock_nothing_proves_gone_is_held_and_moves_the_branch_when_it_goes`,
-`a_held_commit_lands_on_the_branch_another_session_moved` and
-`two_held_commits_wait_beside_each_other_and_both_land_in_order`.
+`a_held_commit_lands_on_the_branch_another_session_moved`,
+`two_held_commits_wait_beside_each_other_and_both_land_in_order` and
+`a_held_commit_real_git_built_is_kept_on_the_side_reference_and_survives_a_prune`,
+with `a_second_settlement_of_one_record_lands_the_change_once`,
+`a_record_left_by_a_kill_after_its_replayed_landing_is_recognized_and_removed`,
+`the_held_record_of_the_open_batch_of_a_request_is_found`,
+`a_held_commit_ends_the_command_with_success_and_no_landed_commit` and
+`a_held_commit_of_a_removed_linked_worktree_survives_on_the_kept_reference`.
 
 #### Races, and how each is handled
 

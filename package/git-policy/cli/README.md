@@ -2604,7 +2604,8 @@ by this or by anything else,
 because no proof ties one to a Git that has ended.
 
 A commit that meets a lock nothing proves gone is therefore made and kept,
-on `refs/worktree/cli-git-service/<batch>`,
+on `refs/worktree/cli-git-service/<batch>` (a commit real Git built included,
+so no maintenance that drops objects no reference names can take it while the lock stands),
 and the command exits `0` with one line that names the branch,
 the lock and the exact `rm -- <path>` to run when no Git process is using the repository.
 Nothing of the person's is lost:
@@ -2620,6 +2621,17 @@ naming the branch,
 the commit and the lock it waits for.
 Held commits never collect without that line,
 and a command whose output a program reads prints none of it.
+
+A commit the service made and held whose answer was lost ends the same way,
+with the same words and exit `0`,
+found through the record of the hold rather than the branch,
+which the lock keeps from showing it.
+
+`git worktree remove` or `git worktree prune` deletes a linked worktree's own Git directory,
+and the per-worktree reference with it,
+so a held commit there is kept on `refs/cli-git/kept/<batch>` before Git runs,
+and the command says then that the branch stays where it is,
+because no command in a removed worktree can move it.
 
 The first command that finds the lock gone moves the branch,
 by one compare-and-swap from the value the batch was prepared on.
