@@ -12,7 +12,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { createWithFallback, } from '@monochromatic-dev/mvm-cli/ts/backend/hetzner/lifecycle.ts';
+import { createWithFallback, } from '../../../dist/final/node/index.mjs';
 
 /**
  One recorded fetch invocation.
