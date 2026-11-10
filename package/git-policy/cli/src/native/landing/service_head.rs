@@ -147,7 +147,8 @@ async fn head_file_within(ceiling: Duration, git_dir: &Path, common_dir: &Path) 
 }
 
 /// `head_file_within` with the wait a landing's own state step is granted
-/// (`wait_ceilings.rs`, `LANDING_STATE_CEILING`).
+/// (`wait_ceilings.rs`,
+/// `LANDING_STATE_CEILING`).
 async fn head_file_awaiting(git_dir: &Path, common_dir: &Path) -> HeadFile {
     return head_file_within(LANDING_STATE_CEILING, git_dir, common_dir).await;
 }

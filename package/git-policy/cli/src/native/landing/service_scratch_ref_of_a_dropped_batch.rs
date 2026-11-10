@@ -314,8 +314,8 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
 /// and the removal is a step of the
 ///  landing once that landing is a task.
 /// The order of the steps,
-/// the three answers of a reference that is not there, names
-///  another commit or gives no answer,
+/// the three answers of a reference that is not there,
+/// names another commit or gives no answer,
 /// and the words each of them says are the synchronous face's,
 /// pinned by
 ///  `the_awaited_clearing_answers_what_the_synchronous_one_answers`.
