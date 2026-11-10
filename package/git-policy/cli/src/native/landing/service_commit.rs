@@ -46,6 +46,9 @@ use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
+/// The build phase's stretches by name
+/// for that record.
+use crate::commit_build_part_durations::BuildPartClock;
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use crate::diagnostic_log::warn;
 use crate::policy_checks::ShippedChecks;
@@ -124,6 +127,9 @@ pub fn service_commit<F: RepositoryFacts>(
     let mut provisioned: bool = false;
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
     let editor_possible: bool = opens_editor(after);
+    // Whether this line asks for the one fixup whose commit Git makes from the branch and not from the index: such a commit
+    //  is empty by design, and the commit a moved branch makes of it is written from the fields Git stored.
+    let rewords: bool = crate::service_commit_line_reissued::rewords_a_commit(invocation.arguments, invocation.subcommand_index);
     let config: ClientConfig = managed_client_config(address, provisioning.as_ref());
     // The name carries the request's identity and, per attempt, that attempt's number: the service removes the tree of the attempt
     //  whose landing is over, and the next attempt's tree must be another directory, or that removal would take it.
@@ -146,9 +152,11 @@ pub fn service_commit<F: RepositoryFacts>(
     // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
     //  once the commit that did land is known.
     let mut unlanded: Vec<String> = Vec::new();
-    // The fields of the commit an amend prepared, kept from the attempt that prepared it: an amend whose branch moved lands
-    //  them as a new commit on the branch as it is now (`service_amend_replayed.rs`), because `git commit --amend` would
-    //  replace the commit that moved the branch.
+    // The fields of the commit the wrapper writes itself instead of building the line again, kept from the attempt that
+    //  prepared it. An amend whose branch moved lands them as a new commit on the branch as it is now
+    //  (`service_amend_replayed.rs`), because `git commit --amend` would replace the commit that moved the branch; a
+    //  `--fixup=reword:` commit lands them on the branch's own tree, because Git takes the index out of that command's commit
+    //  and running the line again would ask the person for the message a second time.
     let mut amended: Option<AmendedCommit> = None;
     // The first build's start: the ceiling on rebuilding is counted from it.
     let first_build_began: Instant = Instant::now();
@@ -161,12 +169,18 @@ pub fn service_commit<F: RepositoryFacts>(
         let scratch_name: String = format!("monochromatic-git-policy-cli-service-{id}-{attempt}");
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
-            allow_empty: invocation.region.allow_empty,
+            // A `--fixup=reword:` commit carries the branch's own tree, so the preparation of the attempt that lands it on the
+            //  branch as it is now holds no change at all, and an empty commit is exactly what the person asked for.
+            allow_empty: invocation.region.allow_empty || rewords,
             standard_input: standard_input.as_deref(),
             first: attempt == 0,
             replay,
         };
         let preparing: Instant = Instant::now();
+        if attempt == 0 {
+            // Everything before the first preparation is the one stretch of the command that belongs to no other phase.
+            timing.note_route();
+        }
         let prepared: Result<Prepared, TransactionStop> = prepare(invocation, checks, request, &inputs);
         timing.prepare += preparing.elapsed();
         timing.attempts += 1;
@@ -187,9 +201,12 @@ pub fn service_commit<F: RepositoryFacts>(
             }
             Prepared::Ready(ready) => ready,
         };
+        // Every stretch of this phase names itself, so a slow build says which of them waited
+        //  (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+        timing.begin_build();
+        let mut clock: BuildPartClock = BuildPartClock::begin("branch");
         // The branch the first preparation found. A worktree that switched since (the service refuses the landing, and a
         //  new preparation would read the new branch) is a failure like native Git's, with the typed message kept in its file.
-        let building: Instant = Instant::now();
         if timing.reference.is_none() {
             timing.reference = Some(ready.reference.clone());
         }
@@ -211,6 +228,7 @@ pub fn service_commit<F: RepositoryFacts>(
         }
         if !decided {
             decided = true;
+            clock.next("message");
             if !ready.needs_native
                 && let Some(parsed) = parse_service_commit(after)
             {
@@ -226,6 +244,7 @@ pub fn service_commit<F: RepositoryFacts>(
         //  now, and the tree of that commit is the replay the preparation already settled in the private index.
         let lands_as_new: bool = amended.is_some() && retry.is_some();
         let mut tree: Option<String> = None;
+        clock.next("amend tree");
         match the_amends_tree(&ready, invocation, native_inputs, embedded.as_ref(), lands_as_new)? {
             AmendsTree::Tree(written) => tree = Some(written),
             // Git says itself that an amend which leaves the replaced commit as it was is empty.
@@ -234,11 +253,15 @@ pub fn service_commit<F: RepositoryFacts>(
         }
         // A request over the line the service reads is refused as too long, and a commit must not fail for the names it
         //  changes: Git builds one that does not fit, as it did before a changed path carried its bytes.
+        clock.next("fitting request");
         embedded = embedded_that_fits(embedded, &ready, native_inputs, id.as_str(), &tree);
         let native: bool = !lands_as_new && (ready.needs_native || embedded.is_none());
         // The embedded commit is used only when the native path is not taken.
         let embedded_in_use: Option<&Embedded> = if native || lands_as_new { None } else { embedded.as_ref() };
         let amendment: Option<&AmendedCommit> = if lands_as_new { amended.as_ref() } else { None };
+        // The request reads the preparation's values and, when Git builds the commit, creates the shadow repository and runs
+        //  Git in it; those stretches name themselves under this clock.
+        clock.next("request");
         let (sent, first_parent, typed): (CommitRequest, String, Option<String>) = the_request_of(RequestOf {
             amendment,
             embedded_in_use,
@@ -250,9 +273,11 @@ pub fn service_commit<F: RepositoryFacts>(
             //  was made with; every other attempt builds from the person's own line.
             reissued: reissued_line.as_ref(),
             id: id.as_str(),
+            clock: &mut clock,
         })?;
         // What an amend carries into the commit a moved branch makes of it, kept once from the attempt that prepared it.
         if amended.is_none() && sent.amend {
+            clock.next("amend fields");
             amended = Some(amended_fields(invocation, &sent, embedded.as_ref())?);
         }
         let mut remembered: Option<String> = typed.clone();
@@ -263,7 +288,8 @@ pub fn service_commit<F: RepositoryFacts>(
         }
         last_message = remembered;
         // A test removes the prepared content here, between the preparation and the landing.
-        timing.build += building.elapsed();
+        drop(clock);
+        timing.end_build();
         reach_service_phase(Phase::ServicePrepared)?;
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
@@ -295,7 +321,6 @@ pub fn service_commit<F: RepositoryFacts>(
                     first_parent,
                     fixed_message: fixed_message.as_ref(),
                     embedded_in_use,
-                    native,
                     amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                     unlanded: unlanded.as_slice(),
                     request_id: id.as_str(),
@@ -338,6 +363,23 @@ pub fn service_commit<F: RepositoryFacts>(
                     retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
                     continue;
                 }
+                // A `--fixup=reword:<commit>` commit is made from the branch and not from the index: Git carries the branch's
+                //  own tree and takes the index out of the commit, so the person asked for an empty commit whose message says
+                //  which commit it rewrites. The commit the moved branch makes of it keeps that tree and that message, and the
+                //  staged change stays where it is; nothing the person chose is lost, and no command is refused for another
+                //  session's commit (the owner's "Commits should never fail.").
+                if amended.is_none() && rewords {
+                    let Some(commit) = sent.commit.as_deref() else { return Err(branch_moved(&ready)) };
+                    if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+                        return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
+                    }
+                    // The change this commit stands for is the tree Git wrote into it, not the private index Git ignored.
+                    let captured: String = crate::service_replay::tree_of_commit(invocation.context, invocation.cwd, commit)?;
+                    amended = Some(amended_fields(invocation, &sent, embedded.as_ref())?);
+                    retry = Some(crate::service_replay::retry_of_a_prepared_tree(&ready, Vec::new(), captured));
+                    unlanded.extend(sent.commit.clone());
+                    continue;
+                }
                 // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
                 //  again on the new tip (and signs it again), up to the bound.
                 //  A commit that concludes a merge, a cherry-pick or a revert depends on the state the worktree holds, not on
@@ -372,9 +414,9 @@ pub fn service_commit<F: RepositoryFacts>(
                         sent.commit.as_deref(),
                         ready.interactive,
                     )?;
-                    // A line a rebuild cannot read back (`--fixup=reword:` makes its commit from the branch rather than from
-                    //  the change this preparation captured) keeps no message file: the same command makes that message again,
-                    //  and saving it here would suggest a commit of another kind.
+                    // A line a rebuild cannot read back (an abbreviated borrowing option the wrapper does not guess at) keeps no
+                    //  message file: the same command makes that message again, and saving it here would suggest a commit of
+                    //  another kind.
                     if let Some(line) = reissued {
                         match std::fs::write(&file, text) {
                             Ok(()) => {
@@ -423,8 +465,7 @@ pub fn service_commit<F: RepositoryFacts>(
                         first_parent,
                         fixed_message: fixed_message.as_ref(),
                         embedded_in_use,
-                        native,
-                        amended_as_new: if lands_as_new { amended.as_ref() } else { None },
+                            amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                         unlanded: unlanded.as_slice(),
                         request_id: id.as_str(),
                         journal: journal.as_deref(),

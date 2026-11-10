@@ -41,6 +41,9 @@ use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, chec
 use std::path::{Path, PathBuf};
 /// Strings for the redirect variable list.
 use std::ffi::OsString;
+/// The build phase's stretches,
+/// which the creation marks as it goes.
+use crate::commit_build_part_durations::BuildPartClock;
 
 /// What:
 ///  Overwrites a file the shadow's `git init` already created,
@@ -276,8 +279,10 @@ pub fn create_shadow_repository(
     transaction_directory: &Path,
 ) -> Result<PathBuf, GitFailure> {
     let shadow: PathBuf = shadow_repository_path(capture.layout.common_dir.as_path(), transaction_id);
+    // No Git child runs here, so the stretch is named for the record a commit writes.
+    let mut clock: BuildPartClock = BuildPartClock::begin("shadow parent");
     step_failure(create_parent(shadow.as_path()), "creating", shadow.as_path())?;
-    create_shadow_repository_at(context, cwd, capture, shadow.as_path(), transaction_directory)?;
+    create_shadow_repository_at(context, cwd, capture, shadow.as_path(), transaction_directory, &mut clock)?;
     return Ok(shadow);
 }
 
@@ -302,8 +307,9 @@ pub fn create_shadow_repository_at(
     capture: &InvocationCapture,
     shadow: &Path,
     transaction_directory: &Path,
+    clock: &mut BuildPartClock,
 ) -> Result<(), GitFailure> {
-    return create_shadow_repository_carrying(context, cwd, capture, shadow, transaction_directory, true);
+    return create_shadow_repository_carrying(context, cwd, capture, shadow, transaction_directory, true, clock);
 }
 
 /// What:
@@ -330,8 +336,10 @@ pub fn create_shadow_repository_carrying(
     shadow: &Path,
     transaction_directory: &Path,
     carry_conclusion: bool,
+    clock: &mut BuildPartClock,
 ) -> Result<(), GitFailure> {
     let layout = &capture.layout;
+    clock.next("shadow skeleton");
     if layout.ref_format == crate::transaction_journal::RefFormat::Reftable {
         // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
         init_with_git(context, layout, shadow)?;
@@ -339,6 +347,7 @@ pub fn create_shadow_repository_carrying(
         step_failure(create_shadow_skeleton(shadow), "creating", shadow)?;
     }
     step_failure(set_private_directory_mode(shadow), "protecting", shadow)?;
+    clock.next("shadow config");
     let format = match layout.config_snapshot.as_ref().and_then(repository_format_from_snapshot) {
         Some(from_snapshot) => from_snapshot,
         None => read_repository_format(context, layout.common_dir.as_path())?,
@@ -356,10 +365,12 @@ pub fn create_shadow_repository_carrying(
         ),
         "writing the shadow alternates",
     )?;
+    clock.next("shadow links");
     named_step_failure(
         link_shadow_entries(shadow, layout.common_dir.as_path(), layout.git_dir.as_path()),
         "linking the shadow entries",
     )?;
+    clock.next("shadow conclusion");
     if carry_conclusion {
         copy_conclusion_state(
             context,
@@ -370,6 +381,7 @@ pub fn create_shadow_repository_carrying(
             layout.ref_format,
         )?;
     }
+    clock.next("shadow refs");
     write_shadow_refs(
         context,
         cwd,
