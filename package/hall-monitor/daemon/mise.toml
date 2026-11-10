@@ -1,6 +1,15 @@
 [tasks.build]
+extends = "build"
+
+[tasks."build:binary"]
 description = "Compile hall-monitor to a standalone binary"
 run = "bun build src/index.ts --compile --minify --bytecode --sourcemap --outfile hall-monitor"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
 
 [tasks.run]
 description = "Run hall-monitor directly"
@@ -15,6 +24,9 @@ extends = "lint"
 
 [tasks."lint:types"]
 extends = "lint:types"
+# The suites import dist/final/node/testing.mjs, whose declarations are emitted by
+# the node build, so the artifact must exist before the type checker reads it.
+depends = ["build:js:node"]
 
 [tasks."lint:oxlint"]
 extends = "lint:oxlint"
@@ -23,15 +35,10 @@ extends = "lint:oxlint"
 extends = "format:oxlint"
 
 [tasks.test]
-description = "Run every *.unit.test.ts in this package through the module-test harness"
-shell = "node --input-type=module-typescript -e"
-run = """
-const { execFileSync } = await import('node:child_process')
-const { glob } = await import('node:fs/promises')
-const { resolve } = await import('node:path')
-// Absolute paths: the runner resolves relative arguments against the monorepo root, not this package.
-const files = []
-for await (const file of glob('src/**/*.unit.test.ts')) { files.push(resolve(file)) }
-if (files.length === 0) { throw new Error('no unit test files found under src/') }
-execFileSync('mise', ['run', '//:test:unit', '--', ...files], { stdio: 'inherit' })
-"""
+extends = "test"
+
+[tasks."test:unit"]
+extends = "test:unit"
+# The suites import dist/final/node/testing.mjs rather than sibling source, so the
+# built artifact must exist before they run.
+depends = ["build:js:node"]
