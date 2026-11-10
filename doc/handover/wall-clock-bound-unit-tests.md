@@ -654,6 +654,47 @@ implement the approved scope
     their validated patterns are captured here and fold into the real tests
     at implementation.
 
+## Verification on 2026-11-10
+
+Rechecked against this branch's tree at commit `5fc5a2f006`,
+whose test files are identical to `origin/main` at `5976ecea71`
+(`git diff --stat` over the packages named here is empty).
+
+- All seven bounds are still in place,
+  with the paths the generic category elimination gave them:
+  `package/test-harness/core/src/describe.unit.test.ts:58` (180 ms),
+  `package/logger/core/src/create-logger.unit.test.ts:963` and `:1395` (40 ms),
+  `package/search-fetch/core/src/gh-process.unit.test.ts:360` (5000 ms),
+  `package/mvm/cli/src/libvirt-tools.unit.test.ts:244` (30 s),
+  `package/pi-plugin/bash-poke/src/job-runner.unit.test.ts:337` (5 s),
+  and `package/wg/cli-quicker/src/config.unit.test.ts:222` (250 ms).
+- None of the six owning packages declares `[tasks.test]`,
+  so the root default glob picks all seven files up (`mise.toml:494`).
+- Each file passes on this four-core host,
+  alone and again as one six-file batch through `mise run test:unit`
+  with four workers at exit 0.
+  No false red was observed.
+- Fresh margins here:
+  the describe span measured 101 ms in two runs and 103 ms in one
+  against the 180 ms bound;
+  the wg-quicker parse at 4000 prefixes,
+  over 25 runs,
+  measured min 0.009 ms,
+  median 0.019 ms,
+  p95 0.071 ms,
+  and max 1.663 ms against the 250 ms bound,
+  and 16000 prefixes at most 0.11 ms.
+- A package's unit tests import its built `dist`,
+  so a stale build reddens them before any site does.
+  This worktree's logger `dist` was built 2026-11-01,
+  before `9424fa43de` of 2026-11-09,
+  and six children of the file's verify suite failed against it;
+  after `mise run //package/logger/core:build` the same file exited 0.
+  Rebuild a package before reading its test result.
+
+Nothing landed in this pass.
+The pause and the choice between the plans remain the owner's.
+
 ## Evidence appendix
 
 Key commands and outputs:

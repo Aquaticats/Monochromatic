@@ -485,6 +485,13 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// A commit whose command line names the repository:
+/// `--git-dir` with `--work-tree`,
+/// `GIT_DIR` with `GIT_WORK_TREE`,
+/// and a relative `-C`.
+#[path = "binary_repository_naming_commit_tests.rs"]
+mod repository_naming_commit;
+
 /// A commit whose branch another command moved while it was prepared:
 /// a first commit on a branch that did not exist yet,
 /// a `--patch` selection,

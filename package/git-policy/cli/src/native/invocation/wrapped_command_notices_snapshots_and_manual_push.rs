@@ -150,13 +150,14 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
-    // The trash of the worktree this command runs in is named here when no record accounts for it: the add that made it
-    // empties it before it returns, so a trash still there is one that could not be emptied, and nothing else mentions it.
+    // The trash of the worktree this command runs in is named here when no record accounts for it: an add hands it to the
+    // commit service of the repository, whose records live under the common directory, so a trash nothing there accounts for
+    // is one no service will empty, and nothing else mentions it.
     if let Ok(location) = checks.facts.location()
         && let Some(worktree) = crate::worktree_identity::worktree_root(&location.identity)
     {
         let mut stderr = std::io::stderr();
-        name_unaccounted_trash(git_dir.as_path(), worktree, &mut stderr);
+        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr);
     }
     // The directory every question of this step is asked in: the command's own, or the Git directory when it cannot be read.
     let cwd: PathBuf = match std::env::current_dir() {

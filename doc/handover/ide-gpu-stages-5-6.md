@@ -73,19 +73,19 @@ section "Stages 5 and 6".
 
 ## Next steps
 
-1. `mise run //package/ide/app:lint`,
-   then `test:native` once,
-   then `test`,
-   `test:bin`,
-   `build`,
-   `inspect:software-renderer`.
-2. If the external edit test fails again,
-   read the `EDIT before ... after ...` line it prints
-   (picture window and statistics before and after the edit).
-3. Look at a 4x crop of a chunk boundary in a window of about 3,700 px.
-4. Owner questions are listed at the end of the "Stages 5 and 6" section.
-5. The baseline worktree `.claude/worktrees/ide-gpu56-baseline` (detached at `origin/main` `625bcecb61`) can be removed
-   with `git worktree remove` after the cadence comparison is no longer wanted.
+1.  `mise run //package/ide/app:lint`,
+    then `test:native` once,
+    then `test`,
+    `test:bin`,
+    `build`,
+    `inspect:software-renderer`.
+2.  If the external edit test fails again,
+    read the `EDIT before ... after ...` line it prints
+    (picture window and statistics before and after the edit).
+3.  Look at a 4x crop of a chunk boundary in a window of about 3,700 px.
+4.  Owner questions are listed at the end of the "Stages 5 and 6" section.
+5.  The baseline worktree `.claude/worktrees/ide-gpu56-baseline` (detached at `origin/main` `625bcecb61`) can be removed
+    with `git worktree remove` after the cadence comparison is no longer wanted.
 
 ## Stacked textures
 

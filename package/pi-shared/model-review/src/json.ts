@@ -63,6 +63,9 @@ function findBalancedJsonObject(text: string,): string {
   let escaped = false;
   /* oxlint-enable no-restricted-syntax/no-function-root-let */
 
+  // Indexed walk, not `for...of`: the scanner reports the closing brace as
+  // `text.slice(start, cursor + 1)` and stops there, so it needs the offset a
+  // character iterator does not carry, and slicing the tail would copy the text.
   for (let cursor = start; cursor < text.length; cursor++) {
     /**
      Character at current scanner cursor.

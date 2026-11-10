@@ -1,8 +1,21 @@
 # LFS upload token written into `lfs.url` and copied into Git config, key names, logs and backups
 
 Status:
-the owner paused this thread on 2026-11-07 ("pause the lfs thread until I say unpause lfs").
-Everything below marked **waiting for the owner** is undecided and unstarted.
+the owner paused this thread on 2026-11-07 ("pause the lfs thread until I say unpause lfs")
+and lifted the pause on 2026-11-10 ("Unpause LFS.").
+The owner's answers recorded at 2026-11-10T06:44:02-05:00 settle two of the open decisions in this file.
+Decision 1 is "Per machine (Recommended)",
+which is option B.
+Decision 3 first drew the note
+"The custom lfs settings or server should only apply to repos where this is configured."
+and then "Repo + per-clone command":
+the token moves to a private file,
+only this repository's own Git settings point to it,
+all its worktrees share that,
+nothing global changes,
+and one command adds the setting to a clone the person chooses.
+The steps listed under "State of this machine" have not run yet.
+Everything else below marked **waiting for the owner** is still undecided and unstarted.
 This file holds no credential:
 every value is withheld,
 and every count comes from a scan that printed paths and

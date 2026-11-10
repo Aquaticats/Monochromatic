@@ -289,7 +289,7 @@ pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, obje
             commit_index.display()
         )));
     }
-    let written = run_git_checked(context, &indexed_request(cwd, &["write-tree"], Some(commit_index), Some(object_directory)))?;
+    let written = run_git_checked(context, &indexed_request(context, cwd, &["write-tree"], Some(commit_index), Some(object_directory)))?;
     return Ok(String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string());
 }
 
@@ -446,18 +446,23 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
     // The commit may have been run from a subdirectory; the second pass reads paths from the top of the worktree.
     let mut top_request: GitRequest = GitRequest::new(site.cwd, &["rev-parse", "--show-toplevel"]);
     top_request.without_prefix = true;
+    top_request.repository_selection = crate::repository_selection::from_global_options(site.cwd, site.context.global_prefix.as_slice());
     let top: PathBuf = match run_git_checked(site.context, &top_request) {
         Ok(found) => toplevel_of(found.stdout.as_slice()),
         Err(_) => return Merged::Conflict(paths),
     };
     let process_environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     let variables: Vec<(OsString, OsString)> = environment_with_overlay(process_environment.as_slice(), site.context.overlay.as_slice());
-    let probing: ContextRunner<'_> = ContextRunner { context: site.context, cwd: top.as_path(), without_prefix: true, object_directory: None, environment: Vec::new() };
+    // The replay runs at the top of the worktree and keeps none of the caller's other options, so the repository the line named is
+    //  carried here: a Git directory beside the work tree is found only when it is named.
+    let repository: Vec<OsString> = crate::repository_selection::from_global_options(top.as_path(), site.context.global_prefix.as_slice());
+    let probing: ContextRunner<'_> = ContextRunner { context: site.context, cwd: top.as_path(), without_prefix: true, repository: repository.clone(), object_directory: None, environment: Vec::new() };
     let probe: AttributeProbe<'_> = AttributeProbe { directory: top.as_path(), global_prefix: &[], variables: variables.as_slice(), runner: &probing };
     let runner: ContextRunner<'_> = ContextRunner {
         context: site.context,
         cwd: top.as_path(),
         without_prefix: true,
+        repository,
         object_directory: Some(site.object_directory),
         environment: attribute_tree_variables_on_the_runtime(tip, &probe),
     };

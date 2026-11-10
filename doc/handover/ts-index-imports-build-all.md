@@ -43,69 +43,69 @@ Make every non-exempt cross-package import in `package/` resolve to TypeScript s
 `@monochromatic-dev/<pkg>/ts`.
  Then build every package that has a source-to-dist transformation.
 
-1. Import form:
-    index only (`<pkg>/ts`).
-    Anti-patterns to rewrite:
-    bare (`<pkg>`),
-    feature-named (`/tagged`,
-   `/scope`),
-    `<feature>/ts` (`/scope/ts`),
-    and deep (`/ts/<file>.ts`).
-    All collapse to `<pkg>/ts`.
-2. Export maps:
-    keep `./ts` and `./ts/*`;
-    remove feature-named entries (Phase B2).
-    Keep `.` (built dist).
-3. Build shape:
-    only `neutral` and `node` bundles,
-    from a single `src/index.ts`.
-    Per package pick neutral-only
-   (exemplar `module-test`;
-    `.` = `{types,default}` both neutral),
-    node-only (exemplar `pi-shared-model-selection`,
-   `module-matrix`,
-    the `pi-*`;
-    `.` = `{types,default}` both node),
-    or both (exemplar `module-es`,
-    `module-logger`;
-   `.` = `{types: neutral, node, default: neutral}`).
-    No per-feature bundles.
-    Client bundles only for webapps,
-   bin bundles only for CLIs.
-4. Everything with a source-to-dist transformation must build a dist,
-    even though the workspace consumes `/ts` source.
-5. Tree scope:
-    `package/` only.
-6. `config-oxlint` family:
-    builds a `node` dist like any source-to-dist package (decision 4 applies).
-    Its consumers,
-   notably the repo-root `oxlint.config.ts`,
-    import the built `.` on purpose:
-    loading the prebuilt config is 20% to
-   40% faster than evaluating `/ts` source on every lint run.
-    It is exempt only from the import-rewrite-to-`/ts` rule
-   (decision 1),
-    not from building,
-    so it is NOT source-only.
+1.  Import form:
+     index only (`<pkg>/ts`).
+     Anti-patterns to rewrite:
+     bare (`<pkg>`),
+     feature-named (`/tagged`,
+    `/scope`),
+     `<feature>/ts` (`/scope/ts`),
+     and deep (`/ts/<file>.ts`).
+     All collapse to `<pkg>/ts`.
+2.  Export maps:
+     keep `./ts` and `./ts/*`;
+     remove feature-named entries (Phase B2).
+     Keep `.` (built dist).
+3.  Build shape:
+     only `neutral` and `node` bundles,
+     from a single `src/index.ts`.
+     Per package pick neutral-only
+    (exemplar `module-test`;
+     `.` = `{types,default}` both neutral),
+     node-only (exemplar `pi-shared-model-selection`,
+    `module-matrix`,
+     the `pi-*`;
+     `.` = `{types,default}` both node),
+     or both (exemplar `module-es`,
+     `module-logger`;
+    `.` = `{types: neutral, node, default: neutral}`).
+     No per-feature bundles.
+     Client bundles only for webapps,
+    bin bundles only for CLIs.
+4.  Everything with a source-to-dist transformation must build a dist,
+     even though the workspace consumes `/ts` source.
+5.  Tree scope:
+     `package/` only.
+6.  `config-oxlint` family:
+     builds a `node` dist like any source-to-dist package (decision 4 applies).
+     Its consumers,
+    notably the repo-root `oxlint.config.ts`,
+     import the built `.` on purpose:
+     loading the prebuilt config is 20% to
+    40% faster than evaluating `/ts` source on every lint run.
+     It is exempt only from the import-rewrite-to-`/ts` rule
+    (decision 1),
+     not from building,
+     so it is NOT source-only.
 
-    Superseded 2026-11-10T03:00:00-05:00 for the repository root.
-    The owner's issue #1926 instruction sent `oxlint.config.ts` to
-    `@monochromatic-dev/config-oxlint/ts`,
-    so an in-repo lint run evaluates plugin source and never the built bundle.
-    The prebuilt `.` stays the publishing entry for consumers outside this repository.
-    Measured that day on `package/logger/core/src`,
-    alternating arms over six rounds.
-    The built entry ran 1.42 s to 1.56 s and the source entry 1.56 s to 1.67 s,
-    about +0.19 s per oxlint process (+12 %),
-    with byte-identical findings.
-7. CLI/app packages lacking a build task:
-    add bundled-bin builds.
-8. Shims (`shim-*`) and stubs (`stub-*`):
-    leave hand-written `.cjs`/`.d.cts` as-is.
-9. Executable-index packages (`cli-mvm`,
-    `dev-script-inference-canary`):
-    restructure to a library barrel `index.ts`
-   plus a separate executable file (done in Phase A).
+     Superseded 2026-11-10T03:00:00-05:00 for the repository root.
+     The owner's issue #1926 instruction sent `oxlint.config.ts` to
+     `@monochromatic-dev/config-oxlint/ts`,
+     so an in-repo lint run evaluates plugin source and never the built bundle.
+     The prebuilt `.` stays the publishing entry for consumers outside this repository.
+     Measured that day on `package/logger/core/src`,
+     alternating arms over six rounds.
+     The built entry ran 1.42 s to 1.56 s and the source entry 1.56 s to 1.67 s,
+     about +0.19 s per oxlint process (+12 %),
+     with byte-identical findings.
+7.  CLI/app packages lacking a build task:
+     add bundled-bin builds.
+8.  Shims (`shim-*`) and stubs (`stub-*`):
+     leave hand-written `.cjs`/`.d.cts` as-is.
+9.  Executable-index packages (`cli-mvm`,
+     `dev-script-inference-canary`):
+     restructure to a library barrel `index.ts`
+    plus a separate executable file (done in Phase A).
 
 ## Exemptions (imports of them NOT rewritten to `/ts`)
 
@@ -496,81 +496,81 @@ Everything imports `/ts`,
 
 ### PROVEN recipe per neutral source-only lib (validated on `module-async-time` + `module-const`)
 
-1. Add `tsdown.browser.config.ts` (one line):
-    `export { default, } from '@monochromatic-dev/config-tsdown/.ts';`
-   (neutral).
-    For node use `tsdown.node.config.ts` -> `'@monochromatic-dev/config-tsdown/.node.ts'`.
-2. `mise.toml`:
-    add `build`,
-    `build:js`,
-    `build:js:browser` (or `build:js:node`) + the three `watch:*` twins via
-   `extends`,
-    and a `buildAndTest` task.
-    CAVEAT:
-    the test-task wiring VARIES per package — some have
-   `[tasks."test:unit"] extends = "test:unit"` (then `buildAndTest = "mise run build; mise run test:unit"`),
-    others a
-   custom `[tasks.test] run = "bun src/self.unit.test.ts"` (then `buildAndTest = "mise run build; mise run test"`).
-   Read the existing `mise.toml` and preserve its test task;
-    only ADD build + buildAndTest.
-3. `package.json`:
-    `"module"` -> `dist/final/neutral/index.mjs`;
-    `exports["."]` -> `{ "types":
-   "./dist/final/neutral/index.d.mts", "default": "./dist/final/neutral/index.mjs" }` (node:
-    swap `neutral`->`node`);
-   keep `./ts` + `./ts/*`;
-    `files` -> add `"dist/final"` before `"src"`;
-    add `"@monochromatic-dev/config-tsdown":
-   "workspace:*"` as the first devDep.
-4. Switch the package's own unit tests to import the BUILT dist instead of sibling source.
-    PREFERRED form:
-    switch the
-   specifier to the package BY NAME (`@monochromatic-dev/<pkg>`),
-    which resolves to `.` = dist after the flip.
-    This is
-   UNIFORM (one target string regardless of the test file's directory depth,
-    so it works for nested-`src/` packages
-   like `module-es` too,
-    unlike a relative `../dist/...` path which the precedent used).
-    KEY:
-    tests that ALREADY import
-   by name (e.g. `module-function-arity`'s) need NO edit at all -- they follow `.` automatically.
-    Only relative source
-   imports (`} from './foo.ts';`) need switching,
-    to `} from '@monochromatic-dev/<pkg>';`.
-    Leave test-aggregator
-   imports (`import './foo.unit.test.ts'`),
-    `module-test/ts`,
-    and other-package `/ts` imports alone.
-    The dist index
-   must re-export every symbol the tests use;
-    if not,
-    `buildAndTest` fails loudly naming the symbol -> add the
-   re-export to the index (finishing Phase A) OR keep that one test on source if it tests a genuine internal.
-    If a
-   single test file imports TWO+ own source modules,
-    switching both to by-name creates a duplicate import -> merge them
-   into one statement (same as Phase B's eslint/no-duplicate-imports merges).
+1.  Add `tsdown.browser.config.ts` (one line):
+     `export { default, } from '@monochromatic-dev/config-tsdown/.ts';`
+    (neutral).
+     For node use `tsdown.node.config.ts` -> `'@monochromatic-dev/config-tsdown/.node.ts'`.
+2.  `mise.toml`:
+     add `build`,
+     `build:js`,
+     `build:js:browser` (or `build:js:node`) + the three `watch:*` twins via
+    `extends`,
+     and a `buildAndTest` task.
+     CAVEAT:
+     the test-task wiring VARIES per package — some have
+    `[tasks."test:unit"] extends = "test:unit"` (then `buildAndTest = "mise run build; mise run test:unit"`),
+     others a
+    custom `[tasks.test] run = "bun src/self.unit.test.ts"` (then `buildAndTest = "mise run build; mise run test"`).
+    Read the existing `mise.toml` and preserve its test task;
+     only ADD build + buildAndTest.
+3.  `package.json`:
+     `"module"` -> `dist/final/neutral/index.mjs`;
+     `exports["."]` -> `{ "types":
+    "./dist/final/neutral/index.d.mts", "default": "./dist/final/neutral/index.mjs" }` (node:
+     swap `neutral`->`node`);
+    keep `./ts` + `./ts/*`;
+     `files` -> add `"dist/final"` before `"src"`;
+     add `"@monochromatic-dev/config-tsdown":
+    "workspace:*"` as the first devDep.
+4.  Switch the package's own unit tests to import the BUILT dist instead of sibling source.
+     PREFERRED form:
+     switch the
+    specifier to the package BY NAME (`@monochromatic-dev/<pkg>`),
+     which resolves to `.` = dist after the flip.
+     This is
+    UNIFORM (one target string regardless of the test file's directory depth,
+     so it works for nested-`src/` packages
+    like `module-es` too,
+     unlike a relative `../dist/...` path which the precedent used).
+     KEY:
+     tests that ALREADY import
+    by name (e.g. `module-function-arity`'s) need NO edit at all -- they follow `.` automatically.
+     Only relative source
+    imports (`} from './foo.ts';`) need switching,
+     to `} from '@monochromatic-dev/<pkg>';`.
+     Leave test-aggregator
+    imports (`import './foo.unit.test.ts'`),
+     `module-test/ts`,
+     and other-package `/ts` imports alone.
+     The dist index
+    must re-export every symbol the tests use;
+     if not,
+     `buildAndTest` fails loudly naming the symbol -> add the
+    re-export to the index (finishing Phase A) OR keep that one test on source if it tests a genuine internal.
+     If a
+    single test file imports TWO+ own source modules,
+     switching both to by-name creates a duplicate import -> merge them
+    into one statement (same as Phase B's eslint/no-duplicate-imports merges).
 
-   SCALING:
-    packages with one test file per function (`module-or-throw` = 25,
-    `module-toml-edit` = 18,
-   `module-i18n-compose` = 9) make manual per-file switching expensive.
-    For those,
-    consider a small throwaway tool
-   (`*.unit.test.ts` only:
-    rewrite a relative import of an own non-test source module to `@monochromatic-dev/<pkg>`,
-   merging duplicates) and let `buildAndTest` be the oracle.
-    Tests already importing by name cost nothing.
-5. `pnpm install` (links the new config-tsdown devDep;
-    updates root `pnpm-lock.yaml`).
-6. Gate:
-    `mise run //package/<path>:buildAndTest` (build emits `dist/final/neutral`,
-    tests pass against it).
-7. Commit:
-    `git add <tsdown.config>` (untracked),
-    then `git commit <package.json> <mise.toml> <tsdown.config>
-   <switched test files> pnpm-lock.yaml -m "build(<pkg>): produce neutral dist"`.
+    SCALING:
+     packages with one test file per function (`module-or-throw` = 25,
+     `module-toml-edit` = 18,
+    `module-i18n-compose` = 9) make manual per-file switching expensive.
+     For those,
+     consider a small throwaway tool
+    (`*.unit.test.ts` only:
+     rewrite a relative import of an own non-test source module to `@monochromatic-dev/<pkg>`,
+    merging duplicates) and let `buildAndTest` be the oracle.
+     Tests already importing by name cost nothing.
+5.  `pnpm install` (links the new config-tsdown devDep;
+     updates root `pnpm-lock.yaml`).
+6.  Gate:
+     `mise run //package/<path>:buildAndTest` (build emits `dist/final/neutral`,
+     tests pass against it).
+7.  Commit:
+     `git add <tsdown.config>` (untracked),
+     then `git commit <package.json> <mise.toml> <tsdown.config>
+    <switched test files> pnpm-lock.yaml -m "build(<pkg>): produce neutral dist"`.
 
 ### Findings (de-risk the fan-out)
 
@@ -897,18 +897,18 @@ by-name form.
 
 Pick the lightest rung the bin's safety allows;
  each executes the built artifact:
-1. By-name lib import + `typeof` check,
-    never calling the side-effecting export (cli-terminal-exec) — when the only
-   public symbol has side effects but its module is side-effect-free at import.
-2. `--help`/`--version` spawn (image-diff,
-    token-count,
-    cli-mvm) — when the parser short-circuits before any handler.
-3. No-args spawn asserting usage + non-zero exit (cli-rgffplay) — when no-args errors BEFORE the dangerous action.
-4. EOF-stdin spawn asserting clean exit (mcp-mvm) — when a server loop terminates on closed stdin without acting.
-5. NO execution,
-    build + dts only (dev-script-vm-builder) — when every entrypoint path has an unavoidable side effect
-   (sudo build) and the module can't be imported inertly.
-    Document WHY in the commit + buildAndTest description.
+1.  By-name lib import + `typeof` check,
+     never calling the side-effecting export (cli-terminal-exec) — when the only
+    public symbol has side effects but its module is side-effect-free at import.
+2.  `--help`/`--version` spawn (image-diff,
+     token-count,
+     cli-mvm) — when the parser short-circuits before any handler.
+3.  No-args spawn asserting usage + non-zero exit (cli-rgffplay) — when no-args errors BEFORE the dangerous action.
+4.  EOF-stdin spawn asserting clean exit (mcp-mvm) — when a server loop terminates on closed stdin without acting.
+5.  NO execution,
+     build + dts only (dev-script-vm-builder) — when every entrypoint path has an unavoidable side effect
+    (sudo build) and the module can't be imported inertly.
+     Document WHY in the commit + buildAndTest description.
 Relocate any flaky/slow/network/VM test that the new `test:unit` glob activates to `<name>.expensive.unit.test.ts`.
 
 ### Remaining — bundle sets determined (deps + `node:` built-in scan)
@@ -967,54 +967,54 @@ PURE-CLI (bin only,
  `dev-script-vm-builder` (custom entry).
  Recipe (PROVEN on cli-fy,
  commit `f747a476`):
-1. `tsdown.node.config.ts` = `export { default, } from '@monochromatic-dev/config-tsdown/.node.ts';`
-2. `mise.toml`:
-    keep the package's existing `run`/lint tasks;
-    ADD build + `build:js` + `build:js:node` + the three
-   `watch:*` twins + `test:unit` (if missing) + `buildAndTest` (`mise run build; mise run test:unit`).
-3. `package.json`:
-    `bin` target `src/<entry>.ts` -> `dist/final/node/<entry>.mjs`;
-    add `@monochromatic-dev/config-tsdown`
-   devDep.
-    Keep `main` at src (matches cli-git);
-    NO `exports`,
-    NO `files` for a private pure-CLI (cli-git has neither).
-4. NO by-name test routing:
-    a pure CLI has no `.` dist to import.
-    The bin's verification is a SMOKE-RUN of the built
-   bin (the by-name lever applied to an executable).
-    If an integration test already spawns the CLI (cli-fy's
-   `cli.unit.test.ts`),
-    REPOINT its spawn from `src/index.ts` to `dist/final/node/index.mjs` -> it becomes the
-   automated smoke-run inside buildAndTest.
-    Unit tests of internal modules stay on source.
-5. CWD GOTCHA (bit cli-fy):
-    a spawn-the-CLI integration test that used repo-root-relative paths with
-   `cwd: process.cwd()` only worked from repo root;
-    run as a PACKAGE task,
-    cwd is the package dir and the paths
-   misresolve (bun "Module not found").
-    FIX:
-    set the spawn `cwd` to the monorepo root via
-   `import { findMiseMonorepoRootCached } from '@monochromatic-dev/module-fs-path/ts'` (async,
-    no args,
-    cached;
-   `const REPO_ROOT = await findMiseMonorepoRootCached();` at module top -- TLA is fine).
-    Do NOT hand-roll
-   `'../../../..'` (brittle;
-    the user corrected this).
-    The bug was latent because the package had no test task before.
-6. SMOKE INVOCATION MUST BE PROVEN INERT (read the parser first):
-    cli-fy's scenarios (node:
-   path ops,
-    --help,
-    error
-   cases) are inert.
-    For the remaining pure-CLIs:
-    `mcp-mvm` + `dev-script-vm-builder` spin VMs -> ONLY `--help`/
-   `--version` after confirming help is inert;
-    `cli-terminal-exec` (its lib and bin packages) must NOT be run at all (`AGENTS.md`:
-   probing terminal-exec opens a terminal) -- verify it by build + shebang + parser-read only.
+1.  `tsdown.node.config.ts` = `export { default, } from '@monochromatic-dev/config-tsdown/.node.ts';`
+2.  `mise.toml`:
+     keep the package's existing `run`/lint tasks;
+     ADD build + `build:js` + `build:js:node` + the three
+    `watch:*` twins + `test:unit` (if missing) + `buildAndTest` (`mise run build; mise run test:unit`).
+3.  `package.json`:
+     `bin` target `src/<entry>.ts` -> `dist/final/node/<entry>.mjs`;
+     add `@monochromatic-dev/config-tsdown`
+    devDep.
+     Keep `main` at src (matches cli-git);
+     NO `exports`,
+     NO `files` for a private pure-CLI (cli-git has neither).
+4.  NO by-name test routing:
+     a pure CLI has no `.` dist to import.
+     The bin's verification is a SMOKE-RUN of the built
+    bin (the by-name lever applied to an executable).
+     If an integration test already spawns the CLI (cli-fy's
+    `cli.unit.test.ts`),
+     REPOINT its spawn from `src/index.ts` to `dist/final/node/index.mjs` -> it becomes the
+    automated smoke-run inside buildAndTest.
+     Unit tests of internal modules stay on source.
+5.  CWD GOTCHA (bit cli-fy):
+     a spawn-the-CLI integration test that used repo-root-relative paths with
+    `cwd: process.cwd()` only worked from repo root;
+     run as a PACKAGE task,
+     cwd is the package dir and the paths
+    misresolve (bun "Module not found").
+     FIX:
+     set the spawn `cwd` to the monorepo root via
+    `import { findMiseMonorepoRootCached } from '@monochromatic-dev/module-fs-path/ts'` (async,
+     no args,
+     cached;
+    `const REPO_ROOT = await findMiseMonorepoRootCached();` at module top -- TLA is fine).
+     Do NOT hand-roll
+    `'../../../..'` (brittle;
+     the user corrected this).
+     The bug was latent because the package had no test task before.
+6.  SMOKE INVOCATION MUST BE PROVEN INERT (read the parser first):
+     cli-fy's scenarios (node:
+    path ops,
+     --help,
+     error
+    cases) are inert.
+     For the remaining pure-CLIs:
+     `mcp-mvm` + `dev-script-vm-builder` spin VMs -> ONLY `--help`/
+    `--version` after confirming help is inert;
+     `cli-terminal-exec` (its lib and bin packages) must NOT be run at all (`AGENTS.md`:
+    probing terminal-exec opens a terminal) -- verify it by build + shebang + parser-read only.
 
 LIB+BIN (BOTH `.`/`./ts` exports AND a bin from a SEPARATE entry -- DUAL-ENTRY):
  ALL DONE — `module-image-diff` (commit
@@ -1029,75 +1029,75 @@ run).
  Recipe (PROVEN on module-image-diff;
  in-repo precedent
 `package/dev-script/deps-cube/tsdown.node.config.ts` is the same dual-entry shape):
-1. Confirm lib AND bin share a platform (else two configs -- the hardest shape;
-    avoid for the first pilot).
-    Check with
-   the node-builtins grep.
-    `module-image-diff` is node+node (lib uses `node:fs/promises`+`node:path` in encoding.
-   *;
-   bin uses `@optique/run`),
-    `--help` inert (optique prints help before any network/handler).
-2. DUAL-ENTRY config.
-    The base default export must be re-wrapped with `defineConfig`,
-    and under `isolatedDeclarations`
-   that needs an explicit `UserConfig` type on the const (a bare `export default defineConfig(...)` fails
-   `TS9037: Default exports can't be inferred with --isolatedDeclarations`).
-    PROVEN form:
-   ```ts
-   import base from '@monochromatic-dev/config-tsdown/.node.ts';
-   import { defineConfig, type UserConfig, } from 'tsdown';
-   const config: UserConfig = defineConfig({ ...base, entry: ['./src/index.ts', './src/cli.ts',], },);
-   export default config;
-   ```
-   Emits `dist/final/node/index.mjs` (lib) + `dist/final/node/cli.mjs` (bin),
-    each with `.d.mts`.
-    tsdown chmod +x's
-   `cli.mjs` (shebang detected,
-    logged "Granting execute permission");
-    `index.mjs` gets NO shebang.
-3. `package.json`:
-    `.` -> `{ types: index.d.mts, default: index.mjs }`;
-    `module` -> `index.mjs`;
-    `bin` -> `cli.mjs` (NOT
-   `index.mjs`);
-    keep `./ts`+`./ts/*`;
-    `files` += `dist/final`;
-    ensure `@monochromatic-dev/config-tsdown` devDep.
-4. Lib tests:
-    route public ones through `.` by-name (the proven lever;
-    tool for single-import files,
-    hand-merge for
-   2+).
-    `module-image-diff` used `similarity` (both symbols public) as the lib smoke test;
-    internals stay on source.
-5. BIN MUST BE EXECUTED,
-    not just emitted (advisor catch).
-    The lib by-name test loads `index.mjs`,
-    never `cli.mjs`;
-   and `dts` cannot verify `cli.mjs` because the bin entry has NO exports (its `.d.mts` is an empty `export {}`).
-    So
-   `cli.mjs` is an UNVERIFIED artifact until run.
-    ADD a committed `cli.unit.test.ts` that spawns
-   `bun dist/final/node/cli.mjs --help`,
-    asserting exit 0 + observed help text (model on cli-fy:
-    `findMiseMonorepoRootCached`
-   for `cwd`,
-    `nano-spawn` + `module-fs-path` as devDeps + `pnpm install`).
-    Read the actual `--help` output FIRST,
-    then
-   assert against it (test-assumptions-before-encoding).
-    `--help` is inert -> safe in the default gate.
-6. NETWORK / VM / SLOW TESTS:
-    rename to `<name>.expensive.unit.test.ts` (precedent `cli-vmsync/lifecycle.expensive.unit.test.ts`;
-   the `test:unit` template excludes `str contains ".expensive."` unless `--all`).
-    Adding `test:unit` ACTIVATES the
-   `*.unit.test.ts` glob,
-    so an unrenamed network test would fire paid APIs on every `buildAndTest` AND the final
-   repo-wide `mise run test`.
-    Leave the renamed file on SOURCE imports (no by-name switch -> zero paid calls during the
-   conversion;
-    the lib smoke test already covers the bundle).
-    `module-image-diff`'s `client` test was renamed this way.
+1.  Confirm lib AND bin share a platform (else two configs -- the hardest shape;
+     avoid for the first pilot).
+     Check with
+    the node-builtins grep.
+     `module-image-diff` is node+node (lib uses `node:fs/promises`+`node:path` in encoding.
+    *;
+    bin uses `@optique/run`),
+     `--help` inert (optique prints help before any network/handler).
+2.  DUAL-ENTRY config.
+     The base default export must be re-wrapped with `defineConfig`,
+     and under `isolatedDeclarations`
+    that needs an explicit `UserConfig` type on the const (a bare `export default defineConfig(...)` fails
+    `TS9037: Default exports can't be inferred with --isolatedDeclarations`).
+     PROVEN form:
+    ```ts
+    import base from '@monochromatic-dev/config-tsdown/.node.ts';
+    import { defineConfig, type UserConfig, } from 'tsdown';
+    const config: UserConfig = defineConfig({ ...base, entry: ['./src/index.ts', './src/cli.ts',], },);
+    export default config;
+    ```
+    Emits `dist/final/node/index.mjs` (lib) + `dist/final/node/cli.mjs` (bin),
+     each with `.d.mts`.
+     tsdown chmod +x's
+    `cli.mjs` (shebang detected,
+     logged "Granting execute permission");
+     `index.mjs` gets NO shebang.
+3.  `package.json`:
+     `.` -> `{ types: index.d.mts, default: index.mjs }`;
+     `module` -> `index.mjs`;
+     `bin` -> `cli.mjs` (NOT
+    `index.mjs`);
+     keep `./ts`+`./ts/*`;
+     `files` += `dist/final`;
+     ensure `@monochromatic-dev/config-tsdown` devDep.
+4.  Lib tests:
+     route public ones through `.` by-name (the proven lever;
+     tool for single-import files,
+     hand-merge for
+    2+).
+     `module-image-diff` used `similarity` (both symbols public) as the lib smoke test;
+     internals stay on source.
+5.  BIN MUST BE EXECUTED,
+     not just emitted (advisor catch).
+     The lib by-name test loads `index.mjs`,
+     never `cli.mjs`;
+    and `dts` cannot verify `cli.mjs` because the bin entry has NO exports (its `.d.mts` is an empty `export {}`).
+     So
+    `cli.mjs` is an UNVERIFIED artifact until run.
+     ADD a committed `cli.unit.test.ts` that spawns
+    `bun dist/final/node/cli.mjs --help`,
+     asserting exit 0 + observed help text (model on cli-fy:
+     `findMiseMonorepoRootCached`
+    for `cwd`,
+     `nano-spawn` + `module-fs-path` as devDeps + `pnpm install`).
+     Read the actual `--help` output FIRST,
+     then
+    assert against it (test-assumptions-before-encoding).
+     `--help` is inert -> safe in the default gate.
+6.  NETWORK / VM / SLOW TESTS:
+     rename to `<name>.expensive.unit.test.ts` (precedent `cli-vmsync/lifecycle.expensive.unit.test.ts`;
+    the `test:unit` template excludes `str contains ".expensive."` unless `--all`).
+     Adding `test:unit` ACTIVATES the
+    `*.unit.test.ts` glob,
+     so an unrenamed network test would fire paid APIs on every `buildAndTest` AND the final
+    repo-wide `mise run test`.
+     Leave the renamed file on SOURCE imports (no by-name switch -> zero paid calls during the
+    conversion;
+     the lib smoke test already covers the bundle).
+     `module-image-diff`'s `client` test was renamed this way.
 
 GENERAL:
  `cli-mvm`'s bin is `src/cli.ts`;

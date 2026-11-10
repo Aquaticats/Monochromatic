@@ -25,6 +25,7 @@
 //! ```
 
 pub use crate::service_server_work_loop::work_loop;
+pub use crate::service_server_work_loop_awaiting::work_loop_awaiting;
 pub use crate::service_server_socket_binding::{Bind, INHERITED_DESCRIPTOR, bind, socket_passed_in};
 #[cfg(test)]
 use crate::service_server_socket_binding::ensure_socket_passed_in;
@@ -33,6 +34,7 @@ use crate::service_server_land_group::{land_group, settle_open_batches};
 use crate::service_server_connection_handling::ConnectionShared;
 use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most};
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
+use crate::lazy_runtime::spawn_on_runtime;
 use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
 use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use crate::service_index_lock::unsettled_locks;
@@ -208,14 +210,24 @@ impl ServeSettings {
     }
 }
 
-/// Starts a thread the service cannot do without,
+/// Starts the after-commit work as a task of the process's runtime,
 /// or ends the service with a plain line and status 4:
 /// a service that goes on
-///  without its acceptor or its work thread answers no one,
+///  without its after-commit work never pushes the person's commits,
 /// while an ended service is started again by the manager.
-fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
-    if let Err(error) = std::thread::Builder::new().spawn(body) {
-        crate::service_error!("{}", crate::scoped_start::refused_thread_sentence(format!("run {what}").as_str(), &error));
+/// The plan and the watch are read by the caller,
+///  on its thread outside the runtime,
+/// so the task starts with what the service that stopped last left and no storage wait of
+///  that reading holds a worker.
+fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, push_retries: PushRetries, watch: ClaimWatch) {
+    let work = async move {
+        let mut wakes: UnboundedReceiver<Wake> = receiver;
+        work_loop_awaiting(&mut wakes, &handlers, &busy, push_retries, watch).await;
+    };
+    if spawn_on_runtime(work).is_none() {
+        crate::service_error!(
+            "cannot start the after-commit work: the runtime that runs it has no worker thread (the system may refuse threads; check `ulimit -u` and the control group's `pids.max`)"
+        );
         std::process::exit(4);
     }
 }
@@ -284,8 +296,8 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     let mut captures: CaptureMemory = CaptureMemory::default();
     let (sender, mut receiver): (UnboundedSender<Job>, UnboundedReceiver<Job>) = unbounded_channel();
     let acceptor_queue: UnboundedSender<Job> = sender.clone();
-    // After-commit work (push, upkeep) runs on its own thread, so a slow network never delays a landing.
-    let (work_sender, mut work_receiver): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) = unbounded_channel();
+    // After-commit work (push, upkeep) runs as a task of its own, so a slow network never delays a landing.
+    let (work_sender, work_receiver): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) = unbounded_channel();
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
@@ -297,7 +309,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     // The repositories this instance was woken for are kept in the journal the same way, so a restarted service looks at them.
     let watch_directory: PathBuf = context.journal.join(WATCH_DIRECTORY);
     let watch_instance: Option<String> = settings.instance.clone();
-    start_thread_or_exit("the after-commit work", move || { work_loop(&mut work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path()), ClaimWatch::restored(watch_directory.as_path(), watch_instance.as_deref())); });
+    // The plan and the watch are read here, before the task that runs the loop starts, so that reading them is this thread's
+    //  and the loop's task begins with what a service that stopped last left.
+    let started_retries: PushRetries = PushRetries::restored_from_environment(plan_directory.as_path());
+    let started_watch: ClaimWatch = ClaimWatch::restored(watch_directory.as_path(), watch_instance.as_deref());
+    start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     // What:
     //  The acceptor starts here,
     // before the recovery of the batch an earlier service left open.

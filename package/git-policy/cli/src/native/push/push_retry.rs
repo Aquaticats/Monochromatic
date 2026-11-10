@@ -440,12 +440,17 @@ fn last_plan_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_re
 /// so it needs no cell and no lock;
 /// workers get what is due
 ///  as owned values (`Retrying`) and hand their changes back (`RetryChange`).
+/// The list is cloned into a job of the blocking pool when the loop that owns it is a task,
+///  because a job may not borrow it;
+/// the job hands the changed list back and the clone is dropped,
+/// so only one list is ever the
+///  owner's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class PushRetries { schedule(); forget(); takeDue(); nextWait(); apply(changes); }
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PushRetries {
     /// The pause before the first new try.
     first: Duration,

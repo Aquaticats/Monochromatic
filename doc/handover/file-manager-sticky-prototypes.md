@@ -94,43 +94,43 @@ Update this file whenever a work unit lands so the context survives auto-compact
 
 ## Footguns encountered this session (all to get troubleshooting docs)
 
-1. GTK4 hexpand propagation stretched per-column `GtkFixed` canvases ~74px;
-   explicit `set_hexpand(false)` did NOT stop it empirically (docs say it should);
-   probe built at the path in `/tmp/agent/probe-path.txt` to settle it;
-    fix used:
-    one absolute
-   canvas (`file-manager-gtk-sticky` commit "one absolute canvas so panes align with bands").
-2. GtkListView keyboard cursor unset until first arrow/`scroll_to`;
-    bare Enter activates
-   nothing;
-    fix `list.scroll_to(0, FOCUS|SELECT, None)` (needs gtk4 feature v4_12).
-3. Initial window focus lands on first focusable widget (header close button);
-   Enter closed the pane;
-    fix `close.set_focusable(false)`.
-4. gtk4 feature v4_12 deprecates `CssProvider::load_from_data` -> use `load_from_string`
-   (build-breaking under clippy -D warnings).
-5. `serde_json::json!` macro expands to `Result::unwrap` -> trips repo clippy
-   disallowed-methods;
+1.  GTK4 hexpand propagation stretched per-column `GtkFixed` canvases ~74px;
+    explicit `set_hexpand(false)` did NOT stop it empirically (docs say it should);
+    probe built at the path in `/tmp/agent/probe-path.txt` to settle it;
+     fix used:
+     one absolute
+    canvas (`file-manager-gtk-sticky` commit "one absolute canvas so panes align with bands").
+2.  GtkListView keyboard cursor unset until first arrow/`scroll_to`;
+     bare Enter activates
+    nothing;
+     fix `list.scroll_to(0, FOCUS|SELECT, None)` (needs gtk4 feature v4_12).
+3.  Initial window focus lands on first focusable widget (header close button);
+    Enter closed the pane;
+     fix `close.set_focusable(false)`.
+4.  gtk4 feature v4_12 deprecates `CssProvider::load_from_data` -> use `load_from_string`
+    (build-breaking under clippy -D warnings).
+5.  `serde_json::json!` macro expands to `Result::unwrap` -> trips repo clippy
+    disallowed-methods;
+     fix:
+     build `serde_json::Map` explicitly.
+6.  nested-wayland-session drops keystrokes sent before the client maps its surface;
     fix:
-    build `serde_json::Map` explicitly.
-6. nested-wayland-session drops keystrokes sent before the client maps its surface;
-   fix:
-    app mirrors a `ready` fact gated on GTK `connect_map`,
-    tests wait for it.
-7. tsdown:
-    two configs sharing one `outDir`;
-    the second run's default clean deletes the
-   first's output (preload build deleted `main.mjs`).
-    Self-inflicted (user confirmation):
-   the repo's one-`dist/`-subdir-per-config convention exists to prevent exactly this.
-   Fix now shipped:
-    preload builds to its own `dist/preload` with default clean and
-   `build:stage` copies `preload.cjs` into `dist/app`;
-    the earlier `clean: false` patch is
-   replaced and demoted to a rejected workaround in the troubleshooting doc.
-8. tsc `isolatedDeclarations`:
-    exported computed const needs explicit type annotation (TS9010).
-9. Electron sandboxed preload must be CommonJS (bundled as `.cjs` via its own tsdown config).
+     app mirrors a `ready` fact gated on GTK `connect_map`,
+     tests wait for it.
+7.  tsdown:
+     two configs sharing one `outDir`;
+     the second run's default clean deletes the
+    first's output (preload build deleted `main.mjs`).
+     Self-inflicted (user confirmation):
+    the repo's one-`dist/`-subdir-per-config convention exists to prevent exactly this.
+    Fix now shipped:
+     preload builds to its own `dist/preload` with default clean and
+    `build:stage` copies `preload.cjs` into `dist/app`;
+     the earlier `clean: false` patch is
+    replaced and demoted to a rejected workaround in the troubleshooting doc.
+8.  tsc `isolatedDeclarations`:
+     exported computed const needs explicit type annotation (TS9010).
+9.  Electron sandboxed preload must be CommonJS (bundled as `.cjs` via its own tsdown config).
 10. Electron under the nested compositor prints
     `Fatal Wayland communication error: Broken pipe` and a `Failed to shutdown` FATAL at quit;
     benign in passing runs;

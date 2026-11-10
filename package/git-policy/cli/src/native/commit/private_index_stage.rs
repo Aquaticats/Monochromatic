@@ -107,6 +107,9 @@ fn write_blob(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> 
 fn write_blob_through_git(stage: &PrivateStage<'_>, bytes: &[u8]) -> Result<String, String> {
     let mut request: GitRequest = GitRequest::new(stage.cwd, &["hash-object", "-w", "--stdin"]);
     request.without_prefix = true;
+    // The private state is the invocation's, and so is the repository: a Git directory beside its work tree is named here, because
+    //  this write keeps none of the caller's other options.
+    request.repository_selection = crate::repository_selection::from_global_options(stage.cwd, stage.context.global_prefix.as_slice());
     request.object_directory = stage.object_directory.map(Path::to_path_buf);
     request.input = Some(bytes.to_vec());
     let output: GitOutput = private_git(stage, &request, "hash-object")?;
@@ -148,6 +151,7 @@ fn update_entry_through_git(stage: &PrivateStage<'_>, mode: &str, oid: &str, pat
     // The path is the exact bytes Git reported, so a name that is not UTF-8 reaches Git unchanged.
     request.arguments.push(os_from_path_bytes(path));
     request.without_prefix = true;
+    request.repository_selection = crate::repository_selection::from_global_options(stage.cwd, stage.context.global_prefix.as_slice());
     request.index = Some(stage.index.to_path_buf());
     request.object_directory = stage.object_directory.map(Path::to_path_buf);
     private_git(stage, &request, "update-index")?;

@@ -207,6 +207,11 @@ pub(crate) fn land_group(
         requests.push((**request).clone());
     }
     let announce: AnnounceToStreams<'_> = AnnounceToStreams { fresh: fresh.as_slice() };
+    // The next commit in this worktree takes a finished private repository instead of making one. The fill runs beside this
+    //  landing, on the service's own workers, so the commit that waits for the answer below pays nothing for it.
+    if let Some(first) = requests.first() {
+        crate::service_shadow_pool_fill::start(&context.git, first);
+    }
     let mut landing: LandTiming = LandTiming::default();
     let landing_began: Instant = Instant::now();
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);

@@ -14,6 +14,7 @@
 //! ```
 
 use super::*;
+use crate::child_awaited_through_a_pidfd::adopt;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
