@@ -26,7 +26,9 @@ and finally executes bare `node`:
 Note 2026-11-10T04:47:31-05:00:
 `node_modules/.bin/git` was pnpm's launcher for the workspace package `@monochromatic-dev/git-policy-cli`,
 whose `package.json` declared `"bin": { "git": "dist/final/node/index.mjs" }`.
-That package, the TypeScript wrapper and its bins left the tree on 2026-10-13 in `642b6d72cb`,
+The TypeScript wrapper,
+its tasks and its bins left the tree on 2026-10-13 in `642b6d72cb`,
+and the package keeps no `"git"` entry in its `bin` field since,
 so the cited path exists nowhere and nothing writes it again.
 The wrapper's current entry is the native executable at the toolchain install's postinstall link,
 `.cache/monochromatic-git-policy-cli-bin/git`,
