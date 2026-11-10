@@ -5,12 +5,13 @@
  */
 
 import { DEFAULT_FONT_SIZE, } from './constants.ts';
-import { figmaPaintToFill, } from './paint.ts';
+import {
+  collectPaints,
+  figmaPaintToFill,
+} from './paint.ts';
 import {
   type FigmaRecord,
   numberOr,
-  recordArray,
-  SKIP,
   stringOr,
 } from './read.ts';
 import type { PenpotFill, } from './types.ts';
@@ -46,15 +47,10 @@ function textFills(nc: FigmaRecord,): PenpotFill[] {
   /**
    Fills converted from the node's paints, dropping unsupported paints.
    */
-  const fills: PenpotFill[] = [];
-  for (const paint of recordArray(nc.fillPaints,)) {
-    /**
-     Solid fill candidate; {@link SKIP} means the paint type is unsupported.
-     */
-    const fill = figmaPaintToFill(paint,);
-    if (fill !== SKIP)
-      fills.push(fill,);
-  }
+  const fills = collectPaints({
+    paints: nc.fillPaints,
+    convert: figmaPaintToFill,
+  },);
   if (fills.length === 0) {
     fills.push({
       fillColor: '#000000',
