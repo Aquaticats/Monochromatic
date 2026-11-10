@@ -293,12 +293,11 @@ and `test:unit`.
 `pi-plugin/current-time-context`,
 `vmsync/cli`,
 `android-exempt-unused/cli`,
-`test-harness/core`,
 `wc/app`,
 `git-clone-size/cli`,
 and `watch-restart/cli`.
 
-Two more have their sites converted and stop one check short of green,
+Three more have their sites converted and stop one check short of green,
 each on debt that predates this work.
 `pi-plugin/thinking-default` meets two pi 1.5.1 type errors in its extension entry:
 `Model<any>` against `ModelWithId` under `exactOptionalPropertyTypes`,
@@ -307,6 +306,14 @@ and the `pi.on` `model_select` overload.
 handler,
 whose hoist exposes `unicorn/no-process-exit`,
 a rule this repository enables repo-wide with no per-file allowance.
+`test-harness/core` carries 8 errors and 17 warnings in `src/scratch-root.ts` and its
+suite:
+four declarations without TSDoc,
+`mkdirSync` and `realpathSync` against the no-sync rule,
+two `try`/`finally` blocks against the no-try-finally rule,
+and stylistic findings.
+Its scratch root is a synchronous API 258 files import,
+so making it async is a published-API change rather than a lint fix.
 
 Three shapes covered every case,
 in the order to prefer them.
