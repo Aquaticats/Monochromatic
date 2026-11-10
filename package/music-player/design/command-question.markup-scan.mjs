@@ -121,3 +121,22 @@ export function hasPreselectedRadio(text) {
   }
 }
 //endregion
+
+//region Occurrence counts read a literal, not a pattern
+/**
+ * Counts non-overlapping occurrences of one literal, left to right.
+ * Each occurrence consumes its own length before the search resumes, which is
+ * how a global match counted, so `aa` in `aaa` is one occurrence and not two.
+ */
+export function occurrencesOf(text, literal) {
+  if (literal === '') throw new Error('occurrencesOf counts a literal, so it cannot read an empty one.');
+  let count = 0;
+  let cursor = 0;
+  for (;;) {
+    const at = text.indexOf(literal, cursor);
+    if (at === -1) return count;
+    count += 1;
+    cursor = at + literal.length;
+  }
+}
+//endregion

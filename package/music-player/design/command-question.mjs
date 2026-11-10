@@ -6,7 +6,12 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-import { hasPreselectedRadio, pngPayloads, usesClipboardApi } from './command-question.markup-scan.mjs';
+import {
+  hasPreselectedRadio,
+  occurrencesOf,
+  pngPayloads,
+  usesClipboardApi,
+} from './command-question.markup-scan.mjs';
 
 const root = process.cwd();
 // This round is archived: its template and page live in `questions/archive`, and
@@ -359,7 +364,7 @@ function validate() {
   ]) {
     if (!html.includes(text)) throw new Error(`Command questionnaire is missing ${text}.`);
   }
-  if (((html.match(/type="radio"/g) ?? []).length !== 7) || ((html.match(/<fieldset>/g) ?? []).length !== 3)) {
+  if ((occurrencesOf(html, 'type="radio"') !== 7) || ((html.match(/<fieldset>/g) ?? []).length !== 3)) {
     throw new Error('Command questionnaire must ask three separable questions with seven radio choices.');
   }
   if (((html.match(/class="capture/g) ?? []).length !== scenes.length) || ((html.match(/data-scheme="dark"/g) ?? []).length !== scenes.length)

@@ -9,7 +9,12 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-import { hasPreselectedRadio, pngPayloads, usesClipboardApi } from './command-question.markup-scan.mjs';
+import {
+  hasPreselectedRadio,
+  occurrencesOf,
+  pngPayloads,
+  usesClipboardApi,
+} from './command-question.markup-scan.mjs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -104,6 +109,28 @@ for (const [name, markup, expected] of preselectCases) {
 }
 //endregion
 
+//region A literal's occurrences are counted as a global match counted them
+const occurrenceCases = [
+  ['a literal that repeats', '<input type="radio"><input type="radio"><input type="radio">', 'type="radio"', 3],
+  ['a literal that does not appear', '<fieldset></fieldset>', 'type="radio"', 0],
+  ['overlapping occurrences', 'aaaa', 'aa', 2],
+  ['a literal at both edges', 'xaxax', 'xa', 2],
+  ['a literal longer than the text', 'ab', 'abc', 0],
+  ['nothing at all', '', 'type="radio"', 0],
+];
+for (const [name, text, literal, expected] of occurrenceCases) {
+  const found = occurrencesOf(text, literal);
+  if (found !== expected) fail(name, found, expected);
+}
+let emptyLiteralRefused = false;
+try {
+  occurrencesOf('anything', '');
+} catch {
+  emptyLiteralRefused = true;
+}
+if (!emptyLiteralRefused) throw new Error('occurrencesOf counted an empty literal instead of refusing it.');
+//endregion
+
 //region The script carries none of the patterns the audit filed against it
 // Each entry is the site string its issue records. The control runs the same search over a page that carries the
 // first site, so an empty result means the pattern is gone rather than that the search reads nothing.
@@ -111,6 +138,7 @@ const FILED_SITES = [
   [String.raw`/navigator\.clipboard|clipboardData|execCommand\(\s*['"]copy/`, '#787'],
   [String.raw`/data:image\/png;base64,([A-Za-z0-9+/=]+)/g`, '#788 and #789'],
   [String.raw`/<input[^>]*type="radio"[^>]*checked/`, '#790'],
+  [String.raw`/type="radio"/g`, '#791'],
 ];
 const siteSearchControl = `if (${FILED_SITES[0][0]}.test(html)) throw`;
 if (!siteSearchControl.includes(FILED_SITES[0][0])) throw new Error('The site search cannot see the site string it looks for.');
@@ -241,6 +269,14 @@ try {
       ),
       diagnostic: 'must not preselect a choice',
     },
+    {
+      name: 'one radio choice too many',
+      mutate: (page) => page.replace(
+        '</body>',
+        '<input type="radio" name="probe" value="P1"></body>'
+      ),
+      diagnostic: 'seven radio choices',
+    },
   ];
   for (const { name, mutate, diagnostic } of mutations) {
     const mutated = mutate(pristine);
@@ -260,7 +296,7 @@ try {
       pristine
     );
   }
-  console.log(`Command questionnaire: ${clipboardCases.length} clipboard, ${payloadCases.length} payload and ${preselectCases.length} preselect readings hold, ${FILED_SITES.length} filed patterns are gone, and ${mutations.length} changed pages are refused.`);
+  console.log(`Command questionnaire: ${clipboardCases.length} clipboard, ${payloadCases.length} payload, ${preselectCases.length} preselect and ${occurrenceCases.length} count readings hold, ${FILED_SITES.length} filed patterns are gone, and ${mutations.length} changed pages are refused.`);
 } finally {
   rmSync(
     fixture,
