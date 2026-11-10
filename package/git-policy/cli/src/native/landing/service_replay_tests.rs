@@ -56,7 +56,7 @@ fn captured(world: &World, edits: &[(usize, &str)]) -> Captured {
     land(world, edits, "mine");
     let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
-    return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new(), conclusion: None };
+    return Captured { base: world.base.clone(), unborn: false, tree, captured: 0, landed: Vec::new(), conclusion: None };
 }
 
 fn merge(world: &World, captured: &Captured) -> Merged {
@@ -102,7 +102,7 @@ fn edits_of_the_same_line_conflict_and_the_first_commit_is_named() {
     let Merged::Conflict(paths) = merge(&world, &mine) else { panic!("expected a conflict") };
     assert_eq!(paths, vec![FILE.as_bytes().to_vec()]);
     let tip: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let first = first_landed(&world.context, world.repo.as_path(), world.base.as_str(), tip.as_str(), paths.as_slice()).expect("the log runs").expect("a commit");
+    let first = first_landed(&world.context, world.repo.as_path(), Some(world.base.as_str()), tip.as_str(), paths.as_slice()).expect("the log runs").expect("a commit");
     assert_eq!(first.subject, "theirs", "the commit that landed first, not the last");
     assert_eq!(first.short, git_text(world.repo.as_path(), &["rev-parse", "--short", "HEAD~1"]));
     remove(world.root.as_path());
@@ -163,7 +163,7 @@ fn a_conflict_on_one_name_keeps_the_other_names_landed_edit() {
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::create_dir(root.join("scratch")).expect("scratch");
     let world: World = World { root, repo, context: git_context(), base };
-    let mine: Captured = Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new(), conclusion: None };
+    let mine: Captured = Captured { base: world.base.clone(), unborn: false, tree, captured: 0, landed: Vec::new(), conclusion: None };
     let merged_tree: String = match merge(&world, &mine) {
         Merged::Tree(merged) | Merged::Combined { tree: merged, .. } => merged,
         Merged::Conflict(paths) => panic!("the captured bytes contain the landed edit of the conflicting name: {paths:?}"),
@@ -348,7 +348,7 @@ fn corpus_sides(world: &World, input: &str, path: &str) -> Captured {
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
     std::fs::write(world.repo.join(path), corpus(input, "ours")).expect("landed text");
     git(world.repo.as_path(), &["commit", "--quiet", "--all", "--message=landed"]);
-    return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new(), conclusion: None };
+    return Captured { base: world.base.clone(), unborn: false, tree, captured: 0, landed: Vec::new(), conclusion: None };
 }
 
 /// An edit and an insertion right after it,

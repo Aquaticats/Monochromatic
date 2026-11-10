@@ -428,6 +428,13 @@ impl AmendedCommit {
     pub(crate) fn subject(&self) -> String {
         return crate::landed_summary::subject_of(String::from_utf8_lossy(self.message.as_slice()).as_ref());
     }
+
+    /// The author line,
+    /// `Name <email> seconds zone`,
+    /// which a commit made again reads to supply the authorship the person kept.
+    pub(crate) fn authored_by(&self) -> &str {
+        return self.author.as_str();
+    }
 }
 
 /// What:
