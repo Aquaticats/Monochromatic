@@ -38,7 +38,10 @@ const identArb: Arbitrary<string> = tuple(
     { maxLength: 6, },
   ),
 )
-  .map(function joinIdent([head, tail,],) {
+  .map(function joinIdent([head, tail,]: readonly [
+    string,
+    readonly string[]
+  ],) {
     return `${head}${tail.join('',)}`;
   },);
 
@@ -122,7 +125,10 @@ const declarationArb: Arbitrary<string> = tuple(
   propertyNameArb,
   valueArb,
 )
-  .map(function joinDeclaration([name, value,],) {
+  .map(function joinDeclaration([name, value,]: readonly [
+    string,
+    string
+  ],) {
     return `${name}: ${value};`;
   },);
 
@@ -168,7 +174,10 @@ function blockArb(depth: number,): Arbitrary<string> {
     ),
     triviaArb,
   )
-    .map(function joinBlock([items, trivia,],) {
+    .map(function joinBlock([items, trivia,]: readonly [
+      readonly string[],
+      string
+    ],) {
       return `{${trivia}${items.join(trivia,)}${trivia}}`;
     },);
 }
@@ -185,7 +194,10 @@ function ruleArb(depth: number,): Arbitrary<string> {
     selectorArb,
     blockArb(depth,),
   )
-    .map(function joinRule([selector, block,],) {
+    .map(function joinRule([selector, block,]: readonly [
+      string,
+      string
+    ],) {
       return `${selector} ${block}`;
     },);
 }
@@ -222,7 +234,10 @@ function atRuleArb(depth: number,): Arbitrary<string> {
       blockNameArb,
       blockArb(depth,),
     )
-      .map(function joinAtRule([name, block,],) {
+      .map(function joinAtRule([name, block,]: readonly [
+        string,
+        string
+      ],) {
         return `${name} ${block}`;
       },),
   );
@@ -257,7 +272,10 @@ export const cssDocumentArb: Arbitrary<string> = tuple(
   ),
   triviaArb,
 )
-  .map(function joinDocument([items, trivia,],) {
+  .map(function joinDocument([items, trivia,]: readonly [
+    readonly string[],
+    string
+  ],) {
     return `${items.join(trivia,)}${trivia}`;
   },);
 

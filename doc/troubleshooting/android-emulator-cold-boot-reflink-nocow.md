@@ -139,21 +139,21 @@ A successful APK join does not prove AVD preparation or device test execution.
 
 ## Upstream filing decision
 
-1.   Fault attribution:
+1.  Fault attribution:
      the repository preparer includes unused state with incompatible clone flags.
      The observed clone failure follows the exercised filesystem constraint.
-2.   Fixability:
+2.  Fixability:
      a consumer-side cold-boot selection removes the unnecessary files.
      The matching-flag control also demonstrates a separate filesystem route.
-3.   Supported scope:
+3.  Supported scope:
      the existing emulator flag explicitly disables snapshot load and save.
      Snapshot-preserving copy behavior is outside this repair.
-4.   Contribution policy:
+4.  Contribution policy:
      no upstream change or submission is proposed;
      contribution eligibility was not investigated.
-5.   Maintainer direction:
+5.  Maintainer direction:
      no maintainer willingness or refusal is inferred.
-6.   Prototype:
+6.  Prototype:
      disposable filesystem controls and the staged preparer revision are retained.
      They establish the local repair boundary,
      not an upstream patch.

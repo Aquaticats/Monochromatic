@@ -425,7 +425,7 @@ Sequence:
     removes only the empty stand-in directories btrfs shows for nested
     subvolumes (inode 2,
     `:112`),
-    which is the shape a *snapshot* rung's stage has;
+    which is the shape a **snapshot** rung's stage has;
     an ordinary stage directory is not one.
 
 The wrong result:
@@ -505,7 +505,7 @@ with a line that says something else.
 
 What notices it later:
 nothing.
-The note names the number of *uncommitted changed paths*
+The note names the number of **uncommitted changed paths**
 (`worktree_dirty_restore.rs:55`,
 `left_out_note`),
 never a deleted ignored path,
@@ -603,7 +603,7 @@ The wrong result:
 a command that never returns,
 which is what the owner's rule forbids,
 reached by the wrapper's own steps and not only by the person's command.
-The wrapper's *queries* are bounded by the step runner
+The wrapper's **queries** are bounded by the step runner
 (`service/wait_ceilings.rs:378`,
 `PLUMBING_STEP_CEILING`),
 and the dirty restore's `clean` is one of them
@@ -936,7 +936,7 @@ and the person is told nothing about them until the fallback's line
   The two controls in
   `worktree_ladder_finish_tests.rs`
   move and replace the destination at exactly those points.
-- An add and another add's *snapshot* stage in the same folder:
+- An add and another add's **snapshot** stage in the same folder:
   the stand-in that btrfs shows for it is removed as an empty directory,
   and a stand-in that gained anything is refused by the removal,
   so nothing of the other add's stage can be destroyed from this one's

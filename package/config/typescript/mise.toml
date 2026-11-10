@@ -1,4 +1,17 @@
 [tasks.lint]
-run = "echo No lintable TypeScript sources."
+extends = "lint"
 
-# No lint:oxlint or lint:types -- this package has no TypeScript source files.
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks.test]
+extends = "test"
+
+[tasks."test:unit"]
+extends = "test:unit"

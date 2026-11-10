@@ -261,3 +261,51 @@ fn a_published_file_shares_no_storage_with_the_stage() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  A destination whose directory is a named pipe is refused,
+/// and the publication answers instead of
+///  waiting for a writer that never comes.
+/// Why:
+///   The directory holding a staged entry's destination is opened to publish into it,
+/// and the destination
+///  sits in a worktree other commands may write,
+/// so the name can be a pipe by the time the install
+///  reaches it;
+/// an open of a pipe for reading waits until some process writes to it,
+/// which nothing
+///  promises ("nothing should ever wait forever or indefinitely").
+/// Asking for a directory refuses the name at
+///  once and the entry is reported by the path the person can act on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = await finishedWithinAt(PATIENCE, () => publishCopyOfFile({ stagePath, destinationPath: join(pipe, 'file'), mode: 0o600, temporary })); expect(outcome.isErr()).toBe(true);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_pipe_where_the_destinations_directory_was_is_refused_without_waiting() {
+    let root: PathBuf = fixture("publish-directory-pipe");
+    let stage: PathBuf = root.join("stage");
+    std::fs::write(stage.as_path(), b"staged").expect("stage file");
+    let directory: PathBuf = root.join("directory");
+    make_pipe(directory.as_path());
+    let destination: PathBuf = directory.join("file");
+    let wanted: (PathBuf, PathBuf, OsString) = (stage.clone(), destination.clone(), temporary());
+    let answered: Option<Result<(), WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
+        crate::parallel_test_support::PATIENCE,
+        move || {
+            return publish_copy_of_file(wanted.0.as_path(), wanted.1.as_path(), 0o600, wanted.2.as_os_str());
+        },
+    );
+    let Some(outcome) = answered else {
+        panic!("the publication waited for a writer of the named pipe where the destination's directory was and never came");
+    };
+    let failure: WorktreeCopyError = outcome.expect_err("a named pipe is no directory to publish into");
+    assert!(
+        failure.0.contains(directory.to_string_lossy().as_ref()),
+        "the refusal names the directory: {}",
+        failure.0
+    );
+    remove(root.as_path());
+}

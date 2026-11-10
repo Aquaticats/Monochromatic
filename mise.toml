@@ -63,6 +63,14 @@ task.disable_spec_from_run_scripts = true
 [vars]
 # Monorepo root for task templates that need to reference root-level config files.
 monorepo_root = "{{config_root}}"
+# `mise tasks --all --hidden --json` is intentionally large in this monorepo, so every read of the task list raises
+# execFileSync's default 1 MiB stdout cap; without the raise the read fails as the task graph grows. One declaration
+# keeps the reason and the value together. Interpolated into every task or var that reads the task list. It comes
+# first in this table because mise renders a var with only the vars already defined above it, and the fanout vars
+# below interpolate it.
+mise_tasks_json_max_buffer = """
+const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+"""
 # node -e fanout script: discovers direct child tasks (one `:` level deeper) and
 # runs each as a plain `mise run <child>` subprocess, all in parallel, then fails
 # if any child failed. No `:::` separator or other mise-specific inline sugar:
@@ -76,10 +84,7 @@ const { execFileSync, spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const prefix = `${process.env.MISE_TASK_NAME}:`
 const depth = prefix.split(':').length
-// `mise tasks --all --hidden --json` is intentionally large in this monorepo;
-// raise execFileSync's default 1 MiB stdout cap so package fanout keeps working
-// as the task graph grows.
-const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+{{vars.mise_tasks_json_max_buffer}}
 const tasks = JSON.parse(execFileSync('mise', ['tasks', '--all', '--hidden', '--json'], { encoding: 'utf8', maxBuffer: MISE_TASKS_JSON_MAX_BUFFER }))
 const children = tasks.map((task) => task.name).filter((name) => name.startsWith(prefix) && name.split(':').length === depth)
 if (children.length === 0) { throw new Error(`no child tasks for ${process.env.MISE_TASK_NAME}`) }
@@ -108,10 +113,7 @@ const { once } = await import('node:events')
 const { availableParallelism } = await import('node:os')
 const taskName = process.env.MISE_TASK_NAME ?? ''
 const suffix = process.env.FANOUT_TASK ?? (taskName.startsWith('//:') ? taskName.slice(3) : taskName)
-// `mise tasks --all --hidden --json` is intentionally large in this monorepo;
-// raise execFileSync's default 1 MiB stdout cap so package fanout keeps working
-// as the task graph grows.
-const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+{{vars.mise_tasks_json_max_buffer}}
 const tasks = JSON.parse(execFileSync('mise', ['tasks', '--all', '--hidden', '--json'], { encoding: 'utf8', maxBuffer: MISE_TASKS_JSON_MAX_BUFFER }))
 const targets = tasks.map((task) => task.name).filter((name) => name.startsWith('//package/') && name.slice(name.indexOf(':') + 1) === suffix)
 if (targets.length === 0) { throw new Error(`no package tasks matched ${suffix}`) }
@@ -232,6 +234,13 @@ const parseUsageArgs = (raw) => {
   if (current !== null) { argv.push(current) }
   return argv
 }
+"""
+# The deprecated-and-paused tree policy, declared once for every task body that walks the test tree. A second copy
+# let the exclusion of `package-deprecated/` and `package-paused/` drift from this one with nothing to notice.
+# Interpolated into the tasks that walk `**/*.unit.test.ts`; each of them sets
+# `shell = "node --input-type=module-typescript -e"`.
+is_inactive_test = """
+const isInactiveTest = (file) => file.includes('/deprecated/') || file.startsWith('package-deprecated/') || file.includes('/package-deprecated/') || file.startsWith('package-paused/') || file.includes('/package-paused/')
 """
 # Runs test files from their nearest package task root as `node [nodeArgs] <file>`
 # subprocesses, bounded to availableParallelism(), and lists non-zero exits.
@@ -455,12 +464,34 @@ const { join } = await import('node:path')
 const args = parseUsageArgs(process.env.usage_args ?? '')
 const all = (process.env.usage_all ?? '').trim() === 'true'
 if (all && args.length > 0) { throw new Error('--all cannot be combined with file paths') }
-const isInactiveTest = (file) => file.includes('/deprecated/') || file.startsWith('package-deprecated/') || file.includes('/package-deprecated/') || file.startsWith('package-paused/') || file.includes('/package-paused/')
+{{vars.is_inactive_test}}
+// Ownership policy (see [tasks.test]): a package whose mise.toml declares its own
+// `test` task owns its TypeScript unit files, because the root aggregate runs that
+// package task for them. Root discovery therefore leaves those files alone, and
+// what this glob keeps is exactly the files no package suite reaches.
+// A package task keeps every file in its own tree: there the nearest mise.toml to
+// each file is the task's own config root, so the ownership test is false and no
+// file is dropped from a package's own unit run.
+const taskConfigRoot = resolveTestPath(process.env.MISE_CONFIG_ROOT ?? process.cwd())
+// Table headers, compared as whole lines, are the only thing a package's own
+// `test` declaration has to be read for: the aggregate asks whether the package
+// owns its suites, not what they run.
+const testTaskHeaders = ['[tasks.test]', '[tasks."test"]']
+const declaresTestTask = (packageRoot) => {
+  try {
+    const declared = readFileSync(joinTestPath(packageRoot, 'mise.toml'), 'utf8').split(String.fromCharCode(10))
+    return declared.some((line) => testTaskHeaders.includes(line.trim()))
+  } catch { return false }
+}
+const ownedByPackageSuite = (file) => {
+  const packageRoot = testFileCwd(file)
+  return packageRoot !== taskConfigRoot && declaresTestTask(packageRoot)
+}
 let files
 if (args.length === 0) {
   files = []
   for await (const file of glob('**/*.unit.test.ts', { exclude: (name) => name.includes('node_modules') })) {
-    if (!isInactiveTest(file) && (all || !file.includes('.expensive.'))) { files.push(file) }
+    if (!isInactiveTest(file) && (all || !file.includes('.expensive.')) && !ownedByPackageSuite(file)) { files.push(file) }
   }
 } else {
   // Package-scoped tasks run with cwd = MISE_CONFIG_ROOT (the package dir), so a repo-root-relative
@@ -678,10 +709,36 @@ run = "{{vars.fanout_packages}}"
 
 #region Test Tasks
 
+# Root test aggregate: the root unit glob, the Playwright suites, and every
+# active package's own `test` task. The package layer exists because a TypeScript
+# filename glob cannot reach cargo nextest, Gradle, tofu resolvers, or the
+# Electron/Wayland boundary suites, so without it a green root run was not
+# evidence of repository coverage (issue 305).
+#
+# Ownership policy, stated once and implemented in two places: a package that
+# declares `[tasks.test]` owns its own suites, including its `*.unit.test.ts`
+# files, and the root unit glob leaves those files to that package task (see
+# [task_templates."test:unit"]). Every other package is reached by the root glob.
+# Ownership therefore never overlaps and never leaves a gap, and a new package
+# `[tasks.test]` becomes root-reachable with no edit here.
+#
+# Deliberate exclusions, each one named rather than silent:
+# - `package-deprecated/` and `package-paused/` stay out through `[monorepo]
+#   config_roots`, the same boundary that keeps them out of `lint` and `build`.
+# - `*.expensive.unit.test.ts` stays opt-in through `mise run test:unit -- --all`,
+#   as before.
+# - Network resolver suites are separate task names (`test:*:network`) that no
+#   package's `test` task lists, so this aggregate inherits that choice instead of
+#   making one.
+# - Nothing is excluded by platform or cost: an exclusion there would recreate the
+#   false green this task removes. A suite needing a device, compositor, container
+#   or network fails here loudly instead of being skipped.
+#
 # When args are provided, only unit tests run with those args (for single-file filtering).
-# When no args are provided, all test suites (unit + browser) run.
+# When no args are provided, every suite runs: the three root suites together,
+# then the package fanout.
 [tasks.test]
-description = "Run all tests, or pass args to filter unit tests"
+description = "Run all tests (root unit, browser, e2e and every package's own test task), or pass args to filter unit tests"
 alias = "t"
 usage = 'arg "[args]" var=#true help="Test file paths (when provided, only unit tests run)"'
 shell = "node --input-type=module-typescript -e"
@@ -690,15 +747,36 @@ run = """
 {{vars.run_test_files}}
 const args = parseUsageArgs(process.env.usage_args ?? '')
 if (args.length === 0) {
+  // Root suites run together, then the package fanout runs alone: each package
+  // suite is itself a multi-threaded cargo, Gradle or container run, so the
+  // phases stay sequential and each phase stays internally bounded.
+  // Both phases always run, so one failing suite cannot hide another's failure.
   const suites = ['test:unit', 'test:browser', 'test:e2e']
-  const processes = suites.map((suite) => spawn('mise', ['run', suite], { stdio: 'inherit' }))
-  const exits = await Promise.all(processes.map((proc) => once(proc, 'exit')))
-  const failed = suites.filter((suite, index) => exits[index][0] !== 0)
+  const failed = []
+  const runSuite = async (suite) => {
+    const [code] = await once(spawn('mise', ['run', suite], { stdio: 'inherit' }), 'exit')
+    if (code !== 0) { failed.push(suite) }
+  }
+  await Promise.all(suites.map(runSuite))
+  await runSuite('test:packages')
   if (failed.length > 0) { throw new Error(`test suites failed: ${failed.join(', ')}`) }
 } else {
   await runTestFiles(args, [])
 }
 """
+
+[tasks."test:packages"]
+hide = true
+description = "Run every active package's own test task, bounded by available parallelism, naming every failing package"
+# The shared cross-package fanout derives its target suffix from the task name, and
+# this wrapper's own name is not that suffix, so FANOUT_TASK supplies it, which is
+# the mechanism the fanout var documents. Reusing that var keeps one fanout policy
+# for lint and for test: availableParallelism workers, every failing child named in
+# one error. Like the lint fanout, this fails rather than passing when no package
+# declares the task.
+env = { FANOUT_TASK = "test" }
+shell = "node --input-type=module-typescript -e"
+run = "{{vars.fanout_packages}}"
 
 [tasks."test:unit"]
 extends = "test:unit"
@@ -769,7 +847,7 @@ const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { glob } = await import('node:fs/promises')
 const args = parseUsageArgs(process.env.usage_args ?? '')
-const isInactiveTest = (file) => file.includes('/deprecated/') || file.startsWith('package-deprecated/') || file.includes('/package-deprecated/') || file.startsWith('package-paused/') || file.includes('/package-paused/')
+{{vars.is_inactive_test}}
 let files
 if (args.length === 0) {
   files = []
@@ -809,10 +887,7 @@ try {
     const parts = first.split('/')
     if (parts.length >= 3 && parts[0] === 'package') {
       const buildTask = `//${parts.slice(0, 3).join('/')}:build`
-      // `mise tasks --all --json` is intentionally large in this monorepo;
-      // raise execFileSync's default 1 MiB stdout cap so package lookup keeps working
-      // as the task graph grows.
-      const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+      {{vars.mise_tasks_json_max_buffer}}
       const allTasks = JSON.parse(execFileSync('mise', ['tasks', 'ls', '--all', '--json'], { encoding: 'utf8', maxBuffer: MISE_TASKS_JSON_MAX_BUFFER }))
       if (allTasks.some((task) => task.name === buildTask)) {
         execFileSync('mise', ['run', buildTask], { stdio: 'inherit' })
@@ -1102,10 +1177,7 @@ execFileSync('mise', ['run', 'prepare:pnpm'], { stdio: 'inherit' })
 const prefix = `${process.env.MISE_TASK_NAME}:`
 const depth = prefix.split(':').length
 const pnpmTask = `${prefix}pnpm`
-// `mise tasks --all --hidden --json` is intentionally large in this monorepo;
-// raise execFileSync's default 1 MiB stdout cap so prepare fanout keeps working
-// as the task graph grows.
-const MISE_TASKS_JSON_MAX_BUFFER = 16 * 1024 * 1024
+{{vars.mise_tasks_json_max_buffer}}
 const tasks = JSON.parse(execFileSync('mise', ['tasks', '--all', '--hidden', '--json'], { encoding: 'utf8', maxBuffer: MISE_TASKS_JSON_MAX_BUFFER }))
 const children = tasks.map((task) => task.name).filter((name) => name.startsWith(prefix) && name.split(':').length === depth && name !== pnpmTask)
 const processes = children.map((name) => spawn('mise', ['run', name], { stdio: 'inherit' }))

@@ -2723,6 +2723,13 @@ Stage each destination separately in a mode-`0700` sibling directory so file clo
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
+Open every source file with the plain-file reader,
+which waits for no writer and follows no link:
+a name the walk listed as a file that a build replaced with a named pipe between the two passes is answered at once,
+never by an open that waits for a writer that may never come.
+Open both sides of a byte comparison and the destination directory an entry is installed into the same way.
+A source entry that is no longer the file its manifest entry recorded leaves the manifest as a gone entry does,
+and the settling pass that follows reports the entry by its path as an unsupported filesystem type.
 A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 workers of the process's
 blocking pool,
 bounded by the CPUs the process may use,
@@ -3596,7 +3603,9 @@ and for a hook on the server that declined the push
 "Offline is retried,
 but auth and server hook declines stop until your next commit."):
 these stop the retry until the person's next commit,
-and the failure record says in plain words which one it was.
+and the failure record says in plain words which one it was,
+and for a decline that a push by hand may succeed if the cause has cleared,
+since a decline says what the server answered then and nothing about a later try.
 The service never asks anyone for a login (owner decision,
 2026-11-07:
 "Never prompt (Recommended)"):

@@ -40,6 +40,9 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+# The suite imports the package entry, which Node resolves through the exports map
+# to dist/final/node, so the artifact must exist before the tests run.
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build neutral ZIP writer artifacts, then run unit tests"

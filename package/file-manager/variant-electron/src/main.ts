@@ -42,6 +42,8 @@ import {
 } from './ipc-channels.js';
 import { listDirectory, } from './listing.js';
 
+//region Window, path, and logging configuration
+
 /**
  Main-process logger tagged at module boundary.
  
@@ -91,6 +93,10 @@ const rootDirectory = resolve(
   process.env[ROOT_DIRECTORY_ENVIRONMENT_VARIABLE] ?? homedir(),
 );
 
+//endregion Window, path, and logging configuration
+
+//region Wayland compositor switches
+
 /**
  Adds Chromium switches required for pure Wayland operation on Linux.
  
@@ -119,6 +125,10 @@ function configureLinuxWayland(): void {
     .XDG_SESSION_TYPE = 'wayland';
   mainLogger.info('Forced Chromium Ozone platform to Wayland for Linux.',);
 }
+
+//endregion Wayland compositor switches
+
+//region Boundary-test state observation
 
 /**
  Checks whether a value is a shallow record of JSON scalars, the only shape
@@ -207,6 +217,10 @@ function observeStateFromEvent({ payload, }: { readonly payload: unknown; },): v
   })();
 }
 
+//endregion Boundary-test state observation
+
+//region IPC handlers
+
 /**
  Registers the IPC surface consumed by the preload bridge.
  
@@ -257,6 +271,10 @@ function registerIpcHandlers(): void {
   );
 }
 
+//endregion IPC handlers
+
+//region Main window creation
+
 /**
  Creates the main BrowserWindow and loads the renderer HTML entry.
  
@@ -298,6 +316,10 @@ async function createMainWindow(): Promise<BrowserWindow> {
   mainLogger.info('Renderer loaded.',);
   return mainWindow;
 }
+
+//endregion Main window creation
+
+//region App lifecycle
 
 /**
  Logs a failure from an app activation path that Electron does not await.
@@ -430,3 +452,5 @@ app.enableSandbox();
 installAppLifecycleHandlers();
 registerIpcHandlers();
 startFileManagerApp();
+
+//endregion App lifecycle

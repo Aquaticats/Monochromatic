@@ -33,6 +33,11 @@ const DIRECTORY_VANISHES: usize = 4;
 /// A source directory's permission bits change under the copy.
 const DIRECTORY_MODE_CHANGES: usize = 5;
 
+/// A source file is replaced by a named pipe,
+/// by the copy of its neighbour,
+/// between its own listing and its own copy.
+const A_PIPE_REPLACES_A_FILE: usize = 6;
+
 /// One control at a time,
 /// because the clone request a copy takes is a plain function and reads these.
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
@@ -72,6 +77,26 @@ fn two_ignored_files(label: &str, mode: usize) -> (MutexGuard<'static, ()>, Path
     COPIES.store(0, Ordering::SeqCst);
     CHANGED.store(false, Ordering::SeqCst);
     return (held, root, source, stage, entries);
+}
+
+/// Put a named pipe where a file was,
+/// so the entry the walk listed holds no bytes for the copy to read.
+/// Why:
+///   A pipe is what a dev server and a `mkfifo` leave in an ignored cache,
+/// and opening one for reading waits
+///  for a writer that may never come.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// execFileSync('mkfifo', [path]);
+/// ```
+#[cfg(unix)]
+fn make_pipe(path: &Path) {
+    let status: std::process::ExitStatus = std::process::Command::new("mkfifo")
+        .arg(path)
+        .status()
+        .expect("mkfifo");
+    assert!(status.success(), "mkfifo must create {}", path.display());
 }
 
 /// The device and inode of a path,
@@ -120,6 +145,10 @@ fn changing_clone(input: &std::fs::File, output: &std::fs::File) -> bool {
         DIRECTORY_MODE_CHANGES if copies == 0 => {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(root.join("cache/deep"), std::fs::Permissions::from_mode(0o750)).expect("the directory's mode changes");
+        }
+        A_PIPE_REPLACES_A_FILE if copies == 0 => {
+            std::fs::remove_file(&b).expect("the file goes away");
+            make_pipe(&b);
         }
         CHANGES_ONCE if reading.is_some() && reading == identity_of(b.as_path()) && !CHANGED.swap(true, Ordering::SeqCst) => {
             std::fs::write(&a, b"rewritten once\n").expect("a is rewritten by the copy of its neighbour");
@@ -338,6 +367,102 @@ fn a_directory_whose_mode_changed_under_the_copy_is_staged_with_the_new_mode() {
     assert_eq!(mode_of(stage.join("cache/deep").as_path()), mode_of(source.join("cache/deep").as_path()), "the stage holds the source's permission bits");
     assert_eq!(mode_of(stage.join("cache/deep").as_path()), 0o750);
     assert!(stage.join("cache/deep/file.txt").is_file(), "the directory's content is still staged");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
+///  A named pipe that replaces a cache file between its listing and its own copy is left out,
+/// and the copy answers
+///  instead of waiting for a writer that never comes.
+/// Why:
+///   A dev server leaves a socket or a pipe in an ignored cache while an add copies the same directory,
+/// and
+///  opening a pipe for reading waits until some process writes to it,
+/// which nothing promises;
+/// a command
+///  that waits there holds the checkout and every other command that wants it,
+/// with nothing said and no
+///  end ("nothing should ever wait forever or indefinitely").
+/// The handle the copy opens is where the entry's type is
+///  settled,
+/// because the walk and the copy are two passes over a directory anything may write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copied = await finishedWithinAt(PATIENCE, () => copyManifestEntriesWith({ source, stage, entries, clone: changingClone })); expect(copied.gone).toEqual(['cache/b.txt']); expect(existsSync(join(stage, 'cache/b.txt'))).toBe(false);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_pipe_that_replaces_a_file_before_its_copy_is_left_out_without_waiting() {
+    let (held, root, source, stage, entries) = two_ignored_files("settling-pipe-replaces", A_PIPE_REPLACES_A_FILE);
+    let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) = (source.clone(), stage.clone(), entries.clone());
+    let answered: Option<Result<CopiedManifest, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
+        crate::parallel_test_support::PATIENCE,
+        move || {
+            return copy_manifest_entries_with(wanted.0.as_path(), wanted.1.as_path(), wanted.2.as_slice(), changing_clone);
+        },
+    );
+    let Some(staged) = answered else {
+        panic!("the copy of cache/b.txt waited for a writer of the named pipe that replaced it and never came; opening a source entry for reading must not wait");
+    };
+    let copied: CopiedManifest = staged.expect("a pipe where a file was listed is no failure of the copy");
+    assert_eq!(copied.gone, vec![b"cache/b.txt".to_vec()], "the entry the pipe replaced is named as gone");
+    assert!(!stage.join("cache/b.txt").exists(), "and nothing of it was staged");
+    assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a is staged"), b"the first one\n", "its neighbour is copied as before");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
+///  A named pipe that replaced a source file before its copy is named by the staging pass that follows,
+/// and the staging
+///  answers instead of waiting for a writer that never comes.
+/// Why:
+///   The manifest walk refuses a named pipe,
+/// a socket and a device node before any of them is opened (SPEC,
+///  "Linked-worktree ignored-state synchronization"),
+/// because none of the three can be copied into a worktree;
+/// a name
+///  that became one between the listing and the copy is the same entry,
+/// so the pass that settles the stage
+///  reports it by its path rather than the copy waiting on an open.
+/// The add is refused with the entry named,
+/// which
+///  is the sentence a pipe in the source produced before this copy learned to skip the entry it
+///  cannot read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = await finishedWithinAt(PATIENCE, () => copyAndSettle(...A_PIPE_REPLACES_A_FILE)); expect(settled.unwrapErr().message).toContain('cache/b.txt'); expect(settled.unwrapErr().message).toContain('has unsupported filesystem type');
+/// ```
+#[cfg(unix)]
+#[test]
+fn staging_names_a_pipe_that_replaced_a_file_instead_of_waiting() {
+    let (held, root, source, stage, entries) = two_ignored_files("settling-pipe-named", A_PIPE_REPLACES_A_FILE);
+    let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) = (source.clone(), stage.clone(), entries.clone());
+    let answered: Option<Result<Settled, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
+        crate::parallel_test_support::PATIENCE,
+        move || {
+            return copy_and_settle(wanted.0.as_path(), wanted.1.as_path(), wanted.2);
+        },
+    );
+    let Some(outcome) = answered else {
+        panic!("the staging of the copy waited for a writer of the named pipe that replaced cache/b.txt and never came");
+    };
+    let failure: WorktreeCopyError = match outcome {
+        Ok(settled) => panic!(
+            "an entry no worktree can hold is named by the staging, and the staging answered with {} entries instead",
+            settled.entries.len()
+        ),
+        Err(failure) => failure,
+    };
+    assert!(
+        failure.0.contains("cache/b.txt") && failure.0.ends_with(" has unsupported filesystem type."),
+        "the refusal names the entry the pipe replaced: {}",
+        failure.0
+    );
+    assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a is staged"), b"the first one\n", "its neighbour was staged before the pass answered");
     drop(held);
     remove(root.as_path());
 }

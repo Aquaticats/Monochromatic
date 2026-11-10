@@ -13,6 +13,13 @@ export {
   BUN_TEST_BAN_REASON,
   invokesBunTest,
 } from './bun-test.ts';
+/**
+ Splits shell source the parser rejected into runs of command words,
+ exposed for built-artifact verification.
+
+ @internal
+ */
+export { rawCommandWordRuns, } from './raw-command-word-runs.ts';
 export {
   invokesMutatingGitThroughRealGitPath,
   REAL_GIT_MUTATION_BAN_REASON,
