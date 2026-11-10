@@ -82,6 +82,62 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The carry loses nothing to an old descriptor, a save of the merge's own file, or a stranded private name (2026-11-10T15:43:18-05:00)
+
+Branch `fix/git-policy-cli-merge-carry-review-round-2-findings`
+(`fad5c77b9e` the first finding,
+`d2ff899df4` the second,
+`a3e78adc32` the third,
+and `264c33f683` the controls' own naming),
+ahead of `main` at `6ad29d302d`.
+Kimi K3.1 Pro's review of the landed carry (`e7e3e64285`) is
+`~/temp/agent/kimi-reviews/merge-carry-round-2/review.md`,
+with its three programs beside it.
+All three reproduced against this branch's base,
+and none does after the fixes.
+
+- A save made through a descriptor a program opened before the take was unlinked with the private name,
+  after the last check.
+  The carry now asks the proof the second pass's install already acts on before a name goes:
+  the identity the take checked,
+  no readable process holding the file,
+  and the bytes still the judged ones.
+  A name the proof does not cover is kept,
+  and the merge names it.
+- A newer save whose bytes accept the whole merge was replaced with the older captured layer,
+  because ownership was decided from the bytes alone.
+  The apply step reads the identity of every path Git's own update wrote,
+  before the marker a control pauses at,
+  and the carry writes only while the file standing there is still that one.
+- A private name a settled merge left beside a newer save was put back by a later merge when the person had deleted
+  the path,
+  so a deletion came back and its bytes were carried forward.
+  Every private name now carries the key of the merge record that took it,
+  and only a record still there may put one back;
+  a name nothing names is left where it is and reported.
+
+Evidence:
+each finding's control was run failing before its fix and passing after:
+`a_save_through_a_descriptor_opened_before_the_take_is_kept_beside_the_carried_file`,
+`a_save_through_a_descriptor_opened_before_the_take_of_a_deleted_file_is_kept`,
+`a_save_whose_bytes_accept_the_whole_merge_is_not_replaced_by_the_captured_layer`,
+and `a_private_name_no_record_claims_is_left_and_named`.
+`cargo nextest run --lib -- merge::` is 219 tests,
+`merge_isolation` is 145 of them,
+and `native:clippy` passes.
+
+Limits and unknowns:
+a recovery of a killed merge has no reading of what Git's own update left,
+so there a path is still judged by its bytes;
+a private name an earlier release left carries no merge key,
+so a merge interrupted before this release is reported rather than put back,
+and the person moves the file;
+and a kept private name is an untracked file in the worktree until a person or a later merge deals with it,
+which nothing sweeps.
+
+Next action:
+review and merge this branch.
+
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-keeps-edits-through-a-kill-and-a-save`
