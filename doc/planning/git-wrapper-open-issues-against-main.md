@@ -1140,3 +1140,20 @@ Why:
   where `run_push` is declared at line 142,
   and `Reconcile and bounds` sits at `package/git-policy/cli/SPEC.md:6174`,
   not at the line the note gave.
+
+- `#4133`:
+  the claim no longer holds on `main`.
+ `doc/troubleshooting/git-policy-shadow-lfs.md` was rebuilt in `7d9121d810`,
+  one of the commits merge `5ac11cf09e` brought in.
+  It carries the seven required headings,
+  its `Root cause` walks the chain to the read-only `.git/lfs` and the absent `tmp` subdirectory,
+  and `Reading the observation as an unidentified boundary failure` now sits under `What does not work`,
+  so the two records no longer disagree about whether the cause is known.
+ `doc/troubleshooting/git-policy-wrapper-launcher-path.md` keeps a three-line pointer to it instead of a
+  second copy.
+ The issue can be closed against `7d9121d810`.
+ One citation in it was off:
+  the excerpt it presents as `fn link_directory_entries` is at
+ `package/git-policy/cli/src/native/shadow/shadow_links.rs:294`,
+  not at the line the fence named,
+  and that is corrected on this branch.
