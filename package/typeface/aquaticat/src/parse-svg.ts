@@ -135,9 +135,7 @@ export function parseSvg(svgContent: string,): Cell[] {
   const elementRegex = /<(?<tag>rect|path)\s+(?<attrs>[^>]*?)\/>/gu;
   /* oxlint-enable no-restricted-syntax/no-regex */
 
-  for (let match = elementRegex.exec(svgContent,); match !== null;
-    match = elementRegex.exec(svgContent,))
-    {
+  for (const match of svgContent.matchAll(elementRegex,)) {
     /**
      Named capture groups from the current match: `tag` is the element name and `attrs` the raw attribute string.
      */
@@ -303,13 +301,19 @@ export function parseSvgPathD(d: string,): SVGPathCommand[] {
   /**
    Last command letter seen, which determines how subsequent number tokens are consumed.
    
-   Declared as `let` because the regex loop reassigns it whenever a new command
+   Declared as `let` because the token loop reassigns it whenever a new command
    letter is matched; coordinate tokens between letters apply to whatever letter
    was set most recently.
    */
   let currentCmd = '';
+  /**
+   One ordered token stream over the path data. A paired Y coordinate consumes
+   the next token from this same iterator, so iteration state lives here and
+   never in the regex's `lastIndex`.
+   */
+  const tokens = d.matchAll(tokenRegex,);
 
-  for (let tok = tokenRegex.exec(d,); tok !== null; tok = tokenRegex.exec(d,)) {
+  for (const tok of tokens) {
     /**
      Named capture groups from the current token: `command` for a letter, `number` for a value.
      */
@@ -334,13 +338,13 @@ export function parseSvgPathD(d: string,): SVGPathCommand[] {
       /**
        Y coordinate token paired with the just-consumed X for M/L commands.
        */
-      const yTok = tokenRegex.exec(d,);
-      if (yTok === null)
+      const yTok = tokens.next();
+      if (yTok.done === true)
         break;
       /**
        Named capture groups of the paired Y token; `number` holds the coordinate value.
        */
-      const { groups: yGroups, } = yTok;
+      const { groups: yGroups, } = yTok.value;
       commands.push({
         type: currentCmd,
         x: num,

@@ -13,8 +13,13 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { readFile, } from 'node:fs/promises';
+import { join, } from 'node:path';
 
-import { parseSvg, } from './parse-svg.ts';
+import {
+  parseSvg,
+  parseSvgPathD,
+} from './parse-svg.ts';
 
 //region Fixtures
 
@@ -214,6 +219,119 @@ await describe({
         },),
 
         //endregion Stroke detection
+      ],
+    },),
+
+    describe({
+      name: parseSvgPathD.name,
+      children: [
+        it({
+          name: 'tokenizes move, line, and close commands in path order',
+          fn: async () => {
+            expect(parseSvgPathD('M0 0 L10 10 Z',),).toStrictEqual([
+              {
+                type: 'M',
+                x: 0,
+                y: 0,
+              },
+              {
+                type: 'L',
+                x: 10,
+                y: 10,
+              },
+              { type: 'Z', },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'keeps horizontal and vertical commands as single-axis commands',
+          fn: async () => {
+            expect(parseSvgPathD('M10 20 H30 V40',),).toStrictEqual([
+              {
+                type: 'M',
+                x: 10,
+                y: 20,
+              },
+              {
+                type: 'H',
+                x: 30,
+              },
+              {
+                type: 'V',
+                y: 40,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'tokenizes commands written without separating spaces',
+          fn: async () => {
+            expect(parseSvgPathD('M0 0L10 0Z',),).toStrictEqual([
+              {
+                type: 'M',
+                x: 0,
+                y: 0,
+              },
+              {
+                type: 'L',
+                x: 10,
+                y: 0,
+              },
+              { type: 'Z', },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'tokenizes negative and fractional coordinates',
+          fn: async () => {
+            expect(parseSvgPathD('M-5 2.5 L-10 -20.25',),).toStrictEqual([
+              {
+                type: 'M',
+                x: -5,
+                y: 2.5,
+              },
+              {
+                type: 'L',
+                x: -10,
+                y: -20.25,
+              },
+            ],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'tokenizer loops',
+      children: [
+        it({
+          name: 'drive no loop with RegExp.exec',
+          fn: async () => {
+            /**
+             Source of the parser module holding both tokenizers.
+             */
+            const source = await readFile(
+              join(
+                import.meta.dirname,
+                'parse-svg.ts',
+              ),
+              'utf8',
+            );
+            /**
+             Number of `RegExp.prototype.exec` calls the module makes.
+             
+             Each tokenizer needs one call per token when it drives the loop
+             itself, so any count above the one-shot translate lookup means a
+             loop is reading its tokens from shared regex state.
+             */
+            const execCalls = source.split('.exec(',).length - 1;
+
+            expect(execCalls,).toBeLessThan(2,);
+          },
+        },),
       ],
     },),
   ],
