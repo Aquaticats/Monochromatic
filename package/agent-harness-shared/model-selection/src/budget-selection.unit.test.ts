@@ -11,8 +11,13 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  type BudgetModel,
+  findFastestCandidate,
+  firstAuthenticatedCandidate,
   NO_AUTH,
+  NO_CANDIDATE,
   NoBudgetModelError,
+  scoreModelSpeed,
   selectBudgetModel,
   type BudgetModelAuth,
 } from '../dist/final/node/index.mjs';
@@ -69,6 +74,12 @@ const anyProviderHighspeedModel = fixtureModel({
   inputCost: NEAR_ACTIVE_INPUT_COST,
 },);
 
+/** Model id with no version token, which major-version filtering drops. */
+const versionlessModel = fixtureModel({
+  provider: 'openai',
+  id: 'faux-model',
+},);
+
 /** All budget test models. */
 const allModels = [
   activeModel,
@@ -101,7 +112,7 @@ function authCallbacks(
   /** Authenticated slug set. */
   const slugs = new Set(authenticatedSlugs,);
   return {
-    async resolveAuth({ model, },) {
+    async resolveAuth({ model, },): Promise<BudgetModelAuth | typeof NO_AUTH> {
       return slugs.has(fixtureSlug(model,),)
         ? auth
         : NO_AUTH;
@@ -115,11 +126,63 @@ function authCallbacks(
 //endregion Fixtures
 
 await describe({
+  name: firstAuthenticatedCandidate.name,
+  children: [
+    it({
+      name: 'walks ranked candidates in order and stops at the first authenticated one',
+      fn: async function testFirstAuthenticated(): Promise<void> {
+        /**
+         Slugs the walk asked the resolver about, in order.
+         */
+        const resolvedSlugs: string[] = [];
+        const selected = await firstAuthenticatedCandidate({
+          candidates: [
+            activeModel,
+            sameProviderModel,
+            anyProviderModel,
+          ],
+          resolveAuth: async function resolveLaterCandidate({ model, },): Promise<BudgetModelAuth | typeof NO_AUTH> {
+            resolvedSlugs.push(fixtureSlug(model,),);
+            return model === anyProviderModel
+              ? auth
+              : NO_AUTH;
+          },
+        },);
+        expect(selected,).toEqual({
+          model: anyProviderModel,
+          auth,
+        },);
+        expect(resolvedSlugs,).toEqual([
+          fixtureSlug(activeModel,),
+          fixtureSlug(sameProviderModel,),
+          fixtureSlug(anyProviderModel,),
+        ],);
+      },
+    },),
+    it({
+      name: 'returns NO_AUTH when no candidate has configured auth',
+      fn: async function testNoAuthenticatedCandidate(): Promise<void> {
+        const selected = await firstAuthenticatedCandidate({
+          candidates: [
+            activeModel,
+            sameProviderModel,
+          ],
+          resolveAuth: async function resolveNoCandidate(): Promise<typeof NO_AUTH> {
+            return NO_AUTH;
+          },
+        },);
+        expect(selected,).toBe(NO_AUTH,);
+      },
+    },),
+  ],
+},);
+
+await describe({
   name: selectBudgetModel.name,
   children: [
     it({
       name: 'selects same-provider candidate with auth',
-      fn: async function testSameProviderBudgetSelection() {
+      fn: async function testSameProviderBudgetSelection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels,
@@ -132,7 +195,7 @@ await describe({
     },),
     it({
       name: 'selects any-provider candidate with auth',
-      fn: async function testAnyProviderBudgetSelection() {
+      fn: async function testAnyProviderBudgetSelection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels,
@@ -145,7 +208,7 @@ await describe({
     },),
     it({
       name: 'selects near-active-cost same-provider candidate',
-      fn: async function testSameProviderSelectionWithoutCostRatioRejection() {
+      fn: async function testSameProviderSelectionWithoutCostRatioRejection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels: [
@@ -161,7 +224,7 @@ await describe({
     },),
     it({
       name: 'selects speed-named same-provider candidate before cheaper model',
-      fn: async function testSameProviderSpeedSelection() {
+      fn: async function testSameProviderSpeedSelection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels: allModelsWithSpeed,
@@ -177,7 +240,7 @@ await describe({
     },),
     it({
       name: 'selects speed-named any-provider candidate before cheaper model',
-      fn: async function testAnyProviderSpeedSelection() {
+      fn: async function testAnyProviderSpeedSelection(): Promise<void> {
         const selected = await selectBudgetModel({
           activeModel,
           allModels: allModelsWithSpeed,
@@ -193,8 +256,8 @@ await describe({
     },),
     it({
       name: 'throws no-auth error shape',
-      fn: async function testBudgetSelectionErrors() {
-        const noAuth = await captureAsyncError(async function selectWithoutAuth() {
+      fn: async function testBudgetSelectionErrors(): Promise<void> {
+        const noAuth = await captureAsyncError(async function selectWithoutAuth(): Promise<BudgetModel> {
           return await selectBudgetModel({
             activeModel,
             allModels,
@@ -205,6 +268,86 @@ await describe({
         },);
         expect(noAuth,).toBeInstanceOf(NoBudgetModelError,);
         expect((noAuth as Error).message,).toContain('no API key available',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: findFastestCandidate.name,
+  children: [
+    it({
+      name: 'returns NO_CANDIDATE when the registry has no model',
+      fn: async function testEmptyRegistry(): Promise<void> {
+        /**
+         Models the auth predicate was asked about.
+         */
+        const askedModels: unknown[] = [];
+        /**
+         Sentinel result for an empty registry.
+         */
+        const candidate = findFastestCandidate({
+          allModels: [],
+          majorVersions: 1,
+          hasConfiguredAuth: function reportAuthForEmptyRegistry({ model, },): boolean {
+            askedModels.push(model,);
+            return true;
+          },
+        },);
+        expect(candidate,).toBe(NO_CANDIDATE,);
+        expect(askedModels,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'returns NO_CANDIDATE when major-version filtering drops every model',
+      fn: async function testVersionlessRegistry(): Promise<void> {
+        /**
+         Models the auth predicate was asked about.
+         */
+        const askedModels: unknown[] = [];
+        /**
+         Sentinel result for a registry whose ids carry no version token.
+         */
+        const candidate = findFastestCandidate({
+          allModels: [versionlessModel,],
+          majorVersions: 1,
+          hasConfiguredAuth: function reportAuthForVersionlessRegistry({ model, },): boolean {
+            askedModels.push(model,);
+            return true;
+          },
+        },);
+        expect(candidate,).toBe(NO_CANDIDATE,);
+        expect(askedModels,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'returns the fastest provider head with its configured-auth flag',
+      fn: async function testFastestProviderHead(): Promise<void> {
+        /**
+         Models the auth predicate was asked about.
+         */
+        const askedModels: unknown[] = [];
+        /**
+         Fastest cross-provider candidate metadata.
+         */
+        const candidate = findFastestCandidate({
+          allModels,
+          majorVersions: 1,
+          hasConfiguredAuth: function reportConfiguredAuth({ model, },): boolean {
+            askedModels.push(model,);
+            return true;
+          },
+        },);
+        expect(candidate,).not.toBe(NO_CANDIDATE,);
+        expect(candidate,).toEqual({
+          provider: sameProviderModel.provider,
+          modelId: sameProviderModel.id,
+          speedScore: scoreModelSpeed(sameProviderModel,),
+          costInput: sameProviderModel.cost.input,
+          costOutput: sameProviderModel.cost.output,
+          hasApiKey: true,
+        },);
+        expect(askedModels,).toEqual([sameProviderModel,],);
       },
     },),
   ],

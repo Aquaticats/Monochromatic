@@ -8,7 +8,8 @@
   "private": true,
   "main": "dist/app/main.mjs",
   "exports": {
-    "./ts/*": "./src/*"
+    "./ts/*": "./src/*",
+    "./main/*": "./dist/main/*"
   },
   "dependencies": {
     "@monochromatic-dev/caught-value-core": "workspace:*",
@@ -26,6 +27,7 @@
   },
   "files": [
     "dist/app",
+    "dist/main",
     "src",
     "LICENSES",
     "README.md"

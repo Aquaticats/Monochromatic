@@ -8,12 +8,31 @@
 use super::*;
 use std::os::fd::AsFd as _;
 use std::io::Write;
-use crate::child_class::CHILD_WAIT_VARIABLE;
+use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
+use crate::child_watch_step_bounds_and_errors::output_of;
+use crate::output_capture::Capture;
 use crate::wait_progress::Cadence;
 use crate::test_support::{ActionSink, SharedSink};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
-use std::process::Stdio;
+use std::process::{Child, Command, Output, Stdio};
+
+/// What:
+///  The process number a step recorded,
+///  or nothing while the file is absent or still empty.
+/// Why:
+///   The file exists from the redirection that makes it,
+/// and the number arrives after,
+/// so a control that
+///  reads on the file's existence alone can read nothing at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordedStepNumber = (file: string): number | undefined => { try { const text = readFileSync(file, 'utf8').trim(); return text === '' ? undefined : Number(text); } catch { return undefined; } };
+/// ```
+fn recorded_step_number(pid_file: &std::path::Path) -> Option<i32> {
+    return std::fs::read_to_string(pid_file).ok()?.trim().parse().ok();
+}
 
 /// A cadence of a 60 ms grace and a 60 ms interval,
 /// so a notice comes fast.
@@ -744,6 +763,122 @@ fn a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling() {
     assert!(began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
 }
 
+/// What:
+///  A sink that holds the watch inside its first notice until the step it watches has ended.
+/// Why:
+///  The watch writes a due notice before it judges the ceiling,
+/// on a thread of the blocking pool,
+/// so the notice is one
+///  place the watch can be held back while the wait for the step's output reaches its own deadline.
+/// The hold ends with the step,
+///  which is what "the watch was too late" means:
+/// the wait for the output has ended the step by then,
+/// and the watch
+///  has nothing left to do but read the marks.
+/// A fixed hold would either end before the wait answered,
+/// and give the watch its
+///  ending after all,
+/// or keep the drop of the watch waiting for as long again.
+struct AWriteTheControlHolds {
+    /// Told once the watch is inside the write.
+    began: std::sync::mpsc::Sender<()>,
+    /// Where the step wrote its process number.
+    pid_file: PathBuf,
+}
+
+/// How often the sink above looks for the end of the step.
+///
+/// Short beside the ceiling of the control it serves,
+/// so the hold does not outlast the answer the wait gives,
+/// and never a wait without a bound.
+const HELD_POLL: Duration = Duration::from_millis(50);
+
+/// How long the sink above holds the watch at most:
+/// twice the ending a watch is given,
+/// so a fixture that never records its process holds the watch for no longer than one that does.
+const THE_WATCH_IS_HELD_FOR: Duration = crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING.saturating_mul(2);
+
+/// Whether the process the step wrote down is gone;
+/// a step that recorded none is not gone,
+/// so the hold goes on until its own bound.
+fn the_process_the_step_recorded_has_gone(pid_file: &std::path::Path) -> bool {
+    let Ok(recorded) = std::fs::read_to_string(pid_file) else {
+        return false;
+    };
+    let Ok(pid) = recorded.trim().parse::<i32>() else {
+        return false;
+    };
+    // SAFETY: signal 0 only asks whether the process exists.
+    return unsafe { libc::kill(pid, 0) } != 0;
+}
+
+impl Write for AWriteTheControlHolds {
+    /// Tell the control the watch is here,
+    /// then hold it until the step is gone.
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let _told = self.began.send(());
+        let held: Instant = Instant::now();
+        while !the_process_the_step_recorded_has_gone(self.pid_file.as_path()) && held.elapsed() < THE_WATCH_IS_HELD_FOR {
+            std::thread::sleep(HELD_POLL);
+        }
+        return Ok(bytes.len());
+    }
+
+    /// Nothing is buffered.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A step whose watch is held back is still ended at its ceiling,
+/// and the error is the ceiling's.
+/// Why:
+///   The watch and the wait for a step's output each had the step's ceiling as a deadline of their own,
+/// so a watch that was
+///  a moment late lost to its own backstop:
+/// the wait then ended the step and reported that its watch could not end it,
+///  and that reason was false,
+/// while its error was not the ceiling's (`is_ceiling`),
+/// which a caller decides a rerun by
+///  and the landing decides keeping a built commit by.
+///  The watch is held inside the write of its first notice here,
+/// so the wait certainly reaches the deadline first,
+///  and nothing else is started to make it happen.
+#[test]
+fn a_step_whose_watch_is_held_back_is_still_ended_at_its_ceiling() {
+    let directory: PathBuf = crate::test_support::fixture("child-watch-held-back");
+    let pid_file: PathBuf = directory.join("pid");
+    let (began, held): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+    let watch_terms: WatchTerms = WatchTerms {
+        limit: Duration::from_millis(200),
+        cadence: QUICK,
+        notices: Box::new(AWriteTheControlHolds { began, pid_file: pid_file.clone() }),
+    };
+    let (answer, the_end) = std::sync::mpsc::channel::<std::io::Result<Output>>();
+    let step = std::thread::Builder::new().name(String::from("child-watch-held-back-control")).spawn(move || {
+        let mut command: Command = Command::new("sh");
+        command.arg("-c").arg(format!("echo $$ > '{}'; sleep 600", pid_file.display())).stdin(Stdio::null());
+        let _sent = answer.send(output_watched_within(
+            &mut command,
+            "a step whose watch is held back",
+            "a step whose watch is held back",
+            watch_terms,
+            true,
+            StepBound::EndAt(Duration::from_millis(700)),
+        ));
+    });
+    held.recv_timeout(Duration::from_secs(30)).expect("the watch reached the write of its first notice");
+    let result: std::io::Result<Output> = the_end.recv_timeout(Duration::from_secs(120)).expect("the step ended; a wait that never ends is reported here");
+    let _joined = step.expect("the control's thread").join();
+    crate::test_support::remove(directory.as_path());
+    let error: std::io::Error = result.expect_err("a step past its ceiling is not an answer");
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
+    assert!(is_ceiling(&error), "{error}");
+    assert!(error.to_string().contains("the longest the wrapper lets one step run"), "{error}");
+    assert!(!error.to_string().contains("nothing proved which process to stop"), "nothing refused the watch its proof: {error}");
+}
+
 /// A step with no ceiling (a write in place that is not safe to run twice) is waited for as long as it lives,
 /// though a ceiling of the
 /// length that ended the control above would have ended it,
@@ -1366,11 +1501,15 @@ fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
     let failure: std::io::Error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound)
         .expect_err("no thread could be started to wait for the step");
     // The step was started before the thread was refused, and it writes its number as it begins.
+    // The shell's redirection makes the file before the number reaches it, so the wait is for a number and not for the
+    //  name: waiting for the name made this control fail under a loaded suite with an empty read.
     let waited_for_the_number: Instant = Instant::now();
-    while waited_for_the_number.elapsed() < Duration::from_secs(5) && !pid_file.exists() {
+    let mut recorded: Option<i32> = recorded_step_number(pid_file.as_path());
+    while recorded.is_none() && waited_for_the_number.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(20));
+        recorded = recorded_step_number(pid_file.as_path());
     }
-    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    let pid: i32 = recorded.expect("the step recorded its process");
     // The start time proves which process the number names, so a number that passed to another one is not read as the step.
     let started: u64 = crate::process_tree::use_of(pid).expect("the step runs as it waits").started;
     // The step ends now, and its end must be collected by whoever owns it.

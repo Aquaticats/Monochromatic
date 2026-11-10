@@ -11,7 +11,10 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import path from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { writeFileSync, } from 'node:fs';
 import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
@@ -126,7 +129,7 @@ function jsonStoreOptions(directory: string,): {
   readonly validate: (data: unknown,) => void;
 } {
   return {
-    path: path.join(
+    path: join(
       directory,
       CONFIG_FILE_NAME,
     ),
@@ -234,7 +237,7 @@ await describe({
         /**
          Nested directory that does not exist yet.
          */
-        const directory = path.join(
+        const directory = join(
           createTempDirectory(),
           'missing',
           'nested',
@@ -275,7 +278,7 @@ await describe({
           logger,
         },);
         storeFile.ensureDirectory();
-        writeFileSync(path.join(
+        writeFileSync(join(
           directory,
           CONFIG_FILE_NAME,
         ), MALFORMED_JSON,);
@@ -349,7 +352,7 @@ await describe({
           logger,
         },);
         storeFile.ensureDirectory();
-        writeFileSync(path.join(
+        writeFileSync(join(
           directory,
           CONFIG_FILE_NAME,
         ), new Uint8Array([
@@ -377,7 +380,7 @@ await describe({
          */
         const storeFile = createStoreFile(jsonStoreOptions(directory,),);
         storeFile.ensureDirectory();
-        writeFileSync(path.join(
+        writeFileSync(join(
           directory,
           CONFIG_FILE_NAME,
         ), MALFORMED_JSON,);
@@ -427,7 +430,7 @@ await describe({
         /**
          Directory standing in for an unreadable config file.
          */
-        const blockedPath = path.join(
+        const blockedPath = join(
           createTempDirectory(),
           'a-directory',
         );
@@ -546,8 +549,8 @@ await describe({
          Pipeline over a fresh temp directory.
          */
         const storeFile = createStoreFile(jsonStoreOptions(directory,),);
-        expect(storeFile.path,).toBe(path.join(
-          path.dirname(storeFile.path,),
+        expect(storeFile.path,).toBe(join(
+          dirname(storeFile.path,),
           CONFIG_FILE_NAME,
         ),);
         expect(storeFile.fileExists(),).toBe(false,);
@@ -565,7 +568,7 @@ await describe({
         /**
          Nested directory that does not exist yet.
          */
-        const directory = path.join(
+        const directory = join(
           createTempDirectory(),
           'deeply',
           'nested',

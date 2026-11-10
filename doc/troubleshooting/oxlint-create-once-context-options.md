@@ -293,40 +293,40 @@ this abandons Oxlint's alternative lifecycle and its intended future interop opt
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   No.
-   Runtime behavior is explicit in `context.ts`,
-   covered by upstream fixture and snapshot,
-   and follows one-context
-   `createOnce` lifecycle.
-   Consumer read occurred at wrong lifecycle boundary.
-2. **Can upstream fix it?**
-   Documentation and public typing could expose lifecycle nullability,
-   but changing runtime to
-   provide file options during one-time registration would conflict with per-file configuration.
-3. **Are they supporting this use case?**
-   Yes.
-   Oxlint documentation supports both rule options and `createOnce`,
-   and directs per-file setup into callbacks.
-4. **Would the repo welcome our contribution?**
-   Yes,
-   with conditions.
-   `CONTRIBUTING.md:7-20` welcomes contributions and permits AI assistance when disclosed,
-   reviewed,
-   tested,
-   understood,
-   and adapted.
-   `.github/ISSUE_TEMPLATE/linter_bug_report.yaml:1-42` requests version,
-   command,
-   config,
-   and reproduction.
-5. **Will they likely fix it?**
-   Not applicable as runtime bug because source and snapshots assert behavior.
-   GitHub issue and PR searches for `createOnce context options null` across open and closed state found no duplicate.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No upstream patch is warranted because
-   constraint 1 fails.
-   Consumer-side deferred read was implemented and verified instead.
+1.  **Is it really upstream's fault?**
+    No.
+    Runtime behavior is explicit in `context.ts`,
+    covered by upstream fixture and snapshot,
+    and follows one-context
+    `createOnce` lifecycle.
+    Consumer read occurred at wrong lifecycle boundary.
+2.  **Can upstream fix it?**
+    Documentation and public typing could expose lifecycle nullability,
+    but changing runtime to
+    provide file options during one-time registration would conflict with per-file configuration.
+3.  **Are they supporting this use case?**
+    Yes.
+    Oxlint documentation supports both rule options and `createOnce`,
+    and directs per-file setup into callbacks.
+4.  **Would the repo welcome our contribution?**
+    Yes,
+    with conditions.
+    `CONTRIBUTING.md:7-20` welcomes contributions and permits AI assistance when disclosed,
+    reviewed,
+    tested,
+    understood,
+    and adapted.
+    `.github/ISSUE_TEMPLATE/linter_bug_report.yaml:1-42` requests version,
+    command,
+    config,
+    and reproduction.
+5.  **Will they likely fix it?**
+    Not applicable as runtime bug because source and snapshots assert behavior.
+    GitHub issue and PR searches for `createOnce context options null` across open and closed state found no duplicate.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No upstream patch is warranted because
+    constraint 1 fails.
+    Consumer-side deferred read was implemented and verified instead.
 
 Nothing should be filed upstream from this incident.
 The tested behavior matches upstream's source-level contract,

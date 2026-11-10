@@ -38,6 +38,7 @@ export {
 } from './stage.js';
 export { type ExpectedObservedState, } from './wayland-state.js';
 export {
+  runBoundaryStep,
   runWaylandElectronBoundaryTest,
   type WaylandBoundaryStep,
   type WaylandElectronBoundaryTestOptions,

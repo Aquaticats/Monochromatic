@@ -672,7 +672,7 @@ headless passthrough design.
 
 ### Enhanced hostmem, Venus, and AMD native-context profile
 
-**Pros:**
+Pros:
 The real domain now exposes OpenGL 4.6 through native radeonsi,
 Venus Vulkan,
 and native RADV on the RX 7600.
@@ -683,7 +683,7 @@ viewer-driven resize,
 reboot,
 and finite Vulkan rendering checks pass.
 
-**Cons:**
+Cons:
 The AMD native-context backend is packaged as experimental.
 libvirt needs an unsupported override,
 and Venus requires disabling QEMU seccomp for every VM in this Flatpak
@@ -693,31 +693,31 @@ No comparative performance or long-duration stability run was performed.
 
 ### Baseline SPICE GL plus virgl profile
 
-**Pros:**
+Pros:
 The display path is hardware accelerated,
 local,
 configured with blob resources,
 and uses only stable libvirt XML.
 It retains libvirt's default QEMU seccomp defense.
 
-**Cons:**
+Cons:
 OpenGL is limited to 4.3 and Vulkan is software-rendered.
 It does not meet the user's preference to exercise the installed stack's
 current GPU API capabilities.
 
 ### Whole-GPU passthrough
 
-**Pros:**
+Pros:
 It removes the virtual API translation layer and can provide physical-GPU
 behavior.
 
-**Cons:**
+Cons:
 The current host has no second display GPU,
 SR-IOV virtual function,
 or mediated device.
 Whole-device assignment conflicts with the local desktop and SPICE workflow.
 
-**Ranking:**
+Ranking:
 enhanced virtual GPU profile > baseline SPICE GL profile > whole-GPU
 passthrough.
 The enhanced profile beats the baseline because the user's explicit priority
@@ -749,33 +749,33 @@ Duplicate searches found:
 
 The six filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   Yes for the missing stable XML and sandbox-safe Venus launch path.
-   The current builds expose the features,
-   but the default libvirt security policy cannot start Venus.
-2. **Can upstream fix it?**
-   Yes.
-   QEMU can accept a pre-opened render-server descriptor,
-   and libvirt can model both the descriptor and GPU properties.
-3. **Are they supporting this use case?**
-   Yes.
-   Dedicated open QEMU,
-   libvirt,
-   and virt-manager issues cover each management layer.
-4. **Would the repositories welcome a contribution?**
-   Yes.
-   The issue text invites patches,
-   and the checked contribution files do not exclude this feature class.
-5. **Will they likely fix it?**
-   Plausible,
-   but not promised.
-   The issues remain open and include a prior server-descriptor patch design.
-6. **Have we prototyped a minimal upstream fix?**
-   No.
-   This work verifies the failure,
-   driver-wide workaround,
-   and end-user behavior,
-   but it does not implement the server-descriptor or stable-schema changes.
+1.  **Is it really upstream's fault?**
+    Yes for the missing stable XML and sandbox-safe Venus launch path.
+    The current builds expose the features,
+    but the default libvirt security policy cannot start Venus.
+2.  **Can upstream fix it?**
+    Yes.
+    QEMU can accept a pre-opened render-server descriptor,
+    and libvirt can model both the descriptor and GPU properties.
+3.  **Are they supporting this use case?**
+    Yes.
+    Dedicated open QEMU,
+    libvirt,
+    and virt-manager issues cover each management layer.
+4.  **Would the repositories welcome a contribution?**
+    Yes.
+    The issue text invites patches,
+    and the checked contribution files do not exclude this feature class.
+5.  **Will they likely fix it?**
+    Plausible,
+    but not promised.
+    The issues remain open and include a prior server-descriptor patch design.
+6.  **Have we prototyped a minimal upstream fix?**
+    No.
+    This work verifies the failure,
+    driver-wide workaround,
+    and end-user behavior,
+    but it does not implement the server-descriptor or stable-schema changes.
 
 No new issue or comment was posted.
 QEMU issue 3156 already describes the exact missing sandbox mechanism,

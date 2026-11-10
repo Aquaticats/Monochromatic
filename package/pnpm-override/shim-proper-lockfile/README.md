@@ -6,6 +6,9 @@ Implements `lockSync(file, options)` and `lock(file, options)` via `node:fs.mkdi
 `release()` calls `rmdirSync` on the same directory.
 The release callback is synchronous from both entry points;
  `await release()` in async callers resolves immediately because `await undefined` is non-blocking.
+`release()` tolerates the lock directory already being gone
+ and rethrows every other removal failure (for example `ENOTEMPTY` from an entry left inside the directory),
+ leaving the lock un-released so a later `release()` call retries the removal.
 
 `pnpm-workspace.yaml` substitutes the abandoned upstream
  with this shim via `overrides: { 'proper-lockfile': 'link:package/pnpm-override/shim-proper-lockfile' }`.

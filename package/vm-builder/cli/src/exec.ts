@@ -5,16 +5,37 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { l, } from './logger.ts';
 
 /**
+ Options of one command {@link exec} runs.
+
+ Spelled out as a type so a caller can hand {@link exec} a stand-in runner of the same shape, as the domain removal test
+ does.
+ */
+export type ExecOptions = {
+  /**
+   Executable name or path; looked up on `PATH` when it has no directory part.
+   */
+  readonly cmd: string;
+  /**
+   Arguments passed to the command unchanged; no shell expansion applies.
+   */
+  readonly args?: readonly string[];
+  /**
+   Milliseconds after which the child is sent `SIGTERM`; omitted means no limit.
+   */
+  readonly timeoutMs?: number;
+};
+
+/**
  Runs one external command directly (no shell) and resolves with its captured stdout.
 
  Stdout loses one trailing newline, as `nano-spawn` strips it; stderr is not returned.
  The command logs at debug level before it starts, so a failed probe can be matched to its argument list.
 
- @param cmd - Executable name or path; looked up on `PATH` when it has no directory part
+ @param cmd - Executable name or path, described on {@link ExecOptions}
 
- @param args - Arguments passed to the command unchanged; no shell expansion applies
+ @param args - Arguments passed to the command unchanged
 
- @param timeoutMs - Milliseconds after which the child is sent `SIGTERM`; omitted means no limit
+ @param timeoutMs - Milliseconds after which the child is sent `SIGTERM`
 
  @returns Stdout of the command, without one trailing newline
 
@@ -37,11 +58,7 @@ export async function exec(
     cmd,
     args = [],
     timeoutMs,
-  }: {
-    readonly cmd: string;
-    readonly args?: readonly string[];
-    readonly timeoutMs?: number;
-  },
+  }: ExecOptions,
 ): Promise<string> {
   /**
    Function-scoped logger tagged with the call site for traceable command logs.

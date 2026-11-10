@@ -37,6 +37,22 @@ import type {
 export type ValueSchema = TypedJSONSchema;
 
 /**
+ Root-level keywords of a [JSON Schema](https://json-schema.org) object.
+ 
+ `JSONSchema` is `boolean | Interface`,
+ and `Omit` over that union erases both halves: `keyof` of a union is the
+ intersection of the members' keys, which is empty here. Narrowing to the
+ object half first keeps the keywords the `rootSchema` option spreads around
+ the store's `properties` map.
+ 
+ @example
+ ```ts
+ const rootSchema: RootSchema = { additionalProperties: false, };
+ ```
+ */
+export type RootSchema = Omit<Exclude<TypedJSONSchema, boolean>, 'properties'>;
+
+/**
  Maps store property names to their JSON Schemas,
  so `get()` infers each key's value type.
  
@@ -112,7 +128,7 @@ export type Options<T extends Record<string, unknown>> = {
    The `properties` keyword belongs to the `schema` option; `rootSchema`
    must not contain it.
    */
-  rootSchema?: Omit<TypedJSONSchema, 'properties'>;
+  rootSchema?: RootSchema;
 
   /**
    [Options passed to ajv](https://ajv.js.org/options.html).

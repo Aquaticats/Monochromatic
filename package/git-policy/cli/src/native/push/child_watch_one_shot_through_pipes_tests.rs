@@ -8,8 +8,9 @@
 #![cfg(unix)]
 
 use super::*;
+use crate::child_class::ChildClass;
 use crate::output_capture::STEP_OUTPUT_LIMIT;
-use std::process::Stdio;
+use std::process::{Command, Output, Stdio};
 
 /// More bytes than the captured steps keep (`STEP_OUTPUT_LIMIT` is the tail they keep),
 /// so a run that kept only a tail would show.

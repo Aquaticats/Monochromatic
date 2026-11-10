@@ -19,6 +19,7 @@ import {
 } from '../i18n/index.ts';
 import {
   BORDER_WIDTH_REM,
+  FONT_WEIGHT_EMPHASIS,
   GAP,
   GAP_SMALL,
 } from '../style/constants.ts';
@@ -61,7 +62,7 @@ export function css(): string {
         gap: cssRem(GAP_SMALL,),
         'text-decoration-line': 'none',
         color: 'inherit',
-        'font-weight': 600,
+        'font-weight': FONT_WEIGHT_EMPHASIS,
       },
       children: [
         $({
@@ -134,7 +135,10 @@ export function html(
                 tag: 'img',
                 attrs: {
                   src: '/favicon.svg',
-                  alt: 'avatar',
+                  alt: i18n.label(
+                    lang,
+                    'brandImageAlt',
+                  ),
                 },
               },),
               h({

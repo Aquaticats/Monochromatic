@@ -36,19 +36,18 @@ use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_cleanup::an_installed_merge_behind_a_held_index;
 use crate::merge_isolation_recovery_steps::{
-    Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge, install_entries,
-    judge_changes, merge_changes, put_back_stranded_takes, remove_record,
+    Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge_awaiting,
+    install_entries_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes, remove_record,
 };
-use crate::merge_isolation_index_reading::{entries_by_path, index_entries, standing_of_index};
+use crate::merge_isolation_index_reading::{entries_by_path, index_entries_awaiting, standing_of_index};
 /// The maps of records a settling asks by path.
 use std::collections::HashMap;
 /// The fail-closed recovery failure,
 /// and the refusal that says whether the merge began.
 use crate::recovery_error::RecoveryError;
 /// Running real Git.
-use crate::transaction_git::{GitRequest, run_git_checked};
-/// Writing the notices of the wait for the index lock.
-use std::io::Write;
+use crate::transaction_git::GitRequest;
+use crate::transaction_git_awaiting::run_git_checked_awaiting;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -70,18 +69,19 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function settleMovedBranch({ place, record, intent, movedTo, stderr }): Promise<'branch-moved' | 'index-held'>;
+/// async function settleMovedBranch({ place, record, intent, movedTo, keepRecord, stderr }): Promise<'branch-moved' | 'index-held'>;
 /// ```
-pub(crate) fn settle_moved_branch(
+pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     record: &Path,
     intent: &MergeIntent,
     moved_to: &str,
-    out: &mut dyn Write,
+    keep_record: bool,
+    out: &mut W,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
     let root: &Path = intent.repository_root.as_path();
     // A merge whose own commits cannot be read may still be half installed, so the refusal says so.
-    let changes: Vec<Change> = match merge_changes(place, root, intent) {
+    let changes: Vec<Change> = match merge_changes_awaiting(place, root, intent).await {
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began: true }),
     };
@@ -90,13 +90,13 @@ pub(crate) fn settle_moved_branch(
     // the index first and the worktree second,
     // so a worktree that cannot be read is reported by what
     //  the index holds.
-    let index_began: bool = match index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice()) {
+    let index_began: bool = match index_holds_the_merge_awaiting(place, root, intent.old_oid.as_str(), changes.as_slice()).await {
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began: true }),
     };
     // The same judgement the straight completion makes,
     // so a directory the branch's own files explain is read the same way here.
-    let worktree: Vec<Judged> = match judge_changes(place, root, changes.as_slice()) {
+    let worktree: Vec<Judged> = match judge_changes_awaiting(place, root, changes.as_slice()).await {
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began: index_began }),
     };
@@ -112,14 +112,14 @@ pub(crate) fn settle_moved_branch(
     let worktree_shows_the_merge: bool = worktree.iter().any(holds_the_merge);
     // A merge that left nothing of itself in the index or the worktree has nothing to settle, so the moved head is not read.
     if !index_began && !worktree_shows_the_merge {
-        return only_the_record_goes(record, false);
+        return only_the_record_goes(record, false, keep_record);
     }
     // What each path ends as: the moved head's entry, which is the merge's own entry where the moved head left the path alone.
     let request: GitRequest = GitRequest::new(
         root,
         &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", intent.new_oid.as_str(), moved_to],
     );
-    let output = match run_git_checked(&place.git, &request) {
+    let output = match run_git_checked_awaiting(&place.git, &request).await {
         Ok(done) => done,
         // The moved head cannot be read, so a path holding the merge cannot be told from an independent commit of its content.
         Err(error) => return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: index_began || worktree_shows_the_merge }),
@@ -145,7 +145,7 @@ pub(crate) fn settle_moved_branch(
     }
     let began: bool = index_began || wrote_a_file;
     if !began {
-        return only_the_record_goes(record, began);
+        return only_the_record_goes(record, began, keep_record);
     }
     let mut ends: Vec<Change> = Vec::with_capacity(changes.len());
     for change in &changes {
@@ -164,7 +164,7 @@ pub(crate) fn settle_moved_branch(
     }
     // A staged version of a path the merge changes has no other name, so it is never written over here either: the settling
     //  stops and names the paths, and the staged content stays in the index.
-    let staged_index: Vec<Change> = match index_entries(place, root, intent.old_oid.as_str()) {
+    let staged_index: Vec<Change> = match index_entries_awaiting(place, root, intent.old_oid.as_str()).await {
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began }),
     };
@@ -224,7 +224,7 @@ pub(crate) fn settle_moved_branch(
             began,
         });
     }
-    if install_entries(place, root, ends.as_slice(), held.as_slice(), began, out)? == Installed::IndexHeld {
+    if install_entries_awaiting(place, root, ends.as_slice(), held.as_slice(), began, out).await? == Installed::IndexHeld {
         // A settling that had already begun has nothing to defer: the command is stopped rather than read the merge as
         //  another session's staged work.
         if began {
@@ -237,7 +237,9 @@ pub(crate) fn settle_moved_branch(
         }
         return Ok(MergeRecoveryAction::IndexHeld);
     }
-    remove_record(record).map_err(partly_installed)?;
+    if !keep_record {
+        remove_record(record).map_err(partly_installed)?;
+    }
     return Ok(MergeRecoveryAction::BranchMoved);
 }
 
@@ -295,8 +297,8 @@ fn moved_head_holds_its_own_entry(beyond: &HashMap<&[u8], &Change>, path: &[u8])
 /// ```ts
 /// function onlyTheRecordGoes(record, began): 'branch-moved'; // rm(record)
 /// ```
-fn only_the_record_goes(record: &Path, began: bool) -> Result<MergeRecoveryAction, MergeRefusal> {
-    if let Err(error) = remove_record(record) {
+fn only_the_record_goes(record: &Path, began: bool, keep_record: bool) -> Result<MergeRecoveryAction, MergeRefusal> {
+    if !keep_record && let Err(error) = remove_record(record) {
         return Err(MergeRefusal { error, began });
     }
     return Ok(MergeRecoveryAction::BranchMoved);

@@ -78,6 +78,7 @@ export {
   validateToolArguments,
 } from './tool-schema.ts';
 export { requireProtocolVersion, } from './server-request-version.ts';
+export { protocolVersionRequest, } from './test-request.ts';
 export {
   buildDiscoverResult,
   buildListResourcesResult,

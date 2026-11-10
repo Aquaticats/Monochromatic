@@ -28,7 +28,7 @@ use crate::process_identity::ProcessIdentityError;
 use crate::service_index_lock::lock_path_of;
 use crate::service_index_marker::{marker_text, own_identity};
 use crate::service_index_placement::sync_file;
-use crate::service_index_staging::stage_marker_synced;
+use crate::service_index_staging::stage_marker;
 use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -55,6 +55,93 @@ pub(crate) struct Slot {
     lock: PathBuf,
     seq: u64,
     work: JoinHandle<Result<std::io::Result<Prestaged>, BlockingJobError>>,
+}
+
+/// What:
+///  The file the service has made ahead,
+/// named for the shutdown that ends the process from another thread:
+/// the pathname and the identity of the file written there.
+/// Why:
+///   The slot that holds the made-ahead marker belongs to the landing thread,
+/// and a service stopped by a signal ends the process from its shutdown task,
+/// where no destructor of the landing thread runs.
+/// The identity keeps the removal from taking a pathname that now names another file,
+///  and the entry is cleared whenever the landing thread takes,
+/// places or removes the file.
+/// Lock kept:
+///  the landing thread writes this record and the shutdown task takes it,
+/// so two threads reach it,
+/// and a pathname with an identity is not one word an atomic could hold.
+/// Under it only the value is replaced or taken:
+/// no Git process,
+/// no file and no other lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let madeAhead: { path: string; dev: number; ino: number } | undefined;
+/// ```
+static MADE_AHEAD: std::sync::Mutex<Option<MadeAhead>> = std::sync::Mutex::new(None);
+
+/// One file made ahead and where it was written.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct MadeAhead {
+    /// The pathname of the file,
+    /// which the landing thread renames onto the lock.
+    path: PathBuf,
+    /// The device of the file written there.
+    device: u64,
+    /// The inode of the file written there.
+    inode: u64,
+}
+
+/// Records the file just made and flushed,
+/// so a stop that runs on another thread can remove it.
+fn publish(made: &Prestaged) {
+    let Ok(held) = made.held.metadata() else { return };
+    let Ok(mut kept) = MADE_AHEAD.lock() else { return };
+    *kept = Some(MadeAhead { path: made.staged.clone(), device: held.dev(), inode: held.ino() });
+}
+
+/// Forgets the file the service made ahead,
+/// because the landing thread took,
+/// placed or removed it.
+fn forget_made_ahead() {
+    if let Ok(mut kept) = MADE_AHEAD.lock() {
+        *kept = None;
+    }
+}
+
+/// Takes the record of the file made ahead,
+/// so that the file calls of its removal run with nothing held.
+fn take_made_ahead() -> Option<MadeAhead> {
+    let Ok(mut kept) = MADE_AHEAD.lock() else { return None };
+    return kept.take();
+}
+
+/// What:
+///  Removes the file the service made ahead,
+/// when it is still the file the service wrote,
+/// and forgets it either way.
+/// Why:
+///   The service ends by the signal the manager sent,
+/// and `SPEC.md` "Removing the lock and what is made durable" says the marker "is removed when the service ends,
+///  whichever way its loop ends";
+/// the shutdown task runs no landing-thread destructor,
+///  so it removes the file itself.
+/// A pathname whose file was placed as the lock,
+///  or replaced,
+/// is not the service's to remove here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const made = madeAhead; madeAhead = undefined; if (made && lstat(made.path).ino === made.ino && lstat(made.path).dev === made.dev) rm(made.path);
+/// ```
+pub fn remove_the_file_made_ahead() {
+    let Some(made) = take_made_ahead() else { return };
+    let Ok(on_path) = std::fs::symlink_metadata(made.path.as_path()) else { return };
+    if on_path.file_type().is_file() && on_path.dev() == made.device && on_path.ino() == made.inode {
+        let _removed = std::fs::remove_file(made.path.as_path());
+    }
 }
 
 /// Whether a commit has begun to wait for the marker being made,
@@ -121,8 +208,18 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     // The flush can wait on the disk, so the marker is made by a job of the blocking pool, which a task of the runtime awaits.
     let spawned = spawn_on_runtime(run_blocking_job(move || -> std::io::Result<Prestaged> {
         let marker: String = marker_text(seq, &own_identity).map_err(identity_error)?;
-        let (staged, held) = stage_marker_synced(&sync, work_lock.as_path(), seq, marker.as_str())?;
-        return Ok(Prestaged { staged, held, marker });
+        // The file is recorded before the flush, because the flush can take seconds on a loaded disk and a stop that
+        // arrives while it runs must find the file: a record made after the flush would leave it behind.
+        let (staged, held) = stage_marker(work_lock.as_path(), seq, marker.as_str())?;
+        let made: Prestaged = Prestaged { staged, held, marker };
+        publish(&made);
+        if let Err(error) = sync(&made.held) {
+            forget_made_ahead();
+            drop(made.held);
+            let _removed = std::fs::remove_file(made.staged.as_path());
+            return Err(error);
+        }
+        return Ok(made);
     }));
     // No worker to make it on is no marker made ahead: the commit stages its own.
     if let Some(work) = spawned {
@@ -156,6 +253,7 @@ fn still_there(made: &Prestaged) -> bool {
 /// and leaves any other file at the pathname alone:
 /// the descriptor is dropped either way.
 fn remove_if_ours(made: Prestaged) {
+    forget_made_ahead();
     if still_there(&made) {
         let _removed = std::fs::remove_file(&made.staged);
     }
@@ -208,6 +306,7 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
         return None;
     }
     let made: Prestaged = made_marker(slot.work)?;
+    forget_made_ahead();
     if !still_there(&made) {
         return None;
     }

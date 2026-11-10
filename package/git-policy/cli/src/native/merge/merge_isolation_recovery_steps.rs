@@ -18,23 +18,27 @@
 //! const standing = standing(change, state); // 'merged' | 'untouched' | ...
 //! ```
 
-use crate::index_holder_wait::{IndexWait, wait_for_index_release_while_finishing_a_merge};
-use crate::inner_git_words::record_words;
+use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_changes::{
-    Change, FileIdentity, WorktreeState, file_identity, parse_raw_changes, worktree_path, worktree_state,
+    Change, FileIdentity, WorktreeState, file_identity, parse_raw_changes, worktree_path, worktree_state_awaiting,
 };
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
 use crate::recovery_error::{RecoveryError, io_failure};
 /// The index reading,
 /// and the take of a worktree file a merge must replace or delete,
 /// re-exported so a caller of the recovery keeps one path.
-pub use crate::merge_isolation_index_reading::{entries_by_path, index_entries, index_standings, standing_of_index};
-pub use crate::merge_isolation_take_asides::{
-    Take, TakeFailure, TakenOnDisk, finish_asides, put_back, put_back_stranded_takes, remove_empty_parents,
-    restore_what_git_did_not_write, take_aside,
+pub use crate::merge_isolation_index_reading::{
+    entries_by_path, index_entries, index_entries_awaiting, index_standings, index_standings_awaiting, standing_of_index,
 };
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
-use std::io::Write;
+pub use crate::merge_isolation_take_asides::{
+    Take, TakeFailure, TakenOnDisk, finish_asides, finish_asides_awaiting, put_back, put_back_stranded_takes,
+    restore_what_git_did_not_write_awaiting, take_aside_awaiting,
+};
+/// The write of a merge into the index and the worktree,
+/// named here so a caller of the recovery keeps one import.
+pub use crate::merge_isolation_recovery_install::{install_entries, install_entries_awaiting, remove_empty_parents};
+use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git_awaiting::run_git_checked_awaiting;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -151,16 +155,34 @@ pub enum MergeRecoveryAction {
 /// ```ts
 /// async function mergeChanges({ old, next }): Promise<Change[]>;
 /// ```
-pub fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
+pub async fn merge_changes_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
         &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", intent.old_oid.as_str(), intent.new_oid.as_str()],
     );
-    let output = match run_git_checked(&place.git, &request) {
+    let output = match run_git_checked_awaiting(&place.git, &request).await {
         Ok(done) => done,
         Err(error) => return Err(RecoveryError(error.to_string())),
     };
     return parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError);
+}
+
+/// What:
+///  The same paths of a merge,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   `merge_changes` enters the runtime around the tree difference,
+/// which a task cannot do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function mergeChanges({ old, next }): Promise<Change[]>;
+/// ```
+pub fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
+    return match run_on_runtime(merge_changes_awaiting(place, root, intent)) {
+        Ok(found) => found,
+        Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
+    };
 }
 
 /// What:
@@ -177,13 +199,13 @@ pub fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -
 /// ```ts
 /// async function indexHoldsTheMerge({ place, root, oldOid, changes }): Promise<boolean>;
 /// ```
-pub fn index_holds_the_merge(
+pub async fn index_holds_the_merge_awaiting(
     place: &RecoveryPlace,
     root: &Path,
     old_oid: &str,
     changes: &[Change],
 ) -> Result<bool, RecoveryError> {
-    let standings: Vec<Standing> = index_standings(place, root, old_oid, changes)?;
+    let standings: Vec<Standing> = index_standings_awaiting(place, root, old_oid, changes).await?;
     return Ok(!standings.is_empty() && standings.iter().all(is_the_merges_entry));
 }
 
@@ -277,18 +299,18 @@ pub fn standing(change: &Change, state: &WorktreeState, records_file_modes: bool
 /// ```ts
 /// function judgeChanges({ place, root, changes }): Judged[]; // standing(...), then explainedDirectory(...) ? 'directory' : one
 /// ```
-pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> Result<Vec<Judged>, RecoveryError> {
+pub async fn judge_changes_awaiting(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> Result<Vec<Judged>, RecoveryError> {
     // Whether a mode is part of the file here is one question for the whole judgement,
     // and it is the repository's answer, not this
     //  command's.
-    let records_file_modes: bool = crate::merge_isolation_changes::the_repository_records_file_modes(&place.git, root);
+    let records_file_modes: bool = crate::merge_isolation_changes::the_repository_records_file_modes_awaiting(&place.git, root).await;
     let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
     for change in changes {
         let location: PathBuf = worktree_path(root, change.path.as_slice());
         // The identity is read before the content, so a file written in between does not match the judgement and is never
         //  replaced.
         let identity: Option<FileIdentity> = file_identity(location.as_path());
-        let state: WorktreeState = worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?;
+        let state: WorktreeState = worktree_state_awaiting(&place.git, root, change.path.as_slice()).await.map_err(RecoveryError)?;
         let content: Option<String> = match &state {
             WorktreeState::Content { object, .. } => Some(object.clone()),
             WorktreeState::Missing | WorktreeState::Other => None,
@@ -408,26 +430,6 @@ pub enum Installed {
     IndexHeld,
 }
 
-/// What:
-///  Whether the merge may be written after this wait for the index lock.
-/// Why:
-///  A wait that ended with the lock still held means the index cannot be written,
-/// and trying would fail with Git's
-///  own sentence in place of the record;
-/// leaving the record and writing nothing is safe,
-/// because the recovery is idempotent.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const mayInstall = (waited: IndexWait) => waited !== 'gave-up' && waited !== 'owner-gone';
-/// ```
-pub fn may_install(waited: IndexWait) -> bool {
-    return match waited {
-        IndexWait::NotHeld | IndexWait::Released(_) => true,
-        IndexWait::GaveUp(_) | IndexWait::OwnerGone(_) => false,
-    };
-}
-
 /// What the worktree held at one changed path when recovery judged it.
 ///
 /// In TS you'd write (pseudocode):
@@ -446,200 +448,4 @@ pub struct Judged {
     /// or nothing when it held no file:
     /// the bytes a take must still find when it finishes the file.
     pub content: Option<String>,
-}
-
-/// The refusal for a merge whose files changed after it judged them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `A merge in ${root} was interrupted, and these files changed after this command judged them: ${paths}. ...`
-/// ```
-fn changed_after_judging(root: &Path, paths: &[String]) -> RecoveryError {
-    return RecoveryError(format!(
-        "A merge in {} was interrupted while Git updated these files, and they changed after this command judged them: {}. \
-         Nothing was changed by this command and the merge is still unfinished; writing the merge over them would have \
-         discarded that edit. Save those edits elsewhere, restore the files with `git restore -- <path>`, then run any git \
-         command again so recovery can finish the merge.",
-        root.display(),
-        paths.join(", ")
-    ));
-}
-
-/// What:
-///  Every file a take set aside,
-///  the merge's writes and its deletions together,
-///  for the paths that put them all back.
-/// Why:
-///  A statement that puts files back must not know which of them the merge writes and which it deletes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// [...written, ...deleted];
-/// ```
-fn everything_taken(written: &[TakenOnDisk], deleted: &[TakenOnDisk]) -> Vec<TakenOnDisk> {
-    let mut all: Vec<TakenOnDisk> = Vec::with_capacity(written.len() + deleted.len());
-    for entry in written.iter().chain(deleted.iter()) {
-        all.push(TakenOnDisk {
-            location: entry.location.clone(),
-            path: entry.path.clone(),
-            aside: entry.aside.clone(),
-            taken: entry.taken,
-            expected: entry.expected.clone(),
-        });
-    }
-    return all;
-}
-
-/// What:
-///  Put the index entries and the worktree files of the changed paths to the state each change ends in.
-/// Why:
-///   Git takes `index.lock` for the index write and dies when another program holds it,
-/// so the write waits for
-///  a holder first,
-/// bounded and naming it (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
-/// finding 2);
-///  a lock that outlasts the bound leaves everything as it was and the record for the next command.
-///   Every path that is not already at the state the change ends in is taken aside before anything is written,
-/// and
-///  the taken file is checked against what was judged,
-/// so a file saved in between is never replaced with no notice
-///  (finding 4);
-/// one path that changed after it was judged puts all of them back and writes nothing.
-///  The index entries are set first so a file written by `checkout-index` is recorded with the object it holds.
-/// The
-///  merge's completion and the roll back to a moved branch both end here,
-/// with a different end state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function installEntries({ place, root, changes, judgements, stderr }): Promise<Installed>;
-/// ```
-pub fn install_entries(
-    place: &RecoveryPlace,
-    root: &Path,
-    changes: &[Change],
-    judgements: &[Judged],
-    installed_before: bool,
-    out: &mut dyn Write,
-) -> Result<Installed, MergeRefusal> {
-    let waited: IndexWait = wait_for_index_release_while_finishing_a_merge(place.git_dir.join("index").as_path(), out);
-    if !may_install(waited) {
-        return Ok(Installed::IndexHeld);
-    }
-    // The take comes first: nothing of the merge is written while a file that was judged may already have changed.
-    let mut taken_writes: Vec<TakenOnDisk> = Vec::new();
-    let mut taken_deletions: Vec<TakenOnDisk> = Vec::new();
-    let mut checkout_input: Vec<u8> = Vec::new();
-    let mut changed: Vec<String> = Vec::new();
-    for (change, judged) in changes.iter().zip(judgements.iter()) {
-        let location: PathBuf = worktree_path(root, change.path.as_slice());
-        if judged.standing == Standing::New {
-            // The path already holds the state the change ends in.
-            continue;
-        }
-        if change.exists_after() {
-            // Every path the merge writes is checked out, whether a file stood there or not.
-            checkout_input.extend_from_slice(change.path.as_slice());
-            checkout_input.push(0);
-        }
-        if judged.standing == Standing::Directory {
-            // The directory holds only the branch's files, which the merge's own deletions take, so there is nothing of
-            //  anyone's to set aside; the deletions empty it before the checkout writes the file.
-            continue;
-        }
-        match take_aside(place, root, change.path.as_slice(), location.as_path(), judged) {
-            Ok(Take::Nothing) => {}
-            Ok(Take::Changed) => changed.push(String::from_utf8_lossy(change.path.as_slice()).into_owned()),
-            Ok(Take::Aside { aside, taken, expected }) => {
-                let entry: TakenOnDisk = TakenOnDisk { location, path: change.path.clone(), aside, taken, expected };
-                if change.exists_after() {
-                    taken_writes.push(entry);
-                } else {
-                    taken_deletions.push(entry);
-                }
-            }
-            Err(failure) => {
-                // A take that stops must not leave the files it already took under their private names; the one it stopped on is
-                //  in the failure, because the rename came before the read that failed.
-                let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
-                let mut refusal: String = failure.error.0;
-                if !left.is_empty() {
-                    refusal.push_str(format!(" Files that could not be put back: {}", left.join(", ")).as_str());
-                }
-                let began: bool = installed_before || failure.stranded.is_some() || !left.is_empty();
-                return Err(MergeRefusal { error: RecoveryError(refusal), began });
-            }
-        }
-    }
-    if !changed.is_empty() {
-        let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
-        let mut refusal: String = changed_after_judging(root, changed.as_slice()).0;
-        refusal.push_str(left.join(", ").as_str());
-        return Err(MergeRefusal { error: RecoveryError(refusal), began: installed_before || !left.is_empty() });
-    }
-    let mut index_input: Vec<u8> = Vec::new();
-    for change in changes {
-        if change.exists_after() {
-            index_input.extend_from_slice(format!("{} {}\t", change.new_mode, change.new_oid).as_bytes());
-        } else {
-            index_input.extend_from_slice(format!("0 {}\t", "0".repeat(change.old_oid.len())).as_bytes());
-        }
-        index_input.extend_from_slice(change.path.as_slice());
-        index_input.push(0);
-    }
-    let mut update: GitRequest = GitRequest::new(root, &["update-index", "-z", "--index-info"]);
-    update.input = Some(index_input);
-    if let Err(error) = run_git_checked(&place.git, &update) {
-        // The files are aside and the index is untouched: put them back rather than leave half a merge.
-        let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
-        return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: installed_before || !left.is_empty() });
-    }
-    // From here the index holds the merge's entries, so a command that stops must not go on reading the checkout.
-    let began: bool = true;
-    // A deleted path's file was taken aside, so its directory can be reached even when the merge leaves it empty; the
-    //  directories go once every aside name in them is gone,
-    // and they go before the checkout,
-    // because a merge may put a file
-    //  where one of them stood.
-    let mut deletions: Vec<PathBuf> = Vec::new();
-    for change in changes {
-        if change.exists_after() {
-            continue;
-        }
-        // Every path the merge deletes has its emptied directories pruned,
-        // whether or not it already stands at its end state:
-        // a
-        //  recovery killed between finishing a child's private name and removing the directory it emptied leaves that
-        //  directory behind,
-        // and only an empty directory is ever removed here.
-        deletions.push(worktree_path(root, change.path.as_slice()));
-    }
-    if let Err(error) = finish_asides(place, root, &taken_deletions, out) {
-        return Err(MergeRefusal { error, began });
-    }
-    for location in &deletions {
-        remove_empty_parents(root, location.as_path());
-    }
-    if !checkout_input.is_empty() {
-        // Without `--force`: a file that appeared where the merge writes is skipped and Git says so,
-        //  so the person's bytes are never replaced in the instant between the take and this write.
-        let mut checkout: GitRequest = GitRequest::new(root, &["checkout-index", "-z", "--stdin"]);
-        checkout.input = Some(checkout_input);
-        let checked_out = match run_git_checked(&place.git, &checkout) {
-            Ok(done) => done,
-            Err(error) => {
-                let restored: Result<(), RecoveryError> = restore_what_git_did_not_write(place, root, &taken_writes, out);
-                return Err(match restored {
-                    Ok(()) => MergeRefusal { error: RecoveryError(error.to_string()), began },
-                    Err(left) => MergeRefusal { error: RecoveryError(format!("{error} ({})", left.0)), began },
-                });
-            }
-        };
-        // The checkout carries no `--quiet`; what Git said of it is kept in the journal.
-        record_words(&["checkout-index", "-z", "--stdin"], &checked_out);
-    }
-    if let Err(error) = finish_asides(place, root, &taken_writes, out) {
-        return Err(MergeRefusal { error, began });
-    }
-    return Ok(Installed::Written);
 }

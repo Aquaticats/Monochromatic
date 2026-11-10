@@ -117,6 +117,10 @@ pub mod push_trigger_log;
 /// the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 
+/// The reconcile loop and its merge push,
+/// awaited by a task of the runtime.
+pub mod auto_push_reconcile_awaiting;
+
 /// What a reconcile of a rejected push shares:
 /// the line prefixes,
 /// the attempt limit,
@@ -155,6 +159,12 @@ pub mod child_watch_task_loop_and_notice;
 
 /// The watched one-shot run for a caller that is itself a task of the runtime.
 pub mod child_watch_output_watched_on_the_runtime;
+
+/// The one-shot run of a watched step:
+/// the command started,
+/// its output read whole,
+/// and the watch that ends it.
+pub mod child_watch_one_shot_run;
 
 /// The paths of a dirty worktree and of a fast-forward,
 /// and their overlap.

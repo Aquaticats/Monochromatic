@@ -416,24 +416,24 @@ so this rule's own work is about 110 to 120 s of the cold time.
 
 ### Levers, ranked
 
-1. Memoize TypeScript requests per snapshot:
-   at most 35.9 s,
-   low risk because a snapshot is immutable,
-   provided the memo is dropped with the snapshot and bounded.
-2. One oxlint invocation for the family:
-   15 to 55 s on a sequential run,
-   depending on load,
-   but the repository already lints packages in parallel,
-   which hides most per-process cost,
-   and it costs 5.5 to 6.8 GB of peak memory and merges 36 reports into one.
-3. Cheaper project setup:
-   at most about 6.6 s of fingerprint transport plus part of index scope,
-   medium risk because disk text can disagree with the analysed snapshot.
-4. Skip files the rule cannot report on:
-   at most 2.8 to 15.2 s,
-   and it changes cache population order.
-5. Share one program across packages:
-   at most about 2 s.
+1.  Memoize TypeScript requests per snapshot:
+    at most 35.9 s,
+    low risk because a snapshot is immutable,
+    provided the memo is dropped with the snapshot and bounded.
+2.  One oxlint invocation for the family:
+    15 to 55 s on a sequential run,
+    depending on load,
+    but the repository already lints packages in parallel,
+    which hides most per-process cost,
+    and it costs 5.5 to 6.8 GB of peak memory and merges 36 reports into one.
+3.  Cheaper project setup:
+    at most about 6.6 s of fingerprint transport plus part of index scope,
+    medium risk because disk text can disagree with the analysed snapshot.
+4.  Skip files the rule cannot report on:
+    at most 2.8 to 15.2 s,
+    and it changes cache population order.
+5.  Share one program across packages:
+    at most about 2 s.
 
 The first lever landed on 2026-10-19 (UTC) as `a47fa17b02` and the three commits before it;
 the second is recorded and not built,

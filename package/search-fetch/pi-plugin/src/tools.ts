@@ -4,6 +4,7 @@
  The shared specs in \@monochromatic-dev/search-fetch-core own names,
  descriptions, and valibot parameter schemas; this module converts those schemas to the
  TypeBox form pi compiles and forwards execution to the shared executors.
+ Both tools register through one factory, so the host contract has a single owner.
 
  @module
  */
@@ -15,8 +16,6 @@ import {
   type ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
 import {
-  LINKUP_WEB_FETCH_TOOL_NAME,
-  LINKUP_WEB_SEARCH_TOOL_NAME,
   executeWebFetchTool,
   executeWebSearchTool,
   valibotToTypeBox,
@@ -72,6 +71,16 @@ export type CreateLinkupToolsOptions = {
  */
 export type LinkupToolDefinition = ToolDefinition<TSchema, LinkupToolDetails>;
 
+/**
+ Executor contract shared execution offers and both Pi tools delegate to.
+ */
+type LinkupToolExecutor = typeof executeWebSearchTool;
+
+/**
+ Host contract a Pi tool renders from.
+ */
+type LinkupToolSpec = typeof webSearchToolSpec | typeof webFetchToolSpec;
+
 //endregion Types
 
 //region Public API
@@ -90,8 +99,16 @@ export type LinkupToolDefinition = ToolDefinition<TSchema, LinkupToolDetails>;
  */
 export function createLinkupTools(options: CreateLinkupToolsOptions,): readonly LinkupToolDefinition[] {
   return [
-    createLinkupWebSearchTool(options,),
-    createLinkupWebFetchTool(options,),
+    createLinkupTool({
+      options,
+      spec: webSearchToolSpec,
+      executeTool: executeWebSearchTool,
+    },),
+    createLinkupTool({
+      options,
+      spec: webFetchToolSpec,
+      executeTool: executeWebFetchTool,
+    },),
   ];
 }
 
@@ -100,25 +117,48 @@ export function createLinkupTools(options: CreateLinkupToolsOptions,): readonly 
 //region Helpers
 
 /**
- Create the Pi search tool over the shared search contract.
+ Render one shared spec as the Pi tool contract and delegate execution to the shared executor.
 
  @param options - config and client dependencies
+
+ @param spec - shared tool contract owning the name, labels, descriptions, and parameters
+
+ @param executeTool - shared executor running one call of that tool
 
  @returns Pi tool definition
 
  @example
  ```ts
- createLinkupWebSearchTool({ config, client });
+ createLinkupTool({ options, spec: webSearchToolSpec, executeTool: executeWebSearchTool });
  ```
  */
-function createLinkupWebSearchTool(options: CreateLinkupToolsOptions,): LinkupToolDefinition {
+function createLinkupTool(
+  {
+    options,
+    spec,
+    executeTool,
+  }: {
+    /**
+     Config and client dependencies shared by both tools.
+     */
+    readonly options: CreateLinkupToolsOptions;
+    /**
+     Shared tool contract this registration renders.
+     */
+    readonly spec: LinkupToolSpec;
+    /**
+     Shared executor this registration delegates to.
+     */
+    readonly executeTool: LinkupToolExecutor;
+  },
+): LinkupToolDefinition {
   return defineTool({
-    name: LINKUP_WEB_SEARCH_TOOL_NAME,
-    label: webSearchToolSpec.label,
-    description: webSearchToolSpec.description,
-    promptSnippet: webSearchToolSpec.promptSnippet,
-    promptGuidelines: [...webSearchToolSpec.promptGuidelines,],
-    parameters: valibotToTypeBox(webSearchToolSpec.parameters,),
+    name: spec.name,
+    label: spec.label,
+    description: spec.description,
+    promptSnippet: spec.promptSnippet,
+    promptGuidelines: [...spec.promptGuidelines,],
+    parameters: valibotToTypeBox(spec.parameters,),
     async execute(
       _toolCallId: string,
       rawParams: unknown,
@@ -130,57 +170,11 @@ function createLinkupWebSearchTool(options: CreateLinkupToolsOptions,): LinkupTo
        Logger tagged for this tool registration.
        */
       const innerL = tagged({
-        tag: LINKUP_WEB_SEARCH_TOOL_NAME,
+        tag: spec.name,
         l,
       },);
-      innerL.debug('delegating search execution to shared core',);
-      return await executeWebSearchTool({
-        client: options.client,
-        config: options.config,
-        rawParams,
-        ...(signal === undefined ? {} : { signal, }),
-        ...(onUpdate === undefined ? {} : { onUpdate, }),
-      },);
-    },
-  },);
-}
-
-/**
- Create the Pi fetch tool over the shared fetch contract.
-
- @param options - config and client dependencies
-
- @returns Pi tool definition
-
- @example
- ```ts
- createLinkupWebFetchTool({ config, client });
- ```
- */
-function createLinkupWebFetchTool(options: CreateLinkupToolsOptions,): LinkupToolDefinition {
-  return defineTool({
-    name: LINKUP_WEB_FETCH_TOOL_NAME,
-    label: webFetchToolSpec.label,
-    description: webFetchToolSpec.description,
-    promptSnippet: webFetchToolSpec.promptSnippet,
-    promptGuidelines: [...webFetchToolSpec.promptGuidelines,],
-    parameters: valibotToTypeBox(webFetchToolSpec.parameters,),
-    async execute(
-      _toolCallId: string,
-      rawParams: unknown,
-      signal?: AbortSignal,
-      onUpdate?: AgentToolUpdateCallback<LinkupToolDetails>,
-      _ctx?: ExtensionContext,
-    ) {
-      /**
-       Logger tagged for this tool registration.
-       */
-      const innerL = tagged({
-        tag: LINKUP_WEB_FETCH_TOOL_NAME,
-        l,
-      },);
-      innerL.debug('delegating fetch execution to shared core',);
-      return await executeWebFetchTool({
+      innerL.debug(`delegating ${spec.name} execution to shared core`,);
+      return await executeTool({
         client: options.client,
         config: options.config,
         rawParams,

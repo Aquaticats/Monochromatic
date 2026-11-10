@@ -127,6 +127,11 @@ fn waited_since_accepted(queued: &Queued) -> Duration {
 /// `place_after` is the wait a batch's first request must have borne before it is told it is next
 /// (`wait_ceilings.rs`,
 /// `WAITING_NOTICE_AFTER`).
+/// Records the identities of the requests whose scratch tree the landing did not read for good,
+/// because the answer sent their client back to read the private index of the attempt it captured
+/// (`service_prepare_ready_shapes.rs`,
+/// `HandedBackTree`):
+/// those trees stay where they are until the client that owns them removes them.
 pub(crate) fn land_group(
     context: &LandContext,
     instance: Option<&str>,

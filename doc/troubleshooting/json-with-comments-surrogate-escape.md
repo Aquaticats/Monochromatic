@@ -31,77 +31,77 @@ The inspected repository is `hayas1/json-with-comments` at tag `v0.1.5`,
  and the README instead documents a Git dependency.
  The source call chain is:
 
-1. Public `from_str` delegates to a string tokenizer (`src/de.rs:61-65`):
+1.  Public `from_str` delegates to a string tokenizer (`src/de.rs:61-65`):
 
-   ```rust
-   // src/de.rs:61-65
-   pub fn from_str<'de, D>(s: &'de str) -> crate::Result<D>
-   where
-       D: de::Deserialize<'de>,
-   {
-       from_tokenizer(StrTokenizer::new(s))
-   }
-   ```
+    ```rust
+    // src/de.rs:61-65
+    pub fn from_str<'de, D>(s: &'de str) -> crate::Result<D>
+    where
+        D: de::Deserialize<'de>,
+    {
+        from_tokenizer(StrTokenizer::new(s))
+    }
+    ```
 
-2. `StrTokenizer` delegates escape handling to the common token parser
-   (`src/de/token/str.rs:43-46`),
-   which dispatches `\u` to `parse_unicode` (`src/de/token.rs:151-160`):
+2.  `StrTokenizer` delegates escape handling to the common token parser
+    (`src/de/token/str.rs:43-46`),
+    which dispatches `\u` to `parse_unicode` (`src/de/token.rs:151-160`):
 
-   ```rust
-   // src/de/token/str.rs:43-46
-   fn parse_escape_sequence(&mut self, buff: &mut Vec<u8>) -> crate::Result<()> {
-       self.unescaped = true;
-       self.delegate.parse_escape_sequence_super(buff)
-   }
-   ```
+    ```rust
+    // src/de/token/str.rs:43-46
+    fn parse_escape_sequence(&mut self, buff: &mut Vec<u8>) -> crate::Result<()> {
+        self.unescaped = true;
+        self.delegate.parse_escape_sequence_super(buff)
+    }
+    ```
 
-   ```rust
-   // src/de/token.rs:157-160
-   (_, b't') => Ok(buff.push(b'\t')),
-   (_, b'u') => Ok(self.parse_unicode(buff)?),
-   (pos, found) => Err(SyntaxError::InvalidEscapeSequence { pos, found })?,
-   ```
+    ```rust
+    // src/de/token.rs:157-160
+    (_, b't') => Ok(buff.push(b'\t')),
+    (_, b'u') => Ok(self.parse_unicode(buff)?),
+    (pos, found) => Err(SyntaxError::InvalidEscapeSequence { pos, found })?,
+    ```
 
-3. `parse_unicode` checks only that four bytes are hexadecimal,
-   then treats the resulting 16-bit code unit as a Rust Unicode scalar
-   (`src/de/token.rs:166-178`):
+3.  `parse_unicode` checks only that four bytes are hexadecimal,
+    then treats the resulting 16-bit code unit as a Rust Unicode scalar
+    (`src/de/token.rs:166-178`):
 
-   ```rust
-   // src/de/token.rs:166-178
-   fn parse_unicode(&mut self, buff: &mut Vec<u8>) -> crate::Result<()> {
-       let mut hex: u32 = 0;
-       for i in 0..4 {
-           match self.eat()?.ok_or(SyntaxError::EofWhileParsingEscapeSequence)? {
-               (_, c @ b'0'..=b'9') => hex += ((c - b'0') as u32) << (4 * (3 - i)),
-               (_, c @ b'a'..=b'f') => hex += ((c - b'a' + 10) as u32) << (4 * (3 - i)),
-               (_, c @ b'A'..=b'F') => hex += ((c - b'A' + 10) as u32) << (4 * (3 - i)),
-               (pos, found) => return Err(SyntaxError::InvalidUnicodeEscape { pos, found })?,
-           }
-       }
-       let ch = unsafe { char::from_u32_unchecked(hex) }; // TODO maybe safe
-       Ok(buff.extend_from_slice(ch.encode_utf8(&mut [0; 4]).as_bytes()))
-   }
-   ```
+    ```rust
+    // src/de/token.rs:166-178
+    fn parse_unicode(&mut self, buff: &mut Vec<u8>) -> crate::Result<()> {
+        let mut hex: u32 = 0;
+        for i in 0..4 {
+            match self.eat()?.ok_or(SyntaxError::EofWhileParsingEscapeSequence)? {
+                (_, c @ b'0'..=b'9') => hex += ((c - b'0') as u32) << (4 * (3 - i)),
+                (_, c @ b'a'..=b'f') => hex += ((c - b'a' + 10) as u32) << (4 * (3 - i)),
+                (_, c @ b'A'..=b'F') => hex += ((c - b'A' + 10) as u32) << (4 * (3 - i)),
+                (pos, found) => return Err(SyntaxError::InvalidUnicodeEscape { pos, found })?,
+            }
+        }
+        let ch = unsafe { char::from_u32_unchecked(hex) }; // TODO maybe safe
+        Ok(buff.extend_from_slice(ch.encode_utf8(&mut [0; 4]).as_bytes()))
+    }
+    ```
 
-   Four hexadecimal digits can encode `0xD800..=0xDFFF`.
-   Rust excludes that interval from valid `char` values.
-   The source does not combine a high and low half before the unchecked conversion.
+    Four hexadecimal digits can encode `0xD800..=0xDFFF`.
+    Rust excludes that interval from valid `char` values.
+    The source does not combine a high and low half before the unchecked conversion.
 
-4. The apparently raw public route does **not** avoid this call:
-   `from_str_raw` calls `from_raw` (`src/de.rs:100-106`),
-   `from_raw` constructs `RawTokenizer` (`src/de.rs:252-258`),
-   and `RawTokenizer::parse_string_content` calls the shared `parse_string_content_super`
-   before returning original bytes (`src/de/token/raw.rs:23-28`):
+4.  The apparently raw public route does **not** avoid this call:
+    `from_str_raw` calls `from_raw` (`src/de.rs:100-106`),
+    `from_raw` constructs `RawTokenizer` (`src/de.rs:252-258`),
+    and `RawTokenizer::parse_string_content` calls the shared `parse_string_content_super`
+    before returning original bytes (`src/de/token/raw.rs:23-28`):
 
-   ```rust
-   // src/de/token/raw.rs:23-28
-   fn parse_string_content(&mut self) -> crate::Result<ParsedString<'de>> {
-       let offset = self.delegate.current;
-       let _ = self.parse_string_content_super()?;
-       let raw = &self.delegate.slice[offset..self.delegate.current];
-       Ok(ParsedString::Borrowed(std::str::from_utf8(raw)?))
-   }
-   ```
+    ```rust
+    // src/de/token/raw.rs:23-28
+    fn parse_string_content(&mut self) -> crate::Result<ParsedString<'de>> {
+        let offset = self.delegate.current;
+        let _ = self.parse_string_content_super()?;
+        let raw = &self.delegate.slice[offset..self.delegate.current];
+        Ok(ParsedString::Borrowed(std::str::from_utf8(raw)?))
+    }
+    ```
 
 ## Verification
 
@@ -185,28 +185,28 @@ No matching exemption exists under this repository's `.out-of-scope/` entries.
  The upstream release list names `v0.1.5` as the latest published GitHub release.
  No external message was sent.
 
-1. **Upstream fault:**
-   yes.
-   The source invokes `char::from_u32_unchecked` with a possible surrogate without its required safety proof.
-2. **Fixability:**
-   yes.
-   Checked construction plus valid pair decoding was prototyped within the parser's current design.
-3. **Supported use case:**
-   yes for parsing JSONC strings and valid escaped pairs,
-   per the README's JSONC parser examples and `from_str` escaped-string documentation (`src/de.rs:41-59`).
-   The README does not promise retaining unpaired surrogates as Rust strings.
-4. **Contribution welcome:**
-   no explicit restriction or AI-report ban was found in the inspected README
-   and `.github/` workflows;
-   the repository has merged outside pull requests,
-   but there is no `CONTRIBUTING.md` or issue template in the checked clone.
-5. **Maintainer disposition:**
-   no source policy or searched issue/PR explicitly declines such a safety fix.
-   This is not a prediction of response time or acceptance.
-6. **Prototype:**
-   yes.
-   The linked patch was checked against the pinned tag in the bounded container;
-   its new and existing tests passed.
+1.  **Upstream fault:**
+    yes.
+    The source invokes `char::from_u32_unchecked` with a possible surrogate without its required safety proof.
+2.  **Fixability:**
+    yes.
+    Checked construction plus valid pair decoding was prototyped within the parser's current design.
+3.  **Supported use case:**
+    yes for parsing JSONC strings and valid escaped pairs,
+    per the README's JSONC parser examples and `from_str` escaped-string documentation (`src/de.rs:41-59`).
+    The README does not promise retaining unpaired surrogates as Rust strings.
+4.  **Contribution welcome:**
+    no explicit restriction or AI-report ban was found in the inspected README
+    and `.github/` workflows;
+    the repository has merged outside pull requests,
+    but there is no `CONTRIBUTING.md` or issue template in the checked clone.
+5.  **Maintainer disposition:**
+    no source policy or searched issue/PR explicitly declines such a safety fix.
+    This is not a prediction of response time or acceptance.
+6.  **Prototype:**
+    yes.
+    The linked patch was checked against the pinned tag in the bounded container;
+    its new and existing tests passed.
 
 These satisfy the technical filing gates,
  but upstream communication remains separate from this repository's port request and needs authorization.

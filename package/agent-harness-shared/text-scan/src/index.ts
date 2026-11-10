@@ -13,6 +13,7 @@ export {
   isWordChar,
 } from './characters.ts';
 export {
+  EmptyDelimiterError,
   stripBetweenDelims,
   stripLinesStartingWith,
 } from './delimiters.ts';

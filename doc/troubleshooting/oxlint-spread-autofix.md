@@ -297,54 +297,54 @@ Those are additive,
 so the artifact is a comment on issue 26159,
 not a new issue.
 
-1. **Upstream's fault:**
-   yes;
-   the rule declares `fix_dangerous` but emits safe fixes from name guesses.
-2. **Upstream can fix it:**
-   yes;
-   the prototype below is 86 lines including tests.
-3. **Supported use case:**
-   yes;
-   the rule targets TypeScript and JavaScript,
-   and typed-array receivers were already fixed once (pull request 26067 for issue 25868).
-4. **Contribution welcome:**
-   yes,
-   with disclosure (`CONTRIBUTING.md:12-21`);
-   both open pull requests disclose AI assistance.
-5. **Likely to fix:**
-   plausible;
-   issue 24107 was closed as not planned with a maintainer stating no plans to make the rule type-aware,
-   which the fix-kind approach does not need.
-6. **Minimal fix prototyped:**
-   yes.
-   [oxlint-spread-autofix.no-useless-spread.patch](oxlint-spread-autofix.no-useless-spread.patch),
-   against `oxc-project/oxc` `f51e67812ed15cea95c9bddfe614d889685f0703`:
-   `is_method_name_guess` in `const_eval.rs` marks hints that come only from a method name
-   (`split`,
-   the functional array methods,
-   `reduce`),
-   and `check_useless_clone` emits those as `FixKind::DangerousFix`,
-   keeping `Array.from`,
-   `Array.of`,
-   `Object.keys`/`values`/`entries`,
-   `await Promise.all`,
-   and `new Array(n)` safe.
-   Verified in
-   `podman run --rm --memory=6g --cpus=4 … docker.io/library/rust:latest cargo test -p oxc_linter no_useless_spread`
-   (rustc 1.98.1):
-   post-patch the rule test passes with no snapshot change;
-   with the new tests kept and the kind forced back to `SafeFix`,
-   it fails on exactly the four name-guess cases:
+1.  **Upstream's fault:**
+    yes;
+    the rule declares `fix_dangerous` but emits safe fixes from name guesses.
+2.  **Upstream can fix it:**
+    yes;
+    the prototype below is 86 lines including tests.
+3.  **Supported use case:**
+    yes;
+    the rule targets TypeScript and JavaScript,
+    and typed-array receivers were already fixed once (pull request 26067 for issue 25868).
+4.  **Contribution welcome:**
+    yes,
+    with disclosure (`CONTRIBUTING.md:12-21`);
+    both open pull requests disclose AI assistance.
+5.  **Likely to fix:**
+    plausible;
+    issue 24107 was closed as not planned with a maintainer stating no plans to make the rule type-aware,
+    which the fix-kind approach does not need.
+6.  **Minimal fix prototyped:**
+    yes.
+    [oxlint-spread-autofix.no-useless-spread.patch](oxlint-spread-autofix.no-useless-spread.patch),
+    against `oxc-project/oxc` `f51e67812ed15cea95c9bddfe614d889685f0703`:
+    `is_method_name_guess` in `const_eval.rs` marks hints that come only from a method name
+    (`split`,
+    the functional array methods,
+    `reduce`),
+    and `check_useless_clone` emits those as `FixKind::DangerousFix`,
+    keeping `Array.from`,
+    `Array.of`,
+    `Object.keys`/`values`/`entries`,
+    `await Promise.all`,
+    and `new Array(n)` safe.
+    Verified in
+    `podman run --rm --memory=6g --cpus=4 … docker.io/library/rust:latest cargo test -p oxc_linter no_useless_spread`
+    (rustc 1.98.1):
+    post-patch the rule test passes with no snapshot change;
+    with the new tests kept and the kind forced back to `SafeFix`,
+    it fails on exactly the four name-guess cases:
 
-   ```text
-   Input: [...text.slice(0, 3)]  Expected: [...text.slice(0, 3)]  Actual: text.slice(0, 3)
-   Input: [...text.split("|")]   Expected: [...text.split("|")]   Actual: text.split("|")
-   Input: [...arr.reduce(...)]   Actual: arr.reduce((a, b) => a.push(b), [])
-   Input: [...(foo ? x.map(f) : [])]  Actual: (foo ? x.map(f) : [])
-   ```
+    ```text
+    Input: [...text.slice(0, 3)]  Expected: [...text.slice(0, 3)]  Actual: text.slice(0, 3)
+    Input: [...text.split("|")]   Expected: [...text.split("|")]   Actual: text.split("|")
+    Input: [...arr.reduce(...)]   Actual: arr.reduce((a, b) => a.push(b), [])
+    Input: [...(foo ? x.map(f) : [])]  Actual: (foo ? x.map(f) : [])
+    ```
 
-   Not run:
-   clippy and `cargo fmt`.
+    Not run:
+    clippy and `cargo fmt`.
 
 All six hold.
 The comment is fileable once the person posting re-runs the reproduction and fills in the disclosure bracket;
@@ -400,65 +400,65 @@ so none is a candidate fix for this failure,
 and no open report covers it.
 The artifact is a new issue.
 
-1. **Upstream's fault:**
-   yes;
-   the fix is a safe fix chosen from spelling heuristics.
-2. **Upstream can fix it:**
-   yes;
-   the prototype below touches one file.
-3. **Supported use case:**
-   yes;
-   upstream already excludes direct typed-array and buffer receivers,
-   so typed arrays are an intended non-target.
-4. **Contribution welcome:**
-   yes,
-   with disclosure (`CONTRIBUTING.md:12-21`).
-5. **Likely to fix:**
-   plausible;
-   the rule receives regular receiver-exclusion fixes (pull requests 19478,
-   23520,
-   26935).
-6. **Minimal fix prototyped:**
-   yes.
-   [oxlint-spread-autofix.prefer-spread.patch](oxlint-spread-autofix.prefer-spread.patch)
-   (`crates/oxc_linter/src/rules/unicorn/prefer_spread.rs`,
-   110 insertions and 8 deletions,
-   against `f51e67812ed15cea95c9bddfe614d889685f0703`):
-   the rule becomes `conditional_dangerous_fix`,
-   as `no_null` and `prefer_array_flat` already declare;
-   `slice`/`toSpliced` rewrites are `SafeFix` only when `is_known_array` proves the receiver
-   (array literal,
-   `Array.from`/`Array.of`,
-   or a `const` bound to one),
-   otherwise `DangerousFix`;
-   `is_not_array` also returns true for `new <TypedArray|ArrayBuffer|SharedArrayBuffer>(…)`,
-   covering `const` initializers;
-   `Array.from(x)` stays safe.
-   Verified with
-   `podman run --rm --memory=6g --cpus=4 … docker.io/library/rust:latest cargo test -p oxc_linter prefer_spread`:
-   post-patch both `prefer_spread` tests pass with no snapshot change;
-   the control (new tests,
-   old behavior) fails on exactly the new cases:
+1.  **Upstream's fault:**
+    yes;
+    the fix is a safe fix chosen from spelling heuristics.
+2.  **Upstream can fix it:**
+    yes;
+    the prototype below touches one file.
+3.  **Supported use case:**
+    yes;
+    upstream already excludes direct typed-array and buffer receivers,
+    so typed arrays are an intended non-target.
+4.  **Contribution welcome:**
+    yes,
+    with disclosure (`CONTRIBUTING.md:12-21`).
+5.  **Likely to fix:**
+    plausible;
+    the rule receives regular receiver-exclusion fixes (pull requests 19478,
+    23520,
+    26935).
+6.  **Minimal fix prototyped:**
+    yes.
+    [oxlint-spread-autofix.prefer-spread.patch](oxlint-spread-autofix.prefer-spread.patch)
+    (`crates/oxc_linter/src/rules/unicorn/prefer_spread.rs`,
+    110 insertions and 8 deletions,
+    against `f51e67812ed15cea95c9bddfe614d889685f0703`):
+    the rule becomes `conditional_dangerous_fix`,
+    as `no_null` and `prefer_array_flat` already declare;
+    `slice`/`toSpliced` rewrites are `SafeFix` only when `is_known_array` proves the receiver
+    (array literal,
+    `Array.from`/`Array.of`,
+    or a `const` bound to one),
+    otherwise `DangerousFix`;
+    `is_not_array` also returns true for `new <TypedArray|ArrayBuffer|SharedArrayBuffer>(…)`,
+    covering `const` initializers;
+    `Array.from(x)` stays safe.
+    Verified with
+    `podman run --rm --memory=6g --cpus=4 … docker.io/library/rust:latest cargo test -p oxc_linter prefer_spread`:
+    post-patch both `prefer_spread` tests pass with no snapshot change;
+    the control (new tests,
+    old behavior) fails on exactly the new cases:
 
-   ```text
-   2 test cases expected to pass, but failed:
-      1. const b = new Uint8Array(4); b.slice()
-      2. const buf = new ArrayBuffer(8); buf.slice(0)
-   5 fixes did not produce expected output:
-      declare const scoopGrams: Uint8Array; scoopGrams.slice() -> ...; [...scoopGrams]
-      function f(text: string) { return text.slice() } -> ... return [...text] }
-      array.slice(0) -> [...array]
-      array.toSpliced() -> [...array]
-      let a = [1]; a.slice() -> let a = [1]; [...a]
-   ```
+    ```text
+    2 test cases expected to pass, but failed:
+       1. const b = new Uint8Array(4); b.slice()
+       2. const buf = new ArrayBuffer(8); buf.slice(0)
+    5 fixes did not produce expected output:
+       declare const scoopGrams: Uint8Array; scoopGrams.slice() -> ...; [...scoopGrams]
+       function f(text: string) { return text.slice() } -> ... return [...text] }
+       array.slice(0) -> [...array]
+       array.toSpliced() -> [...array]
+       let a = [1]; a.slice() -> let a = [1]; [...a]
+    ```
 
-   Not handled:
-   holes in a proven array literal (`[1,,2]`) become `undefined` under the spread,
-   and a local binding named `Array` would pass `is_known_array`.
-   `toSpliced` exists only on `Array.prototype` among built-ins,
-   so reviewers may prefer keeping it safe.
-   Formatting was wrapped by hand;
-   the container had no rustfmt.
+    Not handled:
+    holes in a proven array literal (`[1,,2]`) become `undefined` under the spread,
+    and a local binding named `Array` would pass `is_known_array`.
+    `toSpliced` exists only on `Array.prototype` among built-ins,
+    so reviewers may prefer keeping it safe.
+    Formatting was wrapped by hand;
+    the container had no rustfmt.
 
 All six hold.
 The draft is fileable once the person filing re-runs the reproduction and fills in the disclosure bracket;

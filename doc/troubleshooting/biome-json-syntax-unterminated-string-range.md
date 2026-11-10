@@ -38,69 +38,69 @@ All line numbers refer to the published crates.io archives used by the bounded p
  and `biome_text_size` 0.5.8 (lockfile checksum
  `672627531edd258f1a9ecdd9bd5ff3ea6c36768622ce2cedc12dc03cb51605c9`).
 
-1. The lexer treats an unterminated string as an ordinary string literal token and only records a diagnostic
-   (`biome_json_parser-0.5.7/src/lexer/mod.rs:619-629`):
+1.  The lexer treats an unterminated string as an ordinary string literal token and only records a diagnostic
+    (`biome_json_parser-0.5.7/src/lexer/mod.rs:619-629`):
 
-   ```rust
-   // biome_json_parser-0.5.7/src/lexer/mod.rs:619-629
-   LexStringState::InString => {
-       let unterminated =
-           ParseDiagnostic::new("Missing closing quote", start..self.text_position())
-               .with_detail(
-                   self.source.text_len()..self.source.text_len(),
-                   "file ends here",
-               );
-       self.diagnostics.push(unterminated);
+    ```rust
+    // biome_json_parser-0.5.7/src/lexer/mod.rs:619-629
+    LexStringState::InString => {
+        let unterminated =
+            ParseDiagnostic::new("Missing closing quote", start..self.text_position())
+                .with_detail(
+                    self.source.text_len()..self.source.text_len(),
+                    "file ends here",
+                );
+        self.diagnostics.push(unterminated);
 
-       JSON_STRING_LITERAL
-   }
-   ```
+        JSON_STRING_LITERAL
+    }
+    ```
 
-2. The parser bumps that token into a completed,
-   well-typed string value node rather than a bogus one
-   (`biome_json_parser-0.5.7/src/syntax.rs:55-59`):
+2.  The parser bumps that token into a completed,
+    well-typed string value node rather than a bogus one
+    (`biome_json_parser-0.5.7/src/syntax.rs:55-59`):
 
-   ```rust
-   // biome_json_parser-0.5.7/src/syntax.rs:55-59
-   JSON_STRING_LITERAL => {
-       let m = p.start();
-       p.bump(JSON_STRING_LITERAL);
-       Present(m.complete(p, JSON_STRING_VALUE))
-   }
-   ```
+    ```rust
+    // biome_json_parser-0.5.7/src/syntax.rs:55-59
+    JSON_STRING_LITERAL => {
+        let m = p.start();
+        p.bump(JSON_STRING_LITERAL);
+        Present(m.complete(p, JSON_STRING_VALUE))
+    }
+    ```
 
-3. The public helper assumes both delimiters exist and subtracts one byte from each end
-   (`biome_json_syntax-0.5.7/src/string_ext.rs:4-8`
-   and `biome_json_syntax-0.5.7/src/lib.rs:116-125`):
+3.  The public helper assumes both delimiters exist and subtracts one byte from each end
+    (`biome_json_syntax-0.5.7/src/string_ext.rs:4-8`
+    and `biome_json_syntax-0.5.7/src/lib.rs:116-125`):
 
-   ```rust
-   // biome_json_syntax-0.5.7/src/lib.rs:116-125
-   pub fn inner_string_text(token: &JsonSyntaxToken) -> TokenText {
-       let mut text = token.token_text_trimmed();
-       if token.kind() == JsonSyntaxKind::JSON_STRING_LITERAL {
-           // remove string delimiters
-           // SAFETY: string literal token have a delimiters at the start and the end of the string
-           let range = TextRange::new(1.into(), text.len() - TextSize::from(1));
-           text = text.slice(range);
-       }
-       text
-   }
-   ```
+    ```rust
+    // biome_json_syntax-0.5.7/src/lib.rs:116-125
+    pub fn inner_string_text(token: &JsonSyntaxToken) -> TokenText {
+        let mut text = token.token_text_trimmed();
+        if token.kind() == JsonSyntaxKind::JSON_STRING_LITERAL {
+            // remove string delimiters
+            // SAFETY: string literal token have a delimiters at the start and the end of the string
+            let range = TextRange::new(1.into(), text.len() - TextSize::from(1));
+            text = text.slice(range);
+        }
+        text
+    }
+    ```
 
-   For the source `"`,
-   the trimmed token text is one byte long,
-   so the range becomes start 1 and end 0.
+    For the source `"`,
+    the trimmed token text is one byte long,
+    so the range becomes start 1 and end 0.
 
-4. `TextRange::new` asserts its ordering
-   (`biome_text_size-0.5.8/src/range.rs:64-68`):
+4.  `TextRange::new` asserts its ordering
+    (`biome_text_size-0.5.8/src/range.rs:64-68`):
 
-   ```rust
-   // biome_text_size-0.5.8/src/range.rs:64-68
-   pub const fn new(start: TextSize, end: TextSize) -> TextRange {
-       assert!(start.raw <= end.raw);
-       TextRange { start, end }
-   }
-   ```
+    ```rust
+    // biome_text_size-0.5.8/src/range.rs:64-68
+    pub const fn new(start: TextSize, end: TextSize) -> TextRange {
+        assert!(start.raw <= end.raw);
+        TextRange { start, end }
+    }
+    ```
 
 The step-3 comment states the invariant that step 1 breaks:
  the same crate family produces a one-byte `JSON_STRING_LITERAL` whose helper then requires at least two bytes.
@@ -235,33 +235,33 @@ Patterns that do not panic:
  Because a matching thread exists and is already fixed in upstream source,
  **no new issue is drafted**.
 
-1. **Upstream fault**:
-   yes for published 0.5.7,
-   where the lexer violates the helper's documented delimiter invariant.
-   Upstream agrees:
-   the issue carries `S-Bug-confirmed`.
-2. **Upstream fixability**:
-   yes,
-   and already fixed in source by emitting `ERROR_TOKEN` for unterminated strings.
-3. **Supported use case**:
-   yes;
-   the helper is public API on typed string values,
-   and the tree it receives comes from upstream's own parser.
-4. **Contribution welcome**:
-   yes with disclosure.
-   `CONTRIBUTING.md:47-69` in the upstream clone requires disclosing any AI assistance in a pull request
-   and gives an example disclosure;
-   it does not ban outside or AI-assisted contributions.
-5. **Likely to fix**:
-   already merged upstream.
-   The remaining gap is release timing for the published Rust crates,
-   which upstream documents as on-demand
-   (`RELEASES.md:35-36` in the same clone).
-6. **Prototype**:
-   yes for the helper-side clamp,
-   red/green verified in bounded containers.
-   It is now redundant with upstream's lexer fix,
-   so it is kept only as a fallback for consumers pinned to published 0.5.7.
+1.  **Upstream fault**:
+    yes for published 0.5.7,
+    where the lexer violates the helper's documented delimiter invariant.
+    Upstream agrees:
+    the issue carries `S-Bug-confirmed`.
+2.  **Upstream fixability**:
+    yes,
+    and already fixed in source by emitting `ERROR_TOKEN` for unterminated strings.
+3.  **Supported use case**:
+    yes;
+    the helper is public API on typed string values,
+    and the tree it receives comes from upstream's own parser.
+4.  **Contribution welcome**:
+    yes with disclosure.
+    `CONTRIBUTING.md:47-69` in the upstream clone requires disclosing any AI assistance in a pull request
+    and gives an example disclosure;
+    it does not ban outside or AI-assisted contributions.
+5.  **Likely to fix**:
+    already merged upstream.
+    The remaining gap is release timing for the published Rust crates,
+    which upstream documents as on-demand
+    (`RELEASES.md:35-36` in the same clone).
+6.  **Prototype**:
+    yes for the helper-side clamp,
+    red/green verified in bounded containers.
+    It is now redundant with upstream's lexer fix,
+    so it is kept only as a fallback for consumers pinned to published 0.5.7.
 
 Nothing was posted upstream.
  The only content this audit could add to the closed thread is the published-crate exposure,

@@ -60,6 +60,9 @@ and every Zig package its library build needs,
 each from an archive whose SHA-256 is pinned in `ghostty-offline-inputs.json`.
 Everything lands in `target/ghostty-offline`,
 the file `ready` last.
+That marker records the pins it was written from and counts only while the inputs it promises are on disk,
+so a worktree that kept the gitignored marker without the Ghostty source tree fetches again,
+instead of reporting itself current.
 The task refuses a Ghostty commit that differs from the crate's,
 so a `libghostty-rs` update stops there until the manifest is re-derived.
 The cargo tasks of this package run it first (a no-op when current) and pass `GHOSTTY_SOURCE_DIR` and
@@ -156,6 +159,11 @@ stderr when a shell emits OSC commands that Ghostty parses but does not implemen
 PTY output into Ghostty.
 The filter drops only lines containing `unimplemented OSC callback` and forwards every other stderr line to the original
 stderr destination unchanged.
+If reading that pipe fails,
+the filter writes one report to the same original destination and then stops.
+That report is the only notice of the failure,
+because fd 2 keeps pointing at a pipe with no reader afterwards,
+so every later stderr write in the process fails with `EPIPE`.
 
 ## Font rendering
 

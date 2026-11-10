@@ -219,12 +219,12 @@ and progress improve every review without the duplicate provider spend of hedgin
 
 ## Recommended implementation order
 
-1. Build an internal review-operation module with an attempt ledger and one absolute deadline.
-2. Add provider-native transient retry and lower-reasoning no-text retry.
-3. Add configured default order and session-health fallback.
-4. Add exact-tokenizer adapters and entry-aware context negotiation.
-5. Wire aggregate usage and `onUpdate` rendering to the attempt ledger.
-6. Keep overlap opt-in and use recorded attempt evidence before tuning launch or collection timing.
+1.  Build an internal review-operation module with an attempt ledger and one absolute deadline.
+2.  Add provider-native transient retry and lower-reasoning no-text retry.
+3.  Add configured default order and session-health fallback.
+4.  Add exact-tokenizer adapters and entry-aware context negotiation.
+5.  Wire aggregate usage and `onUpdate` rendering to the attempt ledger.
+6.  Keep overlap opt-in and use recorded attempt evidence before tuning launch or collection timing.
 
 Accepted work is tracked by the attempt ledger and usage issue (`#408`),
  health-aware selection (`#409`),

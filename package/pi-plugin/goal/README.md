@@ -1,4 +1,4 @@
-# @monochromatic-dev/pi-goal
+# @monochromatic-dev/pi-plugin-goal
 
 Private repository-owned Pi extension that keeps one explicit objective active
 until private independent review accepts finalized work.

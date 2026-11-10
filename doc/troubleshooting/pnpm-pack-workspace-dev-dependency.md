@@ -136,24 +136,24 @@ to registry consumers.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** No. pnpm intentionally validates every published dependency field and requires an
-   installed manifest for `workspace:*` conversion.
-2. **Can upstream fix it?
-   ** No defect has been established.
-    A production-only packing feature would be a separate
-   request.
-3. **Are they supporting this use case?
-   ** pnpm documents catalog and workspace conversion during publishing,
-    not
-   omission of unresolved development dependencies.
-4. **Would the repo welcome our contribution?
-   ** Not evaluated because no upstream defect was found.
-5. **Will they likely fix it?
-   ** Not applicable without a defect or accepted feature request.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No upstream change is appropriate.
-    The
-   disposable production staging path is verified locally.
+1.  **Is it really upstream's fault?
+    ** No. pnpm intentionally validates every published dependency field and requires an
+    installed manifest for `workspace:*` conversion.
+2.  **Can upstream fix it?
+    ** No defect has been established.
+     A production-only packing feature would be a separate
+    request.
+3.  **Are they supporting this use case?
+    ** pnpm documents catalog and workspace conversion during publishing,
+     not
+    omission of unresolved development dependencies.
+4.  **Would the repo welcome our contribution?
+    ** Not evaluated because no upstream defect was found.
+5.  **Will they likely fix it?
+    ** Not applicable without a defect or accepted feature request.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No upstream change is appropriate.
+     The
+    disposable production staging path is verified locally.
 
 Nothing should be filed upstream.

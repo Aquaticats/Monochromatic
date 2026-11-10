@@ -8,9 +8,12 @@
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type * as opentype from 'opentype.js';
 
-import { fontY, } from './build-font-metrics.ts';
 import { resolveAbsolutePoints, } from './build-font-resolve-points.ts';
 import { offsetPolygon, } from './expand-stroke.ts';
+import {
+  type Coordinate,
+  toFontCoordinate,
+} from './font-coordinate.ts';
 import type { SVGPathCommand, } from './parse-svg.ts';
 
 /**
@@ -113,33 +116,30 @@ export function addStrokedPath({
    
    @param verts - ordered vertices of the contour polygon
    */
-  function traceContour(verts: readonly (readonly [
-    number,
-    number,
-  ])[],): void {
+  function traceContour(verts: readonly Coordinate[],): void {
     verts.forEach(function traceVertex(
       vert,
       vertIndex,
     ) {
       /**
-       Glyph-space X: vertex shifted from SVG coords into the glyph's local origin.
+       Glyph-space coordinate: vertex shifted from SVG coords into the glyph's local origin.
        */
-      const fx = (vert[0]
-        - cellX) + xShift;
-      /**
-       Glyph-space Y: vertex flipped into font Y-up coordinates by {@link fontY}.
-       */
-      const fy = fontY(vert[1],);
+      const [glyphX, glyphY,] = toFontCoordinate({
+        x: vert[0],
+        y: vert[1],
+        cellX,
+        xShift,
+      },);
       if (vertIndex === 0) {
         otPath.moveTo(
-          fx,
-          fy,
+          glyphX,
+          glyphY,
         );
       }
       else {
         otPath.lineTo(
-          fx,
-          fy,
+          glyphX,
+          glyphY,
         );
       }
     },);

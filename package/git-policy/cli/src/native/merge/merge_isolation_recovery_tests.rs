@@ -5,13 +5,14 @@
 use super::*;
 use crate::index_holder_wait::IndexWait;
 use crate::merge_isolation_changes::{WorktreeState, file_identity, worktree_path, worktree_state};
-use crate::merge_isolation_journal::{intent_path, write_merge_intent};
-use crate::merge_isolation_recovery_steps::may_install;
+use crate::merge_isolation_journal::{intent_path, parse_merge_intent, write_merge_intent};
+use crate::merge_isolation_recovery_index_lock::may_install;
 
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
 use crate::merge_isolation_recovery_steps::{install_entries, standing};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 
 /// A repository where `main` and `feature` have diverged and the merge commit exists but is not applied.
@@ -85,6 +86,7 @@ fn record_of(world: &World, owner: TransactionOwner, target_ref: Option<&str>) -
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
         side_ref: None,
+        carried: None,
     };
     return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record");
 }
@@ -268,6 +270,7 @@ fn deferred_record_of(world: &World, id: &str, side_ref: &str) -> PathBuf {
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
         side_ref: Some(String::from(side_ref)),
+        carried: None,
     };
     return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record of a saved merge");
 }
@@ -359,16 +362,36 @@ fn only_dead_or_unreadable_records_need_recovery() {
 }
 
 /// A branch that already names the merge needs only the record removed.
+/// The same record that names a side ref needs only that too:
+/// a record a power loss brought back after the removal was not flushed is
+///  this state,
+/// and the next command must settle it as quietly as the command that ended the merge.
 #[test]
 fn a_landed_merge_only_loses_its_record() {
-    let world: World = world("merge-recovery-landed");
-    git(world.repo.as_path(), &["merge", "--ff-only", "--quiet", world.new_oid.as_str()]);
-    let record: PathBuf = record_of(&world, dead_owner("44444444-0000-4000-8000-000000000004"), Some("refs/heads/main"));
-    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
+    let landed: World = world("merge-recovery-landed");
+    git(landed.repo.as_path(), &["merge", "--ff-only", "--quiet", landed.new_oid.as_str()]);
+    let record: PathBuf = record_of(&landed, dead_owner("44444444-0000-4000-8000-000000000004"), Some("refs/heads/main"));
+    let outcomes = recover_interrupted_merges(&place(&landed), landed.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded);
     assert!(!record.exists());
-    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "");
-    remove(world.parent.as_path());
+    assert_eq!(git_text(landed.repo.as_path(), &["status", "--porcelain=v1"]), "");
+    remove(landed.parent.as_path());
+
+    let saved: World = world("merge-recovery-landed-sided");
+    git(saved.repo.as_path(), &["merge", "--ff-only", "--quiet", saved.new_oid.as_str()]);
+    let side_ref: &str = "refs/cli-git/kept/2";
+    let side_record: PathBuf = deferred_record_of(&saved, "44444444-0000-4000-8000-000000000044", side_ref);
+    let saved_outcomes = recover_interrupted_merges(&place(&saved), saved.git_dir.as_path(), &mut Vec::new()).expect("recovery");
+    assert_eq!(the_action_for(&saved_outcomes, side_record.as_path()), Some(MergeRecoveryAction::AlreadyLanded));
+    assert!(!side_record.exists(), "the record is gone");
+    assert_eq!(
+        git_text(saved.repo.as_path(), &["for-each-ref", "--format=%(refname)", side_ref]),
+        "",
+        "the side ref of a landed merge is removed with its record"
+    );
+    assert_eq!(git_text(saved.repo.as_path(), &["rev-parse", "main"]), saved.new_oid, "the branch still names the merge");
+    assert_eq!(git_text(saved.repo.as_path(), &["status", "--porcelain=v1"]), "");
+    remove(saved.parent.as_path());
 }
 
 /// A branch that moved to something else before the merge touched the checkout:
@@ -757,41 +780,65 @@ fn recovery_waits_for_another_programs_index_lock() {
 }
 
 /// What:
-///  A wait that ends with the index still held writes nothing,
-///  and only a wait that ends with the lock free lets the merge go on.
+///  A wait that ends with the index still held by a program that lives writes nothing,
+/// a free or released lock lets the merge go on,
+///  and a lock a gone process left is removed and then lets it go on.
 /// Why:
 ///  The decision is the whole of recovery's behaviour on a held lock,
-/// and both halves of it are checked:
-///  a recovery that wrote the index after giving up would put Git's own sentence in place of the record.
+/// and every half of it is checked:
+///  a recovery that wrote the index after giving up would put Git's own sentence in place of the record,
+/// while one that
+///  treated a dead Git's lock as a live holder's left every command in the worktree exiting 2
+///  (finding 4 of the merge-and-pull audit of 2026-11-09).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(mayInstall({ kind: 'not-held' })).toBe(true); expect(mayInstall({ kind: 'owner-gone' })).toBe(false);
+/// expect(mayInstall(place, { kind: 'not-held' })).toBe(true);
+/// expect(mayInstall(place, { kind: 'gave-up' })).toBe(false);
+/// expect(mayInstall(place, { kind: 'owner-gone' })).toBe(true); expect(exists(lock)).toBe(false);
 /// ```
 #[test]
-fn only_a_lock_that_is_free_lets_the_merge_be_written() {
+fn only_a_lock_that_is_free_or_left_by_a_gone_process_lets_the_merge_be_written() {
     let second: std::time::Duration = std::time::Duration::from_secs(1);
-    assert!(may_install(IndexWait::NotHeld));
-    assert!(may_install(IndexWait::Released(second)));
-    assert!(!may_install(IndexWait::GaveUp(second)));
-    assert!(!may_install(IndexWait::OwnerGone(second)));
+    let world: World = world("merge-recovery-may-install");
+    assert!(may_install(world.git_dir.as_path(), IndexWait::NotHeld));
+    assert!(may_install(world.git_dir.as_path(), IndexWait::Released(second)));
+    assert!(!may_install(world.git_dir.as_path(), IndexWait::GaveUp(second)));
+
+    // A lock whose PID file names a process that no longer runs is nobody's to release, so it is removed.
+    let dead: PathBuf = world.git_dir.join("index.lock");
+    std::fs::write(dead.as_path(), b"").expect("a killed Git left its empty lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n")
+        .expect("the PID file of a process that is gone");
+    assert!(may_install(world.git_dir.as_path(), IndexWait::OwnerGone(second)), "a dead Git's lock is cleared and the merge goes on");
+    assert!(!dead.exists(), "the lock of a Git nothing runs was removed");
+
+    // A lock a program that lives holds is not the recovery's to remove.
+    std::fs::write(dead.as_path(), b"").expect("a program holds the index");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), format!("pid {}\n", std::process::id()))
+        .expect("the PID file names this process, which runs");
+    assert!(!may_install(world.git_dir.as_path(), IndexWait::OwnerGone(second)), "a live holder's lock stays");
+    assert!(dead.exists(), "the live holder's lock is not removed");
+    remove(world.parent.as_path());
 }
 
 /// What:
-/// What:
-///  A held index defers a merge that installed nothing and stops one that is already installed.
-/// Why:
-///  This ends at once,
-/// without a ceiling,
-/// so the control proves both ends of the rule:
-/// a merge whose files and entries are
-///  installed must not be read as another session's staged work,
-/// while one that installed nothing is left for the next
+///  A held index stops a merge that is already installed and leaves a merge that installed nothing for the next
 ///  command.
+/// Why:
+///  The control proves both ends of the rule:
+/// a merge whose files and entries are installed must not be read
+///  as another session's staged work,
+/// while one that installed nothing is left for the next command.
+///  The holder lives here,
+/// because a lock a gone process left is cleared and the merge finished
+///  (`recovery_clears_the_index_lock_of_a_git_that_was_killed_and_finishes_the_merge`),
+/// and the ceiling is shortened so the
+///  control ends in a moment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writePidFile(index, gonePid); await expect(settleFailedMerge(installed)).rejects; await expect(settleFailedMerge(saved)).resolves.toBe('discarded');
+/// shortCeiling(ms(100)); await expect(settleFailedMerge(installed)).rejects; await expect(settleFailedMerge(saved)).resolves.toBe('discarded');
 /// ```
 #[test]
 fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one() {
@@ -802,10 +849,18 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
     let installed_intent: MergeIntent =
         parse_merge_intent(std::fs::read(installed_record.as_path()).expect("read").as_slice()).expect("intent");
     std::fs::write(installed.git_dir.join("index.lock"), b"").expect("a Git left the index lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(installed.git_dir.join("index").as_path()), b"pid 4294967\n").expect("the PID file of a process that is gone");
+    // The holder is this process, which runs, so nothing may remove the lock and the wait ends at its ceiling.
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(installed.git_dir.join("index").as_path()),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("the PID file of a process that runs");
     let mut installed_said: Vec<u8> = Vec::new();
-    let refused = settle_failed_merge(&place(&installed), installed_record.as_path(), &installed_intent, &mut installed_said)
-        .expect_err("an installed merge behind a held index stops the command");
+    let settled = crate::index_holder_wait::RECOVERY_LOCK_CEILING_FOR_THIS_THREAD.with(|shortened| {
+        shortened.set(Some(std::time::Duration::from_millis(100)));
+        return settle_failed_merge(&place(&installed), installed_record.as_path(), &installed_intent, &mut installed_said);
+    });
+    let refused: MergeRefusal = settled.expect_err("an installed merge behind a held index stops the command");
     assert!(refused.began, "it reports that the merge is installed");
     assert!(installed_record.exists(), "the record stays");
     remove(installed.parent.as_path());
@@ -825,6 +880,99 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
     assert!(lock.exists(), "the lock is not the recovery's to remove");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
     assert_eq!(snapshot(&world), before, "the index and the worktree are exactly as they were");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A lock a Git that no longer runs left over a merge it had partly installed is cleared on the same proof the
+///  merge's own path acts on,
+///  and the command finishes the merge instead of exiting 2.
+/// Why:
+///  An out-of-memory kill of the cgroup,
+///  or `kill -9` of the process group,
+///  leaves the merge's record,
+///  its installed checkout and the dead Git's `index.lock`:
+/// `git status`,
+///  `git log`,
+/// `git rev-parse HEAD`,
+/// `git merge` and `git commit` all exited 2 until the person deleted the lock by hand,
+///  where real Git answers `git status` with 0 in the same state
+///  (finding 4 of the merge-and-pull audit).
+/// The merge's own path already removes such a lock (`merge_isolation_apply.rs`),
+/// and recovery is the same
+///  decision from the same evidence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeLock(index, { pid: gonePid }); await expect(recoverInterruptedMerges(place, dir)).resolves.toMatchObject([{ action: 'completed' }]); expect(exists(lock)).toBe(false);
+/// ```
+#[test]
+fn recovery_clears_the_index_lock_of_a_git_that_was_killed_and_finishes_the_merge() {
+    let world: World = world("merge-recovery-dead-git-lock");
+    // Git had updated the checkout and had not moved the branch when it was killed with the lock.
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let record: PathBuf = record_of(&world, dead_owner("15151515-0000-4000-8000-000000000015"), Some("refs/heads/main"));
+    let lock: PathBuf = world.git_dir.join("index.lock");
+    std::fs::write(lock.as_path(), b"").expect("a killed Git left its empty lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n")
+        .expect("the PID file of a process that is gone");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes =
+        recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the merge is finished, not refused");
+    assert_eq!(the_action_for(&outcomes, record.as_path()), Some(MergeRecoveryAction::Completed));
+    assert!(!lock.exists(), "the lock of a Git nothing runs was removed");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch moved onto the merge");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A merge saved on its side ref,
+///  with nothing of it in the checkout and a live program holding `index.lock`,
+///  is left for the next command at once,
+///  which says where the merge is and what it waits for.
+/// Why:
+///  The merge itself saves its result and exits 0 (`MERGE_LOCK_CEILING`,
+///  one minute);
+/// after that every command,
+/// `git rev-parse HEAD` included,
+/// waited the whole ceiling again for as long as
+///  the lock stood,
+/// where real Git answers each of them in a few milliseconds
+///  (finding 3 of the merge-and-pull audit of 2026-11-09).
+/// Nothing of the merge is in the checkout,
+///  so the next command has nothing to wait for:
+/// the merge is on its record and its side ref,
+/// and a later
+///  command finishes it once the lock is free.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = now(); const outcomes = await recoverInterruptedMerges(place, dir, said);
+/// expect(now() - began).toBeLessThan(seconds(2)); expect(outcomes[0].action).toBe('index-held');
+/// ```
+#[test]
+fn a_saved_merge_behind_a_live_lock_is_left_for_the_next_command_at_once() {
+    let world: World = world("merge-recovery-saved-live-lock");
+    let side_ref: &str = "refs/cli-git/kept/1";
+    let record: PathBuf = deferred_record_of(&world, "16161616-0000-4000-8000-000000000016", side_ref);
+    let lock: PathBuf = world.git_dir.join("index.lock");
+    std::fs::write(lock.as_path(), b"").expect("another program holds the index");
+    // The holder is this process, which runs: nothing may remove the lock, and waiting gains nothing.
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), format!("pid {}\n", std::process::id()))
+        .expect("the PID file of a process that runs");
+    let before = snapshot(&world);
+    let mut said: Vec<u8> = Vec::new();
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    let took: std::time::Duration = began.elapsed();
+    assert_eq!(the_action_for(&outcomes, record.as_path()), Some(MergeRecoveryAction::IndexHeld));
+    assert!(took < std::time::Duration::from_secs(2), "the command does not wait for a lock that stands over a merge nothing of which is installed: {took:?}");
+    assert!(record.exists(), "the record stays for the command that finishes the merge");
+    assert_eq!(snapshot(&world), before, "nothing was written");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains(side_ref), "the line says where the merge is saved: {text}");
+    assert!(text.contains(lock.to_string_lossy().as_ref()), "the line names what it waits for: {text}");
+    assert!(text.contains("goes on"), "the line says this command goes on: {text}");
     remove(world.parent.as_path());
 }
 
@@ -851,6 +999,7 @@ fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
         side_ref: None,
+        carried: None,
     };
     let place: RecoveryPlace = place(world);
     let changes: Vec<Change> = merge_changes(&place, world.repo.as_path(), &intent).expect("the merge's changes");
@@ -2714,4 +2863,100 @@ fn a_mode_a_repository_ignores_does_not_stop_the_merge() {
     assert!(!record.exists(), "the record only goes once the merge landed");
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the merge's file"), b"f.txt feature\n", "the merge's content is in place");
     remove(world.parent.as_path());
+}
+
+/// What:
+///  The awaited settle decides what the synchronous one decides,
+/// and the synchronous one is refused from inside the runtime.
+/// Why:
+///   A task of the runtime is the caller the awaited face exists for,
+/// so the two faces must agree on the action,
+///  the notices,
+/// the checkout and the record,
+/// and the refusal of the synchronous face is the reason the awaited one is not optional.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const before = settleFailedMerge(place, record, intent); const after = await runOnRuntime(() => settleFailedMergeAwaiting(place, record, intent)); expect(after).toEqual(before);
+/// ```
+#[test]
+fn the_awaited_settle_answers_what_the_synchronous_one_answers() {
+    // One world per face, built the same way, with Git having written part of the merge.
+    let synchronous: World = world("merge-recovery-two-faces-synchronous");
+    std::fs::write(synchronous.repo.join("f.txt"), b"f.txt feature\n").expect("the file Git wrote");
+    std::fs::remove_file(synchronous.repo.join("gone.txt")).expect("the file Git removed");
+    let synchronous_record: PathBuf =
+        record_of(&synchronous, dead_owner("97979797-0000-4000-8000-000000000097"), Some("refs/heads/main"));
+    let synchronous_intent: MergeIntent = parse_merge_intent(
+        std::fs::read(synchronous_record.as_path()).expect("read").as_slice(),
+    )
+    .expect("intent");
+    let mut synchronous_said: Vec<u8> = Vec::new();
+    let synchronous_action: MergeRecoveryAction = settle_failed_merge(
+        &place(&synchronous),
+        synchronous_record.as_path(),
+        &synchronous_intent,
+        &mut synchronous_said,
+    )
+    .expect("settled");
+    let synchronous_head: String = git_text(synchronous.repo.as_path(), &["rev-parse", "main"]);
+    let synchronous_status: String = git_text(synchronous.repo.as_path(), &["status", "--porcelain=v1"]);
+
+    let awaited: World = world("merge-recovery-two-faces-awaited");
+    std::fs::write(awaited.repo.join("f.txt"), b"f.txt feature\n").expect("the file Git wrote");
+    std::fs::remove_file(awaited.repo.join("gone.txt")).expect("the file Git removed");
+    let awaited_record: PathBuf = record_of(&awaited, dead_owner("97979797-0000-4000-8000-000000000098"), Some("refs/heads/main"));
+    let awaited_intent: MergeIntent =
+        parse_merge_intent(std::fs::read(awaited_record.as_path()).expect("read").as_slice()).expect("intent");
+    let mut awaited_said: Vec<u8> = Vec::new();
+    let awaited_action: MergeRecoveryAction = crate::lazy_runtime::run_on_runtime(async {
+        return settle_failed_merge_awaiting(&place(&awaited), awaited_record.as_path(), &awaited_intent, &mut awaited_said).await;
+    })
+    .expect("the runtime runs the settle")
+    .expect("settled");
+
+    assert_eq!(awaited_action, synchronous_action, "the two faces decide the same");
+    assert_eq!(awaited_action, MergeRecoveryAction::Completed, "the merge the files show is completed");
+    assert_eq!(
+        String::from_utf8(awaited_said).expect("UTF-8"),
+        String::from_utf8(synchronous_said).expect("UTF-8"),
+        "the two faces say the same"
+    );
+    assert_eq!(
+        git_text(synchronous.repo.as_path(), &["rev-parse", "main"]),
+        synchronous_intent.new_oid,
+        "the synchronous face moves the branch to the merge"
+    );
+    assert_eq!(
+        git_text(awaited.repo.as_path(), &["rev-parse", "main"]),
+        awaited_intent.new_oid,
+        "the awaited face moves the branch to its own merge"
+    );
+    // Each fixture names its own merge, and the two need not be the same commit.
+    let _ = synchronous_head;
+    assert_eq!(git_text(awaited.repo.as_path(), &["status", "--porcelain=v1"]), synchronous_status, "the same checkout");
+    assert!(!awaited_record.exists(), "the record goes once the merge landed");
+    remove(synchronous.parent.as_path());
+    remove(awaited.parent.as_path());
+
+    // The positive control: the synchronous face registers its step's pipes by entering the runtime,
+    //  which a task cannot do, so a task that reached it would settle nothing.
+    let refused_world: World = world("merge-recovery-two-faces-refused");
+    let refused_record: PathBuf =
+        record_of(&refused_world, dead_owner("97979797-0000-4000-8000-000000000099"), Some("refs/heads/main"));
+    let refused_intent: MergeIntent =
+        parse_merge_intent(std::fs::read(refused_record.as_path()).expect("read").as_slice()).expect("intent");
+    let refused: MergeRefusal = crate::lazy_runtime::run_on_runtime(async {
+        let mut said: Vec<u8> = Vec::new();
+        return settle_failed_merge(&place(&refused_world), refused_record.as_path(), &refused_intent, &mut said);
+    })
+    .expect("the runtime runs the call")
+    .expect_err("a task cannot settle through the synchronous face");
+    assert!(
+        refused.error.0.contains("was asked for from inside itself"),
+        "the refusal names what it is: {}",
+        refused.error.0
+    );
+    assert!(refused_record.exists(), "nothing of the record was touched");
+    remove(refused_world.parent.as_path());
 }

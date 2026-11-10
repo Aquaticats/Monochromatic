@@ -218,7 +218,11 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     // message of its platform.
     let served: ServiceCommit = match service_commit(&invocation, checks, &request, timing) {
         Ok(found) => found,
-        Err(stop) => return report_stop(stop),
+        Err(stop) => {
+            // A stop inside the build phase leaves it before its figure is taken, and the record must still state what the build spent.
+            timing.close_an_open_build();
+            return report_stop(stop);
+        }
     };
     // A test kills the wrapper here: the commit is on the branch and answered, and everything the command still owes (the
     //  push, the upkeep and the notice of them) is written after this point (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,

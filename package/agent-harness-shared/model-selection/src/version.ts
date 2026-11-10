@@ -7,6 +7,10 @@
  @module
  */
 
+import {
+  isAsciiWhitespace,
+  splitSeparatedTokens,
+} from './token-splitting.ts';
 import type { ModelPricing, } from './types.ts';
 
 //region Constants
@@ -128,15 +132,24 @@ export function compareVersions<TModel extends Pick<ModelPricing, 'id'>,>(
     leftVersions.length,
     rightVersions.length,
   );
-  for (let loopIndex = 0; loopIndex < maxLength; loopIndex++) {
-    /**
-     Per-position delta with `b` first so higher versions sort earlier.
-     */
-    const diff = (rightVersions[loopIndex]
-      ?? 0) - (leftVersions[loopIndex]
-        ?? 0);
-    if (diff !== 0)
-      return diff;
+  /**
+   Per-position deltas with `b` first so higher versions sort earlier, and a
+   vector that ended early counting as zero for the remaining positions.
+   */
+  const positionDeltas = Array.from(
+    { length: maxLength, },
+    function versionPositionDelta(
+      _unused,
+      position,
+    ) {
+      return (rightVersions[position]
+        ?? 0) - (leftVersions[position]
+          ?? 0);
+    },
+  );
+  for (const delta of positionDeltas) {
+    if (delta !== 0)
+      return delta;
   }
   return leftVersions.length
     - rightVersions
@@ -257,29 +270,10 @@ export function findCheapestInMajorVersions<TModel extends ModelPricing,>(
 function splitModelIdTokens(
   id: string,
 ): string[] {
-  /**
-   Completed model-id tokens.
-   */
-  const tokens: string[] = [];
-  /**
-   Characters collected for current token.
-   */
-  let currentTokenCharacters: string[] = [];
-  for (const character of id) {
-    if (isModelIdSeparator(character,)) {
-      if (currentTokenCharacters.length
-        > 0) {
-        tokens.push(currentTokenCharacters.join('',),);
-        currentTokenCharacters = [];
-      }
-      continue;
-    }
-    currentTokenCharacters.push(character,);
-  }
-  if (currentTokenCharacters.length
-    > 0)
-    tokens.push(currentTokenCharacters.join('',),);
-  return tokens;
+  return splitSeparatedTokens({
+    value: id,
+    isSeparator: isModelIdSeparator,
+  },);
 }
 
 /**
@@ -382,15 +376,4 @@ function isAsciiDigit(
  
  @returns whether character is whitespace used by model ids
  */
-function isAsciiWhitespace(
-  character: string,
-): boolean {
-  return (character === ' ')
-    || (character === '\t')
-    || (character === '\n')
-    || (character === '\r')
-    || (character === '\f')
-    || (character === '\v');
-}
-
 //endregion Token scanning

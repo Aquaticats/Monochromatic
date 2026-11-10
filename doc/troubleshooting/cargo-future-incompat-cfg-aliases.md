@@ -413,27 +413,27 @@ and [cfg_aliases PR #15][cfg-aliases-15],
 which fixed it and was released as 0.2.2.
 There is nothing additive to post.
 
-1. Is it really upstream's fault?
-    Yes.
-    `cfg_aliases` 0.2.1 emitted trailing semicolons from expression macro arms.
-2. Can upstream fix it?
-    Yes.
-    Removing the three semicolons fixes the token stream.
-3. Are they supporting this use case?
-    Yes.
-    Invoking `cfg_aliases!` from `build.rs` is the crate's documented purpose.
-4. Would the repository welcome the contribution?
-    Yes.
-    No contribution or issue template in the cloned repository prohibits external or assisted contributions,
-    and the maintainer merged PR #15.
-5. Will they likely fix it?
-    Yes,
-    and they already did:
-    PR #15 was merged and release 0.2.2 was published on 2026-07-16.
-6. Has a minimal fix compatible with the architecture been prototyped?
-    Yes.
-    The released patch changes only the three expression-producing macro arms,
-    and the detached-worktree application build verifies the released crate against the observed dependency graph.
+1.  Is it really upstream's fault?
+     Yes.
+     `cfg_aliases` 0.2.1 emitted trailing semicolons from expression macro arms.
+2.  Can upstream fix it?
+     Yes.
+     Removing the three semicolons fixes the token stream.
+3.  Are they supporting this use case?
+     Yes.
+     Invoking `cfg_aliases!` from `build.rs` is the crate's documented purpose.
+4.  Would the repository welcome the contribution?
+     Yes.
+     No contribution or issue template in the cloned repository prohibits external or assisted contributions,
+     and the maintainer merged PR #15.
+5.  Will they likely fix it?
+     Yes,
+     and they already did:
+     PR #15 was merged and release 0.2.2 was published on 2026-07-16.
+6.  Has a minimal fix compatible with the architecture been prototyped?
+     Yes.
+     The released patch changes only the three expression-producing macro arms,
+     and the detached-worktree application build verifies the released crate against the observed dependency graph.
 
 Decision:
  do not open an issue and do not comment on the closed duplicate.
@@ -447,29 +447,29 @@ No `.out-of-scope/` entry matches `portable-pty` dependency releases.
 Searches across open and closed WezTerm issues and pull requests found no request covering the `nix` 0.29 bump.
 Issue [wezterm#3108][wezterm-3108] concerned an older 0.8.0 release and does not cover this warning.
 
-1. Is it really upstream's fault?
-    Yes.
-    Rust changed the diagnostic,
-    but only upstream can publish its existing `nix` 0.29 update for crates.io consumers.
-2. Can upstream fix it?
-    Yes.
-    Publishing the existing package state would let registry consumers leave `cfg_aliases` 0.1.1.
-3. Are they supporting this use case?
-    Yes.
-    `portable-pty` is an independently published crate and documents its crates.io API.
-4. Would the repository welcome the contribution?
-    Yes.
-    `CONTRIBUTING.md` welcomes code and documentation contributions,
-    the feature-request template accepts problem and solution proposals,
-    and no policy prohibits assisted reports.
-5. Will they likely fix it?
-    There is no refusal signal.
-    The maintainer published portable-pty 0.8.0 in response to issue #3108,
-    and the needed dependency update already exists on main.
-6. Has a minimal fix compatible with the architecture been prototyped?
-    Yes.
-    The repository pin uses the exact upstream revision containing the `nix` 0.29 update;
-    Clippy emits no future-incompatibility notice and the PTY spawn integration test passes.
+1.  Is it really upstream's fault?
+     Yes.
+     Rust changed the diagnostic,
+     but only upstream can publish its existing `nix` 0.29 update for crates.io consumers.
+2.  Can upstream fix it?
+     Yes.
+     Publishing the existing package state would let registry consumers leave `cfg_aliases` 0.1.1.
+3.  Are they supporting this use case?
+     Yes.
+     `portable-pty` is an independently published crate and documents its crates.io API.
+4.  Would the repository welcome the contribution?
+     Yes.
+     `CONTRIBUTING.md` welcomes code and documentation contributions,
+     the feature-request template accepts problem and solution proposals,
+     and no policy prohibits assisted reports.
+5.  Will they likely fix it?
+     There is no refusal signal.
+     The maintainer published portable-pty 0.8.0 in response to issue #3108,
+     and the needed dependency update already exists on main.
+6.  Has a minimal fix compatible with the architecture been prototyped?
+     Yes.
+     The repository pin uses the exact upstream revision containing the `nix` 0.29 update;
+     Clippy emits no future-incompatibility notice and the PTY spawn integration test passes.
 
 Decision:
  keep the following release-request draft for human review rather than posting it automatically.

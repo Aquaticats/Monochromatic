@@ -239,5 +239,15 @@ await describe({
         expect(tomlGetCommentsBefore({ edit, path: ['key',], },).length,).toBe(0,);
       },
     },),
+
+    it({
+      name: 'keeps the attached block while a comment after the key is skipped',
+      fn: async () => {
+        const edit = parseTomlEdit({ source: '# before\nkey = 1\n# after\n', },);
+        const attached = tomlGetCommentsBefore({ edit, path: ['key',], },);
+        expect(attached.length,).toBe(1,);
+        expect(nonNullishOrThrow(attached[0],).value,).toBe(' before',);
+      },
+    },),
   ],
 },);

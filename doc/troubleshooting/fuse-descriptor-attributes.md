@@ -35,7 +35,7 @@ and a second run of the same probe for 71 minutes;
 the connection was aborted from outside in both cases.
 
 The same hazard reaches a program that never touches the stalled mount:
-a scan that identifies a *lock* by the device
+a scan that identifies a **lock** by the device
 and inode it has,
 and resolves every descriptor whose record names that inode number,
 asks each descriptor's file
@@ -103,7 +103,7 @@ and NFS ([fs/nfs/inode.c:986](https://github.com/torvalds/linux/blob/7475ea8b586
 ```
 
 with `generic_fillattr` at [fs/nfs/inode.c:1052](https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/fs/nfs/inode.c#L1052-L1058) and FUSE's equivalent on the same `sync = false` path.
-That is why a *descriptor* read answers and a *path* read does not:
+That is why a **descriptor** read answers and a **path** read does not:
 the path reaches the same `getattr` only after the
 walk has already asked the server to revalidate the entry.
 
@@ -312,42 +312,130 @@ Measured on this host:
 `/proc/1/mountinfo` and `/proc/<pid>/mountinfo` are readable as an unprivileged user,
 and a file
 in a btrfs subvolume reports an anonymous device (`0:108`),
-while a file in a *nested* subvolume reports another
+while a file in a **nested** subvolume reports another
 (`5243089`),
 so the device and inode pair still separates two subvolumes' files whose mount numbers and inode numbers
 agree.
+
+### A container's `overlay` names layers it cannot reach
+
+A kernel `overlay` mount is not a file system whose attributes are its own:
+the overlay's own read asks a layer only when that layer sets a revalidation of its own,
+and one overlay layer over
+a stopped server can therefore hold the walk exactly as a direct read of that file would.
+
+The layers are named in the mount's own options,
+and a rule that reads those options and then asks the reading process
+where the layers are cannot answer for a container,
+because the layers are the host's directories.
+Measured on 2026-11-09 inside this package's gate container (rootless `podman`):
+
+```text
+$ cat /proc/self/mountinfo | awk '$5=="/"'
+3911 3649 0:2174 / / rw,relatime - overlay overlay rw,lowerdir=/var/home/user/.local/share/containers/storage/overlay/8bdcf7e8.../diff:...,upperdir=/var/home/user/.local/share/containers/storage/overlay/812b6dea.../diff,workdir=/var/home/user/.local/share/containers/storage/overlay/812b6dea.../work,...
+$ ls -d /var/home/user/.local/share/containers/storage
+ls: cannot access '/var/home/user/.local/share/containers/storage': No such file or directory
+$ stat -c '%d %i' /work/probe-file
+8388756 1752073190
+```
+
+The host's own view of the same tree is `/dev/dm-1` on btrfs,
+so the layers are local,
+and nothing inside the container
+can say so.
+Refusing that mount is not free either:
+every descriptor of every process is on it,
+so no scan can prove an empty
+`index.lock` unheld,
+an abandoned lock is kept for ever,
+and every commit behind it waits its ceiling and then fails.
+The release gate's log for `742076c71d` shows seventeen such failures in one run.
+
+The device a mount table names is also not the device a file has,
+which rules out the cheaper design of taking the
+device from the mount's `major:minor` line:
+
+```text
+# on the host, a file on /var/mnt/encrypted (btrfs)
+st_dev=4194388   mountinfo major:minor=0:79
+# in the container, a file on / (kernel overlay)
+st_dev=8388756   mountinfo major:minor=0:2196
+```
+
+btrfs and overlayfs both report an anonymous device for their inodes,
+so those two numbers are different by design.
+
+### What the wrapper does with an `overlay` descriptor
+
+The walk is made by a child of the reading process,
+and the answer is waited for only until a ceiling:
+
+```rust
+// src/native/process/open_file_of_a_descriptor_in_a_child.rs
+let child = libc::fork();            // the child reads the link, writes its answer to a pipe, and exits
+let answer = wait_for_answer(read_end, CHILD_READ_CEILING); // poll(2), 300 ms
+```
+
+The child allocates nothing after the fork:
+the descriptor's path and the answer buffer are made before it.
+A child that has not answered by the ceiling is sent `SIGKILL`,
+and one the kernel does not let go of is handed to a
+thread that collects it whenever it does,
+the same bargain a command's stuck child gets.
+The ceiling is `Unread::File` to the caller,
+which a removal reads as a holder that may be alive,
+never as one that is
+not,
+so a layer over a stopped server costs a leak of one kernel-stuck child and never a blocked commit.
+
+Measured on this host on 2026-11-09:
+one `fork`,
+one descriptor read and one pipe answer took 0.5 ms on average over
+two hundred runs,
+and the slowest of them took 2.1 ms,
+which is why the ceiling is 300 ms.
+
+`fuse-overlayfs` is a different file system type,
+served by a process of this machine,
+and stays refused with the
+other types a stopped server can back.
+
+A descriptor of the reading process itself needs none of this:
+`statx(2)` with `AT_EMPTY_PATH` on its own descriptor number walks no path and asks no file system to revalidate
+anything,
+so the count of its own descriptors of a lock is the same on every mount type.
 
 ## Upstream filing decision
 
 Nothing is filed.
 Walk of the six constraints:
 
-1. **Is it really upstream's fault?**
-   No. The `d_revalidate` in the walk is by design,
-   `statx(2)` documents `AT_STATX_DONT_SYNC` as "on a network filesystem,
-   it may not involve a round trip",
-   and the kernel offers the descriptor route that answers without a walk.
-   This is behaviour of the interface,
-   not a defect in it.
-2. **Can upstream fix it?**
-   It could add a flag that forbids dentry revalidation,
-   but nothing is broken that a fix would repair,
-   so this constraint is not reached.
-3. **Are they supporting this use case?**
-   Yes:
-   `AT_STATX_DONT_SYNC` exists for callers that must not wait,
-   and `pidfd_getfd(2)` exists for callers that need another process's open file.
-4. **Would the repo welcome our contribution?**
-   Not reached,
-   since there is nothing to contribute.
-5. **Do we have a reproduction they can run?**
-   The harness above is ours,
-   it needs a private mount namespace,
-   a `fuse-overlayfs` build and a stopped server,
-   and it reproduces a documented behaviour rather than a bug.
-6. **Is a filing in the public interest?**
-   No.
-   It would report a design as a bug.
+1.  **Is it really upstream's fault?**
+    No. The `d_revalidate` in the walk is by design,
+    `statx(2)` documents `AT_STATX_DONT_SYNC` as "on a network filesystem,
+    it may not involve a round trip",
+    and the kernel offers the descriptor route that answers without a walk.
+    This is behaviour of the interface,
+    not a defect in it.
+2.  **Can upstream fix it?**
+    It could add a flag that forbids dentry revalidation,
+    but nothing is broken that a fix would repair,
+    so this constraint is not reached.
+3.  **Are they supporting this use case?**
+    Yes:
+    `AT_STATX_DONT_SYNC` exists for callers that must not wait,
+    and `pidfd_getfd(2)` exists for callers that need another process's open file.
+4.  **Would the repo welcome our contribution?**
+    Not reached,
+    since there is nothing to contribute.
+5.  **Do we have a reproduction they can run?**
+    The harness above is ours,
+    it needs a private mount namespace,
+    a `fuse-overlayfs` build and a stopped server,
+    and it reproduces a documented behaviour rather than a bug.
+6.  **Is a filing in the public interest?**
+    No.
+    It would report a design as a bug.
 
 The durable lesson is ours:
 never read a descriptor's file through the path of its `/proc` link,

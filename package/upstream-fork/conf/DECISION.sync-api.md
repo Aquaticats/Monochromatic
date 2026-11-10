@@ -59,6 +59,18 @@ Keep the upstream synchronous contract.
  Test files are exempt through the repository's `testOverride` and exercise
  the wrappers directly.
 
+The watcher's baseline read is the second reason `src/file-io.ts` owns a sync
+call beyond the store contract:
+`readFileState` must return before `createConfigWatcher` does,
+so the state the watcher compares later writes against is fixed before the
+caller can write.
+Node's `fs.watchFile` reads that baseline on a thread-pool thread instead,
+and libuv's first stat is silent,
+so a write landing in between became the baseline and was never reported
+(`src/watcher.ts` carries the long form).
+Polling afterwards reuses the same call,
+which keeps one state shape for baseline and polls alike.
+
 ## Rejected alternatives
 
 - An asynchronous fork.

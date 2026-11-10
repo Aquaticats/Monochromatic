@@ -139,23 +139,23 @@ Nothing to file from this repo.
  Walking the 6-constraint check stops at the first
 constraint:
 
-1. Is it upstream's fault?
-    Partly:
-    it is a rustc-nightly + macOS `rust-objcopy`
-   spawn-context quirk,
-    not a defect in `music-player`.
-    But it does not affect our
-   output (the binary is stripped regardless),
-    so there is no user-facing problem to
-   report,
-    and a fast-moving nightly is the wrong target for a bug report about a
-   redundant,
-    non-fatal step.
-    If it ever blocks a build,
-    search the rust-lang/rust
-   tracker for `rust-objcopy` + `libLLVM.dylib` strip failures before filing;
-    this
-   class of issue has appeared there before.
+1.  Is it upstream's fault?
+     Partly:
+     it is a rustc-nightly + macOS `rust-objcopy`
+    spawn-context quirk,
+     not a defect in `music-player`.
+     But it does not affect our
+    output (the binary is stripped regardless),
+     so there is no user-facing problem to
+    report,
+     and a fast-moving nightly is the wrong target for a bug report about a
+    redundant,
+     non-fatal step.
+     If it ever blocks a build,
+     search the rust-lang/rust
+    tracker for `rust-objcopy` + `libLLVM.dylib` strip failures before filing;
+     this
+    class of issue has appeared there before.
 
 Because there is no impact on the artifact,
  this doc records the diagnosis and the

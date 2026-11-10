@@ -199,30 +199,30 @@ Set the marker as a fixed prefix at the skip site so that search is one `rg`.
 Do not file.
 The audit trail:
 
-1. Upstream's fault?
-   No.
-   The default is documented in the shipped configuration and deliberate
-   ("Generally best left as `never`").
-   Nothing behaves other than as documented.
-2. Can upstream fix it?
-   Yes in principle,
-   and it is not a defect:
-   a "show output of tests that printed only to stderr" option would be a feature request.
-3. Supporting this use case?
-   Not stated.
-   The option list has no "only tests with output" value.
-4. Would the repository welcome a contribution?
-   Not checked:
-   no filing is proposed,
-   so the contribution policy was not read.
-5. Will they fix it?
-   Not checked for the same reason.
-6. Prototyped fix?
-   None,
-   and none is wanted at this boundary:
-   the consumer-side option already exists and is applied in this repository
-   (`package/git-policy/cli/bin/native-test-containerfile.ts`,
-   `runArguments`).
+1.  Upstream's fault?
+    No.
+    The default is documented in the shipped configuration and deliberate
+    ("Generally best left as `never`").
+    Nothing behaves other than as documented.
+2.  Can upstream fix it?
+    Yes in principle,
+    and it is not a defect:
+    a "show output of tests that printed only to stderr" option would be a feature request.
+3.  Supporting this use case?
+    Not stated.
+    The option list has no "only tests with output" value.
+4.  Would the repository welcome a contribution?
+    Not checked:
+    no filing is proposed,
+    so the contribution policy was not read.
+5.  Will they fix it?
+    Not checked for the same reason.
+6.  Prototyped fix?
+    None,
+    and none is wanted at this boundary:
+    the consumer-side option already exists and is applied in this repository
+    (`package/git-policy/cli/bin/native-test-containerfile.ts`,
+    `runArguments`).
 
 The workaround sits at our boundary and needs nothing from upstream.
 

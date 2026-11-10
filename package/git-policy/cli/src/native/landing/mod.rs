@@ -93,6 +93,10 @@ pub mod service_land_settings;
 /// journaled and moved onto a branch.
 pub mod service_land_batch_body;
 
+/// The reflog message the branch move writes:
+/// the commit's kind in Git's own words and the first line of its message.
+pub mod service_land_reflog;
+
 pub mod service_land_outcomes;
 
 pub mod service_land_take_index_lock;
@@ -111,6 +115,12 @@ pub mod service_land_objects_of_batch;
 pub mod service_land_copy;
 
 pub mod service_land_follow;
+
+/// What a landing does when its branch write is refused while the branch is still where the batch found it:
+/// the reference locks that stand,
+/// the bounded wait for a live holder,
+/// and the words for the locks nothing proves gone.
+pub mod service_land_reference_lock;
 
 /// The copy the service keeps of the conclusion state a landed commit removes.
 pub mod conclusion_state_copy;
@@ -221,6 +231,9 @@ pub mod service_commit_args;
 /// Whether a `commit` command line opens an editor.
 pub mod service_commit_args_editor_opening;
 
+/// The command line a commit is built again with once its editor has run and the branch moved.
+pub mod service_commit_line_reissued;
+
 /// The one summary line a landed commit prints,
 /// with the abbreviated name Git would print.
 pub mod landed_summary;
@@ -256,6 +269,12 @@ pub mod service_commit_fitting_request;
 
 /// The requests of a service commit and what a landed commit leaves for the person.
 pub mod service_commit_requests_and_landing_report;
+
+/// The request one attempt of a commit sends:
+/// the amended commit landing as a new one,
+/// the commit Git builds,
+/// or the commit the service builds from captured changes.
+pub mod service_commit_request_of;
 
 /// The service's memory of when the bytes of the commits it landed were captured,
 /// per worktree.
@@ -315,6 +334,9 @@ pub mod service_claim_renewal_running;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
+
+/// The notice for a push whose branch the person deleted.
+pub mod service_work_branch_is_gone;
 
 /// The kinds,
 /// handlers,

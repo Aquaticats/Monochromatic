@@ -51,10 +51,10 @@ Aquascope does not encode connector paths in the Rust interpreter trace.
 At Aquascope commit `f2d0a06034b86765a91f10b7c8e40ec31ecb87a6`,
 `frontend/packages/aquascope-editor/src/editor-utils/interpreter.tsx` does the following:
 
-1. Finds rendered `.pointer` elements and their `data-point-to` destinations.
-2. Creates an SVG connector through the workspace package `@aquascope/leader-line`.
-3. Moves generated `.leader-line` SVG elements from `document.body` into the diagram's arrow container.
-4. Calls `line.position()` and translates the arrow container as the diagram moves.
+1.  Finds rendered `.pointer` elements and their `data-point-to` destinations.
+2.  Creates an SVG connector through the workspace package `@aquascope/leader-line`.
+3.  Moves generated `.leader-line` SVG elements from `document.body` into the diagram's arrow container.
+4.  Calls `line.position()` and translates the arrow container as the diagram moves.
 
 The workspace package vendors a minified LeaderLine implementation in
 `frontend/packages/leader-line/src/leader-line.js`.

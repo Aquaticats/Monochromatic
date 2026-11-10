@@ -17,6 +17,32 @@
 
 use crate::merge_isolation_recovery::MergeRecoveryOutcome;
 use crate::merge_isolation_recovery_steps::MergeRecoveryAction;
+/// A borrowed filesystem path.
+use std::path::Path;
+
+/// What:
+///  The line for a merge that is saved on its side ref and waits for another program to let go of the index lock.
+/// Why:
+///  The command goes on at once instead of waiting out the ceiling,
+/// so it has to say where the merge is and what
+///  finishes it;
+/// otherwise a person who ran `git rev-parse HEAD` learns that their branch has not moved and nothing
+///  more.
+///  The line names where the merge is saved and the lock,
+/// never the wrapper's own record files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: the merge saved on ${sideRef} waits for ${lock}; ...`
+/// ```
+pub fn saved_merge_waits_for_the_index_lock(target: &str, side_ref: &str, lock: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the merge saved for {target} on {side_ref} waits for the index lock ({lock}), and nothing of it \
+         is in the checkout yet, so this command goes on without waiting for it. A command run once that lock is free finishes the \
+         merge; the edits you make meanwhile to files the merge does not change are kept.\n",
+        lock = lock.display()
+    );
+}
 
 /// What:
 ///  The line that tells the person what recovery did to a merge whose owner is gone,

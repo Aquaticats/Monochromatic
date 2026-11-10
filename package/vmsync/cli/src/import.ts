@@ -19,6 +19,7 @@ import {
 import {
   DEFAULT_CPUS,
   DEFAULT_MEMORY,
+  isVmNameChar,
   validateName,
   vmDir,
   writeConfig,
@@ -125,27 +126,6 @@ async function validateUefi(
 }
 
 /**
- Whether `c` is a character permitted in a VM-name identifier.
- 
- @param c - one-character string to inspect
- 
- @returns whether `c` is alphanumeric, underscore, or hyphen
- 
- @example
- ```ts
- isNameChar('a'); // true
- isNameChar('.'); // false
- ```
- */
-function isNameChar(c: string,): boolean {
-  return ((c >= 'a') && (c <= 'z'))
-    || ((c >= 'A') && (c <= 'Z'))
-    || ((c >= '0') && (c <= '9'))
-    || (c === '_')
-    || (c === '-');
-}
-
-/**
  Derives a VM name from an image file path by stripping the extension.
  
  Mirrors the original `.replace(/\.[^.]+$/, '').replaceAll(/[^a-zA-Z0-9_-]/g, '-')`
@@ -191,7 +171,7 @@ export function nameFromPath(imagePath: string,): string {
          Char being inspected at this index; replaced when disallowed.
          */
       const c = noExt.charAt(idx,);
-      return isNameChar(c,)
+      return isVmNameChar(c,)
         ? c
         : '-';
     },

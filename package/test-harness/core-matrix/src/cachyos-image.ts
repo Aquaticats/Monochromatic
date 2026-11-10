@@ -297,10 +297,10 @@ export function detectCachyosLevel(loaderOutput: string,): LevelDetection {
    */
   const levelLines = loaderOutput
     .split('\n',)
-    .map(function trimLine(line,) {
+    .map(function trimLine(line: string,): string {
       return line.trim();
     },)
-    .filter(function isLevelLine(line,) {
+    .filter(function isLevelLine(line: string,): boolean {
       return line.startsWith(LEVEL_LINE_PREFIX,);
     },);
   /**
@@ -308,10 +308,10 @@ export function detectCachyosLevel(loaderOutput: string,): LevelDetection {
    */
   const supported: ReadonlySet<string> = new Set(
     levelLines
-      .filter(function isSupported(line,) {
+      .filter(function isSupported(line: string,): boolean {
         return line.endsWith(SUPPORTED_SUFFIX,);
       },)
-      .map(function levelName(line,) {
+      .map(function levelName(line: string,): string {
         return line.slice(
           0,
           line.length - SUPPORTED_SUFFIX.length,

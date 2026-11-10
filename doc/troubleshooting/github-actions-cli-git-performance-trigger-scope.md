@@ -318,27 +318,27 @@ No `.out-of-scope/` entry names GitHub Actions event path filtering or this work
 Open and closed `github/docs` issues and pull requests were searched for the path-filter and required-check behavior.
 No upstream report is needed because the current documentation already describes the observed behavior.
 
-1. **Is it really upstream's fault?**
-   No.
-   The repository explicitly requests every push to `main` and omits `paths`.
-2. **Can upstream fix it?**
-   No product defect was established.
-   The fix belongs in this repository's workflow configuration.
-3. **Are they supporting this use case?**
-   Yes.
-   GitHub documents `paths` for `push` and `pull_request`,
-   plus `workflow_dispatch` for manual runs.
-4. **Would the repo welcome our contribution?**
-   Not applicable because the deciding upstream documentation is correct.
-5. **Will they likely fix it?**
-   No upstream change is needed.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes at the consumer configuration boundary.
-   Commit `3ab61f0d3bfddbf017127617591d8b8c7abd4910` adds manifest path filters,
-   compares the version against the event base revision,
-   removes the currently unused merge-group trigger,
-   retains manual dispatch,
-   and corrects the stale package selector.
+1.  **Is it really upstream's fault?**
+    No.
+    The repository explicitly requests every push to `main` and omits `paths`.
+2.  **Can upstream fix it?**
+    No product defect was established.
+    The fix belongs in this repository's workflow configuration.
+3.  **Are they supporting this use case?**
+    Yes.
+    GitHub documents `paths` for `push` and `pull_request`,
+    plus `workflow_dispatch` for manual runs.
+4.  **Would the repo welcome our contribution?**
+    Not applicable because the deciding upstream documentation is correct.
+5.  **Will they likely fix it?**
+    No upstream change is needed.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes at the consumer configuration boundary.
+    Commit `3ab61f0d3bfddbf017127617591d8b8c7abd4910` adds manifest path filters,
+    compares the version against the event base revision,
+    removes the currently unused merge-group trigger,
+    retains manual dispatch,
+    and corrects the stale package selector.
 
 ### Filing artifact
 

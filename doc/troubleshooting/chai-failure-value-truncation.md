@@ -385,49 +385,49 @@ No issue reports the non-monotonic replacement boundary;
 
 ### The 6-constraint check
 
-1. Is it really upstream's fault?
-   Yes.
-   The decision reads the elided render's length against the render budget
+1.  Is it really upstream's fault?
+    Yes.
+    The decision reads the elided render's length against the render budget
  (`lib/chai/utils/objDisplay.js:27` quoted in root cause stage 2),
  which is upstream's code and config contract.
-2. Can upstream fix it?
-   Yes.
-   The prototype below restores the documented contract in two files
+2.  Can upstream fix it?
+    Yes.
+    The prototype below restores the documented contract in two files
  and keeps the whole suite green.
-3. Are they supporting this use case?
-   Yes.
-   `config.truncateThreshold` is documented public config
+3.  Are they supporting this use case?
+    Yes.
+    `config.truncateThreshold` is documented public config
  (`lib/chai/config.js:31`),
  `test/configuration.js:660` pins its display contract,
  and issue 203 shows the feature exists for readable failure messages.
-4. Would the repo welcome our contribution?
-   Likely.
-   `CONTRIBUTING.md` invites issues and pull requests and states no AI
+4.  Would the repo welcome our contribution?
+    Likely.
+    `CONTRIBUTING.md` invites issues and pull requests and states no AI
  restriction (searched `CONTRIBUTING.md` for AI,
  LLM,
  generated;
  no ban found,
  no issue or PR template in `.github/`),
  and maintainers answered issues 1728 and 1766 directly in 2025.
-   The kept draft discloses agent assistance as this repository requires.
-5. Will they likely fix it?
-   Plausible.
-   No documented won't-fix,
-   recent commits in the path
+    The kept draft discloses agent assistance as this repository requires.
+5.  Will they likely fix it?
+    Plausible.
+    No documented won't-fix,
+    recent commits in the path
  (clone HEAD `78d9637`,
  2026-10-19),
-   and the failing expectations are test-pinned artifacts of the bug.
-6. Have we prototyped a minimal fix compatible with their architecture?
-   Yes.
-   Disposable clone at commit `78d9637`,
-   origin `https://github.com/chaijs/chai.git` verified,
-   push disabled.
-   `npm install`,
-   `npm run build`,
-   baseline `512 passing`,
-   patch applied,
-   `npm run build`,
-   reproduction and suite re-run.
+    and the failing expectations are test-pinned artifacts of the bug.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+    Yes.
+    Disposable clone at commit `78d9637`,
+    origin `https://github.com/chaijs/chai.git` verified,
+    push disabled.
+    `npm install`,
+    `npm run build`,
+    baseline `512 passing`,
+    patch applied,
+    `npm run build`,
+    reproduction and suite re-run.
 
 Verification output,
  pre-patch and post-patch,

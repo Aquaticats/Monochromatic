@@ -157,6 +157,10 @@ pub enum ClientFailure {
     Refused,
     /// Another program holds the repository's index.
     IndexInUse(String),
+    /// A reference lock stands in the way of the branch write,
+    /// and nothing proves that a Git process still holds it;
+    /// `words` names the lock and the command that clears it.
+    ReferenceLocked { branch: String, words: String },
     /// The service failed in a way it could not resolve.
     Unavailable,
     /// The service program is not next to the wrapper.
@@ -261,9 +265,9 @@ pub fn render(failure: &ClientFailure) -> String {
              pause. {NOTHING_CHANGED}"
         ),
         ClientFailure::BranchMoved { branch } => format!(
-            "The branch {branch} moved while this commit was being prepared, and a commit that replaces the last one, or one \
-             that was written or signed by hand, cannot be moved onto a different last commit, so it was not made. Run the \
-             commit again to make it on the branch as it is now. {NOTHING_CHANGED}"
+            "The branch {branch} moved while this commit was being prepared, and a commit that replaces or rewrites another \
+             commit, or one that was written or signed by hand, cannot be moved onto a different last commit, so it was not \
+             made. Run the commit again to make it on the branch as it is now. {NOTHING_CHANGED}"
         ),
         ClientFailure::ConclusionStateChanged { branch } => format!(
             "The merge, cherry-pick or revert this commit was concluding changed while it was being prepared, so it was \
@@ -340,6 +344,10 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::IndexInUse(holder) => format!(
             "{holder} is using this repository's index, so this commit was not made. Wait for it to finish, or close \
              it, and run the commit again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::ReferenceLocked { branch, words } => format!(
+            "A lock stands in the way of writing the branch {branch}, so this commit was not made. {words} Run the commit again \
+             once it is clear. {NOTHING_CHANGED}"
         ),
         ClientFailure::ProgramMissing(path) => format!(
             "The commit service program was not found at {path}, so this commit was not made. Reinstall the git wrapper \

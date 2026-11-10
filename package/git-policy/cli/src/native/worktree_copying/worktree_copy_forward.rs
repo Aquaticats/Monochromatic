@@ -20,7 +20,7 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::forwarding::{ChildOutcome, run_real_git, run_real_git_naming, run_real_git_until};
+use crate::forwarding::{ChildOutcome, ChildStarted, run_real_git, run_real_git_naming, run_real_git_until};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
@@ -484,7 +484,7 @@ fn run_settled(
     }
 
     impl GitRunner for ForwardedGit<'_> {
-        fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn FnMut(u32)) -> Result<GitStatus, WorktreeCopyError> {
+        fn run(&mut self, step: &GitStep<'_>, child_started: &mut dyn ChildStarted) -> Result<GitStatus, WorktreeCopyError> {
             let mut child_overlay: Vec<(OsString, OsString)> = self.overlay.to_vec();
             let mut child_arguments: Vec<OsString> = self.arguments.to_vec();
             match step {

@@ -18,6 +18,11 @@ import type { Logger, } from './types.ts';
 const ISO_DATE_LENGTH = 10;
 
 /**
+ Milliseconds in one minute, converting a stored UTC offset into an instant shift.
+ */
+const MS_PER_MINUTE = 60_000;
+
+/**
  {@link Logger} subset needed for divergence diagnostics.
  */
 type WarningLogger = Pick<Logger, 'warn'>;
@@ -42,23 +47,42 @@ type DateComparison = {
    Date resolved from git history.
    */
   readonly gitDate: Date;
+  /**
+   Minutes east of UTC the commit behind {@link gitDate} was authored in.
+   */
+  readonly gitOffsetMinutes: number;
 };
 
 /**
- Formats a Date as the ISO calendar day used for divergence comparisons.
+ Formats an instant as the calendar day it falls on in a given UTC offset.
  
- @param date - date to normalize
+ A hand-written frontmatter date is a day, not an instant, so it is read in UTC:
+ `2026-05-14` parses to UTC midnight of the 14th and its day is the 14th. The
+ git-derived instant is a real moment, so it is read in the offset its author
+ wrote it at; reading it in UTC turned a commit at 06:00 in UTC+8 into the
+ previous day and fired the warning for a correct frontmatter date.
+ 
+ @param date - instant to format
+ 
+ @param offsetMinutes - minutes east of UTC to read the instant in
  
  @returns ISO calendar date in `YYYY-MM-DD` form
  
  @example
  ```ts
- isoCalendarDate(new Date('2026-05-14T08:31:54.000Z'));
+ calendarDayIn({ date: new Date('2026-05-13T22:00:00.000Z'), offsetMinutes: 480 });
  // '2026-05-14'
  ```
  */
-function isoCalendarDate(date: Date,): string {
-  return date.toISOString()
+function calendarDayIn({
+  date,
+  offsetMinutes,
+}: {
+  readonly date: Date;
+  readonly offsetMinutes: number;
+},): string {
+  return new Date(date.getTime() + (offsetMinutes * MS_PER_MINUTE),)
+    .toISOString()
     .slice(
     0,
     ISO_DATE_LENGTH,
@@ -100,13 +124,19 @@ function warnIfDateDiverges(
   },
 ): void {
   /**
-   Calendar date from frontmatter, ignoring timestamp noise in hand-written dates.
+   Calendar date from frontmatter, read in UTC because a hand-written date is a day rather than an instant.
    */
-  const authoredIsoDate = isoCalendarDate(comparison.authoredDate,);
+  const authoredIsoDate = calendarDayIn({
+    date: comparison.authoredDate,
+    offsetMinutes: 0,
+  },);
   /**
-   Calendar date from git history, used as source of truth for rendered output.
+   Calendar date from git history in its author's offset, used as source of truth for rendered output.
    */
-  const gitIsoDate = isoCalendarDate(comparison.gitDate,);
+  const gitIsoDate = calendarDayIn({
+    date: comparison.gitDate,
+    offsetMinutes: comparison.gitOffsetMinutes,
+  },);
 
   if (authoredIsoDate === gitIsoDate)
     return;
@@ -133,14 +163,17 @@ function warnIfDateDiverges(
  @example
  ```ts
  warnOnAuthoredDateDivergence({
-   authoredDates: { updated: new Date('2026-05-01') },
+   authoredDates: { updated: new Date('2026-05-14') },
    resolvedDates: {
-     published: new Date('2026-04-01'),
-     updated: new Date('2026-05-14'),
+     published: new Date('2026-04-16T10:01:43.000Z'),
+     publishedOffsetMinutes: 0,
+     updated: new Date('2026-05-13T22:00:00.000Z'),
+     updatedOffsetMinutes: 480,
    },
    filePath: 'src/content/en/post.mdx',
    l,
  });
+ // no warning: the 22:00 UTC instant is 06:00 on the 14th at +08:00
  ```
  */
 export function warnOnAuthoredDateDivergence(
@@ -163,6 +196,7 @@ export function warnOnAuthoredDateDivergence(
         authoredDate: authoredDates.date,
         gitKey: 'updated',
         gitDate: resolvedDates.updated,
+        gitOffsetMinutes: resolvedDates.updatedOffsetMinutes,
       },
       filePath,
       l,
@@ -176,6 +210,7 @@ export function warnOnAuthoredDateDivergence(
         authoredDate: authoredDates.published,
         gitKey: 'published',
         gitDate: resolvedDates.published,
+        gitOffsetMinutes: resolvedDates.publishedOffsetMinutes,
       },
       filePath,
       l,
@@ -189,6 +224,7 @@ export function warnOnAuthoredDateDivergence(
         authoredDate: authoredDates.updated,
         gitKey: 'updated',
         gitDate: resolvedDates.updated,
+        gitOffsetMinutes: resolvedDates.updatedOffsetMinutes,
       },
       filePath,
       l,

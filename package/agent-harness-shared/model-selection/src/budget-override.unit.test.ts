@@ -11,8 +11,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  type BudgetModel,
+  NO_AUTH,
   NO_OVERRIDE_MODEL,
   NoBudgetModelError,
+  type ReadonlyModel,
   resolveBudgetModelOverride,
   type BudgetModelAuth,
 } from '../dist/final/node/index.mjs';
@@ -49,7 +52,7 @@ function findModel(
     readonly provider: string;
     readonly modelId: string;
   },
-) {
+): ReadonlyModel | typeof NO_OVERRIDE_MODEL {
   return (provider === overrideModel.provider) && (modelId === overrideModel.id)
     ? overrideModel
     : NO_OVERRIDE_MODEL;
@@ -71,7 +74,7 @@ await describe({
   children: [
     it({
       name: 'resolves string override through lookup and auth callback',
-      fn: async function testStringOverride() {
+      fn: async function testStringOverride(): Promise<void> {
         const selected = await resolveBudgetModelOverride({
           override: 'openai/gpt-4o-mini',
           findModel,
@@ -83,7 +86,7 @@ await describe({
     },),
     it({
       name: 'uses inline auth for structured override',
-      fn: async function testStructuredOverride() {
+      fn: async function testStructuredOverride(): Promise<void> {
         const selected = await resolveBudgetModelOverride({
           override: {
             model: 'openai/gpt-4o-mini',
@@ -97,15 +100,15 @@ await describe({
     },),
     it({
       name: 'throws for malformed and missing overrides',
-      fn: async function testOverrideErrors() {
-        const malformed = await captureAsyncError(async function resolveMalformedOverride() {
+      fn: async function testOverrideErrors(): Promise<void> {
+        const malformed = await captureAsyncError(async function resolveMalformedOverride(): Promise<BudgetModel> {
           return await resolveBudgetModelOverride({
             override: 'gpt-4o-mini',
             findModel,
             resolveAuth,
           },);
         },);
-        const missing = await captureAsyncError(async function resolveMissingOverride() {
+        const missing = await captureAsyncError(async function resolveMissingOverride(): Promise<BudgetModel> {
           return await resolveBudgetModelOverride({
             override: 'openai/missing',
             findModel,
@@ -116,6 +119,25 @@ await describe({
         expect((malformed as Error).message,).toContain('not a provider/model slug',);
         expect(missing,).toBeInstanceOf(NoBudgetModelError,);
         expect((missing as Error).message,).toContain('not found in registry',);
+      },
+    },),
+    it({
+      name: 'throws when the override model has no configured auth',
+      fn: async function testOverrideNoAuth(): Promise<void> {
+        /**
+         Override resolution failure for a registry model without auth.
+         */
+        const error = await captureAsyncError(async function resolveUnauthenticatedOverride(): Promise<BudgetModel> {
+          return await resolveBudgetModelOverride({
+            override: 'openai/gpt-4o-mini',
+            findModel,
+            resolveAuth: async function resolveNoAuth(): Promise<typeof NO_AUTH> {
+              return NO_AUTH;
+            },
+          },);
+        },);
+        expect(error,).toBeInstanceOf(NoBudgetModelError,);
+        expect((error as Error).message,).toContain('no API key for model override "openai/gpt-4o-mini"',);
       },
     },),
   ],

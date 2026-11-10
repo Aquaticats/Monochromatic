@@ -761,48 +761,48 @@ rules' indent,
 
 Walking the 5-constraint check explicitly:
 
-1. **Is it really upstream's fault?
-   ** Yes.
-    The merge in
-   `merge_fixes_fallible` and the single-pass fix loop are oxlint
-   core;
-    the JS plugin API cannot route around them.
-2. **Can upstream fix it?
-   ** Yes.
-    The shape of the fix is well known
-   (ESLint's "up to 10 iterations") and the issue body at
-   [oxc#16118][16118] sketches it.
-    The work touches the fix loop
-   itself,
-    not the algebraic core.
-3. **Are they supporting this use case?
-   ** Yes.
-    The JS plugin API
-   exists precisely so external rules can autofix,
-    and multiple
-   first-party rules in oxlint compose into autofix (e.g.
-   `eslint-plugin-better-tailwindcss` in the duplicate report).
-   The maintainers acknowledge the bug.
-4. **Will they likely fix it?
-   ** Likely but slow.
-    niieani offered to
-   PR on 2026-05-04 and camc314 accepted on 2026-05-05,
-    with the
-   caveat that review may take a while because the change "interacts
-   with some of the core of oxlint.
-   " Verified no in-flight PR as of
-   2026-05-20.
-5. **Have we prototyped a minimal fix compatible with their
-   architecture?
-   ** Not applicable.
-    The issue already exists,
-    the
-   maintainer has accepted a future PR,
-    and the design path is known.
-   Filing another issue or PR ahead of the queued community PR adds
-   noise.
-    We invest in (A) or one of (B)-(D) locally and inherit the
-   upstream fix when it lands.
+1.  **Is it really upstream's fault?
+    ** Yes.
+     The merge in
+    `merge_fixes_fallible` and the single-pass fix loop are oxlint
+    core;
+     the JS plugin API cannot route around them.
+2.  **Can upstream fix it?
+    ** Yes.
+     The shape of the fix is well known
+    (ESLint's "up to 10 iterations") and the issue body at
+    [oxc#16118][16118] sketches it.
+     The work touches the fix loop
+    itself,
+     not the algebraic core.
+3.  **Are they supporting this use case?
+    ** Yes.
+     The JS plugin API
+    exists precisely so external rules can autofix,
+     and multiple
+    first-party rules in oxlint compose into autofix (e.g.
+    `eslint-plugin-better-tailwindcss` in the duplicate report).
+    The maintainers acknowledge the bug.
+4.  **Will they likely fix it?
+    ** Likely but slow.
+     niieani offered to
+    PR on 2026-05-04 and camc314 accepted on 2026-05-05,
+     with the
+    caveat that review may take a while because the change "interacts
+    with some of the core of oxlint.
+    " Verified no in-flight PR as of
+    2026-05-20.
+5.  **Have we prototyped a minimal fix compatible with their
+    architecture?
+    ** Not applicable.
+     The issue already exists,
+     the
+    maintainer has accepted a future PR,
+     and the design path is known.
+    Filing another issue or PR ahead of the queued community PR adds
+    noise.
+     We invest in (A) or one of (B)-(D) locally and inherit the
+    upstream fix when it lands.
 
 Decision:
  **do not file**.

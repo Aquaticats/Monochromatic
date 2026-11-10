@@ -63,9 +63,19 @@ Recognized size shapes:
  arrays,
  `Set`,
  `Map`,
- plain objects.
+ and plain objects
+ (objects whose prototype is `Object.prototype` or `null`).
 `WeakSet` and `WeakMap` are intentionally rejected (no enumerable size).
 Bare iterables and async iterables are rejected (sizing requires consumption).
+Non-plain objects are rejected as well:
+ `Date`,
+ `RegExp`,
+ boxed primitives,
+ `Error`,
+ promises,
+ class instances,
+ and object literals created in another realm,
+ because their own keys are internal state rather than elements.
 
 ### Iterable protocols
 

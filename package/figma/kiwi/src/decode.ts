@@ -14,7 +14,6 @@ import {
 } from './binary-reader.ts';
 import {
   FIGMA_DOCUMENT_ABSENT,
-  KIWI_VALUE_ABSENT,
   type KiwiDecodedValue,
   type KiwiSchema,
   type KiwiStruct,
@@ -22,7 +21,38 @@ import {
 } from './types.ts';
 
 /**
- Maximum recursive decode depth before yielding a sentinel.
+ Raised when Kiwi input cannot be decoded into a complete value.
+ 
+ Every unrecoverable state raises this instead of returning a sentinel or a
+ partial object: an unknown message tag, an unknown definition or primitive type
+ code, nesting past {@link MAX_DECODE_DEPTH}, and input that ends inside a
+ struct. Struct fields are positional, so a skipped value would shift every
+ later field onto the wrong bytes and yield a plausible, silent corruption.
+ 
+ @example
+ ```ts
+ throw new KiwiDecodeError('Kiwi message "Message" has no field for tag 9 at byte 4');
+ ```
+ */
+export class KiwiDecodeError extends Error {
+  /**
+   Creates a decode failure naming the input position and what was expected.
+   
+   @param message - Diagnostic naming the offset and the field, tag, or type code.
+   
+   @example
+   ```ts
+   const error = new KiwiDecodeError('unexpected end of input at byte 3');
+   ```
+   */
+  public constructor(message: string,) {
+    super(message,);
+    this.name = 'KiwiDecodeError';
+  }
+}
+
+/**
+ Maximum recursive decode depth before raising a decode error.
  */
 const MAX_DECODE_DEPTH = 20;
 
@@ -77,7 +107,11 @@ const PRIMITIVE_UINT64 = 7;
  
  @param depth - Recursion depth.
  
- @returns Decoded JavaScript value, or {@link KIWI_VALUE_ABSENT} when absent.
+ @param fieldName - Field the value belongs to, when the caller knows it.
+ 
+ @returns Decoded JavaScript value.
+ 
+ @throws {@link KiwiDecodeError} when the type code is unknown or the value nests past the depth limit.
  
  @example
  ```ts
@@ -91,28 +125,43 @@ export function decodeValue(
     schema,
     typeCode,
     depth,
+    fieldName,
   }: {
     readonly depth: number;
+    readonly fieldName?: string;
     readonly reader: BinaryReader;
     readonly schema: KiwiSchema;
     readonly typeCode: number;
   },
 ): KiwiDecodedValue {
-  if (depth > MAX_DECODE_DEPTH)
-    return KIWI_VALUE_ABSENT;
+  /**
+   Position phrase naming the field when known, and the byte offset always.
+   */
+  const location = fieldName === undefined
+    ? `at byte ${reader.pos}`
+    : `in field ${JSON.stringify(fieldName,)} at byte ${reader.pos}`;
+  if (depth > MAX_DECODE_DEPTH) {
+    throw new KiwiDecodeError(
+      `Kiwi decode depth exceeds the limit of ${MAX_DECODE_DEPTH} at type code ${typeCode} ${location}`,
+    );
+  }
 
   if (typeCode < 0)
     return decodePrimitive({
       reader,
       primitiveIndex: ~typeCode,
+      location,
     },);
 
   /**
    Schema definition referenced by type code.
    */
   const definition = schema.definitions[typeCode];
-  if (definition === undefined)
-    return KIWI_VALUE_ABSENT;
+  if (definition === undefined) {
+    throw new KiwiDecodeError(
+      `Kiwi decode found no definition for type code ${typeCode} ${location}`,
+    );
+  }
 
   if (definition.kind === 'ENUM') {
     /**
@@ -152,7 +201,11 @@ export function decodeValue(
  
  @param primitiveIndex - Primitive index.
  
- @returns Decoded primitive value, or {@link KIWI_VALUE_ABSENT} when absent.
+ @param location - Position phrase naming the field and byte offset.
+ 
+ @returns Decoded primitive value.
+ 
+ @throws {@link KiwiDecodeError} when the primitive index names no Kiwi primitive.
  
  @example
  ```ts
@@ -164,7 +217,9 @@ function decodePrimitive(
   {
     reader,
     primitiveIndex,
+    location,
   }: {
+    readonly location: string;
     readonly primitiveIndex: number;
     readonly reader: BinaryReader;
   },
@@ -181,7 +236,9 @@ function decodePrimitive(
     return reader.readVarFloat();
   if (primitiveIndex === PRIMITIVE_STRING)
     return reader.readString();
-  return KIWI_VALUE_ABSENT;
+  throw new KiwiDecodeError(
+    `Kiwi decode found no primitive for type code ${~primitiveIndex} ${location}`,
+  );
 }
 
 /**
@@ -196,6 +253,8 @@ function decodePrimitive(
  @param depth - Recursion depth.
  
  @returns Decoded struct as a plain object.
+ 
+ @throws {@link KiwiDecodeError} when the input ends before every field is read.
  
  @example
  ```ts
@@ -226,16 +285,19 @@ export function decodeStruct(
         string,
         unknown
       ] {
+        if (reader.eof) {
+          throw new KiwiDecodeError(
+            `Kiwi struct ${JSON.stringify(def.name,)} ended before field ${JSON.stringify(field.name,)} at byte ${reader.pos}`,
+          );
+        }
         return [
           field.name,
-          reader.eof
-            ? KIWI_VALUE_ABSENT
-            : decodeFieldValue({
-              reader,
-              schema,
-              field,
-              depth,
-            }),
+          decodeFieldValue({
+            reader,
+            schema,
+            field,
+            depth,
+          },),
         ];
       },),
   ],);
@@ -253,6 +315,8 @@ export function decodeStruct(
  @param depth - Recursion depth.
  
  @returns Decoded message as a plain object.
+ 
+ @throws {@link KiwiDecodeError} when a wire tag names no declared field.
  
  @example
  ```ts
@@ -299,6 +363,10 @@ export function decodeMessage(
 
   while (!reader.eof) {
     /**
+     Offset of the next wire tag, for the unknown-tag error.
+     */
+    const tagOffset = reader.pos;
+    /**
      Next wire tag.
      */
     const tag = reader.readVarUint();
@@ -309,8 +377,11 @@ export function decodeMessage(
      Field metadata for tag.
      */
     const field = fieldByTag.get(tag,);
-    if (field === undefined)
-      break;
+    if (field === undefined) {
+      throw new KiwiDecodeError(
+        `Kiwi message ${JSON.stringify(def.name,)} has no field for tag ${tag} at byte ${tagOffset}`,
+      );
+    }
     entries.push([
       field.name,
       decodeFieldValue({
@@ -363,6 +434,7 @@ function decodeFieldValue(
       schema,
       typeCode: field.type,
       depth,
+      fieldName: field.name,
     },);
 
   /**
@@ -377,6 +449,7 @@ function decodeFieldValue(
         schema,
         typeCode: field.type,
         depth,
+        fieldName: field.name,
       },);
     },
   );
@@ -390,6 +463,8 @@ function decodeFieldValue(
  @param schema - Parsed {@link KiwiSchema}.
  
  @returns Decoded document object, or {@link FIGMA_DOCUMENT_ABSENT} when absent.
+ 
+ @throws {@link KiwiDecodeError} when the schema carries no Message definition, or the document bytes cannot be decoded.
  
  @example
  ```ts
@@ -419,7 +494,7 @@ export function decodeDocument(
   const messageDef = schema.structByName
     .get('Message',);
   if (messageDef === undefined)
-    throw new Error('Message definition not found in schema');
+    throw new KiwiDecodeError('Message definition not found in schema');
 
   return decodeMessage({
     reader,

@@ -189,32 +189,32 @@ Fails (pre-fix):
 `.out-of-scope/` was checked:
  no GTK exemption exists.
 
-1. Really upstream's fault?
-    No for trap A (documented focus delegation,
-    sensible defaults).
-   For trap B the behavior follows from the focused-widget activation model and is consistent
-   across GTK list widgets ([the listview keybindings work item](https://gitlab.gnome.org/GNOME/gtk/-/work_items/2182)
-   documents Return as "activates the current row" where "current" means focus);
-    at most this
-   is a wording gap in the `GtkListView` docs,
-    not a defect.
-2. Can upstream fix it?
-    A docs clarification could;
-    the behavior itself is load-bearing.
-3. Supported use case?
-    Yes;
-    `scroll_to(..., FOCUS, ...)` exists precisely to set the focus row.
-4. Would the repo welcome the contribution?
-    Not evaluated further;
-    constraint 1 already fails
-   for the behavior itself,
-    and a docs-wording patch was judged below the filing bar.
-5. Will they likely fix it?
-    Nothing behavioral to fix.
-6. Prototyped minimal fix?
-    Not applicable to behavior;
-    the consumer-side fix is two lines and
-   recorded above.
+1.  Really upstream's fault?
+     No for trap A (documented focus delegation,
+     sensible defaults).
+    For trap B the behavior follows from the focused-widget activation model and is consistent
+    across GTK list widgets ([the listview keybindings work item](https://gitlab.gnome.org/GNOME/gtk/-/work_items/2182)
+    documents Return as "activates the current row" where "current" means focus);
+     at most this
+    is a wording gap in the `GtkListView` docs,
+     not a defect.
+2.  Can upstream fix it?
+     A docs clarification could;
+     the behavior itself is load-bearing.
+3.  Supported use case?
+     Yes;
+     `scroll_to(..., FOCUS, ...)` exists precisely to set the focus row.
+4.  Would the repo welcome the contribution?
+     Not evaluated further;
+     constraint 1 already fails
+    for the behavior itself,
+     and a docs-wording patch was judged below the filing bar.
+5.  Will they likely fix it?
+     Nothing behavioral to fix.
+6.  Prototyped minimal fix?
+     Not applicable to behavior;
+     the consumer-side fix is two lines and
+    recorded above.
 
 Decision:
  nothing to file.

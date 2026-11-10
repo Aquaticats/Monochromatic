@@ -9,6 +9,9 @@ import type {
   AssistantMessageEvent,
   Context,
   Model,
+  ProviderStreams,
+  SimpleStreamOptions,
+  TranscriptContext,
 } from '@earendil-works/pi-ai';
 import { anthropicMessagesApi, } from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
 import { azureOpenAIResponsesApi, } from '@earendil-works/pi-ai/api/azure-openai-responses.lazy';
@@ -22,7 +25,7 @@ import { openAIResponsesApi, } from '@earendil-works/pi-ai/api/openai-responses.
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import {
-  assertModelUsesApi,
+  cloneReviewMessages,
   isolateReviewContext,
   isolateReviewModel,
   isolateReviewOptions,
@@ -30,7 +33,6 @@ import {
 } from './provider-data.ts';
 import type {
   ScriptedStructuredReviewTransport,
-  StructuredReviewMessageSnapshot,
   StructuredReviewRequestSnapshot,
 } from './types.ts';
 
@@ -61,10 +63,124 @@ type StructuredReviewStreamRequest = {
   readonly testTransport?: ForeignBorrowed<ScriptedStructuredReviewTransport>;
 };
 
+//region Dispatch table -- lazy provider modules keyed by the API each implements
+
 /**
- Project provider APIs supported by Pi AI direct modules.
+ Lazy Pi AI provider module factory.
  */
-const SUPPORTED_APIS = 'anthropic-messages, azure-openai-responses, bedrock-converse-stream, google-generative-ai, google-vertex, mistral-conversations, openai-codex-responses, openai-completions, openai-responses';
+type LazyProviderStreams = () => ProviderStreams;
+
+/**
+ Lazy provider modules keyed by the API each one implements.
+
+ Adding a provider is one entry here: the lookup key is the selected model's
+ recorded API, so no branch per API needs to state or re-assert it. Tests drive
+ {@link dispatchProviderStream} with this table's keys and fake factories, so a
+ removed entry or an entry pointing at another API's module fails a test.
+ */
+const PROVIDER_STREAMS_BY_API: Readonly<Record<string, LazyProviderStreams>> = {
+  'anthropic-messages': anthropicMessagesApi,
+  'azure-openai-responses': azureOpenAIResponsesApi,
+  'bedrock-converse-stream': bedrockConverseStreamApi,
+  'google-generative-ai': googleGenerativeAIApi,
+  'google-vertex': googleVertexApi,
+  'mistral-conversations': mistralConversationsApi,
+  'openai-codex-responses': openAICodexResponsesApi,
+  'openai-completions': openAICompletionsApi,
+  'openai-responses': openAIResponsesApi,
+};
+
+//endregion Dispatch table -- lazy provider modules keyed by the API each implements
+
+//region Provider dispatch -- one call into the table entry for the selected API
+
+/**
+ Dispatch inputs shared by every call into the provider table.
+ 
+ @example
+ ```ts
+ const request: ProviderDispatchRequest = { model, context, options };
+ ```
+ */
+type ProviderDispatchRequest = {
+  /**
+   Selected reviewer model.
+   */
+  readonly model: ForeignBorrowed<Model<Api>>;
+  /**
+   Final provider context, already isolated and normalized for provider code.
+   */
+  readonly context: ForeignBorrowed<TranscriptContext>;
+  /**
+   Final provider stream options, already isolated for provider code.
+   */
+  readonly options: ForeignBorrowed<SimpleStreamOptions>;
+  /**
+   Lazy provider modules to dispatch through, defaulting to the production table.
+   */
+  readonly providerStreamsByApi?: Readonly<Record<string, LazyProviderStreams>>;
+};
+
+/**
+ Dispatch one stream through the lazy provider module registered for selected API.
+ 
+ @param model - selected reviewer model
+ 
+ @param context - final provider context, already isolated and normalized
+ 
+ @param options - final provider stream options
+ 
+ @param providerStreamsByApi - lazy provider modules keyed by API
+ 
+ @returns assistant event stream from the module registered for `model.api`
+ 
+ @mutates model - concrete provider can inspect selected model data
+ 
+ @mutates context - concrete provider consumes request messages and tools
+ 
+ @mutates options - concrete provider observes auth and cancellation capabilities
+ 
+ @throws when selected API has no entry in `providerStreamsByApi`
+ 
+ @example
+ ```ts
+ dispatchProviderStream({ model, context, options });
+ ```
+ */
+function dispatchProviderStream(
+  {
+    model,
+    context,
+    options,
+    providerStreamsByApi = PROVIDER_STREAMS_BY_API,
+  }: ForeignBorrowed<Readonly<ProviderDispatchRequest>>,
+): AsyncIterable<AssistantMessageEvent> {
+  /**
+   Lazy provider module for the selected model's API.
+   */
+  const createProviderStreams = providerStreamsByApi[model.api];
+  if (createProviderStreams === undefined) {
+    /**
+     Supported API list built from the table entries actually searched.
+     */
+    const supportedApis = Object
+      .keys(providerStreamsByApi,)
+      .join(', ',);
+    throw new Error(
+      `No Pi AI API implementation available for structured reviewer ${model.provider}/${model.id} using ${model.api}. Supported APIs: ${supportedApis}`,
+    );
+  }
+  return createProviderStreams()
+    .streamSimple(
+    isolateReviewModel(model,),
+    context,
+    options,
+    );
+}
+
+//endregion Provider dispatch -- one call into the table entry for the selected API
+
+//region Request snapshots -- isolated caller values recorded before dispatch
 
 /**
  Snapshot one known review context without retaining caller-owned arrays.
@@ -84,19 +200,10 @@ function snapshotContext(
   /**
    Isolated user-message snapshots.
    */
-  const messages: StructuredReviewMessageSnapshot[] = [];
-  for (const message of context.messages) {
-    if ((message.role !== 'user') || ((typeof message.content) !== 'string')) {
-      throw new Error(
-        `Structured review request snapshot received unsupported ${message.role} message content`,
-      );
-    }
-    messages.push({
-      role: 'user',
-      content: message.content,
-      timestamp: message.timestamp,
-    },);
-  }
+  const messages = cloneReviewMessages({
+    messages: context.messages,
+    errorPrefix: 'Structured review request snapshot received unsupported',
+  },);
   /**
    Isolated tool-name snapshots.
    */
@@ -161,6 +268,10 @@ function snapshotOptions(
   };
 }
 
+//endregion Request snapshots -- isolated caller values recorded before dispatch
+
+//region Scripted transport -- deterministic response script and recorded requests
+
 /**
  Consume one scripted response after recording exact provider request data.
  
@@ -217,6 +328,10 @@ function scriptedStructuredReviewStream(
   return response;
 }
 
+//endregion Scripted transport -- deterministic response script and recorded requests
+
+//region Public API -- one stream through the module for the selected API
+
 /**
  Dispatch one stream through concrete implementation matching selected API.
  
@@ -272,153 +387,18 @@ function streamStructuredReview(
    Isolated provider options used only beyond external package boundary.
    */
   const providerOptions = isolateReviewOptions(options,);
-  if (model.api === 'anthropic-messages') {
-    /**
-     Model narrowed by exact Anthropic API assertion.
-     */
-    const selected = {
-      model,
-      api: 'anthropic-messages',
-    } as const;
-    assertModelUsesApi(selected,);
-    return anthropicMessagesApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  if (model.api === 'azure-openai-responses') {
-    /**
-     Model narrowed by exact Azure OpenAI API assertion.
-     */
-    const selected = {
-      model,
-      api: 'azure-openai-responses',
-    } as const;
-    assertModelUsesApi(selected,);
-    return azureOpenAIResponsesApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  if (model.api === 'bedrock-converse-stream') {
-    /**
-     Model narrowed by exact Bedrock API assertion.
-     */
-    const selected = {
-      model,
-      api: 'bedrock-converse-stream',
-    } as const;
-    assertModelUsesApi(selected,);
-    return bedrockConverseStreamApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  if (model.api === 'google-generative-ai') {
-    /**
-     Model narrowed by exact Google Generative AI assertion.
-     */
-    const selected = {
-      model,
-      api: 'google-generative-ai',
-    } as const;
-    assertModelUsesApi(selected,);
-    return googleGenerativeAIApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  if (model.api === 'google-vertex') {
-    /**
-     Model narrowed by exact Google Vertex API assertion.
-     */
-    const selected = {
-      model,
-      api: 'google-vertex',
-    } as const;
-    assertModelUsesApi(selected,);
-    return googleVertexApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  if (model.api === 'mistral-conversations') {
-    /**
-     Model narrowed by exact Mistral API assertion.
-     */
-    const selected = {
-      model,
-      api: 'mistral-conversations',
-    } as const;
-    assertModelUsesApi(selected,);
-    return mistralConversationsApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  if (model.api === 'openai-codex-responses') {
-    /**
-     Model narrowed by exact OpenAI Codex API assertion.
-     */
-    const selected = {
-      model,
-      api: 'openai-codex-responses',
-    } as const;
-    assertModelUsesApi(selected,);
-    return openAICodexResponsesApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  if (model.api === 'openai-completions') {
-    /**
-     Model narrowed by exact OpenAI Completions API assertion.
-     */
-    const selected = {
-      model,
-      api: 'openai-completions',
-    } as const;
-    assertModelUsesApi(selected,);
-    return openAICompletionsApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  if (model.api === 'openai-responses') {
-    /**
-     Model narrowed by exact OpenAI Responses API assertion.
-     */
-    const selected = {
-      model,
-      api: 'openai-responses',
-    } as const;
-    assertModelUsesApi(selected,);
-    return openAIResponsesApi()
-      .streamSimple(
-      isolateReviewModel(selected.model,),
-      providerContext,
-      providerOptions,
-      );
-  }
-  throw new Error(
-    `No Pi AI API implementation available for structured reviewer ${model.provider}/${model.id} using ${model.api}. Supported APIs: ${SUPPORTED_APIS}`,
-  );
+  return dispatchProviderStream({
+    model,
+    context: providerContext,
+    options: providerOptions,
+  },);
 }
 
-export { streamStructuredReview, };
+//endregion Public API -- one stream through the module for the selected API
+
+export {
+  dispatchProviderStream,
+  PROVIDER_STREAMS_BY_API,
+  streamStructuredReview,
+};
+export type { LazyProviderStreams, };

@@ -81,25 +81,25 @@ which is why it comes first in the ranking.
 
 By starts removed times frequency:
 
-1. The location query:
-   one start on every wrapped command,
-   and the same file-system walk gives the Git paths
-   (`--git-path index`,
-   the transaction layout,
-   the capture layout) that cost three more starts per commit.
-2. The object and index readers:
-   `ls-files` 4,
-   `diff-index` 4,
-   `diff` 1,
-   `diff-tree` 1,
-   `show` 1 per commit.
-3. Refs and configuration:
-   `config` 1,
-   `for-each-ref` 1,
-   `rev-parse --verify` 2,
-   `@{upstream}` 1,
-   `remote get-url` 1.
-4. `cat-file --batch` fed object names in the transaction runner.
+1.  The location query:
+    one start on every wrapped command,
+    and the same file-system walk gives the Git paths
+    (`--git-path index`,
+    the transaction layout,
+    the capture layout) that cost three more starts per commit.
+2.  The object and index readers:
+    `ls-files` 4,
+    `diff-index` 4,
+    `diff` 1,
+    `diff-tree` 1,
+    `show` 1 per commit.
+3.  Refs and configuration:
+    `config` 1,
+    `for-each-ref` 1,
+    `rev-parse --verify` 2,
+    `@{upstream}` 1,
+    `remote get-url` 1.
+4.  `cat-file --batch` fed object names in the transaction runner.
 
 Left as Git:
 `version` (already cached after the first run),

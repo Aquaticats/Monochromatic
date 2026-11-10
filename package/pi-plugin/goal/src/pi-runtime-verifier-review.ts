@@ -15,6 +15,8 @@ import {
   type GoalSettlementReviewRequest,
 } from '../dist/final/node/index.mjs';
 
+//region Fixture constants and contracts
+
 /**
  Deterministic timestamp for built review verification.
  */
@@ -29,6 +31,10 @@ type ReviewFixture = {
   readonly rationale: string;
   readonly remainingWork: string;
 };
+
+//endregion Fixture constants and contracts
+
+//region Fixture construction
 
 /**
  Build active controller and settlement identity.
@@ -121,6 +127,10 @@ function createReviewFixture(): {
     request,
   };
 }
+
+//endregion Fixture construction
+
+//region Outcome verification
 
 /**
  Execute one built settlement path through fake reviewer.
@@ -235,5 +245,7 @@ async function verifyInjectedReviewerOutcomes(): Promise<string> {
   ],);
   return `fake reviewer ${outcomes.join(' and ')}`;
 }
+
+//endregion Outcome verification
 
 export { verifyInjectedReviewerOutcomes, };

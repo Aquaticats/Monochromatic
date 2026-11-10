@@ -7933,12 +7933,658 @@ The wording of a refusal:
     and both pass in the 87-control run,
     so the flake is in the control's `/proc` polling and not in the pass;
     it is not fixed here,
-    because a proper fix is a shim Git that writes a marker instead of a window.
+    because a proper fix is a shim Git that writes a marker instead of a window
+    (fixed 2026-11-09,
+    see "The two controls of the second pass wait on the pass itself" below).
 - Not run:
   the whole `native:test:host` suite,
   the container gate,
   `native:perf` (nothing of this run is in a commit or a forwarded command's path)
   and any mutation campaign (paused by the owner).
+
+## The two controls of the second pass wait on the pass itself, 2026-11-09T19:04:27-05:00
+
+Branch `test/git-policy-cli-word-merge-controls-wait-on-a-marker`,
+from main at `283d7d9053`.
+Seven commits:
+`76b18e0f3b` (the stand-in Git and the two controls),
+`3e9133dbd5` (a warning in the stand-in's pipe opener),
+`47f4caf239` (two doc lines the linter broke),
+`8e3e04db94` (the gate's own control,
+the start record and the marker),
+`6eba3eb07e` and `3bf4062f59` (this record),
+and `7eb3328226` (the gate's own control and the final runs in it).
+
+### What replaced the window
+
+The section "Step T12,
+the second pass awaits its own Git,
+and the reconcile's chain stops at the branch move"
+records the failure and names the fix:
+each of the pair walked `/proc` for the pass's own `git check-attr` child inside a fifteen-second window,
+and under host load the pass had not reached the query before the window closed.
+The window is gone.
+`binary_word_merge_pass_gate.rs` puts a stand-in `git` on the run's `PATH`:
+the wrapper's link directory,
+then the stand-in,
+and nothing else,
+because real Git at a conventional location outranks every other candidate the wrapper considers.
+The stand-in passes every start to real Git by absolute path,
+except the pass's own `git check-attr -z --stdin merge`,
+which it holds:
+it writes `reached.marker` and the word `reached` on one pipe,
+and it reads the control's word on a second pipe before it goes on.
+The commit policy's own `check-attr` names its paths as arguments,
+so the two flags tell the pass's query apart from every other start,
+and the marker file makes the hold happen once per run.
+The control waits on that pipe and releases the pass after its edit,
+so neither side is raced against a clock.
+Two details make the wait clockless:
+a pipe held at both ends waits for nothing to be opened and never reads the end of its input,
+and a control still waiting when the command ends is woken by the command's own end,
+so a pass that never reaches the query fails the control with its reason instead of hanging it.
+The supervisor's idle rule is suspended for the hold itself,
+which is the test's own controlled wait.
+The controls also conflict four files instead of forty:
+the gate is what puts the edit inside the pass,
+so the count no longer buys a window.
+Every start the stand-in takes is appended to `starts.log`,
+so the gate's own control can say the stand-in was the run's Git instead of assuming it,
+and `reached.marker` can be read once the run ended.
+
+### What each control still proves, and the plants that showed it
+
+- `word_merge::an_edit_made_while_the_pass_merges_is_not_replaced`:
+the edit's bytes survive and the line names the path the pass left.
+Planted by reading the worktree baseline at install time instead of when the conflicts were read
+(`stillness` in `merge_second_pass_worktree_unchanged.rs`),
+as it was before the guard:
+the control failed at 4.160 s with
+"assertion `left == right` failed:
+the other command's bytes survive",
+left holding the merged file's bytes and right the resolution's.
+Restored,
+and it passes.
+- `word_merge::a_same_length_resolution_with_a_restored_time_is_not_replaced`:
+a resolution of the same length whose modification time was put back survives.
+Planted by comparing lengths instead of bytes in `stillness`,
+which is the defect the bytes replaced:
+the control failed at 10.739 s with "the other command's bytes survive" as its words,
+and the 'R'-filled file gone.
+Restored,
+and it passes.
+- `word_merge_pass_gate_guard::a_command_that_never_asks_for_the_attribute_wakes_the_control`:
+a forwarded `rev-parse --git-dir` starts the stand-in Git and never asks for the merge attribute,
+so the control must be woken with `false` by the command's own end,
+and the start record must name the command,
+while `reached.marker` stays absent.
+Planted by leaving that word unsaid (`held_run` in `binary_word_merge_pass_gate.rs`):
+the control waited,
+and nextest's own bound ended the test
+(`TIMEOUT` at 300.007 s),
+which is the hang the word exists to prevent.
+Restored,
+and it passes in 1.004 s.
+
+### What this change ran
+
+- `//package/git-policy/cli:native:test:host -- word_merge merge_second_pass`:
+57 of 57 passed in 1.987 s,
+and 57 of 57 again in 2.349 s at the final commit.
+- `//package/git-policy/cli:native:test:binary:host -- word_merge merge_second_pass`:
+39 of 39 passed in 23.251 s,
+with the pair at 1.186 s and 1.224 s
+under a load average of 148 on 8 CPUs,
+and again 39 of 39 in 30.851 s at a load average of 68 with the pair at 1.297 s and 1.313 s.
+At the final commit the same selection is 40 controls
+(the gate's own control joined them)
+and 40 of 40 passed in 138.881 s at a load average of 57,
+six of them slow,
+with the pair at 1.004 s and 1.020 s:
+the whole selection follows the host,
+the pair no longer does.
+  One run of the same selection failed,
+  and it is recorded here because it is not this pair:
+  with the scope's memory held to 8 GiB instead of the 16 GiB of the passing runs,
+  the same 39 controls took 156.260 s at a load average of 148,
+  and `word_merge_finish::a_cherry_pick_range_is_resolved_and_continued`
+  was ended by the harness supervisor's five-second idle rule,
+  its tree being `bin/git cherry-pick main..topic` asleep in `unix_stream_read_generic`
+  while the commit service answered a landing in 5,140 ms.
+  Both of this pair passed in that run,
+  at 1.2 s each.
+  The idle rule's own limit is stated in `binary_supervisor.rs`:
+  it cannot tell an endless wait from a finite one on something outside the tree,
+  and the service is such a thing.
+- `//package/git-policy/cli:native:clippy` clean on every target.
+- `//package/git-policy/cli:lint:monochromatic-lint`:
+nothing in the files this branch touched.
+The run still fails on eleven errors and eight warnings in files this branch does not touch
+(`landing/service_commit.rs` and `testing/test_support.rs` over 300 code lines,
+the rest `markdown/semantic-line-breaks` and `rust/avoidable-closure`),
+which stand at `283d7d9053` too.
+- Not run:
+the whole `native:test:host` suite,
+the container gate,
+`native:perf` and any mutation campaign (paused by the owner).
+### Step T12, the push chain is awaited to the handlers, and the recovery folder is what a settle still borrows a thread for, 2026-11-09T19:46:08-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-reconcile-chain-and-work-handlers` in
+  `.claude/worktrees/pi-tokio-reconcile-chain-and-work-handlers`,
+  from main at `283d7d9053`.
+  Not merged into main.
+- What this run was asked to do:
+  the chain the previous section left,
+  in its order:
+  `reconcile_divergent_push_awaiting`,
+  `push_once_awaiting`,
+  then `WorkHandlers::push_awaiting` and `WorkHandlers::maintenance_awaiting`,
+  with the reads those handlers make.
+  The brief named those three and not the two steps the previous section
+  puts before them (the recovery folder's awaited Git seam,
+  then
+  `advance_local_branch_awaiting`),
+  and the branch move cannot be awaited without them,
+  so this run did the branch move too and measured where the settle still stops.
+- Done,
+  one commit each,
+  every one compiling:
+  - `5a87224b73`,
+    the branch move of the reconcile awaited.
+    `BranchMove` is now a trait whose one method hands back a boxed future
+    (`Send + Sync`,
+    because the future a round's task carries must be `Send`),
+    `MoveTheNamedBranch` is the shipped step,
+    and `SHIPPED_MOVE` is that value.
+    `still_on_the_branch`,
+    `tree_of`,
+    `move_the_named_branch`,
+    `fast_forward_recorded`,
+    `advance_local_branch_moving` and
+    `advance_local_branch_awaiting` ask and write with `run_query_awaiting`;
+    `advance_local_branch` keeps its name and signature and enters the runtime once,
+    so every synchronous caller and every control of the file is unchanged.
+    Controls:
+    `the_awaited_advance_of_the_branch_moves_it_from_a_task`
+    (with the positive control inside it:
+    the synchronous face is refused in a task)
+    and
+    `a_fast_forward_that_loses_the_race_in_a_task_settles_its_record_from_a_thread_of_its_own`.
+  - `6ec6cf398a`,
+    the reconcile awaited.
+    `MergePusherAwaiting`,
+    `PushMergeThroughGitAwaiting` and
+    `integrate_and_push_awaiting` live in
+    `push/auto_push_reconcile_awaiting.rs`,
+    with `reconcile_divergent_push_awaiting` beside them;
+    the wording of both loops,
+    the prefixes,
+    the short name,
+    the branch the merge is into and the commit message,
+    is one function (`wording_of`) in `push/auto_push_reconcile.rs`.
+    `QueryAwaiting` in `lfs/lfs_upload_settings.rs` is a `dyn` value `+ Send`,
+    because the awaited push's future carries it and a round's work must be `Send`.
+    Control:
+    `the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does`
+    (a real diverged remote:
+    the merge is published,
+    the branch and its checkout follow it,
+    no private ref is left,
+    and the synchronous reconcile is refused in a task).
+  - `4decd8ab48`,
+    the service's push awaited.
+    `plan_named_push_awaiting`,
+    `query_succeeds_awaiting`,
+    `run_push_command_awaiting` and `push_once_awaiting` in `push/auto_push.rs`;
+    the pause between the held-reference retries is `tokio::time::sleep`,
+    so no worker is held while another worktree's lock is waited out.
+    Control:
+    `the_awaited_push_answers_what_the_synchronous_push_answers`
+    (two identical fixtures,
+    one pushed by each face:
+    the same answer,
+    the same shown text,
+    the same hook log,
+    the same delivered commit,
+    and the synchronous face refused in a task).
+  - `5752964cbb`,
+    the handlers.
+    `WorkHandlers::push_awaiting` and `WorkHandlers::maintenance_awaiting`
+    are object-safe methods handing back a boxed future,
+    whose default runs the synchronous one,
+    so every double in the controls is unchanged.
+    `GitHandlers` answers through `push_git_awaiting`
+    (`read_config_snapshot_awaiting`),
+    `push_once_awaiting`,
+    `branch_exists_awaiting` and `branch_is_gone_words_awaiting`,
+    and its synchronous `push` and `maintenance` enter the runtime once over those,
+    so `drain_pending` on the service's work thread behaves as it did.
+    `GitRunner` in `merge/merge_second_pass_git_runner.rs` is `Send + Sync`,
+    because `AttributeProbe` holds it across an await and the push's future must be `Send`.
+    Controls:
+    `the_awaited_push_of_the_handlers_answers_what_the_synchronous_one_answers`
+    and
+    `the_awaited_maintenance_of_the_handlers_answers_what_the_synchronous_one_answers`.
+  - `8453efa339`,
+    the two seams a task awaits are `Send`,
+    so the push of a round travels as a future.
+  - `f0d7f21dd6`,
+    the branch-gone notice in a file of its own
+    (`landing/service_work_branch_is_gone.rs`),
+    because the handlers' file crossed the package's 300-code-line limit,
+    and the prose breaks the linter asked for.
+  - `ed696467d5`,
+    the control of a refused settle thread:
+    `a_settle_whose_thread_the_system_refuses_leaves_the_record_for_the_next_command`
+    arms the refusal through the settling module's own seam
+    (`RefusedSettleStarts`,
+    after `foundation/scoped_start.rs`),
+    and requires the advance's reason to name the limit and the record to stay.
+    Planted,
+    with the refusal branch removed,
+    it fails with
+    "the move was refused,
+    so it is not reported as done".
+- Measured,
+  and this is the one workaround in the chain:
+  a fast-forward Git refused settles its record through `settle_failed_merge`
+  (`merge/merge_isolation_recovery.rs:253`),
+  whose folder starts Git synchronously at 19 sites
+  and cannot be called from a task.
+  `push/auto_push_reconcile_branch_advance_settling.rs` runs that one call on a
+  thread of its own and awaits its answer,
+  which is a labelled workaround with a removal condition:
+  the recovery folder's awaited Git seam,
+  the previous section's first missing
+  step,
+  replaces it and the thread goes with it.
+  The thread is a plain one,
+  never a job of the blocking pool,
+  because a job of the pool is inside the runtime and would refuse the same start.
+  Under a refused thread the settle is not run in the task's place:
+  the advance reports the sentence naming the limit and the record stays,
+  which `ed696467d5` pins.
+  What this does not do:
+  it does not touch the recovery folder,
+  so a person's own merge and the service settle exactly as they did.
+- What stands between this and the landing round,
+  in the order the dependency allows:
+  - The recovery folder's awaited Git seam,
+    which removes the thread above.
+  - The third thing the round needs:
+    `ClaimRenewal`'s `Drop` still waits for its task
+    (`landing/service_claim_renewal_running.rs:275`).
+  - The fourth:
+    `drain_pending` (`landing/service_work_drain_pending_claims.rs`) still
+    interleaves `claim_all_of`,
+    `settle_all`,
+    the push-failure records and the handler calls on one thread,
+    and now has the awaited handler faces to call from a task.
+  - `landing/service_round.rs` itself,
+    which is the move the four unblock.
+- The reconcile loop is written twice,
+  once synchronously and once awaited,
+  as the plan's own list named it (`MergePusherAwaiting`).
+  What the two cannot differ in is one function (`wording_of`) and the same
+  helpers below the seam;
+  what they do differ in is the awaits and the pusher call.
+  The reason the synchronous one stays is `push_stacking`:
+  its merge push is `gated_merge_push`,
+  which forwards a real Git push synchronously for a person's explicit push,
+  and converting that is a folder of its own.
+- Checks:
+  - One selection,
+    one run,
+    in a `systemd-run --user --scope` at `CPUQuota=600%`,
+    `MemoryMax=24G` and `TasksMax=4000`:
+    `merge`,
+    `auto_push_reconcile`,
+    `auto_push`,
+    `service_work` and `landing`,
+    1216 of 1216 passed in 33.4 s
+    (`CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`).
+    It was run three times:
+    once before the handlers' file was split,
+    once after it,
+    and once at the tip of this run,
+    where the refused-settle control joined the selection and 1217 of 1217 passed in 33.1 s.
+    `auto_push_reconcile` alone is 83 of 83.
+  - `native:clippy` clean on every target
+    (`cargo clippy --locked --offline --all-targets -- -D warnings`).
+  - `native:test:binary:host --no-run` builds the binary test target.
+  - `//:lint:monochromatic-lint --max-warnings 0` on every file this run touched:
+    0 errors and 0 warnings,
+    after `format:monochromatic-lint` wrote the breaks it asked for.
+  - Not run:
+    the whole `native:test:host` suite,
+    the container gate,
+    `native:perf`
+    (nothing of this run is in a forwarded command's path,
+    and the commit path is untouched)
+    and any mutation campaign (paused by the owner).
+
+### Step T12, the recovery folder awaits its own Git, and a renewal's stop is a wait of the runtime, 2026-11-09T21:26:00-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-recovery-seam-and-claim-renewal` in
+  `.claude/worktrees/pi-tokio-recovery-seam-and-claim-renewal`,
+  from main at `de4f941a05`,
+  and main merged into it three times while the run went on
+  (`8b81d605d7`,
+  `8e24183ae1`,
+  `224c193ed8`),
+  each at the tip `origin/main` had when it was made
+  (`6c0f52b543`,
+  `cc31ef8afa`,
+  `80d528ae82`).
+  Commits `3119b082ad` (the folder's awaited Git),
+  `56ac3e5cff` (the sink through the caller and the completed fast-forward),
+  `9ae3763224` (the renewal's stop)
+  and `4a1933e2b9` (the folder's files and its closures),
+  then `078fe5e35f` and `632563c60d` and `3e296677a4` (this section and its
+  corrections),
+  `0f7dd7eb3b` (the two `return`s clippy asked for)
+  and `0f3ff72ea7` (the renewal's stop inside the runtime).
+  `283cd190c7` and `4e6689c961` are this section's own runs.
+  Not merged into main.
+- The brief's first item,
+  the recovery folder's awaited Git seam,
+  is done,
+  and the workaround it was for is gone:
+  `push/auto_push_reconcile_branch_advance_settling.rs` and the plain thread it
+  started are deleted,
+  and `advance_local_branch_awaiting` awaits
+  `settle_failed_merge_awaiting`
+  (`merge/merge_isolation_recovery.rs`) directly.
+  Every Git step of the folder is one body,
+  with the faces its callers need:
+  the awaited one a task calls,
+  and,
+  where code outside the runtime calls it,
+  a synchronous one that keeps its name and signature and enters the runtime
+  once (`run_on_runtime`),
+  as the merge's second pass did.
+  Converted:
+  `settle_failed_merge`,
+  `recover_interrupted_merges`,
+  `merge_changes`,
+  `judge_changes`,
+  `index_standings`,
+  `index_entries`,
+  `install_entries`,
+  `take_aside`,
+  `finish_asides`,
+  `restore_what_git_did_not_write`,
+  `may_remove`,
+  `raw_bytes_of`,
+  `the_branchs_file_form`,
+  `are_the_branchs_bytes`,
+  `worktree_state`,
+  `state_of_file`,
+  `the_objects_a_link_hashes_to`,
+  `the_repository_records_file_modes`,
+  `complete`,
+  `settle_moved_branch`,
+  `symbolic_ref`,
+  `resolve_commit`,
+  `paths_the_branch_does_not_hold`,
+  `drop_record_and_side_ref`,
+  `drop_side_ref`,
+  `carry`,
+  `restore`,
+  `clear`,
+  `changes_between`,
+  `capture_work`,
+  `keep_capture`,
+  `drop_capture_ref`,
+  `write_steps`
+  and the five helpers between them.
+  The synchronous faces keep their names and signatures;
+  the awaited ones are `<name>_awaiting`.
+- The notices a settle writes are the caller's own,
+  not a buffer:
+  the sink is a generic `W: Write + ?Sized` threaded from the caller,
+  so the synchronous face hands the caller's writer through
+  and the awaited face a task calls is `Send` by its instantiation
+  (`&mut Stderr`),
+  not by a bound.
+  Measured why it cannot be a buffer:
+  `recovery_waits_for_another_programs_index_lock` holds `index.lock` and
+  releases it when a notice reaches the sink,
+  so a face that collected its notices waited out the ceiling and refused a
+  merge that a passed-through notice settles.
+  `index_holder_wait`'s three writing functions lose the `dyn` the same way.
+- The brief's second item,
+  `ClaimRenewal`'s `Drop`,
+  is done:
+  the end signal is a tokio oneshot,
+  `stop_awaiting` waits for the task on the runtime's timer bounded by
+  `RENEWAL_STOP_CEILING`,
+  `stop_on_the_calling_thread` enters the runtime once for the service's own
+  work thread,
+  and `Drop` sends the stop and waits for nothing.
+  `drain_pending` keeps the behaviour of that thread:
+  every exit of its loop breaks instead of returning,
+  and the stop the drop used to make is made explicitly at the end of the drain.
+  A caller that is already inside the runtime cannot make that wait
+  (`DrainEachDirectory::run`,
+  `landing/service_round.rs`,
+  runs in a job of the blocking pool),
+  so its stop is the signal only and the task ends on its own,
+  which costs nothing:
+  a renewal renames a claim only from the name it last wrote,
+  and a claim that was settled is no longer there.
+  That is the one place where the round's behaviour differs from before this
+  run,
+  and the round that awaits the stop is the landing round's own piece.
+- The brief's third item,
+  `drain_pending` as a task,
+  is not done.
+  It is not a contained change,
+  and the measurement is below.
+
+### What the round still needs, measured
+
+`drain_pending` (`landing/service_work_drain_pending_claims.rs`) interleaves
+`claim_all_of`,
+`settle_all`,
+`record_push_failure`,
+`record_push_skip`,
+`clear_push_failures_before` and `next_claim_expiry` with six handler calls on
+one thread,
+and its held claims (`held_claims`' `HeldClaims`) are borrowed by that thread
+for the whole round.
+The plan's fourth item names the two handler faces the round would call
+(`push_awaiting`,
+`maintenance_awaiting`,
+both on `GitHandlers`),
+and that list is short by one:
+`WorkHandlers::review` (`landing/service_work.rs:520`) reaches
+`review_item` (`service/service_review.rs:247`),
+which runs a contained job under `REVIEW_CEILING` and calls
+`run_on_runtime` itself (`standards_review/standards_review_client.rs:474`),
+so a round that is a task would refuse the review where it refuses a
+synchronous Git start.
+`WorkHandlers::trash` is safe there:
+`empty_trash` (`worktree/worktree_trash_dispose.rs:697`) reads a manifest and
+removes files,
+and starts no Git.
+
+So the round needs,
+in this order:
+
+- An awaited review,
+  with the contained job's wait on the runtime,
+  and a face for `review_item` beside the synchronous one.
+- The storage work of each item inside
+  `run_blocking_job_within_the_budget`,
+  with the held claim set owned by the job rather than borrowed,
+  because `claim_all_of` and `settle_all` take `&mut`/`&` of it around every
+  handler call.
+- The loop itself as a task,
+  whose stop of the renewal is `stop_awaiting`.
+
+### Checks
+
+- One selection,
+  one run,
+  in a `systemd-run --user --scope` at `CPUQuota=600%`,
+  `MemoryMax=24G` and `TasksMax=4000`,
+  with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root`:
+  `merge`,
+  `auto_push_reconcile`,
+  `auto_push`,
+  `service_work`,
+  `service_claim` and
+  `landing`:
+  1253 of 1253 passed in 32.5 s,
+  and 1261 of 1261 in 31.8 s,
+  30.9 s and 30.6 s at the merged tip
+  (`8e24183ae1`,
+  main merged at `6c0f52b543` and then at `cc31ef8afa`),
+  where the eight more are the tests main brought into these folders.
+  It is one more than the previous round's 1252:
+  the removed thread's control and the renewal control that changed are gone,
+  and three are new
+  (`a_refused_fast_forward_is_settled_inside_the_task_that_asked_for_it`,
+  `the_awaited_settle_answers_what_the_synchronous_one_answers`,
+  `dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it`).
+- `native:clippy` on every target clean
+  (`cargo clippy --locked --offline --all-targets -- -D warnings`),
+  after it refused two `clippy::implicit-return` arms of the capture's ref
+  deletion and the arms named their `return`.
+- `native:test:binary:host --no-run` builds the binary test target,
+  once at the tip and once at the merged tip.
+- `//:lint:monochromatic-lint --max-warnings 0` on every file this run touched:
+  the recovery folder's twelve files are 0 errors and 0 warnings,
+  and the merge folder's remaining findings are the debt listed above,
+  unchanged from this run's first measurement.
+- Not run:
+  the whole `native:test:host` suite,
+  `native:test:binary:host` (the target is compiled only),
+  the container gate,
+  `native:perf`
+  (nothing of this run is in a forwarded command's path)
+  and any mutation campaign (paused by the owner).
+
+### What the controls pin
+
+Two controls failed first,
+and are the measured change of the renewal's stop:
+
+- `a_running_renewal_renews_the_held_claims_until_it_is_dropped` failed with
+  "the task returned before the drop did:
+  left:
+  0,
+  right:
+  1",
+  and is now `..._until_its_stop_is_awaited`.
+- `dropping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling` failed with
+  "dropping did not wait for the task at all:
+  5.87µs",
+  and is now `stopping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling`.
+- `dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it` is new:
+  inside a task,
+  with the blocking pool kept busy,
+  the drop returns in under `SHORT_STOP_CEILING` and the task has not ended,
+  which is the behaviour the two stop faces exist for.
+
+The branch move's own control changed with the workaround it pinned:
+
+- `a_settle_whose_thread_the_system_refuses_leaves_the_record_for_the_next_command`
+  is gone with the thread,
+  and `a_refused_fast_forward_is_settled_inside_the_task_that_asked_for_it`
+  replaces it.
+  The refused `update-ref` is now settled by the recovery inside the task:
+  the merge completes,
+  the branch moves and the record goes.
+  Planted,
+  by settling through the synchronous face inside the task,
+  it fails with
+  "the refused move was settled by the recovery,
+  so the advance reports it
+  done:
+  Err(\"Git refused the fast-forward:
+  fatal:
+  update_ref failed for ref 'refs/heads/main':
+  cannot lock ref 'refs/heads/main' (the runtime that runs this command's waits
+  was asked for from inside itself,
+  where waiting for it would never end;
+  nothing was run.
+  This is a defect of monochromatic-git-policy-cli:
+  report it with the command that was run)\")".
+
+The two faces of the settle agree,
+and the synchronous one is refused in a
+task:
+
+- `the_awaited_settle_answers_what_the_synchronous_one_answers`
+  (`merge/merge_isolation_recovery_tests.rs`)
+  settles two identical fixtures,
+  one from a plain thread and one from a task,
+  and requires the same action,
+  the same notices,
+  the same branch move and the same checkout,
+  then shows the synchronous face refused from inside the runtime with
+  "was asked for from inside itself" and its record untouched.
+
+### The folder's own files and its lint
+
+`merge/merge_isolation_recovery.rs` was 463 code lines against the package's
+300 and carried three `rust/avoidable-closure` warnings,
+and
+`merge_isolation_recovery_steps.rs` had grown to 312.
+Without a suppression,
+and keeping every path the same through `pub use`:
+
+- `merge_isolation_recovery_records.rs`:
+  the records walk,
+  owner liveness and `MergeRecoveryOutcome`:
+  135 code lines.
+- `merge_isolation_recovery_carry.rs`:
+  the three carries over the person's work,
+  their refusal and the drop of the capture's ref: 107.
+- `merge_isolation_recovery_install.rs`:
+  the write of the merge into the index and the worktree,
+  with `remove_empty_parents`: 153.
+- `merge_isolation_recovery.rs` keeps the decision for one record: 252.
+- `merge_isolation_recovery_steps.rs` keeps the shared steps: 170.
+
+The three closures are `the_changes_could_not_be_read` and `the_change_of`,
+the second asked twice.
+`format:monochromatic-lint` also wrote the line breaks it wanted in
+`merge_isolation_carry.rs` (three) and `merge_isolation_changes.rs` (two).
+
+What is left in the merge folder is the debt this run did not add and did not
+clear,
+file by file,
+counted with `monochromatic-lint` on the folder at this tip:
+
+- `merge_isolation_carry_apply.rs`:
+  34 `rust/avoidable-closure` warnings and one `rust/max-lines` error
+  (537 code lines,
+  495 before this run);
+- `merge_isolation_carry.rs`:
+  6 closures;
+- `merge_isolation_carry_layers.rs`:
+  4 closures;
+- `merge_isolation_carry_parts.rs`:
+  2 closures and one line break;
+- `merge_isolation_journal.rs`:
+  1 closure;
+- `merge_isolation_apply.rs`:
+  one `rust/max-lines` error;
+- `word_merge.rs`:
+  3 line breaks.
+
+Counted the same way before this run,
+no count here is higher,
+and two are lower:
+`carry`'s three line breaks in `changes` and `carry` are gone,
+so no finding here is this run's,
+and the four the coordinator read on `merge_isolation_recovery.rs` are
+cleared.
 
 ## Limits
 

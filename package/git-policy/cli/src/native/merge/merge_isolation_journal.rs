@@ -23,6 +23,9 @@
 /// Record writers and readers.
 use crate::wrapper_names_old_and_new::MERGE_INTENT_FOLDER;
 use crate::json_record::{ObjectWriter, decode_fatal, number_equals, parse_object, safe_integer_field, string_field};
+/// The person's own work in the paths a merge changes,
+/// as the record holds it.
+use crate::merge_isolation_carry_parts::{Capture, decode, encode};
 /// The owner of a record.
 use crate::path_bytes_in_records as path_bytes;
 use crate::transaction_owner::TransactionOwner;
@@ -41,7 +44,14 @@ use std::path::{Path, PathBuf};
 pub const MERGE_INTENT_DIRECTORY: &str = MERGE_INTENT_FOLDER.current;
 
 /// Schema version of an intent record.
-pub const MERGE_INTENT_SCHEMA_VERSION: i64 = 1;
+///  Version 2 adds the capture of the person's own work in the paths the merge changes;
+/// a record of version 1 holds none,
+/// and both are read.
+pub const MERGE_INTENT_SCHEMA_VERSION: i64 = 2;
+
+/// The versions an earlier release wrote,
+/// which this one still recovers.
+pub const EARLIER_MERGE_INTENT_SCHEMA_VERSIONS: [i64; 1] = [1];
 
 /// Suffix of an intent record's file name.
 const RECORD_SUFFIX: &str = ".json";
@@ -81,6 +91,11 @@ pub struct MergeIntent {
     /// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
     /// finding 3).
     pub side_ref: Option<String>,
+    /// The person's own work in the paths the merge changes,
+    /// kept outside the checkout before the first of them is written,
+    /// or nothing for a merge whose paths held none of it
+    /// (`merge_isolation_carry_parts.rs`).
+    pub carried: Option<Capture>,
 }
 
 /// What:
@@ -141,7 +156,25 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
     if let Some(side_ref) = &intent.side_ref {
         writer.string("sideRef", side_ref.as_str());
     }
+    if let Some(carried) = &intent.carried {
+        writer.raw("carried", encode(carried).as_str());
+    }
     return format!("{}\n", writer.finish());
+}
+
+/// What:
+///  Whether a record's `schemaVersion` is one of the earlier versions this build still reads.
+/// Why:
+///   An earlier record carries the same fields,
+///  so the version it names is what decides it,
+///  never the shape of its bytes.
+fn an_earlier_schema_version(map: &serde_json::Map<String, serde_json::Value>, earlier: &[i64]) -> bool {
+    for version in earlier {
+        if number_equals(map, "schemaVersion", *version) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -156,9 +189,9 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
 /// ```
 pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
     let map: serde_json::Map<String, serde_json::Value> = parse_object(decode_fatal(bytes)?)?;
-    if !number_equals(&map, "schemaVersion", MERGE_INTENT_SCHEMA_VERSION)
-        || string_field(&map, "state")? != "merge-intent"
-    {
+    let version_readable: bool = number_equals(&map, "schemaVersion", MERGE_INTENT_SCHEMA_VERSION)
+        || an_earlier_schema_version(&map, &EARLIER_MERGE_INTENT_SCHEMA_VERSIONS);
+    if !version_readable || string_field(&map, "state")? != "merge-intent" {
         return None;
     }
     let owner_pid: i64 = safe_integer_field(&map, "ownerPid")?;
@@ -196,6 +229,11 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
             Some(name) if !name.is_empty() => Some(String::from(name)),
             _ => None,
         },
+        // A record of version 1 holds none: every path it wrote was the merge's own.
+        carried: match map.get("carried") {
+            Some(value) => Some(decode(value)?),
+            None => None,
+        },
     });
 }
 
@@ -226,24 +264,33 @@ pub fn write_merge_intent(git_dir: &Path, intent: &MergeIntent) -> std::io::Resu
 
 /// What:
 ///  Remove an intent record once the merge ended,
-/// and sync the directory.
+/// without flushing the directory.
 /// Why:
-///   A record that outlives its merge would be recovered again.
+///   A record that outlives its merge would be recovered again,
+/// and that is what the next command does with one a power loss
+///  brings back:
+/// it names a merge whose commit the branch already holds,
+/// and `settle_failed_merge` drops it as already
+///  landed,
+/// or a merge whose branch moved,
+/// which it settles as it would settle any such record.
+///  The flush was the third of the merge's fsyncs and it sat on the path the person waits for:
+/// a merge that needs no
+///  resolution took 22 to 41 seconds in a measured disk stall where real Git took 9 to 16 milliseconds
+///  (finding 1 of the merge-and-pull audit of 2026-11-09;
+/// `AGENTS.md`,
+/// `SLW`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await rm(path, { force: true }); await syncDirectory(dirname(path));
+/// await rm(path, { force: true }); // no syncDirectory: the next command settles a record this brought back
 /// ```
 pub fn remove_merge_intent(path: &Path) -> std::io::Result<()> {
-    match std::fs::remove_file(path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    }
-    if let Some(directory) = path.parent() {
-        sync_directory(directory)?;
-    }
-    return Ok(());
+    return match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    };
 }
 
 /// What:

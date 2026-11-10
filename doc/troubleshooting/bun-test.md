@@ -161,27 +161,27 @@ to isolate.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    reporter dedup that
-   swallows test output is a real defect.
-2. **Can upstream fix it?
-   ** Yes;
-    either reject duplicate titles
-   with a warning or disambiguate them in output (e.g. append
-   `#2`).
-3. **Are they supporting this use case?
-   ** `bun:test` aims to be
-   a fast jest-compatible runner;
-    jest disambiguates merged
-   suites,
-    so the gap is a compat issue.
-4. **Will they likely fix it?
-   ** Plausible;
-    Bun has accepted
-   reporter improvements in the past.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     reporter dedup that
+    swallows test output is a real defect.
+2.  **Can upstream fix it?
+    ** Yes;
+     either reject duplicate titles
+    with a warning or disambiguate them in output (e.g. append
+    `#2`).
+3.  **Are they supporting this use case?
+    ** `bun:test` aims to be
+    a fast jest-compatible runner;
+     jest disambiguates merged
+    suites,
+     so the gap is a compat issue.
+4.  **Will they likely fix it?
+    ** Plausible;
+     Bun has accepted
+    reporter improvements in the past.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  worth filing if the failure mode keeps biting,
@@ -282,25 +282,25 @@ rg 'expect\.assertions' . --type ts
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    the assertion-count
-   counter should be per-test,
-    not shared state.
-2. **Can upstream fix it?
-   ** Yes;
-    key the counter by test
-   identity.
-3. **Are they supporting this use case?
-   ** `expect.assertions`
-   is a documented jest-API surface that `bun:test` aims to
-   match.
-4. **Will they likely fix it?
-   ** Plausible;
-    the fix is
-   contained.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     the assertion-count
+    counter should be per-test,
+     not shared state.
+2.  **Can upstream fix it?
+    ** Yes;
+     key the counter by test
+    identity.
+3.  **Are they supporting this use case?
+    ** `expect.assertions`
+    is a documented jest-API surface that `bun:test` aims to
+    match.
+4.  **Will they likely fix it?
+    ** Plausible;
+     the fix is
+    contained.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  worth filing.

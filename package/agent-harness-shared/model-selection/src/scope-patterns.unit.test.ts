@@ -46,7 +46,7 @@ await describe({
   children: [
     it({
       name: 'resolves glob and literal patterns in order',
-      fn: async function testPatternOrder() {
+      fn: async function testPatternOrder(): Promise<void> {
         const result = resolveModelPatterns({
           patterns: [
             'expensive/*:high',
@@ -66,7 +66,7 @@ await describe({
     },),
     it({
       name: 'deduplicates provider/id matches',
-      fn: async function testDeduplication() {
+      fn: async function testDeduplication(): Promise<void> {
         const result = resolveModelPatterns({
           patterns: [
             'cheap/*',
@@ -79,7 +79,7 @@ await describe({
     },),
     it({
       name: 'matches glob patterns case-insensitively against slugs and ids',
-      fn: async function testCaseInsensitiveGlobMatching() {
+      fn: async function testCaseInsensitiveGlobMatching(): Promise<void> {
         /**
          Result matched through canonical provider/model slug.
          */
@@ -110,7 +110,7 @@ await describe({
     },),
     it({
       name: 'keeps expected glob syntax for model scope patterns',
-      fn: async function testExpectedGlobSyntax() {
+      fn: async function testExpectedGlobSyntax(): Promise<void> {
         /**
          Result matched through brace alternation on provider segment.
          */

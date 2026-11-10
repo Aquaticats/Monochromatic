@@ -173,7 +173,9 @@ The wrapper factories tag the intended kind:
    a `number`,
    including `NaN`,
   `Infinity`,
-  and `-Infinity`.
+  `-Infinity`,
+  and `-0`,
+  which keeps its sign as `-0.0` in the emitted document.
 - `tomlLocalDate(value)`:
    a `YYYY-MM-DD` string naming a real day.
 - `tomlLocalDateTime(value)`:
