@@ -1,5 +1,3 @@
-import { spawn as cpSpawn, } from 'node:child_process';
-import { once, } from 'node:events';
 import {
   mkdtemp,
   rm,
@@ -9,6 +7,7 @@ import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 
+import { runFfmpeg, } from './ffmpeg-runner.ts';
 import {
   log,
   reportExpectedFailure,
@@ -22,11 +21,6 @@ const l = tagged({
   l: log,
   tag: 'capture',
 },);
-
-/**
- Path to the ffmpeg binary.
- */
-const FFMPEG = '/usr/bin/ffmpeg';
 
 /**
  Maximum long-edge resolution for downscaled screenshots.
@@ -222,12 +216,8 @@ export async function captureScreenshot(): Promise<Buffer> {
       stderr: 'ignore',
     },
   );
-  /**
-   ffmpeg child process that downscales the PNG handoff file and writes JPEG bytes to stdout.
-   */
-  const proc = cpSpawn(
-    FFMPEG,
-    [
+  return runFfmpeg({
+    args: [
       '-y',
       '-i',
       handoff.pngPath,
@@ -241,35 +231,9 @@ export async function captureScreenshot(): Promise<Buffer> {
       'mjpeg',
       'pipe:1',
     ],
-    { stdio: [
-      'ignore',
-      'pipe',
-      'inherit',
-    ], },
-  );
-  /**
-   Accumulated JPEG byte chunks streamed from ffmpeg's stdout.
-   */
-  const chunks: Buffer[] = [];
-  proc.stdout
-    .on(
-    'data',
-    function collectChunk(chunk: Buffer,) {
-      chunks.push(chunk,);
-    },
-    );
-  await once(
-    proc,
-    'close',
-  );
-  /**
-   Concatenated screenshot buffer; rejected when ffmpeg produced no output.
-   */
-  const buf = Buffer.concat(chunks,);
-  if (buf.length
-    === 0)
-    throw new Error('Screenshot resize produced empty output',);
-  return buf;
+    collect: 'stdout',
+    emptyOutputMessage: 'Screenshot resize produced empty output',
+  },);
 }
 
 /**
@@ -286,13 +250,9 @@ export async function captureScreenshot(): Promise<Buffer> {
  log.debug(`Webcam: ${(webcam.length / 1024).toFixed(0)}KB`);
  ```
  */
-export async function captureWebcam(): Promise<Buffer> {
-  /**
-   ffmpeg child process that grabs a single v4l2 frame and emits JPEG bytes on stdout.
-   */
-  const proc = cpSpawn(
-    FFMPEG,
-    [
+export function captureWebcam(): Promise<Buffer> {
+  return runFfmpeg({
+    args: [
       '-f',
       'v4l2',
       '-i',
@@ -309,33 +269,7 @@ export async function captureWebcam(): Promise<Buffer> {
       'mjpeg',
       'pipe:1',
     ],
-    { stdio: [
-      'ignore',
-      'pipe',
-      'inherit',
-    ], },
-  );
-  /**
-   Accumulated JPEG byte chunks streamed from ffmpeg's stdout.
-   */
-  const chunks: Buffer[] = [];
-  proc.stdout
-    .on(
-    'data',
-    function collectChunk(chunk: Buffer,) {
-      chunks.push(chunk,);
-    },
-    );
-  await once(
-    proc,
-    'close',
-  );
-  /**
-   Concatenated webcam frame buffer; rejected when ffmpeg produced no output.
-   */
-  const buf = Buffer.concat(chunks,);
-  if (buf.length
-    === 0)
-    throw new Error('Webcam capture produced empty output',);
-  return buf;
+    collect: 'stdout',
+    emptyOutputMessage: 'Webcam capture produced empty output',
+  },);
 }
