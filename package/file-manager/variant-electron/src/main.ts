@@ -43,7 +43,6 @@ import {
   LIST_DIRECTORY_CHANNEL,
   REPORT_STATE_CHANNEL,
 } from './ipc-channels.js';
-import { ListingOutsideRootError, } from './confinement.js';
 import { listDirectory, } from './listing.js';
 
 /**
