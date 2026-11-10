@@ -30,7 +30,10 @@ import type {
   PenpotShapeType,
   Uuid,
 } from './types.ts';
-import { nextUuid, } from './uuid.ts';
+import {
+  guidKey,
+  nextUuid,
+} from './uuid.ts';
 
 /**
  Shared lookup tables threaded unchanged through the conversion recursion.
@@ -39,34 +42,46 @@ export type ConvertContext = {
   nodeByGuid: Map<string, Record<string, unknown>>;
   childrenByParent: Map<string, string[]>;
   guidToUuidMap: Map<string, Uuid>;
+  /**
+   Root frame of each page, keyed by page id.
+   */
+  rootFrames: Map<Uuid, PenpotShape>;
   shapes: Map<Uuid, PenpotShape>;
+  /**
+   Composite keys of every node that becomes a Penpot page instead of a shape.
+   */
+  pageAnchorKeys: ReadonlySet<string>;
 };
 
 /**
  Resolve a node's Penpot parent UUID from its Figma parent index.
  
+ A node's Figma parent usually becomes a shape in the same page, so its UUID is
+ the right parent. A page source (canvas or slide) does not: it becomes a Penpot
+ page, and the page's root frame is the parent its top-level shapes hang off.
+ 
  @param nc - Figma NodeChange record
  
- @param parentUuid - fallback parent when no Figma parent resolves
+ @param parentUuid - parent shape UUID supplied by the recursion
  
- @param guidToUuidMap - GUID-key to Penpot-UUID index
+ @param ctx - conversion context holding the GUID map and page anchors
  
  @returns resolved parent UUID
  
  @example
  ```ts
- const parentId = resolveParentUuid({ nc, parentUuid, guidToUuidMap, });
+ const parentId = resolveParentUuid({ nc, parentUuid, ctx, });
  ```
  */
 function resolveParentUuid(
   {
     nc,
     parentUuid,
-    guidToUuidMap,
+    ctx,
   }: Readonly<{
     nc: FigmaRecord;
     parentUuid: Uuid;
-    guidToUuidMap: ReadonlyMap<string, Uuid>;
+    ctx: ConvertContext;
   }>,
 ): Uuid {
   /**
@@ -76,11 +91,18 @@ function resolveParentUuid(
   if (parent === SKIP)
     return parentUuid;
   /**
+   GUID-key to Penpot-UUID index and the page anchors it must not resolve to.
+   */
+  const {
+    guidToUuidMap,
+    pageAnchorKeys,
+  } = ctx;
+  /**
    Composite key matching the parent entry in the GUID map.
    */
-  const parentKey = `${parent.parentGuid
-    .sessionId}:${parent.parentGuid
-      .localId}`;
+  const parentKey = guidKey(parent.parentGuid,);
+  if (pageAnchorKeys.has(parentKey,))
+    return parentUuid;
   return guidToUuidMap.get(parentKey,)
     ?? parentUuid;
 }
@@ -289,7 +311,7 @@ export function convertNode(
     parentId: resolveParentUuid({
       nc,
       parentUuid,
-      guidToUuidMap: ctx.guidToUuidMap,
+      ctx,
     },),
     frameId,
     flipX: null,
