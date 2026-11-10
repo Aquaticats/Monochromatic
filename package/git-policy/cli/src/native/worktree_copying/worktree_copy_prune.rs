@@ -154,6 +154,24 @@ fn names_checkout_marker(child_names: &[Vec<u8>]) -> bool {
 }
 
 /// What:
+///  Whether a path is the place a snapshot's leave-out makes its trash at,
+/// or anything below it.
+/// Why:
+///   Every worktree keeps that place ignored for the same reason,
+/// and the directories below it are what an add set aside,
+/// so a copy that
+///  carried them would put another command's trash inside the new worktree with no manifest that names it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesTheTrashParent = (path) => path === '.claude/cli-git-trash' || path.startsWith('.claude/cli-git-trash/');
+/// ```
+fn names_the_trash_parent(relative_path: &[u8]) -> bool {
+    let parent: &[u8] = crate::worktree_trash::TRASH_PARENT.as_bytes();
+    return relative_path == parent || (relative_path.starts_with(parent) && relative_path.get(parent.len()) == Some(&b'/'));
+}
+
+/// What:
 ///  Whether any component of a repository path begins the name of a private stage container.
 /// Why:
 ///   A stage container belongs to the one add or copy that is filling it and holds another worktree's ignored state,
@@ -210,6 +228,12 @@ impl Prune {
         // Another command's stage container is no state of the source, whatever the rule: its payload is a full copy of
         //  another worktree's ignored state, made while its own copy runs, and nothing names it in the new worktree.
         if names_a_private_stage(relative_path) {
+            return true;
+        }
+        // A trash an earlier add left is no state of the source either: the commit service empties it after that add returns,
+        //  and until then it holds directories nothing of this copy's names, so carrying it would put an unrecorded trash of
+        //  another command inside the new worktree.
+        if names_the_trash_parent(relative_path) {
             return true;
         }
         let components: Vec<&[u8]> = relative_path.split(is_separator_byte).collect();

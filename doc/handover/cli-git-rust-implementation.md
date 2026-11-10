@@ -245,7 +245,11 @@ What gave the folder that label is not known.
 
 `922fa7d1fb` merged the move tool's fixes,
 and `cargo-shadow-lean.timer` is running again.
-The old tree kept for the rollback stays until the owner deletes it.
+The old trees,
+the source snapshots and the received first-pass copies of the move were deleted on 2026-11-10,
+under the owner's "860 move:
+You delete it." and "Delete both (Recommended)".
+No rollback to the NVMe remains.
 
 #### The release gate failed on main, and what holds the next alpha (2026-11-09T14:01:48-05:00)
 

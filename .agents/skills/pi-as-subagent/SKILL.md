@@ -203,7 +203,7 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     ```sh
     # run from ~/Monochromatic
     systemd-run --user --wait --unit=pi-<task> --collect \
-      --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=10 \
+      --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=1 \
       --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" \
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
@@ -298,6 +298,12 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     fix anything wrong with further commits,
     regenerate anything `file-enforcer` owns,
     and merge a worktree's branch into `main`.
+    The owner wrote "I don't think you'd need to rerun the same lints or tests another agent did, do you?":
+    read which suites the agent's report names instead of running them again.
+    After merging `main` into the branch,
+    run only the compile or type check,
+    which is what the agent could not have run on the combined tree,
+    and skip that too when `main` was already in the branch.
 
 ## Protocol
 

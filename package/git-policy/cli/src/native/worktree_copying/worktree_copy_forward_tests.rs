@@ -464,8 +464,10 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
     assert!(timing.contains("\"prune\""), "the snapshot rung served this add, so a trash was made: {timing}");
     assert!(topic.join("node_modules/pkg/index.js").is_file(), "the ignored state a new worktree needs is carried");
     assert!(!topic.join(container.as_str()).exists(), "the other command's stage container is not in the new worktree");
-    assert!(std::fs::symlink_metadata(topic.join(crate::worktree_trash::TRASH_PARENT)).is_err(), "no trash is left in the new worktree");
-    // The target commit does not ignore `.claude/`, so anything still there would be staged by the person's next `git add --all`.
+    // The trash may stand in the new worktree until the commit service empties it: what must not happen is that the
+    //  person's next `git add --all` stages any of it, which the repository's own exclude line is what prevents here.
+    //  The target commit does not ignore `.claude/`, so anything still there would be staged without that line.
+    assert!(std::fs::symlink_metadata(topic.join(crate::worktree_trash::TRASH_PARENT)).is_ok(), "the trash stands until the service empties it, so the exclusion below is what keeps it out of the index");
     git(topic.as_path(), &["add", "--all"]);
     let staged: String = String::from_utf8(git(topic.as_path(), &["diff", "--cached", "--name-only"]).stdout).expect("utf8");
     assert!(!staged.lines().any(|path: &str| { return path.starts_with(".claude/"); }), "nothing of another command's state is staged: {staged}");

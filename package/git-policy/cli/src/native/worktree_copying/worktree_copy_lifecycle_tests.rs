@@ -7,7 +7,6 @@
 use super::*;
 use crate::worktree_copy_notices::UNKNOWN_DESTINATION_NOTICE;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
-use crate::worktree_copy_after_lock::trash_beside_repair_awaiting;
 use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pending_journals};
 use crate::test_support::dead_copy_owner;
 use std::process::Output;
@@ -345,39 +344,38 @@ fn creation_from(main: &Path, common: &Path, destination: Option<&Path>) -> Invo
     };
 }
 
-/// The disposal of a snapshot's trash runs and is joined before the add ends:
-/// what it did is recorded as work of its own,
-/// the wait for it is a step of its own,
-/// and a disposal that fails is reported instead of failing the add.
+/// What:
+///  A snapshot's trash is handed over inside the add,
+/// is still standing when the add ends,
+/// and a record under the repository's common
+///  directory names it,
+/// so the service empties it after the command returns.
+/// Why:
+///   Whether the add waits for hundreds of thousands of deletions is the whole point of the change
+/// (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`);
+/// the record is what makes the trash
+///  the service's work,
+/// and the trash that still stands is the proof that nothing deleted it here.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_the_adds() {
+fn a_snapshot_trash_is_handed_over_within_the_add_and_still_stands_when_it_ends() {
     use crate::fs_beneath::ObjectId;
     use crate::worktree_trash::TrashManifest;
-    let root: PathBuf = fixture("lifecycle-trash-disposal");
+    let root: PathBuf = fixture("lifecycle-trash-hand-over");
     let (main, common) = source(root.as_path());
-    // The trash the snapshot names is not there, so the disposal of it fails with the reason it names: a failure of
-    //  the disposal is the add's to report, never the add's to fail.
     let pending: PendingTrash = PendingTrash {
         destination: main.clone(),
-        git_dir: common.clone(),
+        common_dir: common.clone(),
         manifest: TrashManifest { name: "ab".repeat(20), trash: ObjectId { device: 7, inode: 1, birth: None }, entries: Vec::new() },
         quiet: true,
     };
     let after: AfterLock = AfterLock { source_root: None, created: Vec::new(), trash: Some(pending.clone()) };
     let invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(main.as_path()));
     let mut stderr: Vec<u8> = Vec::new();
-    crate::add_timing::begin(common.clone());
-    {
-        let stream: crate::shared_notice_stream::NoticeStream<'_> = std::sync::Mutex::new(&mut stderr);
-        crate::lazy_runtime::run_on_runtime(trash_beside_repair_awaiting(&invocation, &after, &pending, &stream)).expect("this process can build its runtime");
-    }
-    crate::add_timing::finish(0);
-    assert_eq!(stderr, Vec::<u8>::new(), "the person's stream carries the repair, and a disposal that fails says so in the log");
-    let written: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
-    let record: serde_json::Value = serde_json::from_str(written.trim_end()).expect("the record is one JSON object");
-    assert_eq!(record["work"]["disposeTrash"]["calls"], 1, "{record}");
-    assert_eq!(record["steps"]["disposeTrashWait"]["calls"], 1, "the wait is a step of its own: {record}");
+    finish_trash_and_repair(&invocation, &after, &mut stderr);
+    assert_eq!(stderr, Vec::<u8>::new(), "a quiet add says nothing, and a hand-over that fails is a warning of its own");
+    let record: PathBuf = crate::work_item::state_directory(crate::service_work::work_directory(common.as_path()).as_path(), crate::work_item::PENDING).join(format!("trash-{}", pending.manifest.name));
+    assert!(record.exists(), "the record that names the trash outlives the command: {}", record.display());
     remove(root.as_path());
 }
 
