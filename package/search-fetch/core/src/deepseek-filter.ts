@@ -8,6 +8,7 @@
  */
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 import type { LinkupWebSearchInput, } from './client.ts';
 import { dateBoundary, } from './deepseek-date.ts';
@@ -302,19 +303,6 @@ function resultUrlPathKey(result: unknown,): UrlPathKey {
     l.debug(`keeping DeepSeek result with unparsable URL: ${String(error,)}`,);
     return { found: false, };
   }
-}
-
-/**
- Return whether a value is a non-null object record.
- 
- @param value - unknown value
- 
- @returns whether the value can be read by string keys
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
 }
 
 export {

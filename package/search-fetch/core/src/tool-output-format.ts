@@ -4,6 +4,8 @@
  @module
  */
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 //region Constants
 
 /**
@@ -398,24 +400,6 @@ function hasExactOwnEnumerableKeys(
  */
 function hasMarkdownResponseProperty(value: object,): value is { readonly markdown: unknown; } {
   return MARKDOWN_RESPONSE_KEY in value;
-}
-
-/**
- Return whether value is a non-null object record.
- 
- @param value - unknown value
- 
- @returns whether value can be read by string keys
- 
- @example
- ```ts
- isRecord({});
- ```
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
 }
 
 /**

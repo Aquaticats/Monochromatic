@@ -11,6 +11,8 @@ import {
   resolve,
 } from 'node:path';
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import type {
   InstalledPackageIdentity,
 } from './installed-package-identity.ts';
@@ -75,19 +77,6 @@ const IMPLEMENTATION_SUFFIX_SET: ReadonlySet<string> = new Set(
 //region Manifest fields
 // Whether an unknown manifest field is a record, and the runtime target selected
 // from one export target.
-
-/**
- Tests whether unknown manifest field is property-bearing record.
- 
- @param value - Manifest field.
- 
- @returns whether string-keyed values can be inspected.
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object')
-    && (value !== null)
-    && (!Array.isArray(value,));
-}
 
 /**
  Selects runtime path from package export target.

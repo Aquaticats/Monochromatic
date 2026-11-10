@@ -1,5 +1,6 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 /**
  Host-suffix blocklist normalization and matching for Pi Search Fetch.
@@ -465,24 +466,6 @@ function isBlockedUrl(
 //endregion Host matching
 
 //region Search result filtering
-
-/**
- Return whether value is a non-null object record.
- 
- @param value - unknown value
- 
- @returns whether value can be read by string keys
- 
- @example
- ```ts
- isRecord({});
- ```
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
-}
 
 /**
  Return a Linkup result URL from an arbitrary result value.

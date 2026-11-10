@@ -8,6 +8,7 @@
  */
 
 import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/caught-value-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 import {
   FIGMA_EXPORT_FIXTURES,
@@ -292,25 +293,6 @@ function logNodePreview({ nodeChanges, }: { readonly nodeChanges: readonly unkno
 function fail({ message, }: { readonly message: string; },): VerifyResult {
   console.error(`  FAIL: ${message}`,);
   return { ok: false, };
-}
-
-/**
- Returns whether value is a non-array record.
- 
- @param value - Candidate value.
- 
- @returns Whether value is a record.
- 
- @example
- ```ts
- isRecord({});
- // true
- ```
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object')
-    && (value !== null)
-    && (!Array.isArray(value,));
 }
 
 /**

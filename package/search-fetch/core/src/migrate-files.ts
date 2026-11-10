@@ -17,6 +17,8 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import { CONFIG_JSON_INDENT_SPACES, } from './config-constants.ts';
 
 //region Constants
@@ -556,19 +558,6 @@ export async function fileMode(path: string,): Promise<number> {
 //endregion Writes
 
 //region Helpers
-
-/**
- Return whether value is a non-null object record.
- 
- @param value - unknown value
- 
- @returns whether value is a record
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
-}
 
 /**
  Return whether a filesystem error is a missing-file error.

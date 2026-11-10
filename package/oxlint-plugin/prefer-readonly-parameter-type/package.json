@@ -22,6 +22,7 @@
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "@types/node": "catalog:",
     "nano-spawn": "catalog:",
     "rolldown": "catalog:",

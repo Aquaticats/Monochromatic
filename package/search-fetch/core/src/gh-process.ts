@@ -10,6 +10,7 @@ import { promisify, } from 'node:util';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 import type {
   GhCommandNotRan,
@@ -596,24 +597,6 @@ function toBuffer(value: unknown,): Buffer {
       'utf8',
     );
   return Buffer.alloc(0,);
-}
-
-/**
- Return whether one value can be read by string keys.
- 
- @param value - unknown rejection payload
- 
- @returns whether value is a non-null, non-array object
- 
- @example
- ```ts
- isRecord(new Error('failed'));
- ```
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
 }
 
 //endregion Failure inspection

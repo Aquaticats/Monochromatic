@@ -4,6 +4,8 @@
  @module
  */
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import {
   areOmissionReasons,
   type EffectSummaryOmissionReason,
@@ -91,19 +93,6 @@ export type PersistentEffectDependencyState = {
 //region JSON record predicates
 // Whether a parsed JSON value is a record at all, and whether every value in it
 // is a string.
-
-/**
- Tests whether unknown JSON value is property-bearing record.
- 
- @param value - Parsed JSON value.
- 
- @returns whether value can be inspected by string key.
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object')
-    && (value !== null)
-    && (!Array.isArray(value,));
-}
 
 /**
  Tests whether unknown JSON value is string-to-string record.

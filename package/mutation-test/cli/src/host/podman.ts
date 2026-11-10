@@ -22,7 +22,7 @@ import {
   SOURCE_MOUNT,
   WORK_MOUNT,
 } from '../mounts.ts';
-import { isRecord, } from '../is-record.ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 import {
   SHARD_SCHEMA_VERSION,
   type ShardReport,

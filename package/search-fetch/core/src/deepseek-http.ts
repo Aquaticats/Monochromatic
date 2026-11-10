@@ -6,6 +6,7 @@
 
 import { caughtValueText as errorMessage, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 import {
   AUTHORIZATION_HEADER,
@@ -329,19 +330,6 @@ function deepseekErrorMessage(responseText: string,): string {
     l.debug(`ignoring unparsable DeepSeek error response body: ${String(error,)}`,);
     return '';
   }
-}
-
-/**
- Return whether a value is a non-null object record.
- 
- @param value - unknown value
- 
- @returns whether the value can be read by string keys
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
 }
 
 export {

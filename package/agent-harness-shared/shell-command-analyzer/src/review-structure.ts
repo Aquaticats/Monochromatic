@@ -3,6 +3,7 @@
  */
 import { parse, } from 'unbash';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 //region Syntax projection retains operations while keeping source archives local.
 /**
@@ -64,18 +65,6 @@ const structuralFields: ReadonlySet<string> = new Set([
   'elements',
   'script',
 ]);
-
-/**
- Narrow parser records before selecting structural fields.
- 
- @param value - parser-owned node or scalar
- 
- @returns whether fields can be inspected
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return (value !== null) && ((typeof value) === 'object')
-    && (!Array.isArray(value));
-}
 
 /**
  Project materialized parser nodes without duplicated raw scripts.

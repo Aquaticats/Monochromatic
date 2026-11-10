@@ -12,6 +12,8 @@ import {
   join,
 } from 'node:path';
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import {
   OpenSnitchConfigError,
   isErrnoException,
@@ -60,26 +62,6 @@ export type OpenSnitchState = {
    */
   readonly ports: readonly number[];
 };
-
-/**
- Reports non-null JSON object.
- 
- @param value - Unknown parsed value.
- 
- @returns Whether value has object shape.
- 
- @example
- ```ts
- isRecord({ Version: 1 });
- ```
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  if ((typeof value) !== 'object')
-    return false;
-  if (value === null)
-    return false;
-  return !Array.isArray(value,);
-}
 
 /**
  Resolves interface-specific lifecycle-state path.

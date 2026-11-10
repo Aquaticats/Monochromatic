@@ -770,6 +770,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       unbash:
         specifier: 'catalog:'
         version: 6.0.4
@@ -1146,6 +1149,9 @@ importers:
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@optique/core':
         specifier: 'catalog:'
         version: 1.3.6
@@ -1480,6 +1486,9 @@ importers:
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -1737,6 +1746,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       yaml:
         specifier: 'catalog:'
         version: 3.0.0-2
@@ -2210,6 +2222,9 @@ importers:
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2528,6 +2543,9 @@ importers:
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3169,6 +3187,9 @@ importers:
       '@monochromatic-dev/test-harness-core-matrix':
         specifier: workspace:*
         version: link:../../test-harness/core-matrix
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@optique/core':
         specifier: 'catalog:'
         version: 1.3.6
@@ -3289,6 +3310,9 @@ importers:
       '@monochromatic-dev/numeric-format-core':
         specifier: workspace:*
         version: link:../../numeric-format/core
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@optique/core':
         specifier: 'catalog:'
         version: 1.3.6
@@ -3489,6 +3513,9 @@ importers:
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3973,6 +4000,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       ignore:
         specifier: 'catalog:'
         version: 7.0.14
@@ -4032,6 +4062,9 @@ importers:
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -4603,6 +4636,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       nano-spawn:
         specifier: 'catalog:'
         version: 2.1.0
@@ -4704,6 +4740,9 @@ importers:
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -5177,6 +5216,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
       toml-eslint-parser:
         specifier: 'catalog:'
         version: 1.0.3
@@ -8099,6 +8141,10 @@ importers:
         version: 1.6.0
 
   package/upstream-fork/deepmerge-ts.fuzz:
+    dependencies:
+      '@monochromatic-dev/type-guard-core':
+        specifier: workspace:*
+        version: link:../../type-guard/core
     devDependencies:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*

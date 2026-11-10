@@ -10,6 +10,8 @@
  @module
  */
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import type { TomlWrappedInput, } from '../index.ts';
 
 import type { TaggedType, } from './tagged-types.ts';
@@ -27,23 +29,6 @@ const TAG_NAMES: ReadonlySet<string> = new Set<TaggedType>([
   'date-local',
   'time-local',
 ],);
-
-/**
- Test whether `value` is a plain object record (not an array, not null).
- 
- @param value - Arbitrary parsed JSON node.
- 
- @returns True when `value` is a non-array object.
- 
- @example
- ```ts
- isRecord({ a: 1, }); // true
- ```
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
 
 /**
  Test whether a record is a tagged scalar rather than a table.

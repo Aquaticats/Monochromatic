@@ -20,6 +20,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 import {
   compareRecency,
   decideRetirements,
@@ -53,22 +54,6 @@ type TallyFields = {
 //endregion Types
 
 //region Guards
-
-/**
- Test whether an unknown value is a plain object record.
-
- @param value - parsed JSON value
-
- @returns whether the value can be read by key
-
- @example
- ```typescript
- isRecord({}); // true
- ```
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return ((typeof value) === 'object') && (value !== null) && (!Array.isArray(value,));
-}
 
 /**
  Test whether an unknown value is one catalog model record.

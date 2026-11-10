@@ -37,6 +37,7 @@
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-terminal-title": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-shell-command-analyzer": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "@optique/core": "catalog:",
     "@optique/run": "catalog:",
     "type-fest": "catalog:"

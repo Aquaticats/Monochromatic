@@ -35,6 +35,7 @@
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@monochromatic-dev/test-harness-core-matrix": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "@optique/core": "catalog:",
     "@optique/run": "catalog:",
     "nano-spawn": "catalog:",

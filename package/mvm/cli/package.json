@@ -35,6 +35,7 @@
     "@monochromatic-dev/const-core": "workspace:*",
     "@monochromatic-dev/numeric-format-core": "workspace:*",
     "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "nano-spawn": "catalog:",
     "@optique/core": "catalog:",
     "@optique/run": "catalog:",

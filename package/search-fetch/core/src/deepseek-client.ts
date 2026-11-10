@@ -6,6 +6,7 @@
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 import type {
   FetchOptions,
@@ -275,19 +276,6 @@ async function fetchDeepseek(
       `DeepSeek ${DEEPSEEK_FETCH_ENDPOINT} returned no page content for ${input.url}`,
     );
   return { markdown: content, };
-}
-
-/**
- Return whether a value is a non-null object record.
- 
- @param value - unknown value
- 
- @returns whether the value can be read by string keys
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
 }
 
 //endregion Client factory

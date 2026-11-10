@@ -32,6 +32,8 @@ import { constants, } from 'node:os';
 import { join, } from 'node:path';
 import { text, } from 'node:stream/consumers';
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import {
   guestFileCommand,
   isFileCommand,
@@ -101,18 +103,6 @@ type Outcome = {
 //endregion Shapes
 
 //region Reading untyped JSON
-
-/**
- Checks that a parsed JSON value is an object with string keys.
-
- @param value - Parsed JSON value
-
- @returns Whether `value` is a non-array object
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
 
 /**
  Checks that a parsed JSON value is a number or absent.

@@ -9,22 +9,7 @@
  @module
  */
 
-/**
- Whether a parsed JSON value is an object with string keys.
-
- @param value - Parsed JSON value.
-
- @returns True for non-array objects.
-
- @example
- ```ts
- isRecord(JSON.parse('{}',),); // true
- ```
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 /**
  One position in a source file, as Stryker records it.

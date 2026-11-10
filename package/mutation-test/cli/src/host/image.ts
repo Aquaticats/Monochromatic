@@ -174,10 +174,6 @@ export async function imageReference(options: {
       options.repoRoot,
       'package/mutation-test/cli/src/mounts.ts',
     ),
-    join(
-      options.repoRoot,
-      'package/mutation-test/cli/src/is-record.ts',
-    ),
   ]
     .filter(function keepRuntime(file,): boolean {
       return !file.endsWith('.test.ts',);

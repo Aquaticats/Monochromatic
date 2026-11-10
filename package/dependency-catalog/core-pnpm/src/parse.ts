@@ -6,6 +6,7 @@
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 import { parse as parseYaml, } from 'yaml';
 
 import {
@@ -24,27 +25,6 @@ import type {
  Logger used for rejected catalog entries and malformed optional blocks.
  */
 const logger = tagged({ tag: 'pnpm-workspace-catalog', },);
-
-/**
- Reports whether `value` is a non-array object suitable for YAML mappings.
- 
- @param value - parsed YAML value to inspect
- 
- @returns whether `value` can be read as a string-keyed mapping
- 
- @example
- ```ts
- isRecord({ catalog: {}, }); // true
- isRecord([]); // false
- ```
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  if ((typeof value) !== 'object')
-    return false;
-  if (value === null)
-    return false;
-  return !Array.isArray(value,);
-}
 
 /**
  Creates a map with no inherited properties.

@@ -19,6 +19,8 @@
  @module
  */
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import type {
   ParsedChange,
   ParsedCommit,
@@ -444,23 +446,6 @@ export function serializeCommitShapeTrace(trace: CommitShapeTrace,): string {
     '}',
     '',
   ].join('\n',);
-}
-
-/**
- Reports whether a value is a plain object whose fields can be read.
-
- @param value - parsed JSON
-
- @returns whether fields can be inspected
-
- @example
- ```ts
- isRecord({}); // => true
- ```
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
 }
 
 /**

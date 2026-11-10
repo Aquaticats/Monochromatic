@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 
 import { caughtValueText } from '@monochromatic-dev/caught-value-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 import { registryFileName } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
@@ -52,23 +53,6 @@ const entryKeys: readonly string[] = [
   'checkBins',
   'lockDirs',
 ];
-
-/**
- Check that a value is a plain object.
-
- @param value - value under test
-
- @returns true for objects other than null and arrays
-
- @example
- ```ts
- isRecord({});
- ```
- */
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value));
-}
 
 /**
  Parse the registry file's text as JSON.

@@ -28,7 +28,7 @@ import { pathToFileURL, } from 'node:url';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { isRecord, } from '../is-record.ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 import {
   MANIFEST_MOUNT,
   REPORT_MOUNT,

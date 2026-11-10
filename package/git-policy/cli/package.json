@@ -16,6 +16,7 @@
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "@types/node": "catalog:"
   },
   "version": "0.0.1",

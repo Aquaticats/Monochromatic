@@ -20,6 +20,7 @@
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "toml-eslint-parser": "catalog:"
   },
   "devDependencies": {

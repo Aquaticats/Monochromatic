@@ -7,6 +7,7 @@
 import { basename, } from 'node:path';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 import {
   CONFIG_KEY_SET,
@@ -353,19 +354,6 @@ function schemaError(
   },
 ): Error {
   return new Error(`${basename(configPath,)} schema validation failed at ${configPath}: ${reason}`,);
-}
-
-/**
- Return whether value is a non-null object record.
- 
- @param value - unknown value
- 
- @returns whether value can be read by string keys
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
 }
 
 /**

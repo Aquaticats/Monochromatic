@@ -1,6 +1,8 @@
 import { readFile, } from 'node:fs/promises';
 import { isAbsolute, } from 'node:path';
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import {
   OpenSnitchConfigError,
   isErrnoException,
@@ -35,26 +37,6 @@ export const OPENSNITCH_CONFIG_ENVIRONMENT = 'WG_QUICKER_OPENSNITCH_SYSTEM_FIREW
  Sentinel indicating OpenSnitch daemon config is absent.
  */
 export const OPENSNITCH_DAEMON_CONFIG_ABSENT: unique symbol = Symbol('OpenSnitch daemon config absent',);
-
-/**
- Reports non-null JSON object.
- 
- @param value - Unknown JSON value.
- 
- @returns Whether value is record-like.
- 
- @example
- ```ts
- isRecord({ Firewall: 'nftables' });
- ```
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  if ((typeof value) !== 'object')
-    return false;
-  if (value === null)
-    return false;
-  return !Array.isArray(value,);
-}
 
 /**
  Requires configured path to have process-independent meaning.

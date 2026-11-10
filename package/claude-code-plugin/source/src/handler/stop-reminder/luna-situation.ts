@@ -21,6 +21,7 @@
  */
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 /**
  Module logger for the Luna sender.
@@ -369,23 +370,6 @@ type SituationVerdict = {
    */
   readonly probabilities: Readonly<Record<Situation, number>>;
 };
-
-/**
- Narrows a value to a plain object.
-
- @param value - parsed JSON node
-
- @returns whether `value` is a non-null, non-array object
-
- @example
- ```ts
- isRecord({ a: 1 }); // true
- ```
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
 
 /**
  Narrows a string to a known situation label.

@@ -5,6 +5,9 @@
   "type": "module",
   "version": "0.0.0",
   "private": true,
+  "dependencies": {
+    "@monochromatic-dev/type-guard-core": "workspace:*"
+  },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",

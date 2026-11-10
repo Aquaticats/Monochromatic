@@ -25,6 +25,7 @@
     "@monochromatic-dev/env-local-json-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "nano-spawn": "catalog:",
     "type-fest": "catalog:",
     "typebox": "catalog:",

@@ -19,6 +19,7 @@
     "@monochromatic-dev/git-executable-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "unbash": "catalog:"
   },
   "devDependencies": {

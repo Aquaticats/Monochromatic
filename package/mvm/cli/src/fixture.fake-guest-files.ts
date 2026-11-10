@@ -40,6 +40,8 @@ import {
   join,
 } from 'node:path';
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 //region Shapes
 
 /**
@@ -232,18 +234,6 @@ function numberArgument({
  Ending of a handle's state file name; the rest of the name is the handle number.
  */
 const HANDLE_FILE_SUFFIX = '.json';
-
-/**
- Checks that a parsed JSON value is an object with string keys.
-
- @param value - Parsed JSON value
-
- @returns Whether `value` is a non-array object
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
 
 /**
  Path of the file holding one handle's state.

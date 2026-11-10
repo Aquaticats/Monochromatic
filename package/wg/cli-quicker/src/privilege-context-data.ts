@@ -1,5 +1,7 @@
 import { homedir, } from 'node:os';
 
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
+
 import { PrivilegeError, } from './errors.ts';
 
 /**
@@ -49,26 +51,6 @@ const ALLOWED_ENVIRONMENT_KEYS = new Set([
   'WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG',
   'XDG_CACHE_HOME',
 ],);
-
-/**
- Reports non-null object suitable for property validation.
- 
- @param value - Unknown JSON value.
- 
- @returns Whether value is record-like.
- 
- @example
- ```ts
- isRecord({ version: 1 });
- ```
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  if ((typeof value) !== 'object')
-    return false;
-  if (value === null)
-    return false;
-  return !Array.isArray(value,);
-}
 
 /**
  Reports positive safe integer UID.

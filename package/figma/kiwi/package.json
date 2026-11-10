@@ -47,6 +47,7 @@
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/type-guard-core": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

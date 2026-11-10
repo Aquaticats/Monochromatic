@@ -23,6 +23,7 @@ import {
 import { text, } from 'node:stream/consumers';
 import { fileURLToPath, } from 'node:url';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 //region Constants
 
@@ -285,23 +286,6 @@ export async function removeDisposableHome(
 //endregion Host setup
 
 //region Output parsing
-
-/**
- Test whether an unknown value is a plain object record.
-
- @param value - parsed JSON value
-
- @returns whether the value can be read by key
-
- @example
- ```typescript
- isRecord({}); // true
- ```
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
 
 /**
  Parse one stderr line, keeping the failure text instead of discarding it.

@@ -1,4 +1,5 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 
 /**
  Module logger for reading the table listing of `nft`.
@@ -9,23 +10,6 @@ const l = tagged({ tag: 'tunnel-traffic-block-listing', },);
  What a listing of the nft tables shows about one table.
  */
 export type TablePresence = 'present' | 'absent' | 'unknown';
-
-/**
- Reports whether a value is a non-null object.
-
- @param value - Parsed JSON value.
-
- @returns Whether it is an object whose fields can be read.
-
- @example
- ```ts
- isRecord({ table: {} }); // true
- ```
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
 
 /**
  Reports whether a listing entry is the table of the given family and name.

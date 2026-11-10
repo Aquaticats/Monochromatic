@@ -9,6 +9,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { isRecord, } from '@monochromatic-dev/type-guard-core/ts';
 import {
   fakeExtensionToolContext,
 } from './extension-tool-context-fixture.ts';
@@ -871,19 +872,6 @@ function resultUrl(value: unknown,): string {
   if ((!isRecord(value,)) || ((typeof value.url) !== 'string'))
     throw new Error('result did not contain url',);
   return value.url;
-}
-
-/**
- Return whether value is a non-null object record.
- 
- @param value - unknown value
- 
- @returns whether value can be read by string keys
- */
-function isRecord(value: unknown,): value is Record<string, unknown> {
-  return (value !== null)
-    && ((typeof value) === 'object')
-    && (!Array.isArray(value,));
 }
 
 //endregion Helpers
