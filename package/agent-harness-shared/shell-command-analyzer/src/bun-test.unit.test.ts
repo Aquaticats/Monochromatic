@@ -88,10 +88,40 @@ await describe({
           },
         },),
         it({
+          name: 'detects bun test a wrapper joins into shell source',
+          fn: async function testBunTestJoinedByWrapper() {
+            expect(invokesBunTest('eval "bun test"',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'detects bun test in a command that fails to parse',
+          fn: async function testBunTestInUnparsableCommand() {
+            expect(invokesBunTest('bun test "unterminated',),).toBe(true,);
+            expect(invokesBunTest('bun test $(echo ',),).toBe(true,);
+            expect(invokesBunTest('bun --cwd /tmp test "unterminated',),).toBe(true,);
+            expect(invokesBunTest('cd x && bun test "unterminated',),).toBe(true,);
+            expect(invokesBunTest('echo $(bun test',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'detects bun test behind a wrapper in a command that fails to parse',
+          fn: async function testWrappedBunTestInUnparsableCommand() {
+            expect(invokesBunTest('env bun test "unterminated',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'allows prose containing bun test in a command that fails to parse',
+          fn: async function testUnparsableProseAllowed() {
+            expect(invokesBunTest('echo "bun test',),).toBe(false,);
+            expect(invokesBunTest('printf bun test',),).toBe(false,);
+          },
+        },),
+        it({
           name: 'allows a test word a known bun subcommand owns',
           fn: async function testTestWordUnderKnownSubcommand() {
             expect(invokesBunTest('env bun run test',),).toBe(false,);
             expect(invokesBunTest('bun install test',),).toBe(false,);
+            expect(invokesBunTest('env bun run test "unterminated',),).toBe(false,);
           },
         },),
       ],

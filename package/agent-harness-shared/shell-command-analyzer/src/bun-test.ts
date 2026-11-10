@@ -7,6 +7,7 @@
 import { analyzeShellCommand, } from './analyzer.ts';
 import { isBunTestCommandLine, } from './bun-test-command-line.ts';
 import { unwrapWrappers, } from './command-wrapper-words.ts';
+import { rawCommandWordRuns, } from './raw-command-word-runs.ts';
 
 //region Constants
 
@@ -46,6 +47,10 @@ const BUN_TEST_BAN_REASON: string = [
  and `bun` global options are read so `bun --cwd /tmp test` does not hide `test` behind
  an option value.
  
+ A command the parser rejects is read from its raw words instead of answering "no":
+ the visible text is the only evidence there is, and a guard that reads nothing from an
+ unparsable command lets `bun test "\`unterminated\`"` through.
+ 
  @param command - shell command from agent harness Bash tool input
  
  @returns whether command contains `bun test`
@@ -62,7 +67,7 @@ function invokesBunTest(command: string,): boolean {
    */
   const analysis = analyzeShellCommand(command,);
   if (!analysis.parsed)
-    return false;
+    return rawTextInvokesBunTest({ source: command, },);
 
   return analysis.commands
     .some(function commandIsBunTest(info,): boolean {
@@ -75,9 +80,65 @@ function invokesBunTest(command: string,): boolean {
           ...info.args,
         ],
       },);
+      if (isBunTestCommandLine({ words: wrapped.words, },))
+        return true;
 
-      return isBunTestCommandLine({ words: wrapped.words, },);
+      return wrapped.payloads
+        .some(function payloadIsBunTest(payload,): boolean {
+          return rawTextInvokesBunTest({ source: payload, },);
+        },);
     },);
+}
+
+/**
+ Checks whether shell source text holds a command line that runs `bun test`.
+ 
+ Reads raw words only, so it serves both an unparsable command and the command lines
+ wrappers such as `eval` join into shell source. A work list rather than recursion keeps
+ the walk flat, because each payload is itself a command line that may carry wrappers again.
+ 
+ @param source - shell source text to read
+ 
+ @returns whether any command position in the text spells `bun test`
+ 
+ @example
+ ```ts
+ rawTextInvokesBunTest({ source: 'env bun test "' }); // true
+ ```
+ */
+function rawTextInvokesBunTest({ source, }: { readonly source: string; },): boolean {
+  /**
+   Command lines still to read, the outer source text first.
+   */
+  const pending: string[] = [source,];
+  /**
+   Command lines already read, so a wrapper repeating its own text ends the walk.
+   */
+  const read = new Set<string>();
+
+  while (pending.length > 0) {
+    /**
+     Command line popped from the work list.
+     */
+    const current = pending.pop();
+    if (current === undefined)
+      break;
+    if (read.has(current,))
+      continue;
+    read.add(current,);
+
+    for (const words of rawCommandWordRuns({ source: current, },)) {
+      /**
+       Innermost program words of this run, with its wrapper layers stripped.
+       */
+      const wrapped = unwrapWrappers({ words, },);
+      if (isBunTestCommandLine({ words: wrapped.words, },))
+        return true;
+      pending.push(...wrapped.payloads,);
+    }
+  }
+
+  return false;
 }
 
 //endregion Predicates
