@@ -10,6 +10,9 @@
  */
 
 import {
+  spawn as spawnProcess,
+} from 'node:child_process';
+import {
   readFileSync,
 } from 'node:fs';
 import {
@@ -64,6 +67,20 @@ const TASK_RUN_PREFIX = 'run = "bun src/';
  Signal the test sends a fixture that outlives its deadline.
  */
 const STOP_SIGNAL: NodeJS.Signals = 'SIGKILL';
+
+/**
+ What `String.prototype.indexOf` returns when the searched text is absent.
+ */
+const NOT_FOUND_INDEX = -1;
+
+/**
+ Shell script that runs a fixture with core dumps disabled.
+ `abort.ts` raises SIGABRT, and under the default limit every run leaves a
+ 1.3 MB compressed core in the system coredump store, measured on 2026-11-09.
+ `exec` replaces the shell, so the fixture's own exit code and signal are what
+ the test observes.
+ */
+const FIXTURE_COMMAND = 'ulimit -c 0; exec bun "$1"';
 
 //endregion Constants
 
@@ -168,6 +185,9 @@ type FixtureRun = {
 /**
  Runs one fixture under Bun until it ends or its deadline passes.
 
+ The child runs with core dumps disabled, so a fixture that aborts leaves
+ nothing behind in the system coredump store.
+
  @param options - fixture to run and how long it may live
 
  @returns exit code or signal that ended the run, its output, and its lifetime
@@ -186,10 +206,12 @@ async function runFixture(
     readonly deadlineMilliseconds: number;
   },
 ): Promise<FixtureRun> {
+  const fixturePath = fixturePathOf(fileName,);
   try {
     const result = await spawn(
-      'bun',
-      [fileURLToPath(new URL(fileName, FIXTURE_DIRECTORY_URL,),),],
+      'sh',
+      // The name the shell takes as `$0`; the fixture arrives as `$1`.
+      ['-c', FIXTURE_COMMAND, 'sh', fixturePath,],
       {
         cwd: FIXTURE_DIRECTORY,
         killSignal: STOP_SIGNAL,
@@ -240,6 +262,64 @@ function allocationUnits(stdout: string,): readonly string[] {
   return [...new Set(unitWords,),];
 }
 
+/**
+ Resolves a fixture file name to its path.
+
+ @param fileName - file name under `src/`
+
+ @returns absolute path to the fixture
+
+ @example
+ ```ts
+ fixturePathOf('abort.ts');
+ ```
+ */
+function fixturePathOf(fileName: string,): string {
+  return fileURLToPath(new URL(fileName, FIXTURE_DIRECTORY_URL,),);
+}
+
+/**
+ Reads the first line `oom.ts` prints, then stops it.
+
+ Bounding on that line rather than on a fixed wait keeps the check independent of
+ how much CPU the host gives the fixture, and it stops the allocation after one
+ chunk instead of after a second of them. The abort signal stops a fixture that
+ never prints, so a silent run fails instead of running on.
+
+ @returns the first line the fixture wrote to standard output
+ */
+async function firstAllocationLine(): Promise<string> {
+  const child = spawnProcess(
+    'sh',
+    ['-c', FIXTURE_COMMAND, 'sh', fixturePathOf('oom.ts',),],
+    {
+      cwd: FIXTURE_DIRECTORY,
+      killSignal: STOP_SIGNAL,
+      signal: AbortSignal.timeout(EXIT_DEADLINE_MILLISECONDS,),
+      stdio: ['ignore', 'pipe', 'ignore',],
+    },
+  );
+  const { stdout, } = child;
+  if (stdout === null) {
+    throw new Error('The fixture subprocess has no standard output pipe',);
+  }
+  stdout.setEncoding('utf8',);
+  return await new Promise<string>(function settleOnFirstLine(resolve, reject,) {
+    const chunks: string[] = [];
+    child.once('error', reject,);
+    stdout.on('data', function collectLine(chunk: string,) {
+      chunks.push(chunk,);
+      const buffered = chunks.join('',);
+      const lineEnd = buffered.indexOf('\n',);
+      if (lineEnd === NOT_FOUND_INDEX) {
+        return;
+      }
+      child.kill(STOP_SIGNAL,);
+      resolve(buffered.slice(0, lineEnd,),);
+    },);
+  },);
+}
+
 //endregion Helpers
 
 await describe({
@@ -282,11 +362,8 @@ await describe({
       name: 'oom.ts reports every allocation in mebibytes',
       timeout: EXIT_DEADLINE_MILLISECONDS,
       fn: async () => {
-        const run = await runFixture({
-          fileName: 'oom.ts',
-          deadlineMilliseconds: HANG_BOUND_MILLISECONDS,
-        },);
-        expect(allocationUnits(run.stdout,),).toEqual(['MiB',],);
+        const line = await firstAllocationLine();
+        expect(allocationUnits(line,),).toEqual(['MiB',],);
       },
     },),
     it({
