@@ -11360,6 +11360,26 @@ A commit Git built without an editor is built again on the new tip,
 signed again by Git,
 while the time since its first build is under the ceiling;
 one built after an editor keeps the typed message in a file and is built again from it under the same ceiling.
+A line whose editor ran keeps everything else it borrowed as well,
+so a rebuild asks the terminal nothing and invents nothing
+(`reissued_arguments` in `service_commit_line_reissued.rs`):
+the message is read from the saved file (`-F`),
+the authorship `-c`,
+`-C`,
+`--reuse-message` or `--reedit-message` took from another commit is read back from the commit Git built and passed as
+`--author` and `--date`,
+and a `--fixup` or `--squash` option goes because the message it built is in the file.
+A selection the person made with `--patch`,
+`--interactive` or `--include` is already in the private index,
+so the rebuild keeps that tree and carries no selection option at all.
+A `--fixup=reword:` commit is refused with its message saved and the command to run again:
+Git throws the index away for that option,
+so its commit is the branch's own tree and the change this preparation captured is not the change it would make.
+A commit prepared on a branch that did not exist yet has no parent it must keep:
+the change it captured is a whole root tree,
+and its base is the empty tree (`Captured::unborn` in `service_replay.rs`),
+which the replay merges from and leaves out of the histories it reads,
+so such a commit lands on the branch another session created in the window.
 A commit that concludes a merge,
 a cherry-pick or a revert depends on the state the worktree holds and not on the tip,
 so it is built again the same way:

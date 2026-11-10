@@ -232,10 +232,14 @@ pub struct Ready {
     /// a cherry-pick or a revert.
     pub cleanup: Option<Cleanup>,
     /// Whether the person chose what to commit interactively,
-    /// so that a moved branch cannot be answered by choosing again.
+    /// so that a rebuild keeps the private index holding that choice and asks no selection option again.
     pub interactive: bool,
-    /// Whether a moved branch makes another build on the new tip meaningless (a conclusion,
-    /// a branch that did not exist).
+    /// Whether a moved branch makes another build on the new tip meaningless (a conclusion).
+    /// Why:
+    ///   A conclusion's parents come from the state the worktree holds,
+    ///  so the same build makes it on the tip as it is now;
+    ///  a branch that did not exist is not one of these, because the change captured against it is a whole root tree
+    ///  that the replay puts on the branch as it is now.
     pub fixed_parents: bool,
     /// When the worktree's bytes were captured (`service_replay::capture_stamp`);
     /// a retry keeps the first capture's stamp.

@@ -161,9 +161,8 @@ fn stamps_by_commit(landed: &[LandedCapture]) -> HashMap<&str, u64> {
 /// ```
 fn history_arguments<'a>(tip: &'a str, exclusion: Option<&'a str>) -> Vec<&'a str> {
     let mut words: Vec<&'a str> = vec!["log", "-m", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", "--format=%H", tip];
-    match exclusion {
-        Some(left_out) => words.push(left_out),
-        None => {}
+    if let Some(left_out) = exclusion {
+        words.push(left_out);
     }
     return words;
 }

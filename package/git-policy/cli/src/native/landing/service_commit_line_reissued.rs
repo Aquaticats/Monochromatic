@@ -224,9 +224,8 @@ fn without_settled_options(region: &[String], interactive: bool, borrowed: Optio
             continue;
         }
         if interactive && token.starts_with('-') && !token.starts_with("--") && token.len() > 1 {
-            match without_selection_letters(token.as_str()) {
-                Some(cluster) => kept.push(cluster),
-                None => {}
+            if let Some(cluster) = without_selection_letters(token.as_str()) {
+                kept.push(cluster);
             }
             state = kept_after(token.as_str());
             continue;

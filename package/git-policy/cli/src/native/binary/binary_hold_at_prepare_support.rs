@@ -161,8 +161,8 @@ pub(super) fn held_commit(fixture: &Fixture, repo: &Path, name: &str, markers: &
         }
         return all;
     });
-    let hold: IdleHold = hold_idle_judgment(child.id());
-    return Held { child, stderr: Some(reader), markers: markers.to_path_buf(), hold: Some(hold) };
+    let idle: IdleHold = hold_idle_judgment(child.id());
+    return Held { child, stderr: Some(reader), markers: markers.to_path_buf(), hold: Some(idle) };
 }
 
 /// Waits until the commit is held at the marker between its preparation and its landing,
