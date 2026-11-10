@@ -8,7 +8,9 @@
  interpolation at every site that needs it.
 
  The counts are relations rather than numbers: the predicate has exactly as many readers as the file has test-tree
- walkers, and the cap has exactly as many readers as the file has task-list reads.
+ walkers, and the cap has exactly as many readers as the file has task-list reads. The unit-test exemption list is
+ counted the same way, because a second copy of it, or a `test:unit` template that stopped reading it, would leave an
+ exemption declared and never honoured.
  */
 
 import {
@@ -49,6 +51,16 @@ const inactivityDeclaration = 'const isInactiveTest = ';
  The declaration of the stdout cap.
  */
 const bufferDeclaration = 'const MISE_TASKS_JSON_MAX_BUFFER = ';
+
+/**
+ The shared snippet that declares the packages whose trees hold no unit test file.
+ */
+const exemptionSnippet = '{{vars.unit_test_exempt_packages}}';
+
+/**
+ The declaration of the unit-test exemption list.
+ */
+const exemptionDeclaration = 'const unitTestExemptPackages = new Map([';
 
 /**
  Text that starts every task-list read whose output needs the raised cap.
@@ -121,6 +133,15 @@ await describe({
         expect(countOf(sharedSnippets, inactivityDeclaration,),).toBe(1,);
         expect(countOf(taskFile, inactivityDeclaration,),).toBe(1,);
         expect(countOf(taskFile, inactivitySnippet,),).toBe(countOf(taskFile, testTreeWalk,),);
+      },
+    },),
+    it({
+      name: 'declares the unit-test exemption list once, in the vars section, and reads it from the test:unit template',
+      fn: async function oneExemptionList() {
+        /** A second list, or a template that stopped reading this one, would leave an exemption unread and silent. */
+        expect(countOf(sharedSnippets, exemptionDeclaration,),).toBe(1,);
+        expect(countOf(taskFile, exemptionDeclaration,),).toBe(1,);
+        expect(countOf(taskFile, exemptionSnippet,),).toBe(1,);
       },
     },),
     it({
