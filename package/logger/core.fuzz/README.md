@@ -89,9 +89,10 @@ Both layers build `//package/logger/core` first,
 because the properties compare that build with the reference model:
 `fuzz` builds it in its own script,
 `test:unit` through its `depends`.
-A run outside mise,
-such as `node src/orchestration.property.unit.test.ts`,
-needs `mise run //package/logger/core:build` first;
+Runs that do not go through this package's `test:unit` task need the build first:
+a bare `node src/orchestration.property.unit.test.ts`,
+or the root `test:unit`,
+which starts each test file directly.
 `src/artifact-freshness.unit.test.ts` names that step when it is missing,
 because a stale build made a property report a model disagreement
 (`no-backend throw agreement`) on 2026-11-10
