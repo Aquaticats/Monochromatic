@@ -1,7 +1,12 @@
 /**
  Package tasks for `@monochromatic-dev/agent-harness-shared-neuralwatt-listing`,
- replacing the `mise.toml` tasks CI ran through `mise run` with node-native
- definitions for `@monochromatic-dev/monorepo-task-cli`.
+ mirroring this package's `mise.toml` tasks as node-native definitions for
+ `@monochromatic-dev/monorepo-task-cli`.
+
+ CI reads only this file, so `build` has to be declared here for `pnpr-publish` to
+ build the package before packing it (`doc/decision/mise-free-ci.md`).
+ `refresh-snapshot` stays in `mise.toml` alone: it fetches the live listing, so no
+ CI path runs it.
  */
 
 import type { PackageTaskFile, } from '../../monorepo-task/cli/src/types.ts';

@@ -5,7 +5,7 @@
 #   @monochromatic-dev/claude-code-plugin-source: exports only TypeScript source, which Node cannot load from node_modules, and no published package depends on it at runtime
 #   @monochromatic-dev/hall-monitor-daemon: app exposing nothing importable; its build also runs `bun build --compile`, and the publish job installs only node and pnpm
 #   @monochromatic-dev/doodle-widget-app: app exposing nothing importable; its client build also cannot resolve the optional `canvg` import inside jspdf
-#   @monochromatic-dev/file-manager-variant-electron: desktop Electron app exposing nothing importable: no workspace package or published package imports it, and its `./main/*` export has no consumer
+#   @monochromatic-dev/file-manager-variant-electron: desktop Electron app whose only importable surface is its `./main/*` export, which no workspace package and no published package imports
 
 storage: /pnpr/storage
 secret: ${PNPR_SECRET}
