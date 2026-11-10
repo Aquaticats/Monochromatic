@@ -435,11 +435,15 @@ async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
 /// async function placeFile({ context, root, path, judged, write }): Promise<Placed>;
 /// ```
 pub(crate) async fn place_file_awaiting(context: &GitContext, root: &Path, path: &[u8], judged: &JudgedFile, write: &FileWrite) -> Result<Placed, CarryFailure> {
+    // The comparisons run from the top of the worktree, where a relative directory option of the invocation does not reach:
+    //  a `-C repo` applied to a request that already runs in the worktree would name the worktree twice, and every read of
+    //  `--path=<path>` would fail, which reads as a file that nobody judged.
+    let rooted: GitContext = GitContext { global_prefix: Vec::new(), ..context.clone() };
     let location: PathBuf = worktree_path(root, path);
     return match write {
         FileWrite::Leave => Ok(Placed::Nothing),
-        FileWrite::Remove => remove_judged_awaiting(context, root, path, location.as_path(), judged).await,
-        FileWrite::Bytes(bytes, mode) => place_bytes_awaiting(context, root, path, location.as_path(), judged, bytes, mode).await,
+        FileWrite::Remove => remove_judged_awaiting(&rooted, root, path, location.as_path(), judged).await,
+        FileWrite::Bytes(bytes, mode) => place_bytes_awaiting(&rooted, root, path, location.as_path(), judged, bytes, mode).await,
     };
 }
 
