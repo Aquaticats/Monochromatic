@@ -9049,7 +9049,8 @@ cleared.
   Main was merged into it as `842c57a9e5` when `origin/main` had moved to
   `26e8148971`,
   after the coordinator's gate on the merge `13967bfec9`.
-  The commit that carries this section is named in it.
+  Commit `692ab42ac8` is the two fixes,
+  and `5d215708d2` is this section's own commit.
   Not merged into main.
 - The whole-suite gate on the merge `13967bfec9` ran 6962 tests,
   6960 passed and two failed
