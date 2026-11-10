@@ -1,3 +1,5 @@
+import { isDigit } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 /**
  Check that a text is a plain decimal number.
 
@@ -13,8 +15,8 @@
 function isDecimal(part: string): boolean {
   return (part !== '')
     && Array.from(part)
-      .every(function isDigit(character) {
-        return (character >= '0') && (character <= '9');
+      .every(function checkDigit(character) {
+        return isDigit(character);
       });
 }
 

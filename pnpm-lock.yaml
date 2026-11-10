@@ -1809,6 +1809,9 @@ importers:
 
   package/dom/core:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
@@ -3084,6 +3087,9 @@ importers:
 
   package/monorepo-task/core-exec:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -3207,6 +3213,9 @@ importers:
 
   package/mutation-test/cli-cargo-mutants:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/container-limit-core':
         specifier: workspace:*
         version: link:../../container-limit/core
@@ -4752,6 +4761,9 @@ importers:
       '@mdx-js/mdx':
         specifier: 'catalog:'
         version: 3.1.1
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/const-core':
         specifier: workspace:*
         version: link:../../const/core

@@ -9,6 +9,8 @@
 
 import { createHash, } from 'node:crypto';
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 import { stripAnsi, } from './oxlint-augment.ts';
 import type { FirstError, } from './daily-update-package-check-types.ts';
 
@@ -94,8 +96,8 @@ const TYPESCRIPT_CODE_END = ': ';
 export function isDigits(text: string,): boolean {
   return (text !== '')
     && text.split('',)
-      .every(function isDigit(character,) {
-        return (character >= '0') && (character <= '9');
+      .every(function checkDigit(character,) {
+        return isDigit(character,);
       },);
 }
 

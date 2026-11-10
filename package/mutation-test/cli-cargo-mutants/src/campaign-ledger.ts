@@ -8,6 +8,8 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { isDigit } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 import { CargoMutantsToolingError } from './error.ts';
 import {
   isMissing,
@@ -278,8 +280,8 @@ export async function attemptDirectories(evidence: string): Promise<readonly str
        Whether every character of the rest is a digit.
        */
       const onlyDigits = Array.from(digits)
-        .every(function isDigit(character) {
-          return (character >= '0') && (character <= '9');
+        .every(function checkDigit(character) {
+          return isDigit(character);
         });
       /**
        Whether the name begins with the attempt prefix.

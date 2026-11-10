@@ -9,6 +9,12 @@
  */
 
 import {
+  isDigit,
+  isWhitespace,
+  isWordChar,
+} from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
+import {
   NO_DIAGNOSTIC_GUIDANCE,
   resolveDiagnosticGuidance,
 } from './oxlint-guidance.ts';
@@ -23,60 +29,6 @@ const ESC_CODE_POINT = 0x1B;
  ESC byte string; located via `indexOf(ESC_CHAR, ...)` instead of a regex.
  */
 const ESC_CHAR = String.fromCodePoint(ESC_CODE_POINT,);
-
-/**
- Tests whether `c` is an ASCII digit (`0`-`9`).
- 
- @param c - single character
- 
- @returns whether `c` is an ASCII digit
- 
- @example
- ```ts
- isAsciiDigit('7'); // true
- isAsciiDigit('a'); // false
- ```
- */
-function isAsciiDigit(c: string,): boolean {
-  return (c >= '0') && (c <= '9');
-}
-
-/**
- Tests whether `c` is an ASCII letter (`a`-`z` or `A`-`Z`).
- 
- @param c - single character
- 
- @returns whether `c` is an ASCII letter
- 
- @example
- ```ts
- isAsciiLetter('a'); // true
- isAsciiLetter('1'); // false
- ```
- */
-function isAsciiLetter(c: string,): boolean {
-  return ((c >= 'a') && (c <= 'z'))
-    || ((c >= 'A') && (c <= 'Z'));
-}
-
-/**
- Tests whether `c` qualifies as a `\w` word char (alphanumeric or `_`).
- 
- @param c - single character
- 
- @returns whether `c` is a word char
- 
- @example
- ```ts
- isWordChar('_'); // true
- isWordChar('-'); // false
- ```
- */
-function isWordChar(c: string,): boolean {
-  return isAsciiLetter(c,)
-    || isAsciiDigit(c,)
-    || (c === '_');
-}
 
 /**
  Tests whether `c` is permitted inside an oxlint rule name (`[\w-]`).
@@ -94,29 +46,6 @@ function isWordChar(c: string,): boolean {
 function isRuleNameChar(c: string,): boolean {
   return isWordChar(c,)
     || (c === '-');
-}
-
-/**
- Tests whether `c` is `\s` whitespace (space, tab, newline, return,
- form feed, vertical tab).
- 
- @param c - single character
- 
- @returns whether `c` is whitespace
- 
- @example
- ```ts
- isWhitespace(' '); // true
- isWhitespace('x'); // false
- ```
- */
-function isWhitespace(c: string,): boolean {
-  return (c === ' ')
-    || (c === '\t')
-    || (c === '\n')
-    || (c === '\r')
-    || (c === '\f')
-    || (c === '\v');
 }
 
 //endregion Character predicates
@@ -162,7 +91,7 @@ function ansiEscapeLength({
      Cursor over the parameter bytes; the sequence requires at least one digit before any terminator.
      */
     let idx = start + 2;
-    if (!isAsciiDigit(text.charAt(idx,),))
+    if (!isDigit(text.charAt(idx,),))
       return -1;
     idx += 1;
     while (idx < text
@@ -171,7 +100,7 @@ function ansiEscapeLength({
        Current char; drives the digit / terminator / separator transition.
        */
       const c = text.charAt(idx,);
-      if (isAsciiDigit(c,)) {
+      if (isDigit(c,)) {
         idx += 1;
         continue;
       }
@@ -179,7 +108,7 @@ function ansiEscapeLength({
         return (idx - start) + 1;
       if (c === ';') {
         // `;` opens another parameter run, which must begin with a digit.
-        if (!isAsciiDigit(text.charAt(idx + 1,),))
+        if (!isDigit(text.charAt(idx + 1,),))
           return -1;
         idx += 2;
         continue;

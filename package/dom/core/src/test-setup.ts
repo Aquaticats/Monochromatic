@@ -15,6 +15,10 @@ import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { pathToFileURL, } from 'node:url';
 
+import {
+  isWhitespace,
+  isWordChar,
+} from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import type { Page, } from '@playwright/test';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
@@ -61,25 +65,8 @@ const BUNDLE_PATH: string = join(
 const bundleSourceCache = new Map<string, string>();
 
 /**
- Tests whether `c` is `\s` whitespace (space, tab, newline, carriage
- return, form feed, vertical tab).
- 
- @param c - single character
- 
- @returns whether `c` is whitespace
- */
-function isWhitespaceChar(c: string,): boolean {
-  return (c === ' ')
-    || (c === '\t')
-    || (c === '\n')
-    || (c === '\r')
-    || (c === '\f')
-    || (c === '\v');
-}
-
-/**
  Returns the largest index strictly less than `end` whose char is
- non-whitespace per {@link isWhitespaceChar}; `-1` when only whitespace
+ non-whitespace per {@link isWhitespace}; `-1` when only whitespace
  precedes `end`.
  
  @param s - source string
@@ -97,27 +84,12 @@ function lastNonWhitespaceIndex({
 }>,): number {
   if (end <= 0)
     return -1;
-  if (!isWhitespaceChar(s.charAt(end - 1,),))
+  if (!isWhitespace(s.charAt(end - 1,),))
     return end - 1;
   return lastNonWhitespaceIndex({
     s,
     end: end - 1,
   },);
-}
-
-/**
- Tests whether `c` qualifies as a `\w` word char (alphanumeric or `_`);
- used to verify `export` sits on a word boundary.
- 
- @param c - single character
- 
- @returns whether `c` is a word char
- */
-function isWordChar(c: string,): boolean {
-  return ((c >= 'a') && (c <= 'z'))
-    || ((c >= 'A') && (c <= 'Z'))
-    || ((c >= '0') && (c <= '9'))
-    || (c === '_');
 }
 
 /**

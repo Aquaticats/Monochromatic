@@ -510,6 +510,9 @@ function preReleaseOf(version: string,): readonly string[] {
  ```
  */
 function isNumericIdentifier(identifier: string,): boolean {
+  // The digit test stays local: this module and the rest of the `mpm-shadow`
+  // bootstrap import only `node:` modules so they run from source on a checkout
+  // that has no node_modules, where the shared text-scan import would not resolve.
   return (identifier !== '')
     && Array.from(identifier,)
       .every(function isDigit(character,) {

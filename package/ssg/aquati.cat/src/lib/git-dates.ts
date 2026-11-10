@@ -16,6 +16,7 @@ import { resolve, } from 'node:path';
 
 import spawn, { type Result, } from 'nano-spawn';
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import {
   findRootCached,
   MISE_MONOREPO,
@@ -152,8 +153,8 @@ function isDigits(value: string,): boolean {
     return false;
   return value
     .split('',)
-    .every(function isDigit(character,) {
-      return (character >= '0') && (character <= '9');
+    .every(function checkDigit(character,) {
+      return isDigit(character,);
     },);
 }
 

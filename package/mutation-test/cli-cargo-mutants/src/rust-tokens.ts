@@ -6,6 +6,8 @@
  makes one linear pass over the text.
  */
 
+import { isDigit } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 /**
  Characters an escaped character literal has at least: the apostrophe, the backslash, the escaped character, so the closing
  apostrophe is searched for from that far in.
@@ -42,22 +44,6 @@ function continuesIdentifier(character: string): boolean {
     || ((character >= '0') && (character <= '9'))
     || (character === '_')
     || (character > '\u007F');
-}
-
-/**
- Check whether a character is a decimal digit.
-
- @param character - one UTF-16 code unit as text, or the empty text at the end of the text
-
- @returns true for `0` to `9`
-
- @example
- ```ts
- isDigit('7');
- ```
- */
-function isDigit(character: string): boolean {
-  return (character >= '0') && (character <= '9');
 }
 
 /**

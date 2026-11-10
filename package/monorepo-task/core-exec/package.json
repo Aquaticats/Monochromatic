@@ -25,6 +25,7 @@
     "@types/node": "catalog:"
   },
   "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "string-dedent": "catalog:",
     "@monochromatic-dev/const-core": "workspace:*",
