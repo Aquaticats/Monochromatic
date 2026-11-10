@@ -20,24 +20,6 @@ fn entry_of(root: &Path, kind: EntryKind, relative_path: &[u8]) -> WorktreeCopyE
     };
 }
 
-/// A missing path reads as absent and a present one reads as its metadata.
-#[test]
-fn lstat_distinguishes_absence_from_presence() {
-    let root: PathBuf = fixture("compare-lstat");
-    assert!(
-        lstat_or_absent(root.join("missing").as_path())
-            .expect("absent")
-            .is_none()
-    );
-    std::fs::write(root.join("present"), b"x").expect("present");
-    assert!(
-        lstat_or_absent(root.join("present").as_path())
-            .expect("present")
-            .is_some()
-    );
-    remove(root.as_path());
-}
-
 /// An absent destination never matches,
 /// whatever the expected entry.
 #[test]

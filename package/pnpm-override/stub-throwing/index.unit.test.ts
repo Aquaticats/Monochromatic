@@ -33,13 +33,24 @@ const repositoryRoot = join(
 const BLOCKLIST_PREFIX = '[blocked-dep]';
 
 /**
- The two repository files whose policy substituted this package: the `readPackage` hook that rewrites a blocked
- dependency to this stub, and the `overrides` block it defers removal cases to.
- `doc/dependency-blocklist.md` cross-references both.
+ Repository file holding the per-package entry whose `throw` action substituted this package.
+ The refusal names it so a reader searching for their blocked package lands on the table that lists it.
  */
-const POLICY_FILES = [
-  'pnpm-workspace.yaml',
+const POLICY_TABLE_FILE = '.pnpmfile.policies.json';
+
+/**
+ Action whose entry in the policy table substitutes this package for the blocked dependency.
+ */
+const THROW_ACTION = 'throw';
+
+/**
+ Repository files that hold no per-package entry for a throwing substitution: the `readPackage` hook that applies
+ the policy table, and the `overrides` block that owns removal cases.
+ Searching either for a `throw`-policy package finds nothing, so the refusal must not send a reader there.
+ */
+const MECHANISM_FILES = [
   '.pnpmfile.mjs',
+  'pnpm-workspace.yaml',
 ] as const;
 
 /**
@@ -111,6 +122,41 @@ async function readManifest(): Promise<PackageManifest> {
 }
 
 /**
+ One entry of the policy table, keyed by the npm package name the install hook rewrites.
+ */
+type PolicyEntry = {
+  /** Substitution the hook applies: `throw` lands this package, `silent` lands the silent stub. */
+  readonly action: string;
+};
+
+/**
+ Whether a policy-table key names a package rather than carrying a comment.
+
+ @param key - Key as the table spells it
+
+ @returns `true` for a package name, `false` for a table comment
+ */
+function isPackageKey(key: string,): boolean {
+  return !(key.startsWith('//',));
+}
+
+/**
+ Reads the repository's policy table, the data the install hook indexes by package name.
+ Keys beginning with `//` are the table's own comments, which are not package entries.
+
+ @returns Every named package's policy entry
+
+ @example
+ ```ts
+ const table = await readPolicyTable();
+ ```
+ */
+async function readPolicyTable(): Promise<Record<string, PolicyEntry>> {
+  const raw = await readFile(join(repositoryRoot, POLICY_TABLE_FILE,), 'utf8',);
+  return JSON.parse(raw,) as Record<string, PolicyEntry>;
+}
+
+/**
  Reads the repository-relative doc path the refusal sends a reader to,
  taken from the message so the case follows the reference a reader would follow.
  The path stands as its own whitespace-separated token in the message.
@@ -169,14 +215,34 @@ await describe({
           },
         },),
         it({
-          name: 'names the policy files that substituted the package, and both exist at the repository root',
+          name: 'names the policy table holding the blocklist entry, which lists the throwing substitution',
           fn: async () => {
             const message = refusalMessage();
-            for (const policyFile of POLICY_FILES) {
-              const policyFilePath = join(repositoryRoot, policyFile,);
-              expect(message,).toContain(policyFile,);
-              expect(existsSync(policyFilePath,),).toBe(true,);
-            }
+            expect(message,).toContain(POLICY_TABLE_FILE,);
+            const policyTablePath = join(repositoryRoot, POLICY_TABLE_FILE,);
+            expect(existsSync(policyTablePath,),).toBe(true,);
+            const table = await readPolicyTable();
+            const throwEntries = Object.entries(table,)
+              .filter(([key,],) => isPackageKey(key,))
+              .filter(([, entry],) => entry.action === THROW_ACTION);
+            expect(throwEntries.length,).toBeGreaterThan(0,);
+          },
+        },),
+        it({
+          name: 'sends no reader to the hook or the overrides block, which carry no entry for this substitution',
+          fn: async () => {
+            const message = refusalMessage();
+            for (const mechanismFile of MECHANISM_FILES)
+              expect(message,).not.toContain(mechanismFile,);
+          },
+        },),
+        it({
+          name: 'describes itself the way the README does, naming the same policy table and the same doc',
+          fn: async () => {
+            const message = refusalMessage();
+            const readme = await readFile(join(packageFolder, 'README.md',), 'utf8',);
+            expect(readme,).toContain(POLICY_TABLE_FILE,);
+            expect(readme,).toContain(namedDocPath(message,),);
           },
         },),
         it({
