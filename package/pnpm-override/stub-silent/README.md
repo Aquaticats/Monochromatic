@@ -22,6 +22,9 @@ Three property keys are answered differently,
    a property chain of it,
    or a call result of it settles instead of deadlocking on a `then` whose resolve and reject callbacks the stub
    never invokes.
+   Code that calls one of them as a method throws `TypeError` at that call,
+   a shape the package declaration cannot express,
+   because one `PropertyKey` index signature types them as the stub itself.
 - `Symbol.toPrimitive` reads as a function returning `[stub-silent]`,
    so `String(stub)` and template interpolation produce that text instead of throwing
    `TypeError: Cannot convert object to primitive value`.
