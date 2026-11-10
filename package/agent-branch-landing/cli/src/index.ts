@@ -201,3 +201,17 @@ export {
   USAGE,
 } from './usage.ts';
 export { runTheCommandLine, } from './run-the-command-line.ts';
+
+/**
+ The answers a test gives instead of a real Git, which this machine's wrapper refuses to run outside its session.
+
+ @internal
+ */
+export {
+  type Answer,
+  disposableFolder,
+  type FakeRepository,
+  fakeRepository,
+  type Handlers,
+  openAMerge,
+} from './fixtures-of-a-fake-repository.ts';

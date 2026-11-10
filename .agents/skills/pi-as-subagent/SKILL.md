@@ -325,13 +325,20 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 8.  Read what it committed with `git log` and `git show`,
     fix anything wrong with further commits,
     regenerate anything `file-enforcer` owns,
-    and merge a worktree's branch into `main`.
+    and land the branch with `package/agent-branch-landing/cli`:
+    `mise run //package/agent-branch-landing/cli:check -- --worktree=<name> --check=wrapper`,
+    then `mise run //package/agent-branch-landing/cli:land -- --branch=<branch> --message=<text>`,
+    or one `list` run for several branches from a list file.
+    Both commands and the list file are in `package/agent-branch-landing/cli/README.md`.
     The owner wrote "I don't think you'd need to rerun the same lints or tests another agent did, do you?":
     read which suites the agent's report names instead of running them again.
-    After merging `main` into the branch,
-    run only the compile or type check,
+    The check merges `main` into the worktree and runs only the compile or type check,
     which is what the agent could not have run on the combined tree,
-    and skip that too when `main` was already in the branch.
+    and it says nothing was new when `main` was already in the branch.
+    `land` refuses while a merge is already open,
+    compiles the merged tree when the branch touches `package/git-policy/`,
+    commits through the wrapper while its scratch commit ceiling refuses,
+    and names the paths a release gate depends on.
 
 ## Protocol
 

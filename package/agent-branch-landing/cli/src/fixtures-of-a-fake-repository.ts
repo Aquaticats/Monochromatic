@@ -75,7 +75,7 @@ export type FakeRepository = {
   /**
    The words of each Git request, one line each, which is what a test reads the built command line from.
    */
-  gitLines(): readonly string[];
+  readonly gitLines: () => readonly string[];
 };
 
 /**
@@ -91,7 +91,10 @@ export type FakeRepository = {
  ```
  */
 export async function disposableFolder(name: string,): Promise<string> {
-  await mkdir(scratchRoot(), { recursive: true, },);
+  await mkdir(
+    scratchRoot(),
+    { recursive: true, },
+  );
   return mkdtemp(join(
     scratchRoot(),
     `landing-${name}-`,
@@ -126,7 +129,10 @@ export async function fakeRepository({
     folder,
     '.git',
   );
-  await mkdir(gitFolder, { recursive: true, },);
+  await mkdir(
+    gitFolder,
+    { recursive: true, },
+  );
   /**
    Where an open merge is recorded, which is a real file this test's answers leave alone.
    */
@@ -134,6 +140,19 @@ export async function fakeRepository({
     gitFolder,
     'MERGE_HEAD',
   );
+  /**
+   Answers where an open merge would be recorded, which is a real path inside this folder.
+
+   @returns the answer naming that path
+
+   @example
+   ```ts
+   const answer = markerAnswer();
+   ```
+   */
+  function markerAnswer(): Answer {
+    return { stdout: `${mergeHeadPath}\n`, };
+  }
   /**
    Every request made so far.
    */
@@ -147,15 +166,14 @@ export async function fakeRepository({
       /**
        The words this command is asked with.
        */
-      const line = request.words.join(' ',);
+      const line = request.words
+        .join(' ',);
       /**
        What this command answers, which for the merge marker is where this repository keeps it.
        */
       const handler = answers[line]
         ?? (line === 'rev-parse --path-format=absolute --git-path MERGE_HEAD'
-          ? function marker() {
-            return { stdout: `${mergeHeadPath}\n`, };
-          }
+          ? markerAnswer
           : undefined);
       /**
        What it left.
@@ -167,13 +185,14 @@ export async function fakeRepository({
         stderr: answer.stderr ?? '',
       } satisfies ProgramOutput;
     },
-    gitLines: function gitLines() {
+    gitLines: function gitLines(): readonly string[] {
       return requests
         .filter(function isGit(request: RunProgramRequest,) {
           return request.program === 'git';
         },)
         .map(function lineOf(request: RunProgramRequest,) {
-          return request.words.join(' ',);
+          return request.words
+            .join(' ',);
         },);
     },
   };
@@ -190,5 +209,8 @@ export async function fakeRepository({
  ```
  */
 export async function openAMerge(repository: FakeRepository,): Promise<void> {
-  await writeFile(repository.mergeHeadPath, 'HEAD\n',);
+  await writeFile(
+    repository.mergeHeadPath,
+    'HEAD\n',
+  );
 }

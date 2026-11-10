@@ -18,17 +18,16 @@ import {
 import {
   commitTheOpenMerge,
   cgroupWordsOf,
+  disposableFolder,
+  fakeRepository,
+  type Handlers,
   landABranch,
+  openAMerge,
   type Report,
   type Repository,
   WRAPPER_COMPILE_LIMITS,
 } from '../dist/final/node/index.mjs';
-import {
-  disposableFolder,
-  fakeRepository,
-  type Handlers,
-  openAMerge,
-} from './fixtures-of-a-fake-repository.ts';
+
 
 /**
  The words a merge of the branch every test lands is asked with.
@@ -266,17 +265,17 @@ await describe({
   name: '',
   children: [
     describe({
-      name: 'landABranch',
+      name: landABranch.name,
       children: [
         it({
           name: 'commits the merge and reports what landed, what is left and which release paths it changed',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('landed',);
             /**
-             * What the landing came to.
+             What the landing came to.
              */
             const landing = await land({
               folder,
@@ -288,8 +287,8 @@ await describe({
               },
             },);
             expect(landing.outcome.landing,).toBe('landed',);
-            expect(landing.outcome.landing === 'landed' && landing.outcome.report.commitsNotOnMain,).toBe(0,);
-            expect(landing.outcome.landing === 'landed' && landing.outcome.report.releasePaths,).toEqual([
+            expect((landing.outcome.landing === 'landed') && landing.outcome.report.commitsNotOnMain,).toBe(0,);
+            expect((landing.outcome.landing === 'landed') && landing.outcome.report.releasePaths,).toEqual([
               'package/git-policy/cli/src/lib.rs',
               'Cargo.toml',
             ],);
@@ -302,11 +301,11 @@ await describe({
           name: 'refuses to start while a merge is already open, and asks Git nothing else',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('open-merge',);
             /**
-             * The fake repository.
+             The fake repository.
              */
             const repository = await fakeRepository({
               folder,
@@ -314,11 +313,11 @@ await describe({
             },);
             await openAMerge(repository,);
             /**
-             * What the landing said.
+             What the landing said.
              */
             const said = rememberedReport();
             /**
-             * What the landing came to.
+             What the landing came to.
              */
             const outcome = await landABranch({
               repository: checkoutOf(repository,),
@@ -335,11 +334,11 @@ await describe({
           name: 'commits the reflow a format run left in the main checkout, then lands the branch',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('reflow',);
             /**
-             * How many times the merge was asked.
+             How many times the merge was asked.
              */
             let merges = 0;
             await mkdir(join(
@@ -351,7 +350,7 @@ await describe({
               'doc/a.md',
             ), 'one\ntwo\n',);
             /**
-             * What the landing came to.
+             What the landing came to.
              */
             const landing = await land({
               folder,
@@ -383,11 +382,11 @@ await describe({
           name: 'leaves uncommitted edits that change words where they are, naming every one',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('words',);
             /**
-             * What the landing came to.
+             What the landing came to.
              */
             const landing = await land({
               folder,
@@ -405,7 +404,7 @@ await describe({
               },
             },);
             expect(landing.outcome.landing,).toBe('refused-uncommitted-edits',);
-            expect(landing.outcome.landing === 'refused-uncommitted-edits' && landing.outcome.paths,).toEqual(['doc/a.md',],);
+            expect((landing.outcome.landing === 'refused-uncommitted-edits') && landing.outcome.paths,).toEqual(['doc/a.md',],);
             expect(landing.lines.join('\n',),).toContain('these uncommitted edits change words',);
           },
         },),
@@ -413,11 +412,11 @@ await describe({
           name: 'reports a merge Git refused and says whether it left one open',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('conflict',);
             /**
-             * What the landing came to.
+             What the landing came to.
              */
             const landing = await land({
               folder,
@@ -429,7 +428,7 @@ await describe({
               },
             },);
             expect(landing.outcome.landing,).toBe('merge-failed',);
-            expect(landing.outcome.landing === 'merge-failed' && landing.outcome.mergeIsOpen,).toBe(false,);
+            expect((landing.outcome.landing === 'merge-failed') && landing.outcome.mergeIsOpen,).toBe(false,);
             expect(landing.lines,).toContain('no merge was left open',);
           },
         },),
@@ -437,11 +436,11 @@ await describe({
           name: 'reports a merged tree that does not build and leaves the merge open',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('build',);
             /**
-             * What the landing came to.
+             What the landing came to.
              */
             const landing = await land({
               folder,
@@ -465,11 +464,11 @@ await describe({
           name: 'stops after every try when the commit never closes the merge',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('ceiling',);
             /**
-             * What the landing came to.
+             What the landing came to.
              */
             const landing = await land({
               folder,
@@ -489,35 +488,35 @@ await describe({
               },
             },);
             expect(landing.outcome.landing,).toBe('commit-refused',);
-            expect(landing.outcome.landing === 'commit-refused' && landing.outcome.tries,).toBe(TRIES,);
+            expect((landing.outcome.landing === 'commit-refused') && landing.outcome.tries,).toBe(TRIES,);
             expect(landing.lines,).toContain(`A MERGE IS OPEN IN THE MAIN CHECKOUT after ${String(TRIES,)} commit tries`,);
           },
         },),
       ],
     },),
     describe({
-      name: 'commitTheOpenMerge',
+      name: commitTheOpenMerge.name,
       children: [
         it({
           name: 'says no merge is open when the marker is gone',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('no-merge',);
             /**
-             * The fake repository.
+             The fake repository.
              */
             const repository = await fakeRepository({
               folder,
               answers: {},
             },);
             /**
-             * What the commit said.
+             What the commit said.
              */
             const said = rememberedReport();
             /**
-             * What committing came to.
+             What committing came to.
              */
             const outcome = await commitTheOpenMerge({
               repository: checkoutOf(repository,),
@@ -535,11 +534,11 @@ await describe({
           name: 'refuses to commit over a path the merge left unresolved',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('unresolved',);
             /**
-             * The fake repository.
+             The fake repository.
              */
             const repository = await fakeRepository({
               folder,
@@ -551,11 +550,11 @@ await describe({
             },);
             await openAMerge(repository,);
             /**
-             * What the commit said.
+             What the commit said.
              */
             const said = rememberedReport();
             /**
-             * What was thrown.
+             What was thrown.
              */
             let thrown: unknown;
             try {
@@ -578,11 +577,11 @@ await describe({
           name: 'stops at once when Git says there is nothing to commit, naming that the merge stays open',
           fn: async () => {
             /**
-             * A folder this test alone uses.
+             A folder this test alone uses.
              */
             const folder = await disposableFolder('nothing-to-commit',);
             /**
-             * The fake repository.
+             The fake repository.
              */
             const repository = await fakeRepository({
               folder,
@@ -594,11 +593,11 @@ await describe({
             },);
             await openAMerge(repository,);
             /**
-             * What the commit said.
+             What the commit said.
              */
             const said = rememberedReport();
             /**
-             * What committing came to.
+             What committing came to.
              */
             const outcome = await commitTheOpenMerge({
               repository: checkoutOf(repository,),
