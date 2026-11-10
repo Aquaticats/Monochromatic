@@ -192,6 +192,20 @@ await describe({
           },
         }),
         it({
+          name: 'counts a test once though nextest prints its passing line twice, which is what the run does at its end',
+          fn: async function countsOnce() {
+            const verdict = judgeHostControlRun(run({
+              output: [
+                passingOutput(),
+                passingOutput(),
+              ].join('\n'),
+            }));
+            if (verdict.kind !== 'green')
+              throw new Error('the same required controls twice are still every required control');
+            expect(verdict.testsRun).toBe(requiredHostControls.length);
+          },
+        }),
+        it({
           name: 'requires controls from more than one suite, so one binary passing is no evidence for the other',
           fn: async function bothSuites() {
             expect(new Set(requiredSuites).size).toBeGreaterThan(1);

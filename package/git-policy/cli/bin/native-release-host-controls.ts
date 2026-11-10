@@ -10,6 +10,7 @@
 import { caughtValueText } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
+  type HostControlName,
   hostControlLimitSeconds,
   hostControlTask,
   lastLines,
@@ -141,6 +142,27 @@ function problemsOf(run: HostControlRun): readonly string[] {
 }
 
 /**
+ How many tests the passing status lines name, counted once each.
+
+ nextest prints a passing test's status line twice in a run it reports at the end: once when the test finishes, and again
+ with the summary. Counting lines would report a full run of 5993 tests as the 11960 lines of its log.
+
+ @param passed - one entry per passing status line
+
+ @returns the number of distinct tests
+
+ @example
+ ```ts
+ distinctTestCount([{ suite: 'a', test: 'b' }, { suite: 'a', test: 'b' }]);
+ ```
+ */
+function distinctTestCount(passed: readonly HostControlName[]): number {
+  return new Set(passed.map(function keyOf(test) {
+    return `${test.suite} ${test.test}`;
+  })).size;
+}
+
+/**
  Decide whether one run is the evidence a release waits for.
 
  @param run - the finished run and what it printed
@@ -169,11 +191,12 @@ export function judgeHostControlRun(run: HostControlRun): HostControlVerdict {
   }
   return {
     kind: 'green',
-    testsRun: namesIn({
-      output: run.output,
-      tag: passingTag,
-    })
-      .length,
+    testsRun: distinctTestCount(
+      namesIn({
+        output: run.output,
+        tag: passingTag,
+      }),
+    ),
   };
 }
 
