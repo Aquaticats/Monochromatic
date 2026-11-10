@@ -14,6 +14,7 @@ import {
   figmaTransformToPenpot,
 } from './geometry.ts';
 import {
+  collectPaints,
   figmaPaintToFill,
   figmaPaintToStroke,
 } from './paint.ts';
@@ -195,19 +196,10 @@ export function geometryOf(nc: FigmaRecord,): ShapeGeometry {
  ```
  */
 export function collectFills(nc: FigmaRecord,): PenpotFill[] {
-  /**
-   Fills accumulated from the node's paint list.
-   */
-  const fills: PenpotFill[] = [];
-  for (const paint of recordArray(nc.fillPaints,)) {
-    /**
-     Solid fill candidate; {@link SKIP} means an unsupported paint type.
-     */
-    const fill = figmaPaintToFill(paint,);
-    if (fill !== SKIP)
-      fills.push(fill,);
-  }
-  return fills;
+  return collectPaints({
+    paints: nc.fillPaints,
+    convert: figmaPaintToFill,
+  },);
 }
 
 /**
@@ -238,22 +230,23 @@ export function collectStrokes(nc: FigmaRecord,): PenpotStroke[] {
     fallback: 'CENTER',
   },);
   /**
-   Strokes accumulated from the node's paint list.
+   Converter binding this node's stroke width and alignment to one paint.
+   
+   @param paint - Figma paint record
+   
+   @returns Penpot stroke, or {@link SKIP} for unsupported paints
    */
-  const strokes: PenpotStroke[] = [];
-  for (const paint of recordArray(nc.strokePaints,)) {
-    /**
-     Solid stroke candidate; {@link SKIP} means an unsupported paint type.
-     */
-    const stroke = figmaPaintToStroke({
+  function convertStroke(paint: FigmaRecord,): PenpotStroke | typeof SKIP {
+    return figmaPaintToStroke({
       paint,
       strokeWeight,
       strokeAlign,
     },);
-    if (stroke !== SKIP)
-      strokes.push(stroke,);
   }
-  return strokes;
+  return collectPaints({
+    paints: nc.strokePaints,
+    convert: convertStroke,
+  },);
 }
 
 /**

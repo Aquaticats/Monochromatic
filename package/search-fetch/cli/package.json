@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/search-fetch-cli",
   "description": "Terminal front door for the shared search and fetch tools: the search-fetch command over the shared core.",
   "type": "module",

@@ -244,9 +244,10 @@ pub fn run_metadata_git_without_within(
     remove: &[&str],
     ceiling: Duration,
 ) -> std::io::Result<MetadataOutput> {
-    // An exact read-only command line the in-process readers know costs no Git process.
-    // A removal keeps the answer here too: the readers would otherwise judge the caller's mode.
-    if remove.is_empty()
+    // An exact read-only command line the in-process readers know costs no Git process, and the readers keep that answer
+    //  whatever this start removes: they read the pathspec magic of the names the wrapper wrote and no pathspec mode at
+    //  all, so a mode that reaches the start is the one case where their answer would differ from Git's.
+    if !crate::conflict_side_modes::a_mode_reaches_the_start(overlay, remove)
         && let Some(answered) = try_metadata(arguments, crate::git_system_config::with_real_git(overlay, real_git).as_slice())
     {
         return Ok(answered);

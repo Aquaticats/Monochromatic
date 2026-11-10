@@ -31,7 +31,7 @@ Pi's dependency hygiene and code quality have not been cleared for high trust.
 - extract a balanced JSON object from explanatory text
 - enforce one timeout across the complete attempt
 
-The caller supplies a `StructuredReviewContract<TVerdict>` with the tool,
+The caller supplies a `StructuredReviewContract<TVerdict>` with the tool
 strict parser,
 and direct-JSON retry prompt builder.
 Unexpected tools,
@@ -39,6 +39,15 @@ malformed JSON,
 contract failures,
 timeouts,
 and auth or provider failures reject the attempt.
+
+A provider that refuses,
+throttles,
+or aborts a request ends its stream with an `error` event.
+Collection turns that event into `StructuredReviewProviderError`,
+carrying the provider's `errorMessage` and reported stop reason,
+so the caller records one failed candidate and falls back,
+instead of retrying a request for text the provider never sent.
+A genuinely omitted tool call still reports no tool call with the text the reviewer wrote.
 
 ## Availability fallback
 

@@ -384,6 +384,76 @@ fn line_span(text: &[u8], start: usize, length: usize) -> LineSpan {
 /// function mergeByWord(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array): WordMerge;
 /// ```
 pub fn merge_by_word(base: &[u8], ours: &[u8], theirs: &[u8]) -> WordMerge {
+    let (merged, parts, unresolved) = walk(base, ours, theirs, None);
+    if unresolved == 0 {
+        return WordMerge::Resolved { merged, parts };
+    }
+    return WordMerge::Conflict { unresolved };
+}
+
+/// The width of a conflict marker,
+/// which is Git's default for `merge.conflictStyle` (`<<<<<<<`).
+const MARKER_WIDTH: usize = 7;
+
+/// What:
+///  The text of a marker line: the repeated character, a space, then the label.
+/// Why:
+///   Git writes a marker as `<<<<<<< <label>\n` and no label when none is given
+/// (`xdl_fill_merge_buffer`,
+/// `xdiff/xmerge.c`),
+///  so a person's tools read it as they read Git's own markers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function markerLine(character: string, label: string): Uint8Array;
+/// ```
+fn marker_line(character: u8, label: &str) -> Vec<u8> {
+    let mut line: Vec<u8> = vec![character; MARKER_WIDTH];
+    if !label.is_empty() {
+        line.push(b' ');
+        line.extend_from_slice(label.as_bytes());
+    }
+    line.push(LINE_END);
+    return line;
+}
+
+/// What:
+///  Merge `ours` and `theirs` by the same rules as `merge_by_word`,
+/// but keep both sides of every region the word pass cannot resolve,
+/// between Git's conflict markers.
+/// Why:
+///   A parsed edit of a file the merge changes is kept beside the merge rather than lost
+/// (`package/git-policy/cli/SPEC.md`,
+///  "Merges and commits never fail"),
+/// and the region that holds two different changes of the same words must keep both
+///  sides in the file for the person to judge.
+/// Every region the pass does resolve is the bytes `merge_by_word` would write,
+/// so
+///  a file that resolves has no marker in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function keepBoth(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array, labels: [string, string]): Uint8Array;
+/// ```
+pub fn keep_both(base: &[u8], ours: &[u8], theirs: &[u8], labels: (&str, &str)) -> Vec<u8> {
+    return walk(base, ours, theirs, Some(labels)).0;
+}
+
+/// What:
+///  One walk over the line regions,
+/// which resolves what it can and either counts or keeps the rest.
+/// Why:
+///   The verdict of the second pass and the text a person's conflicted file holds must be the same merge,
+/// so one
+///  walk produces both:
+/// `merge_by_word` reads its count,
+/// `keep_both` reads its bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function walk(base, ours, theirs, conflict: [string, string] | null): { merged: Uint8Array; parts: MergedPart[]; unresolved: number };
+/// ```
+fn walk(base: &[u8], ours: &[u8], theirs: &[u8], conflict: Option<(&str, &str)>) -> (Vec<u8>, Vec<MergedPart>, usize) {
     let mut merged: Vec<u8> = Vec::with_capacity(ours.len().max(theirs.len()));
     let mut parts: Vec<MergedPart> = Vec::new();
     let mut unresolved: usize = 0;
@@ -402,15 +472,21 @@ pub fn merge_by_word(base: &[u8], ours: &[u8], theirs: &[u8]) -> WordMerge {
                         });
                         merged.extend_from_slice(&text);
                     }
-                    None => unresolved += 1,
+                    None => {
+                        unresolved += 1;
+                        if let Some((ours_label, theirs_label)) = conflict {
+                            merged.extend_from_slice(marker_line(b'<', ours_label).as_slice());
+                            merged.extend_from_slice(gap.ours);
+                            merged.extend_from_slice(marker_line(b'=', "").as_slice());
+                            merged.extend_from_slice(gap.theirs);
+                            merged.extend_from_slice(marker_line(b'>', theirs_label).as_slice());
+                        }
+                    }
                 },
             },
         }
     }
-    if unresolved == 0 {
-        return WordMerge::Resolved { merged, parts };
-    }
-    return WordMerge::Conflict { unresolved };
+    return (merged, parts, unresolved);
 }
 
 /// Corpus equality,
