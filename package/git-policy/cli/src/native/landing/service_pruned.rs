@@ -360,7 +360,12 @@ pub fn reach_service_phase(phase: Phase) -> Result<(), PhaseMarkerError> {
     let counter: &AtomicU64 = match phase {
         Phase::ServiceStaged => &STAGED_REACHED,
         Phase::ServiceSentBack => &SENT_BACK_REACHED,
-        Phase::MergeIntent | Phase::MergeApplied | Phase::ServicePrepared => &PREPARED_REACHED,
+        Phase::MergeCarried
+        | Phase::MergeCleared
+        | Phase::MergeIntent
+        | Phase::MergeApplied
+        | Phase::MergeCarriedBack
+        | Phase::ServicePrepared => &PREPARED_REACHED,
     };
     let number: u64 = counter.fetch_add(1, Ordering::SeqCst) + 1;
     return reach_transaction_phase(phase, Some(number));

@@ -3424,6 +3424,46 @@ the commit from `git commit-tree`,
 the checkout moves with
 `git merge --ff-only`,
 and the whole is preceded by a bounded wait for `index.lock`.
+
+A merge whose paths hold the person's own work carries it forward
+(owner's answer "Carry edits forward (Recommended)",
+"Merges and commits never fail";
+rules "Manual merge should never fail too."
+and "never discard user data"):
+
+- The bytes of every path the merge changes that differs from `HEAD` in the worktree or the index,
+  untracked files the merge adds included,
+  are written as objects with `git hash-object -w`,
+  the clean-filtered form beside the exact bytes,
+  and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
+  written with an all-zero old value;
+  the merge's record names the commit and every path with its two layers.
+  The objects are written and the ref exists before the first byte of the checkout changes.
+- Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
+  so `git merge --ff-only` takes them as it always did,
+  and a path that changed after the capture stops the step with nothing written.
+- After the branch moved, each layer is merged with the merge's own:
+  the worktree's file form and the index's blob separately,
+  so a staged edit stays staged and an unsaved one stays unsaved.
+  A side unchanged on either side takes the other side; the bytes of a layer nothing of the merge reaches are written back exactly;
+  a text both sides changed goes through `merge_second_pass`,
+  the pass this package already runs,
+  and a region it cannot settle keeps both sides between `word_merge::keep_both`'s markers.
+  A binary file, a link, a mode the pass cannot take, a path the merge deletes and a path the person deleted keep the
+  person's side whole and are named on standard error with what to do;
+  a path written after the capture is left alone and named.
+  Every such finding exits 0: the merge is made, and the person's work is theirs to judge.
+- A kill after the clear and before the branch move restores the captured layers,
+  because the record says so and the merge did not land;
+  a kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
+  The carry is a function of the captured blobs and the merge commit,
+  so recovery converges on the same bytes from any step.
+
+A path whose worktree entry is a directory,
+and an index that holds unmerged entries,
+are not one edit anybody can merge:
+the command is native Git's whole,
+which refuses such a checkout itself.
 The move the auto-push makes after a published reconcile merge names its branch instead,
 because `git merge --ff-only` moves whichever branch `HEAD` names at the instant it runs:
 an ancestry question,

@@ -141,6 +141,9 @@ catalogs:
     '@lezer/javascript':
       specifier: '>=1.5.6'
       version: 1.5.6
+    '@lezer/json':
+      specifier: '>=1.0.3'
+      version: 1.0.3
     '@lezer/markdown':
       specifier: '>=1.8.1'
       version: 1.8.1
@@ -4716,6 +4719,9 @@ importers:
       '@lezer/javascript':
         specifier: 'catalog:'
         version: 1.5.6
+      '@lezer/json':
+        specifier: 'catalog:'
+        version: 1.0.3
       '@lezer/markdown':
         specifier: 'catalog:'
         version: 1.8.1
@@ -7869,6 +7875,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -9308,6 +9317,9 @@ packages:
 
   '@lezer/javascript@1.5.6':
     resolution: {integrity: sha512-sEvOqpl4vJQca0NugSQK02vQPbc5KrvoojnYGoqqFgFO0MtcYhwGiHKVEB+LuXYJnfyXo4QPA8ztbrEa4Fw5NA==, tarball: https://registry.npmjs.org/@lezer/javascript/-/javascript-1.5.6.tgz}
+
+  '@lezer/json@1.0.3':
+    resolution: {integrity: sha512-BP9KzdF9Y35PDpv04r0VeSTKDeox5vVr3efE7eBbx3r4s3oNLfunchejZhjArmeieBH+nVOpgIiBJpEAv8ilqQ==, tarball: https://registry.npmjs.org/@lezer/json/-/json-1.0.3.tgz}
 
   '@lezer/lr@1.4.12':
     resolution: {integrity: sha512-On9HU4oMMiHPMkQDgoTnGahjgG5n/MkN38CgG77sMraKLL+3JBbeQNi1FcCXV9QRqwF9/BUXP3caHyJC1fBOTQ==, tarball: https://registry.npmjs.org/@lezer/lr/-/lr-1.4.12.tgz}
@@ -12469,6 +12481,12 @@ snapshots:
       '@lezer/lr': 1.4.12
 
   '@lezer/javascript@1.5.6':
+    dependencies:
+      '@lezer/common': 1.5.5
+      '@lezer/highlight': 1.2.5
+      '@lezer/lr': 1.4.12
+
+  '@lezer/json@1.0.3':
     dependencies:
       '@lezer/common': 1.5.5
       '@lezer/highlight': 1.2.5

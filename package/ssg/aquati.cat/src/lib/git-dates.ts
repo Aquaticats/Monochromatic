@@ -38,6 +38,126 @@ import type { Logger, } from './types.ts';
 export const ABSENT: unique symbol = Symbol('git dates probe returned nothing',);
 
 /**
+ Minutes in an hour, converting an ISO-8601 offset's hour field.
+ */
+const MINUTES_PER_HOUR = 60;
+
+/**
+ Length of a trailing `+HH:MM` or `-HH:MM` offset in an ISO-8601 timestamp.
+ */
+const ISO_OFFSET_LENGTH = 6;
+
+/**
+ Offset reported when a timestamp carries no author offset, as UTC timestamps
+ from the GitHub API and from a file mtime's own ISO form do.
+ */
+const NO_OFFSET_MINUTES = 0;
+
+/**
+ Index of the sign character within a trailing ISO-8601 offset.
+ */
+const OFFSET_SIGN_INDEX = 0;
+
+/**
+ Index of the hour field's first digit within a trailing ISO-8601 offset.
+ */
+const OFFSET_HOURS_START = 1;
+
+/**
+ Index just past the hour field, exclusive, within a trailing ISO-8601 offset.
+ */
+const OFFSET_HOURS_END = 3;
+
+/**
+ Index of the colon separating hours from minutes in a trailing offset.
+ */
+const OFFSET_COLON_INDEX = 3;
+
+/**
+ Index of the minute field's first digit within a trailing ISO-8601 offset.
+ */
+const OFFSET_MINUTES_START = 4;
+
+/**
+ Reads the UTC offset an ISO-8601 timestamp was written in.
+ 
+ `git log --format=%aI` writes `2026-05-14T06:00:00+08:00`, and the offset is
+ what makes that instant the 14th for its author and the 13th in UTC. Instants
+ from the GitHub API are UTC (`Z`) and file mtimes carry no offset at all, so
+ both report zero.
+ 
+ @param timestamp - ISO-8601 timestamp as git or the GitHub API wrote it
+ 
+ @returns minutes east of UTC, zero when the timestamp carries no offset
+ 
+ @example
+ ```ts
+ authorOffsetMinutes('2026-05-14T06:00:00+08:00');
+ // 480
+ ```
+ */
+export function authorOffsetMinutes(timestamp: string,): number {
+  /**
+   Trailing `+HH:MM` or `-HH:MM`, or whatever else the string ends with.
+   */
+  const tail = timestamp.slice(-ISO_OFFSET_LENGTH,);
+  /**
+   Sign of the offset, the first character of the tail.
+   */
+  const sign = tail.charAt(OFFSET_SIGN_INDEX,);
+  if ((sign !== '+') && (sign !== '-'))
+    return NO_OFFSET_MINUTES;
+  if (tail.charAt(OFFSET_COLON_INDEX,) !== ':')
+    return NO_OFFSET_MINUTES;
+  /**
+   Hour field of the offset.
+   */
+  const hoursText = tail.slice(
+    OFFSET_HOURS_START,
+    OFFSET_HOURS_END,
+  );
+  /**
+   Minute field of the offset.
+   */
+  const minutesText = tail.slice(OFFSET_MINUTES_START,);
+  if ((!isDigits(hoursText,)) || (!isDigits(minutesText,)))
+    return NO_OFFSET_MINUTES;
+  /**
+   Offset magnitude contributed by the hour field.
+   */
+  const hoursMinutes = Number(hoursText,) * MINUTES_PER_HOUR;
+  /**
+   Offset magnitude in minutes, before the sign is applied.
+   */
+  const magnitude = hoursMinutes + Number(minutesText,);
+
+  return sign === '-' ? -magnitude : magnitude;
+}
+
+/**
+ Checks a short string is entirely ASCII digits.
+ 
+ @param value - candidate text
+ 
+ @returns `true` when every character is a digit and the string is non-empty
+ 
+ @example
+ ```ts
+ isDigits('08');
+ // true
+ ```
+ */
+function isDigits(value: string,): boolean {
+  if (value.length === 0)
+    return false;
+  return value
+    .split('',)
+    .every(function isDigit(character,) {
+      return (character >= '0') && (character <= '9');
+    },);
+}
+
+/**
  Result of running a git (or gh) command with stdout captured as UTF-8.
  */
 type CommandResult = Pick<Result, 'stdout' | 'stderr'>;
@@ -425,9 +545,17 @@ type PostDates = {
    */
   published: Date;
   /**
+   Minutes east of UTC the oldest commit was authored in.
+   */
+  publishedOffsetMinutes: number;
+  /**
    Author date of the newest commit touching the file.
    */
   updated: Date;
+  /**
+   Minutes east of UTC the newest commit was authored in.
+   */
+  updatedOffsetMinutes: number;
 };
 
 /**
@@ -521,7 +649,9 @@ export async function getPostDates(
   if ((latestIso !== ABSENT) && (publishedIso !== ABSENT)) {
     return {
       published: new Date(publishedIso,),
+      publishedOffsetMinutes: authorOffsetMinutes(publishedIso,),
       updated: new Date(latestIso,),
+      updatedOffsetMinutes: authorOffsetMinutes(latestIso,),
     };
   }
 
@@ -546,9 +676,23 @@ export async function getPostDates(
       missing.join(', ',)
     }); falling back to file mtime for missing fields`,
   );
+  /**
+   Zone the build machine reports for the mtime fallback, in minutes east of UTC.
+   
+   An mtime carries no zone of its own, so the machine that reads it supplies
+   one; only files with no git history at all reach this branch.
+   */
+  const mtimeOffsetMinutes = -mtime.getTimezoneOffset();
+
   return {
     published: publishedIso !== ABSENT ? new Date(publishedIso,) : mtime,
+    publishedOffsetMinutes: publishedIso !== ABSENT
+      ? authorOffsetMinutes(publishedIso,)
+      : mtimeOffsetMinutes,
     updated: latestIso !== ABSENT ? new Date(latestIso,) : mtime,
+    updatedOffsetMinutes: latestIso !== ABSENT
+      ? authorOffsetMinutes(latestIso,)
+      : mtimeOffsetMinutes,
   };
 }
 

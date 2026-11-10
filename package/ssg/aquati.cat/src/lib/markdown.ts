@@ -17,7 +17,8 @@ import rehypeSlug from 'rehype-slug-custom-id';
 import remarkGfm from 'remark-gfm';
 import remarkSectionize from 'remark-sectionize';
 
-import * as mdxComponents from '../component/index.ts';
+import { createMdxComponents, } from '../component/index.ts';
+import type { Locale, } from '../i18n/index.ts';
 
 import {
   Fragment,
@@ -45,15 +46,29 @@ import rehypeHighlight from './rehype-highlight.ts';
  
  @param body - raw MDX body content (frontmatter already stripped)
  
+ @param lang - locale the post is written in, used to localize the chrome that
+ MDX components render
+ 
  @returns rendered HTML string
  
  @example
  ```ts
- const html = await renderMdx('# Hello\n\n{/* this comment disappears *\/}\n\nWorld');
+ const html = await renderMdx({
+   body: '# Hello\n\n{/* this comment disappears *\/}\n\nWorld',
+   lang: 'en',
+ });
  // '<section><h1 id="hello">...</h1><p>World</p></section>'
  ```
  */
-export async function renderMdx(body: string,): Promise<string> {
+export async function renderMdx(
+  {
+    body,
+    lang,
+  }: {
+    readonly body: string;
+    readonly lang: Locale;
+  },
+): Promise<string> {
   /**
    Default-exported MDX component returned by {@link evaluate} is the JSX entry point.
    */
@@ -64,7 +79,7 @@ export async function renderMdx(body: string,): Promise<string> {
       jsxs,
       Fragment,
       useMDXComponents() {
-        return mdxComponents;
+        return createMdxComponents(lang,);
       },
       remarkPlugins: [
         remarkGfm,

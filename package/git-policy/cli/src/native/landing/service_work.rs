@@ -32,13 +32,18 @@
 //! ```
 
 pub use crate::service_work_handlers_replanning_and_acceptance::*;
+pub(crate) use crate::service_work_branch_is_gone::branch_is_gone_words_awaiting;
 pub(crate) use crate::service_work_drain_pending_claims::drain_pending;
-use crate::auto_push::push_once;
+use crate::auto_push::push_once_awaiting;
 use crate::auto_push_single_flight::PushGit;
 use crate::child_environment::{environment_with_overlay, service_child_overlay};
+use crate::config_snapshot::read_config_snapshot_awaiting;
+/// The synchronous configuration read,
+/// which only the control that builds the push's Git without the runtime asks.
+#[cfg(test)]
 use crate::config_snapshot::read_config_snapshot;
 use crate::lfs_pre_push::uses_lfs;
-use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
+use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with_awaiting};
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::{Retrying, final_failure, plain_words, unrecognised_rejection};
@@ -319,40 +324,87 @@ impl GitHandlers {
         return self.review_keys.get(git_dir).cloned();
     }
 
+    /// The push's Git,
+    /// asked without the runtime;
+    /// a control builds it this way.
+    #[cfg(test)]
     fn push_git(&self, item: &WorkItem) -> PushGit {
         let cwd: PathBuf = item.repository.clone();
-        // Git writes a `~pid.lock` file beside every lock it takes when `core.lockfilePid` is on, which names the owner of a lock
-        //  that a stopped push leaves behind; the service's own environment does not turn it on. The overlay also says never to ask for
-        //  a login (`never_prompt_overlay`): the host's askpass program is in this environment, and a dialog nobody answers is a push that waits.
-        #[cfg_attr(not(test), expect(unused_mut, reason = "only a test adds variables"))]
-        let mut inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
-        #[cfg(test)]
-        inherited.extend(self.push_environment.iter().cloned());
+        let (inherited, overlay): (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) =
+            self.push_environment_of();
         return PushGit {
             real_git: self.context.real_git.clone(),
             lfs: read_config_snapshot(&self.context, cwd.as_path()).as_ref().is_none_or(uses_lfs),
             cwd,
-            environment: environment_with_overlay(inherited.as_slice(), service_child_overlay(inherited.as_slice()).as_slice()),
+            environment: environment_with_overlay(inherited.as_slice(), overlay.as_slice()),
         };
+    }
+
+    /// The same Git,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The configuration read starts Git,
+    /// and the synchronous read enters the runtime and is refused from there;
+    /// the environment and the directory are the synchronous face's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async pushGitOnTheRuntime(item): Promise<PushGit>
+    /// ```
+    async fn push_git_awaiting(&self, item: &WorkItem) -> PushGit {
+        let cwd: PathBuf = item.repository.clone();
+        let (inherited, overlay): (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) =
+            self.push_environment_of();
+        return PushGit {
+            real_git: self.context.real_git.clone(),
+            lfs: read_config_snapshot_awaiting(&self.context, cwd.as_path()).await.as_ref().is_none_or(uses_lfs),
+            cwd,
+            environment: environment_with_overlay(inherited.as_slice(), overlay.as_slice()),
+        };
+    }
+
+    /// What every Git child of a push receives,
+    /// and the overlay the service adds to it.
+    /// Why:
+    ///   Both faces of the push Git build their environment here,
+    /// so the two cannot hand Git different variables.
+    ///  Git writes a `~pid.lock` file beside every lock it takes when `core.lockfilePid` is on,
+    /// which names the owner of a lock
+    ///  that a stopped push leaves behind;
+    /// the service's own environment does not turn it on.
+    /// The overlay also says never to ask for
+    ///  a login (`never_prompt_overlay`):
+    /// the host's askpass program is in this environment,
+    /// and a dialog nobody answers is a push that waits.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const [inherited, overlay] = pushEnvironmentOf();
+    /// ```
+    fn push_environment_of(&self) -> (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) {
+        #[cfg_attr(not(test), expect(unused_mut, reason = "only a test adds variables"))]
+        let mut inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
+        #[cfg(test)]
+        inherited.extend(self.push_environment.iter().cloned());
+        let overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> = service_child_overlay(inherited.as_slice());
+        return (inherited, overlay);
     }
 }
 
 /// What:
-///  Whether the branch the item names exists in the repository,
-/// or nothing when the question cannot be asked.
+///  The same question,
+/// awaited by a caller that is itself a task of the runtime.
 /// Why:
-///   A push of a branch that is not there fails the same way on every try,
-/// and nothing about it can pass by waiting;
-///  a push that failed for another reason must still be retried,
-/// so the answer decides,
-/// and never the words of the output.
+///   The question starts Git,
+/// and the synchronous query enters the runtime and is refused from there.
+/// The arguments and the reading of the exit status are the synchronous face's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const answer = await git.revParseVerifyQuiet(item.branch_ref); return answer.code === 0 ? true : answer.code === 1 ? false : undefined
+/// const answer = await branchExistsOnTheRuntime(git, item.branch_ref);
 /// ```
-fn branch_exists(git: &PushGit, branch_ref: &str) -> Option<bool> {
-    let asked = crate::auto_push_single_flight::run_query(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", branch_ref])).ok()?;
+async fn branch_exists_awaiting(git: &PushGit, branch_ref: &str) -> Option<bool> {
+    let asked = crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", branch_ref])).await.ok()?;
     return match asked.code {
         Some(0) => Some(true),
         Some(1) => Some(false),
@@ -387,82 +439,22 @@ fn reconcile_lines(shown: &str) -> String {
     return kept.join("\n");
 }
 
-/// What:
-///  The words for a push whose branch the person deleted:
-/// what happened,
-/// which commit it named,
-/// and every ref
-///  that still holds that commit.
-/// Why:
-///   Nothing was sent and nothing can pass by waiting,
-/// so the person is told once that the branch is gone;
-/// the commit
-///  is not on that branch any more because the person removed the branch,
-/// and when no ref holds it any more they are told
-///  that,
-/// with the commit named.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const refs = await git.for_each_ref(['--contains', item.oid, '--format=%(refname)']);
-/// `... the branch ${branch} no longer exists ... ${refs.length ? `Commit ${oid} is still on ${refs.join(', ')}.` : `Commit ${oid} is on no ref of this repository any more, ...`}`
-/// ```
-fn branch_is_gone_words(git: &PushGit, item: &WorkItem) -> String {
-    let branch: &str = item.branch_ref.strip_prefix("refs/heads/").unwrap_or(item.branch_ref.as_str());
-    // A query that failed is not an answer: nothing is said about where the commit lives when the refs could not be read.
-    let holding: Option<Vec<String>> = match crate::auto_push_single_flight::run_query(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["for-each-ref", "--contains", item.oid.as_str(), "--format=%(refname)"])) {
-        Ok(answer) if answer.code == Some(0) => {
-            let mut named: Vec<String> = Vec::new();
-            for line in String::from_utf8_lossy(answer.stdout.as_slice()).lines() {
-                let held: String = line.trim().to_owned();
-                if !held.is_empty() {
-                    named.push(held);
-                }
-            }
-            Some(named)
-        }
-        Ok(answer) => {
-            crate::service_warn!("the refs that hold {} could not be read (git for-each-ref exited {}), so the notice does not say where the commit lives", item.oid, match answer.code { Some(code) => code.to_string(), None => String::from("on a signal") });
-            None
-        }
-        Err(error) => {
-            crate::service_warn!("the refs that hold {} could not be read ({error}), so the notice does not say where the commit lives", item.oid);
-            None
-        }
-    };
-    const NAMED_AT_MOST: usize = 5;
-    let where_it_lives: String = match holding {
-        None => format!(
-            "Whether any ref of this repository still holds commit {} could not be told, because the refs could not be read.",
-            item.oid
-        ),
-        Some(none) if none.is_empty() => format!(
-            "Commit {} is on no ref of this repository any more, so only its object store keeps it and nothing was pushed for it.",
-            item.oid
-        ),
-        Some(named) => {
-            let shown: Vec<&str> = named.iter().take(NAMED_AT_MOST).map(String::as_str).collect();
-            let more: usize = named.len().saturating_sub(shown.len());
-            format!(
-                "Commit {} is still on {}{}.",
-                item.oid,
-                shown.join(", "),
-                if more == 0 { String::new() } else { format!(" and {more} more refs") }
-            )
-        }
-    };
-    return format!(
-        "monochromatic-git-policy-cli: the branch {branch} no longer exists in this repository, so this push was not made: the branch was deleted. {where_it_lives}          Nothing is retried for it; a commit you want on a branch again can be pushed by hand after naming it with `git branch`."
-    );
-}
-
 /// Trait implementation for the real Git.
 impl WorkHandlers for GitHandlers {
     fn push(&self, items: &[WorkItem]) -> Verdict {
+        return match crate::lazy_runtime::run_on_runtime(self.push_awaiting(items)) {
+            Ok(verdict) => verdict,
+            // The work did not happen, so the item is tried again rather than reported as a push that failed.
+            Err(refusal) => Verdict::Retry(format!("the push could not run: {refusal}")),
+        };
+    }
+
+    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
         let Some(newest) = items.last() else { return Verdict::Done };
-        let git: PushGit = self.push_git(newest);
+        let git: PushGit = self.push_git_awaiting(newest).await;
         let mut output: Vec<u8> = Vec::new();
-        return match push_once(&git, newest.branch_ref.as_str(), newest.oid.as_str(), &mut output) {
+        return match push_once_awaiting(&git, newest.branch_ref.as_str(), newest.oid.as_str(), &mut output).await {
             // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
@@ -481,7 +473,9 @@ impl WorkHandlers for GitHandlers {
             // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
             //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
             //  output: any program a push runs can print a line about a branch of its own.
-            Ok(_result) if branch_exists(&git, newest.branch_ref.as_str()) == Some(false) => Verdict::Skipped(branch_is_gone_words(&git, newest)),
+            Ok(_result) if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) => {
+                Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
+            }
             // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
             //  (a stall, the network, an LFS server error, a held lock).
             Ok(result) => match final_failure(result.shown.as_str()) {
@@ -499,6 +493,7 @@ impl WorkHandlers for GitHandlers {
             },
             Err(error) => Verdict::Retry(format!("{error}")),
         };
+        });
     }
 
     fn trash(&self, item: &WorkItem) -> Verdict {
@@ -506,11 +501,20 @@ impl WorkHandlers for GitHandlers {
     }
 
     fn maintenance(&self, item: &WorkItem) -> Verdict {
-        return match run_auto_maintenance_with(&self.context, item.repository.as_path(), None) {
-            Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => Verdict::Failed(format!("it exited with status {code}")),
-            Ok(_) => Verdict::Done,
-            Err(error) => Verdict::Failed(format!("{error:?}")),
+        return match crate::lazy_runtime::run_on_runtime(self.maintenance_awaiting(item)) {
+            Ok(verdict) => verdict,
+            Err(refusal) => Verdict::Failed(format!("the automatic upkeep could not run: {refusal}")),
         };
+    }
+
+    fn maintenance_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            return match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
+                Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => Verdict::Failed(format!("it exited with status {code}")),
+                Ok(_) => Verdict::Done,
+                Err(error) => Verdict::Failed(format!("{error:?}")),
+            };
+        });
     }
 
     fn review(&self, item: &WorkItem) -> Verdict {
