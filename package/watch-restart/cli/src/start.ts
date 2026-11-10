@@ -501,21 +501,29 @@ export async function startWatchRestart(
     state.timer = setTimeout(
       function fireRestart(): void {
         state.timer = NO_TIMER;
-        void (async function doRestart(): Promise<void> {
-          try {
-            await child.restart();
-          }
-          catch (error) {
-            /**
-             Human-readable error string used in the restart-failure log line.
-             */
-            const message = caughtValueText(error,);
-            startLogger.error(`restart failed: ${message}`,);
-          }
-        })();
+        void doRestart();
       },
       debounceMs,
     );
+  }
+
+  /**
+   Restarts the child once the debounce window closes, logging a failure instead
+   of throwing out of the timer callback. A sibling of {@link scheduleRestart}
+   rather than a nested function: it needs the child and the logger, which that
+   function does not own.
+   */
+  async function doRestart(): Promise<void> {
+    try {
+      await child.restart();
+    }
+    catch (error) {
+      /**
+       Human-readable error string used in the restart-failure log line.
+       */
+      const message = caughtValueText(error,);
+      startLogger.error(`restart failed: ${message}`,);
+    }
   }
 
   /**

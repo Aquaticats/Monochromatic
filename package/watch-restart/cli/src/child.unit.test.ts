@@ -15,7 +15,7 @@ import {
   type SpawnedChildHandle,
   type SpawnFn,
   type WriteClearFn,
-} from './child.ts';
+} from '@monochromatic-dev/watch-restart-cli';
 
 /* oxlint-disable no-restricted-syntax/no-class -- test double implementing the SpawnedChildHandle contract and instantiated via `new` by the recording spawn factory; it carries mutable per-instance state (signalsReceived, exit listeners) that a frozen-object factory cannot model for the state-machine assertions. */
 /**

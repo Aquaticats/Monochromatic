@@ -14,14 +14,12 @@ import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
+  contentHashFilter,
   HashCache,
   OVERSIZED,
-} from '../hash-cache.ts';
-import type {
-  WatchCtx,
-  WatchEvent,
-} from '../types.ts';
-import { contentHashFilter, } from './content-hash.ts';
+  type WatchCtx,
+  type WatchEvent,
+} from '@monochromatic-dev/watch-restart-cli';
 
 /**
  Logger root for watch-restart after removing the package log shim.

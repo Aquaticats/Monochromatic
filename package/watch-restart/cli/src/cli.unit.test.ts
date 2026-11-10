@@ -6,8 +6,8 @@ import {
 import {
   argsToOptions,
   parseArgs,
-} from './cli.ts';
-import type { ParsedArgs, } from './cli-types.ts';
+  type ParsedArgs,
+} from '@monochromatic-dev/watch-restart-cli';
 
 /**
  Runs {@link parseArgs} against a synthetic argv with output / exit

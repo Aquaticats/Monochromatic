@@ -141,15 +141,15 @@ export class Watcher {
         // `depth` absent leaves chokidar's default (unlimited) intact.
         ...(options.depth
           === undefined ? {} : { depth: options.depth, }),
-        // Polling: only enable when an explicit interval is given; both
-        // `usePolling` and `interval` are spread together so the keys move
-        // as one unit rather than leaving a stray `usePolling: false`.
+        // Polling: only select the polling backend when an explicit interval is
+        // given; `backend` and `pollingInterval` are spread together so the keys
+        // move as one unit rather than leaving a stray `backend: 'auto'`.
         ...(options.poll
           === undefined
           ? {}
           : {
-            usePolling: true,
-            interval: options.poll,
+            backend: 'polling' as const,
+            pollingInterval: options.poll,
           }),
       },
     );

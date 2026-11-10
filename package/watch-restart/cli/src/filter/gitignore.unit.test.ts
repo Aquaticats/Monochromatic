@@ -12,12 +12,12 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { HashCache, } from '../hash-cache.ts';
-import type {
-  WatchCtx,
-  WatchEvent,
-} from '../types.ts';
-import { gitignoreFilter, } from './gitignore.ts';
+import {
+  gitignoreFilter,
+  HashCache,
+  type WatchCtx,
+  type WatchEvent,
+} from '@monochromatic-dev/watch-restart-cli';
 
 /**
  Logger root for watch-restart after removing the package log shim.

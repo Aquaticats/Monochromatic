@@ -19,9 +19,11 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { HashCache, } from './hash-cache.ts';
-import type { WatchEvent, } from './types.ts';
-import { Watcher, } from './watcher.ts';
+import {
+  HashCache,
+  Watcher,
+  type WatchEvent,
+} from '@monochromatic-dev/watch-restart-cli';
 
 /**
  sha256 hex of the literal bytes "hello"; used to assert pre-populate

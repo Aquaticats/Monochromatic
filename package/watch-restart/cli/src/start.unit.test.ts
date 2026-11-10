@@ -12,17 +12,15 @@ import {
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
-import type {
-  ExitListener,
-  ExitResult,
-  SpawnedChildHandle,
-  SpawnFn,
-} from './child.ts';
 import {
   DEFAULT_DEBOUNCE_MS,
+  type ExitListener,
+  type ExitResult,
+  type SpawnedChildHandle,
+  type SpawnFn,
   startWatchRestart,
   type WatchRestartHandle,
-} from './start.ts';
+} from '@monochromatic-dev/watch-restart-cli';
 
 /**
  Synthetic post-event wait: chokidar's default `awaitWriteFinish.stabilityThreshold`

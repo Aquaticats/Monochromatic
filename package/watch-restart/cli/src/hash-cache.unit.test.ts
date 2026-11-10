@@ -16,7 +16,7 @@ import {
   DEFAULT_MAX_HASH_SIZE_MIB,
   HashCache,
   OVERSIZED,
-} from './hash-cache.ts';
+} from '@monochromatic-dev/watch-restart-cli';
 
 /**
  Known sha256 hex of the literal bytes "hello".

@@ -9,7 +9,7 @@ import {
   parseKillSignal,
   parseTypeToken,
   resolveBoolPair,
-} from './cli-helpers.ts';
+} from '@monochromatic-dev/watch-restart-cli';
 
 await describe({
   name: 'cli-helpers',

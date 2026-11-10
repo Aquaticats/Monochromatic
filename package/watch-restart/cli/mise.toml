@@ -24,6 +24,7 @@ extends = "lint:types"
 
 [tasks."test:unit"]
 extends = "test:unit"
+depends = ["build"]
 
 [tasks."lint:oxlint"]
 extends = "lint:oxlint"

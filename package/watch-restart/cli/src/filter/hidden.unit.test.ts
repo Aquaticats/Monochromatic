@@ -5,12 +5,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { HashCache, } from '../hash-cache.ts';
-import type {
-  WatchCtx,
-  WatchEvent,
-} from '../types.ts';
-import { hiddenFilter, } from './hidden.ts';
+import {
+  HashCache,
+  hiddenFilter,
+  type WatchCtx,
+  type WatchEvent,
+} from '@monochromatic-dev/watch-restart-cli';
 
 /**
  Logger root for watch-restart after removing the package log shim.
