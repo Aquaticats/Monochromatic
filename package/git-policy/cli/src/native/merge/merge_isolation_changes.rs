@@ -10,13 +10,24 @@
 //! or holds something
 //!  else that belongs to someone else and must not be overwritten.
 //!
+//!  Every read of a worktree file is two faces of one body:
+//! the awaited one a task of the runtime calls,
+//! and the synchronous one a caller outside it keeps,
+//!  which enters the runtime once.
+//! A synchronous Git start registers the step's pipes by entering the runtime,
+//! which is refused from inside it,
+//!  so a task can only reach the awaited face.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const changes = parseRawChanges(await git(['diff-tree', '-r', '-z', '--raw', '--no-renames', '--no-abbrev', old, next]));
 //! ```
 
-/// Running real Git for a blob hash.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git_checked};
+/// Running real Git for a blob hash, on either face.
+use crate::transaction_git::{GitContext, GitOutput, GitRequest};
+use crate::transaction_git_awaiting::run_git_checked_awaiting;
+/// The process's one runtime, entered once by each synchronous face.
+use crate::lazy_runtime::run_on_runtime;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -242,7 +253,26 @@ pub fn worktree_path(root: &Path, path: &[u8]) -> PathBuf {
 /// async function worktreeState({ context, root, path }): Promise<WorktreeState>;
 /// ```
 pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<WorktreeState, String> {
-    return state_of_file(context, root, path, worktree_path(root, path).as_path());
+    return match run_on_runtime(worktree_state_awaiting(context, root, path)) {
+        Ok(found) => found,
+        Err(refusal) => Err(format!("{refusal}")),
+    };
+}
+
+/// What:
+///  The same read of a worktree path,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The synchronous face registers the step's pipes by entering the runtime,
+/// which is refused from inside it;
+///  this is the same read with the entering taken out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function worktreeState({ context, root, path }): Promise<WorktreeState>;
+/// ```
+pub async fn worktree_state_awaiting(context: &GitContext, root: &Path, path: &[u8]) -> Result<WorktreeState, String> {
+    return state_of_file_awaiting(context, root, path, worktree_path(root, path).as_path()).await;
 }
 
 /// What:
@@ -259,7 +289,7 @@ pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<
 /// ```ts
 /// async function stateOfFile({ context, root, path, location }): Promise<WorktreeState>;
 /// ```
-pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &Path) -> Result<WorktreeState, String> {
+pub async fn state_of_file_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path) -> Result<WorktreeState, String> {
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(WorktreeState::Missing),
@@ -267,7 +297,7 @@ pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &
         Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
     };
     if metadata.file_type().is_symlink() {
-        let object: String = the_objects_a_link_hashes_to(context, root, location)?;
+        let object: String = the_objects_a_link_hashes_to_awaiting(context, root, location).await?;
         return Ok(WorktreeState::Content { object, mode: String::from(SYMBOLIC_LINK_MODE) });
     }
     if !metadata.is_file() {
@@ -280,7 +310,7 @@ pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &
     request.arguments.push(named);
     request.arguments.push(std::ffi::OsString::from("--"));
     request.arguments.push(location.as_os_str().to_os_string());
-    let output = match run_git_checked(context, &request) {
+    let output = match run_git_checked_awaiting(context, &request).await {
         Ok(done) => done,
         Err(error) => return Err(error.to_string()),
     };
@@ -312,14 +342,14 @@ const SYMBOLIC_LINK_MODE: &str = "120000";
 /// ```ts
 /// async function theObjectsALinkHashesTo(context, root, location): Promise<string>; // hash-object --no-filters --stdin < readlink(location)
 /// ```
-pub fn the_objects_a_link_hashes_to(context: &GitContext, root: &Path, location: &Path) -> Result<String, String> {
+pub async fn the_objects_a_link_hashes_to_awaiting(context: &GitContext, root: &Path, location: &Path) -> Result<String, String> {
     let target: PathBuf = match std::fs::read_link(location) {
         Ok(read) => read,
         Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
     };
     let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
     request.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
-    let output: GitOutput = match run_git_checked(context, &request) {
+    let output: GitOutput = match run_git_checked_awaiting(context, &request).await {
         Ok(done) => done,
         Err(error) => return Err(error.to_string()),
     };
@@ -380,8 +410,33 @@ fn mode_of_file(_metadata: &std::fs::Metadata) -> &'static str {
 /// function theRepositoryRecordsFileModes(context, root): boolean; // git config --bool core.filemode !== 'false'
 /// ```
 pub fn the_repository_records_file_modes(context: &GitContext, root: &Path) -> bool {
+    return match run_on_runtime(the_repository_records_file_modes_awaiting(context, root)) {
+        Ok(found) => found,
+        // A read the runtime refused proves nothing, so the strict answer is kept.
+        Err(refusal) => {
+            crate::diagnostic_log::debug(
+                "theRepositoryRecordsFileModes",
+                format!("core.filemode could not be read, so it counts as recorded: {refusal}").as_str(),
+            );
+            true
+        }
+    };
+}
+
+/// What:
+///  The same answer about `core.filemode`,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   `the_repository_records_file_modes` enters the runtime around this read,
+/// which a task cannot do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function theRepositoryRecordsFileModes(context, root): Promise<boolean>;
+/// ```
+pub async fn the_repository_records_file_modes_awaiting(context: &GitContext, root: &Path) -> bool {
     let request: GitRequest = GitRequest::new(root, &["config", "--bool", "core.filemode"]);
-    let Ok(output) = run_git_checked(context, &request) else {
+    let Ok(output) = run_git_checked_awaiting(context, &request).await else {
         return true;
     };
     return String::from_utf8_lossy(&output.stdout).trim() != "false";
