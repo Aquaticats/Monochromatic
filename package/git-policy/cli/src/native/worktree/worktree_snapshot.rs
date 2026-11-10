@@ -386,17 +386,22 @@ pub struct PlaceSeams<'a> {
 ///  fails,
 /// the error says the stage name no longer holds the snapshot,
 /// so the caller does not remove what is there.
+/// The success is the object the destination names afterwards:
+/// the snapshot,
+/// whose identity the
+///  reservation of the destination takes,
+/// because the directory Git made is not there any more.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await putInPlace({ stage, destination, sourceMode, expected }); // expected: the identity of the directory Git made
+/// const placed = await putInPlace({ stage, destination, sourceMode, expected }); // expected: the identity of the directory Git made
 /// ```
-pub fn put_in_place(stage: &Path, destination: &Path, source_mode: u32, expected: ObjectId) -> Result<(), PlaceError> {
+pub fn put_in_place(stage: &Path, destination: &Path, source_mode: u32, expected: ObjectId) -> Result<ObjectId, PlaceError> {
     return put_in_place_with(stage, destination, source_mode, expected, &mut PlaceSeams { after_check: &mut do_nothing, before_swap_back: &mut do_nothing });
 }
 
 /// `put_in_place` with the moments at which a control may move the tree.
-pub fn put_in_place_with(stage: &Path, destination: &Path, source_mode: u32, expected: ObjectId, seams: &mut PlaceSeams<'_>) -> Result<(), PlaceError> {
+pub fn put_in_place_with(stage: &Path, destination: &Path, source_mode: u32, expected: ObjectId, seams: &mut PlaceSeams<'_>) -> Result<ObjectId, PlaceError> {
     let (Some(parent_path), Some(stage_name), Some(destination_name)) = (stage.parent(), stage.file_name(), destination.file_name()) else {
         return Err(ours(String::from("the stage and the destination have no parent")));
     };
@@ -413,7 +418,7 @@ pub fn put_in_place_with(stage: &Path, destination: &Path, source_mode: u32, exp
     ours_on_failure(subject_failure(exchange_at(&parent, stage_name, destination_name), &"the destination", "cannot be swapped with the stage"))?;
     // The directory displaced to the stage name must be the one that was checked; another means the destination was replaced.
     if identity_at(&parent, stage_name).ok() == Some(expected) {
-        return Ok(());
+        return Ok(snapshot);
     }
     (seams.before_swap_back)();
     if let Err(error) = exchange_at(&parent, stage_name, destination_name) {
