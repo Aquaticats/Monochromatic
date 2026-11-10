@@ -71,6 +71,7 @@ function ownerOf(file: string): string | null {
 // compiled. A whitespace character is one member of the ECMAScript `\s` set, and a
 // word character is one member of the `\w` set, so both match what the grammar they
 // replaced accepted.
+const FROM_KEYWORD = 'from';
 const IMPORT_KEYWORD = 'import';
 const TYPE_KEYWORD = 'type';
 const WORD_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
@@ -146,6 +147,28 @@ function isTypeImport(text: string): boolean {
   return !isWordCharacter(text.charAt(typeStart + TYPE_KEYWORD.length));
 }
 
+// The specifier of the first `from\s*['"][^'"]+['"]` clause in `text`, or null.
+// The clause is unanchored, so every `from` is tried in turn and the walk resumes
+// after the keyword that failed.
+function findFromSpecifier(text: string): string | null {
+  let from = text.indexOf(FROM_KEYWORD);
+  while (from !== -1) {
+    const specifier = quotedContentAt(
+      text,
+      skipWhitespace(
+        text,
+        from + FROM_KEYWORD.length
+      )
+    );
+    if (specifier !== null) return specifier;
+    from = text.indexOf(
+      FROM_KEYWORD,
+      from + 1
+    );
+  }
+  return null;
+}
+
 // Parse top-level import statements. Each statement starts with `import` (maybe
 // `import type`), may span multiple lines, ends at the line containing `from '...';`
 // or (side-effect import) `import '...';`. Returns {isType, specifier} per stmt.
@@ -167,7 +190,7 @@ function parseImports(text: string): ImportStmt[] {
       // collect until we see a closing `from '...'` or a bare `import '...'`
       let stmt = line;
       let j = i;
-      while ((!/from\s*['"][^'"]+['"]/.test(stmt)) && (!isSideEffectImport(stmt.trimStart()))
+      while ((findFromSpecifier(stmt) === null) && (!isSideEffectImport(stmt.trimStart()))
         && (j < (lines.length
           - 1))) {
         j += 1;
@@ -175,10 +198,11 @@ function parseImports(text: string): ImportStmt[] {
         if ((j - i) > 50) break;
       }
       const isType = isTypeImport(stmt.trimStart());
-      const m = (/from\s*['"]([^'"]+)['"]/.exec(stmt)) ?? (/^import\s*['"]([^'"]+)['"]/.exec(stmt));
-      if (m) out.push({
+      const bareImport = /^import\s*['"]([^'"]+)['"]/.exec(stmt);
+      const specifier = findFromSpecifier(stmt) ?? ((bareImport === null) ? null : bareImport[1]);
+      if (specifier !== null) out.push({
         isType,
-        specifier: m[1]
+        specifier
       });
       i = j + 1;
       continue;
