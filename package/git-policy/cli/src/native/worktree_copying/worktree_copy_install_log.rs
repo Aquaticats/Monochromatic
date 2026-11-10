@@ -172,6 +172,14 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
 /// Why:
 ///   A trailing fragment without its line feed is an append the owner never finished;
 /// it is not a record.
+/// The log is read through the plain-file reader,
+/// which waits for no writer and follows no link,
+/// so a
+///  name some other process of this user left as a named pipe in the stage is refused at once instead of
+///  holding every later command of the copy on an open that waits for a writer that may never come
+///  ("nothing should ever wait forever or indefinitely");
+/// the read has no length limit because the log grows
+///  with the entries one install recorded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -179,7 +187,9 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
 /// ```
 fn read_complete_records(path: &Path) -> Result<(InstallLogRecords, u64, u64), WorktreeCopyError> {
     assert_private_path(path, Role::JournalFile)?;
-    let content: Vec<u8> = std::fs::read(path).map_err(raw_failure_of)?;
+    let mut opened: std::fs::File = crate::plain_file::open_plain_file(path).map_err(raw_failure_of)?;
+    let mut content: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut opened, &mut content).map_err(raw_failure_of)?;
     let complete_length: usize = match content.iter().rposition(is_line_feed) {
         Some(index) => index + 1,
         None => 0,
@@ -222,7 +232,9 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
     let opened: std::io::Result<std::fs::File> = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .custom_flags(libc::O_NOFOLLOW)
+        // `O_NONBLOCK` keeps an append from waiting for a reader of a name that is no file at all, and `O_NOFOLLOW`
+        //  keeps the append off a link some other process of this user left in the stage.
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
         .mode(0o600)
         .open(path.as_path());
     let file: std::fs::File = match opened {
