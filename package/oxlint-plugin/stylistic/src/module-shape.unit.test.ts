@@ -9,7 +9,9 @@
  TSDoc `@example` blocks in this package legitimately show `(a, b)` pairs.
 
  The scan covers `function` declarations and function expressions; a parameter
- list of an arrow function is not read.
+ list of an arrow function is not read. It has no math exemption either, because
+ no text tells a formula variable from an abbreviation, so a helper that really
+ computes with one takes a deliberate change to this guard, never a silent pass.
 
  @module
  */
