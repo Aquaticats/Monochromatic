@@ -316,8 +316,11 @@ export function resolveFixtureTarget(params: ResolveFixtureTargetParams,): strin
 
 /**
  Text oxlint printed, and the command line that printed it.
+
+ EXPORTED FOR ITS TESTS, per `XPT`: it is the return type of {@link outputFromSpawnError}, which the unit tests
+ call directly, so the type has to be nameable from the built artifact.
  */
-type OxlintProcessOutput = {
+export type OxlintProcessOutput = {
   /**
    Command line oxlint was started with, as nano-spawn reports it.
    */
@@ -384,18 +387,23 @@ export class OxlintOutputParseError extends Error {
 /**
  Returns the output nano-spawn stores on errors when oxlint exits non-zero.
 
+ EXPORTED FOR ITS TESTS, per `XPT`. Every decision about a failed spawn lives here: which values count as carrying
+ stdout, which do not, and what the command line and standard error fall back to. `runOxlintFixture` reaches it
+ only through a real oxlint process, which cannot be made to reject with a value that is not an object, so the
+ guards would stay unexercised through the runner.
+
  @param error - thrown value from `spawn`
 
  @returns captured stdout, with stderr and the command line when nano-spawn stored them
 
- @throws original thrown value when stdout is not available
+ @throws {@link Error} naming the missing stdout, with the thrown value as `cause`, when it carries none
 
  @example
  ```ts
  const output = outputFromSpawnError({ error });
  ```
  */
-function outputFromSpawnError({ error, }: { readonly error: unknown; },): OxlintProcessOutput {
+export function outputFromSpawnError({ error, }: { readonly error: unknown; },): OxlintProcessOutput {
   if (((typeof error) !== 'object') || (error === null)) {
     throw new Error(
       'oxlint spawn failure did not expose stdout.',
