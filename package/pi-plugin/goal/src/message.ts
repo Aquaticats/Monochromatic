@@ -11,6 +11,8 @@ import type {
   GoalMessageMarker,
 } from './types.ts';
 
+//region Task-only message construction
+
 /**
  Build model-visible task content without harness protocol.
  
@@ -97,6 +99,8 @@ function buildGoalMessage(
     },
   };
 }
+
+//endregion Task-only message construction
 
 export {
   buildGoalMessage,

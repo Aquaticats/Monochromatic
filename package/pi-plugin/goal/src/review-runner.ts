@@ -38,10 +38,16 @@ import {
   resolveGoalReviewerPool,
 } from './review-selection.ts';
 
+//region Logger
+
 /**
  Reviewer orchestration logger.
  */
 const reviewRunnerLogger = tagged({ tag: 'pi-goal-review-runner', },);
+
+//endregion Logger
+
+//region Reviewer attempts
 
 /**
  Run one production structured reviewer attempt.
@@ -219,6 +225,10 @@ async function runGoalFallbackAttempt(
   }
 }
 
+//endregion Reviewer attempts
+
+//region Reviewer pool
+
 /**
  Run initial reviewer and distinct bounded concurrent fallbacks from one pool.
  
@@ -361,6 +371,10 @@ async function runGoalReviewerPool(
   }
 }
 
+//endregion Reviewer pool
+
+//region Settlement review
+
 /**
  Production settlement reviewer building active-branch evidence and scoped pool.
  
@@ -414,6 +428,8 @@ async function reviewGoalSettlement(
     ...(signal === undefined ? {} : { signal, }),
   },);
 }
+
+//endregion Settlement review
 
 export {
   reviewGoalSettlement,
