@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { parseManifest, pinnedGhosttyCommit, readyMarkerFor, sha256Of, verifyArchive } from './ghostty-offline-inputs.ts';
+import { missingInputs, parseManifest, pinnedGhosttyCommit, readyMarkerIsCurrent, readyMarkerFor, sha256Of, verifyArchive } from './ghostty-offline-inputs.ts';
 
 const commit = '0123456789abcdef0123456789abcdef01234567'
 const digest = 'a'.repeat(64)
@@ -57,4 +57,26 @@ test('an archive that matches its pin passes and a changed archive is refused wi
 test('the ready marker changes with the manifest text', () => {
   assert.notEqual(readyMarkerFor('a'), readyMarkerFor('b'))
   assert.equal(readyMarkerFor('a'), readyMarkerFor('a'))
+})
+
+test('the ready marker counts only when it holds the current pins', () => {
+  const expectedMarkerText = readyMarkerFor('a')
+  assert.equal(readyMarkerIsCurrent({ markerText: expectedMarkerText, expectedMarkerText }), true)
+  assert.equal(readyMarkerIsCurrent({ markerText: undefined, expectedMarkerText }), false)
+  assert.equal(readyMarkerIsCurrent({ markerText: readyMarkerFor('b'), expectedMarkerText }), false)
+})
+
+// The defect of issue 6271: a marker left behind by a fetch whose source tree was then removed (a fresh worktree
+// that kept the gitignored marker) must not pass as current, because libghostty-vt-sys asserts build.zig inside
+// GHOSTTY_SOURCE_DIR and the build stops.
+test('a matching marker over a missing Ghostty source tree is not current', () => {
+  const manifest = parseManifest(manifestWith({}))
+  const packageDirectory = `packages/${entry.zigHash}`
+  const present = new Set([packageDirectory])
+  const isPresent = (relativePath: string) => present.has(relativePath)
+  assert.deepEqual(missingInputs({ manifest, isPresent }), ['source/build.zig'])
+  present.add('source/build.zig')
+  assert.deepEqual(missingInputs({ manifest, isPresent }), [])
+  present.delete(packageDirectory)
+  assert.deepEqual(missingInputs({ manifest, isPresent }), [packageDirectory])
 })
