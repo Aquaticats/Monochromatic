@@ -328,6 +328,24 @@ function logActivationCreateError({ error, }: { readonly error: unknown; },): vo
 }
 
 /**
+ Creates a replacement main window for an activation,
+ logging instead of throwing because Electron does not await the call.
+ 
+ @example
+ ```ts
+ await createActivatedMainWindow();
+ ```
+ */
+async function createActivatedMainWindow(): Promise<void> {
+  try {
+    await createMainWindow();
+  }
+  catch (error: unknown) {
+    logActivationCreateError({ error, },);
+  }
+}
+
+/**
  Creates a replacement main window when the app is activated with none open.
  
  @example
@@ -336,14 +354,7 @@ function logActivationCreateError({ error, }: { readonly error: unknown; },): vo
  ```
  */
 function createMainWindowForActivation(): void {
-  void (async function createActivatedMainWindow(): Promise<void> {
-    try {
-      await createMainWindow();
-    }
-    catch (error: unknown) {
-      logActivationCreateError({ error, },);
-    }
-  })();
+  void createActivatedMainWindow();
 }
 
 /**
@@ -391,7 +402,8 @@ function logStartupError({ error, }: { readonly error: unknown; },): void {
 }
 
 /**
- Starts Electron asynchronously without blocking ESM module evaluation.
+ Waits for Electron readiness and opens the first window,
+ logging and quitting instead of throwing because nothing awaits the call.
  
  Electron emits `ready` after the main module finishes evaluating, so a
  top-level `await app.whenReady()` deadlocks startup under Electron's ESM
@@ -399,22 +411,32 @@ function logStartupError({ error, }: { readonly error: unknown; },): void {
  
  @example
  ```ts
+ await startFileManagerAppTask();
+ ```
+ */
+async function startFileManagerAppTask(): Promise<void> {
+  try {
+    mainLogger.info('Waiting for Electron app readiness.',);
+    await app.whenReady();
+    mainLogger.info('Electron app is ready.',);
+    await createMainWindow();
+  }
+  catch (error: unknown) {
+    logStartupError({ error, },);
+    app.quit();
+  }
+}
+
+/**
+ Starts Electron asynchronously without blocking ESM module evaluation.
+ 
+ @example
+ ```ts
  startFileManagerApp();
  ```
  */
 function startFileManagerApp(): void {
-  void (async function startFileManagerAppTask(): Promise<void> {
-    try {
-      mainLogger.info('Waiting for Electron app readiness.',);
-      await app.whenReady();
-      mainLogger.info('Electron app is ready.',);
-      await createMainWindow();
-    }
-    catch (error: unknown) {
-      logStartupError({ error, },);
-      app.quit();
-    }
-  })();
+  void startFileManagerAppTask();
 }
 
 configureLinuxWayland();

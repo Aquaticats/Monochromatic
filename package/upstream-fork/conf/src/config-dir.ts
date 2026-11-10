@@ -6,12 +6,22 @@
  so a migrating app finds its config file at the identical path. Resolution
  happens per call (not module load) so injected homes take effect,
  which the repository's disposable-home test rule requires.
+ The root variables treat an empty value as absent,
+ as upstream's `env-paths` does with
+ `env.APPDATA || path.join(homedir, 'AppData', 'Roaming')`
+ (that `path` is upstream's default `node:path` namespace, not this module's);
+ they are spelled as explicit empty-and-unset checks because this repository's
+ lint rules refuse a logical OR as a nullish fallback.
+ A nullish fallback would keep `''` and make the joined path relative to the
+ working directory,
+ so a caller whose unit exports `APPDATA=` or `XDG_CONFIG_HOME=` would read a
+ different file than upstream `conf` does.
  
  @module
  */
 
 import { homedir, } from 'node:os';
-import path from 'node:path';
+import { join, } from 'node:path';
 import process from 'node:process';
 
 //region Platform layouts
@@ -32,11 +42,11 @@ function macosConfigDirectory(name: string,): string {
   /**
    Per-user Library directory macOS keeps preferences in.
    */
-  const library = path.join(
+  const library = join(
     homedir(),
     'Library',
   );
-  return path.join(
+  return join(
     library,
     'Preferences',
     name,
@@ -45,7 +55,8 @@ function macosConfigDirectory(name: string,): string {
 
 /**
  Windows layout: `%APPDATA%\<name>\Config`,
- falling back to `AppData\Roaming`.
+ falling back to `AppData\Roaming`,
+ including when `%APPDATA%` is set to an empty string.
  
  @param name - App name including any suffix.
  
@@ -60,14 +71,21 @@ function windowsConfigDirectory(name: string,): string {
   /**
    Roaming application-data root Windows stores per-app config under.
    */
-  const appData = process.env
-    .APPDATA
-    ?? path.join(
+  const configuredAppData = process.env
+    .APPDATA;
+  /**
+   Roaming root to join beneath;
+   an empty `%APPDATA%` counts as unset, as it does for upstream `env-paths`,
+   whose fallback is a logical OR.
+   */
+  const appData = (configuredAppData === undefined) || (configuredAppData === '')
+    ? join(
       homedir(),
       'AppData',
       'Roaming',
-    );
-  return path.join(
+    )
+    : configuredAppData;
+  return join(
     appData,
     name,
     'Config',
@@ -76,7 +94,8 @@ function windowsConfigDirectory(name: string,): string {
 
 /**
  freedesktop.org base-directory layout: `$XDG_CONFIG_HOME/<name>`,
- falling back to `~/.config/<name>`.
+ falling back to `~/.config/<name>`,
+ including when `$XDG_CONFIG_HOME` is set to an empty string.
  
  @param name - App name including any suffix.
  
@@ -91,13 +110,20 @@ function xdgConfigDirectory(name: string,): string {
   /**
    XDG config root shared by freedesktop.org platforms.
    */
-  const configRoot = process.env
-    .XDG_CONFIG_HOME
-    ?? path.join(
+  const configuredConfigRoot = process.env
+    .XDG_CONFIG_HOME;
+  /**
+   XDG config root to join beneath;
+   an empty `$XDG_CONFIG_HOME` counts as unset, as it does for upstream
+   `env-paths`, whose fallback is a logical OR.
+   */
+  const configRoot = (configuredConfigRoot === undefined) || (configuredConfigRoot === '')
+    ? join(
       homedir(),
       '.config',
-    );
-  return path.join(
+    )
+    : configuredConfigRoot;
+  return join(
     configRoot,
     name,
   );

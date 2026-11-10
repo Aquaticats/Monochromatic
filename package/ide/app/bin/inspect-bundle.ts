@@ -11,7 +11,7 @@ import { inflateSync } from 'node:zlib';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { compositor, demandCurrentCompositor } from './nested-compositor.ts';
+import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
 const only = process.env.usage_only ? new Set(process.env.usage_only.split(',')) : undefined;
@@ -248,9 +248,17 @@ const session = async ({ name, application, cache, config, settled = settledOnSy
     // The compositor's own start (its EGL setup) took 37 s at a host load of 77 on 2026-10-06, and it starts the
     // application only after that; the application's 60 s count from the compositor's first control reply.
     const compositorDeadline = performance.now() + 120000;
-    while (!(await control('ping').then(reply => reply.startsWith('ok'), () => false))) {
+    let failure: string | undefined;
+    while (true) {
+      try {
+        if ((await control('ping')).startsWith('ok')) break;
+        failure = 'the compositor answered its ping without ok';
+      } catch (error) {
+        // A compositor killed while it starts closes its socket instead of answering; the deadline names the wait.
+        failure = error instanceof Error ? error.message : String(error);
+      }
       demand({ condition: child.exitCode === null && child.signalCode === null, message: 'the session ended early with status ' + child.exitCode + '; see ' + log });
-      demand({ condition: performance.now() < compositorDeadline, message: 'the compositor did not answer its control socket within 120 s; see ' + log });
+      demand({ condition: performance.now() < compositorDeadline, message: 'the compositor did not answer its control socket within 120 s; see ' + log + (failure === undefined ? '' : ': ' + failure) });
       await wait(100);
     }
     const deadline = performance.now() + 60000;
@@ -289,7 +297,8 @@ const session = async ({ name, application, cache, config, settled = settledOnSy
   } finally {
     // A failed session is asked to quit first and stopped by a signal only when that does not end it.
     if (child.exitCode === null && child.signalCode === null) {
-      const asked = await Promise.race([control('quit').catch(() => undefined), wait(2000)]);
+      // A compositor already going away may close its socket instead of replying, so the reply is bounded too.
+      const asked = await Promise.race([quietReply(() => control('quit')), silentFor(2000)]);
       const force = setTimeout(() => child.kill('SIGKILL'), asked === 'ok' ? 5000 : 0);
       await exited;
       clearTimeout(force);

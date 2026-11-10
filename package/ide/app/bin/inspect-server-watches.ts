@@ -265,9 +265,8 @@ for (const item of cases) {
   const sampleStart = performance.now();
   let firstWatchSeconds: number | null = null;
   const kinds: Record<string, Record<string, number>> = {};
-  let finished = false;
-  done.then(() => { finished = true; });
-  while (!finished) {
+  // The session's own process is the loop condition: its exit is what ends the sampling.
+  while (run.exitCode === null && run.signalCode === null) {
     for (const row of descendants(run.pid)) {
       const key = row.comm;
       const previous = peaks.get(key) ?? { comm: row.comm, instances: 0, watches: 0 };

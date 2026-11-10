@@ -68,6 +68,13 @@ pub(crate) struct Slot {
 /// The identity keeps the removal from taking a pathname that now names another file,
 ///  and the entry is cleared whenever the landing thread takes,
 /// places or removes the file.
+/// Lock kept:
+///  the landing thread writes this record and the shutdown task takes it,
+/// so two threads reach it,
+/// and a pathname with an identity is not one word an atomic could hold.
+/// Under it only the value is replaced or taken:
+/// no Git process,
+/// no file and no other lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,6 +111,13 @@ fn forget_made_ahead() {
     }
 }
 
+/// Takes the record of the file made ahead,
+/// so that the file calls of its removal run with nothing held.
+fn take_made_ahead() -> Option<MadeAhead> {
+    let Ok(mut kept) = MADE_AHEAD.lock() else { return None };
+    return kept.take();
+}
+
 /// What:
 ///  Removes the file the service made ahead,
 /// when it is still the file the service wrote,
@@ -123,8 +137,7 @@ fn forget_made_ahead() {
 /// const made = madeAhead; madeAhead = undefined; if (made && lstat(made.path).ino === made.ino && lstat(made.path).dev === made.dev) rm(made.path);
 /// ```
 pub fn remove_the_file_made_ahead() {
-    let Ok(mut kept) = MADE_AHEAD.lock() else { return };
-    let Some(made) = kept.take() else { return };
+    let Some(made) = take_made_ahead() else { return };
     let Ok(on_path) = std::fs::symlink_metadata(made.path.as_path()) else { return };
     if on_path.file_type().is_file() && on_path.dev() == made.device && on_path.ino() == made.inode {
         let _removed = std::fs::remove_file(made.path.as_path());

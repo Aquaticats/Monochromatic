@@ -39,6 +39,25 @@ lossily when `lossyForCircular` is true (the default),
  or rejected with a `TypeError` when it
 is false.
 
+## Sync and async variants
+
+The two variants are hand-written twins,
+ not one core with two adapters.
+ `create-store.ts` and `create-sync-store.ts` mirror each other step for step,
+ and so do the backend query and healing pairs beside them.
+ Merging a pair would need an abstraction over the sync-or-async return,
+ which this package deliberately avoids;
+ `doc/decision/memoize-sync-async-parallel-impls.md` records that choice.
+ The parts both variants do share are explicit:
+ `consensus.ts`,
+ `serialize.ts`,
+ and `lru-key-set.ts`.
+ Because of the split,
+ a behaviour one variant gains alone is a defect unless a decision says
+ otherwise,
+ and `store-pair-parity.unit.test.ts` holds the decisions both sides must
+ make identically.
+
 ## Reads: consensus and healing
 
 `get` queries every backend,
