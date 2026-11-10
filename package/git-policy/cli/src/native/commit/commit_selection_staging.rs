@@ -178,7 +178,8 @@ fn size_of(held: std::fs::Metadata) -> u64 {
     return held.len();
 }
 
-/// Whether one byte is a pattern character of the glob mode: `*`,
+/// Whether one byte is a pattern character of the glob mode:
+/// `*`,
 /// `?` or `[`.
 fn is_pattern_character(byte: &u8) -> bool {
     return matches!(*byte, b'*' | b'?' | b'[');

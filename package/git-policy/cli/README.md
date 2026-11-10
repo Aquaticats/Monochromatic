@@ -2481,6 +2481,17 @@ none is waited out or retried on the moved head yet:
    run the
    commit again.
 - The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
+- A named path an ignore rule matches while no index entry tracks it.
+  The commit is not made,
+   nothing is staged by it,
+   and the finding `explicit-path-commit/named-path-ignored` names every rejected path
+   with both ways forward:
+   leave the ignored generated file out of the commit's paths,
+   or stage it with `git add --force -- <path>` when it is meant to become tracked (`SPEC.md`,
+  "Core finding event").
+  The decision comes from the paths the command names,
+   before any private `git add` runs,
+   so it no longer depends on the wording of a Git message (issue 6278).
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:

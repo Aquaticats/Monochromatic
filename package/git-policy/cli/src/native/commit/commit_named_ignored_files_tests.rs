@@ -59,7 +59,8 @@ fn refused(repo: &Path, base: &str, pathspecs: &[&str], file: Option<&Path>) -> 
         .collect();
 }
 
-/// A file the worktree holds, that no index entry tracks and that an ignore rule matches,
+/// A file the worktree holds,
+/// that no index entry tracks and that an ignore rule matches,
 /// is the refusal the commit stops with.
 #[test]
 fn a_named_file_an_ignore_rule_matches_is_refused() {

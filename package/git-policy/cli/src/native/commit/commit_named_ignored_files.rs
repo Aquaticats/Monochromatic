@@ -40,7 +40,8 @@ pub const NAMED_IGNORED_CODE: &str = "named-path-ignored";
 /// in the order the selection names them.
 /// Why:
 ///   Only these paths make the private staging refuse;
-/// nothing here writes an index, an object or a worktree file,
+/// nothing here writes an index,
+/// an object or a worktree file,
 ///  and the answer comes from the selection's own elements rather than from the words of a Git message.
 ///
 /// In TS you'd write (pseudocode):
