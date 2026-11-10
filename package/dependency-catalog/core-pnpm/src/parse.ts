@@ -338,7 +338,12 @@ export function flattenCatalogEntries(
    Default catalog entries without a catalog-name marker.
    */
   const defaultEntries = Object.entries(document.defaultCatalog,)
-    .map(function toDefaultEntry([catalogKey, catalogValue,],): CatalogEntry {
+    .map(function toDefaultEntry(
+      [catalogKey, catalogValue,]: readonly [
+        string,
+        string,
+      ],
+    ): CatalogEntry {
       return {
         catalogKey,
         catalogValue,
