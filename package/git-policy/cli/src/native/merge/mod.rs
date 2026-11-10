@@ -72,8 +72,20 @@ pub mod merge_isolation_changes;
 /// Recovery of an isolated merge whose process died.
 pub mod merge_isolation_recovery;
 
+/// The intent records a recovery walks,
+/// and what a command is told about each.
+pub mod merge_isolation_recovery_records;
+
+/// The person's own work a merge carries,
+/// across the two moves a recovery can make.
+pub mod merge_isolation_recovery_carry;
+
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
+
+/// The write of a merge into the index and the worktree,
+/// and what it does when the checkout changed under it.
+pub mod merge_isolation_recovery_install;
 
 /// Whether the recovery of an interrupted merge may write the index now,
 /// and the clearing of a lock a killed Git left.

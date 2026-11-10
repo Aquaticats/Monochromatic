@@ -166,7 +166,8 @@ fn path_argument(path: &[u8]) -> OsString {
 }
 
 /// What:
-///  The file form of one object: the bytes a checkout writes for it.
+///  The file form of one object:
+/// the bytes a checkout writes for it.
 /// Why:
 ///  A file's bytes in the worktree are not the object's bytes when a filter applies,
 /// so a content the person reads
@@ -690,7 +691,8 @@ pub fn carry(
 ///  The same merge of every captured layer,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
-///   The word-level merge, the object writes and the index write are each a start,
+///   The word-level merge,
+/// the object writes and the index write are each a start,
 /// and a synchronous start registers the step's pipes by entering the runtime,
 ///  which is refused from inside it.
 ///
@@ -870,7 +872,8 @@ pub fn restore(
 ///  The same putting back of the person's layers,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
-///   Each captured path reads its state, its index entry and the bytes to write through Git,
+///   Each captured path reads its state,
+/// its index entry and the bytes to write through Git,
 /// and every start of a step is refused from inside the runtime.
 ///
 /// In TS you'd write (pseudocode):

@@ -681,26 +681,3 @@ pub async fn restore_what_git_did_not_write_awaiting<W: std::io::Write + ?Sized>
     }
     return finish_asides_awaiting(place, root, written.as_slice(), out).await;
 }
-
-
-/// What:
-///  Remove the directories a deleted path leaves empty up to the worktree top.
-/// Why:
-///   Git removes a deleted file's emptied directories too,
-/// and the take has already removed the file itself;
-/// a
-///  directory that still holds anything stays.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const directory of parents(file)) { try { await rmdir(directory); } catch { break; } }
-/// ```
-pub fn remove_empty_parents(root: &Path, file: &Path) {
-    let mut directory: Option<&Path> = file.parent();
-    while let Some(current) = directory {
-        if current == root || !current.starts_with(root) || std::fs::remove_dir(current).is_err() {
-            break;
-        }
-        directory = current.parent();
-    }
-}

@@ -29,11 +29,13 @@
 //! const capture = await captureWork({ session, root, paths }); await keepObjects({ session, root, capture });
 //! ```
 
-/// The captured work, and the slots that keep it.
+/// The captured work,
+/// and the slots that keep it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture, slots};
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
-/// Real Git, on either face.
+/// Real Git,
+/// on either face.
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 use crate::transaction_git_awaiting::run_git_awaiting;
@@ -54,7 +56,8 @@ pub const CARRIED_REF_PREFIX: &str = "refs/cli-git/carried/";
 /// How many ref names are tried before the capture is refused.
 ///  A name carries milliseconds and a process number,
 /// so a collision means another merge in the same millisecond;
-///  eight tries is a bound, not a loop.
+///  eight tries is a bound,
+/// not a loop.
 const REF_ATTEMPTS: u128 = 8;
 
 /// The Git mode of a symbolic link.
@@ -77,7 +80,8 @@ fn is_nul(byte: &u8) -> bool {
 ///   The invocation's own global options can name the repository relatively
 /// (`git -C repo merge`),
 /// and those are relative to
-///  the directory the person ran the command in, which is the process directory;
+///  the directory the person ran the command in,
+/// which is the process directory;
 /// a context without them (recovery) runs
 ///  from the worktree itself.
 ///
@@ -363,7 +367,8 @@ pub fn keep_capture(context: &GitContext, root: &Path, capture: &Capture) -> Res
 ///  The same commit on a ref of its own,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
-///   The tree, the commit and the ref are each a Git step,
+///   The tree,
+/// the commit and the ref are each a Git step,
 /// and a synchronous start registers the step's pipes by entering the runtime,
 ///  which is refused from inside it.
 ///

@@ -23,10 +23,12 @@
 //! const changes = parseRawChanges(await git(['diff-tree', '-r', '-z', '--raw', '--no-renames', '--no-abbrev', old, next]));
 //! ```
 
-/// Running real Git for a blob hash, on either face.
+/// Running real Git for a blob hash,
+/// on either face.
 use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
-/// The process's one runtime, entered once by each synchronous face.
+/// The process's one runtime,
+/// entered once by each synchronous face.
 use crate::lazy_runtime::run_on_runtime;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};

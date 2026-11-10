@@ -1,33 +1,10 @@
-//! What:
-//!  Recovery of an isolated merge whose process died:
-//! discard it when it never touched the worktree or the index,
-//!  complete it when Git had started to update them.
-//! Why:
-//!  The merge commit exists before the branch moves,
-//! and Git updates the worktree and the index of the paths the
-//!  merge changes before it moves the branch.
-//!  A process killed in between leaves files and index entries of the merge beside a branch that still names the
-//!  old commit,
-//! which the next commit would then revert.
-//!  Completing the merge from its record finishes exactly what Git had started,
-//! for exactly the paths the merge
-//!  changes,
-//! and leaves every other staged entry and every unstaged change as it was.
-//!  A path that holds neither its old nor its new content belongs to someone else,
-//! so recovery stops and keeps the
-//!  record instead of overwriting it.
-//!
-//! In TS you'd write (pseudocode):
-//! ```ts
-//! for (const record of await listMergeIntents(gitDir)) await recoverMerge({ record, place });
-//! ```
-
-/// Debug diagnostics.
-use crate::diagnostic_log::debug;
-/// The intent records and their files.
-use crate::merge_isolation_journal::{
-    MergeIntent, list_merge_intents, parse_merge_intent,
+/// The intent record a settle is given,
+/// and the walk over the records a command finds,
+/// named here so a caller keeps one import.
+pub use crate::merge_isolation_recovery_records::{
+    MergeRecoveryOutcome, merge_intents_to_recover, recover_interrupted_merges, recover_interrupted_merges_awaiting,
 };
+use crate::merge_isolation_journal::MergeIntent;
 /// The steps shared with the settling of a moved branch;
 /// named here so the paths outside this file stay the same.
 pub use crate::merge_isolation_recovery_cleanup::{drop_record_and_side_ref_awaiting, partly_installed};
@@ -49,13 +26,13 @@ use crate::merge_isolation_recovery_cleanup::{
     drop_record, drop_side_ref_awaiting, edits_on_the_merges_own_paths, no_commit_names_the_merges_parent,
     staged_work_on_the_merges_paths,
 };
-/// The person's own work a merge carries:
-/// put back when the merge does not land,
-/// merged with it when it does.
-use crate::merge_isolation_carry::drop_capture_ref_awaiting;
-use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry_awaiting, changes_between_awaiting, restore_awaiting};
-use crate::merge_isolation_carry_notice::report_lines;
-/// Running Git for the ancestry question, on the runtime the caller runs on.
+/// The person's own work a merge carries,
+/// in the file that carries it.
+use crate::merge_isolation_recovery_carry::{
+    carry_the_capture_awaiting, carry_onto_awaiting, drop_capture_awaiting, restore_the_capture_awaiting,
+};
+/// Running Git for the ancestry question,
+/// on the runtime the caller runs on.
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
@@ -69,211 +46,11 @@ use crate::merge_isolation_moved::settle_moved_branch_awaiting;
 /// The raw differences and the worktree states.
 use crate::merge_isolation_changes::Change;
 /// The fail-closed recovery failure.
-use crate::recovery_error::{RecoveryError, io_failure};
-/// Owner liveness of a record.
-use crate::transaction_owner::{OwnerLiveness, OwnerLivenessError, classify_transaction_owner_record};
-/// Running real Git.
+use crate::recovery_error::RecoveryError;
 /// Writing the notices of what recovery did.
 use std::io::Write;
-/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
-
-/// One record recovery visited.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type MergeRecoveryOutcome = { record: string; action: MergeRecoveryAction; targetRef?: string; newOid: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MergeRecoveryOutcome {
-    /// The record's file.
-    pub record: PathBuf,
-    /// What recovery did.
-    pub action: MergeRecoveryAction,
-    /// The ref the record names,
-    /// or nothing when the merge ran on a detached `HEAD`.
-    pub target_ref: Option<String>,
-    /// The merge commit the record names.
-    pub new_oid: String,
-    /// The side ref that keeps the merge commit,
-    /// for a merge that was saved because the index was locked.
-    pub side_ref: Option<String>,
-}
-
-/// What:
-///  Whether the worktree's Git directory holds an intent record that recovery must look at:
-/// one whose owner is
-///  dead,
-/// or one that cannot be read.
-/// Why:
-///   The common case needs one failed directory read and no lock.
-///  A record of a merge that still runs is not recovered,
-/// so a nested command does not touch its ancestor's merge.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (await listMergeIntents(gitDir)).some((record) => !isLive(record))
-/// ```
-pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
-    for record in list_merge_intents(git_dir)? {
-        let bytes: Vec<u8> = match std::fs::read(record.as_path()) {
-            Ok(found) => found,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(io_failure("reading", record.as_path(), &error)),
-        };
-        let Some(intent) = parse_merge_intent(bytes.as_slice()) else {
-            return Ok(true);
-        };
-        if owner_liveness(&intent, record.as_path())? == OwnerLiveness::Dead {
-            return Ok(true);
-        }
-    }
-    return Ok(false);
-}
-
-/// What:
-///  Recover every intent record whose owner is dead.
-/// Why:
-///   A record whose owner still runs is left alone,
-/// so recovery does not race a live merge.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function recoverInterruptedMerges({ place, gitDir }): Promise<MergeRecoveryOutcome[]>;
-/// ```
-pub fn recover_interrupted_merges(
-    place: &RecoveryPlace,
-    git_dir: &Path,
-    out: &mut dyn Write,
-) -> Result<Vec<MergeRecoveryOutcome>, RecoveryError> {
-    return match run_on_runtime(recover_interrupted_merges_awaiting(place, git_dir, out)) {
-        Ok(found) => found,
-        Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
-    };
-}
-
-/// What:
-///  The same recovery of every intent record whose owner is dead,
-/// awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   Each record is settled through Git,
-/// and a synchronous start registers the step's pipes by entering the runtime,
-///  which is refused from inside it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function recoverInterruptedMerges({ place, gitDir, stderr }): Promise<MergeRecoveryOutcome[]>;
-/// ```
-pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
-    place: &RecoveryPlace,
-    git_dir: &Path,
-    out: &mut W,
-) -> Result<Vec<MergeRecoveryOutcome>, RecoveryError> {
-    let mut outcomes: Vec<MergeRecoveryOutcome> = Vec::new();
-    // Every record is read and its owner judged before any is settled, so a record of another namespace older than the patience
-    //  stops the command with nothing changed (owner, 2026-11-04, "Refuse and name it (Recommended)"; sol-1 round 3, P1 C).
-    let mut planned: Vec<(PathBuf, MergeIntent, OwnerLiveness)> = Vec::new();
-    for record in list_merge_intents(git_dir)? {
-        let bytes: Vec<u8> = match std::fs::read(record.as_path()) {
-            Ok(found) => found,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(io_failure("reading", record.as_path(), &error)),
-        };
-        let Some(intent) = parse_merge_intent(bytes.as_slice()) else {
-            return Err(RecoveryError(format!(
-                "The merge record {} is malformed. It was left in place; if no merge is running in this worktree, \
-                 remove it, and check the branch and `git status` before merging again.",
-                record.display()
-            )));
-        };
-        let liveness: OwnerLiveness = owner_liveness(&intent, record.as_path())?;
-        planned.push((record, intent, liveness));
-    }
-    for (record, intent, liveness) in planned {
-        let action: MergeRecoveryAction = if liveness == OwnerLiveness::Alive {
-            debug("recoverInterruptedMerges", format!("the owner of {} still runs", record.display()).as_str());
-            MergeRecoveryAction::OwnerActive
-        } else {
-            match settle_failed_merge_awaiting(place, record.as_path(), &intent, out).await {
-                Ok(settled) => settled,
-                // A merge that was saved on a side ref has nothing of itself in the checkout, so a command that cannot finish it
-                //  has nothing to be stopped for: it says where the merge is and what blocked it, and goes on. A begun merge's
-                //  refusal still stops the command, because the checkout may hold its files.
-                Err(refusal) if !refusal.began && intent.side_ref.is_some() => {
-                    let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its side ref");
-                    let _noted = out.write_all(
-                        format!(
-                            "monochromatic-git-policy-cli: the merge saved on {side_ref} was not finished, and nothing of it is in the \
-                             checkout; this command goes on. {}\n",
-                            refusal.error.0
-                        )
-                        .as_bytes(),
-                    );
-                    MergeRecoveryAction::DeferredRefused
-                }
-                Err(refusal) => {
-                    // Part of the merge is in the index or the worktree, so the command must not go on reading the checkout.
-                    let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its record");
-                    let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
-                    return Err(RecoveryError(format!(
-                        "A merge saved on {side_ref} for {target} is partly installed in this worktree: {}. Nothing more was changed \
-                         and the record {} was kept; check `git status` and `git stash list` before you commit anything.",
-                        refusal.error.0,
-                        record.display()
-                    )));
-                }
-            }
-        };
-        let outcome: MergeRecoveryOutcome = MergeRecoveryOutcome {
-            record,
-            action,
-            target_ref: intent.target_ref.clone(),
-            new_oid: intent.new_oid.clone(),
-            side_ref: intent.side_ref.clone(),
-        };
-        if let Some(line) = recovery_notice(&outcome) {
-            // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = out.write_all(line.as_bytes());
-        }
-        outcomes.push(outcome);
-    }
-    return Ok(outcomes);
-}
-
-/// What:
-///  Whether the record's owner still runs,
-/// treating a probe the account may not make as alive.
-/// Why:
-///   Recovery must never touch a merge that may be live.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { return await classifyTransactionOwnerRecord(owner, path); } catch (e) { if (e.code === 'EPERM') return 'alive'; throw e; }
-/// ```
-fn owner_liveness(intent: &MergeIntent, record: &Path) -> Result<OwnerLiveness, RecoveryError> {
-    match classify_transaction_owner_record(&intent.owner, record) {
-        Ok(found) => return Ok(found),
-        Err(OwnerLivenessError::Probe(error)) if error.raw_os_error() == Some(libc::EPERM) => {
-            return Ok(OwnerLiveness::Alive);
-        }
-        Err(OwnerLivenessError::Probe(error)) => {
-            return Err(RecoveryError(format!(
-                "probing the owner {} of the merge record {} failed: {error}",
-                intent.owner.owner_pid,
-                record.display()
-            )));
-        }
-        // Owner, 2026-11-04, "Refuse and name it (Recommended)": the command stops, and nothing has been changed.
-        Err(OwnerLivenessError::ForeignRecordRefused(text)) => return Err(RecoveryError(text)),
-        Err(OwnerLivenessError::Identity(error)) => {
-            return Err(RecoveryError(format!(
-                "reading the identity of the owner {} of the merge record {} failed: {error}",
-                intent.owner.owner_pid,
-                record.display()
-            )));
-        }
-    }
-}
+/// `Path` is a borrowed filesystem path.
+use std::path::Path;
 
 /// What:
 ///  Settle a merge that is known not to be running:
@@ -553,43 +330,6 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     return Ok(MergeRecoveryAction::Completed);
 }
 
-/// What:
-///  Merge the person's own work in the merge's paths with the merge,
-/// and say whether it is back.
-/// Why:
-///   A merge that landed holds the merge's content at those paths,
-/// so their bytes are in the capture and nowhere else;
-/// the
-///  carry is idempotent,
-/// so a kill between two paths is finished by the next command with the same answer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function carryTheCapture({ place, root, intent, out }): Promise<boolean>;
-/// ```
-async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
-    place: &RecoveryPlace,
-    root: &Path,
-    intent: &MergeIntent,
-    out: &mut W,
-) -> Result<bool, MergeRefusal> {
-    let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
-    let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, LockWait::WhileFinishing, out).await {
-        Ok(report) => {
-            for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
-                let _noted = out.write_all(format!("{line}\n").as_bytes());
-            }
-            return Ok(true);
-        }
-        // A lock that stays held leaves everything to the next command, which carries the same bytes.
-        Err(CarryFailure::IndexHeld(lock)) => {
-            debug("recoverInterruptedMerges", format!("the work a merge carries waits for {lock}").as_str());
-            return Ok(false);
-        }
-        Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
-    }
-}
 
 /// What:
 ///  Whether one commit is an ancestor of another,
@@ -634,114 +374,10 @@ async fn settle_moving_the_record_aside_awaiting<W: std::io::Write + ?Sized>(
     return settle_moved_branch_awaiting(place, record, intent, moved_to, true, out).await;
 }
 
-/// What:
-///  Merge the person's own work with the tree of one commit,
-/// which is the moved head when the branch was built on the merge.
-/// Why:
-///   A carry onto the old merge's own commit would leave the moved head's later changes out of the files,
-/// and a
-///  carry onto the moved head keeps them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function carryOnto({ place, root, intent, end, out }): Promise<boolean>;
-/// ```
-async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, intent: &MergeIntent, end: &str, out: &mut W) -> Result<bool, MergeRefusal> {
-    let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
-    let mut changes: Vec<Change> = changes_between_awaiting(&place.git, root, intent.old_oid.as_str(), end).await
-        .map_err(|error| { return partly_installed(RecoveryError(error)); })?;
-    // A captured path the moved head left alone is not in that difference, so the merge's own side of it is what the person's
-    //  work merges with.
-    let merge: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
-    for entry in &capture.paths {
-        if changes.iter().any(|change| { return change.path == entry.path; }) {
-            continue;
-        }
-        if let Some(change) = merge.iter().find(|change| { return change.path == entry.path; }) {
-            changes.push(change.clone());
-        }
-    }
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, LockWait::WhileFinishing, out).await {
-        Ok(report) => {
-            for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
-                let _noted = out.write_all(format!("{line}\n").as_bytes());
-            }
-            return Ok(true);
-        }
-        Err(CarryFailure::IndexHeld(lock)) => {
-            debug("recoverInterruptedMerges", format!("the work a merge carries waits for {lock}").as_str());
-            return Ok(false);
-        }
-        Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
-    }
-}
 
-/// What:
-///  Put the person's own work back exactly as it was captured,
-/// for a merge that does not land.
-/// Why:
-///   The clear may have run before the merge did,
-/// so the checkout can hold the branch's content where their bytes
-///  were;
-/// a merge that is abandoned gives them back.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function restoreTheCapture({ place, root, intent, out }): Promise<boolean>;
-/// ```
-async fn restore_the_capture_awaiting<W: std::io::Write + ?Sized>(
-    place: &RecoveryPlace,
-    root: &Path,
-    intent: &MergeIntent,
-    out: &mut W,
-) -> Result<bool, MergeRefusal> {
-    let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
-    let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
-    match restore_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, LockWait::WhileFinishing, out).await {
-        Ok(()) => return Ok(true),
-        // A lock that stays held leaves everything to the next command.
-        Err(CarryFailure::IndexHeld(lock)) => {
-            debug("recoverInterruptedMerges", format!("the work a merge puts back waits for {lock}").as_str());
-            return Ok(false);
-        }
-        Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
-    }
-}
 
-/// The refusal for work of the person's that could not be put back,
-/// naming what stopped it and where the bytes are.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const theWorkCouldNotBeCarried = (failure: CarryFailure) => `... ${failure.detail} ...`;
-/// ```
-fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
-    let detail: String = match failure {
-        CarryFailure::IndexHeld(text) | CarryFailure::Failed(text) => String::from(text.as_str()),
-        CarryFailure::Foreign(path) => format!(
-            "{} changed after the merge captured it",
-            crate::path_bytes::path_message_text(path.as_slice())
-        ),
-    };
-    return format!(
-        "A merge in this worktree keeps the work its paths held, and that work could not be carried into them yet: {detail}. The bytes are \
-         in the objects the merge's record names, and the record was kept; the next git command in this worktree tries again. Nothing of \
-         the person's was removed."
-    );
-}
 
-/// Drop the ref that kept a capture,
-/// once its bytes are back in the checkout.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function dropCapture({ place, root, intent }): void;
-/// ```
-async fn drop_capture_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
-    if let Some(capture) = intent.carried.as_ref() {
-        drop_capture_ref_awaiting(&place.git, root, capture).await;
-    }
-}
+
 
 /// Recovery of records whose owner is dead,
 /// alive or unreadable.
