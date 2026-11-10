@@ -20,7 +20,7 @@ const KIBIBYTE_BYTES = 1_024;
 /**
  Kibibytes inspected from each script candidate.
  */
-const SELF_SHIM_INSPECTION_KIBIBYTES = 64;
+export const SELF_SHIM_INSPECTION_KIBIBYTES = 64;
 
 /**
  Maximum bytes inspected from script candidates.
@@ -133,7 +133,9 @@ export class GitCandidateInspectionLimitError extends Error {
    ```
    */
   constructor(candidatePath: string,) {
-    super(`Non-native Git candidate exceeds script inspection bound: ${candidatePath}`,);
+    super(
+      `Non-native Git candidate exceeds the ${String(SELF_SHIM_INSPECTION_KIBIBYTES,)} KiB script inspection bound: ${candidatePath}`,
+    );
   }
 }
 

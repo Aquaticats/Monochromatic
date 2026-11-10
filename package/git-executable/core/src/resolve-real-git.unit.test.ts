@@ -1035,5 +1035,75 @@ await describe({
     },),
 
     //endregion Resolution diagnostics
+
+    //region Rejected candidate diagnostics
+
+    it({
+      name: 'names a candidate rejected for exceeding the inspection bound',
+      fn: async function namesOversizedCandidate(): Promise<void> {
+        await using tempDirectory = await createTempDirectory();
+        /**
+         PATH directory containing the only, oversized wrapper candidate.
+         */
+        const oversizedBin = join(tempDirectory.path, 'oversized-bin',);
+        await mkdir(oversizedBin,);
+        /**
+         Wrapper whose self marker sits beyond the inspection bound.
+         */
+        const oversizedGit = join(oversizedBin, 'git',);
+        /**
+         Non-native wrapper bytes placing the package marker after the bound.
+         */
+        const oversizedWrapper = Buffer.concat([
+          Buffer.from('#!/bin/sh\n',),
+          Buffer.alloc(PADDED_SELF_SHIM_PREFIX_BYTES, '#',),
+          Buffer.from('\n@monochromatic-dev/git-policy-cli\n',),
+        ],);
+        await writeExecutable({ path: oversizedGit, content: oversizedWrapper, },);
+
+        /**
+         Failure recorded when the only candidate exceeds the inspection bound.
+         */
+        const caught = await captureResolutionError({
+          pathEnv: oversizedBin,
+          commonGitPaths: [],
+        },);
+
+        expect(caught,).toBeInstanceOf(RealGitNotFoundError,);
+        expect((caught as Error).message,).toContain(oversizedGit,);
+        expect((caught as Error).message,).toContain('inspection bound',);
+      },
+    },),
+    it({
+      name: 'names a candidate rejected for not being a regular file',
+      skip: process.platform === 'win32',
+      fn: async function namesNonRegularCandidate(): Promise<void> {
+        await using tempDirectory = await createTempDirectory();
+        /**
+         PATH directory containing the only, non-regular candidate.
+         */
+        const nonRegularBin = join(tempDirectory.path, 'non-regular-bin',);
+        await mkdir(nonRegularBin,);
+        /**
+         Executable directory standing in for a candidate that is not a regular file.
+         */
+        const nonRegularGit = join(nonRegularBin, 'git',);
+        await mkdir(nonRegularGit,);
+
+        /**
+         Failure recorded when the only candidate is not a regular file.
+         */
+        const caught = await captureResolutionError({
+          pathEnv: nonRegularBin,
+          commonGitPaths: [],
+        },);
+
+        expect(caught,).toBeInstanceOf(RealGitNotFoundError,);
+        expect((caught as Error).message,).toContain(nonRegularGit,);
+        expect((caught as Error).message,).toContain('not regular files',);
+      },
+    },),
+
+    //endregion Rejected candidate diagnostics
   ],
 },);
