@@ -1,3 +1,4 @@
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import { codePointAt, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   bestPairsOf,
@@ -57,11 +58,6 @@ const LINE_END = '\n';
 const QUOTED_NUMBER_DIGITS = 2;
 
 /**
- The ASCII digits.
- */
-const DIGITS = '0123456789';
-
-/**
  Whether the character at an offset is an ASCII digit.
 
  @param text - text being read
@@ -87,8 +83,7 @@ function isDigitAt(
   /**
    The character, empty past the text's end.
    */
-  const character = text.charAt(at,);
-  return (character !== '') && DIGITS.includes(character,);
+  return isDigit(text.charAt(at,),);
 }
 
 /**

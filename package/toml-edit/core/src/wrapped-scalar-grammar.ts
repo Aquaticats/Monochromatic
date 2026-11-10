@@ -9,6 +9,8 @@
  @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 //region Field widths and separators
 
 /**
@@ -204,39 +206,6 @@ const COMMON_YEAR_MONTH_DAYS = [
 //region Field checks
 
 /**
- Code point of `0`.
- */
-const DIGIT_ZERO = 0x30;
-
-/**
- Code point of `9`.
- */
-const DIGIT_NINE = 0x39;
-
-/**
- Whether one character is an ASCII digit.
-
- @param character - Single character taken from a payload.
-
- @returns Whether the character lies between `0` and `9`.
-
- @example
- ```ts
- isAsciiDigit({ character: '7', }); // true
- ```
- */
-function isAsciiDigit({ character, }: { readonly character: string; },): boolean {
-  /**
-   Code point of the character; an empty string yields `0` and fails below.
-   */
-  const codepoint = character.codePointAt(0,) ?? 0;
-  return (codepoint
-    >= DIGIT_ZERO)
-    && (codepoint
-      <= DIGIT_NINE);
-}
-
-/**
  Whether `text` is a non-empty run of ASCII digits.
 
  @param text - Candidate field text.
@@ -253,7 +222,7 @@ function isDigitRun({ text, }: { readonly text: string; },): boolean {
     > 0)
     && Array.from(text,)
       .every(function digit(character,) {
-        return isAsciiDigit({ character, },);
+        return isDigit(character,);
       },);
 }
 

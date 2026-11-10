@@ -5210,6 +5210,9 @@ importers:
 
   package/toml-edit/core:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -7965,6 +7968,9 @@ importers:
 
   package/translation-repair/typography:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
@@ -8684,6 +8690,9 @@ importers:
 
   package/wg/cli-quicker:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/async-time-core':
         specifier: workspace:*
         version: link:../../async-time/core

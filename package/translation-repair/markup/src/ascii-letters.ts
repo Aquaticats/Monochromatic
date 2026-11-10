@@ -14,12 +14,16 @@
 // THIS MODULE IS THE TRANSLATION-REPAIR FAMILY'S OWNER of those classes, and the
 // exemption is deliberate: `@monochromatic-dev/agent-harness-shared-text-scan`
 // owns the same ASCII classes for agent-harness code, and the review that asked
-// every copy to import it accepted sites that say why they stay
-// (issue 1673). Two reasons keep this one. The family keeps one owner for its
-// own classes rather than two, since every translation-repair scanner calls
-// these and none calls the agent-harness package. And the object parameter here
-// is the family's call convention, so a plain string predicate would rewrite
-// every call site without changing a verdict.
+// every copy to import it lets a site stay when it says why (issue 1673).
+// Two facts keep this one. The family already consolidated eleven modules'
+// copies here (`72bbe6500`, audit ledger B18), so importing the agent-harness
+// package would put a second home back for the same classes. And the object
+// parameter is this family's call convention: the five names are written 204
+// times across 41 files, every one as `isAsciiLetter({ character, })` or its
+// sibling, so a plain string predicate rewrites all of them without changing a
+// verdict. One call site in the family now takes `isLowerAlpha` from the owner
+// directly, in `adjudication/src/task-runner-guard.ts`, because that function
+// held its own copy rather than calling this module.
 
 /**
  Whether one character is a lower-case ASCII letter, `a` to `z`.

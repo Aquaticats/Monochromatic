@@ -1,5 +1,7 @@
 import { homedir, } from 'node:os';
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 import { ConfigError, } from './errors.ts';
 import {
   splitWords,
@@ -121,7 +123,7 @@ export function expandHome({ path, }: { readonly path: string; },): string {
  ```
  */
 function isDigitOrDotChar(char: string,): boolean {
-  return ((char >= '0') && (char <= '9')) || (char === '.');
+  return isDigit(char,) || (char === '.');
 }
 
 /**
