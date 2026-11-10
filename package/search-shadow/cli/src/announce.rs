@@ -38,8 +38,10 @@ use crate::shadow_identity::{StartMode, Vetted, mark_start, vet};
 /// Imports the shell's exit code for a finished child.
 use crate::child_exit::shell_exit_code;
 
-/// Imports the escape-hatch variable name (printed in the help section) and the exit code for a real tool that cannot start.
-use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE};
+/// Imports the escape-hatch variable name (printed in the help section),
+/// the cap and its status (printed there too),
+/// and the exit code for a real tool that cannot start.
+use crate::constants::{ALLOW_WIDE_VARIABLE, CAPPED_EXIT_CODE, EXEC_FAILED_EXIT_CODE, MAX_OUTPUT_BYTES};
 
 /// What:
 /// `pub enum Announcement { Version, Help }` declares a type whose value is exactly one of the two listed
@@ -241,8 +243,10 @@ pub fn version_line(name: &str, real: &Path) -> String {
 /// Why:
 /// The help section must be honest per tool:
 /// a `tree` user is not told about `rg -r`.
-/// The groups mirror
-/// `refusal_for` in `policy.rs`.
+/// The refusal groups mirror
+/// `refusal_for` in `policy.rs`,
+/// and the cap line is added to every section,
+/// since the cap belongs to the shadow and not to one tool.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -250,7 +254,7 @@ pub fn version_line(name: &str, real: &Path) -> String {
 /// ```
 fn behaviour_lines(name: &str) -> String {
     let escape: String = format!("unless {ALLOW_WIDE_VARIABLE}=1 is set for one deliberate walk");
-    return match name {
+    let refusals: String = match name {
         "rg" => format!(
             "- refuses the short flag -r anywhere (in ripgrep it is --replace, not grep's recursive flag)\n\
              - refuses a pipe on standard input beside a named search path (ripgrep reads the path and never the pipe, so the piped lines would be dropped)\n\
@@ -264,6 +268,16 @@ fn behaviour_lines(name: &str) -> String {
         ),
         _ => String::from("- never refuses a run; it only lowers the disk priority\n"),
     };
+    // What:     The cap line is built from the shipped figures, never from a literal, so the text cannot drift from the code.
+    // Why:      A person reading `rg --help` learns that a run nothing is watching is cut, at what size, and with which status.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const cap = `- caps its standard output at ${MAX_OUTPUT_BYTES} bytes ...`;
+    // ```
+    return format!(
+        "{refusals}- caps its standard output at {MAX_OUTPUT_BYTES} bytes when that output is not a terminal: past the cap the real tool is stopped and the run ends with status {CAPPED_EXIT_CODE}\n",
+    );
 }
 
 /// What:
