@@ -6,8 +6,9 @@ import { join } from 'node:path';
 /**
  Bundle-inclusion pattern accepted by {@link packageExternals}.
  
- Three forms cover every pattern the repository uses:
- `@scope/**` (scope prefix), `name-**` (name prefix), and exact names.
+ A trailing `**` makes the pattern a prefix match over the text before it,
+ so `@scope/**` covers a scope's packages and `name-**` covers hyphenated
+ siblings; every other pattern matches one exact name.
  
  @example
  ```ts
@@ -36,13 +37,14 @@ export type PackageManifestDependencies = {
 /**
  Decide whether a bare dependency name matches one bundle-inclusion pattern.
  
- Suffix `/**` matches the scope or path prefix,
- bare suffix `**` matches a name prefix,
- anything else matches exactly.
+ A trailing `**` matches every name starting with the pattern text before it
+ (`@scope/` for `@scope/**`, `name-` for `name-**`),
+ so the two wildcard spellings differ only in the separator they include.
+ Anything else matches exactly.
  
  @param name - Bare dependency name from the consuming manifest.
  
- @param pattern - Bundle-inclusion pattern in one of three supported forms.
+ @param pattern - Bundle-inclusion pattern in one of two supported forms.
  
  @returns Whether name falls under pattern and must stay bundled.
  
@@ -58,12 +60,6 @@ export function matchesBundlePattern({
   readonly name: string;
   readonly pattern: BundlePattern;
 }): boolean {
-  if (pattern.endsWith('/**')) {
-    return name.startsWith(pattern.slice(
-      0,
-      -'**'.length
-    ));
-  }
   if (pattern.endsWith('**')) {
     return name.startsWith(pattern.slice(
       0,
