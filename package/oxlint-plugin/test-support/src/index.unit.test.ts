@@ -20,6 +20,7 @@ import {
   dirname,
   isAbsolute,
   join,
+  resolve,
 } from 'node:path';
 
 import {
@@ -506,6 +507,49 @@ await describe({
           name: 'rejects a standard output that is not a string, naming what it found',
           fn: async () => {
             expect(thrownSpawnFailure({ stdout: null, },).message,).toBe(NON_STRING_STDOUT_MESSAGE,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'the missing-stdout failure text',
+      children: [
+        it({
+          name: 'has one owner in the module, so the two guards that throw it cannot drift apart',
+          fn: async () => {
+            /**
+             Source of the module the guards live in, read from this checkout rather than from the built artifact: a
+             literal spelled out twice is invisible to a test that only calls the guards, because both copies still
+             produce the same message until one of them is edited.
+             */
+            const source = readFileSync(
+              resolve(
+                import.meta.dirname,
+                'index.ts',
+              ),
+              'utf8',
+            );
+            /**
+             How many times the module spells the text out.
+             */
+            const occurrences = source.split(MISSING_STDOUT_MESSAGE,).length - 1;
+
+            expect(occurrences,).toBe(1,);
+          },
+        },),
+        it({
+          name: 'is the message of every guard that reports a missing stdout',
+          fn: async () => {
+            /**
+             Error the guard threw for a failure that is not an object.
+             */
+            const fromPrimitive = thrownSpawnFailure('oxlint could not start',);
+            /**
+             Error the guard threw for a failure object that carries no stdout.
+             */
+            const fromObjectWithoutStdout = thrownSpawnFailure({ stderr: 'oxlint could not start', },);
+
+            expect(fromPrimitive.message,).toBe(fromObjectWithoutStdout.message,);
           },
         },),
       ],
