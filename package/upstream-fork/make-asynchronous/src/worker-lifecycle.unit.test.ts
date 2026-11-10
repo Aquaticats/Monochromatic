@@ -243,6 +243,25 @@ await describe({
         },),
 
         it({
+          name: 'drops a non-envelope message the wrapped function posts and resolves its own reply',
+          fn: async () => {
+            /**
+             Live worker posting payloads of its own before the reply.
+             */
+            const worker = await createWorker({
+              content: `${errorReporterSource}\n\tglobalThis.onmessage = async ({data: {id, arguments_}}) => {\n\t\tglobalThis.postMessage('progress: half way');\n\t\tglobalThis.postMessage({note: 'not a reply envelope'});\n\t\tglobalThis.postMessage({id, output: arguments_[0] * 2});\n\t};\n`,
+              nodePreamble: nodeWorkerPreambleSource,
+            },);
+            expect(await worker.request([21],),).toEqual({
+              id: 1,
+              output: 42,
+            },);
+            worker.cleanup();
+          },
+          timeout: 30_000,
+        },),
+
+        it({
           name: 'throws synchronously when the arguments cannot be cloned',
           fn: async () => {
             /**
