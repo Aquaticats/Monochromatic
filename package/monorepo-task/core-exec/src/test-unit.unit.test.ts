@@ -54,7 +54,7 @@ await describe({
     it({
       name: 'fails the root aggregate when the whole repository holds no unit test file',
       fn: async (): Promise<void> => {
-        /** The root run is the same discovery path, and its diagnostic names the monorepo root rather than a package. */
+        /** Same discovery path, and its diagnostic names the monorepo root rather than a package. */
         const result = await runTestUnitFixture({ packagePath: '', unitTestFiles: [], },);
         expect(result.exitCode,).toBe(1,);
         expect(result.output,).toContain('no *.unit.test.ts file under the monorepo root',);

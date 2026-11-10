@@ -136,7 +136,7 @@ await describe({
       },
     },),
     it({
-      name: 'declares the unit-test exemption list once, in the vars section, and reads it from the test:unit template',
+      name: 'declares the unit-test exemption list once, in the vars section, and reads it from the template',
       fn: async function oneExemptionList() {
         /** A second list, or a template that stopped reading this one, would leave an exemption unread and silent. */
         expect(countOf(sharedSnippets, exemptionDeclaration,),).toBe(1,);
