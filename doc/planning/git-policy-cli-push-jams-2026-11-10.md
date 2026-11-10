@@ -1,7 +1,9 @@
 # The pushes of `main` that reached the remote late on 2026-11-10, and the one cause the record could not name
 
 Date measured:
- `2026-11-10T18:00:00-05:00`.
+ `2026-11-10T17:47:50-05:00`,
+ when the last query of the day's records ran.
+Commits that landed after that moment are not counted here.
 Branch of this work:
  `fix/git-policy-cli-pushes-of-main-that-stalled-today`.
 The owner's words this serves:
@@ -53,7 +55,8 @@ A push that reported `outcome=retrying` or `outcome=failed` did not reach the re
 
 Of the day:
 
-- 139 commits landed on `refs/heads/main`.
+- 139 commits landed on `refs/heads/main`,
+  each with one push item of its own.
 - 126 pushes of `refs/heads/main` were logged for that checkout.
 - 24 of the landings reached the remote more than a minute after landing.
 - one more was still waiting when the measurement stopped.
