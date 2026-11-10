@@ -57,20 +57,20 @@ Obtain the deployment-specific Coolify dashboard URL from the server operator or
 Do not use `https://penpot.c.aquati.cat` as the dashboard URL;
 that is the Penpot application URL.
 
-1. Open the Coolify dashboard URL in the browser.
-   The Coolify sign-in page or dashboard appears.
-2. Sign in with the authorized Coolify account.
-   The Coolify dashboard appears without an authorization error.
-3. Open **Projects**.
-   The project list appears.
-4. Open the project and environment containing the Penpot service for `penpot.c.aquati.cat`.
-   The environment's resource list appears.
-5. Open the Penpot service.
-   The service page shows frontend,
-   backend,
-   exporter,
-   PostgreSQL,
-   and Redis resources.
+1.  Open the Coolify dashboard URL in the browser.
+    The Coolify sign-in page or dashboard appears.
+2.  Sign in with the authorized Coolify account.
+    The Coolify dashboard appears without an authorization error.
+3.  Open **Projects**.
+    The project list appears.
+4.  Open the project and environment containing the Penpot service for `penpot.c.aquati.cat`.
+    The environment's resource list appears.
+5.  Open the Penpot service.
+    The service page shows frontend,
+    backend,
+    exporter,
+    PostgreSQL,
+    and Redis resources.
 
 ## Steps
 
@@ -79,42 +79,42 @@ TODO
 
 ### Confirm this diagnosis
 
-1. Open **Runtime Logs**.
-   The service log viewer appears.
-2. Select **Penpot Backend**.
-   Backend startup logs appear.
-3. Find the line containing `hint="welcome to penpot"`.
-   Record its exact `version="..."` value.
-4. If no `welcome to penpot` line exists,
-   preserve the complete log from the first `exec` line through the final error and stop this runbook.
-   The backend has an application startup failure rather than only a healthcheck failure.
-5. Open **Terminal**.
-   The service terminal page appears.
-6. Select the **Penpot Backend** container.
-   The terminal prompt opens inside the running backend container.
-7. Run:
+1.  Open **Runtime Logs**.
+    The service log viewer appears.
+2.  Select **Penpot Backend**.
+    Backend startup logs appear.
+3.  Find the line containing `hint="welcome to penpot"`.
+    Record its exact `version="..."` value.
+4.  If no `welcome to penpot` line exists,
+    preserve the complete log from the first `exec` line through the final error and stop this runbook.
+    The backend has an application startup failure rather than only a healthcheck failure.
+5.  Open **Terminal**.
+    The service terminal page appears.
+6.  Select the **Penpot Backend** container.
+    The terminal prompt opens inside the running backend container.
+7.  Run:
 
-   ```bash
-   command -v node || true
-   ```
+    ```bash
+    command -v node || true
+    ```
 
-   For the diagnosed `2.17.2` mismatch,
-   the command prints no path.
-8. Run:
+    For the diagnosed `2.17.2` mismatch,
+    the command prints no path.
+8.  Run:
 
-   ```bash
-   command -v curl || true
-   ```
+    ```bash
+    command -v curl || true
+    ```
 
-   For backend `2.17.2`,
-   the command prints `/usr/bin/curl`.
-9. Run:
+    For backend `2.17.2`,
+    the command prints `/usr/bin/curl`.
+9.  Run:
 
-   ```bash
-   curl --fail --silent --show-error http://127.0.0.1:6060/readyz
-   ```
+    ```bash
+    curl --fail --silent --show-error http://127.0.0.1:6060/readyz
+    ```
 
-   The diagnosed healthcheck-only failure prints `OK` and returns to the prompt without an error.
+    The diagnosed healthcheck-only failure prints `OK` and returns to the prompt without an error.
 10. If `node` has a path,
     `curl` has no path,
     or the readiness request does not print `OK`,
@@ -332,25 +332,25 @@ The pre-recovery configuration is broken when paired with backend `2.17.2`.
 Restore it only to investigate a distinct regression,
 and expect the original outage to return.
 
-1. Open the Penpot service's **Settings**.
-   The settings page appears.
-2. Open **General** if the configuration sidebar is present.
-   The **Service details** section appears.
-3. Click **Edit Compose file**.
-   The **Docker Compose** editor opens.
-4. Replace the editor contents with the complete pre-recovery Compose text saved during setup.
-   The editor again shows the original tags,
-   healthcheck,
-   environment entries,
-   and volume definitions.
-5. Confirm the Compose text still contains `penpot-assets`,
-   `penpot-postgresql-data`,
-   and `penpot-redis-data`.
-   All three named volume declarations remain present.
-6. Click **Save changes**.
-   Coolify confirms the Compose update.
-7. Click **Actions** and use **Force Restart** for a degraded service or **Force Deploy** for a stopped service.
-   The deployment log opens and applies the restored configuration through container recreation.
+1.  Open the Penpot service's **Settings**.
+    The settings page appears.
+2.  Open **General** if the configuration sidebar is present.
+    The **Service details** section appears.
+3.  Click **Edit Compose file**.
+    The **Docker Compose** editor opens.
+4.  Replace the editor contents with the complete pre-recovery Compose text saved during setup.
+    The editor again shows the original tags,
+    healthcheck,
+    environment entries,
+    and volume definitions.
+5.  Confirm the Compose text still contains `penpot-assets`,
+    `penpot-postgresql-data`,
+    and `penpot-redis-data`.
+    All three named volume declarations remain present.
+6.  Click **Save changes**.
+    Coolify confirms the Compose update.
+7.  Click **Actions** and use **Force Restart** for a degraded service or **Force Deploy** for a stopped service.
+    The deployment log opens and applies the restored configuration through container recreation.
 
 Never use **Force Cleanup Containers**,
 delete the Penpot service,

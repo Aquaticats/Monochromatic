@@ -26,408 +26,6 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
-### Does the translation-repair family keep its own character predicates? (issue 1673), asked 2026-11-10T04:28:34-05:00
-
-Issue 1673 asks that nothing outside `@monochromatic-dev/agent-harness-shared-text-scan` declares a character predicate.
-That change is built on a branch for every other package.
-`package/translation-repair/markup/src/ascii-letters.ts` is left:
-it is that family's own owner,
-written 204 times across 41 files,
-and takes an object parameter where the shared owner takes a character.
-This is separate from the import question in issue 1652.
-
-#### A: migrate the family to the shared owner
-
-The issue's acceptance is met as written and one definition remains.
-It changes 41 files mechanically,
-and the `adjudication` package shows the object parameter is no real obstacle.
-
-#### B: keep the family's owner and record the exemption
-
-Nothing changes in 41 files.
-Two owners of the same five predicates remain,
-which is what the issue set out to remove.
-
-Ranking:
-A > B,
-because the migration is mechanical and a second owner is the defect the issue names.
-
-### What does deleting a JSONC array index past the end do?, asked 2026-11-10T01:52:36-05:00
-
-Issue 1409 asks that get,
-set and delete agree on every path.
-Commit `19cdbffeb5` fixed negative and fractional indexes.
-One path is left.
-With `{"list": [1]}`,
-deleting `['list', 5]` leaves the document unchanged in TypeScript,
-and returns `PathNotFound` in the Rust port (`package/jsonc-edit/core-rust/src/edit_spine.rs:450`).
-Both already treat deleting a missing object key as doing nothing.
-
-#### A: Rust does nothing too
-
-Deleting an address that holds nothing is then always a no-op,
-in both languages,
-for keys and indexes alike.
-Get and set still report the missing path where delete does not,
-so the issue's "agree on every path" is met only by amending it.
-
-#### B: TypeScript reports `JsoncPathNotFoundError`
-
-Delete then agrees with get and set on array indexes,
-which is what the issue asked.
-Within delete,
-a missing index throws while a missing key does nothing,
-and a TypeScript caller that deletes defensively starts to fail.
-
-#### C: leave the two languages different
-
-Nothing changes,
-and the difference stays documented.
-The issue stays unmet.
-
-Ranking:
-A > B > C,
-because A gives one rule a caller can rely on in both languages,
-and B at least removes the difference that C keeps.
-
-### May the prose rules be applied inside `doc/decision/`?, asked 2026-11-10T01:52:36-05:00
-
-Issues 1699,
-1700,
-1702,
-1703,
-1704,
-1705 and 1706 report prose-rule breaks such as em-dashes,
-italics,
-unpadded list markers and bold-label bullets.
-The rest of the tree is being fixed,
-and what remains is inside `doc/decision/`,
-which agents may not edit without your approval.
-
-#### A: yes, for the form only
-
-Punctuation,
-emphasis,
-list markers and headings change,
-your quoted words and every other word stay,
-and each file's words are compared before and after.
-The issues can then close.
-The records' history gains one formatting commit each.
-
-#### B: exempt `doc/decision/` from those rules
-
-The records stay as they were written,
-the issues close on a recorded exemption,
-and the linter needs that exemption too.
-
-#### C: fix each record only when it is next edited
-
-No sweep happens.
-The issues stay open for a long time.
-
-Ranking:
-A > B > C,
-because A keeps every record's words and meets the rules,
-and B at least ends the issues where C leaves them open.
-
-### What should kv-store do with `set('')`? (issues 1408 and 1412), asked 2026-11-09T21:18:00-05:00
-
-An async `set('', value)` writes under a hash of the value,
-and `get` and `delete` receive only the key,
-so nothing can read or remove that entry.
-No consumer in the repository calls `set('')`.
-`package/kv-store/core/DECISION.fs-backend.md` Hazard 8 ranks these three and leaves the pick open.
-The empty-key clause of the parity test in 1412 waits on this.
-
-#### A: reject empty keys
-
-`set('', value)` throws and names the key.
-
-- Pro:
-  an entry nothing can reach can no longer be made.
-- Con:
-  drops the documented content-addressed use (`types.ts:301`,
-  README) on a package planned to go public.
-
-#### B: make the derivation symmetric
-
-`get` and `delete` learn to address entries by content.
-
-- Pro:
-  keeps the documented feature.
-- Con:
-  `get('')` has no value to hash,
-  so it needs a new way to name the entry.
-
-#### C: keep it and document the quirk
-
-- Pro:
-  no behaviour change.
-- Con:
-  a write that cannot be read stays possible.
-
-Ranking:
-A > B > C,
-because no consumer uses the feature and A removes the trap outright,
-B needs a new API to keep something nobody calls,
-and C leaves the trap in place.
-
-### How should pnpr tell that a package has a build? (issue 1267), asked 2026-11-09T21:09:20-05:00
-
-The publish job reads `mise.toml` line by line for a literal `[tasks.build]`,
-so `tasks.build = { ... }` or `[tasks.build] # comment` is missed.
-Nothing configured trips this today:
-all 175 packages use the plain header.
-
-#### A: refuse when `package.json` names `dist/` and `task.ts` declares no build
-
-- Pro:
-  no new dependency,
-  and pnpr stops interpreting `mise.toml` at all.
-- Con:
-  it replaces the criterion `doc/decision/mise-free-ci.md:203-232` records,
-  so that record needs your amendment.
-
-#### B: read `mise.toml` with `@monochromatic-dev/toml-edit-core`
-
-- Pro:
-  keeps the recorded criterion.
-- Con:
-  a new dependency for this package,
-  and pnpr keeps a second reading of what `mise.toml` means.
-
-#### C: leave it
-
-- Pro:
-  no work.
-- Con:
-  a differently spelled header would be missed.
-
-Ranking:
-A > B > C,
-because A removes the second reader where B keeps it,
-and B at least handles every spelling where C handles one.
-
-### Should vmsync adopt the shared JSONC parser? (issue 1242), asked 2026-11-09T21:09:20-05:00
-
-vmsync keeps its own comment stripper for `vmsync.jsonc`,
-the only production copy in TypeScript.
-Adopting `@monochromatic-dev/jsonc-edit-core-ts` needs that dependency
-and an export of `toJsValue` from that package.
-This run fixed the stripper's bug in place (`bcc905f030`).
-
-#### A: adopt the shared parser
-
-- Pro:
-  one JSONC reader,
-  and the stripper is deleted.
-- Con:
-  a new dependency and a new export in another package.
-
-#### B: keep the stripper
-
-- Pro:
-  no new edge between packages.
-- Con:
-  a second JSONC reader stays.
-
-Ranking:
-A > B,
-because one reader is what the issue asks for and the cost is one export.
-
-### What should vmsync do with a name that starts badly? (issue 1243), asked 2026-11-09T21:09:20-05:00
-
-`nameFromPath` turns `/tmp/.hidden.img` into `-hidden`,
-and `validateName` rejects a leading `-`,
-so `importImage` refuses the name it derived itself.
-
-#### A: strip leading characters the name may not start with
-
-`/tmp/.hidden.img` becomes `hidden`.
-
-- Pro:
-  the import works with no extra step.
-- Con:
-  two files can derive one name.
-
-#### B: keep refusing, and say which file and which rule
-
-- Pro:
-  nothing is renamed silently.
-- Con:
-  the person must pass a name by hand.
-
-Ranking:
-B > A,
-because a disk image's identity should not change without being asked,
-and the sentence costs little.
-
-### Should the silent stub's decision record be amended?, asked 2026-11-09T21:09:20-05:00
-
-Coordinator pick,
-landed as `fe17472361` under your "nothing should ever wait forever or indefinitely":
-`await stub` now settles,
-and `String(stub)` returns text.
-`doc/decision/proper-lockfile-removal.md:77-104` and `:161-162` still describe the old thenable,
-and say editing the stub to add a carve-out "weakens the stub contract for every other policy entry,
-and is out of scope here".
-The session may not edit that record.
-
-- A:
-  amend it to say the stub no longer hangs.
-- B:
-  undo the change to the stub:
-  say "undo" and it is reverted.
-
-Ranking:
-A > B,
-because a stub that hangs every `await` contradicts your rule,
-and the record's own ranking does not depend on the old behaviour.
-
-### Does `package/vm-builder/cli/README.md` or the code say what you want?, asked 2026-11-09T21:09:20-05:00
-
-The README says `Network: default (NAT via libvirt)` and `Display: SPICE + QXL`.
-The code renders `<interface type="user">` and a virtio video model with `accel3d`.
-Tests now pin what the code renders.
-
-- A:
-  the code is right:
-  correct the README.
-- B:
-  the README is right:
-  change the code to libvirt NAT and SPICE with QXL.
-
-Ranking:
-A > B,
-because the code is what has been running and virtio with 3D is the newer choice.
-
-### Should a package with no unit tests fail `test:unit`? (issue 1761), asked 2026-11-09T21:09:20-05:00
-
-The root task returns success on an empty file list at `mise.toml:298`:
-`mise run //package/pi-plugin/cost-dismissal:test:unit` exits 0 and names no test.
-
-- A:
-  fail,
-  with a documented exemption list for packages that truly have none.
-- B:
-  print a loud skip and pass.
-- C:
-  leave it.
-
-Ranking:
-A > B > C,
-because a green run that ran nothing is the failure `AGENTS.md` `TRV` names,
-B at least shows it,
-and C hides it.
-
-### Should the music player's design pages stop fetching from the network? (issue 1441), asked 2026-11-09T21:09:20-05:00
-
-`support.js` loads React and Babel from `unpkg.com`,
-and 86 pages link Google Fonts,
-so the pages do not render offline.
-`support.js` is generated from a `dc-runtime` source that is not in this repository.
-
-- A:
-  vendor React,
-  ReactDOM and Babel (about 1.5 MB) and swap to the shipped fonts,
-  which changes the typeface of every candidate page.
-- B:
-  leave them online-only.
-
-Ranking:
-B > A,
-because these are review artifacts and A changes what the candidates look like.
-
-### Should the two FLAC profilers stay separate? (issue 1464), asked 2026-11-09T21:09:20-05:00
-
-`flac-bones.mjs` (1121 lines) writes the `out/flac-profiles.jsonl` that `--buckets` reads,
-and the FLAC part of `truepeak-core/src/bones.rs` is about 150 lines.
-The two already differ on SEEKTABLE handling and a trailing ID3v1 tag.
-
-- A:
-  retire the JavaScript and have Rust write the profile file.
-- B:
-  keep both as an independent pair,
-  with a comment saying why.
-- C:
-  generate one from the other.
-
-Ranking:
-A > B > C,
-because one owner ends the drift,
-B at least records it,
-and generating across languages costs the most.
-
-### Should the plural folder names go? (issue 1676), asked 2026-11-09T21:09:20-05:00
-
-Eight plural content folders remain,
-six of them outside `package/ide/app`,
-and the rename touches `doc/decision/slint-ide-0x-scope.md` and `doc/handover/`.
-
-- A:
-  rename them all and amend that record.
-- B:
-  list them as residue in `doc/planning/singular-dir-name-invariant.md`.
-
-Ranking:
-A > B,
-because the invariant is yours and the rename is mechanical.
-
-### What colours should the aquati.cat quiz verdicts use?, asked 2026-11-09T19:25:35-05:00
-
-Issue 1540:
-the quiz components set literal `green` and `red`,
-which ignore `tokens.ts` and do not follow the dark-mode toggle.
-Their docs promise a `color-mix()` derivation from the link tokens that was never wired.
-The agent `ssg-aquati-cat-ready-bugs` fixed the rest of that package and stopped here,
-because the answer is a design choice.
-Nothing else is waiting on it.
-A later run of that agent built option A on the branch `fix/ssg-aquati-cat-ready-bugs`,
-which is held and not on main.
-Its values are `#15803d` and `#b91c1c` on the light theme,
-and `#4ade80` and `#f87171` on the dark one.
-Answering A lands it as it stands.
-
-#### A: add success and danger colour tokens
-
-Right answers stay green and wrong answers stay red in both themes.
-It costs one more pair of tokens,
-with values you pick or a contrast-checked pair an agent proposes.
-
-#### B: derive verdicts from the link tokens with `color-mix()`, as the docs promise
-
-It adds no tokens and follows the theme by construction.
-The link colour is purple,
-so right and wrong become two purples and lose the green and red meaning.
-
-Ranking:
-A > B,
-because the colour carries the verdict,
-and B gives that up to save a pair of tokens.
-
-### What should happen to catalog entries only paused packages use? (issue 1667), asked 2026-11-09T16:22:51-05:00
-
-The `pnpm-workspace.yaml` catalog has 22 entries that only manifests under `package-paused/` or `package-deprecated/` reference.
-The entries nothing references are already gone (`6f8dcd1102`).
-
-- A.
-  Keep each,
-  with a one-line comment naming the paused consumer.
-  Pro:
-  unpausing a package needs no version hunt.
-  Con:
-  the catalog keeps entries with no live consumer.
-- B.
-  Drop them and add each back when its package is unpaused.
-  Pro:
-  the catalog lists only what is live.
-  Con:
-  each unpause has to choose versions again.
-
-Ranking:
-A > B,
-because a comment costs one line per entry and B throws away the versions paused packages were last tested with.
-
 ### The Pi limit stays at 20 at most, answered 2026-11-09T01:22:05-05:00
 
 The owner,
@@ -506,53 +104,6 @@ Write "push it" here to overrule this.
 
 The same fact raises a question that does need you,
 `What should the next push do with a commit its checks blocked?`.
-
-### May a moved-path note be added to records in `doc/decision/`?
-
-Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
-Agents may not edit `doc/decision/` without your approval,
-so these open issues are stuck on that alone:
-4365,
-5929,
-6201,
-3279,
-5926,
-5788,
-3191,
-3275,
-5765,
-5766,
-6101 and 4357.
-The note would add a line beside each stale path and change no decision.
-
-Recommended:
-yes,
-for notes of that one kind only,
-because the original words stay and the records stop pointing nowhere.
-The alternative is to leave those issues open,
-and each stays a dead reference.
-
-### Should 30 packages declare a license? (issue 2994)
-
-30 `package/*/*/package.json` files have no `license` field,
-so no license text is due for them and none ships.
-This is a legal choice about your code,
-and nothing about it can be measured.
-Name a license,
-or say these packages stay undeclared.
-
-### Who owns the repository links in `package.json`? (issue 1124)
-
-221 `package.json` files still link to `github.com/Aquaticat/Monochromatic`,
-and 3 link to the current organization.
-No rule owns those fields since the TypeScript tool went away,
-so they drift.
-
-Recommended:
-add a file-enforcer rule for `repository` and `homepage`,
-matching what it already does for `Cargo.toml`,
-so one run corrects them all and they stay correct.
-The alternative is a single rewrite with nothing to keep it true.
 
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 
@@ -674,6 +225,240 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in a message, recorded 2026-11-10T09:15:14-05:00
+
+### Container base stays CachyOS
+
+The owner wrote "If cachyos containers are much heavier than arch proper containers, switch to arch proper.",
+and after the sizes,
+"Okay, cachyOS is fine then. It's not as bad as I thought."
+`doc/decision/container-base-distro.md` stands unchanged.
+
+Compressed sizes in the registry from `skopeo inspect` on 2026-11-10:
+`cachyos-v4:latest` 406 MiB,
+`cachyos-v3:latest` 404 MiB,
+`cachyos:latest` 312 MiB,
+`archlinux:base` 128 MiB,
+`archlinux:base-devel` 295 MiB.
+A comparison of what each image installs was stopped when the owner decided,
+so installed sizes and start times were not measured.
+
+## Answered in the question tool, recorded 2026-11-10T10:03:43-05:00
+
+### Who reviews and who audits after the Kimi trial
+
+"Kimi alone" for reviews of a change,
+and "Both side by side (Recommended)" for long audits.
+The evidence and the ranking the owner read are in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
+Rules `KRV` and `LHZ` in `AGENTS.md` carry them,
+and GPT stays only for small audits.
+
+## Answered in the question tool, recorded 2026-11-10T09:48:06-05:00
+
+### Build guard on unit tests that read built output (issue 1658)
+
+"Hold until Pants (Recommended)".
+Branch `fix/pnpr-open-issues` stays unmerged and ready to land,
+and issue 1658 stays open.
+
+### `main()` wrappers (issue 1382)
+
+"Sweep and add a rule (Recommended)".
+An agent removes the wrapper from the files that still end with `await main();`
+and adds `no-main-wrapper` to the repository's own `no-restricted-syntax` lint plugin.
+
+### Picks made for the owner, veto open
+
+These fall under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session."
+
+- Issue 1678 is closed:
+  the logger half is fixed on main,
+  and the remaining matches of its acceptance regex are `console.*` terminal output,
+  which rule `TLG` permits.
+- Issue 1396:
+  a bare `-0` in `@monochromatic-dev/toml-edit-core` emits `-0.0`,
+  so the sign survives a reparse.
+- `catalog-tighten`'s `test:matrix` adopts the passing arm of `doc/troubleshooting/catalog-tighten-matrix-cannot-start.md`:
+  mount the resolved store read-only and take pnpm's first version line.
+- The first trash hand-over in a repository whose service is not running keeps waiting for the service to start,
+  bounded by the commit path's start wait.
+  It measured 12.1 s,
+  once per repository.
+- Whether `node_modules/.monochromatic` can be a subvolume is measured on a throwaway checkout before anything changes:
+  it would remove roughly 165,000 of the 269,000 deletions a snapshot's trash costs,
+  and nothing yet shows that the tools leave a subvolume in place.
+- `MD2` in `AGENTS.md` was reworded by an agent to say the marker width in words,
+  with the same meaning.
+- `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
+  following issue 1579's acceptance and the `hook-type` precedent.
+
+## Answered in the question tool, recorded 2026-11-10T08:24:33-05:00
+
+### Package-local rules
+
+"Add it (Recommended)":
+`AGENTS.md` gains a rule that a rule or fact about one package goes in that package's docs.
+The rule about controls is `WFR` in `package/git-policy/cli/README.md`.
+
+### `cargo-shadow lean` and a record another user's process might hold
+
+"Keep removing and logging (Recommended)".
+
+### Replaying the wrapper's fuzz seeds in normal tests
+
+"Leave them to campaigns".
+
+## Answered in the question tool, recorded 2026-11-10T08:23:02-05:00
+
+### The rule about controls that decide from a sleep
+
+Proposed for `AGENTS.md`;
+the owner:
+"Put it in pkg local docs.
+How many times do I need to say to put things that are package-local in pkg local docs?"
+
+### An unbounded `rg` over a folder that is not a repository (issue 3474)
+
+"Cap its output (Recommended)".
+
+### `SEARCH_SHADOW_ALLOW_WIDE=1` and the refusal of piped `rg`
+
+"Keep no override".
+
+### Credential-named variables in interactive Pi sessions
+
+"Leave them as they are (Recommended)".
+
+## Answered in the question tool, recorded 2026-11-10T08:19:14-05:00
+
+### Packages with no license (issue 2994)
+
+"LGPL-3.0-or-later (Recommended)",
+for the 27 packages that declare none,
+measured 2026-11-10.
+
+### Repository links in `package.json` (issue 1124)
+
+"A file-enforcer rule (Recommended)",
+for `repository` and `homepage`.
+
+### The VM builder's full run
+
+"Run without a copy":
+the full run may overwrite `/var/lib/libvirt/images/monochromatic-dev.qcow2` and force-stop and remove any VM of that name.
+
+### History of the wrapper's own logs
+
+"Keep more,
+capped (Recommended)":
+32 MiB per log,
+and an audit line naming a saved copy that still exists is never dropped.
+
+## Answered in the question tool, recorded 2026-11-10T08:16:10-05:00
+
+### Character checks in the translation-repair family (issue 1673)
+
+No option was selected;
+the owner's note:
+"Migrate it,
+and isAsciiLetter should be in the `const` pkg."
+
+### The aquati.cat quiz verdict colours (issue 1540)
+
+"Green and red tokens (Recommended)":
+the held branch `fix/ssg-aquati-cat-ready-bugs` lands as it stands.
+
+### The music player's design pages (issue 1441)
+
+"Bundle everything":
+React,
+ReactDOM and Babel come along,
+and the fonts switch to the shipped ones.
+
+### The two FLAC profilers (issue 1464)
+
+"Keep only the Rust one (Recommended)".
+
+## Answered in the question tool, recorded 2026-11-10T08:13:03-05:00
+
+### How the publish job tells that a package has a build (issue 1267)
+
+"Parse mise.toml properly":
+read it with the repository's TOML parser.
+
+### A package with no unit tests (issue 1761)
+
+"Fail,
+with exemptions (Recommended)".
+
+### Plural folder names (issue 1676)
+
+"Rename all (Recommended)",
+which amends `doc/decision/slint-ide-0x-scope.md`.
+
+### Catalog entries only paused packages use (issue 1667)
+
+"Keep,
+with a comment (Recommended)".
+
+## Answered in the question tool, recorded 2026-11-10T08:10:46-05:00
+
+### Deleting a JSONC array index past the end (issue 1409)
+
+"TypeScript reports an error":
+`delete(doc, ['list', 5])` throws `JsoncPathNotFoundError` in TypeScript and returns `PathNotFound` in Rust.
+
+### kv-store `set('')` (issues 1408 and 1412)
+
+"Reject empty keys (Recommended)".
+
+### vmsync and a name that starts badly (issue 1243)
+
+"Keep refusing,
+explain (Recommended)".
+
+### vmsync and the shared JSONC parser (issue 1242)
+
+"Adopt the shared parser (Recommended)".
+
+## Answered in the question tool, recorded 2026-11-10T08:08:51-05:00
+
+### Prose rules inside `doc/decision/` (issues 1699 to 1706)
+
+"Yes,
+form only (Recommended)":
+punctuation,
+emphasis,
+list markers and headings change,
+the owner's quoted words and every other word stay,
+and each file's words are compared before and after.
+
+### Moved-path notes inside `doc/decision/`
+
+"Yes,
+notes only (Recommended)",
+for issues 4365,
+5929,
+6201,
+3279,
+5926,
+5788,
+3191,
+3275,
+5765,
+5766,
+6101 and 4357.
+
+### The silent stub's decision record
+
+"Amend the record (Recommended)":
+`doc/decision/proper-lockfile-removal.md` is to say the stub no longer hangs.
+
+### The VM builder's README against its code
+
+"The code is right (Recommended)":
+the README is to be corrected.
+
 ## Answered in the question tool, recorded 2026-11-10T08:04:14-05:00
 
 The first two were asked again after the owner wrote "I don't know.
@@ -751,6 +536,19 @@ and that branch is next in the landing queue.
 On the three findings left on that landing:
 "yes,
 when we finish the kimi trial."
+
+The round ran on 2026-11-10 with Kimi K3.1 Pro,
+and its report is `${HOME}/temp/agent/kimi-reviews/landing-stat-data-round-7/review.md`.
+It named one new finding from reading,
+which it could not reproduce on this host's btrfs:
+on a filesystem with whole-second timestamps,
+a same-size edit whose modification time is restored inside one second can be recorded as clean.
+The agent `kimi-trial-findings-on-main` takes that one.
+The three older findings were judged and left,
+veto open:
+swapping two settled directories between the reads
+and a writable shared mapping of `.gitattributes` both need another program to set a trap inside a small window,
+and a read a stopped FUSE server never answers is the step the owner's "Keep waiting and say so" covers.
 
 ### A late mode or owner change during a conversion
 

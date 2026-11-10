@@ -27,7 +27,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, direct, fixture, git, observe, repository, without_wait_notices};
+use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, repository, without_wait_notices};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -321,6 +321,202 @@ fn a_clean_checkout_merges_with_no_trace_of_a_carry() {
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", said(&observed));
     assert_merged(&fixture, repo.as_path(), "clean");
+    assert_eq!(status(&fixture, repo.as_path()), "", "nothing is left uncommitted");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  An editor that appends one line to the message it was handed,
+/// records the file it read,
+/// and counts the runs it
+///  made.
+/// Why:
+///   The line shows in the merge commit,
+/// so a control can tell the message the person wrote from the one Git
+///  would have written,
+/// and the count shows the editor opened once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const editor = script(`echo run >> '${runs}'; cp "$1" '${read}'; printf '\nedited\n' >> "$1"`);
+/// ```
+fn appending_editor(fixture: &Fixture, name: &str) -> PathBuf {
+    let path: PathBuf = fixture.root.join(name);
+    let script: String = format!(
+        "#!/bin/sh\necho run >> '{runs}'\ncp \"$1\" '{read}'\nprintf '\\nedited in the editor\\n' >> \"$1\"\n",
+        runs = fixture.root.join(format!("{name}-runs")).display(),
+        read = fixture.root.join(format!("{name}-read")).display()
+    );
+    executable(path.as_path(), script.as_bytes());
+    return path;
+}
+
+/// What:
+///  Run a merge that opens the editor named,
+/// as a person at a terminal would,
+/// and return what they saw.
+/// Why:
+///   A control's standard input is no terminal,
+/// so `GIT_MERGE_AUTOEDIT=yes` is what makes the merge open the editor,
+///  which is the same decision the wrapper reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// observe(wrapped(['merge', 'feature'], { GIT_EDITOR: editor, GIT_MERGE_AUTOEDIT: 'yes' }));
+/// ```
+fn run_with_editor(fixture: &Fixture, repo: &Path, editor: &Path, arguments: &[&str]) -> Observed {
+    let observed: Observed = observe(
+        wrapped_commit(fixture, repo, arguments).env("GIT_EDITOR", editor).env("GIT_MERGE_AUTOEDIT", "yes"),
+        b"",
+    );
+    return Observed { stderr: without_wait_notices(observed.stderr.as_slice()), ..observed };
+}
+
+/// What:
+///  A merge that opens an editor carries the person's unsaved edit forward,
+/// and the message they write is the merge's.
+/// Why:
+///   Native Git performs the merge before the editor opens,
+/// so it refuses a checkout that holds the person's own work in
+///  the paths the merge changes (`error: Your local changes to the following files would be overwritten by merge`,
+///  exit 2),
+/// and the wrapper forwarded such a merge for the same reason.
+/// This is the one case "Carry edits forward
+///  (Recommended)" left.
+#[test]
+fn a_merge_that_opens_an_editor_carries_an_unsaved_edit() {
+    let fixture: Fixture = fixture("carry-editor-unsaved");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let editor: PathBuf = appending_editor(&fixture, "editor");
+    let edited: String = format!("{}{PERSON_LINE}\n", on_main_a());
+    std::fs::write(repo.join("a.txt"), &edited).expect("the person's edit");
+    let observed: Observed = run_with_editor(&fixture, repo.as_path(), editor.as_path(), &["merge", "feature"]);
+    assert_eq!(observed.code, Some(0), "{}", said(&observed));
+    assert_merged(&fixture, repo.as_path(), "editor and unsaved edit");
+    let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
+    assert_eq!(
+        after,
+        format!("{}{PERSON_LINE}\n", on_main_a().replace("three", FEATURE_THIRD)),
+        "the merged file with the person's line"
+    );
+    assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the edit is still unsaved");
+    let message: String = git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%B"]);
+    assert!(message.contains("edited in the editor"), "the merge carries the message the person wrote: {message:?}");
+    let read: String = std::fs::read_to_string(fixture.root.join("editor-read")).expect("what the editor read");
+    assert!(read.starts_with("Merge branch 'feature'\n"), "the editor opened on the merge's own message: {read:?}");
+    assert!(read.contains("# Please enter a commit message"), "and on the help lines Git writes: {read:?}");
+    assert_eq!(std::fs::read_to_string(fixture.root.join("editor-runs")).expect("the editor's runs"), "run\n", "the editor opened once");
+    assert!(!repo.join(".git/MERGE_MSG").exists(), "no merge message file is left behind");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A merge that opens an editor carries the person's staged edit forward,
+/// and it stays staged.
+/// Why:
+///   Native Git refuses such a merge as well,
+/// although the merge may touch none of the staged paths,
+/// and the
+///  message the person writes belongs to a merge that is made from objects.
+#[test]
+fn a_merge_that_opens_an_editor_carries_a_staged_edit() {
+    let fixture: Fixture = fixture("carry-editor-staged");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let editor: PathBuf = appending_editor(&fixture, "editor");
+    let staged: String = format!("{}{PERSON_LINE}\n", on_main_a());
+    std::fs::write(repo.join("a.txt"), &staged).expect("the person's edit");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    let observed: Observed = run_with_editor(&fixture, repo.as_path(), editor.as_path(), &["merge", "feature"]);
+    assert_eq!(observed.code, Some(0), "{}", said(&observed));
+    assert_merged(&fixture, repo.as_path(), "editor and staged edit");
+    assert_eq!(status(&fixture, repo.as_path()), "M  a.txt\n", "the edit is still staged, with nothing unstaged over it");
+    let cached: String = git_text(&fixture, repo.as_path(), &["diff", "--cached", "--unified=0", "--", "a.txt"]);
+    assert!(cached.contains(&format!("+{PERSON_LINE}")), "the staged difference holds the person's line: {cached}");
+    assert!(!cached.contains(FEATURE_THIRD) && !cached.contains(MAIN_FIRST), "the merge's own lines are not staged: {cached}");
+    let message: String = git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%B"]);
+    assert!(message.contains("edited in the editor"), "the merge carries the message the person wrote: {message:?}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  An editor that leaves no message ends the merge with status 1 and changes nothing.
+/// Why:
+///   Git aborts a commit whose edited message is empty (`error: Empty commit message.`),
+/// that ending is the
+///  person's,
+/// and no record,
+/// ref or message file may be left by a merge that was not made.
+#[test]
+fn an_editor_that_leaves_no_message_leaves_the_checkout_as_it_was() {
+    let fixture: Fixture = fixture("carry-editor-empty");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let edited: String = format!("{}{PERSON_LINE}\n", on_main_a());
+    std::fs::write(repo.join("a.txt"), &edited).expect("the person's edit");
+    let editor: PathBuf = fixture.root.join("empty-editor");
+    executable(editor.as_path(), b"#!/bin/sh\nprintf '# only a comment\\n' > \"$1\"\n");
+    let observed: Observed = run_with_editor(&fixture, repo.as_path(), editor.as_path(), &["merge", "feature"]);
+    assert_eq!(observed.code, Some(1), "{}", said(&observed));
+    assert!(said(&observed).contains("the editor left an empty message"), "the sentence says what stopped it: {}", said(&observed));
+    assert!(said(&observed).contains("nothing in the repository changed"), "and what the person will find: {}", said(&observed));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "no merge was made");
+    assert_eq!(text_at(repo.as_path(), "a.txt").unwrap_or_default(), edited, "the person's bytes are where they left them");
+    assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "nothing was staged by the attempt");
+    assert!(!repo.join(".git/MERGE_MSG").exists(), "no merge message file is left behind");
+    assert_eq!(records(repo.as_path()), "", "no merge record is left");
+    assert_eq!(side_refs(&fixture, repo.as_path()), "", "no side ref is left");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  An editor that ends with a failure ends the merge with status 1 and changes nothing.
+/// Why:
+///   The person's own program failing is the person's ending,
+/// as a signer that fails is,
+/// and the sentence
+///  names the editor so they can repair it.
+#[test]
+fn an_editor_that_fails_leaves_the_checkout_as_it_was() {
+    let fixture: Fixture = fixture("carry-editor-failed");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let edited: String = format!("{}{PERSON_LINE}\n", on_main_a());
+    std::fs::write(repo.join("a.txt"), &edited).expect("the person's edit");
+    let editor: PathBuf = fixture.root.join("failing-editor");
+    executable(editor.as_path(), b"#!/bin/sh\nexit 3\n");
+    let observed: Observed = run_with_editor(&fixture, repo.as_path(), editor.as_path(), &["merge", "feature"]);
+    assert_eq!(observed.code, Some(1), "{}", said(&observed));
+    assert!(said(&observed).contains("there was a problem with the editor"), "the sentence says what happened: {}", said(&observed));
+    assert!(
+        said(&observed).contains(editor.to_str().expect("the script's path is text")),
+        "and names the editor: {}",
+        said(&observed)
+    );
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "no merge was made");
+    assert_eq!(text_at(repo.as_path(), "a.txt").unwrap_or_default(), edited, "the person's bytes are where they left them");
+    assert!(!repo.join(".git/MERGE_MSG").exists(), "no merge message file is left behind");
+    assert_eq!(records(repo.as_path()), "", "no merge record is left");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A checkout with nothing of the person's own work in the merge's paths is native Git's merge,
+/// editor and all.
+/// Why:
+///   The wrapper acts on the case native Git refuses;
+/// everywhere else the merge that opens an editor is Git's own,
+/// and this
+///  control keeps that boundary.
+#[test]
+fn a_clean_checkout_that_opens_an_editor_still_merges() {
+    let fixture: Fixture = fixture("carry-editor-clean");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let editor: PathBuf = appending_editor(&fixture, "editor");
+    let observed: Observed = run_with_editor(&fixture, repo.as_path(), editor.as_path(), &["merge", "feature"]);
+    assert_eq!(observed.code, Some(0), "{}", said(&observed));
+    assert_merged(&fixture, repo.as_path(), "editor and clean checkout");
+    let message: String = git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%B"]);
+    assert!(message.contains("edited in the editor"), "the merge carries the message the person wrote: {message:?}");
     assert_eq!(status(&fixture, repo.as_path()), "", "nothing is left uncommitted");
     remove_settled(&fixture);
 }
