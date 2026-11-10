@@ -1,5 +1,12 @@
 # Read-only Slint IDE 0.x scope
 
+Note 2026-11-10T11:19:10-05:00:
+the question pages this record cites lived in `package/ide/app/design/questions`,
+which is now `package/ide/app/design/question`
+(issue [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676));
+every `design/questions/` path below resolves under `design/question/` today,
+and the `design/screenshots/` frames it names did not move.
+
 ## Accepted decision
 
 The user confirmed the [consolidated scope][scope] after a grilling interview.

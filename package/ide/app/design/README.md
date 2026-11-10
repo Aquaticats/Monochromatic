@@ -10,7 +10,7 @@ Frames of the built result are stored beside the frames of the question they ans
 
 ## Layout
 
-- `questions/<date>-<topic>.html`:
+- `question/<date>-<topic>.html`:
   one self-contained page per batch of questions.
   It loads nothing from the network and refers to images by relative path.
 - `screenshots/<date>-<topic>/`:
@@ -24,7 +24,7 @@ Frames of the built result are stored beside the frames of the question they ans
 ### 2026-10-05 UI batch 3
 
 - Page:
-  [`questions/2026-10-06-ui-batch-3.html`](questions/2026-10-06-ui-batch-3.html),
+  [`question/2026-10-06-ui-batch-3.html`](question/2026-10-06-ui-batch-3.html),
   built by the coordinating session from these frames and this entry's analysis.
 - Screenshots:
   `screenshots/2026-10-05-ui-batch-3/`
@@ -325,7 +325,7 @@ The tree's selected row and the wide divider gutter in these frames predate the 
 ### 2026-10-05 UI batch 2
 
 - Page:
-  [`questions/2026-10-05-ui-batch-2.html`](questions/2026-10-05-ui-batch-2.html)
+  [`question/2026-10-05-ui-batch-2.html`](question/2026-10-05-ui-batch-2.html)
 - Screenshots:
   `screenshots/2026-10-05-ui-batch-2/`
 - Status:
@@ -423,7 +423,7 @@ and what each frame shows.
 ### 2026-10-06 UI batch 3b
 
 - Page:
-  [`questions/2026-10-06-ui-batch-3b.html`](questions/2026-10-06-ui-batch-3b.html)
+  [`question/2026-10-06-ui-batch-3b.html`](question/2026-10-06-ui-batch-3b.html)
 - Screenshots:
   `screenshots/2026-10-06-ui-batch-3b/`
 - Status:
