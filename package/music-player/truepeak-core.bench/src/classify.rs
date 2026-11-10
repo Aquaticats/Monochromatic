@@ -37,6 +37,9 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 /// Imports the borrowed path type for the dump location.
 use std::path::Path;
+/// Imports `anyhow`'s error context and result alias,
+///  so a dump that cannot be written names its file.
+use anyhow::{Context, Result};
 /// Imports serde's derive so the dump row serializes with correct escaping.
 use serde::Serialize;
 /// Imports the shared dB,
@@ -218,7 +221,8 @@ struct LongFeatureRow<'a> {
 /// Write per-long-track probe features and violator labels as JSONL for offline joins.
 ///
 /// What:
-///  serializes one row per long track keyed by path.
+///  creates the dump's directory,
+///  then serializes one row per long track keyed by path.
 ///  Why:
 ///  the bench owns the
 /// labels and the metadata pass owns provenance;
@@ -226,14 +230,30 @@ struct LongFeatureRow<'a> {
 /// (codec,
 ///  bitrate,
 ///  yt-dlp origin) separates the violators that amplitude alone cannot.
+///  The directory is ignored by Git,
+///  so a first run on a fresh checkout has none,
+///  and a dump that cannot be written names its own path.
 pub fn write_long_features(
     tracks: &[Track],
     candidate: Candidate,
     out_path: &Path,
-) -> std::io::Result<()> {
+) -> Result<()> {
     let policy: Policy = default_policy();
     let features = long_features(tracks, candidate, &policy);
-    let mut writer = BufWriter::new(File::create(out_path)?);
+    // The parent of a bare file name is empty, and means the working directory itself.
+    let directory = out_path.parent().filter(|parent| return !parent.as_os_str().is_empty());
+    if let Some(parent) = directory {
+        std::fs::create_dir_all(parent).with_context(|| {
+            return format!(
+                "create the feature dump directory {} for {}",
+                parent.display(),
+                out_path.display(),
+            )
+        })?;
+    }
+    let mut writer = BufWriter::new(File::create(out_path).with_context(|| {
+        return format!("open the feature dump {}", out_path.display())
+    })?);
     for feature in &features {
         let row = LongFeatureRow {
             path: &feature.path,
@@ -247,6 +267,10 @@ pub fn write_long_features(
         writer.write_all(line.as_bytes())?;
         writer.write_all(b"\n")?;
     }
+    // An unflushed buffer would drop rows at exit without an error.
+    writer.flush().with_context(|| {
+        return format!("flush the feature dump {}", out_path.display())
+    })?;
     return Ok(())
 }
 
