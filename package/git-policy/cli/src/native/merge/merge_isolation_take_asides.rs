@@ -191,7 +191,7 @@ fn asides_of(location: &Path) -> Vec<PathBuf> {
 /// ```ts
 /// for (const location of locations) for (const aside of asidesOf(location)) if (free(location)) { renameNoReplace(aside, location); say(`put back ${location}`); } else say(`${aside} holds ...`);
 /// ```
-pub fn put_back_stranded_takes(root: &Path, changes: &[Change], out: &mut dyn Write) {
+pub fn put_back_stranded_takes<W: Write + ?Sized>(root: &Path, changes: &[Change], out: &mut W) {
     for change in changes {
         let location: PathBuf = worktree_path(root, change.path.as_slice());
         for aside in asides_of(location.as_path()) {
@@ -539,13 +539,10 @@ pub struct TakenOnDisk {
 /// for (const entry of taken) await rm(entry.aside, { force: true });
 /// ```
 pub fn finish_asides(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
-    let mut said: Vec<u8> = Vec::new();
-    let finished: Result<(), RecoveryError> = match run_on_runtime(finish_asides_awaiting(place, root, taken, &mut said)) {
+    return match run_on_runtime(finish_asides_awaiting(place, root, taken, out)) {
         Ok(found) => found,
         Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
     };
-    let _written = out.write_all(said.as_slice());
-    return finished;
 }
 
 /// What:
@@ -559,7 +556,7 @@ pub fn finish_asides(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], 
 /// ```ts
 /// async function finishAsides({ place, root, taken, stderr }): Promise<void>;
 /// ```
-pub async fn finish_asides_awaiting(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut (dyn Write + Send)) -> Result<(), RecoveryError> {
+pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut W) -> Result<(), RecoveryError> {
     let _ = (place, root);
     for entry in taken {
         // `may_remove` proves that nothing can write into the file any more;
@@ -657,7 +654,7 @@ async fn may_remove_awaiting(place: &RecoveryPlace, root: &Path, entry: &TakenOn
 /// ```ts
 /// for (const entry of taken) if (!exists(entry.location)) renameNoReplace(entry.aside, entry.location); else keepOrDrop(entry);
 /// ```
-pub async fn restore_what_git_did_not_write_awaiting(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut (dyn Write + Send)) -> Result<(), RecoveryError> {
+pub async fn restore_what_git_did_not_write_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut W) -> Result<(), RecoveryError> {
     let mut written: Vec<TakenOnDisk> = Vec::new();
     for entry in taken {
         if std::fs::symlink_metadata(entry.location.as_path()).is_err() {

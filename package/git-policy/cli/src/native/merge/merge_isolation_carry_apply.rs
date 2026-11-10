@@ -508,13 +508,13 @@ fn set_mode(file: &Path, mode: &str) -> std::io::Result<()> {
 /// ```ts
 /// async function writeSteps({ context, root, gitDir, steps, out }): Promise<void>;
 /// ```
-async fn write_steps_awaiting(
+async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     context: &GitContext,
     root: &Path,
     git_dir: &Path,
     steps: &[Step],
     wait: LockWait,
-    out: &mut (dyn std::io::Write + Send),
+    out: &mut W,
 ) -> Result<(), CarryFailure> {
     let waited = match wait {
         LockWait::BeforeTheApply => crate::index_holder_wait::wait_for_index_release_before_a_merge_that_clears_a_dead_lock(git_dir.join("index").as_path(), out),
@@ -601,13 +601,10 @@ pub fn clear(
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<(), CarryFailure> {
-    let mut said: Vec<u8> = Vec::new();
-    let cleared: Result<(), CarryFailure> = match run_on_runtime(clear_awaiting(context, root, git_dir, changes, capture, wait, &mut said)) {
+    return match run_on_runtime(clear_awaiting(context, root, git_dir, changes, capture, wait, out)) {
         Ok(found) => found,
         Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
     };
-    let _written = out.write_all(said.as_slice());
-    return cleared;
 }
 
 /// What:
@@ -621,14 +618,14 @@ pub fn clear(
 /// ```ts
 /// async function clear({ context, root, gitDir, changes, capture, out }): Promise<void>;
 /// ```
-pub async fn clear_awaiting(
+pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
     context: &GitContext,
     root: &Path,
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
     wait: LockWait,
-    out: &mut (dyn std::io::Write + Send),
+    out: &mut W,
 ) -> Result<(), CarryFailure> {
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
@@ -683,13 +680,10 @@ pub fn carry(
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<Report, CarryFailure> {
-    let mut said: Vec<u8> = Vec::new();
-    let report: Result<Report, CarryFailure> = match run_on_runtime(carry_awaiting(context, root, git_dir, changes, capture, wait, &mut said)) {
+    return match run_on_runtime(carry_awaiting(context, root, git_dir, changes, capture, wait, out)) {
         Ok(found) => found,
         Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
     };
-    let _written = out.write_all(said.as_slice());
-    return report;
 }
 
 /// What:
@@ -704,14 +698,14 @@ pub fn carry(
 /// ```ts
 /// async function carry({ context, root, gitDir, changes, capture, out }): Promise<Report>;
 /// ```
-pub async fn carry_awaiting(
+pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
     context: &GitContext,
     root: &Path,
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
     wait: LockWait,
-    out: &mut (dyn std::io::Write + Send),
+    out: &mut W,
 ) -> Result<Report, CarryFailure> {
     // The merge of one layer runs from the top of the worktree, where a relative global option of the invocation does not reach.
     let rooted_context: GitContext = rooted(context);
@@ -866,13 +860,10 @@ pub fn restore(
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<(), CarryFailure> {
-    let mut said: Vec<u8> = Vec::new();
-    let restored: Result<(), CarryFailure> = match run_on_runtime(restore_awaiting(context, root, git_dir, changes, capture, wait, &mut said)) {
+    return match run_on_runtime(restore_awaiting(context, root, git_dir, changes, capture, wait, out)) {
         Ok(found) => found,
         Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
     };
-    let _written = out.write_all(said.as_slice());
-    return restored;
 }
 
 /// What:
@@ -886,14 +877,14 @@ pub fn restore(
 /// ```ts
 /// async function restore({ context, root, gitDir, changes, capture, out }): Promise<void>;
 /// ```
-pub async fn restore_awaiting(
+pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
     context: &GitContext,
     root: &Path,
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
     wait: LockWait,
-    out: &mut (dyn std::io::Write + Send),
+    out: &mut W,
 ) -> Result<(), CarryFailure> {
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {

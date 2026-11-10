@@ -2506,17 +2506,20 @@ fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
     remove(&s.root);
 }
 
-/// A fast-forward Git refused is settled inside the task that asked for it:
-/// the merge record goes,
-/// and the branch advance reports Git's own refusal.
-/// Why the record goes:
-/// nothing of the merge reached this checkout,
-/// so the recovery discards it and the next command is not stopped for a merge that never landed.
+/// A fast-forward the ref lock refused once is settled inside the task that asked for it:
+/// the recovery finishes the merge,
+/// the branch moves,
+/// and the record goes,
+/// so the task that pushes the person's backup is not left behind the remote by one refused `update-ref`.
+/// Why this is the awaited face's work:
+/// the settle reads Git,
+/// and the synchronous face registers its step's pipes by entering the runtime,
+/// which a task cannot do.
 /// Planted,
-/// by settling through the synchronous face,
+/// by settling through the synchronous face instead,
 /// it fails with
 /// "the runtime that runs this command's waits was asked for from inside itself"
-/// and leaves the record behind.
+/// and the record stays.
 #[test]
 fn a_refused_fast_forward_is_settled_inside_the_task_that_asked_for_it() {
     let s = scenario("ar-ff-settle-in-the-task");
@@ -2540,13 +2543,12 @@ fn a_refused_fast_forward_is_settled_inside_the_task_that_asked_for_it() {
         &target,
     ))
     .expect("git");
-    let Err(reason) = result else { panic!("the move was refused, so it is not reported as done") };
-    assert!(reason.contains("Git refused the fast-forward"), "{reason}");
-    assert!(!reason.contains("no thread could be started"), "no thread is started to settle a record any more: {reason}");
+    assert!(result.is_ok(), "the refused move was settled by the recovery, so the advance reports it done: {result:?}");
     assert_eq!(
         std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count),
         0,
-        "the record is settled by the task itself, so the next command is not stopped for a merge that never landed"
+        "the record is settled by the task itself, so the next command is not stopped for the merge"
     );
+    assert_ne!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), old, "the branch moved to the settled merge");
     remove(&s.root);
 }

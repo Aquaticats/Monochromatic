@@ -31,7 +31,6 @@ use crate::merge_isolation_recovery_steps::{
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
-use std::io::Write;
 use std::path::Path;
 
 /// What:
@@ -48,7 +47,7 @@ use std::path::Path;
 /// ```ts
 /// async function complete({ place, root, intent, changes, standings }): Promise<void>;
 /// ```
-pub async fn complete_awaiting(
+pub async fn complete_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     root: &Path,
     record: &Path,
@@ -56,7 +55,7 @@ pub async fn complete_awaiting(
     changes: &[Change],
     judgements: &[Judged],
     installed_before: bool,
-    out: &mut (dyn Write + Send),
+    out: &mut W,
 ) -> Result<Installed, MergeRefusal> {
     if install_entries_awaiting(place, root, changes, judgements, installed_before, out).await? == Installed::IndexHeld {
         // A merge that was already installed has nothing to defer: a command that went on would read it as another session's

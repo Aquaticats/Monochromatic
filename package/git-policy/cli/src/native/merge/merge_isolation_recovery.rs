@@ -146,13 +146,10 @@ pub fn recover_interrupted_merges(
     git_dir: &Path,
     out: &mut dyn Write,
 ) -> Result<Vec<MergeRecoveryOutcome>, RecoveryError> {
-    let mut said: Vec<u8> = Vec::new();
-    let recovered: Result<Vec<MergeRecoveryOutcome>, RecoveryError> = match run_on_runtime(recover_interrupted_merges_awaiting(place, git_dir, &mut said)) {
+    return match run_on_runtime(recover_interrupted_merges_awaiting(place, git_dir, out)) {
         Ok(found) => found,
         Err(refusal) => Err(RecoveryError(format!("{refusal}"))),
     };
-    let _written = out.write_all(said.as_slice());
-    return recovered;
 }
 
 /// What:
@@ -167,10 +164,10 @@ pub fn recover_interrupted_merges(
 /// ```ts
 /// async function recoverInterruptedMerges({ place, gitDir, stderr }): Promise<MergeRecoveryOutcome[]>;
 /// ```
-pub async fn recover_interrupted_merges_awaiting(
+pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     git_dir: &Path,
-    out: &mut (dyn Write + Send),
+    out: &mut W,
 ) -> Result<Vec<MergeRecoveryOutcome>, RecoveryError> {
     let mut outcomes: Vec<MergeRecoveryOutcome> = Vec::new();
     // Every record is read and its owner judged before any is settled, so a record of another namespace older than the patience
@@ -298,13 +295,10 @@ pub fn settle_failed_merge(
     intent: &MergeIntent,
     out: &mut dyn Write,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
-    let mut said: Vec<u8> = Vec::new();
-    let settled: Result<MergeRecoveryAction, MergeRefusal> = match run_on_runtime(settle_failed_merge_awaiting(place, record, intent, &mut said)) {
+    return match run_on_runtime(settle_failed_merge_awaiting(place, record, intent, out)) {
         Ok(found) => found,
         Err(refusal) => Err(MergeRefusal { error: RecoveryError(format!("{refusal}")), began: true }),
     };
-    let _written = out.write_all(said.as_slice());
-    return settled;
 }
 
 /// What:
@@ -323,11 +317,11 @@ pub fn settle_failed_merge(
 /// ```ts
 /// async function settleFailedMerge({ place, record, intent, stderr }): Promise<MergeRecoveryAction>;
 /// ```
-pub async fn settle_failed_merge_awaiting(
+pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     record: &Path,
     intent: &MergeIntent,
-    out: &mut (dyn Write + Send),
+    out: &mut W,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
     let root: &Path = intent.repository_root.as_path();
     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
@@ -573,11 +567,11 @@ pub async fn settle_failed_merge_awaiting(
 /// ```ts
 /// async function carryTheCapture({ place, root, intent, out }): Promise<boolean>;
 /// ```
-async fn carry_the_capture_awaiting(
+async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     root: &Path,
     intent: &MergeIntent,
-    out: &mut (dyn Write + Send),
+    out: &mut W,
 ) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
@@ -630,12 +624,12 @@ async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, ancestor: &str
 /// ```ts
 /// const action = await settleMovedBranch({ place, record, intent, movedTo, keepRecord: true });
 /// ```
-async fn settle_moving_the_record_aside_awaiting(
+async fn settle_moving_the_record_aside_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     record: &Path,
     intent: &MergeIntent,
     moved_to: &str,
-    out: &mut (dyn Write + Send),
+    out: &mut W,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
     return settle_moved_branch_awaiting(place, record, intent, moved_to, true, out).await;
 }
@@ -652,7 +646,7 @@ async fn settle_moving_the_record_aside_awaiting(
 /// ```ts
 /// async function carryOnto({ place, root, intent, end, out }): Promise<boolean>;
 /// ```
-async fn carry_onto_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent, end: &str, out: &mut (dyn Write + Send)) -> Result<bool, MergeRefusal> {
+async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, intent: &MergeIntent, end: &str, out: &mut W) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let mut changes: Vec<Change> = changes_between_awaiting(&place.git, root, intent.old_oid.as_str(), end).await
         .map_err(|error| { return partly_installed(RecoveryError(error)); })?;
@@ -695,11 +689,11 @@ async fn carry_onto_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeI
 /// ```ts
 /// async function restoreTheCapture({ place, root, intent, out }): Promise<boolean>;
 /// ```
-async fn restore_the_capture_awaiting(
+async fn restore_the_capture_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     root: &Path,
     intent: &MergeIntent,
-    out: &mut (dyn Write + Send),
+    out: &mut W,
 ) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;

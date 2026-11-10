@@ -525,13 +525,13 @@ fn everything_taken(written: &[TakenOnDisk], deleted: &[TakenOnDisk]) -> Vec<Tak
 /// ```ts
 /// async function installEntries({ place, root, changes, judgements, stderr }): Promise<Installed>;
 /// ```
-pub async fn install_entries_awaiting(
+pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     root: &Path,
     changes: &[Change],
     judgements: &[Judged],
     installed_before: bool,
-    out: &mut (dyn Write + Send),
+    out: &mut W,
 ) -> Result<Installed, MergeRefusal> {
     // Whether the index may be written now, and why not: `merge_isolation_recovery_index_lock.rs`.
     if !crate::merge_isolation_recovery_index_lock::may_write(place.git_dir.as_path(), installed_before, out) {
@@ -676,19 +676,9 @@ pub fn install_entries(
     installed_before: bool,
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
-    let mut said: Vec<u8> = Vec::new();
-    let installed: Result<Installed, MergeRefusal> = match run_on_runtime(install_entries_awaiting(
-        place,
-        root,
-        changes,
-        judgements,
-        installed_before,
-        &mut said,
-    )) {
+    return match run_on_runtime(install_entries_awaiting(place, root, changes, judgements, installed_before, out)) {
         Ok(found) => found,
         // The runtime refused before anything was written, so nothing of the merge is in the checkout.
         Err(refusal) => Err(MergeRefusal { error: RecoveryError(format!("{refusal}")), began: installed_before }),
     };
-    let _written = out.write_all(said.as_slice());
-    return installed;
 }

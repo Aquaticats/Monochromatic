@@ -48,8 +48,6 @@ use crate::recovery_error::RecoveryError;
 /// Running real Git.
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
-/// Writing the notices of the wait for the index lock.
-use std::io::Write;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -73,13 +71,13 @@ use std::path::Path;
 /// ```ts
 /// async function settleMovedBranch({ place, record, intent, movedTo, keepRecord, stderr }): Promise<'branch-moved' | 'index-held'>;
 /// ```
-pub(crate) async fn settle_moved_branch_awaiting(
+pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
     place: &RecoveryPlace,
     record: &Path,
     intent: &MergeIntent,
     moved_to: &str,
     keep_record: bool,
-    out: &mut (dyn Write + Send),
+    out: &mut W,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
     let root: &Path = intent.repository_root.as_path();
     // A merge whose own commits cannot be read may still be half installed, so the refusal says so.
