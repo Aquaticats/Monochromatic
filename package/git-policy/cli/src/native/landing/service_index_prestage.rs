@@ -28,7 +28,7 @@ use crate::process_identity::ProcessIdentityError;
 use crate::service_index_lock::lock_path_of;
 use crate::service_index_marker::{marker_text, own_identity};
 use crate::service_index_placement::sync_file;
-use crate::service_index_staging::stage_marker_synced;
+use crate::service_index_staging::stage_marker;
 use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -195,10 +195,17 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     // The flush can wait on the disk, so the marker is made by a job of the blocking pool, which a task of the runtime awaits.
     let spawned = spawn_on_runtime(run_blocking_job(move || -> std::io::Result<Prestaged> {
         let marker: String = marker_text(seq, &own_identity).map_err(identity_error)?;
-        let (staged, held) = stage_marker_synced(&sync, work_lock.as_path(), seq, marker.as_str())?;
+        // The file is recorded before the flush, because the flush can take seconds on a loaded disk and a stop that
+        // arrives while it runs must find the file: a record made after the flush would leave it behind.
+        let (staged, held) = stage_marker(work_lock.as_path(), seq, marker.as_str())?;
         let made: Prestaged = Prestaged { staged, held, marker };
-        // The shutdown task removes this file if a signal ends the process before the landing thread takes it back.
         publish(&made);
+        if let Err(error) = sync(&made.held) {
+            forget_made_ahead();
+            drop(made.held);
+            let _removed = std::fs::remove_file(made.staged.as_path());
+            return Err(error);
+        }
         return Ok(made);
     }));
     // No worker to make it on is no marker made ahead: the commit stages its own.
