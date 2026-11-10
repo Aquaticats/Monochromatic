@@ -29,3 +29,37 @@ export function isAsciiDigit(character: string): boolean {
   const code = character.charCodeAt(0);
   return code >= lowestDigitCodeUnit && code <= highestDigitCodeUnit;
 }
+
+/** Code unit of the line feed, which ends a line and starts the next. */
+const lineFeedCodeUnit = 0x0a;
+
+/** Code unit of the carriage return, which ends a line on its own as well as before a line feed. */
+const carriageReturnCodeUnit = 0x0d;
+
+/** Code unit of the line separator, a Unicode line terminator without a byte of its own. */
+const lineSeparatorCodeUnit = 0x2028;
+
+/** Code unit of the paragraph separator, the fourth line terminator. */
+const paragraphSeparatorCodeUnit = 0x2029;
+
+/**
+ Whether character ends a line for an anchored line-start search.
+ 
+ @param character - Single character of the text.
+ 
+ @returns Whether character is one of the four line terminators ECMAScript names.
+ 
+ @example
+ ```ts
+ isLineTerminator('\n'); // true
+ isLineTerminator('\u0085'); // false, a next-line character no pattern line start reaches
+ ```
+ */
+export function isLineTerminator(character: string): boolean {
+  if (character.length !== 1) return false;
+  const code = character.charCodeAt(0);
+  return code === lineFeedCodeUnit
+    || code === carriageReturnCodeUnit
+    || code === lineSeparatorCodeUnit
+    || code === paragraphSeparatorCodeUnit;
+}

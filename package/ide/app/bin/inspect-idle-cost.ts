@@ -14,6 +14,7 @@ import { compositor, demandCurrentCompositor, endSession } from './nested-compos
 import { containerBounds } from './container-bounds.ts';
 import { withoutSgrSequences } from './sgr-sequences.ts';
 import { safetySweepDeclaration } from './refresh-policy-sweep.ts';
+import { inotifyWatchCount } from './inotify-fdinfo.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
 const containerLimits = containerBounds();
@@ -119,7 +120,7 @@ const cpuTicks = (pid: string): number => {
 // The IDE's inotify watches: one `inotify wd:` line per watch in each inotify descriptor's fdinfo.
 const inotifyWatches = (pid: string): number => readdirSync('/proc/' + pid + '/fd').filter(fd => {
   try { return readlinkSync('/proc/' + pid + '/fd/' + fd) === 'anon_inode:inotify'; } catch { return false; }
-}).reduce((total, fd) => total + (readFileSync('/proc/' + pid + '/fdinfo/' + fd, 'utf8').match(/^inotify wd:/gm) ?? []).length, 0);
+}).reduce((total, fd) => total + inotifyWatchCount({ fdinfo: readFileSync('/proc/' + pid + '/fdinfo/' + fd, 'utf8') }), 0);
 // The counters of /proc/<pid>/io, of which this script reads the two named here.
 interface ProcessIo { syscr: number; rchar: number }
 const io = (pid: string): ProcessIo => Object.fromEntries(readFileSync('/proc/' + pid + '/io', 'utf8').trim().split('\n').map(line => line.split(': ')).map(([key, value]) => [key, Number(value)])) as ProcessIo;
