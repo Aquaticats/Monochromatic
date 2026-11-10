@@ -112,7 +112,9 @@ async function shippedModuleNames(): Promise<string[]> {
    */
   const entries = await readdir(SOURCE_DIR,);
   return entries.filter(function isShippedModule(name,): boolean {
-    return name.endsWith('.ts',) && !name.endsWith(TEST_MODULE_SUFFIX,);
+    if (!name.endsWith('.ts',))
+      return false;
+    return !name.endsWith(TEST_MODULE_SUFFIX,);
   },)
     .toSorted();
 }
@@ -125,7 +127,7 @@ async function shippedModuleNames(): Promise<string[]> {
  @param source - Module text to scan
  
  @returns `name:line` positions in source order, empty when the text holds none
- *
+ 
  @example
  ```ts
  countedLoopSites({ fileName: 'a.ts', source: 'for (let i = 0;' });
