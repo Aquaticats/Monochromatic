@@ -127,6 +127,9 @@ fn a_commit_whose_message_came_with_the_command_is_stopped_at_its_ceiling() {
     assert!(stopped.is_some_and(|after| { return after >= Duration::from_millis(300); }), "{stopped:?}");
     assert!(seen.armed, "a message on the command line arms the ceiling");
     assert!(seen.looks >= 1 && seen.looks_found >= 1, "the notice looked and found the step: {seen:?}");
+    // A `sleep` acts on the signal at once, so no look of this stop finds it held, and the notice says nothing of a kernel holding it.
+    let said: String = text_of(&sink);
+    assert!(!said.contains("has not released"), "a step that acted on its stop is said to be held by the kernel: {said}");
 }
 
 /// The text a buffer holds once it contains `needle`,
@@ -151,12 +154,13 @@ fn until_the_text(sink: &Buffer, bound: Duration, needle: &str) -> String {
 const A_LINE_BOUND: Duration = Duration::from_secs(10);
 
 /// What:
-///  A stop the kernel has not released is said once, and the line names the step.
+///  A stop the kernel has not released is said once,
+/// and the line names the step.
 /// Why:
 ///   A process in uninterruptible sleep cannot act on `SIGKILL` until the call it is inside returns,
 ///  so the command waits with nothing said for as long as the kernel holds it,
 ///  against the owner's rule that nothing waits for ever.
-///  His answer on this one case (2026-11-09,
+///  His answer on this one case (2026-11-10,
 ///  "Keep waiting and say so") keeps the wait and has the command say why it is still here.
 ///  No control on this host can put a process into uninterruptible sleep:
 ///  that takes a stalled disk,

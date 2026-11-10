@@ -28,6 +28,14 @@
 //! the step runs in a scratch repository on a private copy of the index,
 //! and the objects it wrote are content-addressed files the next build writes again,
 //! so nothing of the person's is in the step.
+//!  A step the kernel has not released cannot act on that signal,
+//!  and the command waits for the kernel rather than for its ceiling:
+//!  the owner chose that wait and asked for it to be said
+//!  (2026-11-10,
+//!  "Keep waiting and say so"),
+//!  so one line names the step,
+//! says the stop was sent and the kernel has not released it,
+//!  and says nothing of the person's is at risk (`scratch_step_held_by_the_kernel.rs`).
 //!  It ends nothing else:
 //! the landing service runs landings of different repositories on worker threads of one process,
 //! so another landing's Git is a child of the same process at the same moment,
@@ -84,17 +92,20 @@ pub fn scratch_ceiling() -> Duration {
 
 /// The cadence and the clock of a wait notice.
 use crate::wait_progress::{Cadence, Ticker};
-/// The step the notice watches,
-/// and the processes it started.
-use crate::process_tree::descendants_of_read;
 /// What the ceiling does when it comes.
 use crate::scratch_step_ceiling_stop::{CeilingCame, TheCeiling, ceiling_came};
 /// The line the notice prints,
 /// and the programs it names below the step.
 use crate::scratch_step_notice_line::{notice_line, other_programs};
+/// The line the notice prints once when the step it stopped is still held by the kernel,
+/// and what that line is built from.
+use crate::scratch_step_held_by_the_kernel::{HeldByTheKernel, held_by_the_kernel_line};
 /// The programs a look saw below the step,
 /// and the time each was credited with.
 use crate::scratch_step_programs_below::{SeenBelow, credit_between_looks, seen_below};
+/// One look at the step and the programs below it,
+/// and what a look answers about one of them.
+use crate::scratch_step_look_below::{look_below, process_cpu, process_is_blocked};
 /// The number of the step,
 /// published the moment it starts.
 use crate::child_number_told_at_start::ChildNumber;
@@ -111,8 +122,6 @@ use std::sync::Mutex;
 use std::sync::mpsc::{Sender, RecvTimeoutError, channel};
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
-/// One member of a process tree.
-use crate::process_tree::TreeMember;
 
 /// The shortest pause between two looks of the notice thread,
 /// so a very short interval does not spin.
@@ -170,6 +179,45 @@ const NOTICE_BOUND: Duration = Duration::from_millis(500);
 /// A quarter of a second keeps a step that is started late seen within that much of its start,
 /// and a step that ends sooner than that is ended by its own channel before a second look.
 const LOOK_INTERVAL: Duration = Duration::from_millis(250);
+
+/// What:
+///  How long the notice waits after seeing a step it may be holding before it looks at that step again.
+/// Why:
+///   A step can be inside a write when the signal is sent and back in a processor a moment later,
+/// and only a step still in uninterruptible sleep after this pause is one the kernel is holding:
+/// a look made with the signal alone would name a step that acts on it in the next microsecond.
+///  The pause is made only for a step the first look found in that state,
+/// so an ordinary stop answers as it always has,
+/// and the interval is the one the notice already keeps between looks.
+const AFTER_THE_STOP: Duration = LOOK_INTERVAL;
+
+/// What:
+///  Whether the kernel still holds a step its stop did not end,
+///  in the state a signal cannot end.
+/// Why:
+///   A process in uninterruptible sleep is inside a kernel path it has not returned from,
+///  so `SIGKILL` stays pending until it does
+///  (`doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`).
+///  Only that state counts:
+///  a step found in any other state after its stop has not acted on the signal yet,
+///  and nothing here claims the kernel is holding it.
+///  A control states this answer where no process can be put into that state,
+///  which no run this package makes can do (`BOX`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const heldInUninterruptibleSleep = (step) => useOf(step)?.state === 'D';
+/// ```
+fn held_in_uninterruptible_sleep(step: i32) -> bool {
+    #[cfg(all(test, target_os = "linux"))]
+    if the_controls_window::a_control_says_the_stop_did_not_end_the_step() {
+        return true;
+    }
+    let Some(below) = look_below(step) else {
+        return false;
+    };
+    return below.iter().any(process_is_blocked);
+}
 
 // What:
 //  A control that refuses the thread the ceiling is enforced on,
@@ -272,15 +320,6 @@ use crate::scratch_commit_step::ScratchStepFacts;
 /// The kernel's name,
 /// state and processor time of one process.
 use crate::process_tree::ProcessUse;
-/// What:
-///   the process numbers below this one,
-/// from the kernel's per-thread child lists.
-use crate::process_tree::descendant_numbers_from_thread_lists;
-/// What:
-///   one process's name,
-/// state and processor time,
-/// from one `/proc/<pid>/stat`.
-use crate::process_tree::use_of;
 
 /// The running notice:
 /// the thread that watches the step,
@@ -328,69 +367,40 @@ pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[Strin
 }
 
 /// What:
-///  The step and every living process below it,
-/// with their names,
-/// states and processor times.
+///  Say once that the stop was sent and the kernel has not released the step.
 /// Why:
-///   The step's own read comes first,
-/// so a look that finds it and nothing else still arms the ceiling.
-///  One read of one small file per process,
-/// from the kernel's per-thread child lists,
-/// so a notice that looks many times stays cheap:
-/// a walk costs 19.6 microseconds and a pass over `/proc` 17.6 ms on 2026-11-09 (`process_tree.rs`).
-///  `/proc` itself is read only where the kernel has no child lists.
-///  A process the kernel holds as a zombie is not below the step any more,
-/// as `descendants_of` counts it.
-///  Nothing is answered when `/proc` could not be read at all:
-/// that is a look that failed,
-/// never a step that ended.
+///   The words of a stop come only when the kernel lets go,
+///  and a step the kernel never releases never reaches them,
+///  so this line is the whole of what the person learns while their terminal waits
+///  (owner,
+/// 2026-11-10,
+///  "Keep waiting and say so").
+///  The look is made after the stop (`AFTER_THE_STOP`),
+///  so it names a step the kernel still holds and never one that acted on the signal between the two.
+///  The line goes the way every other line of this notice goes:
+///  a reader that stopped reading holds the writer thread and never this wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const below = lookBelow(step); // [{ pid, name, state, cpu }], undefined when the look failed
+/// sleepAfterTheStop(); if (heldInUninterruptibleSleep(step)) handOver(heldByTheKernelLine({ step, waited }));
 /// ```
-fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
-    let numbers: Vec<i32> = match descendant_numbers_from_thread_lists(step) {
-        Some(found) => found,
-        None => descendants_of_read(step)?.iter().map(member_number).collect(),
+fn say_the_kernel_holds_the_step(step: &ChildNumber, waited: Duration, lines: &std::sync::mpsc::SyncSender<String>, facts: &mut ScratchStepFacts) {
+    let Some(number) = step.number() else {
+        return;
     };
-    let mut found: Vec<(i32, ProcessUse)> = Vec::new();
-    // The step itself, so a look that finds it and nothing else still arms the ceiling.
-    if let Some(used) = use_of(step)
-        && used.state != 'Z'
-    {
-        found.push((step, used));
+    // A step seen in that state the instant the signal went does not prove the kernel is holding it,
+    // so the line is said only of a step still in it after the pause (`AFTER_THE_STOP`).
+    if !held_in_uninterruptible_sleep(number) {
+        return;
     }
-    let mut read_below: bool = false;
-    for pid in numbers.iter().copied() {
-        if let Some(used) = use_of(pid) {
-            read_below = true;
-            if used.state != 'Z' {
-                found.push((pid, used));
-            }
-        }
+    std::thread::sleep(AFTER_THE_STOP);
+    if !held_in_uninterruptible_sleep(number) {
+        return;
     }
-    // A walk that named processes and let none of them be read is a look that failed,
-    // never a step with nothing below it.
-    if !numbers.is_empty() && !read_below {
-        return None;
+    let line: String = held_by_the_kernel_line(HeldByTheKernel { step: number, waited });
+    if lines.try_send(line).is_err() {
+        facts.lines_dropped = facts.lines_dropped.saturating_add(1);
     }
-    return Some(found);
-}
-
-/// The number of one member of a tree.
-fn member_number(member: &TreeMember) -> i32 {
-    return member.pid;
-}
-
-/// The processor time one process below the step has used.
-fn process_cpu(entry: &(i32, ProcessUse)) -> Duration {
-    return entry.1.cpu;
-}
-
-/// Whether one process below the step is in uninterruptible sleep.
-fn process_is_blocked(entry: &(i32, ProcessUse)) -> bool {
-    return entry.1.state == 'D';
 }
 
 impl NativeCommitNotice {
@@ -586,6 +596,11 @@ impl NativeCommitNotice {
                     match the_ceiling.came {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);
+                            // What: The step was sent the stop; the notice says so when the kernel still holds it.
+                            // Why:  A step in an uninterruptible call ends only when its call returns, so the command waits
+                            //       the kernel's time (owner, 2026-11-09, "Keep waiting and say so"), and one line says why
+                            //       the terminal is still here.
+                            say_the_kernel_holds_the_step(&watched, waited, &lines, &mut facts);
                             break 'notice;
                         }
                         CeilingCame::TheStepEnded => break 'notice,
