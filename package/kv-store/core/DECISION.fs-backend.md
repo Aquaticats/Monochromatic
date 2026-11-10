@@ -594,20 +594,28 @@ supported runtime matrix in the public contract.
 
 ### Hazard 8: empty keys collide (sync) or leave an orphan (async)
 
-The async store derives a key from the value hash when the key is empty (`src/create-store.ts:151`);
- the
-sync store writes the literal empty key (`src/create-sync-store.ts:153`),
- so every empty-key sync `set`
-collides on one file.
- The async path is no better against a persistent backend:
+Found while the store still accepted empty keys;
+ the two behaviours this section
+describes are gone,
+ and the resolution follows the ranking.
+
+The async store derived a key from the value hash when the key was empty (the `set` body of
+`src/create-store.ts` at the time);
+ the sync store wrote the literal empty key (`src/create-sync-store.ts`,
+ same method),
+ so every empty-key sync `set` collided on one file.
+ The async path was no better
+against a persistent backend:
  verified that
-`set('', { v: 1 })` writes one content-addressed file but `get('')` returns ABSENT,
- because the store
-hashes the empty key on `set` but not on `get`,
- so the write is unreadable and leaks an orphan file.
+`set('', { v: 1 })` wrote one content-addressed file but `get('')` returned ABSENT,
+ because the
+store hashed the empty key on `set` but not on `get`,
+ so the write was unreadable and leaked an
+orphan file.
 memoize requires a `keyFn`,
  so keys are non-empty in that path;
- the hazard is for direct store callers.
+ the hazard was for
+direct store callers.
 
 Remediation ranking:
  **reject empty keys on both stores > symmetric content-addressing > document the
@@ -644,6 +652,39 @@ content-addressing cannot work for `get` (no value to hash),
  documenting is
 the floor when no behavior change is wanted,
  acceptable only because memoize never passes empty keys.
+
+#### Resolution, 2026-11-10T11:21:15-05:00: empty keys are rejected
+
+The owner chose the first-ranked option: "Reject empty keys (Recommended)".
+
+Both variants now refuse an empty key in `set`,
+ `get`,
+ and `delete`,
+ throwing
+`EmptyKeyError` before any backend is read or written (`src/errors.ts`,
+`src/assert-non-empty-key.ts`).
+ `delete` joins the two calls the option named because one
+rule for every key-accepting call is cheaper to hold than a rule covering writes and
+reads but not removals;
+ no consumer writes empty keys, so nothing readable is lost by
+refusing it.
+
+The async store's content-addressing feature went with the rejection: `set` hashes
+nothing,
+ `src/hash.ts` is deleted,
+ and both variants store the caller's key verbatim.
+`store-pair-parity.unit.test.ts` asserts the two variants refuse the same three
+calls,
+ so the divergence this hazard found cannot return unobserved.
+
+Consequence for a filesystem backend:
+ the store guarantees a non-empty key,
+ but a
+backend called directly still receives any string,
+ so it keeps hashing keys (the
+empty string maps to one well-defined filename) instead of relying on the store's
+guard.
+
 
 ### Hazard 9: a flat per-key directory degrades at large keyspaces
 
