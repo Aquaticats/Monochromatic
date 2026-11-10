@@ -91,8 +91,8 @@ const written: string[] = [];
 const decoder = new TextDecoder();
 
 /**
- Writer the transport sends its frames to, standing in for stdout so the report below
- is the only thing this program prints.
+ What this program prints: the exact input text it fed the transport and the frames the
+ transport wrote, so the caller compares stderr against the same literals.
  */
 const report = {
   requestFrame: REQUEST_FRAME,
