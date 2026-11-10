@@ -12,6 +12,8 @@ import {
 } from '@monochromatic-dev/upstream-fork-quick-lru/ts';
 import { installFakeClock, } from '@monochromatic-dev/upstream-fork-quick-lru/ts/test-support.ts';
 
+import { renderPair, } from './cache-workload.ts';
+
 //region Fixtures
 
 /**
@@ -25,9 +27,73 @@ const CLOCK_START = 1_700_000_000_000;
 const FRACTIONAL_EVICT_COUNT = 2.5;
 
 /**
- Eviction events recorded by every notified cache below.
+ Eviction events recorded by every notified cache below, as `key=value`.
  */
 const evicted: string[] = [];
+
+/**
+ Items the shared scenario stores, in insertion order.
+
+ The eviction check compares against the same data the scenario drives,
+ so a stored pair and the expectation of it cannot drift apart.
+ */
+const SCENARIO_ITEMS: readonly {
+  /**
+   Cache key.
+   */
+  readonly key: string;
+  /**
+   Cache value.
+   */
+  readonly value: string;
+  /**
+   Per-item lifetime the scenario stores.
+   */
+  readonly maxAge?: number;
+}[] = [
+  {
+    key: 'a',
+    value: 'alpha',
+  },
+  {
+    key: 'b',
+    value: 'beta',
+  },
+  {
+    key: 'c',
+    value: 'gamma',
+  },
+  {
+    key: 'a',
+    value: 'alpha-2',
+  },
+  {
+    key: 'd',
+    value: 'delta',
+    maxAge: 50,
+  },
+  {
+    key: 'e',
+    value: 'epsilon',
+    maxAge: Number.NaN,
+  },
+  {
+    key: 'f',
+    value: 'zeta',
+    maxAge: 0,
+  },
+];
+
+/**
+ Keys the duplicate-key cache stores, each with itself as its value.
+ */
+const DUPLICATE_KEYS: readonly string[] = [
+  'a',
+  'b',
+  'c',
+  'a',
+  'd',
+];
 
 /**
  Builds one eviction callback appending to {@link evicted}.
@@ -47,7 +113,10 @@ function createEvictionRecorder(): (
     key: string,
     value: string,
   ): void {
-    evicted.push(`${key}=${value}`,);
+    evicted.push(renderPair({
+      key,
+      value,
+    },),);
   };
 }
 
@@ -121,44 +190,10 @@ function exerciseScenario(options: {
    */
   readonly clock: ReturnType<typeof installFakeClock>;
 },): void {
-  options.lru
-    .set({
-      key: 'a',
-      value: 'alpha',
-    },);
-  options.lru
-    .set({
-      key: 'b',
-      value: 'beta',
-    },);
-  options.lru
-    .set({
-      key: 'c',
-      value: 'gamma',
-    },);
-  options.lru
-    .set({
-      key: 'a',
-      value: 'alpha-2',
-    },);
-  options.lru
-    .set({
-      key: 'd',
-      value: 'delta',
-      maxAge: 50,
-    },);
-  options.lru
-    .set({
-      key: 'e',
-      value: 'epsilon',
-      maxAge: Number.NaN,
-    },);
-  options.lru
-    .set({
-      key: 'f',
-      value: 'zeta',
-      maxAge: 0,
-    },);
+  for (const item of SCENARIO_ITEMS) {
+    options.lru
+      .set(item,);
+  }
   void options.lru
     .get('d',);
   void options.lru
@@ -230,6 +265,55 @@ function exerciseScenario(options: {
 }
 
 /**
+ An eviction report the driver's workload cannot account for.
+ */
+class EvictionReportError extends Error {
+  /**
+   Names this class in the stack a failing gate prints.
+
+   @param message - What the cache reported and why the workload rules it out.
+   */
+  constructor(message: string,) {
+    super(message,);
+    this.name = 'EvictionReportError';
+  }
+}
+
+/**
+ Confirms the notified caches reported evictions, and reported only pairs the
+ workload stored.
+
+ The driver has no oracle for which keys a cache must drop, so it does not
+ assert the eviction order; the differential property test compares the fork's
+ notifications against upstream for that. What this gate adds is that the
+ callback fires at all and that every report names a pair the scenario
+ inserted, which a swap of the callback's two arguments or a dead notification
+ fails.
+
+ @throws When no eviction was reported, or a report names a pair the workload
+   never inserted.
+ */
+function assertEvictionsDescribeStoredPairs(): void {
+  if (evicted.length === 0)
+    throw new EvictionReportError('the notified caches reported no eviction',);
+  /**
+   Pairs the workload stored, rendered the way the recorder renders them.
+   */
+  const stored = new Set<string>();
+  for (const item of SCENARIO_ITEMS)
+    stored.add(renderPair(item,),);
+  for (const key of DUPLICATE_KEYS)
+    stored.add(renderPair({
+      key,
+      value: key,
+    },),);
+  for (const report of evicted) {
+    if (!stored.has(report,))
+      throw new EvictionReportError(`the cache reported evicting ${report}, which the workload never stored`,);
+  }
+}
+
+/**
  Drives the fixed scenarios over caches with and without `onEviction`, over
  the counter branches, and over every configuration failure.
  */
@@ -271,13 +355,7 @@ function main(): void {
     maxSize: 3,
     onEviction: createEvictionRecorder(),
   },);
-  for (const key of [
-    'a',
-    'b',
-    'c',
-    'a',
-    'd',
-  ]) {
+  for (const key of DUPLICATE_KEYS) {
     duplicate.set({
       key,
       value: key,
@@ -314,7 +392,7 @@ function main(): void {
     notified.resize(0,);
   },);
   clock.restore();
-  void evicted;
+  assertEvictionsDescribeStoredPairs();
 }
 
 main();

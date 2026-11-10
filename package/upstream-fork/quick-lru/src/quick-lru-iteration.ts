@@ -114,6 +114,30 @@ export type Iteration<Key, Value> = {
  */
 export function createIteration<Key, Value>(context: IterationContext<Key, Value>): Iteration<Key, Value> {
   /**
+   Decides whether an old-map entry is still yielded.
+
+   An old-map key yields only while the recent map does not shadow it and the
+   item was not just dropped as expired, which is the filter every ordering
+   that walks the old map applies.
+
+   @param key - Old-map key under test.
+
+   @param item - Stored item under test.
+
+   @returns true when the item belongs in the walk's output.
+   */
+  function yieldsFromOldCache({
+    key,
+    item,
+  }: QuickLruItemEntry<Key, Value>,): boolean {
+    return (!context.readCache()
+      .has(key,)) && (!context.deleteIfExpired({
+        key,
+        item,
+      },));
+  }
+
+  /**
    Iterates raw stored items oldest first, skipping keys duplicated in the
    recent map and dropping items that expire during iteration, mirroring
    upstream's `#entriesAscending`.
@@ -125,11 +149,10 @@ export function createIteration<Key, Value>(context: IterationContext<Key, Value
     QuickLruItem<Value>
   ]> {
     for (const [key, item] of context.readOldCache()) {
-      if ((!context.readCache()
-        .has(key,)) && (!context.deleteIfExpired({
-          key,
-          item,
-        },)))
+      if (yieldsFromOldCache({
+        key,
+        item,
+      },))
         yield [
           key,
           item,
@@ -170,11 +193,10 @@ export function createIteration<Key, Value>(context: IterationContext<Key, Value
     }
 
     for (const [key, item] of context.readOldCache()) {
-      if ((!context.readCache()
-        .has(key,)) && (!context.deleteIfExpired({
-          key,
-          item,
-        },)))
+      if (yieldsFromOldCache({
+        key,
+        item,
+      },))
         yield [
           key,
           item.value,
@@ -205,11 +227,10 @@ export function createIteration<Key, Value>(context: IterationContext<Key, Value
     }
 
     for (const [key, item] of [...context.readOldCache()].toReversed()) {
-      if ((!context.readCache()
-        .has(key,)) && (!context.deleteIfExpired({
-          key,
-          item,
-        },)))
+      if (yieldsFromOldCache({
+        key,
+        item,
+      },))
         yield [
           key,
           item.value,
