@@ -3992,6 +3992,15 @@ A test that has to see the prompt program start (the controls in `src/native/lan
 `SSH_ASKPASS` at a recorder that answers a name,
 so no window opens.
 
+### Controls that depend on timing
+
+WFR:
+ A control's verdict comes from the order of events:
+ release its fixture from the wait's own line,
+ never from a sleep whose passing only the host's speed decides.
+
+The same defect was fixed twice in the index-lock tests (`2b33c7bd32` and `35cd5ae7e5`).
+
 ### Git's own fsmonitor
 
 Git's file-system monitor is off,
