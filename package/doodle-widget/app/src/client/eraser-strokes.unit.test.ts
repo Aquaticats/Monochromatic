@@ -61,31 +61,44 @@ const FIXTURE_COLOR = '#123456';
 const FIXTURE_WIDTH_PX = 3;
 
 /**
+ How many points the splitting case records before the eraser's run of them.
+ */
+const POINTS_BEFORE_ERASED_RUN = 4;
+
+/**
+ How many points the eraser's run in the splitting case takes.
+
+ Two: the reached point, and its successor, because the segment starting on an
+ erased point starts on the eraser itself.
+ */
+const ERASED_RUN_LENGTH = 2;
+
+/**
+ How many points the splitting case records after the eraser's run of them.
+ */
+const POINTS_AFTER_ERASED_RUN = 2;
+
+/**
  Step of the first point the splitting case's eraser takes with it.
  */
-const ERASED_FIRST_STEP = 5;
+const ERASED_FIRST_STEP = POINTS_BEFORE_ERASED_RUN + 1;
 
 /**
  Step of the last point the splitting case's eraser takes with it.
-
- The loser point's successor always goes with it: the segment that starts on an
- erased point starts on the eraser itself.
  */
-const ERASED_LAST_STEP = ERASED_FIRST_STEP + 1;
+const ERASED_LAST_STEP = (ERASED_FIRST_STEP + ERASED_RUN_LENGTH) - 1;
 
 /**
  Steps of every point the splitting case records, from the leftmost to the rightmost.
  */
-const SPLIT_STEPS: readonly number[] = [
-  ERASED_FIRST_STEP - 4,
-  ERASED_FIRST_STEP - 3,
-  ERASED_FIRST_STEP - 2,
-  ERASED_FIRST_STEP - 1,
-  ERASED_FIRST_STEP,
-  ERASED_LAST_STEP,
-  ERASED_LAST_STEP + 1,
-  ERASED_LAST_STEP + 2,
-];
+const SPLIT_STEPS: readonly number[] = Array.from(
+  {
+    length: POINTS_BEFORE_ERASED_RUN + ERASED_RUN_LENGTH + POINTS_AFTER_ERASED_RUN,
+  },
+  function toStep(_unused: unknown, index: number,) {
+    return index + 1;
+  },
+);
 
 /**
  Path of the module whose iteration shape the last suite holds.
