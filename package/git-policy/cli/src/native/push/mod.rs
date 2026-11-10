@@ -175,6 +175,9 @@ pub mod auto_push_dirty_paths;
 /// the surfaced output and the failure reporting.
 pub mod auto_push;
 
+/// The same automatic push as a task of the runtime.
+pub mod auto_push_awaiting;
+
 /// Where the automatic push stops when a post-commit gate kept one of a branch's commits local,
 /// and the line every command says about it.
 pub mod push_held_back_by_a_blocked_commit;

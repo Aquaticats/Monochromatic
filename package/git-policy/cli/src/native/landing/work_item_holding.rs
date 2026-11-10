@@ -202,10 +202,12 @@ pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
             Some(object) => object.to_owned(),
             None => continue,
         };
-        verdicts.push(match std::fs::read_to_string(path.as_path()).ok().and_then(|text| blocked_verdict_of(text.as_str(), commit.as_str())) {
-            Some(verdict) => verdict,
-            None => BlockedVerdict { branch_ref: String::new(), commit, reason: String::new() },
-        });
+        // A record that cannot be read is still a verdict on a commit the gate refused, so it keeps the commit and says nothing more.
+        let read: Option<BlockedVerdict> = match std::fs::read_to_string(path.as_path()) {
+            Ok(text) => blocked_verdict_of(text.as_str(), commit.as_str()),
+            Err(_unreadable) => None,
+        };
+        verdicts.push(read.unwrap_or(BlockedVerdict { branch_ref: String::new(), commit, reason: String::new() }));
     }
     return verdicts;
 }

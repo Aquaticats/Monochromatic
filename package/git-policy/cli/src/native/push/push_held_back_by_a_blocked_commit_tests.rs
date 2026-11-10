@@ -9,7 +9,8 @@
 //! The verdicts are the ones a real gate wrote,
 //! read back from the queue's own `blocked` state,
 //! so a case here fails when
-//!  the record, the question or the refspec is wrong.
+//!  the record,
+//!  the question or the refspec is wrong.
 
 use super::*;
 use crate::auto_push::{AutoPushOutcome, AutoPushResult, push_once};
@@ -158,7 +159,7 @@ fn a_verdict_stops_the_push_before_the_blocked_commit() {
     //  of these commits and this case can tell a stop from a push.
     let verdicts: Vec<BlockedVerdict> = record_the_verdict(&world, blocked.as_str(), "final-newline: the file does not end with a newline");
     assert_eq!(verdicts.len(), 1, "the gate kept one verdict");
-    assert_eq!(verdicts.first().map(|verdict| verdict.reason.as_str()), Some("final-newline: the file does not end with a newline"));
+    assert_eq!(verdicts.first().map(|verdict| return verdict.reason.as_str()), Some("final-newline: the file does not end with a newline"));
     let (result, shown) = push(&world, landed.as_str(), verdicts.as_slice());
     assert_eq!(result.outcome, AutoPushOutcome::HeldBack, "{shown}");
     assert_eq!(result.exit_code, 0, "{shown}");

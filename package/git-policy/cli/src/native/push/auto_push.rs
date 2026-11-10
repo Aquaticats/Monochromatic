@@ -18,18 +18,17 @@
 //! ```
 
 /// Where a plain push of a named branch goes.
-use crate::auto_push_destination::{NamedPush, named_push, named_push_awaiting};
+use crate::auto_push_destination::{NamedPush, named_push};
 /// The reconcile of a push that a moved remote branch rejected,
 /// and the lines it adds to the output.
 use crate::auto_push_reconcile::{RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, reconcile_divergent_push};
 /// The same reconcile,
 /// awaited by a caller that is itself a task of the runtime.
-use crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting;
 /// The service's Git,
 /// the failed attempt it reports and its error type.
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query, run_query_awaiting};
+use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
 /// The auto-push's bounded `git push` with the Git LFS upload.
-use crate::lfs_bounded_push::{run_push, run_push_awaiting};
+use crate::lfs_bounded_push::run_push;
 /// The verdicts a post-commit gate kept,
 /// and where they make this push stop.
 use crate::push_held_back_by_a_blocked_commit::{QueueHistory, WhereThePushStops, held_back_line, unanswered_line, where_the_push_stops};
@@ -43,7 +42,7 @@ use std::ffi::OsString;
 use std::io::Write;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "monochromatic-git-policy-cli";
+pub(crate) const TAG: &str = "monochromatic-git-policy-cli";
 
 /// Prefix of the GitHub server-side lines a clean push surfaces.
 const REMOTE_LINE_PREFIX: &str = "remote: ";
@@ -54,14 +53,14 @@ pub const PUSH_FAILED_NOTE: &str =
     "monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.";
 
 /// What Git prints when another process holds the lock of a reference the push updates.
-const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";
+pub(crate) const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";
 
 /// How many times the service pushes again when a held reference lock refused the update of a remote-tracking reference.
 pub const PUSH_LOCK_RETRIES: u32 = 3;
 
 /// The pause before the first of those pushes;
 /// each later one waits a multiple of it.
-const PUSH_LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(250);
+pub(crate) const PUSH_LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// What:
 ///  Which branch the auto-push took.
@@ -192,16 +191,16 @@ fn run_push_command(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, Si
 /// ```ts
 /// type Sent = { remote: string; targets: string[] };
 /// ```
-struct Sent {
+pub(crate) struct Sent {
     /// The remote the push goes to.
-    remote: String,
+    pub(crate) remote: String,
     /// The remote references the branch goes to,
     /// or nothing to send when Git matches the branches itself (`push.default=matching`).
-    targets: Vec<String>,
+    pub(crate) targets: Vec<String>,
 }
 
 /// What a push plan decided before anything was pushed.
-enum Planned {
+pub(crate) enum Planned {
     /// Nothing to push;
     /// the result says why.
     Skip(AutoPushResult),
@@ -234,7 +233,7 @@ enum Planned {
 /// ```ts
 /// const argv = (source, sent) => sent.targets.length === 0 ? ['push', sent.remote] : ['push', ...(setUpstream ? ['--set-upstream'] : []), sent.remote, ...sent.targets.map((target) => `${source}:${target}`)];
 /// ```
-fn push_arguments(source: &str, sent: &Sent, set_upstream: bool) -> Vec<String> {
+pub(crate) fn push_arguments(source: &str, sent: &Sent, set_upstream: bool) -> Vec<String> {
     if sent.targets.is_empty() {
         return vec![String::from("push"), sent.remote.clone()];
     }
@@ -263,7 +262,7 @@ fn push_arguments(source: &str, sent: &Sent, set_upstream: bool) -> Vec<String> 
 /// ```ts
 /// const sourceOf = (stop, sent, branchRef) => stop.kind === 'nothing' ? branchRef : stop.pushable;
 /// ```
-fn source_of(stop: &WhereThePushStops, sent: &Sent, branch_ref: &str) -> Option<String> {
+pub(crate) fn source_of(stop: &WhereThePushStops, sent: &Sent, branch_ref: &str) -> Option<String> {
     return match stop {
         WhereThePushStops::Nothing => Some(branch_ref.to_owned()),
         WhereThePushStops::Before(stopped) => match sent.targets.is_empty() {
@@ -287,7 +286,7 @@ fn source_of(stop: &WhereThePushStops, sent: &Sent, branch_ref: &str) -> Option<
 /// ```ts
 /// function skippedWith(note: string, err: Writable): Planned;
 /// ```
-fn skipped_with(note: String, err: &mut dyn Write) -> Planned {
+pub(crate) fn skipped_with(note: String, err: &mut dyn Write) -> Planned {
     // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
     let _written = writeln!(err, "{note}");
     return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: note });
@@ -383,7 +382,7 @@ fn upstream_of(git: &PushGit, short: &str) -> Result<Option<String>, SingleFligh
 /// ```ts
 /// const heldBack = (branchRef, stop, err) => ({ outcome: 'held-back', exitCode: 0, shown: line });
 /// ```
-fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: &mut dyn Write) -> AutoPushResult {
+pub(crate) fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: &mut dyn Write) -> AutoPushResult {
     let line: String = match stop {
         WhereThePushStops::Nothing => String::new(),
         WhereThePushStops::Before(stopped) => held_back_line(branch_ref, stopped),
@@ -462,7 +461,7 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, blocked: &[B
 /// ```ts
 /// const reported = (attempt, stop, branchRef, err) => ({ outcome: failed ? 'failed' : held ? 'held-back' : 'pushed', exitCode, shown });
 /// ```
-fn reported(attempt: PushAttempt, stop: &WhereThePushStops, branch_ref: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+pub(crate) fn reported(attempt: PushAttempt, stop: &WhereThePushStops, branch_ref: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
     let failed: bool = attempt.exit_code != 0;
     let held_back: Option<String> = match stop {
         WhereThePushStops::Nothing => None,
@@ -492,180 +491,8 @@ fn reported(attempt: PushAttempt, stop: &WhereThePushStops, branch_ref: &str, er
     });
 }
 
-/// What:
-///  Whether a read-only Git query exits zero,
-/// awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   The landing round's push asks this as a task,
-/// and the synchronous query enters the runtime and is refused from there.
-/// The question and the reading of the exit status are the synchronous face's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await gitQuerySucceedsOnTheRuntime({ gitPath, cwd, args });
-/// ```
-async fn query_succeeds_awaiting(git: &PushGit, arguments: &[&str]) -> Result<bool, SingleFlightError> {
-    let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-    return Ok(run_query_awaiting(git, &argv).await?.code == Some(0));
-}
-
-/// What:
-///  The same plan of a push,
-/// awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   The plan asks Git twice and reads the destination's configuration,
-/// and every one of those starts is refused from inside the runtime.
-/// The questions and the arguments are the synchronous face's,
-/// so the two plan the same push.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const plan = await planNamedPushOnTheRuntime({ gitPath, cwd }, branchRef);
-/// ```
-async fn plan_named_push_awaiting(
-    git: &PushGit,
-    branch_ref: &str,
-    err: &mut (dyn Write + Send),
-) -> Result<Planned, SingleFlightError> {
-    // Git reads `refs/heads/x@{upstream}` as a branch named `refs/heads/x` ("no such branch"), so the query takes the short name;
-    //  a ref outside `refs/heads` has no upstream.
-    let upstream: Option<String> = match branch_ref.strip_prefix("refs/heads/") {
-        Some(name) => upstream_of_awaiting(git, name).await?,
-        None => None,
-    };
-    if upstream.is_none() && !query_succeeds_awaiting(git, &["remote", "get-url", "origin"]).await? {
-        debug(TAG, "no upstream and no origin remote; skipping auto-push");
-        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new() }));
-    }
-    return Ok(match &upstream {
-        Some(_upstream_ref) => match named_push_awaiting(git, branch_ref).await? {
-            NamedPush::Push { remote, targets } => Planned::Push {
-                branch_ref: branch_ref.to_owned(),
-                upstream,
-                sent: Sent { remote, targets },
-                set_upstream: false,
-            },
-            // Git matches the branches itself: the plain push of the remote, with no refspec.
-            NamedPush::Matching { remote } => Planned::Push {
-                branch_ref: branch_ref.to_owned(),
-                upstream,
-                sent: Sent { remote, targets: Vec::new() },
-                set_upstream: false,
-            },
-            NamedPush::Skip(note) => skipped_with(note, err),
-        },
-        // A branch with no upstream goes to `origin` under its own name and takes `origin` as its upstream.
-        None => Planned::Push {
-            branch_ref: branch_ref.to_owned(),
-            upstream: None,
-            sent: Sent { remote: String::from("origin"), targets: vec![branch_ref.to_owned()] },
-            set_upstream: true,
-        },
-    });
-}
-
-/// What:
-///  The remote-tracking reference a branch's pushes update,
-/// awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   The awaited plan asks the same question the synchronous one does,
-/// and the query enters the runtime from inside it.
-/// The answer decides where the
-///  push goes and whether a blocked commit is already published.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const upstreamOf = async (git, short) => (await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${short}@{upstream}`])).ok || undefined;
-/// ```
-async fn upstream_of_awaiting(git: &PushGit, short: &str) -> Result<Option<String>, SingleFlightError> {
-    let asked: String = format!("{short}@{{upstream}}");
-    let arguments: Vec<OsString> = ["rev-parse", "--abbrev-ref", "--symbolic-full-name", asked.as_str()].iter().map(OsString::from).collect();
-    let output = run_query_awaiting(git, &arguments).await?;
-    if output.code != Some(0) {
-        return Ok(None);
-    }
-    let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    return Ok((!named.is_empty()).then_some(named));
-}
-
-/// What:
-///  Push a landed commit's branch once,
-/// awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   The push of the landing round is a task,
-/// and every step below it starts Git,
-/// which the synchronous face enters the runtime for and is refused from there.
-/// The plan,
-/// the held-reference retry,
-/// the reconcile and the words the push shows are the synchronous face's,
-/// so a push and its retry cannot differ between the two.
-///  The pause between the retries is the runtime's own,
-/// so no worker is held while the other worktree's lock is waited out.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const result = await pushOnceOnTheRuntime({ gitPath, cwd }, branchRef, landedOid);
-/// ```
-pub async fn push_once_awaiting(
-    git: &PushGit,
-    branch_ref: &str,
-    landed_oid: &str,
-    blocked: &[BlockedVerdict],
-    err: &mut (dyn Write + Send),
-) -> Result<AutoPushResult, SingleFlightError> {
-    let planned: Planned = plan_named_push_awaiting(git, branch_ref, err).await?;
-    let (pushed_ref, upstream, sent, set_upstream): (String, Option<String>, Sent, bool) = match planned {
-        Planned::Skip(result) => return Ok(result),
-        Planned::Push { branch_ref: planned_ref, upstream, sent, set_upstream } => (planned_ref, upstream, sent, set_upstream),
-    };
-    // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it.
-    let stop: WhereThePushStops = where_the_push_stops(
-        &QueueHistory { git, upstream: upstream.clone() },
-        pushed_ref.as_str(),
-        upstream.as_deref(),
-        blocked,
-    );
-    let Some(source) = source_of(&stop, &sent, pushed_ref.as_str()) else {
-        return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
-    };
-    let pushing_whole: bool = stop == WhereThePushStops::Nothing;
-    let arguments: Vec<String> = push_arguments(source.as_str(), &sent, set_upstream);
-    let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {pushed_ref}"));
-    let mut attempt: PushAttempt = run_push_command_awaiting(git, argument_views.as_slice()).await?;
-    // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
-    //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
-    //  leaves the reference stale; the same push again finds nothing to deliver and brings the reference up to date.
-    let mut pause: u32 = 0;
-    while attempt.output.contains(REFERENCE_LOCK_REFUSAL) && pause < PUSH_LOCK_RETRIES {
-        pause += 1;
-        tokio::time::sleep(PUSH_LOCK_PAUSE * pause).await;
-        attempt = run_push_command_awaiting(git, argument_views.as_slice()).await?;
-    }
-    // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would
-    //  carry the very commit the gate refused. It stays a plain push of the base, and the branch is tried again by itself.
-    if upstream.is_some() && pushing_whole && attempt.exit_code != 0 {
-        attempt = reconcile_divergent_push_awaiting(git, &pushed_ref, attempt).await?;
-    }
-    return reported(attempt, &stop, pushed_ref.as_str(), err);
-}
-
-
-/// What:
-///  Run one real `git push` and capture its interleaved output,
-/// awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   The awaited push is the synchronous one with its wait on the runtime,
-/// so the arguments and the captured output are the same.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const attempt = await runPushAwaiting(git, pushArgs);
-/// ```
-async fn run_push_command_awaiting(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, SingleFlightError> {
-    let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-    return run_push_awaiting(git, &argv).await;
-}
+/// The same push as a task of the runtime.
+pub use crate::auto_push_awaiting::push_once_awaiting;
 
 /// Auto-push behavior is controlled in the test module.
 #[cfg(test)]

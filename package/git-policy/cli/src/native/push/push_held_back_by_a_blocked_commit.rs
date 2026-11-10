@@ -7,7 +7,8 @@
 //!  A landed commit whose post-commit policy blocks it exits `2` and stays local
 //! (`package/git-policy/cli/README.md`).
 //!  The automatic push sends the branch and not one commit
-//! (`git push <remote> <branch>:<target>`), so without this module the next push
+//! (`git push <remote> <branch>:<target>`),
+//! so without this module the next push
 //!  of that branch published the very commit the gate refused.
 //!  The push now stops before the blocked commits:
 //! it publishes the merge base of their parents,
@@ -20,13 +21,14 @@
 //!  queue stops.
 //!   Every command answers the same questions,
 //! so the line a person reads and the push that happened cannot disagree,
-//! and neither
-//!  can outlive the verdict:
-//! once the blocked commit is off the branch's way out, or Git already holds it in the branch's
-//!  remote, nothing is said and the push runs whole again.
+//! and neither can outlive the verdict:
+//! once the blocked commit is off the branch's way out,
+//! or Git already holds it in the branch's remote,
+//! nothing is said and the push runs whole again.
 //!  A commit whose command died before its gate ran has no verdict,
-//! so it holds
-//!  nothing back, as before: the next push of the branch carries it.
+//! so it holds nothing back,
+//! as before,
+//! and the next push of the branch carries it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -49,7 +51,8 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 ///   The queue asks them of the Git it pushes with,
 /// and a command asks them of the Git context it already holds,
 /// while the
-///  decision, the wording and the limits live here once.
+///  decision,
+///  the wording and the limits live here once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,7 +168,14 @@ pub const UNRECORDED_REASON: &str = "its post-commit check blocked the automatic
 /// verdicts.filter((v) => v.branchRef === '' || v.branchRef === branchRef)
 /// ```
 pub fn of_the_branch<'a>(verdicts: &'a [BlockedVerdict], branch_ref: &str) -> Vec<&'a BlockedVerdict> {
-    return verdicts.iter().filter(|verdict| verdict.branch_ref.is_empty() || verdict.branch_ref == branch_ref).collect();
+    let mut mine: Vec<&'a BlockedVerdict> = Vec::new();
+    for verdict in verdicts {
+        // A verdict an earlier release wrote names no branch, so it is judged for every branch rather than dropped.
+        if verdict.branch_ref.is_empty() || verdict.branch_ref == branch_ref {
+            mine.push(verdict);
+        }
+    }
+    return mine;
 }
 
 /// What:
@@ -200,11 +210,17 @@ pub fn where_the_push_stops(history: &dyn BranchHistory, branch_ref: &str, upstr
                 continue;
             }
         }
-        match upstream.map(|of| history.holds(of, verdict.commit.as_str())) {
-            None | Some(Some(false)) => {}
+        // A branch with no upstream has published nothing of itself, so only an upstream that exists is asked about and only its
+        //  "yes" and its "cannot tell" change the answer.
+        let published: Option<bool> = match upstream {
+            Some(of) => history.holds(of, verdict.commit.as_str()),
+            None => Some(false),
+        };
+        match published {
             // Git already holds the commit in the branch's remote, so no push of this branch publishes it.
-            Some(Some(true)) => continue,
-            Some(None) => {
+            Some(true) => continue,
+            Some(false) => {}
+            None => {
                 unsure.push(held_one);
                 continue;
             }
@@ -270,6 +286,37 @@ pub fn named_reason(reason: &str) -> String {
 }
 
 /// What:
+///  The words of one held verdict,
+/// for the callers that name only the first.
+/// Why:
+///   A closure that captures nothing has a named function's shape,
+/// and the linter asks for the name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reasonOf = (held) => held.reason;
+/// ```
+fn reason_of(held: &Held) -> &str {
+    return held.reason.as_str();
+}
+
+/// What:
+///  The exit status of a question Git answered,
+/// and nothing when it did not run at all.
+/// Why:
+///   The answer and the failure to ask it are one value to the question below,
+/// and naming the step keeps the closure
+///  the linter refuses out of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const statusOf = (output) => output?.code;
+/// ```
+fn status_of(output: GitOutput) -> Option<i32> {
+    return output.code;
+}
+
+/// What:
 ///  The branch a line names,
 /// as the person reads it,
 /// or the reference itself when it is not a branch.
@@ -303,7 +350,10 @@ pub fn branch_name(branch_ref: &str) -> &str {
 pub fn held_back_line(branch_ref: &str, stopped: &Stopped) -> String {
     let name: &str = branch_name(branch_ref);
     let [only] = stopped.commits.as_slice() else {
-        let listed: Vec<String> = stopped.commits.iter().map(|held| format!("{} ({})", held.commit, held.reason)).collect();
+        let mut listed: Vec<String> = Vec::new();
+        for held in &stopped.commits {
+            listed.push(format!("{} ({})", held.commit, held.reason));
+        }
         return format!(
             "{name} is held back by these commits, because their own post-commit checks kept them local: {}. The automatic push publishes nothing past them, a person's `git push` still sends them, and the push resumes once they are off {name}'s way out.",
             listed.join(", ")
@@ -329,11 +379,14 @@ pub fn held_back_line(branch_ref: &str, stopped: &Stopped) -> String {
 /// ```
 pub fn unanswered_line(branch_ref: &str, stopped: &Stopped) -> String {
     let name: &str = branch_name(branch_ref);
-    let named: Vec<String> = stopped.commits.iter().map(|held| held.commit.clone()).collect();
+    let mut named: Vec<String> = Vec::new();
+    for held in &stopped.commits {
+        named.push(held.commit.clone());
+    }
     return format!(
         "{name} may be held back by {}, because {}, and Git could not say whether it is still on {name}'s way out; the automatic push sends nothing until it can, and a person's `git push` still sends the branch.",
         named.join(", "),
-        named_reason(stopped.commits.first().map(|held| held.reason.as_str()).unwrap_or_default())
+        named_reason(stopped.commits.first().map_or("", reason_of))
     );
 }
 
@@ -368,9 +421,9 @@ fn queue_names_a_commit(git: &PushGit, reference: &str) -> Option<bool> {
 
 impl BranchHistory for QueueHistory<'_> {
     fn holds(&self, of: &str, commit: &str) -> Option<bool> {
-        match is_ancestor(self.git, commit, of) {
-            Ok(Some(answer)) => return Some(answer),
-            Ok(None) | Err(_) => {}
+        // A Git that could not put the question, or one that read a side as unknown, leaves the answer to the questions below.
+        if let Ok(Some(answer)) = is_ancestor(self.git, commit, of) {
+            return Some(answer);
         }
         if queue_names_a_commit(self.git, of) == Some(false) {
             // The reference names no commit at all, so it holds nothing.
@@ -432,7 +485,7 @@ impl ContextHistory<'_> {
     /// and nothing when Git could not be asked.
     fn names_a_commit(&self, reference: &str) -> Option<bool> {
         let asked: String = format!("{reference}^{{commit}}");
-        return match self.ask(&["rev-parse", "--verify", "--quiet", asked.as_str()]).and_then(|output| output.code) {
+        return match self.ask(&["rev-parse", "--verify", "--quiet", asked.as_str()]).and_then(status_of) {
             Some(0) => Some(true),
             Some(_no_commit) => Some(false),
             None => None,
@@ -442,7 +495,7 @@ impl ContextHistory<'_> {
 
 impl BranchHistory for ContextHistory<'_> {
     fn holds(&self, of: &str, commit: &str) -> Option<bool> {
-        match self.ask(&["merge-base", "--is-ancestor", commit, of]).and_then(|output| output.code) {
+        match self.ask(&["merge-base", "--is-ancestor", commit, of]).and_then(status_of) {
             Some(0) => return Some(true),
             Some(1) => return Some(false),
             _unknown_or_unasked => {}
