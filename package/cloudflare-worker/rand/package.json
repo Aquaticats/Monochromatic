@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/named-error-core": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*"
   },
   "devDependencies": {

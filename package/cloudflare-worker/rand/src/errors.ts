@@ -10,6 +10,10 @@
  @module
  */
 
+import { NamedError, } from '@monochromatic-dev/named-error-core/ts';
+
+/* oxlint-disable unicorn/custom-error-definition -- Each class takes its name from `NamedError`, which derives it from the concrete class, so no literal is left to check; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
+
 //region Errors
 
 /**
@@ -18,18 +22,10 @@
  Maps to 400. Covers a missing or non-canonical `min` or `max`, a repeated
  query parameter, a `min` above its `max`, a range too wide to draw from
  uniformly, and a length segment that looks numeric but falls outside the
- served range.
+ served range. Its message names the offending input and the domain that would
+ have been accepted.
  */
-export class BadRequestError extends Error {
-  /**
-   @param message - explanation naming the offending input and the domain that
-    would have been accepted
-   */
-  constructor(message: string,) {
-    super(message,);
-    this.name = 'BadRequestError';
-  }
-}
+export class BadRequestError extends NamedError {}
 
 /**
  Path that matches no route and does not look like an attempt at one.
@@ -37,17 +33,11 @@ export class BadRequestError extends Error {
  Maps to 404. Deliberately distinct from {@link BadRequestError}: a path such
  as `/nope` is unknown rather than malformed, while `/65` shows the caller
  understood the API and asked for too much, so the two deserve different
- statuses and different remediation text.
+ statuses and different remediation text. Its message names the unmatched path
+ and lists the served routes.
  */
-export class NotFoundError extends Error {
-  /**
-   @param message - explanation naming the unmatched path and listing the
-    served routes
-   */
-  constructor(message: string,) {
-    super(message,);
-    this.name = 'NotFoundError';
-  }
-}
+export class NotFoundError extends NamedError {}
 
 //endregion Errors
+
+/* oxlint-enable unicorn/custom-error-definition */
