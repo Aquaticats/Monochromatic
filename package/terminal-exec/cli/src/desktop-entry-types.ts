@@ -4,6 +4,8 @@
  @module
  */
 
+//region Parsed entry shape
+
 /**
  Parsed result from a `.desktop` file containing terminal-relevant fields.
  */
@@ -54,6 +56,10 @@ export type DesktopEntry = {
   readonly holdArg: string;
 };
 
+//endregion Parsed entry shape
+
+//region Escapes
+
 /**
  Desktop entry string escapes per the spec.
  */
@@ -64,6 +70,10 @@ export const ESCAPE_MAP: Record<string, string> = {
   r: '\r',
   '\\': '\\',
 };
+
+//endregion Escapes
+
+//region Mutable entry shape
 
 /**
  Mutable version of {@link DesktopEntry} used during parsing.
@@ -81,6 +91,10 @@ export type MutableDesktopEntry = {
   dirArg: string;
   holdArg: string;
 };
+
+//endregion Mutable entry shape
+
+//region Escape expansion
 
 /**
  Expands desktop entry string escapes (`\s`, `\n`, `\t`, `\r`, `\\`).
@@ -133,6 +147,10 @@ export function expandEscapes({ s, }: { readonly s: string; },): string {
   })();
 }
 
+//endregion Escape expansion
+
+//region Empty entry
+
 /**
  Creates a fresh mutable desktop entry with default values.
  
@@ -159,3 +177,5 @@ export function createEmptyEntry(): MutableDesktopEntry {
     holdArg: '',
   };
 }
+
+//endregion Empty entry

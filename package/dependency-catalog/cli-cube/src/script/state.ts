@@ -1,16 +1,16 @@
 /**
  URL-hash bookmarking for the deck.gl scene.
- 
+
  Serialises every piece of UI state (camera, dim mapping, filters,
  display toggles, search) into a URL hash so the user can copy and
  share an exact view. Pure functions: no DOM access, no globals
  beyond `encodeURIComponent` / `decodeURIComponent` / `JSON`.
- 
+
  Hash format: `#state=<urlencoded-json>`. URL-encoding is preferred
  over base64 because the JSON payload is short and ASCII-safe in the
  common case, and `encodeURIComponent` handles unicode in the search
  field without the `btoa` "byte string" gotcha.
- 
+
  @example
  ```ts
  const initial = defaultState({ probes });
@@ -21,23 +21,21 @@
  */
 
 import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/caught-value-core/ts';
+import { computeRangeExtent, } from './range-extent.ts';
 import type { PackageProbe, } from '../probe.ts';
-import {
-  type ChannelKey,
-  type DataDimKey,
-  DIM_UNKNOWN,
-  type DimMapping,
-  extractDim,
-  type RangeState,
-  type ToggleKey,
-  type ToggleState,
+import type {
+  ChannelKey,
+  DimMapping,
+  RangeState,
+  ToggleKey,
+  ToggleState,
 } from './filter.ts';
 
 //region Types
 
 /**
  OrbitView camera state per deck.gl conventions.
- 
+
  - `rotationX`: pitch in degrees (0 = view along the +y axis).
  - `rotationOrbit`: yaw in degrees around the vertical axis.
  - `zoom`: log-like zoom factor; 0 ≈ default.
@@ -108,7 +106,7 @@ const DEFAULT_TOGGLES: ToggleState = {
 
 /**
  Default display toggles.
- 
+
  Threshold guide lines default to off because they're an opt-in
  heuristic overlay and clutter the reference-style coordinate-system
  backdrop. Name labels default to `'all'` so every glyph is identifiable
@@ -156,61 +154,12 @@ const CHANNEL_KEYS: readonly ChannelKey[] = [
 //region Range computation
 
 /**
- Computes the `[min, max]` extent across all probes for one data dim,
- skipping unknowns (`null`). Falls back to `[0, 0]` when no probe has
- a known value (degenerate, but lets the UI render without NaN).
- 
- @param probes - Full probe array.
- 
- @param dim - Data dim to scan.
- 
- @returns Inclusive `[min, max]` bounds.
- */
-function computeExtent(
-  {
-    probes,
-    dim,
-  }: {
-    readonly probes: readonly PackageProbe[];
-    readonly dim: DataDimKey;
-  },
-): readonly [
-  number,
-  number,
-] {
-  /**
-   Known dim readings (unknowns stripped) so `Math.min`/`Math.max` see only real numbers.
-   */
-  const values = probes
-    .map(function pluck(probe,) {
-      return extractDim({
-        probe,
-        dim,
-      },);
-    },)
-    .filter(function known(value,): value is number {
-      return value !== DIM_UNKNOWN;
-    },);
-  if (values.length
-    === 0) {
-    return [
-      0,
-      0,
-    ];
-  }
-  return [
-    Math.min(...values,),
-    Math.max(...values,),
-  ];
-}
-
-/**
  Builds a `RangeState` with every channel set to its data extent.
- 
+
  @param probes - Full probe array.
- 
+
  @param dimMapping - Current channel → dim mapping.
- 
+
  @returns Range state spanning the full data extent on every channel.
  */
 function computeFullRanges(
@@ -228,7 +177,7 @@ function computeFullRanges(
   const entries = CHANNEL_KEYS.map(function rangeForChannel(channel,) {
     return [
       channel,
-      computeExtent({
+      computeRangeExtent({
         probes,
         dim: dimMapping[channel],
       },),
@@ -248,11 +197,11 @@ function computeFullRanges(
 
 /**
  Initial UI state given a freshly-loaded probe array.
- 
+
  Dim mapping and toggles use the plan's defaults; ranges are the full
  data extent so every probe passes the range filter; search is empty;
  display toggles all on; camera at default tilt + orbit.
- 
+
  Every nested object is deep-cloned from the module-level `DEFAULT_*`
  constants via `structuredClone` so the controller's mutate-in-place
  wire handlers (`session.state.toggles[key] = next`, etc.) cannot
@@ -260,11 +209,11 @@ function computeFullRanges(
  would silently rewrite {@link DEFAULT_TOGGLES}, and subsequent
  `defaultState()` calls (e.g. from the reset button) would return the
  already-corrupted constants.
- 
+
  @param probes - Full probe array.
- 
+
  @returns Default {@link AppState} for first render.
- 
+
  @example
  ```ts
  const initial = defaultState({ probes });
@@ -292,17 +241,17 @@ export function defaultState(
 
 /**
  Serialises an {@link AppState} to a URL-safe string.
- 
+
  Returns the encoded payload only; callers prepend `state=` to use it
  inside a hash. Use {@link writeStateToHash} for the full `#state=…`
  convenience.
- 
+
  @param state - The state to encode.
- 
+
  @returns URL-safe encoded string.
- 
+
  @mutates state - `JSON.stringify` may invoke `toJSON`, getters, or proxy traps.
- 
+
  @example
  ```ts
  const encoded = encodeState({ state });
@@ -320,7 +269,7 @@ export function encodeState(
  {@link AppState}"; shared by {@link validateAppState} and
  {@link decodeState} because the latter propagates the former's absence
  directly. Never a restored state.
- 
+
  @example
  ```ts
  const restored = decodeState({ encoded, },);
@@ -335,9 +284,9 @@ export const STATE_INVALID: unique symbol = Symbol('deps-cube encoded state cann
  primitive kind. Doesn't deep-validate `dimMapping` values or range
  tuple shapes; if those are wrong the renderer will surface NaN /
  undefined and the user can reset via the URL.
- 
+
  @param value - Parsed JSON value, untrusted.
- 
+
  @returns Value typed as {@link AppState}, or {@link STATE_INVALID} when malformed.
  */
 function validateAppState(value: unknown,): AppState | typeof STATE_INVALID {
@@ -368,15 +317,15 @@ function validateAppState(value: unknown,): AppState | typeof STATE_INVALID {
 
 /**
  Decodes a URL-safe encoded string back into an {@link AppState}.
- 
+
  Returns {@link STATE_INVALID} for any failure (URI malformed, JSON parse
  error, missing required fields, each logged via {@link caughtErrorMessage})
  so the caller can fall back to the default state without crashing.
- 
+
  @param encoded - The URL-safe encoded string (no leading `state=`).
- 
+
  @returns Restored state, or {@link STATE_INVALID} if the input is malformed.
- 
+
  @example
  ```ts
  const restored = decodeState({ encoded: match[1] });
@@ -422,9 +371,9 @@ const STATE_PARAM = 'state=';
  `/(?:^|&)state=([^&]+)/` with a linear `indexOf` walk: locate either
  a leading `state=` or a preceding `&state=`, then read until the next
  `&` (or end of string).
- 
+
  @param s - hash string with the leading `#` already removed
- 
+
  @returns captured payload, or `''` when no `state=` parameter exists
  */
 function extractStateParam(s: string,): string {
@@ -461,13 +410,13 @@ function extractStateParam(s: string,): string {
  Extracts the `state=` payload from a hash string (with or without
  leading `#`) and decodes it, falling back to `fallback` on any
  failure.
- 
+
  @param hash - The hash string (typically `globalThis.location.hash`).
- 
+
  @param fallback - State to return when the hash has no valid payload.
- 
+
  @returns Decoded state, or `fallback` if absent/malformed.
- 
+
  @example
  ```ts
  const state = readStateFromHash({
@@ -506,13 +455,13 @@ export function readStateFromHash(
 
 /**
  Builds a hash string (`#state=…`) for a given state.
- 
+
  @param state - State to serialise.
- 
+
  @returns Hash including the leading `#`.
- 
+
  @mutates state - `JSON.stringify` may invoke hooks on state values.
- 
+
  @example
  ```ts
  location.hash = writeStateToHash({ state });

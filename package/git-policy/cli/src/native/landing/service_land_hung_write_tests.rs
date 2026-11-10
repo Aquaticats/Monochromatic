@@ -216,7 +216,7 @@ fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_it
     let world: World = world("service-hung-write-queued");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
-    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
     context.git.real_git = hanging;
     let serving: Serving = serve_on_a_thread(context, "queued");
     let first = submit_on_a_thread(client(&serving, PATIENCE, PATIENCE), request(&world, "first", "first.txt", "first\n"));
@@ -264,7 +264,7 @@ fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
     let world: World = world("service-place-of-a-commit");
     let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
     settings.place_after = Duration::ZERO;
-    let context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    let context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
     let serving: Serving = serve_on_a_thread_with_settings(context, "place", settings);
     let config: ClientConfig = ClientConfig { waiting_notice_after: Duration::ZERO, ..client(&serving, PATIENCE, PATIENCE) };
     let (answer, notices) = submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n")).join().expect("client");
@@ -293,7 +293,7 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
     let world: World = world("service-hung-write-inside");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
-    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
     context.git.real_git = hanging;
     let serving: Serving = serve_on_a_thread(context, "inside");
     // The withdrawal ceiling is far past the control: a client that was told its request is inside the write does not wait for it.
@@ -367,7 +367,7 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
 fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
     let world: World = world("service-hung-write-told-at-start");
     let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
-    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
     context.git.real_git = hanging;
     let serving: Serving = serve_on_a_thread_stuck_after(context, "told-at-start", Duration::from_secs(3600));
     let extra_wait: Duration = Duration::from_secs(1);

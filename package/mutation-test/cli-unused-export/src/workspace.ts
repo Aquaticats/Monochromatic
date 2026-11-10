@@ -15,10 +15,16 @@ import { posix, } from 'node:path';
 import { parse as parseYaml, } from 'yaml';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+//region Logger
+
 /**
  Module logger for workspace discovery.
  */
 const l = tagged({ tag: 'unused-export', },);
+
+//endregion Logger
+
+//region Package shape
 
 /**
  One discovered workspace package with its analyzable sources.
@@ -37,6 +43,10 @@ export type WorkspacePackage = {
    */
   readonly sourceFiles: readonly string[];
 };
+
+//endregion Package shape
+
+//region Workspace globs
 
 /**
  Reads the pnpm workspace package globs.
@@ -85,6 +95,10 @@ async function workspaceGlobs({
 
   return packages;
 }
+
+//endregion Workspace globs
+
+//region Package discovery
 
 /**
  Discovers workspace packages and their TypeScript sources.
@@ -206,3 +220,5 @@ export async function discoverWorkspacePackages({
     return a.dir < b.dir ? -1 : 1;
   },);
 }
+
+//endregion Package discovery
