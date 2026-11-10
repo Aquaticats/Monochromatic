@@ -6,15 +6,21 @@
  flags the reverse order, so every product module's text is read here and checked
  directly. Comment content is dropped first, because a name quoted in a TSDoc
  `@example` is prose rather than a reference, and the scan reads characters
- instead of matching patterns. Only `function` declarations are read, which is
- where this package declares its callables; a callable bound by a `const` is
- outside the scan's reach.
+ instead of matching patterns.
 
- The modules below still place a helper after the code that calls it. They are
- recorded rather than repaired together so the pattern cannot spread: a module
- outside the record may not carry it, and a recorded module must still carry it,
- so reordering one forces its removal from the record and the record only
- shrinks. `#1183` tracks the reordering of the recorded modules.
+ The scan sees a call written as a bare `name` followed by an opening parenthesis.
+ Only `function` declarations are read, which is where this package declares its
+ callables, so a callable bound by a `const` is outside its reach, as is a call
+ passing an explicit type argument, and code after a block comment that opens and
+ closes on one line is dropped with the comment.
+
+ The modules listed in {@link MODULES_AWAITING_DECLARATION_ORDER} still place a
+ helper after the code that calls it. `#1183` repaired the two modules it named
+ and left these; recording them here stops the pattern spreading, because a module
+ outside the record may not carry it and a recorded module must still carry it, so
+ reordering one forces its removal from the record. The record tracks which
+ modules carry the pattern, not how many calls each one carries, so a recorded
+ module can gain a further call before another declaration without failing here.
 
  @module
  */
@@ -80,7 +86,7 @@ const LINE_COMMENT_OPENER = '//';
 const UNCALLED = 0;
 
 /**
- Product modules that still call a function declared below the call.
+ Product modules that call a helper declared later in the same file.
  */
 const MODULES_AWAITING_DECLARATION_ORDER: readonly string[] = [
   'client-http.ts',
