@@ -32,10 +32,10 @@ const BENCH_SOURCE_PATH = join(import.meta.dirname, 'parse.bench.ts',);
 const BUILDER_NAMES = ['buildCleanInput', 'buildCommentedInput',] as const;
 
 /**
- Fragment every input builder emits for one record's key, which proves the scan
- found the builder rather than empty text.
+ Fragment closing every input builder, which proves the scan found the
+ builder rather than empty text.
  */
-const KEY_FRAGMENT = '"key${index}"';
+const RETURN_MARKER = 'return `{';
 
 /**
  Classic counted loop header the builders must not use.
@@ -63,12 +63,13 @@ function functionSource({
   readonly text: string;
   readonly name: string;
 },): string {
-  const start = text.indexOf(`function ${name}(`,);
-  if (start === -1)
-    return '';
+  const declaration = text
+    .split('\nfunction ',)
+    .find(function declarationOf(candidate,) {
+      return candidate.startsWith(`${name}(`,);
+    },);
 
-  const next = text.indexOf('\nfunction ', start + 1,);
-  return next === -1 ? text.slice(start,) : text.slice(start, next,);
+  return declaration ?? '';
 }
 
 /**
@@ -80,26 +81,24 @@ const benchSource = await readFile(BENCH_SOURCE_PATH, 'utf8',);
 
 await describe({
   name: '',
-  children: [
-    ...BUILDER_NAMES.map(function builderGuard(name,) {
-      return describe({
-        name,
-        children: [
-          it({
-            name: 'builds entry lines without a loop accumulator',
-            fn: async () => {
-              const source = functionSource({
-                text: benchSource,
-                name,
-              },);
+  children: BUILDER_NAMES.map(function builderGuard(name,) {
+    return describe({
+      name,
+      children: [
+        it({
+          name: 'builds entry lines without a loop accumulator',
+          fn: async () => {
+            const source = functionSource({
+              text: benchSource,
+              name,
+            },);
 
-              expect(source,).toContain(KEY_FRAGMENT,);
-              expect(source,).not.toContain(LOOP_HEADER,);
-              expect(source,).not.toContain(APPEND_CALL,);
-            },
-          },),
-        ],
-      },);
-    },),
-  ],
+            expect(source,).toContain(RETURN_MARKER,);
+            expect(source,).not.toContain(LOOP_HEADER,);
+            expect(source,).not.toContain(APPEND_CALL,);
+          },
+        },),
+      ],
+    },);
+  },),
 },);
