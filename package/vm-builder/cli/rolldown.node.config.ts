@@ -20,6 +20,8 @@ import {
  arguments from `dist/final/node/container-arguments.mjs`.
  `src/domain-removal.ts` is a fourth entry for the same reason: the unit test records the `virsh` calls
  the domain removal makes from `dist/final/node/domain-removal.mjs`.
+ `src/domain-xml.ts` is a fifth entry for the same reason: the unit test reads the rendered document from
+ `dist/final/node/domain-xml.mjs`.
  */
 const config: NodeFlavorConfig = nodeConfig({
   input: [
@@ -27,6 +29,7 @@ const config: NodeFlavorConfig = nodeConfig({
     './src/exec.ts',
     './src/container-arguments.ts',
     './src/domain-removal.ts',
+    './src/domain-xml.ts',
   ],
 },);
 
