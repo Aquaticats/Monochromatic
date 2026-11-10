@@ -288,7 +288,7 @@ pub fn is_ended_by_stop(error: &std::io::Error) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Outlived = { endedByTheStop: boolean; ceilingMs?: number; ceilingHit: boolean; expired: boolean; limitMs: number };
+/// type Outlived = { endedByTheStop: boolean; ceilingMs?: number; ceilingHit: boolean; theWatchCouldEndIt: boolean; expired: boolean; limitMs: number };
 /// ```
 pub(crate) struct Outlived {
     /// Whether the service's stop ended the child.
@@ -298,10 +298,40 @@ pub(crate) struct Outlived {
     pub(crate) ceiling: Option<Duration>,
     /// Whether the ceiling passed and the child was ended because of it.
     pub(crate) ceiling_hit: bool,
+    /// Whether the watch's pin proved which process to stop,
+    /// and so whether its ceiling could be the ending at all.
+    pub(crate) the_watch_could_end_it: bool,
     /// Whether the child showed no sign of work for the quiet window and was ended.
     pub(crate) expired: bool,
     /// The quiet window the wait ran under.
     pub(crate) limit: Duration,
+}
+
+/// What:
+///  The sentence for a step ended at its ceiling:
+/// what it was,
+/// how long the wrapper lets one step run,
+/// and whether it ended.
+/// Why:
+///   The ceiling's ending is worded in two places:
+/// the watch that ended the step,
+/// and the wait for its output
+///  that ended it when nothing else could,
+/// which alone knows whether the kernel let the step go.
+/// One wording keeps the two from
+///  disagreeing about the same ending.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} ran for ${seconds} seconds, the longest the wrapper lets one step run, ${leftRunning ? 'and could not be ended, so it was left running' : 'and was ended'}`
+/// ```
+pub fn step_ended_at_its_ceiling_text(waiting_for: &str, ceiling: Duration, left_running: bool) -> String {
+    let ending: &str = if left_running {
+        "and could not be ended, so it was left running, and the system collects it when its call returns"
+    } else {
+        "and was ended"
+    };
+    return format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}", ceiling.as_secs());
 }
 
 /// What:
@@ -317,25 +347,36 @@ pub(crate) struct Outlived {
 /// whatever its own end looked like;
 /// then the ceiling (a step that keeps working is not a quiet one),
 /// then the quiet window.
+///  A watch that proved no process signalled nothing,
+/// so neither of its own endings is one it caused:
+/// the wait for the
+///  step's output ends the step instead and words it,
+/// and that answer stands here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// if (outlived.endedByTheStop) return endedByTheStop(waitingFor);
+/// if (!outlived.theWatchCouldEndIt) return undefined;
 /// if (outlived.ceiling !== undefined && outlived.ceilingHit) return ceilingReached(waitingFor, outlived.ceiling);
 /// if (outlived.expired) return watchedTimeout(waitingFor, outlived.limit);
 /// return undefined;
 /// ```
 pub(crate) fn ending_of_a_watched_step(waiting_for: &str, outlived: Outlived) -> Option<std::io::Error> {
-    let Outlived { ended_by_the_stop: ended, ceiling, ceiling_hit, expired, limit } = outlived;
+    let Outlived { ended_by_the_stop: ended, ceiling, ceiling_hit, the_watch_could_end_it, expired, limit } = outlived;
     if ended {
         return Some(ended_by_the_stop(waiting_for));
+    }
+    // A watch whose pin proved nothing signalled nothing, so neither the ceiling it read nor the quiet window it saw is the step's
+    //  ending: the wait for the step's output is what ended it, says so, and claims the end that happened.
+    if !the_watch_could_end_it {
+        return None;
     }
     if let Some(reached) = ceiling
         && ceiling_hit
     {
         return Some(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
-            CeilingReached(format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended", reached.as_secs())),
+            CeilingReached(step_ended_at_its_ceiling_text(waiting_for, reached, false)),
         ));
     }
     if expired {
