@@ -26,6 +26,19 @@ const GIT_PUBLISHED_DATE = new Date('2026-04-16T10:01:43.000Z',);
 const GIT_UPDATED_DATE = new Date('2026-05-14T08:31:54.000Z',);
 
 /**
+ Git author offset, in minutes, of the commit behind {@link AUTHOR_LOCAL_UPDATED_DATE}: +08:00.
+ */
+const AUTHOR_OFFSET_MINUTES = 480;
+
+/**
+ Update date whose UTC day is the day before the author's local day.
+ 
+ `2026-05-14T06:00:00+08:00` is `2026-05-13T22:00:00Z`, so a UTC calendar-day
+ comparison reads the 13th while the author wrote the 14th on their own clock.
+ */
+const AUTHOR_LOCAL_UPDATED_DATE = new Date('2026-05-13T22:00:00.000Z',);
+
+/**
  MDX path included in divergence warning messages.
  */
 const FIXTURE_FILE_PATH = 'src/content/en/about.mdx';
@@ -92,7 +105,9 @@ await describe({
           },
           resolvedDates: {
             published: GIT_PUBLISHED_DATE,
+            publishedOffsetMinutes: 0,
             updated: GIT_UPDATED_DATE,
+            updatedOffsetMinutes: 0,
           },
           filePath: FIXTURE_FILE_PATH,
           l: capture.l,
@@ -121,13 +136,65 @@ await describe({
           },
           resolvedDates: {
             published: GIT_PUBLISHED_DATE,
+            publishedOffsetMinutes: 0,
             updated: GIT_UPDATED_DATE,
+            updatedOffsetMinutes: 0,
           },
           filePath: FIXTURE_FILE_PATH,
           l: capture.l,
         },);
 
         expect(capture.warnings.length,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'compares calendar days in the git author offset',
+      fn: async function comparesInAuthorOffset(): Promise<void> {
+        /**
+         Warning capture for this test case.
+         */
+        const capture = createWarningCapture();
+
+        warnOnAuthoredDateDivergence({
+          authoredDates: {
+            updated: new Date('2026-05-14T00:00:00.000Z',),
+          },
+          resolvedDates: {
+            published: GIT_PUBLISHED_DATE,
+            publishedOffsetMinutes: 0,
+            updated: AUTHOR_LOCAL_UPDATED_DATE,
+            updatedOffsetMinutes: AUTHOR_OFFSET_MINUTES,
+          },
+          filePath: FIXTURE_FILE_PATH,
+          l: capture.l,
+        },);
+
+        expect(capture.warnings.length,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'still warns when the authored day differs in that offset',
+      fn: async function warnsForDifferentAuthorDay(): Promise<void> {
+        /**
+         Warning capture for this test case.
+         */
+        const capture = createWarningCapture();
+
+        warnOnAuthoredDateDivergence({
+          authoredDates: {
+            updated: new Date('2026-05-01T00:00:00.000Z',),
+          },
+          resolvedDates: {
+            published: GIT_PUBLISHED_DATE,
+            publishedOffsetMinutes: 0,
+            updated: AUTHOR_LOCAL_UPDATED_DATE,
+            updatedOffsetMinutes: AUTHOR_OFFSET_MINUTES,
+          },
+          filePath: FIXTURE_FILE_PATH,
+          l: capture.l,
+        },);
+
+        expect(capture.warnings.length,).toBe(1,);
       },
     },),
   ],

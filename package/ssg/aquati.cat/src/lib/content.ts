@@ -88,6 +88,8 @@ export const postFrontmatterSchema: v.GenericSchema<
     tags: string[];
     published: string | number | Date;
     updated: string | number | Date;
+    publishedOffsetMinutes: number;
+    updatedOffsetMinutes: number;
   },
   {
     title: string;
@@ -95,6 +97,8 @@ export const postFrontmatterSchema: v.GenericSchema<
     tags: string[];
     published: Date;
     updated: Date;
+    publishedOffsetMinutes: number;
+    updatedOffsetMinutes: number;
   }
   > = v.object({
     title: v.string(),
@@ -102,6 +106,8 @@ export const postFrontmatterSchema: v.GenericSchema<
     tags: v.array(v.string(),),
     published: coerceDateSchema,
     updated: coerceDateSchema,
+    publishedOffsetMinutes: v.number(),
+    updatedOffsetMinutes: v.number(),
   },);
 
 //endregion Schema
@@ -292,6 +298,14 @@ export type PostFrontmatter = {
   readonly tags: readonly string[];
   readonly published: Date;
   readonly updated: Date;
+  /**
+   Minutes east of UTC the publication commit was authored in.
+   */
+  readonly publishedOffsetMinutes: number;
+  /**
+   Minutes east of UTC the update commit was authored in.
+   */
+  readonly updatedOffsetMinutes: number;
 };
 
 /**
@@ -475,7 +489,16 @@ export async function loadContent(contentDir: string,): Promise<LoadedPost[]> {
  */
 export type ResolvedDates = {
   readonly published: Date;
+  /**
+   Minutes east of UTC the publication commit was authored in, so its calendar
+   day does not depend on the machine that builds.
+   */
+  readonly publishedOffsetMinutes: number;
   readonly updated: Date;
+  /**
+   Minutes east of UTC the update commit was authored in.
+   */
+  readonly updatedOffsetMinutes: number;
 };
 
 /**
@@ -534,7 +557,9 @@ export function attachDates(
         tags: lp.fileData
           .tags,
         published: dates.published,
+        publishedOffsetMinutes: dates.publishedOffsetMinutes,
         updated: dates.updated,
+        updatedOffsetMinutes: dates.updatedOffsetMinutes,
       },
       body: lp.body,
       filePath: lp.filePath,

@@ -165,6 +165,13 @@ export {
 export { warnOnAuthoredDateDivergence, } from './lib/date-divergence.ts';
 
 /**
+ Reads the UTC offset an ISO-8601 timestamp was written in.
+
+ @internal
+ */
+export { authorOffsetMinutes, } from './lib/git-dates.ts';
+
+/**
  YAML frontmatter fence scanner.
 
  @internal

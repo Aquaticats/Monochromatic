@@ -100,7 +100,9 @@ const LOADED_POST: LoadedPost = {
 const DATES_BY_PATH: ReadonlyMap<string, ResolvedDates> = new Map([
   [FIXTURE_FILE_PATH, {
     published: new Date('2026-04-16T10:01:43.000Z',),
+    publishedOffsetMinutes: 0,
     updated: new Date('2026-05-14T08:31:54.000Z',),
+    updatedOffsetMinutes: 0,
   },],
 ],);
 
@@ -395,7 +397,9 @@ await describe({
             const dates = new Map(DATES_BY_PATH,);
             dates.set('src/content/en/older.mdx', {
               published: new Date('2026-01-01T00:00:00.000Z',),
+              publishedOffsetMinutes: 0,
               updated: new Date('2026-01-02T00:00:00.000Z',),
+              updatedOffsetMinutes: 0,
             },);
 
             /**

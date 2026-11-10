@@ -144,8 +144,12 @@ await Promise.all(loadedPosts.map(async function resolveDates(post,) {
       const dates = {
         published: cached.frontmatter
           .published,
+        publishedOffsetMinutes: cached.frontmatter
+          .publishedOffsetMinutes,
         updated: cached.frontmatter
           .updated,
+        updatedOffsetMinutes: cached.frontmatter
+          .updatedOffsetMinutes,
       };
       warnOnAuthoredDateDivergence({
         authoredDates: post.authoredDates,

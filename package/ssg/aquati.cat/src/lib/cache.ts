@@ -36,6 +36,10 @@ export {
 
 /**
  Per-file cache entry with content hash and pre-rendered HTML.
+ 
+ The frontmatter record carries each date's git author offset, so a warm-cache
+ build compares calendar days in the author's own zone exactly as a fresh
+ build does, rather than falling back to the machine's zone.
  */
 export type CacheEntry = {
   readonly contentHash: string;
