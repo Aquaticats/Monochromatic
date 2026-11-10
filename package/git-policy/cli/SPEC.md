@@ -39,23 +39,23 @@ Local durability follows what the remote already holds.
 The owner,
 2026-11-10:
 "We don't care about data protection on the local drive if it's pushed."
-The coordinator's reading,
-open to the owner's correction:
-no sync (`fsync`,
+Correcting the coordinator's first reading,
+the owner added the same day:
+"I only say things that are already on remote doesn't deserve strong data protection against power outage and stuff."
+So a sync (`fsync`,
 `fdatasync`,
 `syncfs`,
 a btrfs sync ioctl,
-or a call that forces a btrfs commit) is made only to keep on this drive a copy of data the remote already has,
-such as the files a worktree add checks out from a pushed commit,
-objects fetched from the remote,
-indexes and caches rebuilt from pushed trees,
-and the wrapper's stage,
-trash,
-scratch repositories and pools.
-Data the remote does not have yet,
-meaning a person's commits and merges before their push lands
-and the records of an unfinished operation that hold them,
-keeps its protection under the owner's "never discard user data".
+or a call that forces a btrfs commit) is not needed when everything it protects is already on the remote,
+such as the files a worktree add checks out from a pushed commit
+or objects fetched from the remote.
+Everything else keeps its protection until the owner says otherwise:
+an index that holds staged changes,
+a person's commits and merges before their push lands,
+build trees and caches,
+and the wrapper's own records.
+When it is unclear whether what a sync protects is already on the remote,
+the owner decides.
 
 ## Module seams
 
