@@ -14,7 +14,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 import { preparedSyntaxSpanCount } from './prepared-syntax-record.ts';
-import { isRuntimeCacheKeyFolderName } from './runtime-cache-key.ts';
+import { isRuntimeCacheKeyFolderName, isRuntimeCacheLastUsedMarker } from './runtime-cache-key.ts';
 import { isProcessIdentifier } from './process-identifier.ts';
 import { withoutTerminalColors } from './terminal-color-escapes.ts';
 
@@ -449,7 +449,7 @@ checks['damaged-embedded-part-reported'] = async () => {
   demand({ condition: report.includes('Replace the executable'), message: 'the report does not give the remedy: ' + report });
   const unpackedRoot = join(home, 'cache', 'monochromatic-ide', 'runtime');
   // Every start renews its key folder's `last-used` marker; anything else below the runtime cache was unpacked.
-  const unpacked = isDirectory(unpackedRoot) ? filesBelow(unpackedRoot).filter(file => !/^[0-9a-f]{16}\/last-used$/.test(file)) : [];
+  const unpacked = isDirectory(unpackedRoot) ? filesBelow(unpackedRoot).filter(file => !isRuntimeCacheLastUsedMarker(file)) : [];
   demand({ condition: unpacked.length === 0, message: 'files were unpacked although the embedded part is damaged: ' + unpacked.join(', ') });
   demand({ condition: ending === undefined, message: ending });
   return { report: report.slice(report.indexOf(unavailable)).slice(0, 400), frame };

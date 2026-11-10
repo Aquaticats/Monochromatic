@@ -1,6 +1,6 @@
 // The folders of the unpacked runtime cache, read as the questions the bundle checks ask of them.
 // What: whether a folder name below `<cache>/monochromatic-ide/runtime/` is one build's key folder, and whether a file
-// below that runtime folder is a key folder's `last-used` marker.
+// below that runtime folder is a key folder's `last-used` marker, as a path relative to the runtime folder.
 // Why: each build unpacks its parsers into a folder named by a digest of its embedded files, and the application's own
 // retention (src/runtime/retention.rs, `is_key`) removes only folders of that shape and nothing else. A check that
 // read a folder of another shape as this build's cache would look for the parsers where they never are, and one that
@@ -42,4 +42,34 @@ export const isRuntimeCacheKeyFolderName = (name: string): boolean => {
     }
   }
   return true;
+};
+
+/**
+ The name of the marker file each key folder carries, whose modification time is the folder's last use.
+ */
+const lastUsedMarkerName = 'last-used';
+
+/**
+ The character a key folder's name and the files inside it are divided by.
+ */
+const pathSeparator = '/';
+
+/**
+ Whether `relativePath` is a key folder's `last-used` marker, as a path below the runtime folder.
+ *
+ Every start renews the marker of its own key folder, so a start that unpacked anything leaves a file below the
+ runtime folder that is neither a key folder's name nor one of those markers.
+ *
+ @param relativePath - the path below the runtime folder to read.
+ *
+ @returns whether the path is the marker of a key folder.
+ */
+export const isRuntimeCacheLastUsedMarker = (relativePath: string): boolean => {
+  if (relativePath.length !== runtimeCacheKeyLength + pathSeparator.length + lastUsedMarkerName.length) {
+    return false;
+  }
+  if (!relativePath.endsWith(pathSeparator + lastUsedMarkerName)) {
+    return false;
+  }
+  return isRuntimeCacheKeyFolderName(relativePath.slice(0, runtimeCacheKeyLength));
 };

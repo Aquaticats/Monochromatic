@@ -6,7 +6,7 @@
 // another build's cache as this one's.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isRuntimeCacheKeyFolderName } from './runtime-cache-key.ts';
+import { isRuntimeCacheKeyFolderName, isRuntimeCacheLastUsedMarker } from './runtime-cache-key.ts';
 
 test('reads the key folders earlier runs wrote below the runtime cache', () => {
   for (const name of ['0000000000000031', '0123456789abcdef', 'ffffffffffffffff']) {
@@ -33,4 +33,26 @@ test('reads the names the runtime folder holds beside its key folders as no key 
   assert.equal(isRuntimeCacheKeyFolderName('.00000000000000aa.removing-1-0'), false);
   assert.equal(isRuntimeCacheKeyFolderName('..'), false);
   assert.equal(isRuntimeCacheKeyFolderName('0123456789abcde\u0661'), false);
+});
+
+test('reads the marker every start renews in its own key folder', () => {
+  assert.equal(isRuntimeCacheLastUsedMarker('0000000000000031/last-used'), true);
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcdef/last-used'), true);
+});
+
+test('reads a file a start unpacked as no marker', () => {
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcdef/grammars/sql.so'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcdef/grammars'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker('last-used'), false);
+});
+
+test('reads a path that only resembles the marker as no marker', () => {
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcdef/last-used2'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcdef/last-use'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcde/last-used'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcdef0/last-used'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker('/last-used'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcdef/last-used/'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker('0123456789abcdeF/last-used'), false);
+  assert.equal(isRuntimeCacheLastUsedMarker(''), false);
 });
