@@ -390,36 +390,37 @@ async function captureForcedToolRequest({
 }): Promise<CapturedRequest & { readonly body: Readonly<Record<string, unknown>>; }> {
   /** Local capture server for this request. */
   const capture = await startCaptureServer();
-  try {
-    /**
-     Provider failure the capture rejection must produce.
-     
-     The capture server rejects every request on purpose, so the refusal must
-     reach the caller as a provider failure carrying the rejection text, never as
-     an omitted tool call built from text the provider never sent.
-     */
-    const refusal = await captureFailure(async function sendForcedToolRequest() {
-      return runStructuredToolRequest({
-        model: captureModel({
-          api,
-          baseUrl: `${capture.origin}${basePath}`,
-        },),
-        auth: { apiKey, },
-        prompt: {
-          systemPrompt: SYSTEM_PROMPT_MARKER,
-          userContent: 'Review fixture action.',
-        },
-        tool: TOOL,
-        toolName: TOOL.name,
-        signal: AbortSignal.timeout(TEST_TIMEOUT_MS,),
-      },);
+  /** Listening capture server closed when this request finishes. */
+  using captureServerLifetime = {
+    [Symbol.dispose](): void {
+      capture.server.close();
+    },
+  };
+  /**
+   Provider failure the capture rejection must produce.
+   
+   The capture server rejects every request on purpose, so the refusal must
+   reach the caller as a provider failure carrying the rejection text, never as
+   an omitted tool call built from text the provider never sent.
+   */
+  const refusal = await captureFailure(async function sendForcedToolRequest() {
+    return runStructuredToolRequest({
+      model: captureModel({
+        api,
+        baseUrl: `${capture.origin}${basePath}`,
+      },),
+      auth: { apiKey, },
+      prompt: {
+        systemPrompt: SYSTEM_PROMPT_MARKER,
+        userContent: 'Review fixture action.',
+      },
+      tool: TOOL,
+      toolName: TOOL.name,
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS,),
     },);
-    expect(refusal,).toBeInstanceOf(StructuredReviewProviderError,);
-    expect((refusal as Error).message,).toContain(CAPTURE_REJECTION_MARKER,);
-  }
-  finally {
-    capture.server.close();
-  }
+  },);
+  expect(refusal,).toBeInstanceOf(StructuredReviewProviderError,);
+  expect((refusal as Error).message,).toContain(CAPTURE_REJECTION_MARKER,);
   /** Captured requests that carried a provider body. */
   const providerRequests = capture.requests.filter(function hasBody(request,): boolean {
     return request.body !== undefined;

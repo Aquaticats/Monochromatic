@@ -100,7 +100,7 @@ class StructuredReviewProviderError extends Error {
   /**
    Provider diagnostic sent with the failing response, absent when it sent none.
    */
-  readonly errorMessage: string | undefined;
+  readonly errorMessage?: string;
   /**
    Terminal stop reason the provider reported for this stream.
    */
@@ -134,7 +134,8 @@ class StructuredReviewProviderError extends Error {
     );
     this.name = 'StructuredReviewProviderError';
     this.stopReason = stopReason;
-    this.errorMessage = errorMessage;
+    if (errorMessage !== undefined)
+      this.errorMessage = errorMessage;
   }
 }
 
@@ -185,10 +186,12 @@ async function collectStructuredStream(
       /**
        Trimmed provider diagnostic, absent when the provider sent none.
        */
-      const errorMessage = event.error.errorMessage?.trim();
+      const errorMessage = event.error
+        .errorMessage
+        ?.trim();
       throw new StructuredReviewProviderError({
         stopReason: event.reason,
-        ...(errorMessage === undefined || errorMessage === ''
+        ...((errorMessage === undefined) || (errorMessage === '')
           ? {}
           : { errorMessage, }),
       },);

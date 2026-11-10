@@ -128,7 +128,7 @@ function errorStream(
   return eventStream([{
     type: 'error',
     reason,
-    error: { ...(errorMessage === undefined ? {} : { errorMessage, }), } as never,
+    error: (errorMessage === undefined ? {} : { errorMessage, }) as never,
   },],);
 }
 
