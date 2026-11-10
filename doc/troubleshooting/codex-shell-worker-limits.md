@@ -111,7 +111,7 @@ They stay as defence for a future caller that builds a path from another source.
 
 The initialization arm at `package/codex-plugin/bash-limit/src/limits.rs:87` runs
 `systemctl --user start -- <name>.slice` when the parent cgroup is absent,
-and the package's tests never reach the spawn at line 103.
+and no test reached the spawn at line 103 before the one named below.
 A probe on 2026-11-09 measured that command on systemd 262,
 because issue #1262 assumed an absent slice makes the command fail:
 
