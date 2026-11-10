@@ -18,6 +18,9 @@ import {
   workspaceOrigin,
 } from './readonly-type-origin-location.ts';
 
+//region Origin evidence
+// The evidence one parameter's readonly preference guidance is chosen from.
+
 /**
  Origin evidence for one parameter's readonly preference guidance.
  */
@@ -30,6 +33,11 @@ export type ReadonlyTypeOriginEvidence =
       readonly kind: 'unique';
       readonly origin: ReadonlyTypeOrigin;
     };
+
+//endregion Origin evidence
+
+//region Declarations of a type
+// The distinct symbols exposing declarations for one semantic type.
 
 /**
  Returns distinct symbols exposing declarations for one type.
@@ -64,6 +72,12 @@ function declarationSymbols(type: Type,): readonly TypeScriptSymbol[] {
     },);
 }
 
+//endregion Declarations of a type
+
+//region Resolution shape
+// The eager origins a type graph yields, with whether the resolution is
+// complete.
+
 /**
  Eager origin collection plus declaration-resolution completeness.
  */
@@ -71,6 +85,12 @@ export type ReadonlyTypeOriginResolution = {
   readonly origins: readonly ReadonlyTypeOrigin[];
   readonly resolutionIncomplete: boolean;
 };
+
+//endregion Resolution shape
+
+//region Collecting origins
+// The eager editable origins, and the classification that refuses to overclaim
+// when resolution was partial.
 
 /**
  Collects eager editable origins from semantic type graph.
@@ -215,6 +235,11 @@ export function readonlyTypeOriginEvidenceFromResolution({
   };
 }
 
+//endregion Collecting origins
+
+//region Evidence for a parameter
+// The origin evidence one parameter's readonly preference is chosen from.
+
 /**
  Builds origin evidence for readonly preference on one parameter.
  
@@ -273,3 +298,4 @@ export function readonlyTypeOriginEvidence({
     },),
   },);
 }
+//endregion Evidence for a parameter

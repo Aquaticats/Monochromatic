@@ -29,6 +29,10 @@ import {
 } from 'typescript/ast/is';
 import type { Project, } from 'typescript/sync';
 
+//region Forward vocabulary
+// The sentinel for a runtime source that forwards no requested export, the
+// forward it would name, and the suffixes accepted for one.
+
 /**
  Sentinel when runtime source does not forward requested export through a relative module.
  */
@@ -57,6 +61,12 @@ const RUNTIME_FORWARD_SUFFIXES: ReadonlySet<string> = new Set([
   '.jsx',
   '.tsx',
 ]);
+
+//endregion Forward vocabulary
+
+//region Runtime module lookup
+// The package-local runtime module, resolved without the declaration
+// substitution TypeScript would otherwise apply.
 
 /**
  Resolves package-local runtime module without TypeScript declaration substitution.
@@ -111,6 +121,11 @@ function runtimeModule({
     .getSourceFile(path,);
   return runtimeSource ?? RUNTIME_FORWARD_UNAVAILABLE;
 }
+
+//endregion Runtime module lookup
+
+//region Import bindings
+// The local binding one runtime module imports.
 
 /**
  Finds local binding imported by one runtime module.
@@ -171,6 +186,11 @@ function importedBinding({
   }
   return RUNTIME_FORWARD_UNAVAILABLE;
 }
+
+//endregion Import bindings
+
+//region Resolving a forward
+// The named export resolved through authored relative runtime forwarding.
 
 /**
  Resolves one named export through authored relative runtime forwarding.
@@ -300,3 +320,4 @@ export function runtimeForwardedExport({
   }
   return RUNTIME_FORWARD_UNAVAILABLE;
 }
+//endregion Resolving a forward

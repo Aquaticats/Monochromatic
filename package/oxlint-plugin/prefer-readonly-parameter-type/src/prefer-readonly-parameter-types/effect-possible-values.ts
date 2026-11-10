@@ -63,6 +63,10 @@ import {
   OWNED_CALLABLE_UNAVAILABLE,
 } from './effect-summary-model.ts';
 
+//region Value operators
+// The operators whose right operand alone is the value, and those where either
+// operand can be.
+
 /**
  Operators whose right operand alone is the value of the expression.
  
@@ -83,6 +87,12 @@ const EITHER_OPERAND_VALUE_OPERATORS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.QuestionQuestionToken,
   SyntaxKind.BarBarToken,
 ],);
+
+//endregion Value operators
+
+//region Collecting possible values
+// Every expression one expression can evaluate to, following aliases and
+// branches.
 
 /**
  Collects every expression one expression can evaluate to, following aliases and branches.
@@ -141,6 +151,12 @@ export function possibleValueNodes({
   }
   return [...seen.values(),];
 }
+
+//endregion Collecting possible values
+
+//region Value hand-offs
+// The expressions one expression hands its value on from, and the property
+// assignment a name's value comes from.
 
 /**
  Names the expressions one expression hands its value on from.
@@ -253,6 +269,12 @@ function propertyAssignedValues({
     },);
 }
 
+//endregion Value hand-offs
+
+//region Following a binding
+// Following one identifier to the initializer it was bound to, when it has
+// one.
+
 /**
  Follows one identifier to the initializer it was bound to, when it has one.
  
@@ -334,6 +356,12 @@ function aliasedInitializer({
     return [];
   return declaration.initializer === undefined ? [] : [declaration.initializer,];
 }
+
+//endregion Following a binding
+
+//region Callables and element reads
+// Every callable one actual can hold, the property a binding element's pattern
+// was filled from, and the values a literal gives a named property.
 
 /**
  Names every callable one actual can hold.
@@ -532,3 +560,4 @@ function propertyValuesOfLiteral({
         },);
     },);
 }
+//endregion Callables and element reads

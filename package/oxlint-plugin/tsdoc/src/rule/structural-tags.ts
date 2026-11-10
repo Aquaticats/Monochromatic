@@ -22,6 +22,10 @@ import {
   stripCommentLineMarker,
 } from './tsdoc-visitors.ts';
 
+//region Leading tag extraction
+// The absence marker for a line that does not begin with `@word`, and the
+// linear scan that captures the tag including its at sign.
+
 /**
  Absence marker for {@link extractLeadingTag} meaning "line does not begin
  with `@word`"; never a captured tag.
@@ -68,6 +72,12 @@ export function extractLeadingTag(s: string,): string | typeof NO_LEADING_TAG {
     end,
   );
 }
+
+//endregion Leading tag extraction
+
+//region The rule
+// The exported rule, which requires a blank comment line before the block tags
+// it identifies.
 
 /**
  Enforces consistent spacing between TSDoc tags.
@@ -219,6 +229,13 @@ export const tagLines: CreateOnceRule = {
   },
 };
 
+//endregion The rule
+
+//region Re-exports
+// The sibling TSDoc tag rules, kept reachable from this module's public
+// surface.
+
 export { emptyTags, } from './empty-tags.ts';
 
 export { escapeInlineTags, } from './tag-escaping.ts';
+//endregion Re-exports

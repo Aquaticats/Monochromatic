@@ -119,3 +119,37 @@ fn an_empty_corpus_decodes_nothing() {
     assert_eq!(decoded, 0.0);
     assert!(rows.is_empty());
 }
+
+/// The slot index a bones profile carries for a passage past the track's last bin.
+const SLOT_PAST_THE_LAST_BIN: usize = LONG_SECS as usize;
+
+/// The coverage that buys exactly the two bins a seed at the last slot spends,
+///  so the seeded bins are all the probe can measure.
+const TWO_BIN_COVERAGE: f64 = 2.0 / LONG_SECS as f64;
+
+/// The last bin of a long fixture track.
+const LAST_BIN: usize = LONG_SECS as usize - 1;
+
+/// The bin before it.
+const SECOND_TO_LAST_BIN: usize = LONG_SECS as usize - 2;
+
+/// What:
+///  a hot slot at or past the last bin seeds the last bin and its neighbour,
+///  exactly as the production probe's own seed placement does.
+/// Why:
+///  the two copies of the selection drifted here:
+///  the bench's copy clamped only the
+/// upper neighbour,
+///  so a slot past the grid measured one bin where production measures two.
+#[test]
+fn a_hot_slot_past_the_last_bin_seeds_the_last_two_bins() {
+    let bins = bins_with_one_hot(LONG_SECS as usize, QUIET_PEAK, SECOND_TO_LAST_BIN, HOT_PEAK);
+    let track = track("past-the-end.flac", LONG_SECS, HOT_PEAK, bins);
+    let bones = vec![SLOT_PAST_THE_LAST_BIN];
+    let (peak, decoded) = hybrid_probe(&track, TWO_BIN_COVERAGE, 0.0, Some(&bones));
+    assert_eq!(decoded, TWO_BIN_COVERAGE * LONG_SECS as f64, "the seed spends the whole budget");
+    assert!(
+        levels_match(peak_dbtp_or_silence(peak), peak_dbtp(f64::from(HOT_PEAK))),
+        "the seed must measure bin {SECOND_TO_LAST_BIN} beside the last bin {LAST_BIN}, got peak {peak}",
+    );
+}

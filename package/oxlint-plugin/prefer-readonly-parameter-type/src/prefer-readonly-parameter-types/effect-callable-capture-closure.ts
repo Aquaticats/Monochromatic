@@ -71,10 +71,19 @@ import {
   type SlotOrigins,
 } from './effect-summary-model.ts';
 
+//region Shared empty origins
+// The origin set a call to no known callable carries, shared so that call
+// allocates nothing.
+
 /**
  Origins carried by nothing, shared so a call to no known callable allocates none.
  */
 const NO_REACHED_ORIGINS: ReadonlySet<EffectSlot> = new Set<EffectSlot>();
+
+//endregion Shared empty origins
+
+//region Node identity
+// A stable identity for any node, callable declaration or not.
 
 /**
  Builds a stable identity for any node, callable declaration or not.
@@ -97,6 +106,12 @@ function nodeKey({ node, }: { readonly node: Node; },): string {
   return `${node.getSourceFile()
     .fileName}:${String(node.pos,)}:${String(node.end,)}`;
 }
+
+//endregion Node identity
+
+//region Origins a callable reaches
+// The caller origins a callable reaches directly and through same-file
+// callees.
 
 /**
  Collects caller origins a callable reaches directly and through same-file callees.
@@ -187,6 +202,12 @@ export function transitiveCallableOrigins({
   return origins;
 }
 
+//endregion Origins a callable reaches
+
+//region Resolving calls
+// Resolving every call inside one callable to a same-file callable
+// declaration, by callee expression rather than by call.
+
 /**
  Resolves every call inside one callable to a same-file callable declaration.
  
@@ -254,6 +275,12 @@ function calledCallables({
         },);
     },);
 }
+
+//endregion Resolving calls
+
+//region Deferred result relation
+// The caller origins the result of calling a locally defined callable can
+// carry, which the deferred relation substitutes.
 
 /**
  Collects caller origins the result of calling a locally defined callable can carry.
@@ -392,3 +419,5 @@ export function calledCallableOrigins({
     },);
   return reached;
 }
+
+//endregion Deferred result relation

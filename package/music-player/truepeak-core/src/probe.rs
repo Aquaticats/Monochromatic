@@ -12,15 +12,20 @@
 //!  until the track's bin budget is spent.
 //! Optional bones seeds (byte-rate hot slots from a lossless file's framing) start the
 //! climb on the right hills at a fraction of the coverage.
+//!
+//! Which bins to visit is [the selection's](crate::probe_selection) decision;
+//! this module supplies the measurement:
+//!  a seek to the bin's start frame and one window's true peak.
 
 /// Imports the fallible-source error.
 use crate::error::TruePeakError;
 /// Imports the shared streaming meter.
 use crate::meter::TruePeakMeter;
+/// Imports the one owner of the probe's bin selection,
+///  and the measurement contract it asks.
+use crate::probe_selection::{ProbeBins, ProbeGrid, select_probe_bins};
 /// Imports the decoded-audio contract the probe drives.
 use crate::source::TruePeakSource;
-/// Imports the max-heap driving the frontier expansion.
-use std::collections::BinaryHeap;
 
 /// One track's zoom plan:
 ///  the bin grid and the coverage the probe may spend.
@@ -67,39 +72,22 @@ pub(crate) fn measure_window(
     return Ok(meter.peak())
 }
 
-/// The frontier state one zoom run threads through its measurements.
-struct Frontier {
-    /// Whether each bin was measured already.
-    measured: Vec<bool>,
-    /// Measured bins by loudness;
-    ///  non-negative f32 bits order exactly like the values.
-    heap: BinaryHeap<(u32, usize)>,
-    /// Bins measured so far.
-    used: usize,
-    /// Loudest window peak seen.
-    peak: f32,
-}
-
-/// Measure bin `index` and fold it into the frontier.
+/// Measure bin `index` from the source.
 ///
 /// What:
-///  seeks to the bin's start frame,
-///  measures one window,
-///  records it.
+///  seeks to the bin's start frame and measures one window there.
 ///  Why:
-///  the one
-/// fallible step every phase (bones,
-///  even,
-///  climb) shares.
+///  the one fallible step the selection asks for,
+///  once per bin it decides to measure;
+///  the failures name the bin at debug before they propagate (the service fold warns on
+///  the typed error).
 fn measure_bin(
     source: &mut dyn TruePeakSource,
     channels: usize,
     plan: &ZoomPlan,
-    frontier: &mut Frontier,
     index: usize,
-) -> Result<(), TruePeakError> {
-    // Seek to the bin start and measure one window; a failure names the bin at debug before
-    // it propagates (the service fold warns on the typed error).
+) -> Result<f32, TruePeakError> {
+    // Seek to the bin start and measure one window.
     let seek_result = source.seek_to_frame(index as u64 * plan.bin_frames);
     if let Err(error) = &seek_result {
         tracing::debug!(bin = index, cause = %error, "probe seek failed");
@@ -109,14 +97,41 @@ fn measure_bin(
     if let Err(error) = &measure_result {
         tracing::debug!(bin = index, cause = %error, "probe measure failed");
     }
-    let window_peak = measure_result?;
-    frontier.measured[index] = true;
-    frontier.used += 1;
-    if window_peak > frontier.peak {
-        frontier.peak = window_peak;
+    return measure_result
+}
+
+/// The production probe's answer to the selection's question:
+///  one decoded window at one bin.
+///
+/// What:
+///  carries the decoder,
+///  the channel count,
+///  and the plan that says how wide one bin is.
+///  Why:
+///  the selection asks for bins one at a time,
+///  so the measurement state travels as the one value it is handed.
+struct SourceBins<'source, 'plan> {
+    /// The decoder to seek and read.
+    source: &'source mut dyn TruePeakSource,
+    /// Channels in the decoded stream.
+    channels: usize,
+    /// The production plan:
+    ///  bin width and the frames it spans.
+    plan: &'plan ZoomPlan<'plan>,
+}
+
+/// What:
+///  measuring a decoded bin is a seek and one window.
+/// Why:
+///  this is the only measurement the selection asks the production probe for.
+impl ProbeBins for SourceBins<'_, '_> {
+    /// A seek or a decode that failed.
+    type Failure = TruePeakError;
+
+    /// Seeks to the bin's start frame and measures one window there.
+    fn bin_peak(&mut self, index: usize) -> Result<f32, TruePeakError> {
+        return measure_bin(self.source, self.channels, self.plan, index)
     }
-    frontier.heap.push((window_peak.to_bits(), index));
-    return Ok(())
 }
 
 /// Run the zoom probe and return the loudest measured window peak.
@@ -140,61 +155,19 @@ pub(crate) fn zoom_probe(
     let _guard = span.enter();
     // The bin grid: the last bin may be short; measure_window stops at EOF anyway.
     let bin_count = (plan.total_frames.div_ceil(plan.bin_frames.max(1)).max(1)) as usize;
-    let budget = (((plan.coverage_fraction * bin_count as f64).floor() as usize).max(1)).min(bin_count);
-    // The plan the three phases spend: total bins and the measurement budget.
-    tracing::debug!(bin_count, budget, bones = plan.bones_hot_bins.is_some(), "zoom plan");
-    let mut frontier = Frontier {
-        measured: vec![false; bin_count],
-        heap: BinaryHeap::new(),
-        used: 0,
-        peak: 0.0,
-    };
-    // Phase one: bones seeds, each measured with its immediate neighbors.
-    if let Some(hot_bins) = plan.bones_hot_bins {
-        for &slot in hot_bins {
-            let center = slot.min(bin_count - 1);
-            let lo = center.saturating_sub(1);
-            let hi = (center + 1).min(bin_count - 1);
-            for index in lo..=hi {
-                if !frontier.measured[index] && frontier.used < budget {
-                    measure_bin(source, channels, plan, &mut frontier, index)?;
-                }
-            }
-        }
-    }
-    // Phase two: the even pass, endpoints included, over whatever budget remains.
-    let even_count = ((plan.even_coverage_fraction * bin_count as f64).round() as usize).max(1);
-    // The index range the even pass spreads over; named apart from the tracing
-    // `span` above so neither binding shadows.
-    let even_span = bin_count - 1;
-    for step in 0..even_count {
-        if frontier.used >= budget {
-            break;
-        }
-        let index = if even_count <= 1 {
-            even_span / 2
-        } else {
-            ((step as f64 / (even_count - 1) as f64) * even_span as f64).round() as usize
-        };
-        if !frontier.measured[index] {
-            measure_bin(source, channels, plan, &mut frontier, index)?;
-        }
-    }
-    // Phase three: the climb; measure the unmeasured neighbors of the loudest bin.
-    while frontier.used < budget {
-        let Some((_, index)) = frontier.heap.pop() else {
-            break;
-        };
-        if index > 0 && !frontier.measured[index - 1] && frontier.used < budget {
-            measure_bin(source, channels, plan, &mut frontier, index - 1)?;
-        }
-        if index + 1 < bin_count && !frontier.measured[index + 1] && frontier.used < budget {
-            measure_bin(source, channels, plan, &mut frontier, index + 1)?;
-        }
-    }
-    // The zoom is done: how many bins were measured and the loudest window found.
-    tracing::debug!(used = frontier.used, peak = frontier.peak, "zoom done");
-    return Ok(frontier.peak)
+    // The selection decides which bins to measure; this source-backed measurement answers
+    // the one question it asks.
+    let mut bins = SourceBins { source, channels, plan };
+    let selection = select_probe_bins(
+        ProbeGrid {
+            bin_count,
+            coverage_fraction: plan.coverage_fraction,
+            even_coverage_fraction: plan.even_coverage_fraction,
+            bones_hot_bins: plan.bones_hot_bins,
+        },
+        &mut bins,
+    )?;
+    return Ok(selection.peak)
 }
 
 /// What:

@@ -108,8 +108,14 @@ function summarize(
       );
   }
   return Object.fromEntries([...tally,].toSorted(function byCount(
-    left,
-    right,
+    left: readonly [
+      string,
+      number
+    ],
+    right: readonly [
+      string,
+      number
+    ],
   ) {
     return right[1] - left[1];
   },),);

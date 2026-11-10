@@ -4,6 +4,10 @@ import {
 } from './constants.ts';
 import { lowerWords, } from './tokenize.ts';
 
+//region Word casing
+// Whether a word carries a cased letter at all, whether those letters are all
+// uppercase, and whether every lettered word of a name is.
+
 /**
  Tests whether a word contains at least one cased letter.
  
@@ -69,6 +73,12 @@ export function allAlphabeticWordsUppercase(
   },);
 }
 
+//endregion Word casing
+
+//region Reduction to meaningful words
+// Dropping the words too short to carry debugging information, so repetition is
+// judged on the words that remain.
+
 /**
  Reduces words to meaningful ones for repetition checks: drops words at or
  under {@link MAX_INSIGNIFICANT_WORD_LENGTH} and, after lowercasing via
@@ -107,6 +117,12 @@ function meaningfulWords(
       return true;
     },);
 }
+
+//endregion Reduction to meaningful words
+
+//region Repetition checks
+// The repeated-word check, and the narrower `because` check that compares the
+// phrase on both sides of the connective.
 
 /**
  Detects a repeated meaningful word, after reducing via
@@ -208,3 +224,5 @@ export function repeatsSamePhraseAcrossBecause(
     return word === rightWords[index];
   },);
 }
+
+//endregion Repetition checks

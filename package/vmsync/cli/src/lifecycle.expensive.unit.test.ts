@@ -47,8 +47,40 @@ const PKG_ROOT = await findRootCached({
 /** Args prefix for running mvm from any working directory. */
 const MVM_ARGS = [join(PKG_ROOT, '..', 'mvm', 'src', 'cli.ts'),];
 
-/** Absolute path to the tsdown bundle. */
-const BUNDLE_PATH = join(PKG_ROOT, 'dist', 'final', 'node', 'index.mjs',);
+/** Absolute path to the built bin bundle. */
+const BUNDLE_PATH = join(PKG_ROOT, 'dist', 'final', 'node', 'cli.mjs',);
+
+/** Text `mvm push` prints between the host path and the guest path it landed at. */
+const PUSH_ARROW = ' -> ';
+
+/** Text `mvm push` prints after that guest path, naming the VM it landed in. */
+const PUSH_IN_VM = ' in VM ';
+
+/**
+ Guest path the vmsync bundle is reachable at when `mvm push` reports no path,
+ because the shared directory is mounted there rather than copied.
+ */
+const VIRTIOFS_BUNDLE_PATH = '/mnt/shared/index.mjs';
+
+/**
+ Returned by {@link pushedGuestPath} when the `mvm push` line carries no guest path.
+ A `unique symbol`; callers narrow with `=== NO_GUEST_PATH_REPORTED`.
+ */
+const NO_GUEST_PATH_REPORTED: unique symbol = Symbol('mvm push printed no guest path between its delimiters',);
+
+/**
+ Characters a guest path never contains, because `mvm push` prints the path as one word.
+ Any of them inside the delimited span means the line is not the shape `mvm push` prints,
+ so the span is rejected rather than returned as a path.
+ */
+const PATH_SEPARATING_WHITESPACE: ReadonlySet<string> = new Set([
+  ' ',
+  '\t',
+  '\n',
+  '\v',
+  '\f',
+  '\r',
+],);
 
 //endregion Constants
 
@@ -78,6 +110,40 @@ async function mvm(
     { timeout, },
   );
   return stdout.trim();
+}
+
+/**
+ Guest path from the `pushed <host> -> <guest> in VM <name>` line `mvm push` prints.
+ 
+ A line missing either delimiter, or carrying whitespace between them,
+ yields {@link NO_GUEST_PATH_REPORTED} so the caller can fall back
+ instead of running a command against a path the push never reported.
+ 
+ @param pushOutput - Trimmed stdout of one `mvm push` call
+ 
+ @returns guest path the push reported, or {@link NO_GUEST_PATH_REPORTED}
+ 
+ @example
+ ```ts
+ pushedGuestPath('pushed /src/i.mjs -> /mnt/shared/i.mjs in VM box'); // '/mnt/shared/i.mjs'
+ ```
+ */
+function pushedGuestPath(pushOutput: string,): string | typeof NO_GUEST_PATH_REPORTED {
+  const arrowIndex = pushOutput.indexOf(PUSH_ARROW,);
+  if (arrowIndex === (-1))
+    return NO_GUEST_PATH_REPORTED;
+
+  const guestStart = arrowIndex + PUSH_ARROW.length;
+  const guestEnd = pushOutput.indexOf(PUSH_IN_VM, guestStart,);
+  if (guestEnd === (-1))
+    return NO_GUEST_PATH_REPORTED;
+
+  for (let index = guestStart; index < guestEnd; index++) {
+    if (PATH_SEPARATING_WHITESPACE.has(pushOutput.charAt(index,),))
+      return NO_GUEST_PATH_REPORTED;
+  }
+
+  return pushOutput.slice(guestStart, guestEnd,);
 }
 
 /**
@@ -150,7 +216,11 @@ if (process.env.VMSYNC_E2E_GUEST !== 'windows') {
     args: ['push', VM, BUNDLE_PATH, '/home/ubuntu/index.mjs',],
   },);
   /** Guest path to the vmsync bundle, as reported by mvm push. */
-  const BUNDLE = (/ -> (\S+) in VM /u.exec(pushOutput))?.[1] ?? '/mnt/shared/index.mjs';
+  const reportedGuestPath = pushedGuestPath(pushOutput,);
+  /** Guest path the guest commands run, falling back to the shared mount when the push named none. */
+  const BUNDLE = (reportedGuestPath === NO_GUEST_PATH_REPORTED)
+    ? VIRTIOFS_BUNDLE_PATH
+    : reportedGuestPath;
 
   /**
    Guest command to run vmsync with sudo.

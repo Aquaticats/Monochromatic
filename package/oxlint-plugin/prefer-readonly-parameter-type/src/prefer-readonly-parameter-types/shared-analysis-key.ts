@@ -25,6 +25,10 @@ import {
   recordSharedFallback,
 } from './shared-analysis-telemetry.ts';
 
+//region Key vocabulary
+// The sentinel for a program file with no digest, the key schema version, and
+// the extensions whose files carry module references the parser does not list.
+
 /**
  Sentinel for a program file that has no content digest or metadata in the snapshot.
  */
@@ -49,6 +53,12 @@ const IMPLICIT_IMPORT_EXTENSIONS: readonly string[] = [
   '.vue',
   '.svelte',
 ];
+
+//endregion Key vocabulary
+
+//region Key and resolver shapes
+// The shared key or the reason one source keeps a per-project entry, the
+// resolver, and the module targets it proves.
 
 /**
  Key shared by every project whose inputs to one source's analysis agree,
@@ -88,6 +98,12 @@ type ModuleTargets =
       readonly detail?: string;
     };
 
+//endregion Key and resolver shapes
+
+//region Owned source
+// Whether the effect analysis treats a program file as owned source it can
+// inspect.
+
 /**
  Tests whether the effect analysis treats a program file as owned source it can inspect.
  
@@ -125,6 +141,12 @@ function isOwnedSource({
     || ((analysisRoot !== undefined) && fileName
       .startsWith(analysisRoot,));
 }
+
+//endregion Owned source
+
+//region Module references
+// The specifier text a diagnostic shows, and the program paths the references of
+// one file resolve to.
 
 /**
  Renders one specifier node for a diagnostic.
@@ -223,6 +245,12 @@ function resolveModuleTargets({
     targets: [...targets,].toSorted(),
   };
 }
+
+//endregion Module references
+
+//region Building the resolver
+// The entries one source's module references reach, and the exported construction
+// of the key resolver for one project snapshot.
 
 /**
  Entries of every file one source's module references reach,
@@ -543,3 +571,4 @@ export function createSharedKeyResolver({
     },
   };
 }
+//endregion Building the resolver

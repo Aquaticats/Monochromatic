@@ -55,6 +55,9 @@ import {
   isEffectCallableDeclaration,
 } from './effect-summary-model.ts';
 
+//region Assigned values of a binding
+// Every value assigned to the binding one identifier resolves to.
+
 /**
  Names every value assigned to the binding one identifier resolves to.
  
@@ -104,6 +107,11 @@ export function assignedValuesInScope({
         },);
     },);
 }
+
+//endregion Assigned values of a binding
+
+//region One candidate's assignment
+// The value one candidate assigns to the followed binding, when it assigns one.
 
 /**
  Names the value one candidate assigns to the followed binding, when it assigns one.
@@ -159,6 +167,11 @@ function assignedRight({
     : [];
 }
 
+//endregion One candidate's assignment
+
+//region The scope holding the assignments
+// The nearest node whose subtree can hold every assignment to one declaration.
+
 /**
  Names the nearest node whose subtree can hold every assignment to one declaration.
  
@@ -204,3 +217,5 @@ function enclosingScope(declaration: Node,): readonly Node[] {
   }
   return state.scope;
 }
+
+//endregion The scope holding the assignments

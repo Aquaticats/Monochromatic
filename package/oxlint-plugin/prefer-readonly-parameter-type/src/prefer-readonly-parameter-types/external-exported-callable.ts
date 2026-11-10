@@ -28,12 +28,21 @@ import {
   runtimeForwardedExport,
 } from './external-runtime-forward.ts';
 
+//region Unresolved exports
+// The sentinel for a runtime export that resolves to no callable source.
+
 /**
  Sentinel when runtime export cannot resolve to callable source.
  */
 export const EXPORTED_CALLABLE_UNAVAILABLE: unique symbol = Symbol(
   'runtime package export callable source could not be resolved',
 );
+
+//endregion Unresolved exports
+
+//region Member names and nested callables
+// The authored member name of a class or object member, and the callable nested
+// under an exported class or object value.
 
 /**
  Reads simple authored member name.
@@ -120,6 +129,11 @@ function exportedMemberCallable({
     analysisRoot: packageRoot,
   },);
 }
+
+//endregion Member names and nested callables
+
+//region Resolving the exported callable
+// The exported callable declaration of one implementation module.
 
 /**
  Resolves exported callable declaration from implementation module.
@@ -259,3 +273,4 @@ export function exportedCallable({
     ? callable
     : forwardedResult;
 }
+//endregion Resolving the exported callable

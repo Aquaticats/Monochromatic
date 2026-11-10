@@ -9,6 +9,10 @@ import type {
   VisitorWithHooks,
 } from '@oxlint/plugins';
 
+//region Types
+// The two prefix policies, one source-backed body line, and the inputs every
+// diagnostic needs.
+
 /**
  Policy controlling whether TSDoc body lines carry a canonical asterisk prefix.
  */
@@ -58,6 +62,10 @@ type PrefixViolationParams = {
    */
   readonly prefixIndex: number;
 };
+//endregion Types
+
+//region Configuration error
+// Reachable only when the host bypasses the option schema.
 
 /**
  Configuration error retained as runtime defense behind Oxlint's option schema.
@@ -73,6 +81,11 @@ class AsteriskPrefixConfigurationError extends Error {
     this.name = 'AsteriskPrefixConfigurationError';
   }
 }
+//endregion Configuration error
+
+//region Comment line reading
+// Split a TSDoc block into source-backed lines, and tell a canonical marker from
+// literal leading asterisk content such as `**Note**`.
 
 /**
  Checks whether comment uses TSDoc block opener `/**`.
@@ -187,6 +200,11 @@ function hasCanonicalPrefix({
   const following = content.charAt(prefixIndex + 1,);
   return (following.length === 0) || isWhitespace(following,);
 }
+//endregion Comment line reading
+
+//region Prefix mode
+// The one public option, validated again here because a host can skip the
+// schema.
 
 /**
  Reads explicitly required prefix mode after schema validation.
@@ -211,6 +229,11 @@ function configuredMode(context: ForeignBorrowed<Context>,): AsteriskPrefixMode 
     return mode;
   throw new AsteriskPrefixConfigurationError(mode,);
 }
+//endregion Prefix mode
+
+//region Reporting
+// One diagnostic per offending body line, with the offset arithmetic its fix
+// needs kept beside the report.
 
 /**
  Reports and removes canonical prefix from one line.
@@ -342,6 +365,11 @@ function reportMissingPrefix(params: ForeignBorrowed<PrefixViolationParams>,): v
     },
   },);
 }
+//endregion Reporting
+
+//region Per-comment check
+// Applies the mode to every physical body line, skipping the opener line and
+// the closing indentation.
 
 /**
  Applies selected prefix policy to every physical body line in one TSDoc block.
@@ -431,6 +459,10 @@ function checkComment({
     }
   },);
 }
+//endregion Per-comment check
+
+//region Rule
+// The exported rule: metadata, and one program-exit pass over every TSDoc block.
 
 /**
  Enforces configured asterisk-prefix policy on every TSDoc block comment.
@@ -506,3 +538,4 @@ export const requireAsteriskPrefix: CreateOnceRule = {
     };
   },
 };
+//endregion Rule
