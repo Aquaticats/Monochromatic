@@ -8,15 +8,19 @@ import {
 import { join } from 'node:path';
 
 const root = process.cwd();
+// This round is archived: its template and page live in `questions/archive`, and
+// `questions/current.*` belong to the selected Fold Search review now.
 const templatePath = join(
   root,
   'questions',
-  'current.template.html'
+  'archive',
+  'command-igr-rejected.template.html'
 );
 const outputPath = join(
   root,
   'questions',
-  'current.html'
+  'archive',
+  'command-igr-rejected.html'
 );
 const renderPath = join(
   root,
