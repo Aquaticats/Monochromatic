@@ -54,12 +54,15 @@ function directorialAlternatives(glob: string,): string[] {
   if ((openAt === (-1)) || (closeAt === (-1)))
     return [];
 
-  return glob
-    .slice(
-      openAt + 1,
-      closeAt,
-    )
-    .split(',',);
+  /**
+   Brace group of the glob, naming its alternatives.
+   */
+  const group = glob.slice(
+    openAt + 1,
+    closeAt,
+  );
+
+  return group.split(',',);
 }
 
 await describe({

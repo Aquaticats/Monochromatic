@@ -89,13 +89,27 @@ await describe({
         it({
           name: 'digests an empty buffer',
           fn: async function digestsEmptyBuffer(): Promise<void> {
-            expect(sha256Buffer(Buffer.alloc(0,),),).toBe(EMPTY_SHA256,);
+            /**
+             Digest of zero bytes of input.
+             */
+            const digest = sha256Buffer(Buffer.alloc(0,),);
+
+            expect(digest,).toBe(EMPTY_SHA256,);
           },
         },),
         it({
           name: 'digests distinct buffers to distinct hashes',
           fn: async function digestsDistinctBuffers(): Promise<void> {
-            expect(sha256Buffer(Buffer.from('a',),),).not.toBe(sha256Buffer(Buffer.from('b',),),);
+            /**
+             Digest of a single `a` byte.
+             */
+            const first = sha256Buffer(Buffer.from('a',),);
+            /**
+             Digest of a single `b` byte.
+             */
+            const second = sha256Buffer(Buffer.from('b',),);
+
+            expect(first,).not.toBe(second,);
           },
         },),
       ],

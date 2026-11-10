@@ -27,6 +27,40 @@ const FIXTURE_HEAD = {
 } as const;
 
 /**
+ Length of a `#rrggbb` colour literal.
+ */
+const HEX_COLOUR_LENGTH = 7;
+
+/**
+ Digits a hexadecimal colour literal may use, in both cases.
+ */
+const HEX_DIGITS = '0123456789abcdefABCDEF';
+
+/**
+ Checks a value is a `#rrggbb` colour literal.
+ 
+ @param value - candidate colour string
+ 
+ @returns `true` when the value is a six-digit hexadecimal colour
+ 
+ @example
+ ```ts
+ isHexColour('#bf97e3');
+ // true
+ ```
+ */
+function isHexColour(value: string,): boolean {
+  if ((value.length !== HEX_COLOUR_LENGTH) || (!value.startsWith('#',)))
+    return false;
+  /* Split, not spread: these are ASCII hex digits, so no grapheme cluster can straddle a divider. */
+  return value.slice(1,)
+    .split('',)
+    .every(function isHexDigit(digit,) {
+      return HEX_DIGITS.includes(digit,);
+    },);
+}
+
+/**
  Reads one custom-property value out of a generated CSS block without a regex.
  
  @param styles - CSS text containing the declaration
@@ -66,12 +100,15 @@ function declarationValueIn(
       return index !== (-1);
     },);
 
-  return afterMarker
-    .slice(
-      0,
-      ends.length > 0 ? Math.min(...ends,) : afterMarker.length,
-    )
-    .trim();
+  /**
+   Value text between the property name and the end of its declaration.
+   */
+  const valueText = afterMarker.slice(
+    0,
+    ends.length > 0 ? Math.min(...ends,) : afterMarker.length,
+  );
+
+  return valueText.trim();
 }
 
 await describe({
@@ -80,14 +117,14 @@ await describe({
     it({
       name: 'declares the light brand colour once',
       fn: async function declaresLightBrandColour(): Promise<void> {
-        expect(PRIMARY_LIGHT,).toMatch(/^#[0-9a-f]{6}$/u,);
+        expect(isHexColour(PRIMARY_LIGHT,),).toBe(true,);
         expect(declarationValueIn(tokenStyles(), '--primary-light',),).toBe(PRIMARY_LIGHT,);
       },
     },),
     it({
       name: 'declares the dark brand colour once',
       fn: async function declaresDarkBrandColour(): Promise<void> {
-        expect(PRIMARY_DARK,).toMatch(/^#[0-9a-f]{6}$/u,);
+        expect(isHexColour(PRIMARY_DARK,),).toBe(true,);
         expect(declarationValueIn(tokenStyles(), '--primary-dark',),).toBe(PRIMARY_DARK,);
       },
     },),

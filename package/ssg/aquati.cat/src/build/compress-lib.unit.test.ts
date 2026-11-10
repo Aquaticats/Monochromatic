@@ -9,6 +9,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -37,7 +38,7 @@ const DOCUMENTED_FILE_COUNT = 412;
 /**
  Repeated byte that zstd shrinks far below its source size.
  */
-const COMPRESSIBLE_PAYLOAD = 'a'.repeat(4096,);
+const COMPRESSIBLE_PAYLOAD = 'a'.repeat(4_096,);
 
 /**
  Extension the compressor never reads, because zstd cannot shrink it.
@@ -63,20 +64,130 @@ const RIGHT_TALLY: Tally = {
 };
 
 /**
- Creates a disposable directory under the shared test scratch root.
+ Report of whether a path exists, distinguishing absence from other failures.
  
- @returns absolute path of the new directory
+ @param path - path to probe
+ 
+ @returns `true` when the path exists
+ 
+ @throws when the probe fails for any reason other than absence
  
  @example
  ```ts
- const directory = await createScratchDirectory();
+ await pathExists('/nonexistent');
+ // false
  ```
  */
-async function createScratchDirectory(): Promise<string> {
-  return mkdtemp(join(
+async function pathExists(path: string,): Promise<boolean> {
+  try {
+    await stat(path,);
+    return true;
+  }
+  catch (error) {
+    /**
+     Signals a path that is simply not there, the expected answer.
+     */
+    const isAbsent = Error.isError(error,)
+      && ('code' in error)
+      && (error.code
+        === 'ENOENT');
+    if (isAbsent)
+      return false;
+    throw error;
+  }
+}
+
+/**
+ Sets the `ZSTD_WORKERS` override and returns a handle that unsets it.
+ 
+ @param value - raw override value to install
+ 
+ @returns handle whose disposal removes the override
+ 
+ @example
+ ```ts
+ using override = setWorkerOverride('3');
+ ```
+ */
+function setWorkerOverride(value: string,): Disposable {
+  process.env.ZSTD_WORKERS = value;
+  return {
+    [Symbol.dispose](): void {
+      delete process.env.ZSTD_WORKERS;
+    },
+  };
+}
+
+/**
+ Scratch fixture: a fresh directory plus a writer, removed when the enclosing
+ scope ends.
+ */
+type ScratchFixture = {
+  /**
+   Absolute path of the fixture directory.
+   */
+  readonly path: string;
+  /**
+   Writes a file into the directory and returns its absolute path.
+   */
+  readonly writeFile: (input: {
+    readonly name: string;
+    readonly content: string;
+  },) => Promise<string>;
+  /**
+   Removes the directory and everything in it.
+   */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Creates a scratch fixture under the shared test scratch root.
+ 
+ @returns fixture whose disposal deletes the directory
+ 
+ @example
+ ```ts
+ await using scratch = await createScratchDirectory();
+ ```
+ */
+async function createScratchDirectory(): Promise<ScratchFixture> {
+  /**
+   Directory name minted for this fixture alone.
+   */
+  const path = await mkdtemp(join(
     scratchRoot(),
     'compress-lib-',
   ),);
+
+  return {
+    path,
+    async writeFile(
+      {
+        name,
+        content,
+      },
+    ): Promise<string> {
+      /**
+       Absolute path of the file inside the fixture directory.
+       */
+      const filePath = join(
+        path,
+        name,
+      );
+      await writeFile(
+        filePath,
+        content,
+        'utf8',
+      );
+      return filePath;
+    },
+    async [Symbol.asyncDispose](): Promise<void> {
+      await rm(
+        path,
+        { force: true, recursive: true, },
+      );
+    },
+  };
 }
 
 await describe({
@@ -121,47 +232,39 @@ await describe({
         it({
           name: 'honours a ZSTD_WORKERS override',
           fn: async function honoursOverride(): Promise<void> {
-            process.env['ZSTD_WORKERS'] = '3';
-            try {
-              expect(await resolveWorkerCount({ fileCount: DOCUMENTED_FILE_COUNT, },),).toBe(3,);
-            }
-            finally {
-              delete process.env['ZSTD_WORKERS'];
-            }
+            using override = setWorkerOverride('3',);
+
+            expect(await resolveWorkerCount({ fileCount: DOCUMENTED_FILE_COUNT, },),).toBe(3,);
           },
         },),
         it({
           name: 'caps the override at the file count',
           fn: async function capsOverrideAtFileCount(): Promise<void> {
-            process.env['ZSTD_WORKERS'] = '8';
-            try {
-              expect(await resolveWorkerCount({ fileCount: 2, },),).toBe(2,);
-            }
-            finally {
-              delete process.env['ZSTD_WORKERS'];
-            }
+            using override = setWorkerOverride('8',);
+
+            expect(await resolveWorkerCount({ fileCount: 2, },),).toBe(2,);
           },
         },),
         it({
           name: 'rejects an override that is not a positive integer',
           fn: async function rejectsInvalidOverride(): Promise<void> {
-            process.env['ZSTD_WORKERS'] = '0';
+            using override = setWorkerOverride('0',);
             /**
              Error raised for the unusable override.
              */
-            let caught: unknown;
-            try {
-              await resolveWorkerCount({ fileCount: 10, },);
-            }
-            catch (error) {
-              caught = error;
-            }
-            finally {
-              delete process.env['ZSTD_WORKERS'];
-            }
+            const caught = await (async function catchWorkerError(): Promise<unknown> {
+              try {
+                return await resolveWorkerCount({ fileCount: 10, },);
+              }
+              catch (error) {
+                return error;
+              }
+            })();
 
             expect(caught,).toBeInstanceOf(Error,);
-            expect((caught as Error).message,).toContain('ZSTD_WORKERS',);
+            if (!Error.isError(caught,))
+              throw new Error('Expected resolveWorkerCount to reject the override.',);
+            expect(caught.message,).toContain('ZSTD_WORKERS',);
           },
         },),
         it({
@@ -210,125 +313,71 @@ await describe({
         it({
           name: 'writes a zstd companion for a compressible file',
           fn: async function writesCompanion(): Promise<void> {
-            /**
-             Disposable directory holding the source file.
-             */
-            const directory = await createScratchDirectory();
+            await using scratch = await createScratchDirectory();
             /**
              Path of the compressible source file.
              */
-            const source = join(
-              directory,
-              'page.html',
-            );
-            try {
-              await writeFile(
-                source,
-                COMPRESSIBLE_PAYLOAD,
-                'utf8',
-              );
+            const source = await scratch.writeFile({
+              name: 'page.html',
+              content: COMPRESSIBLE_PAYLOAD,
+            },);
 
-              /**
-               Tally reported for the bucket.
-               */
-              const tally = compressBucket({ files: [source,], },);
+            /**
+             Tally reported for the bucket.
+             */
+            const tally = compressBucket({ files: [source,], },);
+            /**
+             Size of the companion the bucket wrote.
+             */
+            const companionSize = (await readFile(`${source}.zst`,)).length;
 
-              expect(tally,).toEqual({
-                written: 1,
-                skipped: 0,
-                savedBytes: COMPRESSIBLE_PAYLOAD.length
-                  - (await readFile(`${source}.zst`,)).length,
-              },);
-            }
-            finally {
-              await rm(
-                directory,
-                { force: true, recursive: true, },
-              );
-            }
+            expect(tally,).toEqual({
+              written: 1,
+              skipped: 0,
+              savedBytes: COMPRESSIBLE_PAYLOAD.length
+                - companionSize,
+            },);
           },
         },),
         it({
           name: 'skips an extension the compressor cannot shrink',
           fn: async function skipsIncompressibleExtension(): Promise<void> {
-            /**
-             Disposable directory holding the source file.
-             */
-            const directory = await createScratchDirectory();
+            await using scratch = await createScratchDirectory();
             /**
              Path of the source file with an already-compressed extension.
              */
-            const source = join(
-              directory,
-              `image.${INCOMPRESSIBLE_EXTENSION}`,
-            );
-            try {
-              await writeFile(
-                source,
-                COMPRESSIBLE_PAYLOAD,
-                'utf8',
-              );
+            const source = await scratch.writeFile({
+              name: `image.${INCOMPRESSIBLE_EXTENSION}`,
+              content: COMPRESSIBLE_PAYLOAD,
+            },);
 
-              expect(compressBucket({ files: [source,], },),).toEqual({
-                written: 0,
-                skipped: 1,
-                savedBytes: 0,
-              },);
-            }
-            finally {
-              await rm(
-                directory,
-                { force: true, recursive: true, },
-              );
-            }
+            expect(compressBucket({ files: [source,], },),).toEqual({
+              written: 0,
+              skipped: 1,
+              savedBytes: 0,
+            },);
           },
         },),
         it({
           name: 'removes a stale companion before deciding',
           fn: async function removesStaleCompanion(): Promise<void> {
-            /**
-             Disposable directory holding the source and its stale companion.
-             */
-            const directory = await createScratchDirectory();
+            await using scratch = await createScratchDirectory();
             /**
              Path of the source file.
              */
-            const source = join(
-              directory,
-              `image.${INCOMPRESSIBLE_EXTENSION}`,
+            const source = await scratch.writeFile({
+              name: `image.${INCOMPRESSIBLE_EXTENSION}`,
+              content: COMPRESSIBLE_PAYLOAD,
+            },);
+            await writeFile(
+              `${source}.zst`,
+              'stale',
+              'utf8',
             );
-            try {
-              await writeFile(
-                source,
-                COMPRESSIBLE_PAYLOAD,
-                'utf8',
-              );
-              await writeFile(
-                `${source}.zst`,
-                'stale',
-                'utf8',
-              );
 
-              compressBucket({ files: [source,], },);
+            compressBucket({ files: [source,], },);
 
-              /**
-               Contents of the companion after the run, or a marker when it is gone.
-               */
-              let companion = 'present';
-              try {
-                await readFile(`${source}.zst`,);
-              }
-              catch {
-                companion = 'removed';
-              }
-              expect(companion,).toBe('removed',);
-            }
-            finally {
-              await rm(
-                directory,
-                { force: true, recursive: true, },
-              );
-            }
+            expect(await pathExists(`${source}.zst`,),).toBe(false,);
           },
         },),
         it({
