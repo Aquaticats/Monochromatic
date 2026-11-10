@@ -13,6 +13,7 @@ import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 import { isGrammarLibraryName } from './grammar-library-name.ts';
+import { isHexadecimalText } from './hexadecimal-text.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
 const only = process.env.usage_only ? new Set(process.env.usage_only.split(',')) : undefined;
@@ -32,6 +33,8 @@ console.log('BUNDLE_CHECK_ARTIFACT=' + artifact);
 console.log('BUNDLE_CHECK_FILE=' + executable);
 console.log('BUNDLE_CHECK_RUNTIME=' + runtime);
 
+// A git commit id is 40 lowercase hexadecimal characters, which is the only shape a Helix revision takes.
+const helixRevisionLength = 40;
 const demand = ({ condition, message }: { condition: unknown; message: string | undefined }): void => { if (!condition) throw new Error(message); };
 const isFile = (path: string): boolean => { try { return lstatSync(path).isFile(); } catch { return false; } };
 const isDirectory = (path: string): boolean => { try { return lstatSync(path).isDirectory(); } catch { return false; } };
@@ -82,7 +85,7 @@ const checks: Record<string, Check> = {
     demand({ condition: (lstatSync(executable).mode & 0o100) !== 0, message: executable + ' is not executable' });
     demand({ condition: binary().subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])), message: executable + ' is not an ELF executable' });
     const { revision, libraries } = listedGrammars();
-    demand({ condition: typeof revision === 'string' && /^[0-9a-f]{40}$/.test(revision), message: 'runtime/manifest.json does not name the Helix revision' });
+    demand({ condition: typeof revision === 'string' && isHexadecimalText({ text: revision, length: helixRevisionLength }), message: 'runtime/manifest.json does not name the Helix revision' });
     const files = expectedFiles();
     const missing = notEmbedded(files.map(([path]) => path));
     demand({ condition: missing.length === 0, message: 'the executable does not embed ' + missing.length + ' of ' + files.length + ' runtime files byte for byte: ' + missing.slice(0, 8).join(', ') });
