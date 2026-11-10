@@ -14,7 +14,7 @@ justified,
 A `class` declaration or expression passes when **either**:
 
 - The direct superclass identifier ends with a configured suffix,
-   **or**
+   or
 - The class's own name ends with a configured suffix.
 
 Default suffixes:

@@ -747,50 +747,50 @@ Two side findings were audited separately.
 
 ### Finding A: a failed first run with explicit outputs counts as fresh
 
-1. **Upstream's fault?**
-   Yes.
-   `save_checksum`'s comment promises that "a failed run never advances the baseline"
-   (`src/task/task_source_checker.rs:982-984`),
-   but the mtime fallback writes the baseline on the next check
-   when a failed run left outputs newer than sources.
-2. **Can upstream fix it?**
-   Yes;
-   the prototype is below.
-3. **Supported use case?**
-   Yes:
-   explicit `sources` and `outputs` are the documented freshness mechanism
-   (`docs/tasks/task-configuration.md:499-525`),
-   and `e2e/tasks/test_task_source_hash_not_written_on_failure` tests the neighboring case.
-4. **Contribution welcome?**
-   Yes with conditions.
-   `docs/contributing.md:10-18` welcomes AI-assisted responses that the poster reviewed and verified,
-   and bans drive-by AI answers in threads the poster has no connection to.
-   This finding comes from our own use,
-   so it is connected;
-   the comment must disclose assistance.
-   `docs/contributing.md:21-27` asks for a discussion before a non-obvious PR,
-   which the comment serves.
-5. **Likely fixed?**
-   Soft yes.
-   PR #10953 fixed the auto-output case and stated it
-   "intentionally does not change behavior for explicit,
-   user-managed output files";
-   that limits that PR's scope,
-   and no maintainer declined the explicit-output case.
-   The prototype does not change or delete user-managed files,
-   which respects that boundary.
-6. **Prototyped?**
-   Yes:
-   [`mise-dependency-freshness.patch`](mise-dependency-freshness.patch),
-   against tag `v2026.9.12`.
-   It writes a `<task_state_key>-pending` marker in `$MISE_STATE_DIR/task-sources/`
-   immediately before execution
-   (next to the existing `remove_auto_output` calls in `src/task/task_executor.rs`),
-   makes `sources_are_fresh` return stale while the marker exists,
-   and removes it in `save_checksum` after success.
-   The baseline file is untouched,
-   so `task_source_files(only_changed=true)` keeps measuring from the last success.
-   It adds `e2e/tasks/test_task_source_freshness_failed_first_run`.
+1.  **Upstream's fault?**
+    Yes.
+    `save_checksum`'s comment promises that "a failed run never advances the baseline"
+    (`src/task/task_source_checker.rs:982-984`),
+    but the mtime fallback writes the baseline on the next check
+    when a failed run left outputs newer than sources.
+2.  **Can upstream fix it?**
+    Yes;
+    the prototype is below.
+3.  **Supported use case?**
+    Yes:
+    explicit `sources` and `outputs` are the documented freshness mechanism
+    (`docs/tasks/task-configuration.md:499-525`),
+    and `e2e/tasks/test_task_source_hash_not_written_on_failure` tests the neighboring case.
+4.  **Contribution welcome?**
+    Yes with conditions.
+    `docs/contributing.md:10-18` welcomes AI-assisted responses that the poster reviewed and verified,
+    and bans drive-by AI answers in threads the poster has no connection to.
+    This finding comes from our own use,
+    so it is connected;
+    the comment must disclose assistance.
+    `docs/contributing.md:21-27` asks for a discussion before a non-obvious PR,
+    which the comment serves.
+5.  **Likely fixed?**
+    Soft yes.
+    PR #10953 fixed the auto-output case and stated it
+    "intentionally does not change behavior for explicit,
+    user-managed output files";
+    that limits that PR's scope,
+    and no maintainer declined the explicit-output case.
+    The prototype does not change or delete user-managed files,
+    which respects that boundary.
+6.  **Prototyped?**
+    Yes:
+    [`mise-dependency-freshness.patch`](mise-dependency-freshness.patch),
+    against tag `v2026.9.12`.
+    It writes a `<task_state_key>-pending` marker in `$MISE_STATE_DIR/task-sources/`
+    immediately before execution
+    (next to the existing `remove_auto_output` calls in `src/task/task_executor.rs`),
+    makes `sources_are_fresh` return stale while the marker exists,
+    and removes it in `save_checksum` after success.
+    The baseline file is untouched,
+    so `task_source_files(only_changed=true)` keeps measuring from the last success.
+    It adds `e2e/tasks/test_task_source_freshness_failed_first_run`.
 
 Verification of the prototype:
 `cargo build --bin mise` in `docker.io/library/rust:latest`
@@ -863,31 +863,31 @@ This comment was drafted with an AI assistant; I ran the reproduction, the e2e t
 
 ### Finding B: documentation says "oldest output", code compares the newest
 
-1. **Upstream's fault?**
-   Yes:
-   `docs/tasks/task-configuration.md:503-505` and
-   `src/task/task_source_checker.rs:1464` disagree,
-   and the "Verification" experiment follows the code.
-2. **Can upstream fix it?**
-   Yes,
-   in either the docs or the code.
-3. **Supported use case?**
-   Yes,
-   documented behavior.
-4. **Contribution welcome?**
-   Same evidence as finding A.
-5. **Likely fixed?**
-   No signal either way;
-   [jdx/mise#7656](https://github.com/jdx/mise/discussions/7656) shows the maintainers
-   accept output-completeness fixes.
-6. **Prototyped?**
-   No.
-   Which side is intended is a maintainer decision
-   (stricter code versus corrected docs),
-   and the auto-prototype rule's "minimal fix" is undefined until that is known.
-   The audit is incomplete here on purpose:
-   a docs-only diff would assert the lax behavior is intended,
-   and a code diff would change skip behavior for every multi-output task.
+1.  **Upstream's fault?**
+    Yes:
+    `docs/tasks/task-configuration.md:503-505` and
+    `src/task/task_source_checker.rs:1464` disagree,
+    and the "Verification" experiment follows the code.
+2.  **Can upstream fix it?**
+    Yes,
+    in either the docs or the code.
+3.  **Supported use case?**
+    Yes,
+    documented behavior.
+4.  **Contribution welcome?**
+    Same evidence as finding A.
+5.  **Likely fixed?**
+    No signal either way;
+    [jdx/mise#7656](https://github.com/jdx/mise/discussions/7656) shows the maintainers
+    accept output-completeness fixes.
+6.  **Prototyped?**
+    No.
+    Which side is intended is a maintainer decision
+    (stricter code versus corrected docs),
+    and the auto-prototype rule's "minimal fix" is undefined until that is known.
+    The audit is incomplete here on purpose:
+    a docs-only diff would assert the lax behavior is intended,
+    and a code diff would change skip behavior for every multi-output task.
 
 Do not file as-is.
 Low impact for this repository (no repository task uses `outputs`),

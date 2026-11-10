@@ -1874,40 +1874,40 @@ they do not survive a reboot reliably.
 
 ### Needs the owner's decision
 
-1. After a person's merge where every conflicted file resolved,
-   the wrapper stages the files and keeps Git's exit status
-   (the operation is not finished:
-   `git commit`,
-   `--continue`).
-   Finishing the operation itself (`git commit --no-edit`)
-   was not done;
-   it is the broader reading of "accept a file".
-2. `git pull` (its inner merge or rebase) is not covered.
-3. The attribute source is the first side's tip;
-   a merged `.gitattributes` of both sides is not built,
-   and `attr.tree` is overridden.
-4. The merged blobs and trees are written with `git hash-object`,
-   `read-tree`,
-   `update-index` and `write-tree` (the spawns the
-   crate already uses for this),
-   not in process;
-   that is only on the conflict path.
-   Writing loose objects in process is possible
-   (the crate has an inflate and a SHA-1 and SHA-256 already,
-   and `miniz_oxide` can deflate) and would remove those starts.
-5. The 1 MiB and 8000-byte bounds of the candidate test are this implementation's choices.
-6. The replay's journal entries are sent when the merge is used,
-   before the policies run again on the merged tree,
-   so a commit
-   that a policy then refuses still has its entries.
-7. The entries carry the identifier `cli-git` (the wrapper's),
-   also the ones the replay sends from inside `cli-git-service`;
-   the service's own entries carry its own identifier.
-8. A commit through the new executable is about 1.7 ms slower in the median (see "Measurements");
-   the owner's bound
-   (five seconds longer than native Git) holds by three orders of magnitude,
-   but the cause of the 1.7 ms is not isolated.
-9. The corpus holds 41 of the 44 measured inputs and no random-edit comparison against the `jj` binary (see "What was built").
+1.  After a person's merge where every conflicted file resolved,
+    the wrapper stages the files and keeps Git's exit status
+    (the operation is not finished:
+    `git commit`,
+    `--continue`).
+    Finishing the operation itself (`git commit --no-edit`)
+    was not done;
+    it is the broader reading of "accept a file".
+2.  `git pull` (its inner merge or rebase) is not covered.
+3.  The attribute source is the first side's tip;
+    a merged `.gitattributes` of both sides is not built,
+    and `attr.tree` is overridden.
+4.  The merged blobs and trees are written with `git hash-object`,
+    `read-tree`,
+    `update-index` and `write-tree` (the spawns the
+    crate already uses for this),
+    not in process;
+    that is only on the conflict path.
+    Writing loose objects in process is possible
+    (the crate has an inflate and a SHA-1 and SHA-256 already,
+    and `miniz_oxide` can deflate) and would remove those starts.
+5.  The 1 MiB and 8000-byte bounds of the candidate test are this implementation's choices.
+6.  The replay's journal entries are sent when the merge is used,
+    before the policies run again on the merged tree,
+    so a commit
+    that a policy then refuses still has its entries.
+7.  The entries carry the identifier `cli-git` (the wrapper's),
+    also the ones the replay sends from inside `cli-git-service`;
+    the service's own entries carry its own identifier.
+8.  A commit through the new executable is about 1.7 ms slower in the median (see "Measurements");
+    the owner's bound
+    (five seconds longer than native Git) holds by three orders of magnitude,
+    but the cause of the 1.7 ms is not isolated.
+9.  The corpus holds 41 of the 44 measured inputs and no random-edit comparison against the `jj` binary (see "What was built").
 
 ## 2026-11-03T04:16:06-05:00: the finish like a clean run, pull, the attribute tree precedence, Git's bounds, the service's identifier
 
@@ -2056,12 +2056,12 @@ and `--no-commit` of a pick.
 
 ### Needs the owner's decision
 
-1. The ending commit of a merge runs through `git commit`,
-   so `pre-commit` is the hook name where a clean merge runs `pre-merge-commit`.
-2. The 8 MiB bound and the 64 nesting levels are this implementation's choices (measured for the first,
-   not for the second).
-3. One extra Git start for `attr.tree` in an environment the in-process readers decline.
-4. Declining the finish for `pull --autostash` and for `branch.<name>.mergeOptions`.
+1.  The ending commit of a merge runs through `git commit`,
+    so `pre-commit` is the hook name where a clean merge runs `pre-merge-commit`.
+2.  The 8 MiB bound and the 64 nesting levels are this implementation's choices (measured for the first,
+    not for the second).
+3.  One extra Git start for `attr.tree` in an environment the in-process readers decline.
+4.  Declining the finish for `pull --autostash` and for `branch.<name>.mergeOptions`.
 
 ## 2026-11-03T04:45:20-05:00: hooks parity, autostash and mergeOptions, a derived nesting bound, plain environments
 
@@ -2210,13 +2210,13 @@ the in-process attribute probe.
 
 ### Needs the owner's decision
 
-1. If hooks are ever supported:
-   the finished merge runs the hooks of `git commit`,
-   a clean merge those of `git merge` (the hook list under `Hooks`).
-2. The edit to `conclusion_cleanup.rs` is outside the merge paths (a commit-conclusion file);
-   it is small and fixes a defect,
-   but another agent may be editing near it.
-3. A stash whose apply conflicts inside the shadow is not carried back to the real repository.
+1.  If hooks are ever supported:
+    the finished merge runs the hooks of `git commit`,
+    a clean merge those of `git merge` (the hook list under `Hooks`).
+2.  The edit to `conclusion_cleanup.rs` is outside the merge paths (a commit-conclusion file);
+    it is small and fixes a defect,
+    but another agent may be editing near it.
+3.  A stash whose apply conflicts inside the shadow is not carried back to the real repository.
 
 ## 2026-11-03T11:45:26-05:00: the 0.5.28 base merged in, autostash and mergeOptions verified, a pull that merges in isolation
 
@@ -2376,17 +2376,17 @@ tested for the typed merge only.
 
 ### Needs the owner's decision
 
-1. How the stash of a conflicted autostash apply and its unmerged entries are carried back (the ignored control above).
-2. Whether a pull with nothing stated,
-   and `--ff-only`,
-   should also merge in isolation.
-   Git refuses the first with advice and the
-   second with a status;
-   the owner's rule "Auto merging should never fail."
-   could be read to cover both,
-   but each refusal is a
-   deliberate Git choice,
-   so they stay Git's here.
+1.  How the stash of a conflicted autostash apply and its unmerged entries are carried back (the ignored control above).
+2.  Whether a pull with nothing stated,
+    and `--ff-only`,
+    should also merge in isolation.
+    Git refuses the first with advice and the
+    second with a status;
+    the owner's rule "Auto merging should never fail."
+    could be read to cover both,
+    but each refusal is a
+    deliberate Git choice,
+    so they stay Git's here.
 
 ## 2026-11-03T11:59:41-05:00: the coordinator's picks built; the pull split measured
 
@@ -2489,7 +2489,7 @@ A release build was not measured.
 
 ### Needs the owner's decision
 
-1. Whether the pull's queries are to be answered in process to bring a fast-forwarding pull toward native Git's time.
+1.  Whether the pull's queries are to be answered in process to bring a fast-forwarding pull toward native Git's time.
 
 ## 2026-11-03T12:13:49-05:00: the conflict warning reads the content, and the conflicted autostash is carried back
 

@@ -885,27 +885,27 @@ this cannot be checked from this host.
 No,
 for four separate reasons.
 
-1. It did not leave time for registration.
-   The workflow landed at 00:49:25,
-   its
-   own native run started at 00:49:30 and ended at 00:50:03,
-   and the only
-   matching push was at 00:49:35.
-   The probe tested a ten-second window with no
-   documented latency bound,
-   against a native run that stayed open for 33
-   seconds.
-2. It observed the wrong object.
-   `depot ci workflow list` lists executions.
-   An
-   empty result cannot establish that a trigger is unregistered.
-3. It deleted the workflow before any later push could exercise a registration
-   that completed after the marker push.
-4. The trigger push produced no run record at all.
-   A missing run is a different
-   observation from a run with no matching workflow,
-   and the probe did not
-   isolate which one occurred.
+1.  It did not leave time for registration.
+    The workflow landed at 00:49:25,
+    its
+    own native run started at 00:49:30 and ended at 00:50:03,
+    and the only
+    matching push was at 00:49:35.
+    The probe tested a ten-second window with no
+    documented latency bound,
+    against a native run that stayed open for 33
+    seconds.
+2.  It observed the wrong object.
+    `depot ci workflow list` lists executions.
+    An
+    empty result cannot establish that a trigger is unregistered.
+3.  It deleted the workflow before any later push could exercise a registration
+    that completed after the marker push.
+4.  The trigger push produced no run record at all.
+    A missing run is a different
+    observation from a run with no matching workflow,
+    and the probe did not
+    isolate which one occurred.
 
 The probe also generalized from one push while the repository already contained
 a successful native `pull_request` control.
@@ -961,65 +961,65 @@ and a check from app `depot-code-access`.
 
 ### Arm 1: push trigger, workflow landed by pull-request merge
 
-1. Confirm the app:
-   run `depot ci migrate preflight --org l4zncjjbj5` and record
-   the exact output.
-   Confirm no native run is queued or running with `depot ci
-   run list --status queued --status running`.
-2. Create a branch.
-   Add `.depot/workflows/registration-control.yml` with the
-   content below.
-   Do not add the marker file in this commit,
-   so the merge push
-   cannot match the paths filter.
+1.  Confirm the app:
+    run `depot ci migrate preflight --org l4zncjjbj5` and record
+    the exact output.
+    Confirm no native run is queued or running with `depot ci
+    run list --status queued --status running`.
+2.  Create a branch.
+    Add `.depot/workflows/registration-control.yml` with the
+    content below.
+    Do not add the marker file in this commit,
+    so the merge push
+    cannot match the paths filter.
 
-   ```yaml
-   name: registration-control
-   on:
-     push:
-       branches: [main]
-       paths: ['probe/registration-control.txt']
-   permissions:
-     contents: read
-   jobs:
-     probe:
-       runs-on: depot-ubuntu-24.04
-       timeout-minutes: 2
-       steps:
-         - run: echo "$GITHUB_EVENT_NAME $GITHUB_SHA"
-   ```
+    ```yaml
+    name: registration-control
+    on:
+      push:
+        branches: [main]
+        paths: ['probe/registration-control.txt']
+    permissions:
+      contents: read
+    jobs:
+      probe:
+        runs-on: depot-ubuntu-24.04
+        timeout-minutes: 2
+        steps:
+          - run: echo "$GITHUB_EVENT_NAME $GITHUB_SHA"
+    ```
 
-3. Open a pull request and merge it.
-   Record the merge commit SHA and merge time.
-   Wait until any native run for the merge SHA is terminal.
-   Do not push anything
-   else.
-4. Wait at least five additional minutes.
-   The native run for the add push in the
-   failed probe stayed open for 33 seconds;
-   five minutes gives an
-   order-of-magnitude margin without inventing an SLA.
-5. Push one commit that changes only `probe/registration-control.txt` (for
-   example,
-   a timestamp line).
-   Ensure no other push reaches the repository
-   within the next five minutes.
-6. Observe,
-   in this order:
-   - `depot ci run list --repo Aquaticats/Monochromatic --sha <marker sha>
-     --status queued --status running --status finished --status failed
-     --status cancelled` (all statuses explicitly;
-     the default hides finished
-     runs).
-   - `depot ci workflow list --repo Aquaticats/Monochromatic --sha <marker sha>
-     --output json`.
-   - `depot ci status <run-id>` if a run exists.
-   - `gh api repos/Aquaticats/Monochromatic/commits/<marker sha>/check-runs`
-     and look for a Depot check named `registration-control / <job>`.
-7. If nothing appears,
-   wait ten minutes and push a second marker commit.
-   This
-   separates latency from a one-off dropped event.
+3.  Open a pull request and merge it.
+    Record the merge commit SHA and merge time.
+    Wait until any native run for the merge SHA is terminal.
+    Do not push anything
+    else.
+4.  Wait at least five additional minutes.
+    The native run for the add push in the
+    failed probe stayed open for 33 seconds;
+    five minutes gives an
+    order-of-magnitude margin without inventing an SLA.
+5.  Push one commit that changes only `probe/registration-control.txt` (for
+    example,
+    a timestamp line).
+    Ensure no other push reaches the repository
+    within the next five minutes.
+6.  Observe,
+    in this order:
+    - `depot ci run list --repo Aquaticats/Monochromatic --sha <marker sha>
+      --status queued --status running --status finished --status failed
+      --status cancelled` (all statuses explicitly;
+      the default hides finished
+      runs).
+    - `depot ci workflow list --repo Aquaticats/Monochromatic --sha <marker sha>
+      --output json`.
+    - `depot ci status <run-id>` if a run exists.
+    - `gh api repos/Aquaticats/Monochromatic/commits/<marker sha>/check-runs`
+      and look for a Depot check named `registration-control / <job>`.
+7.  If nothing appears,
+    wait ten minutes and push a second marker commit.
+    This
+    separates latency from a one-off dropped event.
 
 Expected result if the documented path works:
 a push-triggered run whose

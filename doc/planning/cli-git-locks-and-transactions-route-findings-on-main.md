@@ -374,27 +374,27 @@ its refs and its lock live in the `reftable` directory of the Git directory
 
 The sequence:
 
-1. A reftable repository is in use.
-   It is a supported configuration:
-   `package/git-policy/cli/SPEC.md:7015` says the container end-to-end suite covers reftable.
-2. A Git process is killed at any instruction while it holds the reftable lock
-   (the closed terminal,
-   the out-of-memory killer,
-   a reboot;
-   `AGENTS.md` rule `NHP`).
-   It leaves `.git/reftable/tables.list.lock`.
-3. Any later command that writes a ref fails:
-   `git update-ref` exits 128 with `fatal: update_ref failed for ref 'refs/heads/probe': cannot lock references`,
-   and `git commit` exits 128 with `fatal: cannot lock references`
-   (quoted in "Reproductions").
-4. The wrapper judges and clears before a forwarded `fetch` or `push`
-   (`lock/forwarded_lock_notice.rs:50-70`),
-   and it finds nothing:
-   the lock is not a candidate,
-   so it is neither removed nor named.
-   No notice,
-   no path,
-   no `rm` line reaches the person.
+1.  A reftable repository is in use.
+    It is a supported configuration:
+    `package/git-policy/cli/SPEC.md:7015` says the container end-to-end suite covers reftable.
+2.  A Git process is killed at any instruction while it holds the reftable lock
+    (the closed terminal,
+    the out-of-memory killer,
+    a reboot;
+    `AGENTS.md` rule `NHP`).
+    It leaves `.git/reftable/tables.list.lock`.
+3.  Any later command that writes a ref fails:
+    `git update-ref` exits 128 with `fatal: update_ref failed for ref 'refs/heads/probe': cannot lock references`,
+    and `git commit` exits 128 with `fatal: cannot lock references`
+    (quoted in "Reproductions").
+4.  The wrapper judges and clears before a forwarded `fetch` or `push`
+    (`lock/forwarded_lock_notice.rs:50-70`),
+    and it finds nothing:
+    the lock is not a candidate,
+    so it is neither removed nor named.
+    No notice,
+    no path,
+    no `rm` line reaches the person.
 
 The wrong result:
 a repository that cannot take a commit at all,
@@ -450,24 +450,24 @@ and the worktree-copy journals and stage claims.
 The sequence,
 first direction:
 
-1. A command runs in a container,
-   or on another host that shares the repository,
-   and writes a claim or an intent record into it.
-   Its record is written once and never rewritten,
-   so the file's time is the whole hold.
-2. The host's clock is stepped back,
-   or the record was written by a machine whose clock is ahead,
-   or a copy preserved a future time.
-   The record's modification time is now later than the reader's clock.
-3. The command dies.
-4. Every later command that reads the record gets `Ok(())` from `foreign_owner_standing`,
-   which means "a live owner",
-   and never reaches the age comparison that would refuse it.
-   A conversion or migration of that checkout is refused with
-   "process N is migrating the main checkout ... wait for it to finish"
-   (`worktree/worktree_convert_inspection.rs:229`);
-   an interrupted merge is never settled,
-   because `merge_intents_to_recover` (`merge/merge_isolation_recovery.rs:78`) skips it.
+1.  A command runs in a container,
+    or on another host that shares the repository,
+    and writes a claim or an intent record into it.
+    Its record is written once and never rewritten,
+    so the file's time is the whole hold.
+2.  The host's clock is stepped back,
+    or the record was written by a machine whose clock is ahead,
+    or a copy preserved a future time.
+    The record's modification time is now later than the reader's clock.
+3.  The command dies.
+4.  Every later command that reads the record gets `Ok(())` from `foreign_owner_standing`,
+    which means "a live owner",
+    and never reaches the age comparison that would refuse it.
+    A conversion or migration of that checkout is refused with
+    "process N is migrating the main checkout ... wait for it to finish"
+    (`worktree/worktree_convert_inspection.rs:229`);
+    an interrupted merge is never settled,
+    because `merge_intents_to_recover` (`merge/merge_isolation_recovery.rs:78`) skips it.
 
 The wrong result:
 the person is told a process is working right now,
@@ -482,14 +482,14 @@ the age and the `rm`;
 The sequence,
 second direction:
 
-1. A record of another namespace is older than the patience
-   because its owner is a long command
-   (the claim is taken at the start of the whole conversion or migration),
-   or because this reader's clock is ahead of the record's.
-2. The owner is alive.
-3. The reader refuses,
-   says the record is past the patience,
-   and gives `rm -- '<record>'` for a person who finds "no monochromatic-git-policy-cli command running".
+1.  A record of another namespace is older than the patience
+    because its owner is a long command
+    (the claim is taken at the start of the whole conversion or migration),
+    or because this reader's clock is ahead of the record's.
+2.  The owner is alive.
+3.  The reader refuses,
+    says the record is past the patience,
+    and gives `rm -- '<record>'` for a person who finds "no monochromatic-git-policy-cli command running".
 
 The wrong result:
 a live holder told its record is expired,
@@ -534,18 +534,18 @@ while the lock file's stored change time does not;
 The sequence,
 first direction:
 
-1. Another program's Git holds `index.lock` with `core.lockfilePid` on,
-   so `index~pid.lock` names it.
-2. The wall clock steps forward (an NTP correction,
-   a person's `date`,
-   a dual-boot machine).
-3. The holder's derived start is now an hour later than the lock's change time,
-   so the evidence classifies as `EvidenceFree`.
-4. A commit's landing waits the whole `LANDING_LOCK_CEILING`,
-   then withdraws the commit and keeps it on a side ref
-   (`SPEC.md` "Every wait has a bound",
-   line 2730);
-   a merge waits `MERGE_LOCK_CEILING` and then meets Git's own refusal.
+1.  Another program's Git holds `index.lock` with `core.lockfilePid` on,
+    so `index~pid.lock` names it.
+2.  The wall clock steps forward (an NTP correction,
+    a person's `date`,
+    a dual-boot machine).
+3.  The holder's derived start is now an hour later than the lock's change time,
+    so the evidence classifies as `EvidenceFree`.
+4.  A commit's landing waits the whole `LANDING_LOCK_CEILING`,
+    then withdraws the commit and keeps it on a side ref
+    (`SPEC.md` "Every wait has a bound",
+    line 2730);
+    a merge waits `MERGE_LOCK_CEILING` and then meets Git's own refusal.
 
 The wrong result:
 a commit that would have landed fails,
@@ -554,16 +554,16 @@ and nothing in the message says that a clock step is why.
 The sequence,
 second direction:
 
-1. A Git was killed holding `index.lock`,
-   and its `index~pid.lock` names a PID that has since been reused
-   by a process that is not a Git.
-2. The wall clock steps back,
-   so the young process's derived start lands before the lock's change time.
-3. The evidence proves a live holder that does not exist.
-4. Every attempt waits the whole ceiling,
-   and the ceiling line names that process
-   ("PID N (proven by its Git lock PID file)") and says to run the command again once it is done,
-   which never happens.
+1.  A Git was killed holding `index.lock`,
+    and its `index~pid.lock` names a PID that has since been reused
+    by a process that is not a Git.
+2.  The wall clock steps back,
+    so the young process's derived start lands before the lock's change time.
+3.  The evidence proves a live holder that does not exist.
+4.  Every attempt waits the whole ceiling,
+    and the ceiling line names that process
+    ("PID N (proven by its Git lock PID file)") and says to run the command again once it is done,
+    which never happens.
 
 The wrong result:
 a minute of waiting on every attempt,
@@ -615,17 +615,17 @@ Two facts make the pair not an identity:
 The sequence,
 first direction:
 
-1. A landing,
-   merge or reconciliation is about to take `index.lock`
-   whose inode number is shared with a file in another subvolume.
-2. Any process on the host holds that other file open.
-3. The scan reports it as a holder of the lock,
-   and the verdict is `ProvenAlive { by_descriptor: true }`
-   with the lock named,
-   the process named,
-   and its command.
-4. The wait runs its whole ceiling and fails,
-   with a statement that the person's lock is held by a process that has nothing to do with it.
+1.  A landing,
+    merge or reconciliation is about to take `index.lock`
+    whose inode number is shared with a file in another subvolume.
+2.  Any process on the host holds that other file open.
+3.  The scan reports it as a holder of the lock,
+    and the verdict is `ProvenAlive { by_descriptor: true }`
+    with the lock named,
+    the process named,
+    and its command.
+4.  The wait runs its whole ceiling and fails,
+    with a statement that the person's lock is held by a process that has nothing to do with it.
 
 The wrong result:
 a minute of waiting per attempt and a false accusation,
@@ -637,17 +637,17 @@ because a `sleep` held a file with the same inode number in another subvolume.
 The sequence,
 second direction:
 
-1. A live Git has created `index.lock` and not yet written the index into it.
-2. It reached the lock through a bind mount,
-   so the descriptor's mount number differs from the lock's.
-3. The scan finds no holder.
-4. The service's unheld removal (`landing/service_index_unheld_removal.rs:146-215`) removes the empty lock,
-   because its proof is precisely "no PID file,
-   no holder the scan sees".
-5. The live Git's later rename of its lock into place either fails,
-   or,
-   when another writer has put a lock at the path meanwhile,
-   installs that writer's file as the index.
+1.  A live Git has created `index.lock` and not yet written the index into it.
+2.  It reached the lock through a bind mount,
+    so the descriptor's mount number differs from the lock's.
+3.  The scan finds no holder.
+4.  The service's unheld removal (`landing/service_index_unheld_removal.rs:146-215`) removes the empty lock,
+    because its proof is precisely "no PID file,
+    no holder the scan sees".
+5.  The live Git's later rename of its lock into place either fails,
+    or,
+    when another writer has put a lock at the path meanwhile,
+    installs that writer's file as the index.
 
 The wrong result:
 staged content replaced by another writer's half-written index.
@@ -1099,21 +1099,21 @@ and the verdict is a live holder of the lock.
 Inspect,
 in this order:
 
-1. the reproduction of finding 1,
-   against `lock/stale_ref_lock_walk.rs:89-110`
-   and `lock/forwarded_lock_notice.rs:50-70`,
-   and the plain-Git block that shows the commit failing;
-2. the two directions of finding 2,
-   against `process/pid_namespace.rs:151-168` and `:263-270`;
-3. findings 3 and 4,
-   against `process/process_start.rs:187`,
-   `lock/index_lock_evidence.rs:280-300`
-   and `lock/index_lock_holders.rs:144-200`,
-   with the two probes under "Reproductions";
-4. finding 5,
-   against `doc/decision/cli-git-concurrent-commits.md:166`;
-5. the inventory and "What I checked and found sound",
-   which say what a redesign would have to keep.
+1.  the reproduction of finding 1,
+    against `lock/stale_ref_lock_walk.rs:89-110`
+    and `lock/forwarded_lock_notice.rs:50-70`,
+    and the plain-Git block that shows the commit failing;
+2.  the two directions of finding 2,
+    against `process/pid_namespace.rs:151-168` and `:263-270`;
+3.  findings 3 and 4,
+    against `process/process_start.rs:187`,
+    `lock/index_lock_evidence.rs:280-300`
+    and `lock/index_lock_holders.rs:144-200`,
+    with the two probes under "Reproductions";
+4.  finding 5,
+    against `doc/decision/cli-git-concurrent-commits.md:166`;
+5.  the inventory and "What I checked and found sound",
+    which say what a redesign would have to keep.
 
 Respond with a decision per finding,
 and,

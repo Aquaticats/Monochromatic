@@ -19,6 +19,8 @@ import type {
   Replacement,
 } from '../types.ts';
 
+//region Swap tables
+
 /**
  Arithmetic operator swap table, mirroring Stryker's ArithmeticOperator.
  */
@@ -65,6 +67,10 @@ const LOGICAL_SWAPS: Readonly<Record<string, string>> = {
   '||': '&&',
   '??': '&&',
 };
+
+//endregion Swap tables
+
+//region Token replacement
 
 /**
  Builds one token-span replacement for a binary-like expression.
@@ -113,6 +119,10 @@ function tokenSwap(options: {
     description: `swapped ${options.currentToken} with ${options.newToken}`,
   };
 }
+
+//endregion Token replacement
+
+//region Operator emission
 
 /**
  Emits operator swaps for one BinaryExpression or LogicalExpression.
@@ -196,3 +206,5 @@ export function binaryOperatorReplacements(options: {
 
   return [];
 }
+
+//endregion Operator emission

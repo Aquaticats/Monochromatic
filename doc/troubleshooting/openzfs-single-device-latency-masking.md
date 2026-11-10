@@ -298,26 +298,26 @@ The current documentation explains ARC,
 transaction delay,
 and ZIO scheduling directly.
 
-1. **Is it upstream’s fault?**
-   No.
-   The capability is bounded by cache hits,
+1.  **Is it upstream’s fault?**
+    No.
+    The capability is bounded by cache hits,
 durability semantics,
 and backend throughput as documented.
-2. **Can upstream fix it?**
-   Not as a general guarantee.
-   Software cannot make every cold or durable operation complete independently of its only storage device.
-3. **Are they supporting this use case?**
-   Yes.
-   OpenZFS documents ARC,
+2.  **Can upstream fix it?**
+    Not as a general guarantee.
+    Software cannot make every cold or durable operation complete independently of its only storage device.
+3.  **Are they supporting this use case?**
+    Yes.
+    OpenZFS documents ARC,
 write throttling,
 and foreground/background I/O scheduling as supported mechanisms.
-4. **Would the repository welcome a contribution?**
-   Not applicable because no defect or documentation omission was established.
-   The repository contains bug and feature templates and no AI-specific prohibition was found.
-5. **Will they likely fix it?**
-   Not applicable because no fixable defect was identified.
-6. **Has a minimal fix been prototyped?**
-   No.
-   The investigation found an evaluation-rubric omission rather than an OpenZFS implementation bug.
+4.  **Would the repository welcome a contribution?**
+    Not applicable because no defect or documentation omission was established.
+    The repository contains bug and feature templates and no AI-specific prohibition was found.
+5.  **Will they likely fix it?**
+    Not applicable because no fixable defect was identified.
+6.  **Has a minimal fix been prototyped?**
+    No.
+    The investigation found an evaluation-rubric omission rather than an OpenZFS implementation bug.
 
 Nothing should be filed or posted upstream.

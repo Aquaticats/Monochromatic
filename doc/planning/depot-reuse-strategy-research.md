@@ -778,6 +778,7 @@ not a complete normalized Android rebuild or proof of whole-APK byte reproducibi
 - [Gradle 9.8.1 cache model](https://docs.gradle.org/9.8.1/userguide/build_cache.html)
 - [Gradle task-specific reruns](https://docs.gradle.org/9.8.1/userguide/command_line_interface.html#sec:rerun_tasks)
 - [Nextest 0.9.148 release](https://github.com/nextest-rs/nextest/releases/tag/cargo-nextest-0.9.148)
+
 ## Frozen Kotlin authored-test identity join
 
 The [Kotlin owner projection](../audit/depot-kotlin-gradle-owner-join-2026-10-18.evidence.json)

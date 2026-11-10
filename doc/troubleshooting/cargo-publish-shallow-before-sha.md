@@ -285,22 +285,22 @@ A landing procedure can also avoid the trigger:
 
 ## Upstream filing decision
 
-1. Upstream's fault:
-   no.
-   `actions/checkout` fetches the documented number of commits;
-   the assumption that `before` is within them was this repository's.
-2. Upstream can fix it:
-   not applicable.
-3. Supported use case:
-   not applicable.
-4. Contribution welcome:
-   not checked,
-   since nothing is filed.
-5. Likely to fix:
-   not applicable.
-6. Prototyped fix:
-   the fix is in this repository's workflow,
-   verified by the harness.
+1.  Upstream's fault:
+    no.
+    `actions/checkout` fetches the documented number of commits;
+    the assumption that `before` is within them was this repository's.
+2.  Upstream can fix it:
+    not applicable.
+3.  Supported use case:
+    not applicable.
+4.  Contribution welcome:
+    not checked,
+    since nothing is filed.
+5.  Likely to fix:
+    not applicable.
+6.  Prototyped fix:
+    the fix is in this repository's workflow,
+    verified by the harness.
 
 `.out-of-scope/` was not consulted because no upstream filing is proposed.
 Nothing to file.

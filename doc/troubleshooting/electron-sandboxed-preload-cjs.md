@@ -84,24 +84,24 @@ main bundle from the shared outDir;
 `.out-of-scope/` was checked:
  no Electron exemption exists.
 
-1. Really upstream's fault?
-    No;
-    documented architectural restriction of the sandbox.
-2. Can upstream fix it?
-    It is a stated design constraint,
-    not a defect.
-3. Supported use case?
-    Yes;
-    the docs describe exactly the CJS-preload-with-sandbox pattern.
-4. Would the repo welcome the contribution?
-    Not evaluated;
-    constraint 1 fails.
-5. Will they likely fix it?
-    Tracked as an Electron design topic,
-    not something this repo needs.
-6. Prototyped minimal fix?
-    Not applicable;
-    supported pattern used.
+1.  Really upstream's fault?
+     No;
+     documented architectural restriction of the sandbox.
+2.  Can upstream fix it?
+     It is a stated design constraint,
+     not a defect.
+3.  Supported use case?
+     Yes;
+     the docs describe exactly the CJS-preload-with-sandbox pattern.
+4.  Would the repo welcome the contribution?
+     Not evaluated;
+     constraint 1 fails.
+5.  Will they likely fix it?
+     Tracked as an Electron design topic,
+     not something this repo needs.
+6.  Prototyped minimal fix?
+     Not applicable;
+     supported pattern used.
 
 Decision:
  nothing to file.

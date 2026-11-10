@@ -260,22 +260,12 @@ Across the auto-mode package,
 
 `README.md`:
 
-<table>
-<thead>
-<tr>
-<th>Aspect</th>
-<th>pi-safeguard</th>
-<th>pi-auto-mode</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Verdict extraction</td>
-<td>`parseVerdict(text)`</td>
-<td>Read `toolCall.arguments` directly</td>
-</tr>
-</tbody>
-</table>
+- Aspect:
+  Verdict extraction;
+  pi-safeguard:
+  `parseVerdict(text)`;
+  pi-auto-mode:
+  Read `toolCall.arguments` directly
 
 `judge-stream.ts:73-77`:
 

@@ -375,18 +375,18 @@ No upstream report is filed or drafted as ready.
 The `.out-of-scope/` entries contain no Android Emulator lock exemption,
 but the observed cleanup followed a forced stop of a private writable fixture:
 
-1. An emulator fault is not isolated from the local forced-stop lifecycle.
-2. An upstream cleanup change may be possible,
-   but the installed binary's source identity and failed lock condition are
-   not established.
-3. Normal writable AVD startup is supported;
-   this failed post-`SIGKILL` state is not proven to be a supported
-   recovery guarantee.
-4. Contribution policy for the responsible source revision was not audited.
-5. No Android Emulator maintainer response to this exact case was
-   established;
-   the separate automation issue is not the emulator's upstream tracker.
-6. No upstream patch or source-level positive control was built.
+1.  An emulator fault is not isolated from the local forced-stop lifecycle.
+2.  An upstream cleanup change may be possible,
+    but the installed binary's source identity and failed lock condition are
+    not established.
+3.  Normal writable AVD startup is supported;
+    this failed post-`SIGKILL` state is not proven to be a supported
+    recovery guarantee.
+4.  Contribution policy for the responsible source revision was not audited.
+5.  No Android Emulator maintainer response to this exact case was
+    established;
+    the separate automation issue is not the emulator's upstream tracker.
+6.  No upstream patch or source-level positive control was built.
 
 ### Draft, do not file as-is
 

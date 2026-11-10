@@ -35,6 +35,8 @@
 import { positionAt, } from './lines.ts';
 import type { OperatorName, } from './types.ts';
 
+//region Directive syntax
+
 /**
  Next-line directive prefix inside a comment's text.
  */
@@ -88,6 +90,10 @@ function isFamilyName(name: string,): name is OperatorName {
   return FAMILY_NAMES.has(name,);
 }
 
+//endregion Directive syntax
+
+//region Rule and comment shapes
+
 /**
  One parsed suppression rule.
 
@@ -136,6 +142,10 @@ type TailRead = {
   readonly value: string;
   readonly index: number;
 };
+
+//endregion Rule and comment shapes
+
+//region Tail scanning
 
 /**
  Returns whether one character is whitespace; the empty string past the end
@@ -261,6 +271,10 @@ function readFamilyName(position: TailPosition,): TailRead {
     index: next,
   };
 }
+
+//endregion Tail scanning
+
+//region Replacement reading
 
 /**
  Reads a replacement written as a JSON string literal.
@@ -453,6 +467,10 @@ function readReplacement(position: TailPosition,): TailRead {
     : readBareReplacement(position,);
 }
 
+//endregion Replacement reading
+
+//region Directive parsing
+
 /**
  Reads one family entry, with its replacement when a colon follows the name.
 
@@ -639,6 +657,10 @@ function foldEntries(entries: readonly DirectiveEntry[],): Pick<SuppressionRule,
   };
 }
 
+//endregion Directive parsing
+
+//region Rule extraction
+
 /**
  Parses suppression rules out of a file's comments.
 
@@ -698,6 +720,10 @@ export function suppressionRules(options: {
     },);
 }
 
+//endregion Rule extraction
+
+//region Rule matching
+
 /**
  Finds every suppression rule covering one mutant.
 
@@ -745,3 +771,5 @@ export function matchingSuppressions(options: {
         || restricted.has(options.replacement,);
     },);
 }
+
+//endregion Rule matching

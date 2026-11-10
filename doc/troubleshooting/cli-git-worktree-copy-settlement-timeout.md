@@ -459,30 +459,30 @@ and searches across open and closed issues and pull requests in
 
 The six constraints resolve as follows:
 
-1. **Is it really upstream's fault?
-   **
-   No external upstream exists.
-   The defect was this repository's applicability boundary.
-2. **Can upstream fix it?
-   **
-   The owned implementation was fixed by comparing canonical invocation-specific Git and common directories.
-3. **Are they supporting this use case?
-   **
-   Yes.
-   Cli-git already classifies main and linked worktrees for other safeguards.
-4. **Would the repo welcome our contribution?
-   **
-   This is the owning repository,
-   with no external contribution or AI-assistance policy boundary involved.
-5. **Will they likely fix it?
-   **
-   The fix and regression test are committed locally.
-6. **Have we prototyped a minimal compatible fix?
-   **
-   Yes.
-   The built artifact fails before the gate,
-   passes after it,
-   and retains linked-source and bare-source coverage.
+1.  **Is it really upstream's fault?
+    **
+    No external upstream exists.
+    The defect was this repository's applicability boundary.
+2.  **Can upstream fix it?
+    **
+    The owned implementation was fixed by comparing canonical invocation-specific Git and common directories.
+3.  **Are they supporting this use case?
+    **
+    Yes.
+    Cli-git already classifies main and linked worktrees for other safeguards.
+4.  **Would the repo welcome our contribution?
+    **
+    This is the owning repository,
+    with no external contribution or AI-assistance policy boundary involved.
+5.  **Will they likely fix it?
+    **
+    The fix and regression test are committed locally.
+6.  **Have we prototyped a minimal compatible fix?
+    **
+    Yes.
+    The built artifact fails before the gate,
+    passes after it,
+    and retains linked-source and bare-source coverage.
 
 Nothing should be posted to an external upstream.
 The repository commits and this troubleshooting record are the filing artifact.

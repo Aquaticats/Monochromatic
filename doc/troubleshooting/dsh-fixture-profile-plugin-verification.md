@@ -6,20 +6,20 @@ Booting a disposable fixture profile
 (`dsh --profile <fixture> --from-default-profile headless`)
 to verify a plugin bundle fails in two independent ways.
 
-1. Silent tool-surface gap:
-   `cordis_inspect_list` and `cordis_inspect_query` are absent
-   from the fixture session's tool surface.
-   No error is raised;
-   the checklist steps that call them cannot start,
-   and the fixture agent reports the tools as missing.
-2. Route credential failures while the fixture's own agent boots,
-   with three verbatim variants:
+1.  Silent tool-surface gap:
+    `cordis_inspect_list` and `cordis_inspect_query` are absent
+    from the fixture session's tool surface.
+    No error is raised;
+    the checklist steps that call them cannot start,
+    and the fixture agent reports the tools as missing.
+2.  Route credential failures while the fixture's own agent boots,
+    with three verbatim variants:
 
-   `dsh: MISSING_CREDENTIAL: llm-deepseek: no API key for provider route "deepseek-official"; store DEEPSEEK_API_KEY through the credentials service (the web Models page writes it), or export DEEPSEEK_API_KEY in the launching environment`
+    `dsh: MISSING_CREDENTIAL: llm-deepseek: no API key for provider route "deepseek-official"; store DEEPSEEK_API_KEY through the credentials service (the web Models page writes it), or export DEEPSEEK_API_KEY in the launching environment`
 
-   `dsh: MISSING_CREDENTIAL: llm-pi-ai: no credential for provider route "opencode-go"; its profile resolves OPENCODE_GO_API_KEY, which is not set — store OPENCODE_GO_API_KEY through the credentials service (the web Models page writes it) or export it, and remove apiKeyEnv only if this provider should authenticate from pi-ai's own environment discovery`
+    `dsh: MISSING_CREDENTIAL: llm-pi-ai: no credential for provider route "opencode-go"; its profile resolves OPENCODE_GO_API_KEY, which is not set — store OPENCODE_GO_API_KEY through the credentials service (the web Models page writes it) or export it, and remove apiKeyEnv only if this provider should authenticate from pi-ai's own environment discovery`
 
-   `dsh: PI_AI_ERROR: Provider is not configured: opencode-go`
+    `dsh: PI_AI_ERROR: Provider is not configured: opencode-go`
 
 Surface triggers:
 a fixture created from the `headless` template,
@@ -144,17 +144,17 @@ Catalog that works cleanly:
 Catalog that fails,
 by variant:
 
-1. Boot without exported route keys
-   and without an overlay:
-   `MISSING_CREDENTIAL` for `deepseek-official`.
-2. Overlay declaring `apiKeyEnv: OPENCODE_GO_API_KEY`
-   without exporting it:
-   `MISSING_CREDENTIAL` for `opencode-go`.
-3. The same overlay with `apiKeyEnv` removed:
-   `PI_AI_ERROR: Provider is not configured: opencode-go`.
-4. Any boot without the three inserted rows:
-   the inspect tools are silently absent
-   from the session tool surface.
+1.  Boot without exported route keys
+    and without an overlay:
+    `MISSING_CREDENTIAL` for `deepseek-official`.
+2.  Overlay declaring `apiKeyEnv: OPENCODE_GO_API_KEY`
+    without exporting it:
+    `MISSING_CREDENTIAL` for `opencode-go`.
+3.  The same overlay with `apiKeyEnv` removed:
+    `PI_AI_ERROR: Provider is not configured: opencode-go`.
+4.  Any boot without the three inserted rows:
+    the inspect tools are silently absent
+    from the session tool surface.
 
 ## Verified workarounds
 
@@ -235,31 +235,31 @@ which do not resolve the live profile's store.
 `codex-harness.md`,
 and the other listed exemptions).
 
-1. Is it really upstream's fault?
-   No.
-   Both behaviors are documented design:
-   the mounting rule is explicit
-   in `@deepseek-ai/dsh-tool-cordis/README.md:28`,
-   and the credential diagnostics state their resolution order.
-   The friction came from our fixture plan
-   assuming inspect tools and shared credentials.
-2. Can upstream fix it?
-   Not applicable.
-   There is no defect,
-   only documentation we misread.
-3. Are they supporting this use case?
-   Yes.
-   The plugin-development and composition skills
-   describe fixture and bundle verification,
-   and the READMEs above describe the row requirements.
-4. Would the repo welcome our contribution?
-   Not applicable while no defect is filed.
-5. Will they likely fix it?
-   Not applicable.
-6. Have we prototyped a minimal fix?
-   Not applicable;
-   the consumer-side workaround above
-   is the complete fix on our side.
+1.  Is it really upstream's fault?
+    No.
+    Both behaviors are documented design:
+    the mounting rule is explicit
+    in `@deepseek-ai/dsh-tool-cordis/README.md:28`,
+    and the credential diagnostics state their resolution order.
+    The friction came from our fixture plan
+    assuming inspect tools and shared credentials.
+2.  Can upstream fix it?
+    Not applicable.
+    There is no defect,
+    only documentation we misread.
+3.  Are they supporting this use case?
+    Yes.
+    The plugin-development and composition skills
+    describe fixture and bundle verification,
+    and the READMEs above describe the row requirements.
+4.  Would the repo welcome our contribution?
+    Not applicable while no defect is filed.
+5.  Will they likely fix it?
+    Not applicable.
+6.  Have we prototyped a minimal fix?
+    Not applicable;
+    the consumer-side workaround above
+    is the complete fix on our side.
 
 Outcome:
 do not file.

@@ -249,33 +249,33 @@ then-current upgrade variable resolved it.
 [danny-avila/LibreChat#9812](https://github.com/danny-avila/LibreChat/discussions/9812)
 points operators to LibreChat's reset synchronization procedure.
 
-1. **Is it really upstream's fault?**
-    No. Meilisearch intentionally prevents a
-   different engine version from opening a versioned database without an
-   explicit migration request.
-2. **Can upstream fix it?**
-    The supported upgrade path already exists through
-   `MEILI_UPGRADE_DB` or a dump.
-3. **Are they supporting this use case?**
-    Yes.
-    Meilisearch documents both
-   upgrade methods,
-    and LibreChat documents rebuilding search from MongoDB.
-4. **Would the repo welcome our contribution?**
-    Meilisearch has contribution
-   guidance and issue templates,
-    with no discovered prohibition on an external
-   report.
-    There is no defect to report here.
-5. **Will they likely fix it?**
-    Not applicable.
-    Removing the explicit migration
-   gate would conflict with the documented database compatibility policy.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    No
-   source fix is warranted.
-    The verified fix is deployment configuration at
-   the consumer boundary.
+1.  **Is it really upstream's fault?**
+     No. Meilisearch intentionally prevents a
+    different engine version from opening a versioned database without an
+    explicit migration request.
+2.  **Can upstream fix it?**
+     The supported upgrade path already exists through
+    `MEILI_UPGRADE_DB` or a dump.
+3.  **Are they supporting this use case?**
+     Yes.
+     Meilisearch documents both
+    upgrade methods,
+     and LibreChat documents rebuilding search from MongoDB.
+4.  **Would the repo welcome our contribution?**
+     Meilisearch has contribution
+    guidance and issue templates,
+     with no discovered prohibition on an external
+    report.
+     There is no defect to report here.
+5.  **Will they likely fix it?**
+     Not applicable.
+     Removing the explicit migration
+    gate would conflict with the documented database compatibility policy.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     No
+    source fix is warranted.
+     The verified fix is deployment configuration at
+    the consumer boundary.
 
 The behavior is documented and the existing issue already records the same
 resolution.

@@ -318,20 +318,20 @@ The recovery work therefore used `-c` instead of replacing the Flatpak binary.
 
 ## What does not work
 
-- **Trusting generated help as parser proof**:
+- Trusting generated help as parser proof:
   help is a separate string and can name an unregistered option.
-- **Moving `--compress` before or after other convert options**:
+- Moving `--compress` before or after other convert options:
   both positions fail with status `1`.
-- **Retrying the same long form**:
+- Retrying the same long form:
   the failure is deterministic in the parser table,
   not an image-content or timing failure.
-- **Treating the first prototype-build failure as a patch failure**:
+- Treating the first prototype-build failure as a patch failure:
   the first container lacked `diff` and Meson stopped with
   `Program 'diff' not found or not executable`.
   Adding `diffutils` let configuration,
   compilation,
   and the behavioral test complete.
-- **Replacing the installed binary for this workflow**:
+- Replacing the installed binary for this workflow:
   the verified `-c` workaround avoids an unnecessary local package-maintenance boundary.
 
 ## Upstream filing decision
@@ -363,45 +363,45 @@ Issues [#80][issue-80] and [#81][issue-81] concern parallel compression and reco
 None reports the rejected long option.
 The 2024 and 2025 mailing-list option-refresh threads were also checked and contain no follow-up fixing this omission.
 
-1. **Is it really upstream's fault?**
-   Yes.
-   The release source and current master contain help for the long spelling while omitting it from the same command's
-   option table.
-2. **Can upstream fix it?**
-   Yes.
-   A one-line table entry reaches the existing `case 'c'` behavior.
-3. **Are they supporting this use case?**
-   Yes.
-   QEMU supports compressed `qemu-img convert` output and its command help explicitly advertises `--compress`.
-4. **Would the repository welcome the contribution?**
-   No,
-   not from this artifact.
-   `README.rst:131-146` routes upstream-release bugs to GitLab.
-   `.gitlab/issue_templates/bug.md:1-14` asks reporters to test current master.
-   `docs/devel/submitting-a-patch.rst:1-27` welcomes fixes and defines its mailing-list process.
-   Its linked provenance policy explicitly declines AI-derived contributions
-   (`docs/devel/code-provenance.rst:288-299`):
+1.  **Is it really upstream's fault?**
+    Yes.
+    The release source and current master contain help for the long spelling while omitting it from the same command's
+    option table.
+2.  **Can upstream fix it?**
+    Yes.
+    A one-line table entry reaches the existing `case 'c'` behavior.
+3.  **Are they supporting this use case?**
+    Yes.
+    QEMU supports compressed `qemu-img convert` output and its command help explicitly advertises `--compress`.
+4.  **Would the repository welcome the contribution?**
+    No,
+    not from this artifact.
+    `README.rst:131-146` routes upstream-release bugs to GitLab.
+    `.gitlab/issue_templates/bug.md:1-14` asks reporters to test current master.
+    `docs/devel/submitting-a-patch.rst:1-27` welcomes fixes and defines its mailing-list process.
+    Its linked provenance policy explicitly declines AI-derived contributions
+    (`docs/devel/code-provenance.rst:288-299`):
 
-   ```text
-   Current QEMU project policy is to DECLINE any contributions which are
-   believed to include or derive from AI generated content.
-   ```
+    ```text
+    Current QEMU project policy is to DECLINE any contributions which are
+    believed to include or derive from AI generated content.
+    ```
 
-   The same policy requires contributors to refrain from AI-generated patches
-   (`docs/devel/code-provenance.rst:321-331`).
-   Research and debugging may use AI only when their output is not included in a contribution.
-   This report and prototype are AI-assisted,
-   so neither may be submitted to QEMU.
-5. **Will upstream likely fix it?**
-   Plausibly yes.
-   The project has no stated non-goal for command-help accuracy,
-   and the introducing series was specifically intended to add missing long options.
-   No maintainer rejection was found.
-6. **Has a minimal compatible fix been prototyped?**
-   Yes,
-   for local diagnosis only.
-   The one-line registration built in a bounded container and passed real conversion plus image-info checks.
-   QEMU's AI-content policy prevents submitting this prototype.
+    The same policy requires contributors to refrain from AI-generated patches
+    (`docs/devel/code-provenance.rst:321-331`).
+    Research and debugging may use AI only when their output is not included in a contribution.
+    This report and prototype are AI-assisted,
+    so neither may be submitted to QEMU.
+5.  **Will upstream likely fix it?**
+    Plausibly yes.
+    The project has no stated non-goal for command-help accuracy,
+    and the introducing series was specifically intended to add missing long options.
+    No maintainer rejection was found.
+6.  **Has a minimal compatible fix been prototyped?**
+    Yes,
+    for local diagnosis only.
+    The one-line registration built in a bounded container and passed real conversion plus image-info checks.
+    QEMU's AI-content policy prevents submitting this prototype.
 
 Constraint 4 fails.
 The user's explicit authorization requirement independently prevents publication.
@@ -411,7 +411,7 @@ but must not submit this AI-generated wording or patch.
 
 ### Upstream filing artifact
 
-**Do not file as-is.**
+Do not file as-is.
 The retained draft is an audit record,
 not a fileable contribution.
 

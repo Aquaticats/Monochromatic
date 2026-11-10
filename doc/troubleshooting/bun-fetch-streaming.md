@@ -52,11 +52,11 @@ event loop alive while a fetch request is in progress.
 is set when the fetch starts (`poll_ref.ref()`) and only cleared
 when:
 
-1. The HTTP thread receives the complete response
-   (`is_done == true` in `onProgressUpdate`);
-    or
-2. `ignoreRemainingResponseBody()` is called (e.g. when the
-   `Response` object is GC'd without body consumption).
+1.  The HTTP thread receives the complete response
+    (`is_done == true` in `onProgressUpdate`);
+     or
+2.  `ignoreRemainingResponseBody()` is called (e.g. when the
+    `Response` object is GC'd without body consumption).
 
 The bug:
  calling `ReadableStream.cancel()` on the response body
@@ -198,18 +198,18 @@ Existing transport options for streaming inference:
    uses fetch
   ReadableStream;
    affected.
-- **HTTP chunked via fetch**:
+- HTTP chunked via fetch:
    uses fetch ReadableStream;
   affected.
-- **WebSocket via `ws` (OpenAI Responses API only)**:
+- WebSocket via `ws` (OpenAI Responses API only):
    does not
   use fetch ReadableStream;
    not affected.
-- **WebSocket via Bun native**:
+- WebSocket via Bun native:
    does not use fetch
   ReadableStream;
    not affected.
-- **undici fetch (bypasses Bun's native fetch)**:
+- undici fetch (bypasses Bun's native fetch):
    unclear;
   Bun polyfills Node APIs;
    untested.
@@ -255,25 +255,25 @@ through OpenRouter.
 Already filed.
  Walking the 5 constraints for completeness:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    missing cancel
-   propagation in `FetchTasklet`.
-2. **Can upstream fix it?
-   ** Yes;
-    PR #27232 implements the fix
-   in roughly the right shape.
-3. **Are they supporting this use case?
-   ** Yes;
-    native fetch
-   streaming is an explicit Bun feature.
-4. **Will they likely fix it?
-   ** The PR exists but is not merged.
-   Adding a duplicate report would not advance the PR.
-5. **Have we prototyped a minimal fix?
-   ** Upstream has a fix
-   prototype already;
-    nothing for us to add.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     missing cancel
+    propagation in `FetchTasklet`.
+2.  **Can upstream fix it?
+    ** Yes;
+     PR #27232 implements the fix
+    in roughly the right shape.
+3.  **Are they supporting this use case?
+    ** Yes;
+     native fetch
+    streaming is an explicit Bun feature.
+4.  **Will they likely fix it?
+    ** The PR exists but is not merged.
+    Adding a duplicate report would not advance the PR.
+5.  **Have we prototyped a minimal fix?
+    ** Upstream has a fix
+    prototype already;
+     nothing for us to add.
 
 Decision:
  no new upstream report.

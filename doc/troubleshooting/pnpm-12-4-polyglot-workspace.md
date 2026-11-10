@@ -256,23 +256,23 @@ not an upstream defect.
 
 ### Upstream filing decision
 
-1. Upstream fault:
-   no.
-   pnpm 12.3.4 correctly lacks a feature added in 12.4.0.
-2. Upstream fixability:
-   not applicable because no defect is proposed.
-3. Supported use case:
-   yes for 12.4+;
-   official Cargo,
-   Python,
-   pipeline,
-   and release documentation covers it.
-4. Contribution policy:
-   not investigated because there is no proposed issue or patch.
-5. Likely upstream action:
-   none requested.
-6. Minimal prototype:
-   not applicable because the upstream-fault gate fails.
+1.  Upstream fault:
+    no.
+    pnpm 12.3.4 correctly lacks a feature added in 12.4.0.
+2.  Upstream fixability:
+    not applicable because no defect is proposed.
+3.  Supported use case:
+    yes for 12.4+;
+    official Cargo,
+    Python,
+    pipeline,
+    and release documentation covers it.
+4.  Contribution policy:
+    not investigated because there is no proposed issue or patch.
+5.  Likely upstream action:
+    none requested.
+6.  Minimal prototype:
+    not applicable because the upstream-fault gate fails.
 
 `.out-of-scope/` contains no pnpm-specific exemption.
 Open and closed issue and pull-request searches for `"pipeline" "command not found"` returned no duplicate.

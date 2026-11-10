@@ -235,16 +235,16 @@ Default policy is do not file,
  so the audit stops
 there.
 
-1. Is it really upstream's fault?
-    No. `include` defining program roots and
-   `resolveJsonModule` parsing `.json` roots against the strict JSON grammar are both
-   documented,
-    intended TypeScript behaviors.
-    A `.json` file containing non-JSON should
-   fail to parse.
-    The defect was our config's over-broad glob plus a raw-text payload
-   misnamed `.json`,
-    not a `tsc` bug.
+1.  Is it really upstream's fault?
+     No. `include` defining program roots and
+    `resolveJsonModule` parsing `.json` roots against the strict JSON grammar are both
+    documented,
+     intended TypeScript behaviors.
+     A `.json` file containing non-JSON should
+    fail to parse.
+     The defect was our config's over-broad glob plus a raw-text payload
+    misnamed `.json`,
+     not a `tsc` bug.
 
 `.out-of-scope/` was checked for a matching exemption;
  the TypeScript entries there

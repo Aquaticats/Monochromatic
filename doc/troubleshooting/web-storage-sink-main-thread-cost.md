@@ -717,40 +717,40 @@ no exemption covers web storage or the WHATWG HTML spec.
 Walking the six constraints against upstream (the WHATWG HTML spec and
 the engines implementing it):
 
-1. **Is it really upstream's fault?**
-   No.
-   Synchronous,
-    Window-only web storage is the specified design,
-   and the spec explicitly declines coordination machinery
-   ("authors are encouraged to assume that there is no locking
-   mechanism").
-   The platform's answer to "I need async storage" is IndexedDB and
-   OPFS,
-    which exist and which we already use.
-2. **Can upstream fix it?**
-   No.
-   `setItem` is an `undefined`-returning setter;
-   making it asynchronous or promise-returning breaks every existing
-   caller on the web.
-   This is the architectural-impossibility case the constraint names.
-3. **Are they supporting this use case?**
-   Synchronous small-value storage,
-    yes;
-   high-frequency hot-path writes,
-    no,
-   and the async storage APIs are the documented alternative.
-4. **Would the repo welcome our contribution?**
-   Not evaluated further;
-    constraints 1 and 2 already fail.
-5. **Will they likely fix it?**
-   Not evaluated further;
-    constraints 1 and 2 already fail.
-6. **Have we prototyped a minimal fix compatible with their
-   architecture?**
-   Not applicable;
-    there is nothing upstream to fix.
-   The consumer-side batching workaround in this doc is the fix at our
-   boundary.
+1.  **Is it really upstream's fault?**
+    No.
+    Synchronous,
+     Window-only web storage is the specified design,
+    and the spec explicitly declines coordination machinery
+    ("authors are encouraged to assume that there is no locking
+    mechanism").
+    The platform's answer to "I need async storage" is IndexedDB and
+    OPFS,
+     which exist and which we already use.
+2.  **Can upstream fix it?**
+    No.
+    `setItem` is an `undefined`-returning setter;
+    making it asynchronous or promise-returning breaks every existing
+    caller on the web.
+    This is the architectural-impossibility case the constraint names.
+3.  **Are they supporting this use case?**
+    Synchronous small-value storage,
+     yes;
+    high-frequency hot-path writes,
+     no,
+    and the async storage APIs are the documented alternative.
+4.  **Would the repo welcome our contribution?**
+    Not evaluated further;
+     constraints 1 and 2 already fail.
+5.  **Will they likely fix it?**
+    Not evaluated further;
+     constraints 1 and 2 already fail.
+6.  **Have we prototyped a minimal fix compatible with their
+    architecture?**
+    Not applicable;
+     there is nothing upstream to fix.
+    The consumer-side batching workaround in this doc is the fix at our
+    boundary.
 
 Decision:
 nothing to file and nothing to comment;
