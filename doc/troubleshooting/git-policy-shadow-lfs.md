@@ -156,12 +156,13 @@ gave these three arms:
 The consumer's mount permissions were not inspected,
 so that the consumer's `.git/lfs` was read-only is consistent with the evidence but not confirmed.
 
-Two receipts are retained:
-the worker event is `call_f94fb711ff224917b3b6ec0b` in
-`${HOME}/temp/agent/pi-mimo-rpc-session-9Tl0ts/host-events.jsonl`,
-and the three-arm wrapper comparison,
-`git-wrapper-lfs-environment-probe.json`,
-sits in `${HOME}/temp/agent/pi-mimo-preparation-failure-20261018/`.
+The retained receipt of the incident is the worker event,
+`call_f94fb711ff224917b3b6ec0b` in
+`${HOME}/temp/agent/pi-mimo-rpc-session-9Tl0ts/host-events.jsonl`.
+The receipt named `git-wrapper-lfs-environment-probe.json` in
+`${HOME}/temp/agent/pi-mimo-preparation-failure-20261018/` belongs to the missing-helper probe,
+which stays in `git-policy-wrapper-launcher-path.md`.
+The git-lfs arms above ran in a disposable repository nothing keeps.
 
 ## Verified workarounds
 
@@ -176,8 +177,6 @@ the directory is shared by every process the child runs,
 so the launcher grants write access to the LFS store of the checkout it is running in;
 and the requirement has to be restated by every environment that runs a commit,
 because nothing in the wrapper can detect it before Git starts.
-With the store writable Git LFS also writes objects into `.git/lfs/objects`,
-which a read-only store would have refused.
 
 Launch acceptance should run a scoped commit of an ordinary file in a repository that tracks LFS files.
 
