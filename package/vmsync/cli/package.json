@@ -23,6 +23,7 @@
     "nano-spawn": "catalog:",
     "@optique/core": "catalog:",
     "@optique/run": "catalog:",
+    "string-dedent": "catalog:",
     "type-fest": "catalog:"
   },
   "version": "0.0.1",

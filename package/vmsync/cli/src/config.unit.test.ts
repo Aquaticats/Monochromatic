@@ -6,14 +6,48 @@ import {
 
 import {
   detectHypervisor,
+  InvalidVmNameError,
   isVmNameChar,
   parseVmsyncConfig,
   validateName,
+  type VmNameOrigin,
   vmConfigPath,
   vmDir,
 } from '../dist/final/node/index.mjs';
 
-//region validateName: rejects unsafe VM names, accepts safe ones
+//region validateName: accepts names that follow the rule and explains the ones it refuses
+
+/**
+ Message a refusal carries, so the assertions read the explanation a user sees.
+ 
+ @param name - candidate VM name
+ 
+ @param origin - where the name came from, defaulting to the user typing it
+ 
+ @throws Error when the name was accepted, which the tests must not see
+ 
+ @example
+ ```ts
+ refusalMessage('_alpine'); // 'vmsync refused the VM name "_alpine". ...'
+ ```
+ */
+function refusalMessage(
+  name: string,
+  origin: VmNameOrigin = { kind: 'typed', },
+): string {
+  try {
+    validateName({
+      name,
+      origin,
+    },);
+  }
+  catch (error) {
+    if (error instanceof InvalidVmNameError)
+      return error.message;
+    throw error;
+  }
+  throw new Error(`validateName accepted ${JSON.stringify(name,)}`,);
+}
 
 await describe({
   name: '',
@@ -21,11 +55,16 @@ await describe({
     describe({
       name: validateName.name,
       children: [
+        //region Accepted names
+
         it({
           name: 'accepts simple alphanumeric name',
           fn: async () => {
             expect(() => {
-              validateName('alpine',);
+              validateName({
+                name: 'alpine',
+                origin: { kind: 'typed', },
+              },);
             },)
               .not
               .toThrow();
@@ -36,7 +75,10 @@ await describe({
           name: 'accepts name with hyphens and underscores',
           fn: async () => {
             expect(() => {
-              validateName('my-vm_01',);
+              validateName({
+                name: 'my-vm_01',
+                origin: { kind: 'typed', },
+              },);
             },)
               .not
               .toThrow();
@@ -47,7 +89,10 @@ await describe({
           name: 'accepts single character name',
           fn: async () => {
             expect(() => {
-              validateName('a',);
+              validateName({
+                name: 'a',
+                origin: { kind: 'typed', },
+              },);
             },)
               .not
               .toThrow();
@@ -58,82 +103,122 @@ await describe({
           name: 'accepts name starting with digit',
           fn: async () => {
             expect(() => {
-              validateName('9test',);
+              validateName({
+                name: '9test',
+                origin: { kind: 'typed', },
+              },);
             },)
               .not
               .toThrow();
           },
         },),
 
+        //endregion Accepted names
+
+        //region Refused names
+
+        ...['-bad', '_bad', '../evil', 'my vm', 'my.vm', '', 'a/b',].map(
+          function mapRefused(name,) {
+            return it({
+              name: `refuses ${JSON.stringify(name,)}`,
+              fn: async () => {
+                expect(() => {
+                  validateName({
+                    name,
+                    origin: { kind: 'typed', },
+                  },);
+                },)
+                  .toThrow(InvalidVmNameError,);
+              },
+            },);
+          },
+        ),
+
+        //endregion Refused names
+
+        //region The explanation a refusal carries
+
         it({
-          name: 'rejects name starting with hyphen',
+          name: 'quotes the refused name and states the rule',
           fn: async () => {
-            expect(() => {
-              validateName('-bad',);
-            },)
-              .toThrow('invalid VM name',);
+            const message = refusalMessage('_alpine',);
+            expect(message,)
+              .toContain('vmsync refused the VM name "_alpine"',);
+            expect(message,)
+              .toContain('A VM name starts with a letter or a digit',);
           },
         },),
 
         it({
-          name: 'rejects name starting with underscore',
+          name: 'names the character that a leading position may not hold',
           fn: async () => {
-            expect(() => {
-              validateName('_bad',);
-            },)
-              .toThrow('invalid VM name',);
+            expect(refusalMessage('_alpine',),)
+              .toContain('This name starts with "_", which may not start a name.',);
           },
         },),
 
         it({
-          name: 'rejects path traversal',
+          name: 'names and spells out a space that a later position may not hold',
           fn: async () => {
-            expect(() => {
-              validateName('../evil',);
-            },)
-              .toThrow('invalid VM name',);
+            const message = refusalMessage('my vm',);
+            expect(message,)
+              .toContain('This name holds " " (a space), which a name may not hold.',);
           },
         },),
 
         it({
-          name: 'rejects name with spaces',
+          name: 'says an empty name is empty',
           fn: async () => {
-            expect(() => {
-              validateName('my vm',);
-            },)
-              .toThrow('invalid VM name',);
+            expect(refusalMessage('',),)
+              .toContain('This name is empty.',);
           },
         },),
 
         it({
-          name: 'rejects name with dots',
+          name: 'asks for a different name when the user typed it',
           fn: async () => {
-            expect(() => {
-              validateName('my.vm',);
-            },)
-              .toThrow('invalid VM name',);
+            const message = refusalMessage('_alpine',);
+            expect(message,)
+              .toContain('Choose a different name.',);
+            expect(message,)
+              .not
+              .toContain('--name',);
           },
         },),
 
         it({
-          name: 'rejects empty string',
+          name: 'names the image file a derived name came from and the --name override',
           fn: async () => {
-            expect(() => {
-              validateName('',);
-            },)
-              .toThrow('invalid VM name',);
+            const message = refusalMessage('_alpine', {
+              kind: 'imagePath',
+              imagePath: '/images/_alpine.qcow2',
+            },);
+            expect(message,)
+              .toContain('vmsync took this name from the image file "/images/_alpine.qcow2"',);
+            expect(message,)
+              .toContain('pass --name to choose the name yourself.',);
           },
         },),
 
         it({
-          name: 'rejects name with slashes',
+          name: 'carries the refused name on the error beside its message',
           fn: async () => {
-            expect(() => {
-              validateName('a/b',);
-            },)
-              .toThrow('invalid VM name',);
+            let caught: unknown;
+            try {
+              validateName({
+                name: '_alpine',
+                origin: { kind: 'typed', },
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(InvalidVmNameError,);
+            expect((caught as InvalidVmNameError).vmName,).toBe('_alpine',);
           },
         },),
+
+        //endregion The explanation a refusal carries
       ],
     },),
 

@@ -21,6 +21,7 @@ import {
   type StringJsonc,
 } from '@monochromatic-dev/jsonc-edit-core-ts/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import dedent from 'string-dedent';
 
 import {
   CONFIG_FILENAME,
@@ -133,55 +134,255 @@ export function isVmNameChar(c: string,): boolean {
 }
 
 /**
- Checks whether `name` matches the original regex
- `/^[A-Za-z0-9][A-Za-z0-9_-]*$/`.
+ The naming rule a refusal states, written once so every refusal says the same
+ thing.
+ */
+const NAME_RULE = 'A VM name starts with a letter or a digit and holds only letters, digits, "_" and "-" after that.';
+
+/**
+ First position of a VM name that the naming rule refuses.
  
- Empty input fails the leading-alphanumeric requirement; all subsequent
- characters must be alphanumeric, underscore, or hyphen.
+ A name is refused for one of three reasons, and the refusal quotes the character
+ that broke the rule, so the reader can see which character to change.
+ */
+export type VmNameDefect =
+  | { readonly kind: 'empty' }
+    | {
+      readonly kind: 'first';
+      readonly char: string;
+    }
+    | {
+      readonly kind: 'later';
+      readonly char: string;
+    };
+
+/**
+ Where a VM name came from.
+ 
+ A name vmsync derives from an image path is one the user never typed, so its
+ refusal has to say where it came from and how to choose another. A name the user
+ typed needs neither.
+ */
+export type VmNameOrigin =
+  | { readonly kind: 'typed' }
+    | {
+      readonly kind: 'imagePath';
+      readonly imagePath: string;
+    };
+
+/**
+ Sentinel {@link findNameDefect} returns for a name that follows the rule, so
+ acceptance is an explicit value rather than a nullish union.
+ */
+const NAME_FOLLOWS_RULE: unique symbol = Symbol('vmsync/name follows the rule',);
+
+/**
+ Finds the first character of `name` that the naming rule refuses, counting whole
+ code points so a quoted character is never half of one.
  
  @param name - candidate VM name
  
- @returns whether name is a valid VM identifier
+ @returns the refused position, or {@link NAME_FOLLOWS_RULE} when the name follows the rule
  
  @example
  ```ts
- isValidVmName('my-vm-01'); // true
- isValidVmName('-leading'); // false
- isValidVmName('');         // false
+ findNameDefect('my-vm');  // NAME_FOLLOWS_RULE
+ findNameDefect('_my-vm'); // { kind: 'first', char: '_' }
  ```
  */
-function isValidVmName(name: string,): boolean {
-  if (name.length
+function findNameDefect(name: string,): VmNameDefect | typeof NAME_FOLLOWS_RULE {
+  /**
+   Characters of the candidate name, one entry per code point.
+   */
+  const chars = Array.from(name,);
+  if (chars.length
     === 0)
-    return false;
-  if (!isAlphaNum(name.charAt(0,),))
-    return false;
-  for (const c of name.slice(1,)) {
-    if (!isVmNameChar(c,))
-      return false;
+    return { kind: 'empty', };
+  for (const [index, char,] of chars.entries()) {
+    if (index
+      === 0) {
+      if (!isAlphaNum(char,))
+        return {
+          kind: 'first',
+          char,
+        };
+      continue;
+    }
+    if (!isVmNameChar(char,))
+      return {
+        kind: 'later',
+        char,
+      };
   }
-  return true;
+  return NAME_FOLLOWS_RULE;
 }
 
 /**
- Validates a VM name contains only safe characters.
+ Renders one character for a refusal message. Whitespace is named as well as
+ quoted, because a quoted space otherwise reads as empty quotes.
  
- @param name - VM name to validate
+ @param char - single character to render
  
- @throws Error when name contains invalid characters
+ @returns the character, quoted, with a name when it is whitespace
  
  @example
  ```ts
- validateName('my-vm-01'); // OK
- validateName('../evil');  // throws
+ describeChar(' '); // '" " (a space)'
+ describeChar('_'); // '"_"'
  ```
  */
-export function validateName(name: string,): void {
-  if (!isValidVmName(name,)) {
-    throw new Error(
-      `invalid VM name: ${name} (must start with alphanumeric, contain only alphanumerics, hyphens, underscores)`,
-    );
+function describeChar(char: string,): string {
+  if (char
+    === ' ')
+    return '" " (a space)';
+  if (char
+    === '\t')
+    return String.raw`"\t" (a tab)`;
+  if (char
+    === '\n')
+    return String.raw`"\n" (a newline)`;
+  if (char
+    === '\r')
+    return String.raw`"\r" (a carriage return)`;
+  return JSON.stringify(char,);
+}
+
+/**
+ Writes the explanation a refusal carries: what was refused, the rule it broke,
+ and every way to proceed.
+ 
+ @param vmName - the refused name, exactly as vmsync received it
+ 
+ @param defect - the position that broke the rule
+ 
+ @param origin - whether the user typed the name or vmsync derived it
+ 
+ @returns the message the caller throws
+ 
+ @example
+ ```ts
+ describeRefusal({ vmName: '_alpine', defect: { kind: 'first', char: '_' }, origin: { kind: 'typed' } });
+ ```
+ */
+function describeRefusal(
+  {
+    vmName,
+    defect,
+    origin,
+  }: {
+    readonly vmName: string;
+    readonly defect: VmNameDefect;
+    readonly origin: VmNameOrigin;
+  },
+): string {
+  /**
+   Sentence naming the character that broke the rule.
+   */
+  const found = (defect.kind
+    === 'empty')
+    ? 'This name is empty.'
+    : (defect.kind
+      === 'first')
+      ? `This name starts with ${describeChar(defect.char,)}, which may not start a name.`
+      : `This name holds ${describeChar(defect.char,)}, which a name may not hold.`;
+  /**
+   Sentence saying what to do next, which differs for a name nobody typed.
+   */
+  const remedy = (origin.kind
+    === 'typed')
+    ? 'Choose a different name.'
+    : `vmsync took this name from the image file "${origin.imagePath}"; pass --name to choose the name yourself.`;
+  return dedent`
+    vmsync refused the VM name ${JSON.stringify(vmName,)}.
+    ${NAME_RULE}
+    ${found}
+    ${remedy}
+  `;
+}
+
+/**
+ Error thrown when a VM name breaks the naming rule.
+ 
+ The refusal carries the whole explanation in its message, so a caller that prints
+ the message tells the user everything vmsync knows about the refusal.
+ 
+ @example
+ ```ts
+ try {
+   validateName({ name: '_alpine', origin: { kind: 'typed' } });
+ }
+ catch (error) {
+   if (error instanceof InvalidVmNameError) console.error(error.message);
+ }
+ ```
+ */
+export class InvalidVmNameError extends Error {
+  /**
+   The refused name, exactly as vmsync received it.
+   */
+  readonly vmName: string;
+
+  /**
+   @param vmName - the refused name, exactly as vmsync received it
+   
+   @param defect - the position that broke the rule
+   
+   @param origin - whether the user typed the name or vmsync derived it
+   */
+  constructor({
+    vmName,
+    defect,
+    origin,
+  }: {
+    readonly vmName: string;
+    readonly defect: VmNameDefect;
+    readonly origin: VmNameOrigin;
+  },) {
+    super(describeRefusal({
+      vmName,
+      defect,
+      origin,
+    },),);
+    this.name = 'InvalidVmNameError';
+    this.vmName = vmName;
   }
+}
+
+/**
+ Validates a VM name against the naming rule.
+ 
+ @param name - VM name to validate
+ 
+ @param origin - whether the user typed the name or vmsync derived it, which the refusal states
+ 
+ @throws InvalidVmNameError when the name breaks the naming rule
+ 
+ @example
+ ```ts
+ validateName({ name: 'my-vm-01', origin: { kind: 'typed' } }); // OK
+ validateName({ name: '../evil', origin: { kind: 'typed' } });  // throws
+ ```
+ */
+export function validateName(
+  {
+    name,
+    origin,
+  }: {
+    readonly name: string;
+    readonly origin: VmNameOrigin;
+  },
+): void {
+  /**
+   Position that broke the rule, if the name breaks it.
+   */
+  const defect = findNameDefect(name,);
+  if (defect === NAME_FOLLOWS_RULE)
+    return;
+  throw new InvalidVmNameError({
+    vmName: name,
+    defect,
+    origin,
+  },);
 }
 
 //endregion Name validation

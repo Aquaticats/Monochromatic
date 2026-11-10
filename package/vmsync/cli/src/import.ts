@@ -223,6 +223,21 @@ export async function importImage(
   rl.info(`importing ${absPath}`,);
 
   /**
+   Final VM name, validated for safe characters before any image is read: a
+   refused name costs the user nothing, and converting a large image first would.
+   */
+  const vmName = name ?? nameFromPath(absPath,);
+  validateName({
+    name: vmName,
+    origin: (name === undefined)
+      ? {
+        kind: 'imagePath',
+        imagePath: absPath,
+      }
+      : { kind: 'typed', },
+  },);
+
+  /**
    Image metadata from qemu-img.
    */
   const info = await imageInfo(absPath,);
@@ -236,12 +251,6 @@ export async function importImage(
     imagePath: absPath,
     format: info.format,
   },);
-
-  /**
-   Final VM name, validated for safe characters.
-   */
-  const vmName = name ?? nameFromPath(absPath,);
-  validateName(vmName,);
 
   /**
    Directory where managed images are stored.

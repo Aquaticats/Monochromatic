@@ -15,6 +15,7 @@ import { runSync, } from '@optique/run';
 
 import { bootVm, } from './boot.ts';
 import { updateConfig, } from './config-cmd.ts';
+import { InvalidVmNameError, } from './config.ts';
 import { importImage, } from './import.ts';
 import { parser, } from './index-parsers.ts';
 import { printVmList, } from './list.ts';
@@ -86,24 +87,36 @@ const args = runSync(
   },
 );
 
-if (args.cmd
-  === 'import') {
-  await importImage(args,);
+try {
+  if (args.cmd
+    === 'import') {
+    await importImage(args,);
+  }
+  else if (args.cmd
+    === 'boot')
+    await bootVm(args.name,);
+  else if (args.cmd
+    === 'sync')
+    await syncVm(args.name,);
+  else if (args.cmd
+    === 'status')
+    await showStatus(args.name,);
+  else if (args.cmd
+    === 'list')
+    await printVmList();
+  else {
+    await updateConfig(args,);
+  }
 }
-else if (args.cmd
-  === 'boot')
-  await bootVm(args.name,);
-else if (args.cmd
-  === 'sync')
-  await syncVm(args.name,);
-else if (args.cmd
-  === 'status')
-  await showStatus(args.name,);
-else if (args.cmd
-  === 'list')
-  await printVmList();
-else {
-  await updateConfig(args,);
+catch (error) {
+  // A refused name is the user's own input, not a crash, so its explanation
+  // prints alone: an uncaught error would wrap the message in a stack trace of
+  // bundled internals. Every other failure keeps its stack, because it names a
+  // defect in vmsync rather than in what the user typed.
+  if (!(error instanceof InvalidVmNameError))
+    throw error;
+  console.error(error.message,);
+  process.exitCode = 1;
 }
 
 //endregion Dispatch

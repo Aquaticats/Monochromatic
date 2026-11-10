@@ -31,11 +31,25 @@ export { isVmNameChar, } from './config.ts';
 export { parseVmsyncConfig, } from './config.ts';
 
 /**
- The VM-name validation `import` and `config` both rely on.
+ The VM-name validation `import` relies on before it reads any image.
  
  @internal
  */
 export { validateName, } from './config.ts';
+
+/**
+ The refusal a broken VM name throws, carrying the whole explanation.
+ 
+ @internal
+ */
+export { InvalidVmNameError, } from './config.ts';
+
+/**
+ Where a VM name came from, which a refusal states.
+ 
+ @internal
+ */
+export type { VmNameOrigin, } from './config.ts';
 
 /**
  Path of the per-VM configuration file.
