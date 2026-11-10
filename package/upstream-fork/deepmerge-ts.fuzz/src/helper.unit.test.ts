@@ -180,7 +180,7 @@ await describe({
         // The column counts code units ahead of the line's trimmed start, so every
         // whitespace character a single-character trim would strip is skipped, and
         // a character that is not whitespace starts the column even at offset zero.
-        expect(firstNonBlankColumn('\u00a0\u000b x',),).toBe(3,);
+        expect(firstNonBlankColumn('\u00A0\u000B x',),).toBe(3,);
         expect(firstNonBlankColumn('\u0000x',),).toBe(0,);
       },
     },),
