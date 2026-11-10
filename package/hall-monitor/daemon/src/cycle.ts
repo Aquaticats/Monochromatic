@@ -146,7 +146,8 @@ export async function cycle(): Promise<void> {
      Normalised error string so both Error instances and arbitrary throws log readable output.
      */
     const message = caughtValueText(err,);
-    console.error(`[error] ${message}`,);
+    // One event, one record: the journal sink is the only channel, so a second
+    // console write here filed every failure twice.
     log.error(`[error] ${message}`,);
     try {
       await stopLlama();

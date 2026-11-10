@@ -10,12 +10,29 @@
  unit; splitting further would scatter the lifecycle across files.
  */
 import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
 import type { Task, } from '../lib/types.ts';
 import type { TaskDetail, } from './component/task-detail.ts';
 import { api, } from './lib/api.ts';
 // Side-effect import: registers the `<task-detail>` custom element
 // oxlint-disable-next-line import/no-unassigned-import -- side-effect: register custom elements
 import './component/task-detail.ts';
+
+//region Logging
+
+/**
+ Logger for this module: the panel runs in the reader's browser and reports lifecycle traces there.
+ */
+const l = tagged({
+  tag: 'done-new-task-dialog',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Blank task template used when creating a new task; optional fields stay absent.
@@ -158,10 +175,7 @@ export function createNewTaskDialog(): NewTaskDialog {
    Opens the panel with a fresh empty task, hiding the FAB and playing the expand animation.
    */
   function openPanel(): void {
-    console.log(
-      '[new-task-dialog] openPanel(), detail.configure is:',
-      typeof detail.configure,
-    );
+    l.debug(`openPanel with configure of type ${typeof detail.configure}`,);
     detail.configure({
       task: emptyTask,
       blockerSummaries: [],
