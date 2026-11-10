@@ -10,6 +10,11 @@ extends = "format:oxlint"
 [tasks."lint:types"]
 extends = "lint:types"
 
+# This package has no build task: the benchmark runs from source, so its guard
+# reads `src/parse.bench.ts` text instead of importing a dist artifact.
+[tasks."test:unit"]
+extends = "test:unit"
+
 [tasks.bench]
 description = "Parse benchmark: jsonc-edit vs jsonc-eslint-parser and microsoft jsonc-parser"
 run = "node src/parse.bench.ts"

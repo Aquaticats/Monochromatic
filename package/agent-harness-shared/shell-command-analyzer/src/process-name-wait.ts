@@ -8,19 +8,13 @@ import { analyzeShellCommand, } from './analyzer.ts';
 import { unwrapWrappers, } from './command-wrapper-words.ts';
 import { lastPathSegment, } from './executable-path-words.ts';
 import { rawCommandWordRuns, } from './raw-command-word-runs.ts';
+import {
+  shellScriptPayloads,
+  wordLaunchesShellScript,
+} from './shell-script-payloads.ts';
 import type { ShellCommandInfo, } from './types.ts';
 
 //region Constants
-
-/**
- Shell binaries whose `-c` argument is a script string.
- */
-const SHELL_NAMES: ReadonlySet<string> = new Set([
-  'bash',
-  'sh',
-  'zsh',
-  'dash',
-],);
 
 /**
  Commands that look processes up by name or command line.
@@ -81,46 +75,6 @@ const PROCESS_NAME_WAIT_BAN_REASON: string = [
 //region Predicates
 
 /**
- Collects `-c` script strings passed to shells named in a command's words.
-
- @param words - command name followed by its arguments, with wrappers already stripped
-
- @returns script strings that the launched shells execute
-
- @example
- ```ts
- shellScriptPayloads(['bash', '-c', 'until ! pgrep x; do sleep 1; done']);
- ```
- */
-function shellScriptPayloads(words: readonly string[],): string[] {
-  return words
-    .flatMap(function payloadAfterShellDashC(
-      word,
-      index,
-    ): string[] {
-      if (!SHELL_NAMES.has(lastPathSegment(word,),))
-        return [];
-
-      /**
-       Arguments after the shell name.
-       */
-      const rest = words.slice(index + 1,);
-      /**
-       Position of the `-c` flag within `rest`.
-       */
-      const dashCIndex = rest.indexOf('-c',);
-      /**
-       Script string following the `-c` flag.
-       */
-      const payload = rest[dashCIndex + 1];
-
-      return ((dashCIndex !== (-1)) && ((typeof payload) === 'string'))
-        ? [payload,]
-        : [];
-    },);
-}
-
-/**
  Drops the shell words that stand in front of the command a word run holds.
 
  @param words - words of one run, as the raw reader reports them
@@ -179,7 +133,8 @@ function redirectOperatorAt(word: string,): number {
      Character at the current offset.
      */
     const character = word[offset];
-    if ((character === '<') || (character === '>'))
+    if ((character === '<')
+      || (character === '>'))
       return offset;
   }
   return -1;
@@ -235,8 +190,8 @@ function isRedirectionOperatorText(word: string,): boolean {
  so `while >/dev/null pgrep -f x; do` and `while pgrep</dev/null -f x; do`
  would otherwise read the redirection as the program and hide the lookup.
  A bare operator takes the word after it as its target, so that word is stepped over too.
- A descriptor named by a redirection (`>&2`) leaves no word to step over here,
- because the reader ends the run at that `&`, which the module doc records.
+ A redirection that names a descriptor (`>&2`) or already carries its target (`&>/dev/null`)
+ hangs on its own word and hides nothing.
 
  @param words - words of one raw run, after the shell words in front of its command are dropped
 
@@ -270,12 +225,15 @@ function programWordOfRun(words: readonly string[],): string | typeof NO_PROGRAM
         return word;
 
       /**
-       Word text before the operator, which is program text when it names one.
+       Word text before the operator, with the `&` of `&>file` left out of it.
        */
-      const beforeOperator = word.slice(
+      const operatorPrefix = word.slice(
         0,
         operatorAt,
       );
+      const beforeOperator = operatorPrefix.startsWith('&',)
+        ? operatorPrefix.slice(1,)
+        : operatorPrefix;
       if ((beforeOperator !== '')
         && (!isFileDescriptorNumber(beforeOperator,)))
         return beforeOperator;
@@ -290,47 +248,34 @@ function programWordOfRun(words: readonly string[],): string | typeof NO_PROGRAM
 }
 
 /**
- Collects the `-c` script string when the program word itself launches a shell.
+ Collects the script strings one raw run's program hands to a shell.
 
- A raw run is already unwrapped,
- so a word naming a shell anywhere but the program position is an argument,
- as `echo bash -c 'pgrep x'` shows,
- and reading it would refuse a lookup nothing runs.
+ Only the program word launches a shell in a raw run,
+ and the run is already unwrapped,
+ so `echo bash -c 'pgrep x'` hands over no script and is not refused.
+ The script option itself is read by {@link shellScriptPayloads}.
 
- @param words - innermost program words of one raw run
+ @param program - word the run would run as its program
+
+ @param words - innermost program words of the run
 
  @returns script strings the program itself hands to a shell
 
  @example
  ```ts
- shellProgramScripts(['bash', '-c', 'pgrep x']); // ['pgrep x']
- shellProgramScripts(['echo', 'bash', '-c', 'pgrep x']); // []
+ programShellScripts({ program: 'bash', words: ['bash', '-c', 'pgrep x'], }); // ['pgrep x']
  ```
  */
-function shellProgramScripts(words: readonly string[],): readonly string[] {
-  /**
-   Word that names the program the run would run.
-   */
-  const [program,] = words;
-  if ((program === undefined)
-    || (!SHELL_NAMES.has(lastPathSegment(program,),)))
-    return [];
-
-  /**
-   Arguments after the shell name.
-   */
-  const rest = words.slice(1,);
-  /**
-   Position of the `-c` flag within `rest`.
-   */
-  const dashCIndex = rest.indexOf('-c',);
-  /**
-   Script string following the `-c` flag.
-   */
-  const payload = rest[dashCIndex + 1];
-
-  return ((dashCIndex !== (-1)) && ((typeof payload) === 'string'))
-    ? [payload,]
+function programShellScripts({
+  program,
+  words,
+}: {
+  readonly program: string | typeof NO_PROGRAM_WORD;
+  readonly words: readonly string[];
+},): readonly string[] {
+  return (((typeof program) === 'string')
+    && (wordLaunchesShellScript(program,)))
+    ? shellScriptPayloads({ words, },)
     : [];
 }
 
@@ -388,7 +333,10 @@ function rawTextWaitsOnProcessName({ source, }: { readonly source: string; },): 
         return true;
       pending.push(
         ...wrapped.payloads,
-        ...shellProgramScripts(wrapped.words,),
+        ...programShellScripts({
+          program,
+          words: wrapped.words,
+        },),
       );
     }
   }
@@ -434,10 +382,12 @@ function waitsOnProcessName(command: string,): boolean {
         return true;
 
       // `timeout 60 bash -c '<script>'` and similar wrappers hide the loop inside a string argument.
-      return shellScriptPayloads([
-        info.name,
-        ...info.args,
-      ],)
+      return shellScriptPayloads({
+        words: [
+          info.name,
+          ...info.args,
+        ],
+      },)
         .some(waitsOnProcessName,);
     },);
 }

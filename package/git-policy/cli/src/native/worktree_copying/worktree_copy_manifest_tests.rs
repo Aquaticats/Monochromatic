@@ -80,8 +80,23 @@ fn excluded_roots_are_omitted_with_descendants() {
     remove(root.as_path());
 }
 
-/// A selected file is one entry,
-/// and a missing selected path is a copy failure with its cause.
+/// What:
+///  A selected file is one entry,
+/// and a selected path the source no longer holds leaves the manifest.
+/// Why:
+///   Git's listing and the walk are two moments,
+/// and a live checkout removes its ignored entries in between:
+/// the copy
+///  contract says such an entry has nothing left to copy and leaves the manifest
+///  (`package/git-policy/cli/SPEC.md`,
+/// "Linked-worktree ignored-state synchronization"),
+/// so an entry that went away
+///  is no reason to end an add Git already made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entries = await collectEntryManifest({ root, selectedRoots: ['only'], excludedRoots: [] }); const gone = await collectEntryManifest({ root, selectedRoots: ['missing'], excludedRoots: [] }); expect(gone).toEqual([]);
+/// ```
 #[test]
 fn single_file_and_missing_selection() {
     let root: PathBuf = fixture("manifest-single");
@@ -96,10 +111,10 @@ fn single_file_and_missing_selection() {
             b"only"
         )]
     );
-    let failure: WorktreeCopyError =
+    let gone: Vec<WorktreeCopyEntry> =
         collect_entry_manifest(root.as_path(), &[b"missing".to_vec()], &[])
-            .expect_err("missing");
-    assert!(failure.0.contains("No such file or directory"));
+            .expect("an entry the source no longer holds is no failure");
+    assert!(gone.is_empty(), "nothing is left to copy: {gone:?}");
     remove(root.as_path());
 }
 

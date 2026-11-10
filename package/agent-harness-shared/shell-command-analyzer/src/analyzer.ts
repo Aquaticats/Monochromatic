@@ -5,6 +5,7 @@
  */
 
 import { parse, } from 'unbash';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   looksLikePath,
@@ -40,16 +41,21 @@ const moduleLogger = tagged({
 /**
  Convert unexpected parser throw to public diagnostic.
  
- @returns parser diagnostic with source offset zero
+ The thrown value's own text is the only evidence of what the parser rejected,
+ so it is carried into the diagnostic instead of a fixed sentence.
+ 
+ @param caughtText - text of the value `unbash.parse` threw
+ 
+ @returns parser diagnostic carrying the thrown text at source offset zero
  
  @example
  ```ts
- thrownParseError();
+ thrownParseError(caughtValueText(new TypeError('x is not a string')));
  ```
  */
-function thrownParseError(): ShellParseError {
+function thrownParseError(caughtText: string,): ShellParseError {
   return {
-    message: 'unbash parse threw',
+    message: `unbash parse threw: ${caughtText}`,
     pos: 0,
   };
 }
@@ -103,10 +109,14 @@ function tryParseScript(
       tag: tryParseScript.name,
       l: moduleLogger,
     },);
-    innerLogger.debug(`unbash parse threw value type: ${typeof error}`,);
+    /**
+     Text of the value the parser threw, kept for the log line and the diagnostic.
+     */
+    const caughtText = caughtValueText(error,);
+    innerLogger.debug(`unbash parse threw: ${caughtText}`,);
     return {
       ok: false,
-      parseErrors: [thrownParseError(),],
+      parseErrors: [thrownParseError(caughtText),],
     };
   }
 }

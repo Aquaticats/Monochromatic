@@ -10,7 +10,7 @@
  and it reports each run of words that begins where a command can begin.
  Anything it cannot classify stays inside the run it was found in,
  so prose such as `echo "bun test` never reads as a command.
-
+ 
  A here-document body is read as command text rather than skipped,
  because this reader never follows the redirect that declares it;
  a caller reads this fallback as a reason to block, never as proof of what runs.
@@ -105,7 +105,7 @@ type RawRunScanState = {
  
  @example
  ```ts
- rawCommandWordRuns({ source: 'cd x && bun test "', }); // [['cd', 'x'], ['bun', 'test', '"']]
+ rawCommandWordRuns({ source: 'cd x && bun test "', }); // [['cd', 'x'], ['bun', 'test']]
  ```
  */
 function rawCommandWordRuns({ source, }: { readonly source: string; },): readonly (readonly string[])[] {

@@ -123,6 +123,21 @@ await describe({
         }
       },
     },),
+    it({
+      name: 'gives what the bounded walk gives over the area both images share',
+      fn: async ({ expect, }) => {
+        const a = solid(6, 5, 0,);
+        const changed = withPixel(withPixel(a, 1, 1,), 4, 3,);
+        expect(
+          diffBox({ a, b: changed, },),
+        ).toEqual(diffBoxWithin({ a, b: changed, area: { x: 0, y: 0, width: 6, height: 5, }, },),);
+
+        const small = withPixel(solid(2, 2, 0,), 1, 0,);
+        expect(
+          diffBox({ a, b: small, },),
+        ).toEqual(diffBoxWithin({ a, b: small, area: { x: 0, y: 0, width: 2, height: 2, }, },),);
+      },
+    },),
   ],
 },);
 
@@ -136,6 +151,15 @@ await describe({
         const b = withPixel(withPixel(withPixel(a, 1, 1,), 3, 2,), 7, 5,);
         expect(diffBoxWithin({ a, b, area: { x: 0, y: 0, width: 5, height: 4, }, },),).toEqual({ count: 2, box: { x: 1, y: 1, width: 3, height: 2, }, },);
         expect(diffBoxWithin({ a, b, area: { x: 4, y: 0, width: 3, height: 4, }, },),).toEqual({ count: 0, },);
+      },
+    },),
+    it({
+      name: 'counts nothing in an area with no column or no row',
+      fn: async ({ expect, }) => {
+        const a = solid(4, 4, 0,);
+        const b = withPixel(a, 1, 1,);
+        expect(diffBoxWithin({ a, b, area: { x: 1, y: 1, width: 0, height: 3, }, },),).toEqual({ count: 0, },);
+        expect(diffBoxWithin({ a, b, area: { x: 1, y: 1, width: 3, height: 0, }, },),).toEqual({ count: 0, },);
       },
     },),
   ],
@@ -182,6 +206,16 @@ await describe({
         expect(differencesWithin({ a, b, box: { x: 2, y: 0, width: 3, height: 3, }, },),).toBe(0,);
       },
     },),
+    it({
+      name: 'counts the same pixels as the bounded difference does, and none in a rectangle with no row',
+      fn: async ({ expect, }) => {
+        const a = solid(6, 5, 0,);
+        const b = withPixel(withPixel(a, 1, 1,), 4, 3,);
+        const box = { x: 1, y: 1, width: 4, height: 3, };
+        expect(differencesWithin({ a, b, box, },),).toBe(diffBoxWithin({ a, b, area: box, },).count,);
+        expect(differencesWithin({ a, b, box: { x: 0, y: 0, width: 6, height: 0, }, },),).toBe(0,);
+      },
+    },),
   ],
 },);
 
@@ -195,6 +229,13 @@ await describe({
         expect(countColor({ image, box: { x: 0, y: 0, width: 4, height: 4, }, color: [7, 7, 7,], },),).toBe(15,);
         expect(countColor({ image, box: { x: 0, y: 0, width: 2, height: 2, }, color: [7, 7, 7,], },),).toBe(4,);
         expect(countColor({ image, box: { x: 0, y: 0, width: 4, height: 4, }, color: [7, 200, 7,], },),).toBe(1,);
+      },
+    },),
+    it({
+      name: 'counts nothing in a rectangle with no column',
+      fn: async ({ expect, }) => {
+        const image = solid(4, 4, 7,);
+        expect(countColor({ image, box: { x: 2, y: 0, width: 0, height: 4, }, color: [7, 7, 7,], },),).toBe(0,);
       },
     },),
   ],

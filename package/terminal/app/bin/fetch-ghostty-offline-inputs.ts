@@ -4,12 +4,13 @@
 // target/ghostty-offline/ready. libghostty-vt-sys then reads them through GHOSTTY_SOURCE_DIR and GHOSTTY_ZIG_SYSTEM_DIR
 // and downloads nothing while Cargo compiles; the closure check of monochromatic-lint sets both variables itself.
 // Why: Zig's own downloader cannot connect on this host, and a build-time download had no checksum of this repository.
-// Run from the package directory. The task is idempotent: a finished set of unchanged pins is left alone.
+// Run from the package directory. The task is idempotent: a finished set of unchanged pins is left alone, and the
+// ready marker counts only while the source tree and package directories it promises are still there.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { parseManifest, pinnedGhosttyCommit, readyMarkerFor, sha256Of, verifyArchive } from './ghostty-offline-inputs.ts';
+import { missingInputs, parseManifest, pinnedGhosttyCommit, readyMarkerFor, readyMarkerIsCurrent, sha256Of, verifyArchive } from './ghostty-offline-inputs.ts';
 import type { OfflineInputsManifest, PinnedPackage } from './ghostty-offline-inputs.ts';
 
 const manifestFile = 'ghostty-offline-inputs.json'
@@ -92,9 +93,14 @@ async function main(): Promise<void> {
   }
   const marker = join(root, 'ready')
   const expected = readyMarkerFor(manifestText)
-  if (existsSync(marker) && readFileSync(marker, 'utf8') === expected) {
+  const markerText = existsSync(marker) ? readFileSync(marker, 'utf8') : undefined
+  const missing = missingInputs({ manifest, isPresent: (relativePath) => existsSync(join(root, relativePath)) })
+  if (readyMarkerIsCurrent({ markerText, expectedMarkerText: expected }) && missing.length === 0) {
     console.error('The libghostty offline inputs are current for these pins.')
     return
+  }
+  if (missing.length > 0) {
+    console.error(`The offline inputs are missing ${missing.join(', ')}, so they are fetched again.`)
   }
   rmSync(marker, { force: true })
   prepareSource(manifest)

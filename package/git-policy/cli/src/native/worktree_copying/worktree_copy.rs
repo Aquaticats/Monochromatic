@@ -413,6 +413,15 @@ fn settle_creation(
     };
     #[cfg(target_os = "linux")]
     let trash: Option<PendingTrash> = finished.trash;
+    // The claim the ladder took is handed back here, not released: the copy owns it until its journal names the stage,
+    // so no command killed between the end of the checkout and that journal can leave a worktree whose ignored state was
+    // never copied with no record naming it.
+    let handed_over: Option<StageClaim> = finished.claim;
+    // A snapshot that served the add swapped a subvolume into place, so its record is settled without a flush.
+    let swapped: bool = carried.is_some();
+    if handed_over.is_some() {
+        held = handed_over;
+    }
     // Set when the copy deliberately left the destination unfilled, as a source that is still being filled does.
     let mut left_unfilled: bool = false;
     // Set when the destination is another command's worktree, which carries its proof.
@@ -468,7 +477,7 @@ fn settle_creation(
         && let Some(unused) = held.take()
     {
         let release_unused_entered: bool = begin_step("releaseClaim");
-        let released: Result<(), WorktreeCopyError> = unused.settle();
+        let released: Result<(), WorktreeCopyError> = if swapped { unused.settle_unsynced() } else { unused.settle() };
         end_step(release_unused_entered);
         if let Err(error) = released {
             warn(TAG, format!("the record of the worktree add could not be removed ({})", error.0).as_str());

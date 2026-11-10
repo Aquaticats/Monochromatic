@@ -358,7 +358,7 @@ await describe({
     },),
 
     it({
-      name: 'creates no files at verification and one day-directory log with the first record',
+      name: 'creates no files at verification and one day-directory log whose only line parses as the written record',
       fn: async () => {
         await using destination = await scratchDestination();
         const sink = createFileSink({
@@ -369,8 +369,23 @@ await describe({
         // Verification proves writability through a probe round-trip that is
         // always removed, so a zero-record process leaves zero files.
         expect(await entryNames(destination.path,),).toEqual([],);
-        await sink.write(record({ message: 'first record', },),);
-        expect(await logFiles(destination.path,),).toHaveLength(1,);
+        // The first record this sink writes, and the only line its log may hold.
+        const first = record({ message: 'first record', },);
+        await sink.write(first,);
+        const files = await logFiles(destination.path,);
+        expect(files,).toHaveLength(1,);
+        const [logPath,] = files;
+        if (logPath === undefined)
+          throw new Error('Verified file sink created no log file',);
+        // A probe record left in the log would show up here as an extra, non-record line.
+        const lines = (await readFile(
+          logPath,
+          'utf8',
+        )).trimEnd()
+          .split('\n',);
+        expect(lines,).toHaveLength(1,);
+        expect(JSON.parse(lines[0] ?? '',),)
+          .toEqual(first,);
         expect((await entryNames(destination.path,)).filter(function probeResidue(name: string,) {
           return name.endsWith('.probe.tmp',);
         },),).toEqual([],);

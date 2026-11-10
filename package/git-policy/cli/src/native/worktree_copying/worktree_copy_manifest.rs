@@ -19,7 +19,7 @@ use crate::worktree_copy_error::raw_failure_of;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{by_repository_path_order, filesystem_path, join_repository_path};
-use crate::path_bytes::path_bytes_of;
+use crate::worktree_copy_vanished_entry::{lstat_or_absent, names_or_absent};
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
 
@@ -260,8 +260,11 @@ pub fn collect_pruned_manifest(
         if lies_within_any(item.filesystem_path.as_path(), excluded_roots) || prune.skips_path(item.relative_path.as_slice()) {
             continue;
         }
-        let metadata: std::fs::Metadata = std::fs::symlink_metadata(item.filesystem_path.as_path())
-            .map_err(raw_failure_of)?;
+        // An entry the source removed since the listing has nothing left to copy, and the copy contract leaves exactly
+        //  that out of the manifest rather than ending the add (SPEC, "Linked-worktree ignored-state synchronization").
+        let Some(metadata) = lstat_or_absent(item.filesystem_path.as_path())? else {
+            continue;
+        };
         let kind: EntryKind = entry_kind(metadata.file_type(), item.filesystem_path.as_path())?;
         if !readable_by_user(item.filesystem_path.as_path(), kind) {
             unreadable.push(item.relative_path.clone());
@@ -275,14 +278,11 @@ pub fn collect_pruned_manifest(
             });
             continue;
         }
-        let mut names: Vec<Vec<u8>> = Vec::new();
-        for listed in std::fs::read_dir(item.filesystem_path.as_path())
-            .map_err(raw_failure_of)?
-        {
-            let child: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
-            // The name is the bytes the filesystem listed; a name that is not text is still this worktree's entry.
-            names.push(path_bytes_of(Path::new(child.file_name().as_os_str())).to_vec());
-        }
+        // The listing is read before the directory is recorded, so a directory its owner removes while the walk runs
+        //  contributes neither an entry nor children.
+        let Some(mut names) = names_or_absent(item.filesystem_path.as_path())? else {
+            continue;
+        };
         // A directory that is a checkout of its own is left out whole, with no entry of its own.
         if prune.skips_checkout(names.as_slice()) {
             continue;
