@@ -160,13 +160,25 @@ fn read_its_own(trash: &std::fs::File, name: &str) -> Option<TrashManifest> {
 /// const openedTrash = (root, name) => openDirectoryAt(openDirectoryBeneath(openRoot(root), TRASH_PARENT.split('/')), name);
 /// ```
 fn opened_trash(root: &Path, name: &str) -> Result<std::fs::File, String> {
-    let held: std::fs::File = open_root(root).map_err(|error| return format!("{} cannot be opened ({error})", root.display()))?;
-    let names = plain_components(Path::new(TRASH_PARENT)).map_err(|error| return format!("the trash parent is not a plain path ({error})"))?;
+    let held: std::fs::File = match open_root(root) {
+        Ok(file) => file,
+        Err(error) => return Err(format!("{} cannot be opened ({error})", root.display())),
+    };
+    let names: Vec<std::ffi::OsString> = match plain_components(Path::new(TRASH_PARENT)) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("the trash parent is not a plain path ({error})")),
+    };
     let mut parent: std::fs::File = held;
     for part in names {
-        parent = open_directory_at(&parent, part.as_os_str()).map_err(|error| return format!("{} cannot be opened ({error})", shown(root, name).display()))?;
+        parent = match open_directory_at(&parent, part.as_os_str()) {
+            Ok(next) => next,
+            Err(error) => return Err(format!("{} cannot be opened ({error})", shown(root, name).display())),
+        };
     }
-    return open_directory_at(&parent, OsStr::new(name)).map_err(|error| return format!("{} is not a plain directory ({error})", shown(root, name).display()));
+    return match open_directory_at(&parent, OsStr::new(name)) {
+        Ok(trash) => Ok(trash),
+        Err(error) => Err(format!("{} is not a plain directory ({error})", shown(root, name).display())),
+    };
 }
 
 /// The path a message names for the trash `name` of `root`.

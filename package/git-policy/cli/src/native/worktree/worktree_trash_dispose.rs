@@ -287,7 +287,8 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
 /// the last component of its path,
 /// for the manifest inside it.
 fn trash_name_of(inside: &Path) -> String {
-    return inside.file_name().map(|name: &std::ffi::OsStr| return name.to_string_lossy().into_owned()).unwrap_or_default();
+    let Some(name) = inside.file_name() else { return String::new() };
+    return name.to_string_lossy().into_owned();
 }
 
 /// Whether an error says a directory is not empty.
