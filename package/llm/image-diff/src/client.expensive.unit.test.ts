@@ -5,18 +5,14 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  ALL_PROVIDERS as COMPARE_PROVIDERS,
-  compareAll,
-} from './client.multi.compare.ts';
-import {
-  ALL_PROVIDERS as EMBED_PROVIDERS,
-  embedAll,
-} from './client.multi.ts';
-import {
+  COMPARE_PROVIDERS,
   compare,
+  compareAll,
   embed,
+  embedAll,
   embedBatch,
-} from './client.ts';
+  EMBED_PROVIDERS,
+} from '@monochromatic-dev/llm-image-diff';
 
 /**
  Generate a minimal 1x1 PNG as a base64 data URI.
@@ -63,7 +59,6 @@ function makeMinimalPngDataUri({
       },
       0xFF_FF_FF_FF,
     );
-    // oxlint-disable-next-line prefer-math-trunc -- final XOR; bitwise truncation is intentional for CRC32
     return Math.trunc((finalCrc ^ 0xFF_FF_FF_FF) >>> 0,);
   }
 
@@ -113,7 +108,6 @@ function makeMinimalPngDataUri({
     },
     { adlerA: 1, adlerB: 0, },
   );
-  // oxlint-disable-next-line prefer-math-trunc -- Adler-32 packing; bitwise truncation is intentional
   const adler32 = Math.trunc(((adlerB << 16) | adlerA) >>> 0,);
 
   /**

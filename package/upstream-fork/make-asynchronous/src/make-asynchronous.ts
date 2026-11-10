@@ -228,7 +228,7 @@ export function makeAsynchronous<const Wrapped extends AnyFunction>(
      structured clone.
      */
     const settled: unknown = getResult(await worker.request(call.args,),);
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unsafe-return -- worker reply carries the wrapped function's awaited return through structured clone; the return narrows `unknown` to that same shape
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- getResult returns `unknown` because the reply's shape belongs to the caller's `Wrapped`, which only this assertion names
     return settled as AsyncSettled<Wrapped>;
   }
 
@@ -242,7 +242,6 @@ export function makeAsynchronous<const Wrapped extends AnyFunction>(
   async function wrapped(
     call: AsyncCall<Wrapped>,
   ): Promise<AsyncSettled<Wrapped>> {
-    // oxlint-disable-next-line typescript/no-unsafe-return -- `run` settles the wrapped function's awaited return; the generic `any` inside `AsyncSettled` is upstream's `AnyFunction` boundary
     return await run({ call, },);
   }
 
@@ -264,7 +263,6 @@ export function makeAsynchronous<const Wrapped extends AnyFunction>(
     async function signaled(
       call: AsyncCall<Wrapped>,
     ): Promise<AsyncSettled<Wrapped>> {
-      // oxlint-disable-next-line typescript/no-unsafe-return -- `run` settles the wrapped function's awaited return; the generic `any` inside `AsyncSettled` is upstream's `AnyFunction` boundary
       return await run({
         call,
         signal,

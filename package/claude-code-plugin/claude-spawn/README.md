@@ -156,7 +156,9 @@ The plugin has two components:
 ### CLI tool (`spawn-claude`)
 
 Launches a child Claude session in a new terminal window via `terminal-exec`.
-Sets `CLAUDE_SPAWN_ID` on the child to link it to a pre-created spawn state file.
+Sets `CLAUDE_SPAWN_ID` on the child to link it to a pre-created spawn state file,
+ and `CLAUDE_SPAWN_DEPTH` to record the spawn generation the recursion guard
+ counts (see Nesting).
 Resolves the calling Claude session by walking the process tree upward,
 matching ancestor PIDs against `.by-pid/` coordination files.
 Falls back to the most recently modified `.by-pid/` file when the walk
@@ -197,8 +199,32 @@ delivers instead.
 
 ## Nesting
 
-Arbitrary nesting depth is supported.
- Each session acts as both a potential parent
+Sessions nest up to 3 spawn generations deep.
+Each child sits one generation below the session that launched it,
+ and the CLI records that generation in the `CLAUDE_SPAWN_DEPTH` environment
+variable it sets on the child,
+ so the next `spawn-claude` call inside that child counts from the right place.
+A session at the limit is refused before anything launches:
+ the CLI prints the generation it counted and the limit,
+ opens no terminal window,
+ and writes no spawn state file.
+The limit bounds depth and not width,
+ so a session below it may still launch several children.
+
+Raise or lower the limit with `MONOCHROMATIC_SPAWN_MAX_DEPTH`,
+ a whole number of generations of at least one,
+ set in the environment of the session that spawns.
+An unset or unreadable setting keeps the default of 3.
+A `CLAUDE_SPAWN_DEPTH` value that is not a count is refused rather than read as
+ the top of a chain,
+ because a corrupt marker would otherwise reset the guard for every generation
+below it.
+A session that never receives the marker counts as the top of a new chain,
+ which is what a resumed session in a fresh terminal looks like:
+ it has no `CLAUDE_SPAWN_ID` either,
+ so the plugin already treats it as a separate session rather than a child.
+
+Within that limit each session acts as both a potential parent
 (checks for completed children) and a potential child (reports to its parent).
 The `parentSessionId` field in spawn state files links each child to exactly
 one parent using Claude Code's `session_id` from hook event data.

@@ -233,3 +233,57 @@ Open questions for whoever owns that package:
 - Should a retired bridge make the run fail rather than report zero findings?
   Silent success after a lost channel is the failure mode this document exists
   for.
+
+## The same lost channel can also panic the lint process
+
+Recorded 2026-11-10 from a per-package run over
+`package/claude-code-plugin/claude-spawn` at main commit
+`566f36a87664d5109046e9dcadf80b3e31428972`
+(2026-11-09T23:50:05-05:00),
+with oxlint 1.92.0,
+four linted files,
+and the runner at `CPUQuota=350%`,
+`MemoryMax=24G`,
+`TasksMax=4096`.
+
+Symptom,
+ from `mise run //package/claude-code-plugin/claude-spawn:lint:oxlint`
+with the default worker count:
+
+```text
+Found 0 warnings and 0 errors.
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x8 pc=0xbf31dc]
+
+goroutine 151 [running]:
+github.com/microsoft/TypeScript/tsc/internal/project/dirty.(*SyncMapEntry[...]).ChangeIf(...)
+	github.com/microsoft/TypeScript/tsc/internal/project/dirty/syncmap.go:128 +0x3c
+```
+
+The panic is followed by the same
+`retireSemanticBridgeAfterChannelFailure` warning and one
+`semantic evidence unavailable` warning per linted file that the EOF symptom
+produces,
+so the bridge death is the same event.
+Here the TypeScript child dies while a project-collection walk is in flight,
+and the walk dereferences a map entry the dead channel never filled,
+so the native process panics instead of answering with an EOF.
+The exit status stays 0,
+which makes the run indistinguishable from a clean one in both the status and
+the summary line.
+
+Reproduction and its control,
+ measured in one session:
+
+- the default worker count panicked in both of two runs (before and after
+  merging current main).
+- `OXLINT_THREADS=1` on the same tree reported
+  `Found 0 warnings and 0 errors` with no panic,
+  and its only warning was `project-not-found` for the package's `task.ts`,
+  which sits outside the package tsconfig.
+
+The workaround at "Verified workarounds" applies unchanged:
+`OXLINT_THREADS=1 mise run <package>:lint:oxlint`.
+The panic itself still belongs to
+`package/oxlint-plugin/prefer-readonly-parameter-type`,
+whose bridge lifecycle starts the child that dies.

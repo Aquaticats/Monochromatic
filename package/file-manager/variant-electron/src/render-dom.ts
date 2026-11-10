@@ -24,6 +24,8 @@ import {
   type Strip,
 } from './strip.js';
 
+//region Renderer stores and pane handlers
+
 /**
  Mutable renderer-side stores keyed by pane identity.
  
@@ -121,6 +123,10 @@ export function createRendererStores(): RendererStores {
     selections: new Map(),
   };
 }
+
+//endregion Renderer stores and pane handlers
+
+//region Pane element construction
 
 /**
  Final path segment of a location path, for the pane header.
@@ -328,6 +334,10 @@ function fillPaneListing(
     list.append(item,);
   },);
 }
+
+//endregion Pane element construction
+
+//region Selection highlight and strip reconciliation
 
 /**
  Updates the selected-entry highlight of one directory pane.
@@ -544,3 +554,5 @@ export function renderStrip(
       },);
   },);
 }
+
+//endregion Selection highlight and strip reconciliation
