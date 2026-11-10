@@ -5,9 +5,11 @@
  server loop, so the cases import the built module that re-exports them.
  */
 
+import type { TextContent, } from '@monochromatic-dev/mcp-stdio/ts';
 import {
   describe,
   expect,
+  expectTypeOf,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
@@ -194,5 +196,37 @@ await describe({
     },),
 
     //endregion formatExecResult
+
+    //region Protocol types: the builders answer with the owned content type
+
+    describe({
+      name: 'response content types',
+      children: [
+        it({
+          name: 'narrows textResponse to a single protocol text item',
+          fn: async () => {
+            // A local copy of this shape could drift from the protocol's own, and it did:
+            // mvm's copy carried no `annotations` field and made every member mutable.
+            expectTypeOf<ReturnType<typeof textResponse>['content'][number]>()
+              .toEqualTypeOf<TextContent>();
+          },
+        },),
+        it({
+          name: 'accepts an annotated text item the local copy could not express',
+          fn: async () => {
+            const annotated: TextContent = {
+              text: 'VM created.',
+              type: 'text',
+              annotations: { audience: ['user',], },
+            };
+
+            expectTypeOf<typeof annotated>()
+              .toExtend<ReturnType<typeof textResponse>['content'][number]>();
+          },
+        },),
+      ],
+    },),
+
+    //endregion Protocol types
   ],
 },);
