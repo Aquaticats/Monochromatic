@@ -31,6 +31,11 @@ import {
   stat,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
 // oxlint-disable-next-line import/no-unassigned-import -- side-effect: opens SQLite database and runs schema migrations
 import './lib/db.ts';
 import {
@@ -43,6 +48,19 @@ import { inboxPage, } from './server/page/inbox.ts';
 import { searchPage, } from './server/page/search.ts';
 import { settingsPage, } from './server/page/settings.ts';
 import { taskDetailsPage, } from './server/page/task-details.ts';
+//region Logging
+
+/**
+ Logger for this module: server requests log through the shared logger so their
+ records carry a tag and land in the same sinks as the rest of the app.
+ */
+const l = tagged({
+  tag: 'done-server',
+  l: logger,
+},);
+
+//endregion Logging
+
 
 /**
  Default HTTP port when neither `--port=` nor `PORT` env var is provided.
@@ -103,10 +121,7 @@ async function getStaticMetadata(id: string,): Promise<StaticMeta> {
   }
   catch (staticStatError: unknown) {
     // Asset is missing or inaccessible; log the cause and report no cache metadata.
-    console.error(
-      'getStaticMetadata could not stat requested asset:',
-      staticStatError,
-    );
+    l.debug(`static asset could not be stat-ed, so it gets no cache metadata: ${caughtValueText(staticStatError,)}`,);
     return undefined;
   }
 }
@@ -244,4 +259,4 @@ const _server = serve(
   { port: resolvePort(), },
 );
 
-console.log(`Listening on ${_server.url}`,);
+l.info(`Listening on ${_server.url}`,);
