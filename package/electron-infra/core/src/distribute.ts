@@ -31,6 +31,8 @@ import { writeDistributionManifest, } from './distribution-manifest.js';
 import { readRootPackageMetadata, } from './package-metadata.js';
 import { packageTarget, } from './packager-target.js';
 
+//region Distribution options
+
 /**
  Options for distributing a staged Electron app.
  
@@ -59,6 +61,10 @@ export type ElectronAppDistributionOptions = {
   readonly packageRoot: string;
   readonly selectedTargetKeys: readonly string[];
 };
+
+//endregion Distribution options
+
+//region Target selection
 
 /**
  Applies optional target-key filters to the default distribution matrix.
@@ -102,6 +108,10 @@ export function selectDistributionTargets(
     return selectedTargetKeys.includes(targetKey({ target, },),);
   },);
 }
+
+//endregion Target selection
+
+//region Packaging a staged app
 
 /**
  Creates all requested distribution bundles or records the dry-run manifest.
@@ -217,3 +227,5 @@ export async function distributeElectronApp(
     },);
   },),);
 }
+
+//endregion Packaging a staged app
