@@ -16,6 +16,11 @@ mod support;
 /// errors,
 /// and captured subprocess output.
 use std::{fs, io, process::Output};
+/// Import the operating-system string type that can hold bytes that are not UTF-8.
+use std::ffi::OsStr;
+/// Import `from_bytes`,
+/// which builds such a string from raw argument bytes.
+use std::os::unix::ffi::OsStrExt;
 
 /// What:
 /// `fn` declares a function;
@@ -86,6 +91,85 @@ fn rejects_invalid_invocation() -> io::Result<()> {
     // ```ts
     // return;
     // ```
+    return Ok(());
+}
+
+/// What:
+/// `#[test]` registers a nextest case for the argument boundary;
+/// `Result<()>` carries success or a setup error.
+/// Why:
+/// An argument whose bytes are not UTF-8 must still block the call with the documented status 2;
+/// `std::env::args` panics instead,
+/// and a panic exits 101,
+/// which Codex reports as a failed hook run and then executes the tool anyway.
+#[test]
+fn refuses_arguments_that_are_not_utf8() -> io::Result<()> {
+    // Build raw argument bytes, keeping the invalid sequence intact.
+    let not_utf8_parent = OsStr::from_bytes(b"/no-such-fixture/\xff-worker");
+    let not_utf8_mode = OsStr::from_bytes(b"--hook\xff");
+    let not_utf8_extra = OsStr::from_bytes(b"\xff");
+    // What: A borrowed list of borrowed lists covers each argument position independently.
+    // Why: The mode, the parent path, and an extra argument are decoded in separate branches.
+    let cases: &[&[&OsStr]] = &[
+        &[OsStr::new("--hook"), not_utf8_parent],
+        &[not_utf8_mode, OsStr::new("/")],
+        &[OsStr::new("--hook"), OsStr::new("/"), not_utf8_extra],
+    ];
+    for arguments in cases {
+        // Lend the raw argument list and a JSON event body to the native binary.
+        let output = support::invoke_os(arguments, "{}", &[])?;
+        // The shared denial check proves the blocking exit and the empty success stream.
+        denied(&output);
+        // Decode the diagnostic, replacing invalid bytes only in the test's own reading.
+        let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(diagnostic.starts_with("Codex worker limits: "), "{diagnostic}");
+        assert!(diagnostic.contains("UTF-8"), "{diagnostic}");
+    }
+    return Ok(());
+}
+
+/// What:
+/// `#[test]` registers a nextest case for the first refusal inside initialization;
+/// `Result<()>` carries success or a setup error.
+/// Why:
+/// A path that does not exist and names no final component must be refused before the hook starts any slice,
+/// and no other case in the suite reaches that arm.
+#[test]
+fn refuses_an_initialize_path_without_a_unit_name() -> io::Result<()> {
+    // `..` leaves the final component absent while the path stays absolute, as the entry point requires.
+    let output = support::invoke(&["--initialize", "/nonexistent-codex-fixture/.."], "")?;
+    // The shared denial check proves the blocking exit and the empty success stream.
+    denied(&output);
+    // Read the diagnostic, whose wording belongs to the no-unit-name arm alone.
+    let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(diagnostic.contains("has no unit name"), "{diagnostic}");
+    return Ok(());
+}
+
+/// What:
+/// `#[test]` registers a nextest case for the failed slice start;
+/// `Result<()>` carries success or a setup error.
+/// Why:
+/// With systemd unreachable the start arm must report its own cause,
+/// and the run must create no slice in the shared user manager.
+#[test]
+fn refuses_an_unreachable_slice_start() -> io::Result<()> {
+    // Use the disposable parent; the absent `.slice` child is what makes the start arm run.
+    let parent = support::fixture()?;
+    let absent = parent.join("codex-fixture-missing.slice");
+    let path = absent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+    // Launch without the user-bus variables, so the start fails the way an unattended host fails.
+    let output = support::invoke_os(
+        &[OsStr::new("--initialize"), OsStr::new(path)],
+        "",
+        &["DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR"],
+    )?;
+    // The shared denial check proves the blocking exit and the empty success stream.
+    denied(&output);
+    // Assert the arm's own diagnostic, which the control-verification failure cannot produce.
+    let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(diagnostic.contains("systemctl could not start the worker slice."), "{diagnostic}");
+    fs::remove_dir_all(parent)?;
     return Ok(());
 }
 

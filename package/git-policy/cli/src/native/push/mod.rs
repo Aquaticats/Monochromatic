@@ -135,10 +135,6 @@ pub mod auto_push_reconcile_merge_commit;
 /// and the checks that guard it.
 pub mod auto_push_reconcile_branch_advance;
 
-/// The settle of a fast-forward Git refused,
-/// awaited by a task of the runtime.
-pub mod auto_push_reconcile_branch_advance_settling;
-
 /// The reading of a configured push refspec and the judgement of what the refspecs make of one branch.
 pub mod auto_push_refspec_judging;
 

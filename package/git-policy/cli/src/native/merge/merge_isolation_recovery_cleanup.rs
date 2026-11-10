@@ -19,7 +19,8 @@ use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
 use crate::merge_isolation_recovery_steps::remove_record;
 use crate::merge_isolation_recovery_steps::{MergeRefusal, RecoveryPlace};
 use crate::recovery_error::RecoveryError;
-use crate::transaction_git::{GitRequest, run_git_checked};
+use crate::transaction_git::GitRequest;
+use crate::transaction_git_awaiting::run_git_checked_awaiting;
 use std::path::Path;
 
 /// What:
@@ -74,9 +75,9 @@ pub fn untouched(error: RecoveryError) -> MergeRefusal {
 /// ```ts
 /// async function dropRecordAndSideRef({ place, root, record, intent }): Promise<void>;
 /// ```
-pub fn drop_record_and_side_ref(place: &RecoveryPlace, root: &Path, record: &Path, intent: &MergeIntent) -> Result<(), RecoveryError> {
+pub async fn drop_record_and_side_ref_awaiting(place: &RecoveryPlace, root: &Path, record: &Path, intent: &MergeIntent) -> Result<(), RecoveryError> {
     remove_record(record)?;
-    drop_side_ref(place, root, intent);
+    drop_side_ref_awaiting(place, root, intent).await;
     return Ok(());
 }
 
@@ -94,14 +95,14 @@ pub fn drop_record_and_side_ref(place: &RecoveryPlace, root: &Path, record: &Pat
 /// ```ts
 /// async function dropSideRef({ place, root, intent }): Promise<void>;
 /// ```
-pub fn drop_side_ref(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
+pub async fn drop_side_ref_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
     let Some(name) = intent.side_ref.as_deref() else {
         return;
     };
     // The ref is deleted only while it still holds this merge's commit: another command may have put its own commit on the
     //  name, and that commit may have no other.
     let arguments: [&str; 5] = ["update-ref", "--no-deref", "-d", name, intent.new_oid.as_str()];
-    if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &arguments)) {
+    if let Err(error) = run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
         debug(
             "settleFailedMerge",
             format!("the side ref {name} no longer holds the landed merge's commit, so it was left where it is: {error}").as_str(),

@@ -6,7 +6,10 @@
 
 import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import {
+  tagged,
+  type Logger,
+} from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import nanoSpawn from 'nano-spawn';
 
@@ -260,6 +263,11 @@ type AgentSettledNotificationRegistration = {
    Optional injectable notification boundary for deterministic tests.
    */
   readonly invoke?: NotificationInvoker;
+
+  /**
+   Optional logger receiving handler diagnostics; defaults to the module root logger.
+   */
+  readonly l?: Logger;
 };
 
 /**
@@ -268,6 +276,8 @@ type AgentSettledNotificationRegistration = {
  @param pi - Pi API receiving the sole lifecycle subscription
  
  @param invoke - optional desktop-notification boundary used by tests
+ 
+ @param l - optional logger receiving handler diagnostics used by tests
  
  @mutates pi - `pi.on` stores the `agent_settled` lifecycle registration in the Pi host
  
@@ -280,6 +290,7 @@ function registerAgentSettledNotification(
   {
     pi,
     invoke,
+    l = logger,
   }: AgentSettledNotificationRegistration,
 ): void {
   /**
@@ -296,7 +307,7 @@ function registerAgentSettledNotification(
        */
       const innerLogger = tagged({
         tag: handleAgentSettled.name,
-        l: logger,
+        l,
       },);
       /**
        Result of attempting the static desktop notification.
