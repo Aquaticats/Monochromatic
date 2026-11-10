@@ -331,23 +331,21 @@ and the value is checked and ignored.
   a holder that puts another file on the descriptor between the gate and the read is read as not holding the lock,
   so the removal may take a lock that is in fact held,
   and the journal line says what it acted on.
-  The proof counts the service's own descriptors through the gated read of item 3 above
-  (`src/native/process/open_file_of_a_descriptor.rs`),
-  so a descriptor of its own on a file system whose attributes are not in memory is never asked for its device and inode:
-  one that names a file a repository could hold makes the count unknown and the lock stays,
-  and one that is no file of a repository (a pipe,
+  The proof counts the service's own descriptors as the files the kernel has open under their numbers:
+  `statx(2)` with `AT_EMPTY_PATH` takes the descriptor's own number,
+  walks no path,
+  and asks no file system to revalidate a directory entry,
+  so the count is the same on every mount type
+  (`src/native/process/open_file_of_a_descriptor.rs`,
+  `opened_file_of_our_own`).
+  A descriptor of its own that names no file of a repository matches no device and inode and is not counted,
+  so a pipe,
   a socket,
-  a memory or device file,
-  a file under `/proc` or `/sys`) is skipped.
+  a memory or device file and a file under `/proc` or `/sys` need no name test of their own.
   A descriptor that ended while it was being counted names nothing.
-  A descriptor of this process on a file no repository could hold is skipped,
-  and a memory file is one of them:
-  the kernel writes its link as `/memfd:<name> (deleted)`,
-  with the leading slash its other pseudo names do not have,
-  so that slash is dropped before those names are matched,
-  and an open capture no longer keeps an abandoned lock
-  (cross-vendor review of 2026-11-09,
-  finding 4).
+  A mount whose type this process cannot classify no longer makes that count unknown,
+  which on a container's overlay filesystem it did for every descriptor:
+  an abandoned lock stayed where it was and every commit behind it failed at its ceiling.
   and this key no longer sets anything.
   `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
@@ -6415,10 +6413,9 @@ and the first answer wins:
    before the file the descriptor has open is read.
    That read walks the path `/proc/<pid>/fd/<n>`,
    whose last step asks the file's own file system to revalidate its directory entry before any attribute is read,
-   so it is taken only where it cannot reach a server:
+   so it is taken in this process only where it cannot reach a server:
    the `mnt_id` line of the descriptor's record is looked up in that process's own mount table,
-   and the file is read only when the mount is on the fixed list of local file systems above (without `overlay`,
-   whose attributes are the file's below it).
+   and the file is read only when the mount is on the fixed list of local file systems above.
    A `statx(2)` with `AT_STATX_DONT_SYNC` then answers from the memory of the kernel:
    a file system whose server has stopped answers neither that walk nor its own flush,
    and `SIGTERM` does not end either wait
@@ -6426,6 +6423,30 @@ and the first answer wins:
    findings 3 and 4 of the first and 2 and 4 of the second;
    measured on this host with a stopped `fuse-overlayfs` server,
    `doc/troubleshooting/fuse-descriptor-attributes.md`).
+   A kernel `overlay` mount is the one type that does not settle that question,
+   because its own attributes are the attributes of the file below it,
+   and whether a read reaches a server is decided by the layer's own file system:
+   overlay revalidates a layer only when that layer sets a revalidation of its own
+   (`fs/overlayfs/super.c`,
+   `ovl_revalidate_real`).
+   The layers are named in the mount's own options,
+   and in a container they are the host's directories,
+   which no process inside the container can reach:
+   measured on 2026-11-09 in this package's gate container,
+   every `lowerdir` and `upperdir` of its root mount is `ENOENT` there while the layers are the host's local disk.
+   So that one read is made by a child of this process,
+   and the answer is waited for only until a ceiling
+   (300 ms;
+   measured 0.5 ms mean and 2.1 ms worst over two hundred reads on this host):
+   a child that has not answered is ended,
+   and one the kernel does not let go is collected by a reaper whenever it does,
+   which is what a command's own stuck child gets
+   (`src/native/process/open_file_of_a_descriptor_in_a_child.rs`).
+   The ceiling is a process the scan could not identify,
+   and none of these is a wait the caller keeps:
+   `fuse-overlayfs` is another type,
+   served by a process of the machine,
+   and stays refused with the types above.
    A copy of the descriptor answers a stalled server from its cached inode,
    but closing the copy runs that file system's flush,
    which a stopped server holds as it holds a lookup,
