@@ -276,7 +276,11 @@
           "path": ["repository", "url"],
           "value": "https://github.com/Aquaticats/Monochromatic.git",
         },
-        { "guard": ["repository"], "path": ["repository", "directory"], "value": { "var": "dir" } },
+        {
+          "guard": ["repository"],
+          "path": ["repository", "directory"],
+          "value": { "var": "dir" },
+        },
         {
           "guard": ["repository"],
           "path": ["homepage"],
