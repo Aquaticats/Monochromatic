@@ -1157,3 +1157,33 @@ Why:
  `package/git-policy/cli/src/native/shadow/shadow_links.rs:294`,
   not at the line the fence named,
   and that is corrected on this branch.
+
+- `#4134`:
+  the half about a second incident is resolved,
+  the half about the heading set still holds.
+ `doc/troubleshooting/git-policy-wrapper-launcher-path.md` on `main` ends with a pointer to
+ [git-policy-shadow-lfs.md](git-policy-shadow-lfs.md) in place of the second incident,
+  so the second incident is one pointer now rather than a section after the remedy,
+  and the file no longer duplicates that record or contradicts its verdict,
+  and the claim in the issue's title is gone.
+ Its headings are still not the seven the skill requires:
+  it has `Symptom`,
+ `Root cause`,
+ `Verification` and `Remedy and ownership`,
+  and no `Verified workarounds`,
+ `What does not work` or `Upstream filing artifact`;
+  the qualified-wrapper fixture,
+  the missing-helper fixture and the two issue links all sit under `Remedy and ownership`.
+ Every path it names resolves or carries its dated note:
+ `package/git-policy/cli/src/native/rule_commit_only.rs` is noted as moved to
+ `package/git-policy/cli/src/native/commit/rule_commit_only.rs` on 2026-11-03 in `a004a6ab2c`,
+  and the program and settings-file rename is noted at the top of the file.
+ Proposed,
+  not applied here,
+  because this check asked only whether the issue still holds and this half is a structure change:
+  keep one incident,
+  rename `Remedy and ownership` to `Verified workarounds` and state the tradeoff of invoking the wrapper by
+  absolute path,
+  move the missing-helper and qualified-invocation fixtures into `Verification`,
+  add `What does not work` for the documentation-only remedy the owner rejected,
+  and add `Upstream filing artifact` naming issues 1768 and 575 with its six-constraint decision.
