@@ -10,9 +10,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { Post, } from '../lib/content.ts';
-
-import { postPage, } from './post.ts';
+import {
+  postPage,
+  type Post,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Git-derived publication date used by the post fixture.
@@ -35,7 +36,9 @@ const FIXTURE_POST: Post = {
     description: 'UI/UX designer and developer bridging design and engineering.',
     tags: ['portfolio',],
     published: PUBLISHED_DATE,
+    publishedOffsetMinutes: 0,
     updated: UPDATED_DATE,
+    updatedOffsetMinutes: 0,
   },
   body: '# About',
   filePath: 'src/content/en/about.mdx',

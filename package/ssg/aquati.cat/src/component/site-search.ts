@@ -5,6 +5,9 @@
  icon centered over it. On `:focus` the input expands, reveals
  placeholder text, and shifts the icon to the inline-start edge.
  The results dropdown positions absolutely below the search wrapper.
+ The input draws no focus ring of its own; the site-wide `:focus-visible`
+ rule in `src/style/global.ts` owns that, so the ring appears for keyboard
+ focus only, like every other control.
  
  Internal class names (`.search-icon`, `.search-input`, `.search-results`,
  `.search-title`, `.search-excerpt`) are scoped to this file's CSS.
@@ -31,6 +34,7 @@ import { icon, } from '../lib/icon/icon.ts';
 import {
   BORDER_WIDTH_REM,
   FONT_SIZE_SMALL,
+  FONT_WEIGHT_EMPHASIS,
   GAP,
   GAP_SMALL,
   TOUCH_TARGET,
@@ -119,7 +123,7 @@ export function css(): string {
         'transition-timing-function': 'ease-out',
       },
       children: [
-        $({
+        $({ 
           rule: '&:focus',
           decls: {
             color: 'inherit',
@@ -129,10 +133,6 @@ export function css(): string {
             'border-color': cssVar('color-border',),
             'background-color': cssVar('color-bg',),
             cursor: 'text',
-            'outline-color': cssVar('color-focus-ring',),
-            'outline-style': 'solid',
-            'outline-width': cssCalc(BORDER_WIDTH_REM,),
-            'outline-offset': cssCalc(BORDER_WIDTH_REM,),
           },
         },),
         $({
@@ -178,9 +178,7 @@ export function css(): string {
         'border-color': cssVar('color-border',),
         'border-radius': cssRem(GAP_SMALL,),
         // oxlint-disable-next-line no-unsafe-type-assertion -- template literal produces valid box-shadow but doesn't narrow to StrictValue
-        'box-shadow': `0 ${cssRem(GAP_SMALL,)} ${
-          cssRem(GAP,)
-        } rgba(0, 0, 0, 0.1)` as CssValue,
+        'box-shadow': `0 ${cssRem(GAP_SMALL,)} ${cssRem(GAP,)} ${cssVar('color-shadow',)}` as CssValue,
         'z-index': 10,
       },
       children: [
@@ -213,10 +211,10 @@ export function css(): string {
             display: 'block',
           },
         },),
-        $({
+        $({ 
           rule: '.search-title',
           decls: {
-            'font-weight': 600,
+            'font-weight': FONT_WEIGHT_EMPHASIS,
           },
         },),
         $({
@@ -232,7 +230,7 @@ export function css(): string {
           decls: {
             'background-color': 'transparent',
             color: cssVar('color-link',),
-            'font-weight': 600,
+            'font-weight': FONT_WEIGHT_EMPHASIS,
           },
         },),
       ],

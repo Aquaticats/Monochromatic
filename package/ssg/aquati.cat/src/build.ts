@@ -46,6 +46,7 @@ import {
   resolveGitDatesContext,
 } from './lib/git-dates.ts';
 import { renderMdx, } from './lib/markdown.ts';
+import { PIPELINE_GLOB, } from './lib/pipeline-glob.ts';
 
 // File justification: 120 lines: linear pipeline script; splitting the
 // orchestration across multiple files would scatter the build sequence.
@@ -68,12 +69,6 @@ const SITE_URL = 'https://aquati.cat';
  Content source directory.
  */
 const CONTENT_DIR = 'src/content';
-
-/**
- Glob matching all pipeline source files for cache invalidation.
- Changes to any matched file invalidate all cached content entries.
- */
-const PIPELINE_GLOB = 'src/{lib,components,client,i18n}/**/*.ts';
 
 //region Build orchestration: loads content, processes MDX, generates pages and assets
 
@@ -141,6 +136,7 @@ await Promise.all(loadedPosts.map(async function resolveDates(post,) {
         manifest: effectiveCache,
         filePath: cacheKey,
         contentHash: post.contentHash,
+        lang: post.lang,
       },);
     if (cached !== CACHE_MISS) {
       /**
@@ -149,8 +145,12 @@ await Promise.all(loadedPosts.map(async function resolveDates(post,) {
       const dates = {
         published: cached.frontmatter
           .published,
+        publishedOffsetMinutes: cached.frontmatter
+          .publishedOffsetMinutes,
         updated: cached.frontmatter
           .updated,
+        updatedOffsetMinutes: cached.frontmatter
+          .updatedOffsetMinutes,
       };
       warnOnAuthoredDateDivergence({
         authoredDates: post.authoredDates,
@@ -222,6 +222,7 @@ const processResults = await Promise.all(posts.map(async function processPost(
       manifest: effectiveCache,
       filePath: cacheKey,
       contentHash: post.contentHash,
+      lang: post.lang,
     },);
 
   if (cached !== CACHE_MISS) {
@@ -238,9 +239,14 @@ const processResults = await Promise.all(posts.map(async function processPost(
         ...cached.frontmatter,
         published: post.data
           .published,
+        publishedOffsetMinutes: post.data
+          .publishedOffsetMinutes,
         updated: post.data
           .updated,
+        updatedOffsetMinutes: post.data
+          .updatedOffsetMinutes,
       },
+      lang: cached.lang,
     };
     return {
       contentKey: `${post.lang}/${post.name}`,
@@ -253,7 +259,10 @@ const processResults = await Promise.all(posts.map(async function processPost(
   /**
    Freshly rendered post body when no cache hit applies.
    */
-  const html = await renderMdx(post.body,);
+  const html = await renderMdx({
+    body: post.body,
+    lang: post.lang,
+  },);
   /**
    New manifest entry persisted for future builds.
    */
@@ -261,6 +270,7 @@ const processResults = await Promise.all(posts.map(async function processPost(
     contentHash: post.contentHash,
     html,
     frontmatter: post.data,
+    lang: post.lang,
   },);
   return {
     contentKey: `${post.lang}/${post.name}`,

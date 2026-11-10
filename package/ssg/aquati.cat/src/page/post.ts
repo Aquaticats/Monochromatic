@@ -17,6 +17,83 @@ import { pageLayout, } from '../template/layout.ts';
 import { prettyDate, } from '../template/pretty-date.ts';
 
 /**
+ Renders a fallback page when a post does not exist in the requested language.
+ 
+ @param lang - requested language code
+ 
+ @param name - post slug name for the language chooser link
+ 
+ @param canonicalUrl - full canonical URL for this page
+ 
+ @param availableInLangs - locales in which this post slug exists;
+ forwarded so the language switcher highlights translations that
+ do exist even though the requested one does not
+ 
+ @returns complete HTML document with redirect link
+ */
+function postNotFoundPage(
+  {
+    lang,
+    name,
+    canonicalUrl,
+    availableInLangs,
+  }: {
+    readonly lang: Locale;
+    readonly name: string;
+    readonly canonicalUrl: string;
+    readonly availableInLangs: readonly Locale[];
+  },
+): string {
+  /**
+   Heading naming the missing-translation condition for the requested locale.
+   */
+  const title = i18n.label(
+    lang,
+    'postNotInLang',
+  );
+
+  /**
+   Main element tree composed before the page layout wraps it with `<head>` and friends.
+   */
+  const content = h({
+    tag: 'main',
+    children: [
+      h({
+        tag: 'h1',
+        text: title,
+      },),
+      h({
+        tag: 'p',
+        children: [
+          `${i18n.label(
+            lang,
+            'redirectingToLangChooser',
+          )} `,
+          h({
+            tag: 'a',
+            attrs: { href: `/${name}`, },
+            text: name,
+          },),
+        ],
+      },),
+    ],
+  },);
+
+  return pageLayout({
+    title,
+    lang,
+    content,
+    description: i18n.label(
+      lang,
+      'postNotInLang',
+    ),
+    canonicalUrl,
+    currentName: name,
+    availableInLangs,
+  },);
+}
+
+/**
  Generates the full post page HTML.
  
  @param post - post data (or `undefined` if not available in this language)
@@ -133,82 +210,5 @@ export function postPage(
       updated: post.data
         .updated,
     },
-  },);
-}
-
-/**
- Renders a fallback page when a post does not exist in the requested language.
- 
- @param lang - requested language code
- 
- @param name - post slug name for the language chooser link
- 
- @param canonicalUrl - full canonical URL for this page
- 
- @param availableInLangs - locales in which this post slug exists;
- forwarded so the language switcher highlights translations that
- do exist even though the requested one does not
- 
- @returns complete HTML document with redirect link
- */
-function postNotFoundPage(
-  {
-    lang,
-    name,
-    canonicalUrl,
-    availableInLangs,
-  }: {
-    readonly lang: Locale;
-    readonly name: string;
-    readonly canonicalUrl: string;
-    readonly availableInLangs: readonly Locale[];
-  },
-): string {
-  /**
-   Heading naming the missing-translation condition for the requested locale.
-   */
-  const title = i18n.label(
-    lang,
-    'postNotInLang',
-  );
-
-  /**
-   Main element tree composed before the page layout wraps it with `<head>` and friends.
-   */
-  const content = h({
-    tag: 'main',
-    children: [
-      h({
-        tag: 'h1',
-        text: title,
-      },),
-      h({
-        tag: 'p',
-        children: [
-          `${i18n.label(
-            lang,
-            'redirectingToLangChooser',
-          )} `,
-          h({
-            tag: 'a',
-            attrs: { href: `/${name}`, },
-            text: name,
-          },),
-        ],
-      },),
-    ],
-  },);
-
-  return pageLayout({
-    title,
-    lang,
-    content,
-    description: i18n.label(
-      lang,
-      'postNotInLang',
-    ),
-    canonicalUrl,
-    currentName: name,
-    availableInLangs,
   },);
 }
