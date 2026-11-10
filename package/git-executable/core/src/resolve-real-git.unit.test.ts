@@ -957,5 +957,83 @@ await describe({
     },),
 
     //endregion Cache and failure lifetime
+
+    //region Resolution diagnostics
+
+    it({
+      name: 'reports PATH order when no common platform path was promoted',
+      fn: async function reportsPathOrderSelection(): Promise<void> {
+        await using tempDirectory = await createTempDirectory();
+        /**
+         PATH directory containing the only candidate.
+         */
+        const externalBin = join(tempDirectory.path, 'external-bin',);
+        await mkdir(externalBin,);
+        /**
+         Executable selected in plain PATH order.
+         */
+        const externalGit = join(externalBin, 'git',);
+        await writeExecutable({ path: externalGit, content: REAL_GIT_CONTENT, },);
+
+        /**
+         Child diagnostics for a lookup without preferred common paths.
+         */
+        const result = await resolveRealGitInChild({
+          pathEnv: externalBin,
+          commonGitPaths: [],
+        },);
+
+        expect(result.resolvedPath,).toBe(externalGit,);
+        expect(result.diagnostics,).toContain(
+          `resolved real Git at ${externalGit} from PATH order`,
+        );
+        expect(result.diagnostics,).not.toContain('from a promoted common platform path',);
+      },
+    },),
+    it({
+      name: 'reports the promoted common platform path that wins the scan',
+      fn: async function reportsPromotedSelection(): Promise<void> {
+        await using tempDirectory = await createTempDirectory();
+        /**
+         Earlier ordinary PATH directory.
+         */
+        const ordinaryBin = join(tempDirectory.path, 'ordinary-bin',);
+        /**
+         Later PATH directory holding the promoted candidate.
+         */
+        const commonBin = join(tempDirectory.path, 'common-bin',);
+        await Promise.all([
+          mkdir(ordinaryBin,),
+          mkdir(commonBin,),
+        ],);
+        /**
+         Executable superseded by the promoted common path.
+         */
+        const ordinaryGit = join(ordinaryBin, 'git',);
+        /**
+         Promoted executable the scan selects.
+         */
+        const commonGit = join(commonBin, 'git',);
+        await Promise.all([
+          writeExecutable({ path: ordinaryGit, content: REAL_GIT_CONTENT, },),
+          writeExecutable({ path: commonGit, content: REAL_GIT_CONTENT, },),
+        ],);
+
+        /**
+         Child diagnostics for a lookup that promotes an exposed common path.
+         */
+        const result = await resolveRealGitInChild({
+          pathEnv: [ordinaryBin, commonBin,].join(delimiter,),
+          commonGitPaths: [commonGit,],
+        },);
+
+        expect(result.resolvedPath,).toBe(commonGit,);
+        expect(result.diagnostics,).toContain(
+          `resolved real Git at ${commonGit} from a promoted common platform path`,
+        );
+      },
+    },),
+
+    //endregion Resolution diagnostics
   ],
 },);

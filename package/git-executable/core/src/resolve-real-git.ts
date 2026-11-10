@@ -56,6 +56,20 @@ type BuildCandidateSequenceOptions = {
   readonly commonGitPaths: readonly string[];
 };
 
+/**
+ Ordered executable candidates and the subset promoted ahead of PATH order.
+ */
+type BuildCandidateSequenceResult = {
+  /**
+   Deduplicated absolute candidates in resolution order.
+   */
+  readonly candidates: readonly string[];
+  /**
+   Candidates promoted because PATH exposes them.
+   */
+  readonly promotedCandidates: readonly string[];
+};
+
 //endregion Resolver state and candidate types
 
 //region Candidate construction
@@ -138,7 +152,8 @@ function candidateIdentity({
  
  @param commonGitPaths - Common paths promoted when PATH exposes them.
  
- @returns Deduplicated absolute candidates in resolution order.
+ @returns Deduplicated absolute candidates in resolution order,
+ plus the candidates promoted ahead of PATH order.
  
  @example
  ```ts
@@ -149,7 +164,10 @@ function candidateIdentity({
    cwd: '/workspace',
    commonGitPaths: ['/usr/bin/git'],
  });
- // => ['/usr/bin/git', '/custom/bin/git']
+ // => {
+ //   candidates: ['/usr/bin/git', '/custom/bin/git'],
+ //   promotedCandidates: ['/usr/bin/git'],
+ // }
  ```
  */
 function buildCandidateSequence({
@@ -158,7 +176,7 @@ function buildCandidateSequence({
   pathExtensions,
   cwd,
   commonGitPaths,
-}: BuildCandidateSequenceOptions,): readonly string[] {
+}: BuildCandidateSequenceOptions,): BuildCandidateSequenceResult {
   /**
    Platform-specific executable basenames in shell lookup order.
    */
@@ -219,10 +237,13 @@ function buildCandidateSequence({
       : [exposedPath,];
   },);
 
-  return [...new Set([
-    ...exposedCommonGitPaths,
-    ...pathCandidates,
-  ],),];
+  return {
+    candidates: [...new Set([
+      ...exposedCommonGitPaths,
+      ...pathCandidates,
+    ],),],
+    promotedCandidates: exposedCommonGitPaths,
+  };
 }
 
 //endregion Candidate construction
@@ -278,16 +299,24 @@ function isExpectedCandidateMiss(error: unknown,): boolean {
  
  @param candidates - Absolute candidates in common-path-first order.
  
+ @param promotedCandidates - Candidates promoted ahead of PATH order.
+ 
  @returns First usable real-Git executable path.
  
  @throws {@link RealGitNotFoundError} when every candidate is unavailable or self-referential.
  
  @example
  ```ts
- await scanCandidateSequence(['/usr/bin/git']);
+ await scanCandidateSequence({ candidates: ['/usr/bin/git'], promotedCandidates: [] });
  ```
  */
-async function scanCandidateSequence(candidates: readonly string[],): Promise<string> {
+async function scanCandidateSequence({
+  candidates,
+  promotedCandidates,
+}: {
+  readonly candidates: readonly string[];
+  readonly promotedCandidates: readonly string[];
+},): Promise<string> {
   /**
    Function-tagged logger for candidate scan decisions.
    */
@@ -313,8 +342,16 @@ async function scanCandidateSequence(candidates: readonly string[],): Promise<st
         continue;
       }
 
+      /**
+       Where the selected candidate came from in the scanned sequence.
+       */
+      const selectionOrigin = promotedCandidates.includes(candidate,)
+        ? 'a promoted common platform path'
+        : 'PATH order';
+
       rl.debug(
-        `resolved real Git at ${candidate} using common-platform-path priority; `
+        `resolved real Git at ${candidate} from ${selectionOrigin}; `
+          + `promoted common platform paths: ${String(promotedCandidates.length,)}; `
           + `self shims skipped: ${String(skippedSelfShimPaths.length,)}`,
       );
       return candidate;
@@ -329,7 +366,9 @@ async function scanCandidateSequence(candidates: readonly string[],): Promise<st
   }
 
   rl.debug(
-    `real Git resolution exhausted PATH candidates; self shims skipped: ${String(skippedSelfShimPaths.length,)}`,
+    `real Git resolution exhausted PATH candidates; `
+      + `promoted common platform paths: ${String(promotedCandidates.length,)}; `
+      + `self shims skipped: ${String(skippedSelfShimPaths.length,)}`,
   );
   throw new RealGitNotFoundError({
     candidateCount: candidates.length,
@@ -392,9 +431,13 @@ export async function resolveRealGit(options: ResolveRealGitOptions = {},): Prom
     environment,
   },);
   /**
-   Effective absolute candidate sequence and memoization identity source.
+   Effective absolute candidate sequence and the promoted common candidates,
+   together the memoization identity source.
    */
-  const candidates = buildCandidateSequence({
+  const {
+    candidates,
+    promotedCandidates,
+  } = buildCandidateSequence({
     pathEnv,
     platform,
     pathExtensions,
@@ -408,7 +451,10 @@ export async function resolveRealGit(options: ResolveRealGitOptions = {},): Prom
   return await resolveCachedRealGit({
     cacheKey,
     resolve: async function scanEffectiveCandidates(): Promise<string> {
-      return await scanCandidateSequence(candidates,);
+      return await scanCandidateSequence({
+        candidates,
+        promotedCandidates,
+      },);
     },
   },);
 }
