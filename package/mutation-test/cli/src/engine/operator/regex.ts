@@ -17,6 +17,8 @@ import type {
   Replacement,
 } from '../types.ts';
 
+//region Swap tables
+
 /**
  Escape class negation swaps applied to `\\d`, `\\w`, `\\s` and their
  negated forms.
@@ -39,6 +41,10 @@ const TOKEN_SWAPS: Readonly<Record<string, string>> = {
   '^': '',
   '$': '',
 };
+
+//endregion Swap tables
+
+//region Replacement emission
 
 /**
  Emits mutated regex literals for one Literal node carrying a regex.
@@ -164,3 +170,5 @@ export function regexReplacements(options: {
 
   return replacements;
 }
+
+//endregion Replacement emission
