@@ -37,37 +37,6 @@ type VerifyResult = {
   readonly ok: boolean;
 };
 
-/**
- Verifies every fixture and prints summary.
- 
- @example
- ```ts
- await main();
- ```
- */
-async function main(): Promise<void> {
-  /**
-   Per-fixture verification results.
-   */
-  const results = await Promise.all(FIGMA_FILE_TYPES.map(function verifyFixture(fileType,): Promise<VerifyResult> {
-    return verifyOne({ fileType, },);
-  },),);
-  /**
-   Count of passing fixtures.
-   */
-  const passed = results.filter(function passedFixture(result,): boolean {
-    return result.ok;
-  },)
-    .length;
-  /**
-   Count of failing fixtures.
-   */
-  const failed = results.length - passed;
-
-  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`,);
-  if (failed > 0)
-    throw new Error(`${failed} Figma Kiwi fixture verification failed`,);
-}
 
 /**
  Verifies one fixture.
@@ -345,7 +314,27 @@ function stringField(
 }
 
 try {
-  await main();
+  /**
+   Per-fixture verification results.
+   */
+  const results = await Promise.all(FIGMA_FILE_TYPES.map(function verifyFixture(fileType,): Promise<VerifyResult> {
+    return verifyOne({ fileType, },);
+  },),);
+  /**
+   Count of passing fixtures.
+   */
+  const passed = results.filter(function passedFixture(result,): boolean {
+    return result.ok;
+  },)
+    .length;
+  /**
+   Count of failing fixtures.
+   */
+  const failed = results.length - passed;
+
+  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`,);
+  if (failed > 0)
+    throw new Error(`${failed} Figma Kiwi fixture verification failed`,);
 }
 catch (error) {
   console.error(caughtErrorMessage(error,),);

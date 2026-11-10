@@ -759,16 +759,23 @@ pub fn remove_tree(path: &Path) -> std::io::Result<()> {
 }
 
 /// What:
-///  Open a file for reading without following a final link.
+///  Open a file for reading without following a final link,
+///  and without waiting for a writer when the name holds a named pipe.
 /// Why:
 ///   Records are always files the wrappers created;
 ///  a link planted at a record path must
 ///       be refused,
 ///  never read through.
+///  `O_NONBLOCK` makes the open answer whatever the name holds,
+///  so the type check that follows refuses a pipe at once instead of waiting inside `open(2)`
+///  for a writer that may never come
+///  (`SPEC.md`,
+///  "Every wait has a bound";
+///  a trial reviewer's finding).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await open(path, O_RDONLY | O_NOFOLLOW);
+/// await open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
 /// ```
 fn open_no_follow(path: &Path) -> std::io::Result<File> {
     // `mut` allows the builder to be configured step by step.
@@ -778,9 +785,9 @@ fn open_no_follow(path: &Path) -> std::io::Result<File> {
     {
         // The trait adds `.custom_flags` to open options on Unix.
         /// The Unix open-option extensions,
-        ///  for the no-follow flag.
+        ///  for the no-follow flag and the non-blocking open.
         use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW);
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
     return options.open(path);
 }
