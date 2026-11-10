@@ -62,6 +62,16 @@ type MutableCell = {
 const ATTRIBUTE_ABSENT: unique symbol = Symbol('aquaticat/svg-attribute-not-present-in-element',);
 
 /**
+ Matches one attribute of a raw attribute string: its name, the quote that
+ opens its value, and that value. Matching a whole attribute at a time keeps a
+ `name=<quote>` sequence inside another attribute's value, or a name that
+ merely ends with the sought one, from being read as the attribute itself.
+ */
+/* oxlint-disable no-restricted-syntax/no-regex -- SVG attribute tokenizer: one name of non-space, non-`=` characters, then one quoted value. The lazy value stops at the next matching quote, so every character is visited a bounded number of times; the input is one element's attribute string from a bounded master strip. */
+const ATTRIBUTE_REGEX = /(?<name>[^\s=]+)\s*=\s*(?<quote>['"])(?<value>.*?)\k<quote>/gsu;
+/* oxlint-enable no-restricted-syntax/no-regex */
+
+/**
  Extracts an XML attribute value by name from a raw attribute string.
  Accepts both double- and single-quoted values: the Figma-exported master
  strip SVG this parser reads uses single quotes throughout.
@@ -85,38 +95,13 @@ function attr({
   readonly attrs: string;
   readonly name: string;
 },): string | typeof ATTRIBUTE_ABSENT {
-  for (const quote of [
-    '"',
-    '\'',
-  ] as const) {
+  for (const match of attrs.matchAll(ATTRIBUTE_REGEX,)) {
     /**
-     Literal token to locate for this quote style; the value starts immediately after this prefix.
+     Name and value of the attribute the current match spans, if it captured both.
      */
-    const needle = `${name}=${quote}`;
-    /**
-     Index of the first occurrence of `name=<quote>`; -1 when this quote style is absent.
-     */
-    const start = attrs.indexOf(needle,);
-    if (start === (-1))
-      continue;
-    /**
-     First char of the value, just past the quote opener.
-     */
-    const valueStart = start + needle
-      .length;
-    /**
-     Closing-quote position bounded by value start; -1 when the SVG is malformed.
-     */
-    const valueEnd = attrs.indexOf(
-      quote,
-      valueStart,
-    );
-    if (valueEnd === (-1))
-      continue;
-    return attrs.slice(
-      valueStart,
-      valueEnd,
-    );
+    const { groups, } = match;
+    if (groups?.name === name)
+      return groups.value ?? '';
   }
   return ATTRIBUTE_ABSENT;
 }
