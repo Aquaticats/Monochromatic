@@ -415,14 +415,10 @@ function runPowerShell(script: string,): Outcome {
  */
 function signalNumber(name: string,): number {
   /**
-   Entry of the platform's signal table with this name, when one exists.
+   Signal numbers of this platform, keyed by the name a command reports.
    */
-  const entry = Object
-    .entries(constants.signals,)
-    .find(function hasName([candidate,],) {
-      return candidate === name;
-    },);
-  return entry === undefined ? 0 : entry[1];
+  const numbers = new Map<string, number>(Object.entries(constants.signals,),);
+  return numbers.get(name,) ?? 0;
 }
 
 /**

@@ -85,6 +85,15 @@ entry is cleared,
  The async variant has no
 `.size` because its backing store is asynchronous.
 
+`clear()` and `delete()` fence computations that are already running:
+ those still resolve for
+their own callers,
+ but their results are not cached,
+ and cache writes already in progress are
+awaited before the store is wiped.
+ A value resolved before an invalidation therefore never
+reappears in the cache afterwards.
+
 ## Custom store
 
 ```ts
