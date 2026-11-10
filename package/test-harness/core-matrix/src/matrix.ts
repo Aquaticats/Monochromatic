@@ -14,7 +14,10 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
+  type DescribeResult,
   it,
+  type ItResult,
+  type TestDescriptor,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { resolve, } from 'node:path';
 
@@ -182,8 +185,8 @@ function applyExcludes({
     === 0)
     return combinations;
 
-  return combinations.filter(function isNotExcluded(combination,) {
-    return !excludes.some(function isExcluded(exclude,) {
+  return combinations.filter(function isNotExcluded(combination: Combination,): boolean {
+    return !excludes.some(function isExcluded(exclude: ExcludeEntry,): boolean {
       return matchesExclude({
         combination,
         exclude,
@@ -376,7 +379,7 @@ export async function matrix({
    Either the consumer's explicit list (resolved against cwd) or auto-discovered tests.
    */
   const files = filesOption !== undefined
-    ? filesOption.map(function resolveFile(filePath,) {
+    ? filesOption.map(function resolveFile(filePath: string,): string {
       return resolve(
         process.cwd(),
         filePath,
@@ -444,7 +447,7 @@ export async function matrix({
    One describe-tree per file, each containing one `it` per combination for that file.
    */
   const children = [...fileGroups.entries(),].map(
-    function createFileDescribe([filePath, fileCombinations,],) {
+    function createFileDescribe([filePath, fileCombinations,],): TestDescriptor<DescribeResult> {
       /**
        Trimmed-path display label; full path is too long for nested describe output.
        */
@@ -455,7 +458,7 @@ export async function matrix({
         l,
         concurrency,
         children: fileCombinations.map(
-          function createCombinationIt(combination,) {
+          function createCombinationIt(combination: Combination,): TestDescriptor<ItResult> {
             /**
              Human-readable axis tuple used as the `it` name.
              */
@@ -464,7 +467,7 @@ export async function matrix({
             return it({
               name: label,
               l,
-              fn: async function runCombination() {
+              fn: async function runCombination(): Promise<void> {
                 /**
                  Captured so the empty-output check below does not log a blank line.
                  */
