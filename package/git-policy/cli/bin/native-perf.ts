@@ -47,6 +47,7 @@ import {
   violationLine,
 } from './native-perf-lines.ts';
 import { collectEvidence } from './native-perf-evidence.ts';
+import { assertPerfVerdict } from './native-perf-verdict.ts';
 import { removeScratchRoot } from './native-perf-scratch.ts';
 import { forwarded } from './native-perf-scenarios.ts';
 import {
@@ -460,11 +461,12 @@ if (values.output !== undefined) {
 for (const entry of report) {
   console.log(reportLine(entry));
 }
-if (failures.length > 0) {
-  console.log(`FAILED samples: ${String(failures.length)}; first: ${JSON.stringify(failures[0])}`);
-  process.exitCode = 1;
-}
 for (const violation of violations) {
   console.log(violationLine(violation));
-  process.exitCode = 1;
 }
+// The printed lines are the evidence; the throw is the status, so a sample this run could not measure or a figure past
+// its bound reaches the error channel and exits nonzero from there.
+assertPerfVerdict({
+  failures,
+  violations,
+},);
