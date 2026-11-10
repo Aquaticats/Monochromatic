@@ -8014,7 +8014,21 @@ and it passes.
 - `//package/git-policy/cli:native:test:binary:host -- word_merge merge_second_pass`:
 39 of 39 passed in 23.251 s,
 with the pair at 1.186 s and 1.224 s
-under a load average of 148 on 8 CPUs.
+under a load average of 148 on 8 CPUs,
+and again 39 of 39 in 30.851 s at a load average of 68 with the pair at 1.297 s and 1.313 s.
+  One run of the same selection failed,
+  and it is recorded here because it is not this pair:
+  with the scope's memory held to 8 GiB instead of the 16 GiB of the passing runs,
+  the same 39 controls took 156.260 s at a load average of 148,
+  and `word_merge_finish::a_cherry_pick_range_is_resolved_and_continued`
+  was ended by the harness supervisor's five-second idle rule,
+  its tree being `bin/git cherry-pick main..topic` asleep in `unix_stream_read_generic`
+  while the commit service answered a landing in 5,140 ms.
+  Both of this pair passed in that run,
+  at 1.2 s each.
+  The idle rule's own limit is stated in `binary_supervisor.rs`:
+  it cannot tell an endless wait from a finite one on something outside the tree,
+  and the service is such a thing.
 - `//package/git-policy/cli:native:clippy` clean on every target.
 - `//package/git-policy/cli:lint:monochromatic-lint`:
 nothing in the files this branch touched.

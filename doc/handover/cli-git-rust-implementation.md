@@ -6351,7 +6351,13 @@ are in append mode now).
   Checks:
   57 of 57 `word_merge` and `merge_second_pass` controls of the library,
   39 of 39 of the binary target with the pair at 1.186 s and 1.224 s under a load average of 148,
+  and 39 of 39 again in 30.851 s at a load average of 68,
   and Clippy clean on every target.
+  One run of the same binary selection at an 8 GiB scope memory cap had
+  `word_merge_finish::a_cherry_pick_range_is_resolved_and_continued`
+  ended by the supervisor's five-second idle rule while the commit service took 5,140 ms to land;
+  both of this pair passed in that run,
+  and the planning doc's section records it.
 
 ### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
 
