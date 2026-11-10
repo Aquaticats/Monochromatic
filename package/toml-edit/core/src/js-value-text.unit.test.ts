@@ -58,6 +58,31 @@ await describe({
       },
     },),
     it({
+      name: 'rewrites an equal zero when only the sign differs, keeping a signed float as it was spelled',
+      fn: async () => {
+        const fromInteger = tomlStringify({
+          edit: tomlSet({
+            edit: parseTomlEdit({ source: 'k = 0\n', },),
+            path: ['k',],
+            value: -0,
+          },),
+        },);
+        expect(fromInteger,).toBe('k = -0.0\n',);
+        /**
+         A float already spelled with the sign is the same value, so its own
+         digits stay.
+         */
+        const alreadySigned = tomlStringify({
+          edit: tomlSet({
+            edit: parseTomlEdit({ source: 'k = -0.00\n', },),
+            path: ['k',],
+            value: -0,
+          },),
+        },);
+        expect(alreadySigned,).toBe('k = -0.00\n',);
+      },
+    },),
+    it({
       name: 'formats empty and inline arrays and inline tables',
       fn: async () => {
         expect(_jsValueToTomlText({ input: [], options: OPTIONS, },),).toBe('[ ]',);
@@ -117,6 +142,17 @@ await describe({
           throw new Error('Expected parsed float node',);
         expect(_jsValueToTomlText({ input: 1, options: OPTIONS, existing: { node: float, }, },),)
           .toBe('1.00',);
+        /**
+         Every `nan` spelling is the same value, so a re-set keeps the text.
+         */
+        const nan = tomlGetNode({
+          edit: parseTomlEdit({ source: 'k = -nan\n', },),
+          path: ['k',],
+        },);
+        if ((!('type' in nan)) || (nan.type !== 'TOMLValue') || (nan.kind !== 'float'))
+          throw new Error('Expected parsed float node',);
+        expect(_jsValueToTomlText({ input: Number.NaN, options: OPTIONS, existing: { node: nan, }, },),)
+          .toBe('-nan',);
       },
     },),
     it({
