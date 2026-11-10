@@ -38,6 +38,7 @@ export {
 export type {
   AjvOptions,
   Options,
+  RootSchema,
   Schema,
   ValueSchema,
 } from './options.ts';
@@ -153,11 +154,14 @@ export {
  */
 export {
   ensureDirectory,
+  isFileStateEqual,
   pathExists,
   readFileBytes,
+  readFileState,
   readFileText,
   removeFileIfExists,
   writeFileAtomic,
+  type FileState,
 } from './file-io.ts';
 
 /**

@@ -10,6 +10,7 @@
  */
 
 import {
+  type AddressInfo,
   createConnection as createTcpConnection,
   createServer as createTcpServer,
   type Server,
@@ -33,6 +34,46 @@ const CLIENT_READ_TIMEOUT_MS = 10_000;
  Loopback address (no remote access).
  */
 const LOCALHOST = '127.0.0.1';
+
+//endregion
+
+//region Address guard
+
+/**
+ Decide whether the value a listening server reported is a bound TCP address.
+
+ Node types `Server.address()` as `AddressInfo | string | null`: a server bound
+ to a Unix socket path reports the path as a string, and a server that stopped
+ listening reports null. Only an `AddressInfo` carries the port to hand the
+ child session.
+
+ @param value - Value returned by `Server.address()`
+
+ @returns Whether value is a bound TCP address
+ */
+function isTcpAddress(value: unknown,): value is AddressInfo {
+  return ((typeof value) === 'object')
+    && (value !== null)
+    && ('address' in value)
+    && ((typeof value.address) === 'string')
+    && ('port' in value)
+    && ((typeof value.port) === 'number');
+}
+
+/**
+ Describe an unexpected listening address so a failure message names it.
+
+ @param value - Value returned by `Server.address()`
+
+ @returns Text naming the reported value and what kind of value it is
+ */
+function reportedAddressText(value: unknown,): string {
+  if ((value === undefined) || (value === null))
+    return 'no address';
+  if ((typeof value) === 'string')
+    return `the Unix socket path ${value}`;
+  return `the value ${JSON.stringify(value,)}`;
+}
 
 //endregion
 
@@ -185,14 +226,18 @@ export async function createOneShotTcpServer(
            */
           const addrInfo = handles.server
             ?.address();
-          if (
-            (addrInfo !== undefined)
-              && (addrInfo !== null)
-              && ((typeof addrInfo) !== 'string')
-              && ('port' in addrInfo)
-          ) {
+          if (isTcpAddress(addrInfo,)) {
             resolve(`${addrInfo.address}:${addrInfo.port}`,);
+            return;
           }
+          // An address the child cannot dial is a failed launch, not a pending one.
+          close();
+          reject(
+            new Error(
+              'createOneShotTcpServer: the listening server reported '
+                + `${reportedAddressText(addrInfo,)} where a TCP address was expected`,
+            ),
+          );
         },
         );
 
@@ -263,6 +308,14 @@ export function readFromTcpSocket(
       let settled = false;
 
       /**
+       Handles the read owns, held in a mutable record so a settled read can
+       disarm its timeout: a scheduled timer keeps the event loop alive.
+       */
+      const handles: {
+        readTimeout?: ReturnType<typeof setTimeout>;
+      } = {};
+
+      /**
        Settle the promise with either an error or a result.
        
        @param settlement - Error or result selected by one socket lifecycle event.
@@ -283,6 +336,12 @@ export function readFromTcpSocket(
         if (settled)
           return;
         settled = true;
+
+        if (handles.readTimeout
+          !== undefined) {
+          clearTimeout(handles.readTimeout,);
+          delete handles.readTimeout;
+        }
 
         if (error !== undefined)
           reject(error,);
@@ -350,8 +409,8 @@ export function readFromTcpSocket(
         },
       );
 
-      // Read timeout
-      setTimeout(
+      // Read timeout, disarmed by finish() once the read settles
+      handles.readTimeout = setTimeout(
         function onTimeout(): void {
           socket.destroy();
           finish({

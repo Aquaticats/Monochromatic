@@ -159,8 +159,12 @@ fn stamps_by_commit(landed: &[LandedCapture]) -> HashMap<&str, u64> {
 /// ```ts
 /// ['log', '-m', '-r', '--raw', '-z', '--no-renames', '--no-abbrev', '--format=%H', tip, `^${base}`]
 /// ```
-fn history_arguments<'a>(tip: &'a str, exclusion: &'a str) -> Vec<&'a str> {
-    return vec!["log", "-m", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", "--format=%H", tip, exclusion];
+fn history_arguments<'a>(tip: &'a str, exclusion: Option<&'a str>) -> Vec<&'a str> {
+    let mut words: Vec<&'a str> = vec!["log", "-m", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", "--format=%H", tip];
+    if let Some(left_out) = exclusion {
+        words.push(left_out);
+    }
+    return words;
 }
 
 /// What:
@@ -256,6 +260,24 @@ fn note_history(
 }
 
 /// What:
+///  The revision the walk over the landed history leaves out,
+///  nothing for a change captured on a branch that did not exist yet.
+/// Why:
+///   Such a change has no commit to leave out,
+///  so every commit the branch holds is a candidate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const exclusion = captured.unborn ? undefined : `^${captured.base}`;
+/// ```
+fn the_exclusion_of(captured: &Captured) -> Option<String> {
+    if captured.unborn {
+        return None;
+    }
+    return Some(format!("^{}", captured.base));
+}
+
+/// What:
 ///  The decision of every shared path,
 ///  from one walk over the history since the base.
 /// Why:
@@ -284,8 +306,9 @@ pub fn capture_order_of_each(
         return Ok(decisions(&states));
     }
     let stamps: HashMap<&str, u64> = stamps_by_commit(captured.landed.as_slice());
-    let exclusion: String = format!("^{}", captured.base);
-    let arguments: Vec<&str> = history_arguments(tip, exclusion.as_str());
+    // A change captured on a branch that did not exist yet has no commit to leave out of the walk.
+    let exclusion: Option<String> = the_exclusion_of(captured);
+    let arguments: Vec<&str> = history_arguments(tip, exclusion.as_deref());
     let request: GitRequest = GitRequest::new(site.cwd, arguments.as_slice());
     let listed = run_git_checked(site.context, &request)?;
     match note_history(listed.stdout.as_slice(), &stamps, captured.captured, &mut states) {

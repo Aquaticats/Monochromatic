@@ -1,5 +1,6 @@
 // 105 lines: fetch, parse, and sort are a single pipeline; splitting obscures the data flow
 import { mapIterableAsync, } from '@monochromatic-dev/async-iter-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   type AtomFeed,
   type Opml,
@@ -11,6 +12,7 @@ import * as v from 'valibot';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { InnerOutlineWUrl, } from './outline.ts';
+import { coercePublicationDateSchema, } from './publication-date.ts';
 import type { DeepReadonly, } from './types.ts';
 
 /**
@@ -131,13 +133,18 @@ async function fetchAndParseFeeds(
     ): Promise<TextWOutline | typeof DISCARD> {
       /**
        Single Response held so status check and text read share one network round trip.
+       A network rejection lands in the same catch as a body-read failure, so one
+       unreachable host costs its own feed only.
        */
-      const response = await fetch(outline.xmlUrl,);
-      if (!response.ok) {
-        innerL.warn(`${outline.xmlUrl} responded ${String(response.status,)}`,);
-        return DISCARD;
-      }
       try {
+        /**
+         Response for this outline's feed URL.
+         */
+        const response = await fetch(outline.xmlUrl,);
+        if (!response.ok) {
+          innerL.warn(`${outline.xmlUrl} responded ${String(response.status,)}`,);
+          return DISCARD;
+        }
         return {
           text: await response.text(),
           outline,
@@ -145,7 +152,7 @@ async function fetchAndParseFeeds(
       }
       catch (error) {
         innerL.warn(
-          `text conversion failed for ${outline.xmlUrl}: ${JSON.stringify(error,)}`,
+          `fetch or text conversion failed for ${outline.xmlUrl}: ${caughtValueText(error,)}`,
         );
         return DISCARD;
       }
@@ -172,31 +179,16 @@ async function fetchAndParseFeeds(
       },];
     }
     catch (error) {
-      innerL.warn(`parse failed for ${outline.xmlUrl}: ${JSON.stringify(error,)}`,);
+      innerL.warn(`parse failed for ${outline.xmlUrl}: ${caughtValueText(error,)}`,);
       return [];
     }
   },);
 }
 
 /**
- Coerces string, number, or Date inputs into a Date instance.
- */
-const coerceDateSchema = v.pipe(
-  v.union([
-    v.string(),
-    v.number(),
-    v.date(),
-  ],),
-  v.transform(function toDate(input,) {
-    return new Date(input,);
-  },),
-  v.date(),
-);
-
-/**
  Extracts the publication date from a feed, falling back to epoch. The raw
- value runs through {@link coerceDateSchema} to normalize string, number,
- or `Date` inputs.
+ value runs through {@link coercePublicationDateSchema} to normalize string,
+ number, or `Date` inputs, including text no calendar can read.
  
  @param feedWOutline - Feed with outline metadata
  
@@ -219,7 +211,7 @@ function extractDate(feedWOutline: FeedWOutline,): Date {
     const atomFeed = feed as AtomFeed.Feed<string>;
     /* oxlint-enable typescript/no-unsafe-type-assertion */
     return v.parse(
-      coerceDateSchema,
+      coercePublicationDateSchema,
       atomFeed.updated
         ?? new Date(0,),
     );
@@ -231,7 +223,7 @@ function extractDate(feedWOutline: FeedWOutline,): Date {
   const rssFeed = feed as RssFeed.Feed<string>;
   /* oxlint-enable typescript/no-unsafe-type-assertion */
   return v.parse(
-    coerceDateSchema,
+    coercePublicationDateSchema,
     rssFeed.pubDate
       ?? new Date(0,),
   );

@@ -29,169 +29,11 @@
 //! ```
 
 use super::commit::{git_text, remove_settled};
-use super::service_commit::{Running, runtime_for, start, through_service};
-use super::support::{Fixture, bounded_for, fixture, git, repository, wrapper_first_path};
-use super::supervisor::{IdleHold, hold_idle_judgment};
-use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
+use super::hold_at_prepare::{Ended, Hold, Held, author_of, held_commit, marker_directory, parents, release, stored, wait_held, write};
+use super::service_commit::{Running, start, through_service};
+use super::support::{Fixture, fixture, git, repository};
 use std::ffi::OsStr;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
-
-/// The longest a control waits for a marker,
-/// in seconds,
-/// far beyond a healthy run.
-/// Why:
-///   The preparation of a conclusion runs several Git starts and a policy pass,
-/// and this host under a load average above a hundred took most of a minute for one of them;
-/// the wait is bounded,
-/// never a hang,
-/// and the command's own bound is the one that ends work that really is stuck.
-const PATIENCE_SECONDS: u64 = 300;
-
-/// The time bound on the held commit of a control,
-/// in seconds.
-/// Why:
-///   A conclusion prepared again builds itself twice and replays a tree between the builds,
-/// and a host under a load average above a hundred took more than the commit bound of every other control,
-/// which ended the command with `SIGKILL` and hid what the commit came to.
-const HELD_BOUND_SECONDS: &str = "600";
-
-/// How many arrivals at the phase marker the control releases in advance:
-/// the bound on how often a commit is prepared again.
-const LATER_ARRIVALS: u32 = 4;
-
-/// What a finished wrapped commit came to.
-struct Ended {
-    code: Option<i32>,
-    stderr: String,
-}
-
-/// A wrapped commit held where it has prepared its commit and has not yet sent it.
-struct Held {
-    child: Child,
-    /// Everything the commit wrote to its standard error,
-    /// once it has ended.
-    stderr: Option<std::thread::JoinHandle<String>>,
-    markers: PathBuf,
-    /// The hold that suspends the hang guard's idle rule while this control keeps the commit waiting on purpose.
-    /// The commit waits for a file this control writes,
-    /// which the guard cannot tell from an endless wait on something outside the tree.
-    hold: Option<IdleHold>,
-}
-
-impl Held {
-    /// Everything the commit wrote to its standard error,
-    /// read once the commit has ended.
-    fn ended(&mut self) -> String {
-        let Some(reader) = self.stderr.take() else { return String::new() };
-        return reader.join().expect("the reader of standard error");
-    }
-}
-
-/// The directory a control's phase markers live in,
-/// with every later arrival released in advance.
-fn marker_directory(fixture: &Fixture) -> PathBuf {
-    let markers: PathBuf = fixture.root.join("markers");
-    std::fs::create_dir(&markers).expect("the marker directory");
-    for number in 2..=LATER_ARRIVALS {
-        std::fs::write(markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
-    }
-    return markers;
-}
-
-/// What:
-///  Starts a wrapped commit and holds it at the marker between its preparation and the service.
-/// Why:
-///  The other command must land while this one has captured its commit and not landed it,
-/// which is the one instant the failure needs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const held = startPaused({ arguments: ['commit', '-m', 'conclude'], markers });
-/// await holdsAt(held, 'service-prepared-1');
-/// ```
-fn held_commit(fixture: &Fixture, repo: &Path, name: &str, markers: &Path, arguments: &[&str]) -> Held {
-    let mut command: Command = bounded_for(
-        fixture,
-        fixture.root.join("bin/git").as_path(),
-        wrapper_first_path(fixture).as_os_str(),
-        HELD_BOUND_SECONDS,
-    );
-    command.current_dir(repo).args(arguments);
-    command
-        .env("XDG_RUNTIME_DIR", runtime_for(name))
-        .env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", markers.display()))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped());
-    let mut child: Child = command.spawn().expect("the wrapped commit starts");
-    let stderr = child.stderr.take().expect("piped standard error");
-    let reader = std::thread::spawn(move || {
-        let mut all: String = String::new();
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            all.push_str(&line);
-            all.push('\n');
-        }
-        return all;
-    });
-    let hold: IdleHold = hold_idle_judgment(child.id());
-    return Held { child, stderr: Some(reader), markers: markers.to_path_buf(), hold: Some(hold) };
-}
-
-/// Waits until the commit is held at the marker between its preparation and its landing,
-/// and fails the control with the commit's own words when it instead ended.
-fn wait_held(held: &mut Held) {
-    let reached: PathBuf = held.markers.join("service-prepared-1.reached");
-    let began: Instant = Instant::now();
-    while !reached.exists() {
-        if let Some(status) = held.child.try_wait().expect("the commit can be asked whether it ended") {
-            let words: String = held.ended();
-            panic!("the commit ended ({status:?}) before it was held: {words}");
-        }
-        assert!(
-            began.elapsed() < Duration::from_secs(PATIENCE_SECONDS),
-            "never happened: the commit prepared and is held before the service"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
-}
-
-/// Lets the held commit go on to the service and returns what it came to.
-fn release(mut held: Held) -> Ended {
-    std::fs::write(held.markers.join("service-prepared-1.release"), "").expect("release");
-    let status = held.child.wait().expect("the commit ends");
-    // The guard judges the commit again once this control is no longer holding it.
-    let _held_again: Option<IdleHold> = held.hold.take();
-    let stderr: String = held.ended();
-    return Ended { code: status.code(), stderr };
-}
-
-/// What one commit of a branch is,
-/// so a control can say a commit another command made was left as it is.
-fn stored(fixture: &Fixture, repo: &Path, revision: &str) -> Vec<String> {
-    let formats: [&str; 6] = ["%H", "%P", "%T", "%B", "%an <%ae>|%cn <%ce>", "%aI|%cI"];
-    return formats.map(|format| { return git_text(fixture, repo, &["log", "-1", "--date=iso-strict", format!("--format={format}").as_str(), revision]); }).to_vec();
-}
-
-/// The author of a commit,
-/// with the date the commit records,
-/// as the person reads it.
-fn author_of(fixture: &Fixture, repo: &Path, revision: &str) -> String {
-    return git_text(fixture, repo, &["log", "-1", "--date=iso-strict", "--format=%an <%ae>|%aI", revision]);
-}
-
-/// The parents of `HEAD`,
-/// as object names.
-fn parents(fixture: &Fixture, repo: &Path) -> Vec<String> {
-    return git_text(fixture, repo, &["rev-list", "--parents", "-n", "1", "HEAD"]).split_whitespace().skip(1).map(String::from).collect();
-}
-
-/// Writes one file of the repository.
-fn write(repo: &Path, name: &str, text: &str) {
-    std::fs::write(repo.join(name), text).expect("the file");
-}
 
 /// A repository with three tracked files where `git merge --no-commit --no-ff other` is unfinished:
 /// `y.txt` is staged by the merge,
@@ -241,7 +83,7 @@ fn a_merge_conclusion_lands_on_a_branch_that_moved_while_it_was_prepared() {
     let name: String = format!("mmb-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     let markers: PathBuf = marker_directory(&fixture);
-    let mut held: Held = held_commit(&fixture, &repo, name.as_str(), markers.as_path(), &["commit", "--message=conclude the merge"]);
+    let mut held: Held = held_commit(&fixture, &repo, name.as_str(), markers.as_path(), &Hold { arguments: &["commit", "--message=conclude the merge"], stdin: None, environment: &[] });
     wait_held(&mut held);
     write(&repo, "x.txt", "landed by another session\n");
     let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
@@ -320,7 +162,7 @@ fn a_cherry_pick_conclusion_lands_on_a_branch_that_moved_while_it_was_prepared()
     let name: String = format!("cpm-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     let markers: PathBuf = marker_directory(&fixture);
-    let mut held: Held = held_commit(&fixture, &repo, name.as_str(), markers.as_path(), &["commit", "--message=pick it"]);
+    let mut held: Held = held_commit(&fixture, &repo, name.as_str(), markers.as_path(), &Hold { arguments: &["commit", "--message=pick it"], stdin: None, environment: &[] });
     wait_held(&mut held);
     write(&repo, "x.txt", "landed by another session\n");
     let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
@@ -390,7 +232,7 @@ fn a_revert_whose_branch_moved_says_the_operation_it_concluded_is_gone() {
     let name: String = format!("rvm-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     let markers: PathBuf = marker_directory(&fixture);
-    let mut held: Held = held_commit(&fixture, &repo, name.as_str(), markers.as_path(), &["commit", "--message=revert it"]);
+    let mut held: Held = held_commit(&fixture, &repo, name.as_str(), markers.as_path(), &Hold { arguments: &["commit", "--message=revert it"], stdin: None, environment: &[] });
     wait_held(&mut held);
     write(&repo, "x.txt", "landed by another session\n");
     let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
@@ -468,7 +310,7 @@ fn an_amend_lands_as_a_new_commit_when_the_branch_moved_while_it_was_prepared() 
     let name: String = format!("amb-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     let markers: PathBuf = marker_directory(&fixture);
-    let mut held: Held = held_commit(&fixture, &repo, name.as_str(), markers.as_path(), &["commit", "--amend", "--message=amended", "--", "a.txt"]);
+    let mut held: Held = held_commit(&fixture, &repo, name.as_str(), markers.as_path(), &Hold { arguments: &["commit", "--amend", "--message=amended", "--", "a.txt"], stdin: None, environment: &[] });
     wait_held(&mut held);
     write(&repo, "b.txt", "landed by another session\n");
     let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "b.txt"]);

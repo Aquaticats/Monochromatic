@@ -11,7 +11,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import path from 'node:path';
+import { join, } from 'node:path';
 import {
   readdirSync,
   statSync,
@@ -20,9 +20,11 @@ import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   ensureDirectory,
+  isFileStateEqual,
   isMissingFileError,
   pathExists,
   readFileBytes,
+  readFileState,
   readFileText,
   removeFileIfExists,
   stringToBytes,
@@ -110,7 +112,7 @@ await describe({
         /**
          Absolute path of the round-trip file.
          */
-        const filePath = path.join(
+        const filePath = join(
           directory,
           'text.json',
         );
@@ -135,7 +137,7 @@ await describe({
         /**
          Absolute path written with string data.
          */
-        const textPath = path.join(
+        const textPath = join(
           directory,
           'from-text.bin',
         );
@@ -160,7 +162,7 @@ await describe({
         /**
          Absolute path written with byte data.
          */
-        const bytesPath = path.join(
+        const bytesPath = join(
           directory,
           'from-bytes.bin',
         );
@@ -181,7 +183,7 @@ await describe({
         /**
          Absolute path that was never created.
          */
-        const missingPath = path.join(
+        const missingPath = join(
           createTempDirectory(),
           'absent.json',
         );
@@ -217,7 +219,7 @@ await describe({
         /**
          Absolute path created before the probe.
          */
-        const filePath = path.join(
+        const filePath = join(
           directory,
           'present.json',
         );
@@ -230,7 +232,7 @@ await describe({
           path: filePath,
         },),).toBe(true,);
         expect(pathExists({
-          path: path.join(
+          path: join(
             directory,
             'absent.json',
           ),
@@ -244,7 +246,7 @@ await describe({
         /**
          Nested directory that does not exist yet.
          */
-        const nestedPath = path.join(
+        const nestedPath = join(
           createTempDirectory(),
           'one',
           'two',
@@ -276,7 +278,7 @@ await describe({
         /**
          Absolute path created by the write.
          */
-        const filePath = path.join(
+        const filePath = join(
           createTempDirectory(),
           'mode.json',
         );
@@ -304,7 +306,7 @@ await describe({
         /**
          Absolute path written twice.
          */
-        const filePath = path.join(
+        const filePath = join(
           directory,
           'overwrite.json',
         );
@@ -332,7 +334,7 @@ await describe({
          */
         const directory = createTempDirectory();
         writeFileAtomic({
-          path: path.join(
+          path: join(
             directory,
             'target.json',
           ),
@@ -356,7 +358,7 @@ await describe({
         /**
          Absolute path created just to be removed.
          */
-        const filePath = path.join(
+        const filePath = join(
           createTempDirectory(),
           'remove-me.json',
         );
@@ -380,7 +382,7 @@ await describe({
         /**
          Absolute path that was never created.
          */
-        const missingPath = path.join(
+        const missingPath = join(
           createTempDirectory(),
           'absent.json',
         );
@@ -402,7 +404,7 @@ await describe({
         /**
          Directory path standing in for an unlinkable target.
          */
-        const directoryPath = path.join(
+        const directoryPath = join(
           createTempDirectory(),
           'a-directory',
         );
@@ -438,7 +440,7 @@ await describe({
         /**
          Absolute path written under the Snap code path.
          */
-        const filePath = path.join(
+        const filePath = join(
           directory,
           'snap.json',
         );
@@ -462,6 +464,58 @@ await describe({
             return entry.includes('.tmp',);
           },);
         expect(leftovers,).toHaveLength(0,);
+      },
+    },),
+
+    it({
+      name: 'readFileState separates an absent path, an atomic rewrite, and an unchanged file',
+      fn: async () => {
+        /**
+         Temp directory holding the watched file.
+         */
+        const directory = createTempDirectory();
+        /**
+         Absolute path whose state the case compares.
+         */
+        const filePath = join(
+          directory,
+          'config.json',
+        );
+        expect(isFileStateEqual({
+          before: readFileState({ path: filePath, },),
+          after: { kind: 'absent', },
+        },),).toBe(true,);
+
+        writeFileAtomic({
+          path: filePath,
+          data: '{"foo":1}',
+          mode: 0o600,
+        },);
+        /**
+         State of the file as first written.
+         */
+        const first = readFileState({ path: filePath, },);
+        expect(isFileStateEqual({
+          before: first,
+          after: readFileState({ path: filePath, },),
+        },),).toBe(true,);
+
+        // Same length, so only the inode and the modification time can tell
+        // the rewrite apart; the atomic write replaces the inode.
+        writeFileAtomic({
+          path: filePath,
+          data: '{"foo":2}',
+          mode: 0o600,
+        },);
+        expect(isFileStateEqual({
+          before: first,
+          after: readFileState({ path: filePath, },),
+        },),).toBe(false,);
+
+        expect(isFileStateEqual({
+          before: readFileState({ path: filePath, },),
+          after: { kind: 'absent', },
+        },),).toBe(false,);
       },
     },),
   ],

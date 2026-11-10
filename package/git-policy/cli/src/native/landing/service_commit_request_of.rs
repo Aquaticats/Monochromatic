@@ -24,8 +24,6 @@ use crate::service_protocol::CommitRequest;
 use crate::service_commit_requests_and_landing_report::{request_for_embedded, request_for_git_built};
 /// The amended commit of an amend whose branch moved.
 use crate::service_amend_replayed::{AmendedCommit, the_amendment_lands_as_new};
-/// The arguments a rebuilt commit is started with.
-use crate::service_commit_args::with_fixed_message;
 /// The message embedded in the command line,
 /// and the arguments after the subcommand.
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand};
@@ -36,7 +34,6 @@ use crate::service_prepare::{NativeInputs, Ready};
 /// How a stopped transaction ends.
 use crate::commit_transaction::{CommitInvocation, TransactionStop};
 use std::ffi::OsString;
-use std::path::Path;
 
 /// What:
 ///  The values the request depends on,
@@ -66,10 +63,16 @@ pub(crate) struct RequestOf<'a> {
     /// The private index,
     /// the capture and the arguments of this attempt.
     pub native_inputs: &'a NativeInputs,
-    /// The file the person's message was kept in after an editor ran.
-    pub fixed_message: Option<&'a Path>,
+    /// The command line a commit whose editor has run is built again with,
+    /// made once from what the preparation captured.
+    pub reissued: Option<&'a Vec<OsString>>,
     /// The identity this commit's requests carry.
     pub id: &'a str,
+}
+
+/// The rebuilt line as the arguments a Git start reads.
+fn the_line_as_arguments(line: &Vec<OsString>) -> &[OsString] {
+    return line.as_slice();
 }
 
 /// What:
@@ -88,7 +91,7 @@ pub(crate) struct RequestOf<'a> {
 /// function theRequestOf(fields: RequestOf): [CommitRequest, string, string?];
 /// ```
 pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, String, Option<String>), TransactionStop> {
-    let RequestOf { amendment, embedded_in_use, tree, ready, invocation, native_inputs, fixed_message, id } = fields;
+    let RequestOf { amendment, embedded_in_use, tree, ready, invocation, native_inputs, reissued, id } = fields;
     if let Some(found) = amendment {
         // The amended commit's own fields, on the tree the replay settled, with the branch as it is now as the single
         //  parent.
@@ -97,18 +100,13 @@ pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, St
         return Ok((sent, parent, Some(subject)));
     }
     let Some(made) = embedded_in_use else {
-        let layout_prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
-        let rebuilt_arguments: Option<Vec<OsString>> = match fixed_message {
-            Some(file) => with_fixed_message(native_inputs.arguments.as_slice(), layout_prefix, file),
-            None => None,
-        };
         let built: GitBuilt = build_with_git(&BuildInput {
             context: invocation.context,
             cwd: invocation.cwd,
             capture: &native_inputs.capture,
             scratch: ready.scratch.0.as_path(),
             commit_index: native_inputs.commit_index.as_path(),
-            arguments: rebuilt_arguments.as_deref().unwrap_or(native_inputs.arguments.as_slice()),
+            arguments: reissued.map_or(native_inputs.arguments.as_slice(), the_line_as_arguments),
             pathspecs: native_inputs.pathspecs.as_slice(),
             mode: native_inputs.mode,
             staged_all: native_inputs.staged_all,

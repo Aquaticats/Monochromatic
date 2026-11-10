@@ -63,10 +63,30 @@ pub enum QuietRead {
     RecentlyWritten,
 }
 
-/// Open a regular file,
+/// What:
+///  Open a regular file,
 ///  read it as UTF-8,
 ///  and return the text with the still-open handle.
-fn read_regular(path: &Path) -> Result<(String, File)> {
+/// Why:
+///  The window's startup read and every later reload read source the same way,
+///  so one function owns the regular-file guard,
+///  the decoding,
+///  and the wording of each failure.
+///  The open handle is the file whose bytes were read,
+///  so a caller can ask that same file when it was last written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readSourceRegular(path: string): [text: string, handle: File];
+/// ```
+///
+/// # Errors
+///
+/// Returns an error naming `path` when it cannot be inspected,
+///  is not a regular file,
+///  cannot be opened,
+///  or does not hold UTF-8 text.
+pub fn read_source_regular(path: &Path) -> Result<(String, File)> {
     // What: each failure returns early with a message that names the affected path.
     // Why: A read failure must not silently replace visible source with empty text.
     //
@@ -84,7 +104,7 @@ fn read_regular(path: &Path) -> Result<(String, File)> {
     if !metadata.is_file() {
         // bail! returns an error rather than opening a directory or potentially blocking device.
         bail!(
-            "Cannot refresh {}: source is not a regular file",
+            "Cannot open source file {}: it is not a regular file",
             path.display()
         );
     }
@@ -154,7 +174,7 @@ pub fn read_reload(snapshot: &Document, path: &Path) -> Result<Option<Reload>> {
     // ```ts
     // const [source] = readRegular(path);
     // ```
-    let (source, _file) = read_regular(path)?;
+    let (source, _file) = read_source_regular(path)?;
     return Ok(compare(snapshot, path, &source));
 }
 
@@ -187,7 +207,7 @@ pub fn read_reload_if_quiet(
     quiet: Duration,
 ) -> Result<QuietRead> {
     let started = SystemTime::now();
-    let (source, file) = read_regular(path)?;
+    let (source, file) = read_source_regular(path)?;
     // What: `metadata()` asks the open file (not the path) for its attributes; `modified()` returns its
     //       last modification time as a `Result`, and `?` returns an error on systems without one.
     // Why: The open handle is the file whose bytes were read, even if another file was renamed into place.

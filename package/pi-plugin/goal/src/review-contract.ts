@@ -18,6 +18,8 @@ import type {
   GoalReviewVerdict,
 } from './completion-types.ts';
 
+//region Rubric, tool, and prompt constants
+
 /**
  Forced private reviewer tool name.
  */
@@ -133,6 +135,10 @@ const FORBIDDEN_REMAINING_WORK_PHRASES = [
  */
 const GOAL_REVIEW_VERDICT_PROPERTY_COUNT = 3;
 
+//endregion Rubric, tool, and prompt constants
+
+//region Prompt contracts
+
 /**
  Candidate reviewer lacks enough context for fixed framing and completion claim.
  
@@ -160,6 +166,10 @@ type BudgetedGoalReviewPrompt = StructuredReviewPrompt & {
   readonly transcriptTruncated: boolean;
   readonly estimatedInputTokens: number;
 };
+
+//endregion Prompt contracts
+
+//region Verdict parsing
 
 /**
  Detect meta-assessment language unsafe for primary task context.
@@ -247,6 +257,10 @@ function parseGoalReviewVerdict(value: unknown,): GoalReviewVerdict {
     remainingWork,
   };
 }
+
+//endregion Verdict parsing
+
+//region Evidence truncation
 
 /**
  Tail-clip newest entry with explicit structural omission marker.
@@ -403,6 +417,10 @@ function truncateTranscript(
   };
 }
 
+//endregion Evidence truncation
+
+//region Prompt budgeting and retry
+
 /**
  Build model-specific prompt within context and output reserves.
  
@@ -513,6 +531,8 @@ function buildGoalJsonRetryPrompt(
     userContent: `${initialPrompt.userContent}\n\nThe forced tool was omitted. Return only JSON with exactly {"approved": boolean, "rationale": string, "remaining_work": string}. Prior text, if any: ${JSON.stringify(firstAttemptTextContent,)}`,
   };
 }
+
+//endregion Prompt budgeting and retry
 
 export {
   buildBudgetedGoalReviewPrompt,
