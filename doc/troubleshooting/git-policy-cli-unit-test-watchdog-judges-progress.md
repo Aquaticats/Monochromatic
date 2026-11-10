@@ -395,6 +395,21 @@ and 0.092 s and 0.095 s inside the whole library suite.
   run while another session was using the host.
 - `cargo build --bin monochromatic-git-policy-cli` (`native:build`),
   which compiles the `#[cfg(not(test))]` arm where `syncing_is_faithful` is the constant `true`.
+- The two branches of `private_storage::flush_file_when_faithful` are told apart by the flush itself,
+  not by its
+  record:
+  `the_durability_answer_decides_whether_a_file_is_flushed` flushes a pipe's write end,
+  which `fsync` refuses with `EINVAL` (`Err(Os { code: 22, kind: InvalidInput, ... })`),
+  and asserts the refusal is an error while the answer is faithful and no error once the answer skips it.
+  With the helper's skip branch removed (`if false && !syncing_is_faithful()`),
+  the control failed with `the answer skips the flush the pipe refuses: Err(Os { code: 22, ... })`;
+  restored,
+  it passes.
+  That closes the reading a reviewer of another vendor made of an earlier tree:
+  a record cannot tell a kept flush from one that happened.
+  The install log's flush of a torn tail (`worktree_copy_install_log.rs:253`) is still not exercised under the skip
+  answer,
+  because the controls that open a log always open a whole one.
 
 ### What is not claimed
 
