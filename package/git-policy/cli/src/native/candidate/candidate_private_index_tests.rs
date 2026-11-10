@@ -47,24 +47,25 @@ fn entries(directory: &Path) -> Vec<String> {
 ///  so that a wait which never answers fails the control instead of hanging it.
 /// Why:
 ///   The wait is a bet on the host,
-///  and the only figure this repository has measured for one is how long a test process
-///  of this crate went without showing any work: 8.0 s,
+///  and the only figure this repository has measured for such a bet is how long a test process of this crate went
+///  without showing any work:
+/// 8.0 s,
 ///  on this host,
 ///  which is why the watchdog's window is fifteen times it
 ///  (`QUIET_WINDOW` in `testing/test_support.rs`).
 ///  The ten seconds this control bet before was 1.25 times that figure,
-///  inside the spread it describes,
-///  so this is the owner's own "3x worst case"
-///  (`ANNOUNCEMENT_HOLD` uses the same multiple for a holder that is only slow)
-///  and still a fifth of the watchdog's window,
-///  so a product that waits on the pipe is still reported by the control rather than by the watchdog.
+///  which is inside the spread it describes.
+///  The owner's own "3x worst case" is what `ANNOUNCEMENT_HOLD` allows a holder that is only slow,
+///  and it is still a fifth of the watchdog's window,
+///  so a product that does wait on the pipe is reported by the control and not by the watchdog.
 const COPY_ANSWER_MEASURED_QUIET_STRETCH: Duration = Duration::from_secs(8);
 
 /// The multiple of the measured quiet stretch the control allows,
 ///  the owner's "3x worst case".
 const COPY_ANSWER_SLACK: u32 = 3;
 
-/// The longest the creating thread may take, in all.
+/// The longest the creating thread may take,
+/// in all.
 const THE_COPY_ANSWERS_WITHIN: Duration = COPY_ANSWER_MEASURED_QUIET_STRETCH.saturating_mul(COPY_ANSWER_SLACK);
 
 /// The failure `create` returned,
