@@ -388,6 +388,36 @@ would only run `mise install` and `mise upgrade`
 `mise.toml:981-983`);
 re-enabling it would not install workspace packages.
 
+#### A `depends` on a fanout child rebuilds, and its clearing build races the sibling
+
+Measured 2026-11-10 on `package/kwin/key-helper`,
+whose `lint` fanout has two children that both read the declarations of a bundle the
+package builds (`lint:types` through tsc,
+`lint:oxlint` through its semantic bridge),
+and whose node build sets `cleanDir: true`.
+
+With the dependency on `lint:types` alone,
+`mise run //package/kwin/key-helper:lint` started `lint:oxlint` immediately and ran the
+build inside the `lint:types` child process,
+so oxlint resolved a bundle that did not exist yet and reported
+`Found 155 warnings and 5 errors`:
+the 5 are `typescript(TS2307): Cannot find module '../dist/final/node/testing.mjs'`
+and the 155 are the `no-unsafe-*` findings that an unresolved import produces.
+With the same `depends` on both the parent and the child,
+the build ran twice,
+once before the fanout and once inside the child,
+and the second build cleared `dist` under the running `lint:oxlint`.
+
+Hanging the dependency on the fanout parent alone (`[tasks.lint] depends`,
+no `depends` on either child) builds once:
+`mise run --dry-run` lists one build,
+and the run logs one `build:js:node` start and reports `0 warnings and 0 errors`.
+The cost is that a direct `mise run //package/...:lint:types`
+does not build the artifact itself,
+so on a clean checkout that invocation needs a prior build.
+This is the same missing cross-process deduplication as the `pnpm install` case above,
+now with a build whose output another fanout child reads.
+
 ### Repository usage that contributed
 
 - Nothing in the task graph ties builds or lint to install state:
