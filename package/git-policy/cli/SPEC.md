@@ -1427,6 +1427,7 @@ in the worktree's trash parent that no pending or claimed record accounts for,
 on standard error,
 with its path:
 a trash whose emptying failed has a failed record that is never tried again,
+a record still pending after one claim lease is one no service ever looked at,
 and a directory nothing recorded cannot be proven to be one the leave-out moved;
 nothing there is deleted,
 and a worktree with no trash parent costs the command one lookup.

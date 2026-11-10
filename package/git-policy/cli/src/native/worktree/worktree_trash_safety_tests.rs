@@ -289,6 +289,51 @@ fn a_trash_a_record_accounts_for_is_not_named() {
 }
 
 /// What:
+///  A trash whose record nothing ever claimed is named to the person once one claim lease has passed,
+/// and left alone.
+/// Why:
+///   The add writes the record and wakes the service,
+/// but a wake that failed,
+/// or an add killed between the two,
+/// leaves a
+///  record no service ever read;
+/// a service claims a record within the wake that asked it to,
+/// so a pending record older than
+///  the lease the drain keeps is one nobody will look at,
+/// and naming it is the only way the person learns of it.
+/// The file's age is what says so,
+/// so the control moves the record's modification time back instead of waiting it out.
+#[test]
+fn a_pending_record_no_service_took_is_named_after_one_claim_lease() {
+    let name: String = "f".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-pending-stale", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    age_by(&pending, std::time::Duration::from_secs(600));
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(trash.to_str().expect("UTF-8")), "a record nothing claimed is named with its trash: {said}");
+    assert!(pending.is_file() && trash.join("d0/file").is_file(), "the record and the trash stay");
+    remove(root.as_path());
+}
+
+/// Move a file's modification time into the past,
+/// so a control can read a record as one that waited.
+fn age_by(path: &Path, back: std::time::Duration) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    let past: libc::time_t = (std::time::SystemTime::now() - back).duration_since(std::time::SystemTime::UNIX_EPOCH).expect("after the epoch").as_secs() as libc::time_t;
+    let times: [libc::timespec; 2] = [libc::timespec { tv_sec: past, tv_nsec: 0 }, libc::timespec { tv_sec: past, tv_nsec: 0 }];
+    // SAFETY: `name` is a NUL-terminated string that outlives the call, and `times` holds the two timestamps it reads.
+    let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), 0) };
+    assert_eq!(result, 0, "age {}", path.display());
+}
+
+/// What:
 ///  A trash whose record the commit service gave up on is named to the person and left alone.
 /// Why:
 ///   The service settles a trash item it cannot empty as failed and never claims it again,

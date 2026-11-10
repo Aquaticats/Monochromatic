@@ -153,12 +153,17 @@ pub struct PendingTrash {
 /// because its own handler empties that one (`empty_trash`);
 /// the service settles a trash it cannot empty as failed and never tries it again,
 /// so a failed record accounts for nothing here.
+/// A record that is still pending after one claim lease accounts for nothing either:
+/// a service woken for the repository claims a record within the wake that asked it to,
+/// so a pending record older than
+///  `CLAIM_LEASE` is one no service ever looked at,
+/// and naming it is the only way the person learns of it.
 /// This scan deletes nothing:
 /// a directory nothing recorded cannot be proven to be one the leave-out moved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// nameUnaccountedTrash(gitDir, worktree, notices);
+/// nameUnaccountedTrash(commonDir, worktree, notices);
 /// ```
 pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write) {
     // A worktree whose trash parent is gone has nothing to name, and that is the ordinary case.
@@ -181,15 +186,39 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
                 continue;
             }
             // A record the service still works on accounts for its trash: its own handler empties that one, and naming
-            // it here would send the person to look at work that is not theirs. A failed record is settled for good,
-            // so the trash it names is left to the scan below, which names it and deletes nothing.
-            if state == FAILED {
+            // it here would send the person to look at work that is not theirs. A failed record is settled for good, so
+            // it accounts for nothing. A pending record is only the service's work until one claim lease has passed
+            // without anything claiming it, which means no service ever looked at it.
+            let the_service_owns_it: bool = state == CLAIMED || state == RECOVERING || (state == PENDING && !waited_longer_than_a_claim(record.as_path()));
+            if !the_service_owns_it {
                 continue;
             }
             accounted.push(item.oid.clone());
         }
     }
     name_trash_nothing_will_empty(worktree, &accounted, notices);
+}
+
+/// What:
+///  Whether this record has been pending for longer than one claim lease without being claimed.
+/// Why:
+///   The lease is the one the drain already keeps (`CLAIM_LEASE`),
+/// so no new number decides when a record is stale:
+/// the service renews a claim every third of it,
+/// and a record a woken service would have claimed within the wake that
+/// woke it stays pending only when no service ever read it.
+/// A record whose age cannot be read is left alone,
+/// because a reason to name it
+///  that cannot be shown is none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const waitedLongerThanAClaim = (record) => Date.now() - mtimeMs(record) > CLAIM_LEASE_MS;
+/// ```
+fn waited_longer_than_a_claim(record: &Path) -> bool {
+    let Ok(found) = std::fs::metadata(record) else { return false };
+    let Ok(written) = found.modified() else { return false };
+    return written.elapsed().is_ok_and(|age: std::time::Duration| age > crate::service_work::CLAIM_LEASE);
 }
 
 /// Say what sits in the trash parent of `worktree` that nothing will empty.
