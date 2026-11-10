@@ -31,7 +31,8 @@
   "dependencies": {
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
-    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/terminal-exec-cli": "workspace:*"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "catalog:",

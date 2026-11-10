@@ -1,4 +1,5 @@
 import { mapIterableAsync, } from '@monochromatic-dev/async-iter-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { readFile, } from 'node:fs/promises';
 import {
   dirname,
@@ -72,19 +73,23 @@ export async function getOPMLTexts(
     ): Promise<string | typeof DISCARD> {
       if (opmlLink.startsWith('http',)) {
         /**
-         Single Response held so status check and text read share one network round trip.
+         Response, status check, and body read share one catch so a rejected
+         connection discards this source like a failed body read does.
          */
-        const response = await fetch(opmlLink,);
-        if (!response.ok) {
-          innerL.warn(`${opmlLink} responded ${String(response.status,)}`,);
-          return DISCARD;
-        }
         try {
+          /**
+           Response for this OPML source URL.
+           */
+          const response = await fetch(opmlLink,);
+          if (!response.ok) {
+            innerL.warn(`${opmlLink} responded ${String(response.status,)}`,);
+            return DISCARD;
+          }
           return await response.text();
         }
         catch (error) {
           innerL.warn(
-            `text conversion failed for ${opmlLink}: ${JSON.stringify(error,)}`,
+            `fetch or text conversion failed for ${opmlLink}: ${caughtValueText(error,)}`,
           );
           return DISCARD;
         }
@@ -98,7 +103,7 @@ export async function getOPMLTexts(
             );
           }
           catch (error) {
-            innerL.warn(`failed reading ${opmlLink}: ${JSON.stringify(error,)}`,);
+            innerL.warn(`failed reading ${opmlLink}: ${caughtValueText(error,)}`,);
             return DISCARD;
           }
         }
@@ -122,7 +127,7 @@ export async function getOPMLTexts(
         }
         catch (error) {
           innerL.warn(
-            `failed reading ${opmlLink} at ${absPath}: ${JSON.stringify(error,)}`,
+            `failed reading ${opmlLink} at ${absPath}: ${caughtValueText(error,)}`,
           );
           return DISCARD;
         }
