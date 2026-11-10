@@ -30,7 +30,9 @@ import {
   DEFAULT_IMAGE,
   IMAGES,
   type ImageSpec,
+  InvalidVmMetaError,
   readVmMeta,
+  UnreadableVmMetaError,
 } from '../dist/final/node/index.mjs';
 
 //region Fixtures
@@ -164,8 +166,12 @@ await describe({
               fileName: LEGACY_IMAGE_FILE_NAME,
               vmDirectory: vm.path,
             },);
-
-            await expect(readVmMeta(vm.path,),).rejects.toThrow(join(
+            /**
+             Reading of the metadata, which must refuse rather than fall back.
+             */
+            const reading = readVmMeta(vm.path,);
+            await expect(reading,).rejects.toBeInstanceOf(InvalidVmMetaError,);
+            await expect(reading,).rejects.toThrow(join(
               vm.path,
               META_FILE_NAME,
             ),);
@@ -189,8 +195,12 @@ await describe({
               fileName: LEGACY_IMAGE_FILE_NAME,
               vmDirectory: vm.path,
             },);
-
-            await expect(readVmMeta(vm.path,),).rejects.toThrow(join(
+            /**
+             Reading of the metadata, which must refuse rather than fall back.
+             */
+            const reading = readVmMeta(vm.path,);
+            await expect(reading,).rejects.toBeInstanceOf(InvalidVmMetaError,);
+            await expect(reading,).rejects.toThrow(join(
               vm.path,
               META_FILE_NAME,
             ),);
@@ -206,8 +216,12 @@ await describe({
               fileName: META_FILE_NAME,
               vmDirectory: vm.path,
             },);
-
-            await expect(readVmMeta(vm.path,),).rejects.toThrow(join(
+            /**
+             Reading of the metadata, which must refuse rather than fall back.
+             */
+            const reading = readVmMeta(vm.path,);
+            await expect(reading,).rejects.toBeInstanceOf(InvalidVmMetaError,);
+            await expect(reading,).rejects.toThrow(join(
               vm.path,
               META_FILE_NAME,
             ),);
@@ -252,7 +266,12 @@ await describe({
               },
             };
 
-            await expect(readVmMeta(vm.path,),).rejects.toThrow(metaPath,);
+            /**
+             Reading of the metadata, which must refuse rather than fall back.
+             */
+            const reading = readVmMeta(vm.path,);
+            await expect(reading,).rejects.toBeInstanceOf(UnreadableVmMetaError,);
+            await expect(reading,).rejects.toThrow(metaPath,);
           },
         },),
 
@@ -269,8 +288,12 @@ await describe({
               fileName: LEGACY_IMAGE_FILE_NAME,
               vmDirectory: vm.path,
             },);
-
-            await expect(readVmMeta(vm.path,),).rejects.toThrow(join(
+            /**
+             Reading of the metadata, which must refuse rather than fall back.
+             */
+            const reading = readVmMeta(vm.path,);
+            await expect(reading,).rejects.toBeInstanceOf(UnreadableVmMetaError,);
+            await expect(reading,).rejects.toThrow(join(
               vm.path,
               META_FILE_NAME,
             ),);
