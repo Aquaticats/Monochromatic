@@ -4,6 +4,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
+import { isSearchFilenameCaptureName } from './evidence-text-scan.mjs';
 
 //region Provenance, only committed sanitized images enter the offline review
 const root = process.cwd();
@@ -42,7 +43,7 @@ for (const capture of [
   ...baseline.captures
 ]) {
   const file = capture.file ?? capture.image;
-  if (!/^search-filename-(?:comparison|actual-player)-[a-z0-9-]+\.png$/.test(file)) {
+  if (!isSearchFilenameCaptureName({ name: String(file) })) {
     throw new Error('Filename review capture name is outside the allowed evidence boundary.');
   }
   const png = readFileSync(join(

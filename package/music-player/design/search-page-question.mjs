@@ -6,7 +6,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-import { findPngDataPayloads } from './evidence-text-scan.ts';
+import { findPngDataPayloads } from './evidence-text-scan.mjs';
 
 const root = process.cwd();
 const templatePath = join(

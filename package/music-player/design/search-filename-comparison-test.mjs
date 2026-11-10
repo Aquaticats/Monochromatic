@@ -95,6 +95,18 @@ copyFileSync(
   ),
   builderPath
 );
+// The builder imports the package's shared regex-free text scans, so the fixture
+// carries that module too; a relative import cannot reach the committed folder.
+copyFileSync(
+  join(
+    root,
+    'evidence-text-scan.mjs'
+  ),
+  join(
+    fixture,
+    'evidence-text-scan.mjs'
+  )
+);
 const mutation = process.argv[2];
 if ((mutation !== undefined) && (![
   'without-exact-cohort',

@@ -396,13 +396,13 @@ run = [
   "node prose-dashes-test.mjs",
   "node prose-emphasis-test.mjs",
   "node crease-floor-question-test.mjs",
-  "node evidence-text-scan-test.ts",
+  "node evidence-text-scan-test.mjs",
 ]
 
 [tasks."test:evidence-text-scan"]
 description = "Exercise the shared evidence text scans on fixtures the removed patterns define"
 dir = "{{config_root}}"
-run = "node evidence-text-scan-test.ts"
+run = "node evidence-text-scan-test.mjs"
 
 [tasks."test:prose:dashes"]
 description = "Hold the package's authored prose to the AGENTS.md ban on em and en dashes in prose"
