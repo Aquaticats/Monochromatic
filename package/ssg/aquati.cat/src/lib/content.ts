@@ -50,6 +50,9 @@ const BOM = 0xFE_FF;
  Splits at the first two `---` lines to extract the YAML block and body.
  Returns empty data when no valid frontmatter is found.
  
+ Exporting this parser lets tests drive the fence scanner directly, including
+ the inputs no MDX file in the tree happens to carry.
+ 
  @param raw - full file content including frontmatter
  
  @returns parsed YAML data and remaining body content
@@ -60,7 +63,7 @@ const BOM = 0xFE_FF;
  // data = { title: 'Hello' }, content = 'body'
  ```
  */
-function parseFrontmatter(raw: string,): {
+export function parseFrontmatter(raw: string,): {
   data: Record<string, unknown>;
   content: string;
 } {
@@ -72,6 +75,20 @@ function parseFrontmatter(raw: string,): {
     === BOM ? raw.slice(1,) : raw;
 
   if (!str.startsWith(FRONTMATTER_OPEN,)) {
+    return {
+      data: {},
+      content: str,
+    };
+  }
+
+  /**
+   Character right after the opening fence; the fence is valid only when the
+   line ends there, matching the closing-fence rule below. Without this guard a
+   document starting with a longer thematic break such as `----` opened a
+   frontmatter block and had its body swallowed as YAML.
+   */
+  const charAfterOpen = str.charAt(FRONTMATTER_OPEN.length,);
+  if ((charAfterOpen !== '\n') && (charAfterOpen !== '\r') && (charAfterOpen !== '')) {
     return {
       data: {},
       content: str,
