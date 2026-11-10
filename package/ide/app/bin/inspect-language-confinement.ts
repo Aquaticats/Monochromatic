@@ -12,6 +12,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, re
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
+import { isProcessNumberName } from './process-number-name.ts';
 
 const inspect = resolve('target/debug/ide-language-inspect');
 const scripted = resolve('target/debug/ide-scripted-lsp');
@@ -174,7 +175,7 @@ const treeDiff = ({ before, after }: { before: Record<string, SnapshotEntry>; af
 });
 const empty = (difference: TreeDiff): boolean => difference.added.length + difference.removed.length + difference.changed.length === 0;
 // Processes carrying the session marker in their environment.
-const marked = (marker: string): string[] => readdirSync('/proc').filter(name => /^\d+$/.test(name)).filter(pid => {
+const marked = (marker: string): string[] => readdirSync('/proc').filter(name => isProcessNumberName(name)).filter(pid => {
   try { return readFileSync(join('/proc', pid, 'environ'), 'latin1').includes('IDE_LANGUAGE_SESSION=' + marker); } catch { return false; }
 });
 const sleep = (milliseconds: number): 'ok' | 'not-equal' | 'timed-out' => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
