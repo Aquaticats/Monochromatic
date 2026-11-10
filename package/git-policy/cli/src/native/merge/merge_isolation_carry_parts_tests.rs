@@ -64,14 +64,19 @@ fn every_object_a_capture_names_is_one_slot() {
 /// so a guess would lose them.
 #[test]
 fn a_damaged_capture_is_refused() {
-    let text: String = encode(&capture());
+    let encoded: Capture = capture();
+    let text: String = encode(&encoded);
+    // The path whose bytes are not text, which a damaged record must not silently lose.
+    let enc: &str = "6e6f74207465787420ff";
     for broken in [
         String::from("{}"),
         String::from("[]"),
         text.replace("\"commit\"", "\"other\""),
         text.replace("\"raw\"", "\"other\""),
         text.replace("6469722f6120622e747874", "zz"),
-        text.replace("\"paths\":[", "\"paths\":[{\"path\":\"a\",\"pathHex\":\"61\"},"),
+        text.replace("\"paths\":[", "\"paths\":{"),
+        text.replace("\"pathHex\":\"6e6f74207465787420ff\"", "\"pathHex\":\"6e6\""),
+        text.replace(enc, ""),
     ] {
         let value: Option<serde_json::Value> = serde_json::from_str(broken.as_str()).ok();
         assert_eq!(value.as_ref().and_then(decode), None, "{broken}");
