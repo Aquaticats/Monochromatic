@@ -11,6 +11,10 @@ import {
   i18n,
   type Locale,
 } from '../i18n/index.ts';
+import {
+  PRIMARY_DARK,
+  PRIMARY_LIGHT,
+} from '../style/tokens.ts';
 
 /**
  Git-derived article dates exposed as Open Graph metadata on post pages.
@@ -202,7 +206,7 @@ export function headFragment(
         tag: 'meta',
         attrs: {
           name: 'theme-color',
-          content: '#bf97e3',
+          content: PRIMARY_LIGHT,
           media: '(prefers-color-scheme: light)',
         },
       },),
@@ -210,7 +214,7 @@ export function headFragment(
         tag: 'meta',
         attrs: {
           name: 'theme-color',
-          content: '#4e318f',
+          content: PRIMARY_DARK,
           media: '(prefers-color-scheme: dark)',
         },
       },),

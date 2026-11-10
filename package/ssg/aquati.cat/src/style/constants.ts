@@ -56,3 +56,10 @@ export const FONT_SIZE_SMALL = 0.875;
  Full width percentage for inputs.
  */
 export const FULL_WIDTH = 100;
+
+/**
+ Emphasis font-weight for text the design marks as prominent: the active
+ language item, search-result titles and matches, the brand name, quiz
+ scenarios and revealed verdict labels.
+ */
+export const FONT_WEIGHT_EMPHASIS = 600;
