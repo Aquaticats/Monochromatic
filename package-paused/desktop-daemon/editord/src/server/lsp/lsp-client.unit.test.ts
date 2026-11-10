@@ -42,6 +42,18 @@ import {
 const CLOSE_STDIN_LINGER_MS = 400;
 
 /**
+ * Milliseconds the long-lived close-stdin child stays alive, so a request it
+ * strands would visibly outlive the settle window.
+ */
+const CLOSE_STDIN_LONG_LINGER_MS = 2_500;
+
+/**
+ * Milliseconds allowed for the stdin-error sweep to settle a stranded request,
+ * well below the child's own lifetime so a spawn-window race cannot pass it.
+ */
+const STDIN_SWEEP_WINDOW_MS = 800;
+
+/**
  * Milliseconds allowed after spawning before the child script has certainly
  * closed its stdin, so the test writes into a closed pipe rather than racing the
  * child's startup.
@@ -72,6 +84,15 @@ const GRACEFUL_EXIT_DELAY_MS = 50;
 const CLOSE_STDIN_SCRIPT = `import { closeSync } from 'node:fs';
 closeSync(0,);
 setTimeout(function linger() { process.exit(0); }, ${String(CLOSE_STDIN_LINGER_MS,)},);
+`;
+
+/**
+ * Script for a child that closes its stdin and lingers well past the settle
+ * window, so only a stdin-error sweep can settle a request pending on it.
+ */
+const CLOSE_STDIN_LONG_SCRIPT = `import { closeSync } from 'node:fs';
+closeSync(0,);
+setTimeout(function linger() { process.exit(0); }, ${String(CLOSE_STDIN_LONG_LINGER_MS,)},);
 `;
 
 /**
@@ -274,6 +295,32 @@ await describe({
           SETTLE_WINDOW_MS,
         );
         expect(exited,).toBe(true,);
+        await fixture.dispose();
+      },
+    },),
+    it({
+      name: 'settles a request when the child breaks its stdin before exiting',
+      async fn() {
+        const fixture = await createClientFixture(CLOSE_STDIN_LONG_SCRIPT,);
+        await delay(CLOSE_STDIN_SETTLE_MS,);
+        /**
+         * Request written into a pipe the child has already closed; only the
+         * stdin-error sweep can settle it before the child exits much later.
+         */
+        const pending = fixture.client.request({
+          method: 'textDocument/hover',
+          params: {},
+        },);
+        const settled = await settledWithin(
+          pending,
+          STDIN_SWEEP_WINDOW_MS,
+        );
+        expect(settled,).toBe(true,);
+        await expect(pending,).rejects.toThrow('stdin',);
+        expect(await settledWithin(
+          fixture.whenExited,
+          SETTLE_WINDOW_MS,
+        ),).toBe(true,);
         await fixture.dispose();
       },
     },),

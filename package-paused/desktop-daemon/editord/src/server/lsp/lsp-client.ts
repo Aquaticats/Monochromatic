@@ -155,21 +155,6 @@ export function createLspClient({
     },
   );
 
-  proc.stdin
-    ?.on(
-    'error',
-    function handleStdinError(error,) {
-      /**
-       * A broken stdin pipe means the server can receive no further messages.
-       * The child may still be on its way out, so mark this client dead here:
-       * without a listener Node raises this EPIPE as an unhandled `error` event
-       * and takes the whole daemon down.
-       */
-      state.dead = true;
-      clientLog.error(`stdin write failed: ${String(error,)}`,);
-    },
-    );
-
   /**
    * Writes a JSON-RPC message to the child process stdin.
    *
@@ -427,6 +412,24 @@ export function createLspClient({
     },);
     pending.clear();
   }
+
+  proc.stdin
+    ?.on(
+    'error',
+    function handleStdinError(error,) {
+      /**
+       * A broken stdin pipe means the server can receive no further messages.
+       * The child may still be on its way out, so the client is marked dead and
+       * its pending requests are settled here rather than at exit: without the
+       * listener Node raises this EPIPE as an unhandled `error` event and takes
+       * the whole daemon down, and without the sweep a request pending on a
+       * child that never exits waits forever.
+       */
+      state.dead = true;
+      clientLog.error(`stdin write failed: ${String(error,)}`,);
+      settleAllPending(`LSP server stdin closed: ${String(error,)}`,);
+    },
+    );
 
   proc.on(
     'exit',
