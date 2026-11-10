@@ -281,6 +281,57 @@ await describe({
           },
         },),
 
+        it({
+          name: 'resolves a package subpath through an exports wildcard pattern',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import 'pattern-pkg/theme.css';",
+                'node_modules/pattern-pkg/package.json': '{ "exports": { "./*": "./src/*" } }',
+                'node_modules/pattern-pkg/src/theme.css': '.theme { color: red; }',
+              },
+            },);
+
+            expect(result,).toContain('.theme { color: red; }',);
+          },
+        },),
+
+        it({
+          name: 'resolves a package whose exports field is a single string',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import 'string-pkg';",
+                'node_modules/string-pkg/package.json': '{ "exports": "./src/index.css" }',
+                'node_modules/string-pkg/src/index.css': '.entry { color: blue; }',
+              },
+            },);
+
+            expect(result,).toContain('.entry { color: blue; }',);
+          },
+        },),
+
+        it({
+          name: 'throws instead of reaching past an exports map that matches nothing',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              await buildInTempDir({
+                files: {
+                  'main.css': "@import 'sealed-pkg/src/secret.css';",
+                  'node_modules/sealed-pkg/package.json': '{ "exports": { "./index.css": "./index.css" } }',
+                  'node_modules/sealed-pkg/index.css': '.exported { color: green; }',
+                  'node_modules/sealed-pkg/src/secret.css': '.secret { color: red; }',
+                },
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(String(caught,),).toContain("does not export subpath './src/secret.css'",);
+          },
+        },),
+
         //endregion Package manifests
 
         //region Errors
