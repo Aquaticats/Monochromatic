@@ -64,5 +64,5 @@ extends = "format:oxlint"
 extends = "test:unit"
 
 [tasks.buildAndTest]
-description = "Build the node bin (verification is the build + dts emit; the bin has no inert invocation to smoke-run)"
+description = "Build the node bin, then run unit tests; the unit tests cover the domain XML, domain removal and the container arguments, and the bin has no inert invocation to smoke-run"
 run = ["mise run build", "mise run test:unit"]
