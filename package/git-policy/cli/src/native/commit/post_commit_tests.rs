@@ -158,6 +158,46 @@ fn a_blocked_landed_commit_ends_with_an_explicit_commit_landed_event() {
     remove(&root);
 }
 
+/// What:
+///  A gate that blocks says which check refused the commit and what it found,
+/// in one line.
+/// Why:
+///   The next push of the branch stops before that commit and every command says why,
+/// so the words of the verdict are what
+///  the person reads instead of a backup that did not happen;
+/// a policy id alone,
+/// or a message with a line break in it,
+/// would
+///  leave them guessing or split one notice into two lines.
+#[test]
+fn a_blocked_gate_words_its_reason_as_one_line() {
+    let (root, landed) = landed_repository("pc-reason", "no final newline");
+    let prefix = prefix_for(&root);
+    let overlay = fixture_environment();
+    let outcome = run_post_commit_gate(&request(
+        &landed,
+        &prefix,
+        &overlay,
+        with_severity(PolicyId::FinalNewline, Severity::Error),
+        no_controls(),
+    ));
+    assert!(outcome.blocked, "{outcome:?}");
+    let reason: String = blocked_reason(outcome.events.as_slice());
+    assert!(reason.starts_with("final-newline: "), "{reason}");
+    assert!(!reason.contains('\n'), "the verdict is one line: {reason}");
+    // The control: a gate that passed says nothing to hold the branch back with.
+    let clean = run_post_commit_gate(&request(
+        &landed,
+        &prefix,
+        &overlay,
+        PolicyConfig::defaults(),
+        no_controls(),
+    ));
+    assert!(!clean.blocked, "{clean:?}");
+    assert_eq!(blocked_reason(clean.events.as_slice()), String::new());
+    remove(&root);
+}
+
 /// A warning-only result allows the backup,
 /// and its finding is still printed.
 #[test]
@@ -228,7 +268,41 @@ fn an_engine_failure_retains_the_commit_and_reports_the_failure() {
         .collect();
     assert_eq!(kinds.last(), Some(&"commit-landed"), "{kinds:?}");
     assert!(kinds.contains(&"engine-failure"), "{kinds:?}");
+    // The words the verdict keeps for the push and the notice name the check that refused the commit,
+    // in one line.
+    let reason: String = blocked_reason(outcome.events.as_slice());
+    assert!(reason.starts_with("final-newline: "), "{reason}");
+    assert!(!reason.contains('\n'), "one line: {reason}");
     remove(&root);
+}
+
+/// What:
+///  A failure no policy is responsible for is named with its own message,
+/// and one that belongs to a policy names the policy first.
+/// Why:
+///   The verdict is what the person reads for a push that did not happen,
+/// so an empty policy name would read as a
+///  refusal by nothing.
+#[test]
+fn a_reason_names_the_policy_that_failed_and_nothing_when_none_did() {
+    let without_policy = [PolicyEvent::EngineFailure {
+        code: EngineFailureCode::ContentUnavailable,
+        hint: crate::policy_events::EngineFailureHint::OfCode,
+        message: String::from("the repository's top level cannot be read"),
+        trigger: Some(Trigger::PostCommit),
+        policy: None,
+        path: None,
+    }];
+    assert_eq!(blocked_reason(without_policy.as_slice()), "the repository's top level cannot be read");
+    let with_policy = [PolicyEvent::EngineFailure {
+        code: EngineFailureCode::ContentUnavailable,
+        hint: crate::policy_events::EngineFailureHint::OfCode,
+        message: String::from("the rules file cannot be read"),
+        trigger: Some(Trigger::PostCommit),
+        policy: Some(PolicyId::ForbiddenStrings),
+        path: None,
+    }];
+    assert_eq!(blocked_reason(with_policy.as_slice()), "security/forbidden-strings: the rules file cannot be read");
 }
 
 /// A landed name that is not an object name is an engine failure,

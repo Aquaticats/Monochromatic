@@ -273,56 +273,56 @@ Do not replace it with recursion.
 
 Core checker behavior:
 
-1. Return for `lastItem === null`.
-2. Return for `lastItem.type === 'RestElement'`.
-3. Find the insertion token.
-   - For arrays,
-      objects,
-      calls,
-      `new`,
-      and dynamic imports,
-      prefer
-     `sourceCode.getLastToken(container, 1)` because it targets the token before
-     the closing delimiter.
-   - For imports,
-      exports,
-      attributes,
-      enums,
-      type parameters,
-      tuples,
-      and
-     function params,
-      use `sourceCode.getTokenAfter(lastItem)` to detect an
-     existing comma,
-      otherwise use `sourceCode.getLastToken(lastItem)`.
+1.  Return for `lastItem === null`.
+2.  Return for `lastItem.type === 'RestElement'`.
+3.  Find the insertion token.
+    - For arrays,
+       objects,
+       calls,
+       `new`,
+       and dynamic imports,
+       prefer
+      `sourceCode.getLastToken(container, 1)` because it targets the token before
+      the closing delimiter.
+    - For imports,
+       exports,
+       attributes,
+       enums,
+       type parameters,
+       tuples,
+       and
+      function params,
+       use `sourceCode.getTokenAfter(lastItem)` to detect an
+      existing comma,
+       otherwise use `sourceCode.getLastToken(lastItem)`.
 
-   The two strategies are not interchangeable;
-    do not collapse them to
-   `getLastToken(container, 1)` everywhere.
-   For imports,
-    exports,
-    and import attributes the comma-delimited list is not at
-   the container tail:
-    an `ImportDeclaration` node spans through `from 'source'`
-   and the optional `;`,
-    so `getLastToken(container, 1)` returns the source-string
-   token,
-    and inserting after it produces the broken
-   `import { one } from 'pkg', ;`.
-   The `getTokenAfter(lastItem)` form is correct for the array/object/call group
-   too,
-    but `getLastToken(container, 1)` is kept there because it reads the token
-   before the close delimiter directly,
-    including for trailing array holes such as
-   `[one, ,]`.
-4. If the trailing token is already `,`,
-    return.
-5. Check the next token is one of `)`,
-    `]`,
-    `}`,
-    or `>` when a next token exists.
-6. Report on `lastItem` with `messageId: 'missingComma'`.
-7. Fix with `fixer.insertTextAfter(insertionToken, ',')`.
+    The two strategies are not interchangeable;
+     do not collapse them to
+    `getLastToken(container, 1)` everywhere.
+    For imports,
+     exports,
+     and import attributes the comma-delimited list is not at
+    the container tail:
+     an `ImportDeclaration` node spans through `from 'source'`
+    and the optional `;`,
+     so `getLastToken(container, 1)` returns the source-string
+    token,
+     and inserting after it produces the broken
+    `import { one } from 'pkg', ;`.
+    The `getTokenAfter(lastItem)` form is correct for the array/object/call group
+    too,
+     but `getLastToken(container, 1)` is kept there because it reads the token
+    before the close delimiter directly,
+     including for trailing array holes such as
+    `[one, ,]`.
+4.  If the trailing token is already `,`,
+     return.
+5.  Check the next token is one of `)`,
+     `]`,
+     `}`,
+     or `>` when a next token exists.
+6.  Report on `lastItem` with `messageId: 'missingComma'`.
+7.  Fix with `fixer.insertTextAfter(insertionToken, ',')`.
 
 Use `context.report` with a typed fixer callback,
  matching `semi.ts`.

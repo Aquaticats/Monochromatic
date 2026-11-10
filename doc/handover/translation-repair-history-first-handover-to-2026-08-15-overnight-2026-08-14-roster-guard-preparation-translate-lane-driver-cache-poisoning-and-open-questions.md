@@ -299,8 +299,8 @@ start before these landed:
 WHAT NEEDS YOU,
 in the order it blocks work:
 
-1.   HOW WIDE the producing roles should be,
-     and how to WRITE that width.
+1.  HOW WIDE the producing roles should be,
+    and how to WRITE that width.
     You decided to widen them and separately ruled that provider counts must
     not be hardcoded,
      since the offering changes often.
@@ -317,8 +317,8 @@ in the order it blocks work:
     tradeoff rather than an arithmetic the code can settle,
      so the number needs
     to come from you or from a measurement nobody has taken.
-2.   A policy answer for the TRANSCRIBED-IMAGE class,
-     unchanged and now urgent.
+2.  A policy answer for the TRANSCRIBED-IMAGE class,
+    unchanged and now urgent.
     Chinese pages hold letters as images;
      English pages transcribe and translate
     them.
@@ -346,7 +346,7 @@ in the order it blocks work:
      says it must
     survive;
      nothing in the lane yet makes it survive.
-3.   `#66` and `#68`,
-     human grading,
-     unchanged and still the gate on probe
+3.  `#66` and `#68`,
+    human grading,
+    unchanged and still the gate on probe
     calibration.

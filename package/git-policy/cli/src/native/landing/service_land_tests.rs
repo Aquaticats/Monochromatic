@@ -29,7 +29,7 @@ pub(super) fn world(name: &str) -> World {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir(&journal).expect("journal");
-    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
     return World { root, repo, context };
 }
 
@@ -269,7 +269,7 @@ fn a_branch_that_moves_under_the_batch_is_built_again() {
     let repo: PathBuf = world.repo.clone();
     let moves: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let counter: Arc<AtomicUsize> = moves.clone();
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         if counter.fetch_add(1, Ordering::SeqCst) == 0 {
             move_branch(repo.as_path(), "moved by someone");
         }
@@ -298,7 +298,7 @@ fn a_branch_that_never_stops_moving_fails_after_the_attempts() {
     let repo: PathBuf = world.repo.clone();
     let moves: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let counter: Arc<AtomicUsize> = moves.clone();
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         counter.fetch_add(1, Ordering::SeqCst);
         move_branch(repo.as_path(), "moved again");
     }));
@@ -393,7 +393,7 @@ fn an_amend_is_not_made_when_the_branch_moves_under_it() {
     let mut world: World = world("service-land-amend-race");
     let amend: CommitRequest = amend_request(&world, "racing", "racing.txt", "racing\n");
     let repo: PathBuf = world.repo.clone();
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         move_branch(repo.as_path(), "moved by someone");
     }));
     assert_eq!(land_batch(&world.context, 1, &[amend]).expect("answered"), vec![Outcome::BranchMoved]);
@@ -536,7 +536,7 @@ fn the_index_lock_is_not_held_while_the_objects_are_made() {
     let seen_held: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let seen_free: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let (held, free, watched) = (seen_held.clone(), seen_free.clone(), lock.clone());
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         let counter: &Arc<AtomicUsize> = if watched.exists() { &held } else { &free };
         counter.fetch_add(1, Ordering::SeqCst);
     }));
@@ -560,7 +560,7 @@ fn a_foreign_holder_is_waited_for_after_the_objects_are_made_not_before() {
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
     let watched: PathBuf = lock.clone();
-    world.context.on_objects_written = Some(Box::new(move || {
+    world.context.on_objects_written = Some(std::sync::Arc::new(move || {
         std::fs::remove_file(&watched).expect("the holder lets go while the objects are made");
     }));
     let waited: std::cell::Cell<bool> = std::cell::Cell::new(false);
@@ -826,7 +826,7 @@ fn a_branch_write_that_outlasts_the_step_ceiling_is_not_ended() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let world: World = world("service-land-branch-write-not-ended");
         let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
-        let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+        let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
         // The write outlasts the bound of its class and the extra wait together (3 s and 1 s against 6 s), and runs on the landing
         // thread, which waits for it without a bound; a command that left it running would have given up at 4 s.
         context.git.real_git = late_reference_git(&world, SHORT_STEP_CEILING.as_secs() * 2);
@@ -869,7 +869,7 @@ fn a_read_step_ended_at_its_ceiling_ends_the_landing_with_the_step_named() {
         let world: World = world("service-land-read-ceiling");
         let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
         let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-        let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+        let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
         context.git.real_git = git_that_hangs_on(&world, "rev-parse");
         // The landing reads the branch in process when it can, which starts no Git to hang; the readers are off here so that the step
         //  under test is the one that starts Git.
@@ -1308,7 +1308,7 @@ fn a_switch_is_found_in_a_reftable_repository() {
     let world: World = World {
         root: root.clone(),
         repo: repo.clone(),
-        context: LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING },
+        context: LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING },
     };
     git(repo.as_path(), &["branch", "side"]);
     let on_branch: CommitRequest = request(&world, "kept", "kept.txt", "x\n");

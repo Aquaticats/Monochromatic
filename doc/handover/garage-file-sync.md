@@ -186,257 +186,257 @@ Status:
 
 ### Stage A: deploy Garage on Coolify
 
-1. On the Coolify host SSH shell,
-    run `mkdir -p /mnt/storagebox/garage-data`.
-   Expected:
-    no output,
-    or `File exists`.
-2. In **Coolify**,
-    open the **Project**,
-    click **+ New**,
-    choose **Resource**,
-   then **Docker Compose Empty**.
+1.  On the Coolify host SSH shell,
+     run `mkdir -p /mnt/storagebox/garage-data`.
     Expected:
-    a compose editor opens.
-3. Paste the entire contents of `garage-coolify-compose.yml` into the editor.
-   Expected:
-    the editor shows the `garage` service and a `configs:` block.
-4. Open **Environment Variables** and add the five secrets named in the compose
-   header (`GARAGE_RPC_SECRET`,
-    `GARAGE_ADMIN_TOKEN`,
-    `GARAGE_METRICS_TOKEN`,
-   `GARAGE_DEFAULT_ACCESS_KEY`,
-    `GARAGE_DEFAULT_SECRET_KEY`),
-    each generated with
-   the command written beside it in that header.
+     no output,
+     or `File exists`.
+2.  In **Coolify**,
+     open the **Project**,
+     click **+ New**,
+     choose **Resource**,
+    then **Docker Compose Empty**.
+     Expected:
+     a compose editor opens.
+3.  Paste the entire contents of `garage-coolify-compose.yml` into the editor.
     Expected:
-    five variables saved.
-   Keep the access key and secret key;
-    they are your S3 login for Stage C.
-5. Click **Deploy**.
-    Expected:
-    the deploy log ends with the `garage` container
-   running and no restart loop.
+     the editor shows the `garage` service and a `configs:` block.
+4.  Open **Environment Variables** and add the five secrets named in the compose
+    header (`GARAGE_RPC_SECRET`,
+     `GARAGE_ADMIN_TOKEN`,
+     `GARAGE_METRICS_TOKEN`,
+    `GARAGE_DEFAULT_ACCESS_KEY`,
+     `GARAGE_DEFAULT_SECRET_KEY`),
+     each generated with
+    the command written beside it in that header.
+     Expected:
+     five variables saved.
+    Keep the access key and secret key;
+     they are your S3 login for Stage C.
+5.  Click **Deploy**.
+     Expected:
+     the deploy log ends with the `garage` container
+    running and no restart loop.
 
 ### Stage B: drop HTTP/2 at Caddy
 
-1. On the host,
-    open your self-managed **Caddyfile** in an editor.
-2. In the global options block at the very top (the leading `{ ... }`),
-    add:
+1.  On the host,
+     open your self-managed **Caddyfile** in an editor.
+2.  In the global options block at the very top (the leading `{ ... }`),
+     add:
 
-    ```caddyfile
-    {
-        servers :443 {
-            protocols h1 h3
-        }
-    }
-    ```
+     ```caddyfile
+     {
+         servers :443 {
+             protocols h1 h3
+         }
+     }
+     ```
 
-   Expected:
-    the file now contains a `servers :443` block with `protocols h1 h3`.
-3. Confirm the `garage.c.aquati.cat` site reverse-proxies to **127.0.0.1:3900**
-   (the loopback port the compose publishes).
     Expected:
-    the site block routes to
-   `127.0.0.1:3900`.
-4. Reload Caddy:
-    `systemctl reload caddy` (or `caddy reload --config <path>`).
-   Expected:
-    the command returns with no error printed.
+     the file now contains a `servers :443` block with `protocols h1 h3`.
+3.  Confirm the `garage.c.aquati.cat` site reverse-proxies to **127.0.0.1:3900**
+    (the loopback port the compose publishes).
+     Expected:
+     the site block routes to
+    `127.0.0.1:3900`.
+4.  Reload Caddy:
+     `systemctl reload caddy` (or `caddy reload --config <path>`).
+    Expected:
+     the command returns with no error printed.
 
 ### Stage C: configure rclone on a client
 
-1. Confirm rclone is installed:
-    `rclone version` prints `rclone v1.74.3` or newer.
-2. Create the remote (substitute the Stage A credentials):
+1.  Confirm rclone is installed:
+     `rclone version` prints `rclone v1.74.3` or newer.
+2.  Create the remote (substitute the Stage A credentials):
 
-    ```bash
-    rclone config create garage s3 \
-      provider Other \
-      access_key_id <GARAGE_DEFAULT_ACCESS_KEY> \
-      secret_access_key <GARAGE_DEFAULT_SECRET_KEY> \
-      endpoint https://garage.c.aquati.cat \
-      region garage \
-      force_path_style true
-    ```
+     ```bash
+     rclone config create garage s3 \
+       provider Other \
+       access_key_id <GARAGE_DEFAULT_ACCESS_KEY> \
+       secret_access_key <GARAGE_DEFAULT_SECRET_KEY> \
+       endpoint https://garage.c.aquati.cat \
+       region garage \
+       force_path_style true
+     ```
 
-   Expected:
-    `rclone lsf garage:files` returns `Plain/` (or an empty list on a
-   fresh store),
-    with no `directory not found` error.
-3. Create the phantom-key filter file (see the phantom-key section):
+    Expected:
+     `rclone lsf garage:files` returns `Plain/` (or an empty list on a
+    fresh store),
+     with no `directory not found` error.
+3.  Create the phantom-key filter file (see the phantom-key section):
 
-    ```bash
-    printf '%s\n' '- **‛**' > ~/.config/rclone/garage-filter.txt
-    ```
+     ```bash
+     printf '%s\n' '- **‛**' > ~/.config/rclone/garage-filter.txt
+     ```
 
-   Expected:
-    `hexdump -C ~/.config/rclone/garage-filter.txt` shows
-   `2d 20 2a 2a e2 80 9b 2a 2a 0a`.
-4. Establish the baseline,
-    first run only,
-    never repeat `--resync`:
+    Expected:
+     `hexdump -C ~/.config/rclone/garage-filter.txt` shows
+    `2d 20 2a 2a e2 80 9b 2a 2a 0a`.
+4.  Establish the baseline,
+     first run only,
+     never repeat `--resync`:
 
-    ```bash
-    rclone bisync garage:files/Plain ~/Plain --resync \
-      --filter-from ~/.config/rclone/garage-filter.txt \
-      --fast-list --use-server-modtime \
-      --transfers 16 --checkers 32 --s3-upload-concurrency 8 -v
-    ```
+     ```bash
+     rclone bisync garage:files/Plain ~/Plain --resync \
+       --filter-from ~/.config/rclone/garage-filter.txt \
+       --fast-list --use-server-modtime \
+       --transfers 16 --checkers 32 --s3-upload-concurrency 8 -v
+     ```
 
-   Expected:
-    the log ends with `Bisync successful`.
-    The first run pulls the full
-   tree (here ~55 GB),
-    so it is bounded by download bandwidth;
-    `--fast-list` plus
-   `--use-server-modtime` keep the listing and comparison to a few seconds,
-    so
-   later runs finish in well under a minute.
+    Expected:
+     the log ends with `Bisync successful`.
+     The first run pulls the full
+    tree (here ~55 GB),
+     so it is bounded by download bandwidth;
+     `--fast-list` plus
+    `--use-server-modtime` keep the listing and comparison to a few seconds,
+     so
+    later runs finish in well under a minute.
 
 ### Stage D (Linux): install the hourly systemd timer
 
-1. Write `~/.config/systemd/user/rclone-bisync-garage.service`:
+1.  Write `~/.config/systemd/user/rclone-bisync-garage.service`:
 
-    ```ini
-    [Unit]
-    Description=Bisync ~/Seafile/Plain with Garage S3
-    Documentation=https://rclone.org/bisync/
-    After=network-online.target
-    Wants=network-online.target
+     ```ini
+     [Unit]
+     Description=Bisync ~/Seafile/Plain with Garage S3
+     Documentation=https://rclone.org/bisync/
+     After=network-online.target
+     Wants=network-online.target
 
-    [Service]
-    Type=oneshot
-    WorkingDirectory=%h
-    TimeoutStartSec=3000
-    ExecStart=|@rclone bisync garage:files/Plain %h/Seafile/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
-    Nice=10
-    IOSchedulingClass=best-effort
-    IOSchedulingPriority=6
-    ```
+     [Service]
+     Type=oneshot
+     WorkingDirectory=%h
+     TimeoutStartSec=3000
+     ExecStart=|@rclone bisync garage:files/Plain %h/Seafile/Plain --filter-from %h/.config/rclone/garage-filter.txt --fast-list --use-server-modtime --conflict-resolve newer --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
+     Nice=10
+     IOSchedulingClass=best-effort
+     IOSchedulingPriority=6
+     ```
 
-   `|@rclone` resolves the command through the account's default login shell on every start:
-   `|` selects the shell and `@` enables login-shell startup.
-   This was verified with systemd `262.1-1.fc45` and the account's Bash login shell.
-   The mpm shadow manages the toolchain;
-   the service follows the first `rclone` on the login shell's `PATH`.
-   The retired `%h/.local/share/mise/shims/rclone` path was replaced on `2026-11-07`;
-   its failure and recovery are recorded in
-   [the toolchain migration troubleshooting record](../troubleshooting/mpm-toolchain-migration.md).
-   `--conflict-resolve newer` preserves the winning file's original name;
-   see [the conflict diagnosis](../troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md).
-   The
-   `--filter-from`,
-    `--fast-list`,
-    and `--use-server-modtime` flags are mandatory
-   (phantom keys and the high-latency link);
-    see "What this builds".
-2. Write `~/.config/systemd/user/rclone-bisync-garage.timer`:
+    `|@rclone` resolves the command through the account's default login shell on every start:
+    `|` selects the shell and `@` enables login-shell startup.
+    This was verified with systemd `262.1-1.fc45` and the account's Bash login shell.
+    The mpm shadow manages the toolchain;
+    the service follows the first `rclone` on the login shell's `PATH`.
+    The retired `%h/.local/share/mise/shims/rclone` path was replaced on `2026-11-07`;
+    its failure and recovery are recorded in
+    [the toolchain migration troubleshooting record](../troubleshooting/mpm-toolchain-migration.md).
+    `--conflict-resolve newer` preserves the winning file's original name;
+    see [the conflict diagnosis](../troubleshooting/rclone-bisync-use-server-modtime-phantom-conflicts.md).
+    The
+    `--filter-from`,
+     `--fast-list`,
+     and `--use-server-modtime` flags are mandatory
+    (phantom keys and the high-latency link);
+     see "What this builds".
+2.  Write `~/.config/systemd/user/rclone-bisync-garage.timer`:
 
-    ```ini
-    [Unit]
-    Description=Run Garage bisync hourly
+     ```ini
+     [Unit]
+     Description=Run Garage bisync hourly
 
-    [Timer]
-    OnCalendar=hourly
-    Persistent=true
-    RandomizedDelaySec=120
+     [Timer]
+     OnCalendar=hourly
+     Persistent=true
+     RandomizedDelaySec=120
 
-    [Install]
-    WantedBy=timers.target
-    ```
+     [Install]
+     WantedBy=timers.target
+     ```
 
-3. Run `systemctl --user daemon-reload`.
+3.  Run `systemctl --user daemon-reload`.
+     Expected:
+     no output.
+4.  Run `systemctl --user enable --now rclone-bisync-garage.timer`.
+     Expected:
+    `Created symlink ... timers.target.wants/rclone-bisync-garage.timer`.
+5.  Run `loginctl enable-linger $(id -un)` so the timer fires while logged out.
     Expected:
-    no output.
-4. Run `systemctl --user enable --now rclone-bisync-garage.timer`.
+     `loginctl show-user $(id -un) -p Linger` then prints `Linger=yes`.
+6.  Trigger one run:
+     `systemctl --user start rclone-bisync-garage.service`.
     Expected:
-   `Created symlink ... timers.target.wants/rclone-bisync-garage.timer`.
-5. Run `loginctl enable-linger $(id -un)` so the timer fires while logged out.
-   Expected:
-    `loginctl show-user $(id -un) -p Linger` then prints `Linger=yes`.
-6. Trigger one run:
-    `systemctl --user start rclone-bisync-garage.service`.
-   Expected:
-    the run finishes and the journal shows `Bisync successful`.
+     the run finishes and the journal shows `Bisync successful`.
 
 ### Stage D (macOS): install the hourly launchd agent
 
-1. Write `~/Library/LaunchAgents/cat.aquati.rclone-bisync-garage.plist` (the
-   local path and the `--config` path must be absolute;
-    launchd does not expand
-   `~`):
+1.  Write `~/Library/LaunchAgents/cat.aquati.rclone-bisync-garage.plist` (the
+    local path and the `--config` path must be absolute;
+     launchd does not expand
+    `~`):
 
-    ```xml
-    <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-    <plist version="1.0">
-    <dict>
-        <key>Label</key>
-        <string>cat.aquati.rclone-bisync-garage</string>
-        <key>ProgramArguments</key>
-        <array>
-            <string>/opt/homebrew/bin/rclone</string>
-            <string>bisync</string>
-            <string>garage:files/Plain</string>
-            <string>/Users/USERNAME/Plain</string>
-            <string>--config</string>
-            <string>/Users/USERNAME/.config/rclone/rclone.conf</string>
-            <string>--filter-from</string>
-            <string>/Users/USERNAME/.config/rclone/garage-filter.txt</string>
-            <string>--fast-list</string>
-            <string>--use-server-modtime</string>
-            <string>--transfers</string>
-            <string>16</string>
-            <string>--checkers</string>
-            <string>32</string>
-            <string>--s3-upload-concurrency</string>
-            <string>8</string>
-            <string>--resilient</string>
-            <string>--recover</string>
-            <string>-v</string>
-        </array>
-        <key>StartCalendarInterval</key>
-        <dict>
-            <key>Minute</key>
-            <integer>0</integer>
-        </dict>
-        <key>RunAtLoad</key>
-        <false/>
-        <key>ProcessType</key>
-        <string>Background</string>
-        <key>Nice</key>
-        <integer>10</integer>
-        <key>LowPriorityIO</key>
-        <true/>
-        <key>StandardOutPath</key>
-        <string>/Users/USERNAME/Library/Logs/rclone-bisync-garage.log</string>
-        <key>StandardErrorPath</key>
-        <string>/Users/USERNAME/Library/Logs/rclone-bisync-garage.log</string>
-    </dict>
-    </plist>
-    ```
+     ```xml
+     <?xml version="1.0" encoding="UTF-8"?>
+     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+     <plist version="1.0">
+     <dict>
+         <key>Label</key>
+         <string>cat.aquati.rclone-bisync-garage</string>
+         <key>ProgramArguments</key>
+         <array>
+             <string>/opt/homebrew/bin/rclone</string>
+             <string>bisync</string>
+             <string>garage:files/Plain</string>
+             <string>/Users/USERNAME/Plain</string>
+             <string>--config</string>
+             <string>/Users/USERNAME/.config/rclone/rclone.conf</string>
+             <string>--filter-from</string>
+             <string>/Users/USERNAME/.config/rclone/garage-filter.txt</string>
+             <string>--fast-list</string>
+             <string>--use-server-modtime</string>
+             <string>--transfers</string>
+             <string>16</string>
+             <string>--checkers</string>
+             <string>32</string>
+             <string>--s3-upload-concurrency</string>
+             <string>8</string>
+             <string>--resilient</string>
+             <string>--recover</string>
+             <string>-v</string>
+         </array>
+         <key>StartCalendarInterval</key>
+         <dict>
+             <key>Minute</key>
+             <integer>0</integer>
+         </dict>
+         <key>RunAtLoad</key>
+         <false/>
+         <key>ProcessType</key>
+         <string>Background</string>
+         <key>Nice</key>
+         <integer>10</integer>
+         <key>LowPriorityIO</key>
+         <true/>
+         <key>StandardOutPath</key>
+         <string>/Users/USERNAME/Library/Logs/rclone-bisync-garage.log</string>
+         <key>StandardErrorPath</key>
+         <string>/Users/USERNAME/Library/Logs/rclone-bisync-garage.log</string>
+     </dict>
+     </plist>
+     ```
 
-   Replace `USERNAME` throughout.
+    Replace `USERNAME` throughout.
+     Expected:
+    `plutil -lint ~/Library/LaunchAgents/cat.aquati.rclone-bisync-garage.plist`
+    prints `... : OK`.
+2.  Load it:
+     `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/cat.aquati.rclone-bisync-garage.plist`.
     Expected:
-   `plutil -lint ~/Library/LaunchAgents/cat.aquati.rclone-bisync-garage.plist`
-   prints `... : OK`.
-2. Load it:
-    `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/cat.aquati.rclone-bisync-garage.plist`.
-   Expected:
-    `launchctl list | grep rclone` shows the label with exit status `0`.
-3. Trigger one run:
-    `launchctl kickstart gui/$(id -u)/cat.aquati.rclone-bisync-garage`.
-   Expected:
-    `~/Library/Logs/rclone-bisync-garage.log` ends with `Bisync successful`.
+     `launchctl list | grep rclone` shows the label with exit status `0`.
+3.  Trigger one run:
+     `launchctl kickstart gui/$(id -u)/cat.aquati.rclone-bisync-garage`.
+    Expected:
+     `~/Library/Logs/rclone-bisync-garage.log` ends with `Bisync successful`.
 
-   A LaunchAgent runs only while the user is logged in (the Aqua session);
-    there
-   is no `linger` equivalent.
-    For a personal Mac that stays logged in,
-    the
-   `StartCalendarInterval` fires every hour and catches up once on wake.
+    A LaunchAgent runs only while the user is logged in (the Aqua session);
+     there
+    is no `linger` equivalent.
+     For a personal Mac that stays logged in,
+     the
+    `StartCalendarInterval` fires every hour and catches up once on wake.
 
 ### Stage D (Windows): install the hourly Task Scheduler job
 
@@ -451,109 +451,109 @@ interactive shells,
  Logging uses rclone's own `--log-file` because Task
 Scheduler cannot redirect with `>`.
 
-1. Confirm rclone:
-    `"%LOCALAPPDATA%\mise\shims\rclone.exe" version` prints
-   `rclone v1.74.3` or newer.
-2. Put the rclone config and filter under `%APPDATA%\rclone\`:
-    `rclone.conf` (the
-   `[garage]` remote from Stage C) and `garage-filter.txt` (the `- **‛**` rule).
-   Write the filter from PowerShell so no BOM or codepage corrupts the `‛`:
+1.  Confirm rclone:
+     `"%LOCALAPPDATA%\mise\shims\rclone.exe" version` prints
+    `rclone v1.74.3` or newer.
+2.  Put the rclone config and filter under `%APPDATA%\rclone\`:
+     `rclone.conf` (the
+    `[garage]` remote from Stage C) and `garage-filter.txt` (the `- **‛**` rule).
+    Write the filter from PowerShell so no BOM or codepage corrupts the `‛`:
 
-    ```powershell
-    [IO.File]::WriteAllBytes("$env:APPDATA\rclone\garage-filter.txt",
-      [byte[]](0x2d,0x20,0x2a,0x2a,0xe2,0x80,0x9b,0x2a,0x2a,0x0a))
-    ```
+     ```powershell
+     [IO.File]::WriteAllBytes("$env:APPDATA\rclone\garage-filter.txt",
+       [byte[]](0x2d,0x20,0x2a,0x2a,0xe2,0x80,0x9b,0x2a,0x2a,0x0a))
+     ```
 
-   Expected:
-    `"%LOCALAPPDATA%\mise\shims\rclone.exe" listremotes` prints `garage:`,
-   and `Format-Hex "$env:APPDATA\rclone\garage-filter.txt"` shows
-   `2D 20 2A 2A E2 80 9B 2A 2A 0A`.
-3. Establish the baseline (first run only):
-
-    ```bat
-    "%LOCALAPPDATA%\mise\shims\rclone.exe" bisync garage:files/Plain "%USERPROFILE%\Plain" --resync --config "%APPDATA%\rclone\rclone.conf" --filter-from "%APPDATA%\rclone\garage-filter.txt" --fast-list --use-server-modtime --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
-    ```
-
-   Expected:
-    the run ends with `Bisync successful`.
-4. Write the task definition to `%USERPROFILE%\rclone-bisync-garage.xml` (replace
-   `USERNAME`;
-    Task Scheduler does not expand `%USERPROFILE%` inside
-   `<Command>`/`<Arguments>`):
-
-    ```xml
-    <?xml version="1.0" encoding="UTF-16"?>
-    <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-      <RegistrationInfo>
-        <Description>Hourly rclone bisync of garage:files/Plain to the local Plain dir.</Description>
-      </RegistrationInfo>
-      <Triggers>
-        <CalendarTrigger>
-          <Repetition>
-            <Interval>PT1H</Interval>
-            <StopAtDurationEnd>false</StopAtDurationEnd>
-          </Repetition>
-          <StartBoundary>2026-01-01T00:00:00</StartBoundary>
-          <Enabled>true</Enabled>
-          <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
-        </CalendarTrigger>
-      </Triggers>
-      <Principals>
-        <Principal id="Author">
-          <LogonType>InteractiveToken</LogonType>
-          <RunLevel>LeastPrivilege</RunLevel>
-        </Principal>
-      </Principals>
-      <Settings>
-        <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-        <StartWhenAvailable>true</StartWhenAvailable>
-        <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
-        <AllowStartOnDemand>true</AllowStartOnDemand>
-        <Enabled>true</Enabled>
-        <ExecutionTimeLimit>PT2H</ExecutionTimeLimit>
-        <Priority>7</Priority>
-      </Settings>
-      <Actions Context="Author">
-        <Exec>
-          <Command>C:\Users\USERNAME\AppData\Local\mise\shims\rclone.exe</Command>
-          <Arguments>bisync garage:files/Plain "C:\Users\USERNAME\Plain" --config "C:\Users\USERNAME\AppData\Roaming\rclone\rclone.conf" --filter-from "C:\Users\USERNAME\AppData\Roaming\rclone\garage-filter.txt" --fast-list --use-server-modtime --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover --log-file "C:\Users\USERNAME\rclone-bisync.log" -v</Arguments>
-        </Exec>
-      </Actions>
-    </Task>
-    ```
-
-   `MultipleInstancesPolicy` of `IgnoreNew` keeps a slow run from overlapping the
-   next hour;
-    `LogonType` `InteractiveToken` runs as the logged-in user with no
-   stored password (like the Mac agent,
-    it runs only while logged in).
-5. `schtasks` reads the XML as UTF-16 only;
-    a UTF-8 file fails with
-   `ERROR: The task XML is malformed. ... unable to switch the encoding`.
-    Rewrite
-   it as UTF-16 (LE BOM),
-    then register:
-
-    ```powershell
-    $p = "$env:USERPROFILE\rclone-bisync-garage.xml"
-    [IO.File]::WriteAllText($p, (Get-Content -Raw -Encoding UTF8 $p), [Text.Encoding]::Unicode)
-    ```
-
-    ```bat
-    schtasks /create /tn "rclone-bisync-garage" /xml "%USERPROFILE%\rclone-bisync-garage.xml" /f
-    ```
-
-   Expected:
-    `SUCCESS: The scheduled task "rclone-bisync-garage" has successfully been created.`
-6. Trigger one run:
-    `schtasks /run /tn "rclone-bisync-garage"`.
     Expected:
-    once it
-   finishes,
-    the tail of `%USERPROFILE%\rclone-bisync.log` contains
-   `Bisync successful`,
-    and
-   `schtasks /query /tn "rclone-bisync-garage" /v /fo list` shows `Last Result: 0`.
+     `"%LOCALAPPDATA%\mise\shims\rclone.exe" listremotes` prints `garage:`,
+    and `Format-Hex "$env:APPDATA\rclone\garage-filter.txt"` shows
+    `2D 20 2A 2A E2 80 9B 2A 2A 0A`.
+3.  Establish the baseline (first run only):
+
+     ```bat
+     "%LOCALAPPDATA%\mise\shims\rclone.exe" bisync garage:files/Plain "%USERPROFILE%\Plain" --resync --config "%APPDATA%\rclone\rclone.conf" --filter-from "%APPDATA%\rclone\garage-filter.txt" --fast-list --use-server-modtime --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover -v
+     ```
+
+    Expected:
+     the run ends with `Bisync successful`.
+4.  Write the task definition to `%USERPROFILE%\rclone-bisync-garage.xml` (replace
+    `USERNAME`;
+     Task Scheduler does not expand `%USERPROFILE%` inside
+    `<Command>`/`<Arguments>`):
+
+     ```xml
+     <?xml version="1.0" encoding="UTF-16"?>
+     <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+       <RegistrationInfo>
+         <Description>Hourly rclone bisync of garage:files/Plain to the local Plain dir.</Description>
+       </RegistrationInfo>
+       <Triggers>
+         <CalendarTrigger>
+           <Repetition>
+             <Interval>PT1H</Interval>
+             <StopAtDurationEnd>false</StopAtDurationEnd>
+           </Repetition>
+           <StartBoundary>2026-01-01T00:00:00</StartBoundary>
+           <Enabled>true</Enabled>
+           <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
+         </CalendarTrigger>
+       </Triggers>
+       <Principals>
+         <Principal id="Author">
+           <LogonType>InteractiveToken</LogonType>
+           <RunLevel>LeastPrivilege</RunLevel>
+         </Principal>
+       </Principals>
+       <Settings>
+         <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+         <StartWhenAvailable>true</StartWhenAvailable>
+         <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
+         <AllowStartOnDemand>true</AllowStartOnDemand>
+         <Enabled>true</Enabled>
+         <ExecutionTimeLimit>PT2H</ExecutionTimeLimit>
+         <Priority>7</Priority>
+       </Settings>
+       <Actions Context="Author">
+         <Exec>
+           <Command>C:\Users\USERNAME\AppData\Local\mise\shims\rclone.exe</Command>
+           <Arguments>bisync garage:files/Plain "C:\Users\USERNAME\Plain" --config "C:\Users\USERNAME\AppData\Roaming\rclone\rclone.conf" --filter-from "C:\Users\USERNAME\AppData\Roaming\rclone\garage-filter.txt" --fast-list --use-server-modtime --transfers 16 --checkers 32 --s3-upload-concurrency 8 --resilient --recover --log-file "C:\Users\USERNAME\rclone-bisync.log" -v</Arguments>
+         </Exec>
+       </Actions>
+     </Task>
+     ```
+
+    `MultipleInstancesPolicy` of `IgnoreNew` keeps a slow run from overlapping the
+    next hour;
+     `LogonType` `InteractiveToken` runs as the logged-in user with no
+    stored password (like the Mac agent,
+     it runs only while logged in).
+5.  `schtasks` reads the XML as UTF-16 only;
+     a UTF-8 file fails with
+    `ERROR: The task XML is malformed. ... unable to switch the encoding`.
+     Rewrite
+    it as UTF-16 (LE BOM),
+     then register:
+
+     ```powershell
+     $p = "$env:USERPROFILE\rclone-bisync-garage.xml"
+     [IO.File]::WriteAllText($p, (Get-Content -Raw -Encoding UTF8 $p), [Text.Encoding]::Unicode)
+     ```
+
+     ```bat
+     schtasks /create /tn "rclone-bisync-garage" /xml "%USERPROFILE%\rclone-bisync-garage.xml" /f
+     ```
+
+    Expected:
+     `SUCCESS: The scheduled task "rclone-bisync-garage" has successfully been created.`
+6.  Trigger one run:
+     `schtasks /run /tn "rclone-bisync-garage"`.
+     Expected:
+     once it
+    finishes,
+     the tail of `%USERPROFILE%\rclone-bisync.log` contains
+    `Bisync successful`,
+     and
+    `schtasks /query /tn "rclone-bisync-garage" /v /fo list` shows `Last Result: 0`.
 
 ## What to check
 

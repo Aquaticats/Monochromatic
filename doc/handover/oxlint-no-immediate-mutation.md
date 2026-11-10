@@ -162,29 +162,29 @@ Repo commit `079cef1aa` records this checkpoint.
 
 ## Next steps
 
-1. Additional advisor-identified hardening was applied after commit `129c56371`:
-   span-based sibling lookup,
-    locally-shadowed Set/Map fixture coverage,
-    and an exact `seenWith` fixture shape.
-2. Latest focused verification passed:
-   `mise run //package/oxlint-plugin/no-restricted-syntax:format:oxlint`,
-   `mise run //package/oxlint-plugin/no-restricted-syntax:lint:types`,
-   `mise run //package/oxlint-plugin/no-restricted-syntax:lint:oxlint`,
-    and
-   `mise run //package/oxlint-plugin/no-restricted-syntax:test:unit`.
-3. Config package verification also passed after the config changes:
-   `mise run //package/config/oxlint:lint:types` and
-   `mise run //package/config/oxlint:lint:oxlint`.
-4. Grep for `unicorn/no-immediate-mutation` outside the new docs found no remaining disable directives.
-5. Commits recorded so far:
-   `079cef1aa feat(no-restricted-syntax): add no-immediate-mutation clone exception`,
-   `b47aecc04 docs(troubleshooting): record oxlint Set clone mutation behavior`,
-    and
-   `129c56371 docs(handover): update oxlint no-immediate-mutation status`.
-6. Keep avoiding unrelated `mise.lock`,
-   which remains modified by external work.
-7. Before final response,
-   commit this final hardening and audit that only unrelated `mise.lock` remains dirty.
+1.  Additional advisor-identified hardening was applied after commit `129c56371`:
+    span-based sibling lookup,
+     locally-shadowed Set/Map fixture coverage,
+     and an exact `seenWith` fixture shape.
+2.  Latest focused verification passed:
+    `mise run //package/oxlint-plugin/no-restricted-syntax:format:oxlint`,
+    `mise run //package/oxlint-plugin/no-restricted-syntax:lint:types`,
+    `mise run //package/oxlint-plugin/no-restricted-syntax:lint:oxlint`,
+     and
+    `mise run //package/oxlint-plugin/no-restricted-syntax:test:unit`.
+3.  Config package verification also passed after the config changes:
+    `mise run //package/config/oxlint:lint:types` and
+    `mise run //package/config/oxlint:lint:oxlint`.
+4.  Grep for `unicorn/no-immediate-mutation` outside the new docs found no remaining disable directives.
+5.  Commits recorded so far:
+    `079cef1aa feat(no-restricted-syntax): add no-immediate-mutation clone exception`,
+    `b47aecc04 docs(troubleshooting): record oxlint Set clone mutation behavior`,
+     and
+    `129c56371 docs(handover): update oxlint no-immediate-mutation status`.
+6.  Keep avoiding unrelated `mise.lock`,
+    which remains modified by external work.
+7.  Before final response,
+    commit this final hardening and audit that only unrelated `mise.lock` remains dirty.
 
 ## Keep updated
 

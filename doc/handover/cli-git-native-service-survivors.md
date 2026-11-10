@@ -146,33 +146,33 @@ the function returns `Err(first)`,
 the same error.
 So the mutant differs only if the bind failed with another error while the path is a socket that refuses connections:
 
-1. A bind to a path that exists fails with `EADDRINUSE` before any permission or read-only check.
-   `net/unix/af_unix.c`,
-   `unix_bind_bsd`,
-   ends with `return err == -EEXIST ? -EADDRINUSE : err;`,
-   and
-   `fs/namei.c`,
-   `filename_create`,
-   calls `start_dirop` with `LOOKUP_CREATE | LOOKUP_EXCL`,
-   which reaches `lookup_one_qstr_excl`,
-   and that returns `-EEXIST` for a positive dentry when `LOOKUP_EXCL` is set,
-   before `filename_create` acts on the `mnt_want_write` result.
-   Both were read in the current `torvalds/linux` tree on 2026-11-02.
-2. An error that comes from resolving the parent directory or from creating a name that was not there (`ENOENT`,
-   `EACCES`,
-   `ENOTDIR`,
-   `ELOOP`,
-   `EROFS`,
-   `ENOSPC`) leaves no socket at the path,
-   or one that `symlink_metadata` and `connect` cannot
-   reach either,
-   so a check fails.
-3. A path too long or holding a NUL byte is refused by Rust before the system call,
-   in `bind` and in `connect` alike
-   (`InvalidInput`,
-   not `ConnectionRefused`),
-   so the refusal check fails.
-4. An error from the socket call itself (`EMFILE`) fails the later `connect` the same way.
+1.  A bind to a path that exists fails with `EADDRINUSE` before any permission or read-only check.
+    `net/unix/af_unix.c`,
+    `unix_bind_bsd`,
+    ends with `return err == -EEXIST ? -EADDRINUSE : err;`,
+    and
+    `fs/namei.c`,
+    `filename_create`,
+    calls `start_dirop` with `LOOKUP_CREATE | LOOKUP_EXCL`,
+    which reaches `lookup_one_qstr_excl`,
+    and that returns `-EEXIST` for a positive dentry when `LOOKUP_EXCL` is set,
+    before `filename_create` acts on the `mnt_want_write` result.
+    Both were read in the current `torvalds/linux` tree on 2026-11-02.
+2.  An error that comes from resolving the parent directory or from creating a name that was not there (`ENOENT`,
+    `EACCES`,
+    `ENOTDIR`,
+    `ELOOP`,
+    `EROFS`,
+    `ENOSPC`) leaves no socket at the path,
+    or one that `symlink_metadata` and `connect` cannot
+    reach either,
+    so a check fails.
+3.  A path too long or holding a NUL byte is refused by Rust before the system call,
+    in `bind` and in `connect` alike
+    (`InvalidInput`,
+    not `ConnectionRefused`),
+    so the refusal check fails.
+4.  An error from the socket call itself (`EMFILE`) fails the later `connect` the same way.
 
 Link 1 is kernel behaviour that this crate cannot exercise;
 the rest is in the code.
