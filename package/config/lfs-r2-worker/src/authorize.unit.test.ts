@@ -4,7 +4,7 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/logger-core';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,

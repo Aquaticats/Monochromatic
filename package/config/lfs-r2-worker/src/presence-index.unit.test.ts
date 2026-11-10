@@ -7,7 +7,7 @@
  @module
  */
 
-import type { Logger, } from '@monochromatic-dev/logger-core';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
