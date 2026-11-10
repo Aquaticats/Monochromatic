@@ -75,8 +75,8 @@ and a cow.
 
 The affected pages are:
 
-- `package/learning/rust/lessons/index.html`
-- `package/learning/rust/lessons/0001-whats-different-about-this-book.html`
+- `package/learning/rust/lesson/index.html`
+- `package/learning/rust/lesson/0001-whats-different-about-this-book.html`
 - `package/learning/rust/reference/index.html`
 - `package/learning/rust/reference/reading-loop.html`
 - `package/learning/rust/reference/aquascope-decoder.html`

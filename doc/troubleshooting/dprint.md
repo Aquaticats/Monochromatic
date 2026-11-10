@@ -385,8 +385,8 @@ oklch(0.9 none none)
 The affected paths are:
 
 ```text
-package/learning/rust/lessons/index.html
-package/learning/rust/lessons/0001-whats-different-about-this-book.html
+package/learning/rust/lesson/index.html
+package/learning/rust/lesson/0001-whats-different-about-this-book.html
 package/learning/rust/reference/index.html
 package/learning/rust/reference/reading-loop.html
 package/learning/rust/reference/aquascope-decoder.html

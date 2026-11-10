@@ -9,7 +9,7 @@ It does not reproduce or replace the book.
 
 ## Use
 
-1. Open the matching file in `lessons/` directly in a browser.
+1. Open the matching file in `lesson/` directly in a browser.
 2. Read the source page linked at the start of the lesson.
 3. If the source uses unexplained labels or diagrams,
     open the reference linked by the lesson.
@@ -20,12 +20,12 @@ It does not reproduce or replace the book.
 
 ## Structure
 
-- `lessons/`:
+- `lesson/`:
    sequential companions named `NNNN-<source-page>.html`.
 - `reference/`:
    durable,
    compressed concept references linked by lessons.
-- `learning-records/`:
+- `learning-record/`:
    demonstrated understanding and established prior knowledge.
 - `MISSION.md`:
    concrete learning outcome and boundaries.

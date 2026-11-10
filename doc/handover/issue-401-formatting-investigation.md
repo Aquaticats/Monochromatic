@@ -26,6 +26,11 @@
 > paths and names below this note are historical:
 > `package/cli/wg-quicker-exempt` is now `package/wg/cli-quicker-exempt`.
 
+> Moved 2026-11-10 by the singular folder name work (`doc/planning/singular-dir-name-invariant.md`,
+> issue [Aquaticat/Monochromatic#1676](https://github.com/Aquaticat/Monochromatic/issues/1676));
+> paths below this note are historical:
+> `package/learning/rust/lessons` is now `package/learning/rust/lesson`.
+
 ## Status
 
 Investigation and ranking are complete.
