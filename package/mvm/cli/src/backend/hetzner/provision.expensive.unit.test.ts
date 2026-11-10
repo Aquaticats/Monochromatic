@@ -32,7 +32,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { selectBackend, } from '@monochromatic-dev/mvm-cli/ts/backend/registry.ts';
+import { selectBackend, } from '../../../dist/final/node/index.mjs';
 
 /**
  Whether a token is present to run the live, billed flow.
