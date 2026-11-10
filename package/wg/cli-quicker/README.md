@@ -1265,7 +1265,7 @@ with nothing for a person to do:
 the next refresh installs the rules of the new list.
 A rule that both lists name is never removed,
 so no new connection to that address starts using the tunnel while the list changes,
-and the path of one already established is untouched:
+and the path of an established connection is untouched:
 removing such a rule does not move an established connection at all,
 because its route is cached in the socket
 (measured,
