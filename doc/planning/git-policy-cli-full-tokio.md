@@ -9919,12 +9919,28 @@ and each shown to fail against the shape it replaces:
 ### Checks
 
 - `native:test:host` filtered to `service::` and `landing::`,
-  one run,
   in a `systemd-run --user --scope` at `CPUQuota=700%`,
   `MemoryMax=24G` and `TasksMax=4000`,
   with `CLI_GIT_TEST_ROOT=${HOME}/temp/agent/cli-git-fixtures/root`:
-  `1180 tests run: 1180 passed, 5121 skipped` in 56.411 s,
+  `1180 tests run: 1180 passed, 5121 skipped` in 56.411 s on the first run,
   seven of them this run's.
+  After the correction below,
+  a second run stopped at 506 of 1180 with one test ended at nextest's bound of 300 s
+  while the host's load average was 176.75 on 8 CPUs,
+  and the third run,
+  with `--no-fail-fast` under a load average of 104 to 119,
+  answered
+  `1180 tests run: 1180 passed (21 slow), 5121 skipped` in 808.842 s.
+  Which test the second run ended is not recorded here:
+  its output was filtered to the summary line,
+  so the name is lost,
+  and the third run is what says the selection passes at the tip.
+- The two files' own controls,
+  three consecutive runs of
+  `native:test:host -- 'service_head' 'service_scratch_ref'`:
+  16 of 16 passed each time (5.434 s,
+  22.044 s and 1.154 s),
+  after the correction this section's next paragraph records.
 - `native:clippy` on every target:
   `Finished` of the `dev` profile in 41.36 s after the last code change,
   and 57.49 s at the tip,
@@ -9934,6 +9950,20 @@ and each shown to fail against the shape it replaces:
   after it refused two lines the prose rule asked to break
   (`service_head.rs` one,
   `service_scratch_ref_of_a_dropped_batch.rs` one).
+- One control of this run was wrong and is corrected in `2fda2abb8e`:
+  `the_awaited_clearing_answers_what_the_synchronous_one_answers` made two
+  repositories and required both kept references to name the first one's commit,
+  which two repositories never share,
+  so it passed only while both were made inside one second:
+
+  ```text
+  assertion `left == right` failed: the awaited face keeps the same commit as the synchronous one
+    left: Names("5b12fb49421d6044741b9ddb9ccaca560b525d48")
+   right: Names("844c5f6d1a88a61398b2afb89fe9de97cced27f2")
+  ```
+
+  Each face now keeps the commit of its own batch.
+
 - Not run:
   the container gate,
   `native:test:binary:host`,
