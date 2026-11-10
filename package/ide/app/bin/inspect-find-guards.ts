@@ -18,6 +18,7 @@ import {
 } from 'node:path';
 import { containerBounds } from './container-bounds.ts';
 import { gpuArguments } from './gpu-arguments.ts';
+import { ranOneTest } from './nextest-run-summary.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
 const containerLimits = containerBounds();
@@ -608,7 +609,7 @@ function run({
   const failedAsExpected = (result.status !== 0) && output.includes(item.test)
     && output.includes(item.failure);
   const passedAsExpected = (result.status === 0) && output.includes(item.test)
-    && /1 (?:test|passed)/.test(output);
+    && ranOneTest(output);
   const accepted = phase === 'removed' ? failedAsExpected : passedAsExpected;
   results.push({
     name: item.name,
