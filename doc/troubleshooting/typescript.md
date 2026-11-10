@@ -2033,6 +2033,58 @@ The mistaken newline expectation does not invalidate the separate nonzero-status
 There is nothing to file upstream from this wrapper defect.
 The independent Go thread failure remains bounded by its existing incident evidence.
 
+## `new` on a namespace import of an `export =` module reports TS2351 while the same value constructs elsewhere
+
+### Problem
+
+A CommonJS declaration that ends in `export = Stream;` (a module namespace type) rejects a `new` through a
+ namespace import,
+ although the runtime value is a constructor and every other import form constructs it:
+
+```ts
+// form-c.ts
+import * as shim from './shimA.cjs';
+const v = new shim({});
+// error TS2351: This expression is not constructable.
+//   Type 'typeof Stream' has no construct signatures.
+```
+
+Measured with tsc 7.1.0-beta against
+ `package/pnpm-override/shim-readable-stream/index.d.cts`:
+
+- `import shim = require('./shimA.cjs'); new shim({});` compiles,
+   and the result is typed as the namespace.
+- `const typed: typeof import('node:stream') = shim; new typed({});` compiles.
+- `import shimDefault from './shimA.cjs'; new shimDefault({});` compiles,
+   in both a CommonJS and a module file.
+- `import * as ns from './shimA.cjs'; new ns.default({});` compiles.
+- `new (require('./shimA.cjs'))({});` compiles,
+   because `require` is typed `any`,
+   so the expression is `new any`.
+
+### Root cause
+
+The `new` check resolves the callee symbol as well as its type.
+A namespace-import binding is a module namespace object whose symbol carries no construct signature,
+ so the checker reports TS2351.
+An `export =` alias,
+ a namespace-typed value,
+ and a default import of the same module keep the export assignment's value meaning,
+ which the checker accepts for `new`.
+
+Consequence for a bug report that reads a declaration statically:
+ the TS2351 symptom appears only for the namespace-import form of a constructor-valued `module.exports`,
+ while `require` callers never see it.
+Say which import form reproduced the diagnostic before treating the declaration as the defect.
+
+### Verification
+
+One scratch file per form,
+ compiled with `typeRoots` pinned at this workspace's `@types/node`,
+ plus a positive control (`const bad: string = 1;`) in the same `include` list proving the file set was checked.
+The same declaration is what `package/pnpm-override/shim-readable-stream/index.d.cts` ships;
+ `doc/decision/readable-stream-shim.md` records why that declaration stays the module namespace.
+
 ## Related Documentation
 
 - [VSCode](vscode.md):
