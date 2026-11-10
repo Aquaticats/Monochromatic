@@ -15,6 +15,23 @@ import './component/side-drawer.ts';
 import type { TaskDetail, } from './component/task-detail.ts';
 // oxlint-disable-next-line import/no-unassigned-import -- side-effect: registers the task-detail custom element
 import './component/task-detail.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: the detail page reports a failing action handler.
+ */
+const l = tagged({
+  tag: 'done-variant-task-details',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Minimal task info shown in the blocker picker dropdown.
@@ -187,10 +204,7 @@ detail.addEventListener(
         }
       }
       catch (error: unknown) {
-        console.error(
-          'task detail action handler failed',
-          error,
-        );
+        l.error(`task detail action handler failed: ${caughtValueText(error,)}`,);
       }
     })();
   },
