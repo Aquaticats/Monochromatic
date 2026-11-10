@@ -20,6 +20,23 @@ import {
  */
 const OPTIONS = emptyTomlEdit().canonical;
 
+/**
+ Re-set the `k` key of `source` and emit the resulting document.
+ 
+ @param source - TOML document to parse before the edit.
+ 
+ @param value - New value for the `k` key.
+ 
+ @returns Emitted TOML text.
+ */
+function reserialize(
+  { source, value, }: { readonly source: string; readonly value: unknown; },
+): string {
+  return tomlStringify({
+    edit: tomlSet({ edit: parseTomlEdit({ source, },), path: ['k',], value, },),
+  },);
+}
+
 await describe({
   name: _jsValueToTomlText.name,
   children: [
@@ -58,28 +75,40 @@ await describe({
       },
     },),
     it({
-      name: 'rewrites an equal zero when only the sign differs, keeping a signed float as it was spelled',
+      name: 'rewrites a numerically equal zero when only the sign differs',
       fn: async () => {
-        const fromInteger = tomlStringify({
-          edit: tomlSet({
-            edit: parseTomlEdit({ source: 'k = 0\n', },),
-            path: ['k',],
-            value: -0,
-          },),
-        },);
-        expect(fromInteger,).toBe('k = -0.0\n',);
+        expect(reserialize({ source: 'k = 0\n', value: -0, },),).toBe('k = -0.0\n',);
+        expect(reserialize({ source: 'k = 0.00\n', value: -0, },),).toBe('k = -0.0\n',);
+        /**
+         This package reads a TOML integer `-0` as positive zero, so the value
+         still differs and the sign reaches the emitted text as a float.
+         */
+        expect(reserialize({ source: 'k = -0\n', value: -0, },),).toBe('k = -0.0\n',);
         /**
          A float already spelled with the sign is the same value, so its own
          digits stay.
          */
-        const alreadySigned = tomlStringify({
+        expect(reserialize({ source: 'k = -0.00\n', value: -0, },),).toBe('k = -0.00\n',);
+        expect(reserialize({ source: 'k = -0.0\n', value: 0, },),).toBe('k = 0\n',);
+      },
+    },),
+    it({
+      name: 'writes a bare negative zero as a float inside an array and keeps a signed element',
+      fn: async () => {
+        expect(tomlStringify({
+          edit: tomlSet({ edit: emptyTomlEdit(), path: ['a',], value: [-0, 0,], },),
+        },),).toBe('a = [ -0.0, 0, ]\n',);
+        /**
+         The per-element carrier reaches the same comparison, so an unsigned
+         element is rewritten while a signed one keeps its digits.
+         */
+        expect(tomlStringify({
           edit: tomlSet({
-            edit: parseTomlEdit({ source: 'k = -0.00\n', },),
-            path: ['k',],
-            value: -0,
+            edit: parseTomlEdit({ source: 'a = [0, -0.00]\n', },),
+            path: ['a',],
+            value: [-0, -0,],
           },),
-        },);
-        expect(alreadySigned,).toBe('k = -0.00\n',);
+        },),).toBe('a = [ -0.0, -0.00, ]\n',);
       },
     },),
     it({
