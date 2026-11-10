@@ -9493,3 +9493,128 @@ and its steps are awaited:
 - The review file and the probe sources are scratch;
   the probe patch of the wrapper is kept as
   `${HOME}/temp/agent/full-tokio/probe.patch`.
+
+## Step T13, the guards that keep blocked work off the runtime, 2026-11-10T15:21:49-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-t13-guards` in
+  `.claude/worktrees/pi-tokio-t13-guards`,
+  from main at `6ad29d302d`.
+  Not merged into main.
+- What this run was asked for:
+  the guards the step names (no `std::thread`,
+  no `std::process::Command` outside the guarded start,
+  no `thread::sleep`,
+  as source guards),
+  and the runtime's own rule behind them,
+  a check that fails when a synchronous storage read or a blocking wait is reachable from a task the runtime polls,
+  each shown failing first,
+  and what they find on main fixed.
+- What landed:
+  `source_guard/blocking_code_off_the_runtime_tests.rs` (the scan),
+  `source_guard/blocking_code_off_the_runtime_rules_tests.rs` (the eight rules and the exceptions),
+  and `source_guard/blocking_code_off_the_runtime_fixture_tests.rs` (the controls on fixture trees).
+  The scan reads the release sources the module tree reaches from `lib.rs` and `main.rs`,
+  splits each file into its functions,
+  and applies each rule in its own place:
+  the whole file,
+  the body of a function that builds or names a `Command`,
+  or the body of an `async fn` outside the closures handed to the blocking pool.
+- The reader of a file,
+  and why it is not a line count:
+  a body is found by its braces,
+  and the crate writes `format!("{{\"schemaVersion\":{SCHEMA_VERSION}")`,
+  `b"@{"`,
+  `'\u{8}'`,
+  `'"'` and a message string that continues over a line break.
+  Counting those as code ends a body early and loses every function after it,
+  so the scan counts braces outside comments,
+  strings,
+  character literals (including the `\u{...}` escape) and raw strings,
+  and takes the newline of a continued string as a line.
+  Four files of the crate failed a first version of this reader
+  (`command/branch_delete_audit.rs`,
+  `policy/diagnostics.rs`,
+  `policy/policy_events.rs`,
+  `repo_read/repo_read_refs.rs`),
+  and a file whose braces still do not balance is an error rather than a file the scan skips.
+  Every `.rs` file of the crate (1,779) balances under the reader's rules.
+- The eight rules:
+  `thread-start` (`thread::spawn`, `thread::Builder`, `thread::scope`, `spawn_scoped`),
+  `blocking-sleep` (`thread::sleep`, `park_timeout`, `thread::park`),
+  `unretried-start` (a start of a `Command` in a function that builds one),
+  `unretried-built-start` (a start chained onto `git_command(...)`),
+  `storage-read-on-a-task` (a read,
+  write,
+  rename,
+  removal or sync of a file inside a task),
+  `blocking-wait-on-a-task` (`recv_timeout`, a sleeping clock, a futex wait,
+  a `Condvar`,
+  or a `.wait()` that is neither awaited nor a `select!` arm),
+  `plain-tokio-fs` (which panics where no thread can start) and
+  `block-in-place` (which panics on the current-thread runtime the system's refusals select).
+- What the guards found,
+  and what was fixed:
+  the sixteen findings below are named by the guard on the tree before the fix,
+  and gone from it after.
+  The four unretried starts (`947297a8c7`):
+  the LFS query's `git` (`lfs/lfs_interactive.rs`),
+  the person's merge editor (`merge/merge_isolation_editor.rs`),
+  the process-identity inspector (`process/process_identity.rs`) and
+  the package repair's tool (`repair/package_repair_command.rs`,
+  which now awaits `spawn_retrying_without_blocking`).
+  The three storage calls inside a task (`50aa12d788`):
+  the split removal's walk and the directories above the split depth
+  (`worktree_copying/worktree_copy_journal_removal.rs`),
+  which are two jobs of the blocking pool now,
+  in the order the synchronous version kept (the subtrees by their own jobs,
+  then the directories above them).
+- The exceptions,
+  and what each one is waiting for:
+  forty-six sites are listed in `ALLOWED` by file and rule,
+  each with the reason it stays and what removes it.
+  Seventeen files start a thread the move has not converted (the watchers,
+  the reapers,
+  the guarded Markdown linter,
+  the scoped runner,
+  the review's contained thread,
+  and the bounded runtime build of open choice 9),
+  twenty pauses still sleep on a synchronous clock (the landing loop's waits,
+  the index and reference lock waits,
+  the client's connects,
+  and the one pause the plan keeps in `push/start_retry.rs` for the forwarded command),
+  seven files of the merge's carry and second pass do one metadata look,
+  read or removal of a known small file inside a task,
+  and two files start a child on macOS or Windows only,
+  which the owner's "Ignore Win and mac until I say so." keeps unconverted.
+  An entry whose code is gone fails the suite,
+  so the list shrinks as the move lands.
+- What the guards do not see:
+  they read one file at a time,
+  so a call into a helper in another file is found only where that helper does the blocking work;
+  a command built in one function and started in another is found only where the word `Command` reaches the second
+  one,
+  which is why the builder rule (`git_command`) exists beside it;
+  a `.wait()` that a `select!` arm or an `.await` follows is read as the project's awaited child wait,
+  so a blocking `std::process::Child::wait` written that way would not be seen;
+  and the code under `#[cfg(not(unix))]` and `#[cfg(target_os = "macos")]` is read as text like everything else,
+  but nothing of it is converted.
+- Not done,
+  and whose it is:
+  the step's removals (the hand D-Bus wire format and the `dbus_reply` fuzz target,
+  the `std::thread` helpers,
+  the poll constants) wait for their last caller,
+  which is the landing loop's own conversion,
+  and the mutation campaign is paused by the owner.
+  `native:perf` was not run:
+  nothing of this run is in a forwarded command's path,
+  and the four starts it changes are a merge editor,
+  an LFS query,
+  a process inspector and a package repair,
+  none of which a forwarded `git` call or a commit runs.
+- The run's own gates are in its report:
+  the guard's tests (19 of them) and the touched suites through `native:test:host`,
+  `native:test:binary:host` filtered to the LFS,
+  merge,
+  package-repair and worktree-copy controls,
+  and `native:clippy`.
