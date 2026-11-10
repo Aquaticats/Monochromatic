@@ -16,7 +16,7 @@ import {
 } from 'node:fs/promises';
 import { connect } from 'node:net';
 
-import { wait } from '@monochromatic-dev/async-time-core';
+import { wait } from '@monochromatic-dev/async-time-core/ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { encode } from '@msgpack/msgpack';
