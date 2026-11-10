@@ -59,6 +59,89 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
+
+Branch `fix/git-policy-cli-merge-carry-keeps-edits-through-a-kill-and-a-save`
+(`efde03fbbc` the failing controls,
+`5dc8b8df7d` the fix),
+ahead of `main` at `c351a48f48`;
+`main` is a commit further with the note that names the two losses the audit script reproduced.
+
+What the script reproduced on `main`,
+and what each is now:
+
+- A `SIGKILL` between the index records of a carry back and its first worktree file lost the layer not yet written.
+  The next command read the entry its own killed step had written as someone else's,
+  skipped the path,
+  and dropped the record and the ref with the unsaved bytes in them,
+  then said the file changed again while the merge ran.
+  Each layer of a path is now judged and written on its own,
+  and a carry accepts its own planned index entry as explained
+  (`explained_entries` in `merge_isolation_carry_place.rs`).
+- A save that landed between the clear's judgement and its write was replaced.
+  Every worktree write now sets the judged entry aside with `RENAME_NOREPLACE`,
+  checks its identity and then its bytes against the judgement,
+  and places the new entry with a second `RENAME_NOREPLACE`,
+  putting back what is not the judged entry.
+  Every path's identity is read again before the index records go as well,
+  so a save before that point stops the step with nothing written.
+  That is the step finding 4 of `doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`
+  asks for,
+  which the second pass already took and the carry's write step did not.
+
+One behaviour moved beyond the report:
+a clear that meets newer bytes is no longer refused.
+It puts the captured layers back,
+drops the record and the ref,
+and makes the round again on what the file holds now
+(`a_clear_that_met_newer_bytes` in `merge_isolation_apply.rs`),
+so a save during a merge neither fails the command nor is replaced,
+and the round loop's ceiling (`MAX_ROUNDS`,
+twenty) bounds a file saved again and again.
+
+Evidence:
+`cargo nextest run --test native_binary -- merge_carries_edits` is 18 tests,
+all passing,
+including the six new controls:
+a kill between the layers,
+a kill before the clear writes anything,
+a kill between two carried files,
+a kill after the carried files (which also asserts no line claims a change that did not happen),
+a save between the index step and the file,
+and a save that keeps the file's length and its modification time (which only the bytes can see).
+Each was run failing before the fix;
+the two reported cases failed exactly as the script showed,
+and the same-length control fails when the byte comparison is taken out (identity alone kept the older line).
+The whole binary suite ran once:
+900 tests,
+894 passed,
+and of the five failures one was this branch's
+(`merge_isolation::a_relative_directory_option_carries_a_merge_over_an_untracked_file`,
+a relative `-C` applied twice to the placement's reads,
+fixed in `e7f4216e14`),
+three were the fixture service running out of threads under the suite's own parallelism,
+and one was the commit path's "inside a write of the commit service" note on standard error in
+`service_sequencer::a_pathspec_commit_during_a_revert_is_what_git_makes`,
+which `without_wait_notices` does not filter and which fails alone under load.
+One more test timed out at its 300 second bound in that run:
+`fault_trace::the_worktree_copy_kill_list_names_only_calls_the_flow_makes`,
+of the worktree copy,
+whose own suite this branch does not touch.
+
+Limits and unknowns:
+the take's check is the file's identity and then its bytes,
+so a save through an already-open descriptor that keeps the same length and puts the modification time back is
+not seen,
+which is the limit finding 4 of that planning doc already records for the second pass.
+Killing the process between the take and the placing leaves the judged entry under a `cli-git-recovery-*`
+private name with the path empty until the next command puts it back;
+the controls for that are the second pass's,
+not this branch's.
+
+Next action:
+review and merge this branch;
+then the same two windows want a run of the whole binary suite,
+which this branch ran only for the merge modules.
 ### Trying Kimi K3.1 Pro as auditor and reviewer (2026-11-10T05:53:55-05:00)
 
 The owner:

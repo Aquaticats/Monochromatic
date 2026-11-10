@@ -2184,9 +2184,18 @@ Now the merge runs and the person's work is carried across it:
   A `SIGKILL` at any instant leaves them where the next command finds them.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
+  Each path is read again just before the write that replaces it,
+  and the file that was there is set aside under a name of its own and checked before it makes way,
+  so a file the person saves while the merge runs is kept rather than replaced:
+  the captured layers go back,
+  the record and the ref go,
+  and the merge is made again on what the file holds now.
 - After the branch moved,
   each of the person's two layers is merged with the merge on its own:
   a staged edit stays staged and an unsaved edit stays unsaved.
+  The index entries of a path are written before its file,
+  and the next command takes the entries a killed merge wrote as its own,
+  so a kill between the two restores the layer that was not written.
   A layer the merge does not reach is written back byte for byte.
   A text both sides changed goes through the word-level second pass;
   a region it cannot resolve keeps both sides between conflict markers,
@@ -2197,10 +2206,14 @@ Now the merge runs and the person's work is carried across it:
   a mode the pass cannot take,
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
-  A path written again while the merge ran is left alone and named.
+  A path written again while the merge ran is left alone and named,
+  and the naming is true:
+  nothing was written to it before the check that found it changed.
 - A merge killed after it cleared those paths puts the captured bytes back
   when it turns out the merge never landed,
   and carries them when it did.
+  A layer the person saved again while the merge ran stays as they left it,
+  and is named.
 
 A merge over a checkout whose own paths are clean runs exactly as it did.
 The refusals that change nothing are:

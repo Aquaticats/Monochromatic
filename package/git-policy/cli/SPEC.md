@@ -3578,12 +3578,28 @@ and "never discard user data"):
   the merge's record names the commit and every path with its two layers.
   The objects are written and the ref exists before the first byte of the checkout changes.
 - Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
-  so `git merge --ff-only` takes them as it always did,
-  and a path that changed after the capture stops the step with nothing written.
+  so `git merge --ff-only` takes them as it always did.
+  Every one of their identities is read again before that call and again before each rename,
+  so a path written after the capture stops the clear with nothing written to it;
+  the captured layers are put back,
+  the record and the ref go,
+  and the merge is made again on what the file holds now
+  (`a_clear_that_met_newer_bytes` in `src/native/merge/merge_isolation_apply.rs`).
+  A save is therefore never a refusal and never replaced.
+- Each worktree write takes the entry it judged aside under a private name (`RENAME_NOREPLACE`),
+  checks the identity and the bytes of what the take caught,
+  and places the new entry with a second `RENAME_NOREPLACE`;
+  an entry that is not the one that was judged goes back where it was found,
+  so the bytes that are checked are exactly the bytes that make way for the merge
+  (`src/native/merge/merge_isolation_carry_place.rs`,
+  the step the second pass's install already takes).
 - After the branch moved,
   each layer is merged with the merge's own:
   the worktree's file form and the index's blob separately,
   so a staged edit stays staged and an unsaved one stays unsaved.
+  The index records of that step are written in one `update-index` call and the files after it,
+  and the next command accepts the records a killed step wrote as its own,
+  so a kill between the two writes the layers it had not written yet.
   A side unchanged on either side takes the other side;
   the bytes of a layer nothing of the merge reaches are written back exactly;
   a text both sides changed goes through `merge_second_pass`,
@@ -3594,13 +3610,18 @@ and "never discard user data"):
   a mode the pass cannot take,
   a path the merge deletes and a path the person deleted keep the
   person's side whole and are named on standard error with what to do;
-  a path written after the capture is left alone and named.
+  a path written after the capture is left alone and named,
+  and nothing is written to it before that is decided,
+  so the line that names it is true.
+  A layer another program wrote keeps its bytes while the other layer of the same path is still carried.
   Every such finding exits 0:
   the merge is made,
   and the person's work is theirs to judge.
 - A kill after the clear and before the branch move restores the captured layers,
   because the record says so and the merge did not land;
-  a kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
+  a layer written after the capture holds bytes newer than the capture and is left as it is and named,
+  the other layer of that path still going back.
+  A kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
   The carry is a function of the captured blobs and the merge commit,
   so recovery converges on the same bytes from any step.
 
@@ -12815,9 +12836,19 @@ The phases that are still reached are `service-staged`
 repeatable,
 so its files carry the occurrence:
 `service-prepared-<n>.reached` and `service-prepared-<n>.release`),
-and `merge-intent` and `merge-applied` of an isolated merge
-(record durable and Git not yet started;
-branch moved and record not yet removed).
+and,
+of an isolated merge:
+`merge-carried` (the capture and the record are durable and the checkout is untouched),
+`merge-intent` (record durable and Git not yet started),
+`merge-clear-index` and `merge-clear-file`
+(the index records of the clear are written and none of its worktree files yet;
+then each worktree file of the clear,
+numbered by occurrence as `merge-clear-file-<n>`),
+`merge-cleared`,
+`merge-applied` (branch moved and record not yet removed),
+`merge-carry-index` and `merge-carry-file`
+(the same two instants for the carry back),
+and `merge-carried-back`.
 The phases of the earlier landing no longer exist,
 and a value that names one is refused like any unknown phase.
 Only this explicitly test-named variable arms a marker;
