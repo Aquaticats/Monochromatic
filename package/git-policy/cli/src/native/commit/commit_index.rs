@@ -43,6 +43,9 @@ use crate::transaction_journal::TransactionMode;
 /// with the failure a read or a copy reports.
 pub use crate::commit_index_bytes::copy_index_with_timestamps;
 use crate::commit_index_bytes::{IndexBytes, copy_index_failure};
+/// Why the private staging of the selection ended,
+/// so a pathspec the caller named and Git refused is reported as the caller's input error.
+use crate::commit_selection_staging::SelectionStagingFailure;
 /// How an index's bytes may seed an explicit-path commit,
 /// and the copy a reset to a tree follows.
 use crate::commit_index_copying::{PrivateIndexSeed, seed_of_index_bytes, write_index_for_reset};
@@ -135,6 +138,9 @@ fn is_tab_byte(byte: &u8) -> bool {
 /// so a preparation takes no `index.lock` and a batch of overlapping commits does not serialize on one.
 ///  The landing records the worktree's stat data in the index it installs (`service_land_follow.rs`),
 /// once per batch instead of once per client.
+///  A selection Git refuses for a pathspec that matches nothing ends here with that refusal,
+/// which the caller reports as the caller's own input error (issue 6283);
+/// every other failure is Git's and stays an engine failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,7 +152,7 @@ pub fn initialize_commit_index(
     real_index: &Path,
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
-) -> Result<(), GitFailure> {
+) -> Result<(), SelectionStagingFailure> {
     // A repository nothing was ever staged in has no index file, which Git reads as an empty index.
     let real_index_present: bool = real_index.exists();
     if !real_index_present {
@@ -222,7 +228,7 @@ fn stage_into_the_private_index(
     real_index_present: bool,
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
-) -> Result<(), GitFailure> {
+) -> Result<(), SelectionStagingFailure> {
     // What:
     //  The one read of the real index every private copy of this commit is written from.
     // Why:

@@ -113,6 +113,10 @@ pub mod commit_selection_staging;
 /// decided from the selection before any `git add` runs (issue 6278).
 pub mod commit_named_ignored_files;
 
+/// The pathspec a caller names that Git refuses for matching nothing,
+/// read from the words of the private staging (issue 6283).
+pub mod commit_pathspec_matching_nothing;
+
 /// The one read of the real index that every private copy of a commit is written from.
 pub mod commit_index_bytes;
 

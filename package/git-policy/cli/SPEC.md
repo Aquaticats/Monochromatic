@@ -3638,6 +3638,10 @@ an empty message,
 a named path an ignore rule matches while no index entry tracks it
 (the `explicit-path-commit/named-path-ignored` finding,
 "Core finding event"),
+a pathspec Git itself refuses for matching nothing
+(the `explicit-path-commit/pathspec-matches-nothing` finding,
+"Core finding event",
+issue 6283),
 and a content
 conflict no resolver settles (the merge stops with the conflict recorded).
 A commit that names a conflicted path is not a refusal:
@@ -8929,7 +8933,8 @@ export type CoreFindingEvent = EventBase & {
     | 'commit-normalization/no-change'
     | 'concurrent-commit/replay-conflict'
     | 'concurrent-commit/already-committed'
-    | 'explicit-path-commit/named-path-ignored';
+    | 'explicit-path-commit/named-path-ignored'
+    | 'explicit-path-commit/pathspec-matches-nothing';
   readonly message: string;
 };
 ```
@@ -8971,6 +8976,22 @@ and cannot be disabled or assigned a severity through repository config.
   or stage it with `git add --force -- <path>` when it is meant to become tracked
   (`commit_named_ignored_files.rs`;
   issue 6278).
+- `explicit-path-commit/pathspec-matches-nothing`:
+  a pathspec the command line names matches no path Git can stage,
+  so the private staging's own `git add` refused it.
+  Native Git keeps deciding which pathspecs are valid,
+  so this classification reports its refusal instead of predicting a match:
+  a directory,
+  a pattern,
+  a magic selector and a literal name behave exactly as they did before.
+  The commit is not made,
+  nothing is staged by it,
+  and the message names every refused token as Git named it;
+  and a token that begins with a hyphen also says that options belong before `--`
+  (`git commit --message <text> -- <paths>`).
+  Every other failure of that staging start keeps its engine-failure report
+  (`commit_pathspec_matching_nothing.rs`;
+  issue 6283).
 
 Every `concurrent-commit` finding leaves ref,
 real index,
@@ -11654,7 +11675,15 @@ For injected commit-only semantics:
     native Git commits the tracked and staged paths a directory or a pattern matches,
     so a commit of `.`,
     `*` or a directory leaves every untracked file untracked.
-    A pathspec whose elements match no entry of the private index fails as native Git fails it.
+    A pathspec whose elements match no entry of the private index is refused as native Git refuses it:
+    the `git add --update` start fails before anything lands,
+    and its "pathspec ... did not match any files" sentence is reported as
+    the `explicit-path-commit/pathspec-matches-nothing` finding (see "Core finding event"),
+    which names the token the caller wrote and,
+    when that token begins with a hyphen,
+    says that options belong before `--` (`git commit --message <text> -- <paths>`).
+    Every other failure of that start stays an engine failure (`commit_pathspec_matching_nothing.rs`;
+    issue 6283).
     An empty pathspec file stages nothing,
     as native Git commits nothing for one.
     A pathspec file with more bytes than one command line may carry is passed as a file with
