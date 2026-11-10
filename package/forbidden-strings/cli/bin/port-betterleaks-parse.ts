@@ -7,6 +7,7 @@
  */
 
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
+import { tripleQuotedBodyAfterAssignment, } from './port-betterleaks-field-line.ts';
 
 /**
  One rule extracted from the upstream TOML, before conversion.
@@ -275,17 +276,14 @@ export function parseRules({ toml, }: { readonly toml: string; },): readonly Raw
         continue;
       }
       /**
-       Match for `regex = '''` opening the triple-quoted body.
+       Body the `regex = '''` line opens, with its marker removed.
        */
-      // oxlint-disable-next-line no-restricted-syntax/no-regex -- one TOML field line, anchored at `^`, matching a literal key, `\s*`, `=` and three quotes; the scan is linear and cannot backtrack.
-      const regexOpen = /^regex\s*=\s*'''/u.exec(rl,);
-      if (regexOpen !== null) {
-        /**
-         Remainder of the opening line after `regex = '''`, passed to the body reader.
-         */
-        const initial = rl.slice(nonNullishOrThrow(regexOpen[0],)
-          .length,);
-        fields.regex = readTripleQuoted({ initial, },);
+      const regexBody = tripleQuotedBodyAfterAssignment({
+        line: rl,
+        key: 'regex',
+      },);
+      if ((typeof regexBody) === 'string') {
+        fields.regex = readTripleQuoted({ initial: regexBody, },);
         continue;
       }
       /**

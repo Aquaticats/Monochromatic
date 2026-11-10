@@ -15,6 +15,10 @@ export default {
     description: 'Render scanner READMEs and native-verification evidence through the installed CommonMark HTML-tree pipeline',
     run: 'node bin/render-docs.ts',
   },
+  'test:scripts': {
+    description: 'Check the porter field-line readers and the walker that uses them with node:test',
+    run: 'node --test bin/port-betterleaks-parse.test.ts',
+  },
   'dependencies:fetch': {
     description: 'Fetch the existing locked dependency archives before offline container verification',
     run: 'cargo fetch --locked',

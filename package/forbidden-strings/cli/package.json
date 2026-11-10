@@ -4,6 +4,10 @@
   "description": "Verification scripts of the forbidden-strings scanner (the Rust crate forbidden-strings).",
   "type": "module",
   "private": true,
+  "bin": {
+    "forbidden-strings-test-container": "bin/test-container.ts",
+    "forbidden-strings-verify-evidence": "bin/verify-evidence.ts"
+  },
   "devDependencies": {
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
