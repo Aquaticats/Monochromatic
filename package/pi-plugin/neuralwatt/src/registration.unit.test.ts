@@ -205,6 +205,35 @@ function registeredProvider(
   return provider;
 }
 
+/**
+ Moves the process working directory for the rest of one test scope.
+
+ The handle changes back on disposal, whether the scope ended well or threw, so
+ a test that fails inside the directory never leaves the process there after the
+ scope removes it.
+
+ @param directory - Directory the rest of the scope runs in
+
+ @returns handle restoring the previous working directory
+
+ @example
+ ```ts
+ using _restoredWorkingDirectory = scopedCwd({ directory: home });
+ ```
+ */
+function scopedCwd({ directory, }: { readonly directory: string; },): Disposable {
+  /**
+   Working directory restored when the scope exits.
+   */
+  const previousWorkingDirectory = process.cwd();
+  process.chdir(directory,);
+  return {
+    [Symbol.dispose](): void {
+      process.chdir(previousWorkingDirectory,);
+    },
+  };
+}
+
 //endregion Fixtures
 
 //region Registration
@@ -410,25 +439,19 @@ await describe({
           },
         },);
         /**
-         Working directory the refresh runs under, so relative writes land in
-         the guarded home and the guard can see them.
+         Working directory the refresh runs under, so relative writes land in the
+         guarded home and the guard can see them. Restored when this scope ends
+         however it ends, so a refresh that throws leaves the process where it
+         found it rather than in the directory the scope then removes.
          */
-        const previousCwd = process.cwd();
-        process.chdir(home,);
-        try {
-          await runtime.provider.refreshModels?.({
-            allowNetwork: true,
-            signal: new AbortController().signal,
-            publish: function publish(): Promise<boolean> {
-              return Promise.resolve(true);
-            },
-          },);
-        }
-        finally {
-          // A refresh that throws must not leave the process in a removed
-          // scratch directory, where every later test's relative path fails.
-          process.chdir(previousCwd,);
-        }
+        using _restoredWorkingDirectory = scopedCwd({ directory: home, },);
+        await runtime.provider.refreshModels?.({
+          allowNetwork: true,
+          signal: new AbortController().signal,
+          publish: function publish(): Promise<boolean> {
+            return Promise.resolve(true);
+          },
+        },);
         await Promise.all(Object.keys(watched).map(async function assertWatched(name: string,) {
           expect(await readFile(join(home, name,), 'utf8',)).toBe(watched[name] ?? '');
         },));
