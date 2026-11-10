@@ -81,20 +81,20 @@ pub enum ValueExpr {
 
 /// What:
 ///  One license-text requirement:
-/// a manifest license expression containing `contains` needs these texts.
+/// a manifest license expression with `operand` among its SPDX ids needs these texts.
 /// Why:
 ///  LGPL-3.0-or-later needs the GPL text as well,
 /// so one requirement can name several ids.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LicenseRequirement = { contains: string; texts: string[] };
+/// type LicenseRequirement = { operand: string; texts: string[] };
 /// ```
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
 #[schemars(deny_unknown_fields, description = "License texts a manifest license expression needs.")]
 pub struct LicenseRequirement {
-    /// Substring of the manifest's license expression.
-    pub contains: String,
+    /// One SPDX license id the expression names, matched whole and never as a substring.
+    pub operand: String,
     /// Text ids (keys of `texts`) the package then needs.
     pub texts: Vec<String>,
 }

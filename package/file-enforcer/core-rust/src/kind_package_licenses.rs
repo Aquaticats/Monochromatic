@@ -137,7 +137,7 @@ impl Rule for PackageLicensesRule {
                 if let Some(expression) = license_of(&manifest, &text)? {
                     let wanted = required.entry(package_dir).or_default();
                     for requirement in &self.requires {
-                        if expression.contains(&requirement.contains) {
+                        if expression.contains(&requirement.operand) {
                             for license in &requirement.texts {
                                 wanted.insert(license.clone());
                             }
