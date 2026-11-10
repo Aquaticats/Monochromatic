@@ -16,10 +16,39 @@
  * that flushes once and refuses further writes.
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core';
+
 import type {
   Storage,
   StoragePutItem,
 } from './adapter.ts';
+
+/**
+Tagged logger for batches the adapter could not write.
+*/
+const writeBufferLog = tagged({
+  tag: 'write-buffer',
+  l: logger,
+},);
+
+/**
+Lists a batch's storage keys, so a failure report names what did not land.
+
+@param items - batch the adapter rejected
+
+@returns comma-separated keys in batch order
+*/
+function describeKeys(items: readonly StoragePutItem[],): string {
+  return items
+    .map(function keyOf(item,) {
+      return item.key;
+    },)
+    .join(', ',);
+}
 
 /**
  * Default item count that triggers a flush.
@@ -127,11 +156,17 @@ export type WriteBuffer = {
   /**
    * Forces a flush. Resolves once every batch issued by this call has
    * completed. Does not flush items added after the call begins.
+   *
+   * @throws Error naming the storage keys when a batch could not be written;
+   * those items stay queued, so a later `flush()` retries them
    */
   flush(): Promise<void>;
 
   /**
    * Flushes one final time and refuses further `enqueue` calls.
+   *
+   * @throws Error naming the storage keys when the final batch could not be
+   * written; those items stay queued, so a later `flush()` retries them
    */
   close(): Promise<void>;
 
@@ -143,8 +178,8 @@ export type WriteBuffer = {
 
 /**
  * Fire-and-forget helper that adapts a promise to the void-returning
- * call sites. Errors are swallowed; an explicit `flush()` await re-runs
- * the work and surfaces any lingering failure.
+ * call sites. A rejection is logged here because no caller awaits it; the
+ * failed batch's items stay queued, so an explicit `flush()` retries them.
  *
  * @param promise - promise to detach from the current call
  *
@@ -154,13 +189,12 @@ export type WriteBuffer = {
  * ```
  */
 function detach(promise: Promise<unknown>,): void {
-  void (async function ignoreErrors(): Promise<void> {
+  void (async function logRejection(): Promise<void> {
     try {
       await promise;
     }
-    catch {
-      // Swallow: the next explicit flush() awaits a fresh batch and
-      // surfaces persistent backend failures.
+    catch (error) {
+      writeBufferLog.error(`detached write buffer flush failed: ${caughtValueText(error,)}`,);
     }
   }());
 }
@@ -217,6 +251,28 @@ export function createWriteBuffer({
   };
 
   /**
+   * Puts a rejected batch's items back into the queue so the next flush
+   * retries them. A key enqueued again while the batch was in flight keeps its
+   * newer body, because the later write is the one the caller asked for.
+   *
+   * @param items - batch the adapter rejected
+   *
+   * @example
+   * ```ts
+   * requeueFailedBatch(items);
+   * ```
+   */
+  function requeueFailedBatch(items: readonly StoragePutItem[],): void {
+    for (const item of items) {
+      if (!queue.has(item.key,))
+        queue.set(
+          item.key,
+          item,
+        );
+    }
+  }
+
+  /**
    * Cancels any pending time-based flush trigger.
    *
    * @example
@@ -235,7 +291,10 @@ export function createWriteBuffer({
   /**
    * Drains the queue into a single `putBatch` call against the
    * adapter. Awaits the put before resolving so the next caller sees
-   * a settled state.
+   * a settled state. A rejected batch goes back into the queue, because the
+   * snapshot taken here is the only remaining handle on those items.
+   *
+   * @throws Error naming the batch's keys when the adapter rejected it
    *
    * @example
    * ```ts
@@ -276,7 +335,21 @@ export function createWriteBuffer({
       void _disposeOnSettle;
       await promise;
     }(),);
-    await promise;
+    try {
+      await promise;
+    }
+    catch (error) {
+      requeueFailedBatch(items,);
+      writeBufferLog.error(
+        `putBatch failed for ${describeKeys(items,)}; re-queued for the next flush: ${
+          caughtValueText(error,)
+        }`,
+      );
+      throw new Error(
+        `write buffer: putBatch failed for ${describeKeys(items,)}: ${caughtValueText(error,)}`,
+        { cause: error, },
+      );
+    }
   }
 
   /**
