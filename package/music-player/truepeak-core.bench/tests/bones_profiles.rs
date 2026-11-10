@@ -32,9 +32,6 @@ const BLOCK_SAMPLES: usize = 4_096;
 ///  smallest first,
 ///  so the middle frame is the byte-rate hot spot the profile must find.
 const PAYLOAD_SIZES: [usize; 3] = [300, 3000, 300];
-/// Bytes of the `fLaC` marker plus the STREAMINFO block header and body,
-///  the offset the walk starts looking for the first frame at.
-const FIRST_FRAME_OFFSET: usize = 4 + 4 + 34;
 /// A frame header is the five declared bytes plus its CRC-8 byte.
 const FRAME_HEADER_BYTES: usize = 6;
 /// Rounding each slot's spread bytes to a whole number can move the total this far,

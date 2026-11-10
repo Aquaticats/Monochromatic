@@ -68,7 +68,7 @@ struct TagRow {
     has_purl: bool,
 }
 
-/// One row of the FLAC frame-size profile file (analysis/flac-bones.mjs output).
+/// One row of the FLAC frame-size profile file (the `--bones` extractor's output).
 #[derive(Deserialize)]
 struct ProfileRow {
     /// Track path,

@@ -24,6 +24,8 @@ mod proportional;
 mod search;
 /// The bucket-first composite with the FLAC bones-guided probe.
 mod buckets;
+/// The FLAC byte-profile extractor the bucket report joins.
+mod bones_profiles;
 /// The bench's one bridge to the production probe selection.
 mod probe_bins;
 /// The quarter-measure answer's probe:
@@ -64,6 +66,8 @@ use crate::search::{rank, sweep};
 use crate::zoom::{evaluate_zoom, measure_zoom, zoom_under_read_quantile};
 /// Imports the bucket-composite report.
 use crate::buckets::report_buckets;
+/// Imports the one writer of the FLAC byte profiles and the flag that selects it.
+use crate::bones_profiles::{BONES_FLAG, report_bones};
 
 /// The plan's quarter-library divisor for the benchmark target.
 const TARGET_DIVISOR: f64 = 4.0;
@@ -266,6 +270,12 @@ fn main() -> Result<()> {
     println!("corpus: {} tracks", tracks.len());
     println!("full decodable seconds: {full_secs}");
     println!("corrected target (/{TARGET_DIVISOR}): {target_secs}");
+
+    // The bones side file: `--bones <out.jsonl>` walks the corpus's loud long FLACs
+    // through the shared frame walk and writes the profile rows `--buckets` joins.
+    if args.iter().any(|arg| return arg == BONES_FLAG) {
+        return report_bones(&tracks, &args);
+    }
 
     // The decided policy: `--proportional [metadata.jsonl]` evaluates it on the corpus and
     // prints the under-read distribution and the margin/clamp tradeoff, then returns.
