@@ -51,6 +51,7 @@ use crate::commit_index::{
     write_private_tree,
 };
 use crate::commit_staged_deletions::{STAGED_DELETION_CODE, STAGED_DELETION_CORE_ID, staged_deletion_message, staged_deletions_present_on_disk};
+use crate::commit_named_ignored_files::{NAMED_IGNORED_CODE, NAMED_IGNORED_CORE_ID, named_ignored_files, named_ignored_message};
 use crate::commit_transaction::{
     CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, settled_passes, staged_at_base,
 };
@@ -235,6 +236,21 @@ pub fn prepare<F: RepositoryFacts>(
         // Every part the word pass merged is told to the person with the commit and sent to the journal.
         word_merge_events = word_merge_notice(combined.as_slice());
     } else {
+        // A path an ignore rule matches is refused before the private staging runs, from the elements the command names,
+        //  so the refusal is the command line's and never read from the words of a Git message (issue 6278).
+        let ignored: Vec<Vec<u8>> = named_ignored_files(context, cwd, capture.layout.real_index_path.as_path(), &index_selection)?;
+        if !ignored.is_empty() {
+            return Ok(Prepared::Ended(TransactionResult {
+                events: vec![PolicyEvent::CoreFinding {
+                    core_id: NAMED_IGNORED_CORE_ID,
+                    code: NAMED_IGNORED_CODE,
+                    message: named_ignored_message(ignored.as_slice()),
+                }],
+                exit_code: 1,
+                landed_oid: None,
+                uses_lfs: false,
+            }));
+        }
         if let Err(error) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
             return Err(failed(error.0));
         }
