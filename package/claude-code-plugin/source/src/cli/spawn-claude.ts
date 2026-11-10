@@ -4,9 +4,10 @@
  CLI tool that spawns steerable child Claude Code sessions in terminal windows.
  
  Launches a child Claude session via `terminal-exec` with a pre-created spawn
- state file. Only `CLAUDE_SPAWN_ID` is passed as an env var; the child's
- SessionStart and Stop hooks use it to fill in session info and report
- completion.
+ state file. `CLAUDE_SPAWN_ID` is what the child's SessionStart and Stop hooks
+ use to fill in session info and report completion, and `CLAUDE_SPAWN_DEPTH`
+ carries the spawn generation so the recursion guard can refuse a chain that
+ reaches its limit.
  
  @module
  */
@@ -48,6 +49,10 @@ import {
   findCallingSession,
   SESSION_NOT_FOUND,
 } from '../handler/claude-spawn/session-finder.ts';
+import {
+  SPAWN_DEPTH_ENV,
+  spawnChainDecision,
+} from '../handler/claude-spawn/spawn-recursion-guard.ts';
 import { splitWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import type { ReadonlyDeep, } from 'type-fest';
 
@@ -198,98 +203,152 @@ if (identity === SESSION_NOT_FOUND)
   );
 
 /**
- Unique identifier for this spawn, used to coordinate state between parent and child.
- */
-const spawnId = randomUUID();
-/**
  Working directory for the child session, defaulting to the current directory.
  */
-const cwd = args.cwd
+const workingDirectory = args.cwd
   ?? process
     .cwd();
 
 /**
  Extra args split on whitespace, filtering empty strings.
  */
-const extraArgs = splitWhitespace(args.extraArguments
+const additionalArguments = splitWhitespace(args.extraArguments
   ?? '',);
 
-await mkdir(
-  SPAWNS_DIR,
-  { recursive: true, },
-);
-
 /**
- Pre-create the spawn state file before launching the child.
+ Launches the child session in a terminal window and reports its identifier.
  
- `sessionId` starts empty; the first SessionStart that sees it empty
- claims ownership. Subsequent sessions with stale `CLAUDE_SPAWN_ID`
- env vars see a non-empty `sessionId` and skip registration.
+ The spawn state file is written before the launcher runs, because the child's
+ SessionStart hook claims it. A launcher that never starts would leave that
+ record at status `running` for every hook event to re-read, so a launch failure
+ removes it.
+ 
+ @param childDepth - spawn generation the child occupies, handed to it through {@link SPAWN_DEPTH_ENV}
+ 
+ @param cwd - working directory for the child session
+ 
+ @param extraArgs - additional arguments for the child's `claude` command
+ 
+ @param parentSessionId - session identifier of the parent this child reports to
+ 
+ @param prompt - initial prompt for the child session
  */
-const initialState: SpawnState = {
-  spawnId,
-  sessionId: '',
-  transcriptPath: '',
-  parentSessionId: identity.sessionId,
-  status: 'running',
-  lastMessage: '',
-};
+async function launchChildSession({
+  childDepth,
+  cwd,
+  extraArgs,
+  parentSessionId,
+  prompt,
+}: {
+  readonly childDepth: number;
+  readonly cwd: string;
+  readonly extraArgs: readonly string[];
+  readonly parentSessionId: string;
+  readonly prompt: string;
+},): Promise<void> {
+  /**
+   Unique identifier for this spawn, used to coordinate state between parent and child.
+   */
+  const spawnId = randomUUID();
 
-await writeFile(
-  join(
+  await mkdir(
     SPAWNS_DIR,
-    `${spawnId}.json`,
-  ),
-  JSON.stringify(initialState,),
-);
+    { recursive: true, },
+  );
 
-/**
- Detached child process running the spawned Claude session in a terminal instance.
- */
-const proc = spawn(
-  LAUNCHER,
-  [
-    '--',
-    'claude',
-    ...extraArgs,
-    args.prompt,
-  ],
-  {
-    cwd,
-    env: {
-      ...process.env,
-      CLAUDE_SPAWN_ID: spawnId,
-    },
-    detached: true,
-    stdio: 'ignore',
-  },
-);
+  /**
+   Pre-create the spawn state file before launching the child.
+   
+   `sessionId` starts empty; the first SessionStart that sees it empty
+   claims ownership. Subsequent sessions with stale `CLAUDE_SPAWN_ID`
+   env vars see a non-empty `sessionId` and skip registration.
+   */
+  const initialState: SpawnState = {
+    spawnId,
+    sessionId: '',
+    transcriptPath: '',
+    parentSessionId,
+    status: 'running',
+    lastMessage: '',
+  };
 
-/**
- Whether the launcher started, or why it did not.
- */
-const launch = await firstLauncherFailure(proc,);
+  await writeFile(
+    join(
+      SPAWNS_DIR,
+      `${spawnId}.json`,
+    ),
+    JSON.stringify(initialState,),
+  );
 
-if (launch === LAUNCHER_STARTED) {
-  // A later launcher failure still reaches a listener instead of killing the
-  // CLI with an unhandled 'error' event.
-  proc.once(
-    'error',
-    function reportLateLauncherFailure(error: ReadonlyDeep<Error>,): void {
-      void discardFailedSpawn({
-        spawnId,
-        failure: error,
-      },);
+  /**
+   Detached child process running the spawned Claude session in a terminal instance.
+   */
+  const proc = spawn(
+    LAUNCHER,
+    [
+      '--',
+      'claude',
+      ...extraArgs,
+      prompt,
+    ],
+    {
+      cwd,
+      env: {
+        ...process.env,
+        [SPAWN_DEPTH_ENV]: String(childDepth,),
+        CLAUDE_SPAWN_ID: spawnId,
+      },
+      detached: true,
+      stdio: 'ignore',
     },
   );
-  proc.unref();
 
-  console.log(JSON.stringify({ spawnId, },),);
-}
-else {
+  /**
+   Whether the launcher started, or why it did not.
+   */
+  const launch = await firstLauncherFailure(proc,);
+
+  if (launch === LAUNCHER_STARTED) {
+    // A later launcher failure still reaches a listener instead of killing the
+    // CLI with an unhandled 'error' event.
+    proc.once(
+      'error',
+      function reportLateLauncherFailure(error: ReadonlyDeep<Error>,): void {
+        void discardFailedSpawn({
+          spawnId,
+          failure: error,
+        },);
+      },
+    );
+    proc.unref();
+
+    console.log(JSON.stringify({ spawnId, },),);
+    return;
+  }
+
   await discardFailedSpawn({
     spawnId,
     failure: launch,
   },);
   process.exitCode = 1;
+}
+
+/**
+ Recursion guard decision for this attempt: a child generation, or the refusal to print.
+ */
+const chain = spawnChainDecision(process.env,);
+
+if ('diagnostic' in chain) {
+  process.stderr
+    .write(`${chain.diagnostic}\n`,);
+  process.exitCode = 1;
+}
+else {
+  await launchChildSession({
+    childDepth: chain.childDepth,
+    cwd: workingDirectory,
+    extraArgs: additionalArguments,
+    parentSessionId: identity.sessionId,
+    prompt: args.prompt,
+  },);
 }
