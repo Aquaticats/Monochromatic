@@ -848,3 +848,35 @@ Evidence:
  one `pagehide` and one `visibilitychange` hook while a record waits,
  none after a drain,
  and a re-arm for the next waiting record.
+
+## A deadline is the wait's outcome, never a message (2026-11-10)
+
+`flush()` and each sink probe recognized their own deadline by comparing a
+caught `Error.message` against `Timed out after {ms}ms: {label}`,
+the text `@monochromatic-dev/async-time-core` builds inside `withTimeout`.
+That held only while another package kept its wording,
+its unit,
+and its suffix,
+so any change there would have reclassified every deadline hit as
+"flush failed before completion",
+in the one situation the breadcrumb exists for.
+It also classified a backend's own rejection that happened to spell that text
+as a deadline instead of a failure,
+keeping a broken sink for another round.
+
+Both waits now go through `settleWithinHostTimeout`,
+which returns `'settled' | 'expired'` through the timer-library's
+`settleWithin`,
+the primitive that exists for exactly this case:
+a deadline is an outcome,
+not an error to be recognized.
+Nothing inspects a message,
+and a rejection reaching either caller is the operation's own failure.
+The timerless-host branch still awaits the operation directly,
+so QuickJS-ng behaviour is unchanged.
+
+Evidence:
+ `src/create-logger.unit.test.ts` pins a verifier whose rejection spells the
+ old timeout text being retired as a failure with no deadline breadcrumb,
+ and the existing deadline tests still pin the deadline breadcrumb and its
+ abandoned in-flight work.
