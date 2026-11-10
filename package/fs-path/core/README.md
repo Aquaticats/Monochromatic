@@ -92,15 +92,21 @@ Root discovery,
    `ensurePath`:
    create the path when missing (parents included) and verify owner read and write access when it exists,
    granting the owner bits when the mode denies them.
+   The file create is exclusive,
+   so a file a second writer creates while the call runs keeps its contents.
    `ensurePath` picks file or directory by whether the path has an extension.
 - `emptyDir`,
    `emptyFile`,
    `emptyPath`,
    `removeEmptyFilesInDir`:
    clear a directory's entries,
-   truncate a file (a `?query` suffix is stripped first),
+   truncate a file,
    dispatch by extension,
    or delete files that are empty after trimming.
+- Every function in both families strips a bundler-style `?query` suffix
+   (`dist/x.js?raw`) before it inspects or touches the disk,
+   so one spelling names one target for ensuring and for emptying,
+   and each returns the spelling it was given.
 
 ## Usage
 

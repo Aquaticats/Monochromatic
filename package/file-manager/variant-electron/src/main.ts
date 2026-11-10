@@ -11,9 +11,7 @@
  ```
  */
 
-import type { Dirent, } from 'node:fs';
 import {
-  readdir,
   rename,
   writeFile,
 } from 'node:fs/promises';
@@ -21,10 +19,7 @@ import { homedir, } from 'node:os';
 import {
   join,
   resolve,
-  sep,
 } from 'node:path';
-
-import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import {
   app,
@@ -34,10 +29,7 @@ import {
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core';
 
-import type {
-  BridgeEntryKind,
-  BridgeFileEntry,
-} from './bridge-types.js';
+import type { BridgeFileEntry, } from './bridge-types.js';
 import {
   APP_TITLE,
   DEBUG_TINT_ENVIRONMENT_VARIABLE,
@@ -51,7 +43,7 @@ import {
   LIST_DIRECTORY_CHANNEL,
   REPORT_STATE_CHANNEL,
 } from './ipc-channels.js';
-import { sortBridgeEntries, } from './listing-sort.js';
+import { listDirectory, } from './listing.js';
 
 /**
  Main-process logger tagged at module boundary.
@@ -129,138 +121,6 @@ function configureLinuxWayland(): void {
   process.env
     .XDG_SESSION_TYPE = 'wayland';
   mainLogger.info('Forced Chromium Ozone platform to Wayland for Linux.',);
-}
-
-/**
- Error thrown when a listing request escapes the configured root directory.
- 
- @example
- ```ts
- new ListingOutsideRootError({ path: '/etc' });
- ```
- */
-class ListingOutsideRootError extends Error {
-  /**
-   Builds a descriptive confinement error.
-   
-   @param path - Rejected request path.
-   
-   @example
-   ```ts
-   new ListingOutsideRootError({ path: '/etc' });
-   ```
-   */
-  public constructor({ path, }: { readonly path: string; },) {
-    super(`Refusing to list ${path}: outside the configured root ${rootDirectory}`,);
-    this.name = 'ListingOutsideRootError';
-  }
-}
-
-/**
- Resolves and confines a renderer-supplied path under the root directory.
- 
- @param path - Renderer-supplied directory path.
- 
- @returns Resolved absolute path safe to read.
- 
- @throws ListingOutsideRootError when the path escapes the root.
- 
- @example
- ```ts
- confinePath({ path: '/home' });
- ```
- */
-function confinePath({ path, }: { readonly path: string; },): string {
-  /**
-   Fully resolved request path with `..` segments folded away.
-   */
-  const resolved = resolve(path,);
-
-  if ((resolved !== rootDirectory) && (!resolved.startsWith(`${rootDirectory}${sep}`,)))
-    throw new ListingOutsideRootError({ path, },);
-
-  return resolved;
-}
-
-/**
- Classifies one `readdir` dirent probe into a bridge entry kind, checking
- symlinks first because a symlink also answers the directory probe on some
- platforms.
- 
- @param directory - Whether the dirent answered the directory probe.
- 
- @param symlink - Whether the dirent answered the symlink probe.
- 
- @returns Bridge entry kind.
- 
- @example
- ```ts
- kindOfDirent({ directory: true, symlink: false });
- ```
- */
-function kindOfDirent(
-  {
-    directory,
-    symlink,
-  }: {
-    readonly directory: boolean;
-    readonly symlink: boolean;
-  },
-): BridgeEntryKind {
-  if (symlink)
-    return 'symlink';
-
-  if (directory)
-    return 'directory';
-
-  return 'file';
-}
-
-/**
- Lists one directory into sorted bridge entries.
- 
- @param path - Renderer-supplied directory path.
- 
- @returns Sorted entries of the directory.
- 
- @throws ListingOutsideRootError when the path escapes the root.
- 
- @example
- ```ts
- await listDirectory({ path: '/home' });
- ```
- */
-async function listDirectory({ path, }: { readonly path: string; },): Promise<readonly BridgeFileEntry[]> {
-  /**
-   Confined absolute directory path.
-   */
-  const confined = confinePath({ path, },);
-
-  /**
-   Raw directory entries with type information, without following symlinks.
-   */
-  const dirents = await readdir(
-    confined,
-    { withFileTypes: true, },
-  );
-
-  return sortBridgeEntries({
-    entries: dirents.map(function toBridgeEntry(
-      dirent: ForeignBorrowed<Dirent>,
-    ): BridgeFileEntry {
-      return {
-        kind: kindOfDirent({
-          directory: dirent.isDirectory(),
-          symlink: dirent.isSymbolicLink(),
-        },),
-        name: dirent.name,
-        path: join(
-          confined,
-          dirent.name,
-        ),
-      };
-    },),
-  },);
 }
 
 /**
@@ -385,7 +245,10 @@ function registerIpcHandlers(): void {
       if ((typeof path) !== 'string')
         throw new Error('Listing request path must be a string.',);
 
-      return await listDirectory({ path, },);
+      return await listDirectory({
+        path,
+        rootDirectory,
+      },);
     },
   );
   ipcMain.on(

@@ -26,6 +26,102 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### Should agents work on packages under `package-paused`?, asked 2026-11-09T20:45:42-05:00
+
+An agent spent a run fixing issues 1482 to 1484 in `package-paused/pi-plugin/morph-compact`,
+because those issues name its old path and the issue sweep filter did not know it had moved.
+The fixes landed as `5340d97ff1`.
+
+Nothing under `package-paused/*/*` can be reached the normal way:
+it is in neither the `packages` list of `pnpm-workspace.yaml` nor `config_roots` in `mise.toml`,
+while `doc/howto/deprecate-package.md` says `package-deprecated/*/*` is in both.
+So `mise run //package-paused/pi-plugin/morph-compact:test:unit` answers `no task ... found`,
+`pnpm install` does not repair its links,
+and `package/config/oxlint/src/config-base.ts:79` ignores the folder,
+so `lint:oxlint` answers `No files found to lint`.
+The agent relinked eight `node_modules` entries by hand to run the tests.
+
+#### A: a pause means no work
+
+The issue sweep leaves out anything whose code now lives under `package-paused`,
+and those issues wait for an unpause.
+
+- Pro:
+  a paused package costs nothing,
+  which is what pausing it asked for.
+- Con:
+  defects in paused code stay open.
+
+#### B: add `package-paused/*/*` to both lists
+
+`mise run //package-paused/pi-plugin/morph-compact:test:unit` then works from the root,
+and `pnpm install` keeps its links.
+
+- Pro:
+  a paused package can be tested when someone does touch it.
+- Con:
+  every install and every task lookup pays for packages nobody is working on.
+- Con:
+  `lint:oxlint` still ignores the folder unless the shared config changes,
+  and changing that needs your approval.
+
+#### C: move morph-compact back to `package/`
+
+- Pro:
+  every tool works on it again.
+- Con:
+  undoes the pause of commit `64046360d2`.
+
+Ranking:
+A > B > C,
+because A is what a pause already means and costs nothing,
+while B adds a standing cost to keep paused code runnable;
+and B keeps the pause,
+which C undoes.
+
+### Where should a shared named error class live? (issues 1668 and 666), asked 2026-11-09T20:45:42-05:00
+
+Custom errors set their own name by hand:
+`git ls-files -- 'package/**' | xargs rg -n "this\.name = "` found 413 such lines in 318 files.
+Issue 666 records the open choice:
+"Decision needed:
+the home package for NamedError".
+Nothing can be derived from until a class exists,
+so issue 1668 is stopped on this.
+
+A concrete example of either home:
+`class ConfParseError extends NamedError {}` replaces a constructor whose only job is `this.name = 'ConfParseError'`.
+
+#### A: a new package holding only that class
+
+- Pro:
+  no dependencies of its own,
+  so every package can depend on it without pulling anything else in.
+- Con:
+  one more package to publish and keep.
+
+#### B: the existing package of throw helpers
+
+Issue 666 names it `module/throws`.
+
+- Pro:
+  no new package.
+- Con:
+  every error class would depend on the helpers beside it.
+
+#### C: leave the hand-written lines
+
+- Pro:
+  no migration across 318 files.
+- Con:
+  the lines stay,
+  and each new error class copies them.
+
+Ranking:
+A > B > C,
+because A costs one small package and spares every consumer a wider dependency,
+and B still removes the lines that C keeps.
+
 ### OpenAI flagged the review of the merge carry: how should it continue?, asked 2026-11-09T20:03:17-05:00
 
 The merge carry landed on main as `3a1368a777`:

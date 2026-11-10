@@ -4441,6 +4441,9 @@ importers:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
