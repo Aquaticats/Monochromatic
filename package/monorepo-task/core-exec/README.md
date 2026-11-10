@@ -386,6 +386,41 @@ Several behaviors differ from invoking `oxlint` directly.
  They are intentional;
 this list exists so they are not mistaken for bugs.
 
+**`--fix` loops until the tree reaches a fixpoint instead of running one pass.
+**
+Oxlint applies at most one fix per overlapping byte region per pass
+and does not re-lint the file it just rewrote,
+so a fix that uncovers a fresh fixable violation would wait for the next invocation.
+`--fix` therefore repeats the pass:
+each one runs `oxlint --fix`,
+then a plain lint of the result as the convergence oracle,
+because a `--fix` pass reports through neither its exit code nor its stdout whether it changed a file.
+Two oxlint invocations per pass is roughly double the work of a single pass;
+the documented baseline already accepts running `--fix` twice.
+The loop stops at the first of:
+an oracle with no diagnostics,
+an oracle whose output stopped changing,
+an oracle that returned to a state two or more passes old,
+an execution failure,
+or `MAX_AUTOFIX_PASSES` (`8`) passes.
+The two non-convergence endings print a warning on standard error,
+so a run that ends there is not mistaken for a clean fix:
+
+```text
+[task-oxlint] autofix oscillates between two states after <passes> passes; two rules' fixes conflict, so this cannot converge. Fix the rule conflict or disable one rule's autofix.
+[task-oxlint] reached 8 autofix passes without converging; remaining diagnostics may be incomplete
+```
+
+The diagnostics finally printed,
+and the exit status,
+come from the last oracle lint,
+or from the failing run when oxlint could not run at all,
+so every violation a pass left behind appears as it stands.
+Only `--fix` starts the loop;
+`--fix-suggestions` and `--fix-dangerously` without it stay single-pass,
+because the oracle is not verified to track suggestion-applied changes
+and behavior-changing fixes should not be iterated on their own.
+
 **Forces `--format=default`.
 **
 The wrapper prepends `--format=default` unless the caller passes an explicit
