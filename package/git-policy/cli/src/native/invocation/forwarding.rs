@@ -81,15 +81,14 @@ pub enum ChildOutcome {
 ///  uses an
 ///       argument array (no shell string) and inherits the caller's environment plus
 ///       only the overlay.
+///  `owner` says whose Git this is:
+/// one builder still serves every start,
+/// and it decides the options from the owner (`hooks_off`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function gitCommand(realGit: string, args: string[], overlay: [string, string][], owner): Command;
 /// ```
-///
-/// `owner` says whose Git this is:
-/// one builder still serves every start,
-/// and it decides the options from the owner (`hooks_off`).
 pub fn git_command(
     real_git: &Path,
     arguments: &[OsString],
@@ -206,15 +205,14 @@ pub(crate) fn outcome_of(status: std::process::ExitStatus) -> ChildOutcome {
 ///  a signal sent to the wrapper alone
 ///       does not reach Git,
 ///  exactly as with the TypeScript wrapper.
+///  `owner` says whose Git this is:
+/// the wrapper's own starts carry the monitor switch,
+/// and the person's command keeps the person's setting (`hooks_off`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function runRealGit(realGit, args, overlay, owner): Promise<ChildOutcome>;
 /// ```
-///
-/// `owner` says whose Git this is:
-/// the wrapper's own starts carry the monitor switch,
-/// and the person's command keeps the person's setting (`hooks_off`).
 pub fn run_real_git(
     real_git: &Path,
     arguments: &[OsString],
@@ -272,14 +270,13 @@ impl ChildStarted for NoChildRecorded {
 /// The child may be reported
 ///  only while it is this process's own unreaped child,
 /// which is exactly here.
+///  `owner` is passed on to the builder,
+/// so the options are decided in one place whatever the caller records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const status = await spawn(realGit, args, { onSpawn: (pid) => onStarted(pid) });
 /// ```
-///
-/// `owner` is passed on to the builder,
-/// so the options are decided in one place whatever the caller records.
 pub fn run_real_git_naming(
     real_git: &Path,
     arguments: &[OsString],
