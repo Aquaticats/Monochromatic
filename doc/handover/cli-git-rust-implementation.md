@@ -402,7 +402,8 @@ because the owner's "About 16 seconds" ceiling is on main only.
 
 Next:
 when both agents land,
-gate a clean checkout of main with `launch-gate.ts`,
+gate a clean checkout of main with
+`mise run //package/git-policy/cli:native:gate -- <worktree> <label>`,
 then follow "Release order for the wrapper".
 
 `check-branch-after-merging-main.ts` (scratch) now stops with status 3 on a detached HEAD.
@@ -10613,8 +10614,14 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   A dry run publishes nothing,
   so read its result with `gh run view`.
 - Gates:
-  `node ~/temp/agent/gate/launch-gate.ts <worktree name or path> <label of lowercase letters, digits and hyphens>`
-  starts the container gate as its own systemd unit `gpc-gate-<label>-<timestamp>`;
+  `mise run //package/git-policy/cli:native:gate -- <worktree name or path> <label of lowercase letters, digits and hyphens>`
+  starts the container gate as its own systemd unit `gpc-gate-<label>-<timestamp>`
+  (the scratch script `~/temp/agent/gate/launch-gate.ts` did this until it was promoted into the package on 2026-11-10;
+  the tasks are `native:gate`,
+  `native:gate:main-tip` and `native:gate:verdict`,
+  and `package/git-policy/cli/README.md`,
+  "The release gate",
+  has their options);
   its log in `~/temp/agent/gate/` ends with
   `gate-exit-status=<n>`.
   Read the verdict from that line and the log's nextest summary,
