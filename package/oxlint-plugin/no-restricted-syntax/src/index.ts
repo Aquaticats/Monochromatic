@@ -42,6 +42,7 @@ import { noImmediateMutation, } from './rule/no-immediate-mutation.ts';
 import {
   noLowInformationSymbolDescription,
 } from './rule/no-low-information-symbol-description/index.ts';
+import { noMainWrapper, } from './rule/no-main-wrapper.ts';
 import { noModuleRootLet, } from './rule/no-module-root-let.ts';
 import { noNullishUnion, } from './rule/no-nullish-union.ts';
 import { catchBinding, } from './rule/catch-binding.ts';
@@ -110,6 +111,7 @@ const plugin: Plugin = eslintCompatPlugin({
     'no-hasownproperty': noHasownproperty,
     'no-immediate-mutation': noImmediateMutation,
     'no-low-information-symbol-description': noLowInformationSymbolDescription,
+    'no-main-wrapper': noMainWrapper,
     'no-module-root-let': noModuleRootLet,
     'no-nullish-union': noNullishUnion,
     'catch-binding': catchBinding,
