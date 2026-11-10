@@ -18,6 +18,7 @@
 //! await enqueue(workDir, push); await enqueue(workDir, maintenance); await wake(commonDir);
 //! ```
 
+use crate::held_push_commit_on_the_remote::{OnTheRemote, RemoteRecord};
 use crate::iso_time::now_iso;
 use crate::service_client::{ClientConfig, wake};
 use crate::service_messages::ClientFailure;
@@ -115,7 +116,7 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
         });
     }
     enqueue_all(work_dir.as_path(), items.as_slice()).map_err(ClientFailure::WorkNotHandedOver)?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices);
+    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices).map_err(not_handed_over);
 }
 
 /// What:
@@ -239,7 +240,41 @@ pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path
 /// ```
 pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
     write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), handoff.reference.as_str(), tip, handoff.parent.as_str())?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), None, notices);
+    return wake(&handoff.config, handoff.git_dir.as_path(), None, notices).map_err(not_handed_over);
+}
+
+/// What:
+///  The failure for work that could not be handed to the commit service after the commit landed.
+/// Why:
+///   The commit landed,
+/// so the words of the wake's own failure are false when they reach the person:
+/// `NoCommonVersion` says
+///  "this commit was not made ... Nothing in the repository changed",
+/// and the caller renders whatever the hand-off returned
+///  (`commit_command.rs`).
+/// The audit of service restarts and version skew (2026-11-09) printed exactly that after a commit that
+///  was on the branch:
+/// the service was killed after the branch moved,
+/// the unit named another release,
+/// and the hand-off met it.
+/// The words that are true are the ones for work that was not handed over,
+/// and they name the reason and the remedy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handed = (failure) => ({ kind: 'work-not-handed-over', reason: reasonOf(failure) });
+/// ```
+fn not_handed_over(failure: ClientFailure) -> ClientFailure {
+    let reason: &str = match &failure {
+        ClientFailure::NoActivation(_) => "this account cannot start the commit service on demand",
+        ClientFailure::ServiceSilent => "the commit service stopped answering",
+        ClientFailure::DidNotStart => "the commit service did not start",
+        ClientFailure::NoCommonVersion => "the commit service that is running was started from a newer release of this git wrapper",
+        ClientFailure::OtherRelease => "a commit service started from another release of this git wrapper is still running",
+        ClientFailure::ProgramMissing(_) | ClientFailure::CouldNotStart(_) | ClientFailure::UnitInTheWay(_) | ClientFailure::Unavailable => "the commit service could not be reached",
+        _ => "the commit service could not be told about it",
+    };
+    return ClientFailure::WorkNotHandedOver(String::from(reason));
 }
 
 /// Handoff controls stay out of the release executable.
@@ -283,14 +318,26 @@ pub fn held_push_line(reference: &str, commit: &str) -> String {
 /// The wording claims only what is known,
 /// which is that the push has not been
 ///  released yet.
+///   A held record outlives the reason for its line when a later push of its branch carries the commit anyway,
+/// because the
+///  queue pushes the branch and not the commit;
+/// `record` is the proof that Git already holds the commit in the
+///  branch's remote,
+/// and a record it proves is settled as done before the line is worded,
+/// so the line
+///  and `git status` agree.
+/// A question that answers nothing leaves the line standing,
+/// which is the record's
+///  own state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// heldPushNotices(gitDir) // one line per held record
+/// heldPushNotices(gitDir, record) // one line per held record Git does not already hold
 /// ```
-pub fn held_push_notices(git_dir: &Path) -> Vec<String> {
+pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord) -> Vec<String> {
     let work_dir: PathBuf = work_directory(git_dir);
-    let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
+    let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD);
+    let Ok(listing) = std::fs::read_dir(held.as_path()) else {
         return Vec::new();
     };
     let mut lines: Vec<String> = Vec::new();
@@ -303,13 +350,141 @@ pub fn held_push_notices(git_dir: &Path) -> Vec<String> {
             Some(item) => item.branch_ref,
             None => String::new(),
         };
+        if !branch.is_empty() && record.on_the_remote(branch.as_str(), commit) == OnTheRemote::There {
+            // Git holds the commit in the branch's remote, so the push this record would make has been made by another push of the
+            //  branch. Nothing waits on it: it is settled where a finished push goes.
+            settle_held(work_dir.as_path(), name.as_str());
+            continue;
+        }
         lines.push(held_push_line(branch.as_str(), commit));
     }
     return lines;
+}
+
+/// What:
+///  Moves a held record whose commit Git holds in the branch's remote to `done`,
+/// where the queue keeps a push that was made.
+/// Why:
+///   `done` is the state a settlement already has,
+/// so the record stays known to the queue (a repeat landing adds
+///  nothing) and stops being a thing no round may run.
+/// A move that fails leaves the record held,
+/// which costs a line that is
+///  still true of the record and loses nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settleHeld = (workDir, id) => { mkdirp(join(workDir, 'done')); rename(join(workDir, 'held', id), join(workDir, 'done', id)); };
+/// ```
+fn settle_held(work_dir: &Path, name: &str) {
+    let done: PathBuf = state_directory(work_dir, crate::work_item::DONE);
+    if crate::private_storage::create_private_directory_all(done.as_path()).is_err() {
+        return;
+    }
+    let _settled: std::io::Result<()> = std::fs::rename(state_directory(work_dir, crate::work_item::HELD).join(name), done.join(name));
 }
 
 /// The item one held record's text holds,
 /// or nothing when it cannot be read.
 fn work_item_of(text: String) -> Option<WorkItem> {
     return WorkItem::decode(text.as_str()).ok();
+}
+
+/// What:
+///  How long a push record must have waited in `pending` before a command names it as queued.
+/// Why:
+///   A record a service has not taken yet is a queued push,
+/// and the state is the same whether the wrapper was killed between promoting the record and waking the service
+/// or the
+///  service went away before it looked;
+/// the bound only keeps the line from naming a push that is merely in flight.
+/// Measured on this host at 2026-11-09T16:40-05:00 (`measure-claim-stamp.ts` and `measure-landing-to-claim.ts`
+/// in `${HOME}/temp/agent/pi-runs/push-delivery-fix/repro`,
+/// debug build,
+/// local bare remote):
+/// the time from a landing to the claim of its push record was between 15 ms and 3.9 s with the service idle
+///  for 8 s between commits,
+/// and between 14 ms and 10.7 s when 12 commits were made back to back.
+/// The bound is above every in-flight window measured,
+/// so a record it names has outlasted any service that was merely busy.
+/// Exempt from a citation under `LQM` (class:
+/// notice pacing):
+/// it times a line the person reads and nothing waits on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits".
+pub const PUSH_QUEUED_AFTER: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// What:
+///  The one line a command says about the pushes this worktree has queued and no service has taken,
+/// and how many more wait the same way.
+/// Why:
+///   A push record in `pending` is a push that has not been made and that the service takes without any further commit.
+/// A wrapper
+///  killed between promoting the record and waking the service leaves one,
+/// and a service that went away before it
+///  looked leaves one;
+/// the command that would have said "the push is queued" died,
+/// so the record is the only place
+///  the statement can come from,
+/// and every later command reads it from there.
+///   One push is named and the rest are counted,
+/// because the person acts on the oldest and the list of a
+///  container's unserved commits has no end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// queuedPushNotices(gitDir, now) // the oldest pending push, then a count
+/// ```
+pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime) -> Vec<String> {
+    let work_dir: PathBuf = work_directory(git_dir);
+    let mut waiting: Vec<(String, std::time::SystemTime)> = Vec::new();
+    for (name, queued) in crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::PENDING) {
+        if !name.starts_with(format!("{}-", WorkKind::Push.name()).as_str()) {
+            continue;
+        }
+        if now.duration_since(queued).unwrap_or(std::time::Duration::ZERO) < PUSH_QUEUED_AFTER {
+            continue;
+        }
+        waiting.push((name, queued));
+    }
+    let Some((oldest, _)) = waiting.first() else { return Vec::new() };
+    // The record names its own commit and branch; one that cannot be read still names its commit through its file name, and its
+    //  branch is unknown.
+    let path: PathBuf = state_directory(work_dir.as_path(), crate::work_item::PENDING).join(oldest.as_str());
+    let record: Option<WorkItem> = std::fs::read_to_string(path).ok().and_then(work_item_of);
+    let (commit, reference): (String, String) = match record {
+        Some(item) => (item.oid, item.branch_ref),
+        None => match crate::work_item_ids_and_names::object_of_a_record_name(oldest.as_str()) {
+            Some(commit) => (commit.to_string(), String::new()),
+            None => return Vec::new(),
+        },
+    };
+    let mut lines: Vec<String> = vec![queued_push_line(reference.as_str(), commit.as_str())];
+    let more: usize = waiting.len() - 1;
+    if more > 0 {
+        let (subject, possessive): (&str, &str) = if more == 1 { ("commit is", "its") } else { ("commits are", "their") };
+        lines.push(format!("{more} more {subject} queued for {possessive} push the same way"));
+    }
+    return lines;
+}
+
+/// What:
+///  The one sentence the worktree says about a push that is queued and has not been made.
+/// Why:
+///   What is known is that the record is queued and that no service has taken it,
+/// and that the service makes it
+///  without another commit;
+/// the sentence claims exactly that and nothing about why.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// queuedPushLine(branchRef, commit)
+/// ```
+pub fn queued_push_line(reference: &str, commit: &str) -> String {
+    if reference.is_empty() {
+        return format!("the commit {commit} is queued for its push: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit");
+    }
+    return format!(
+        "the commit {commit} is queued for its push from {reference}: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit"
+    );
 }

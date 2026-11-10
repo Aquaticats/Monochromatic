@@ -233,8 +233,20 @@ under rule `WGH`:
   and the owner's "Carry edits forward" is still not built:
   both are briefed.
 - `never-stuck`:
-  a FIFO at `.git/index.lock` or at a rules file blocks for ever,
-  and it is briefed.
+  a FIFO at `.git/index.lock` or at a rules file blocked every command that read it for ever,
+  and the commit service's landing behind it.
+  Fixed on the branch `fix/git-policy-cli-fifo-where-a-file-is-expected-ends-no-command`
+  (not merged into `main` yet),
+  which reads both through opens that cannot wait
+  (`service_index_wait.rs`,
+  `service_index_marker.rs`,
+  `entry_rules_text_change_warm.rs`,
+  `package/forbidden-strings/cli/src/rules_snapshot.rs`),
+  and refuses a rules file that is not a plain one with a sentence naming its path.
+  The reproductions,
+  the stacks that put the service thread in `marker_of`,
+  and the survey of the rest of the class are in
+  `doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`.
 - `differential-against-real-git`:
   `git commit -- .` also commits untracked files,
   global pathspec modes are ignored by an explicit-path commit,
@@ -1905,33 +1917,42 @@ Both pass alone (2.5 s and 21.6 s),
 which is the same contention shape this section corrected in the standards-review controls,
 and neither module is changed here.
 
-Owner question:
-`package/git-policy/cli/SPEC.md:5471` says a commit prepares
-"in parallel with other commits and without the real index lock",
-and `doc/decision/cli-git-concurrent-commits.md:29` says the same.
-The step here takes that lock when the index is stale,
-which the two controls this branch fixed do not see,
-because their repositories have an index Git has just written.
-It is taken for one `git update-index --refresh` (2 to 50 ms on this checkout) and never held across the request,
-and a client that meets the lock degrades to the private copy at once rather than waiting or failing,
-so concurrent commits still never fail on it and nothing waits on it in preparation.
-Two readings are open:
+Answered by the owner's instruction for
+`perf/git-policy-cli-commit-preparation-without-the-real-index-lock`:
+preparation stays lock-free,
+and the refresh moves to the landing,
+which already holds `index.lock`.
+The owner's requirements for the lane are
+"commits vs native git should not take 5s longer.",
+"Commits should never fail.",
+"Use as few locks as possible."
+and "never discard user data",
+and `doc/decision/cli-git-concurrent-commits.md:29` already says
+"Each commit prepares without the real index lock."
 
-- Amend the record to allow a bounded stat refresh inside preparation that degrades on a held lock,
-  which is what this branch does and what keeps the scratch step inside its ceiling.
-- Keep preparation lock-free,
-  and hand the write to the landing,
-  which already holds `index.lock`:
-  it would build its private copy,
-  answer the same in-process staleness question over the live index,
-  run `git update-index --refresh` on the copy with `GIT_INDEX_FILE` set to it,
-  and install that copy.
-  Then nothing outside the landing writes the real index,
-  and the cost moves to the landing,
-  inside its lock,
-  on every commit after the worktree moved.
-  The first commit after the move would still pay the refresh on its private copy in preparation,
-  as the locked-index fallback does today.
+What the branch changed (2026-11-09):
+
+- `commit/commit_index.rs` refreshes the private commit index,
+  not the real one,
+  after the copy and the selection are in it
+  (`initialize_commit_index`,
+  `initialize_retry_index`).
+  It still asks the in-process staleness question first,
+  so a copy that describes the worktree costs no Git start and no lock.
+- `landing/service_land_follow.rs` records the worktree's stat data in the copy it is about to install,
+  through the same question and the same refresh,
+  while the landing holds the real index lock,
+  and leaves out the entries the reset just wrote.
+  A refresh that fails,
+  is killed or is ended at its step ceiling installs the copy anyway,
+  and the release flushes the copy only when Git replaced it.
+- The in-process reset hands back the names it reset
+  (`index/index_reset_file.rs`),
+  which is what lets a landing leave those entries out for a list derived from the branch.
+
+Measurements, controls and the spread:
+`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+"What a batch's own refresh costs, and what moving it bought".
 
 Still to do:
 
@@ -1940,11 +1961,10 @@ Still to do:
   closed by the section below.
 - The question's pass was single-threaded;
   closed by the section below.
-- A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
-  (Git answers a held lock at once,
-  measured 0.00 s,
-  and the private index is refreshed instead),
-  and the landing still waits for that lock as it always has,
+- Closed 2026-11-09:
+  a preparation names no real index at all any more,
+  so it never meets another program's `index.lock` and cannot wait on one.
+  The landing still waits for a foreign holder as it always has,
   bounded by `LANDING_LOCK_CEILING`.
 - The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
   `native:perf` compares paired commit deltas and is the run for it.

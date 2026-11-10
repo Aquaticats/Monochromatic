@@ -208,7 +208,8 @@ fn an_owner_of_another_namespace_is_alive_until_its_record_expires() {
     assert!(text.contains("pid:[1]") && text.contains(old.to_string_lossy().as_ref()), "{text}");
 }
 
-/// A record of another PID namespace that is gone is a dead owner, not a refusal:
+/// A record of another PID namespace that is gone is a dead owner,
+/// not a refusal:
 /// its owner finished and removed the record,
 /// so the recovery that read the parsed copy finds nothing in its way.
 /// Why:

@@ -29,6 +29,7 @@ use crate::policy_checks::ShippedChecks;
 use crate::policy_content::LifecycleContent;
 use crate::policy_registry::PolicyId;
 use crate::landed_summary::short_name;
+use crate::held_push_commit_on_the_remote::GitRemoteRecord;
 use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
@@ -154,17 +155,27 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         let mut stderr = std::io::stderr();
         name_unaccounted_trash(git_dir.as_path(), worktree, &mut stderr);
     }
-    // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
-    //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.
-    for line in crate::service_handoff::held_push_notices(git_dir.as_path()) {
-        // A closed terminal is not a reason to stop the command the person asked for.
-        let _written = writeln!(std::io::stderr(), "{line}");
-    }
-    let context = checks.facts.transaction_context();
+    // The directory every question of this step is asked in: the command's own, or the Git directory when it cannot be read.
     let cwd: PathBuf = match std::env::current_dir() {
         Ok(directory) => directory,
         Err(_unreadable) => git_dir.clone(),
     };
+    // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
+    //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.
+    //  A held record whose commit Git already holds in the branch's remote is settled here instead of being named
+    //  (`held_push_commit_on_the_remote.rs`).
+    let context: GitContext = checks.facts.transaction_context();
+    let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
+    for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
+    // A push record no service has taken is a queued push that no command has said anything about: the one that left it was
+    //  killed before it could, or the service went away before it looked. The record is where that statement lives.
+    for line in crate::service_handoff::queued_push_notices(git_dir.as_path(), std::time::SystemTime::now()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };
@@ -277,7 +288,8 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 ///  outside every repository
 ///  failed with `content-unavailable` before it reached Git.
 ///  Nothing is answered for a command outside every repository:
-///  there the process's own directory stands, and Git refuses the push itself.
+///  there the process's own directory stands,
+/// and Git refuses the push itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -44,6 +44,12 @@ pub mod lfs_shims;
 /// which are unsupported.
 pub mod doctor;
 
+/// The entries of one hooks directory:
+/// which of them Git would run as a traditional hook,
+/// how the directory is listed,
+/// and the bytes the report spells them as.
+pub mod doctor_hook_entries;
+
 /// The filesystem section of `git monochromatic-git-policy-cli doctor`:
 /// btrfs subvolume,
 /// overlayfs,

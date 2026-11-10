@@ -10,6 +10,11 @@
 import type { ReadonlyDeep, } from 'type-fest';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import {
+  makeOwnedFileParser,
+  type OwnedFileParser,
+} from '../../runtime/handler-runtime.ts';
 import {
   appendFile,
   mkdir,
@@ -100,6 +105,11 @@ type CostDismissalRecord = {
 };
 
 /**
+ Parser for one shadow log line, asserted once for every reader.
+ */
+const parseShadowRecord: OwnedFileParser<CostDismissalRecord> = makeOwnedFileParser<CostDismissalRecord>();
+
+/**
  Parses one shadow-log JSONL line,
  or returns {@link NOT_PARSED} when the line is not a record.
 
@@ -114,8 +124,7 @@ type CostDismissalRecord = {
  */
 function parseRecord(line: string,): CostDismissalRecord | typeof NOT_PARSED {
   try {
-    /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing a machine-written log line after its parse succeeds */
-    return JSON.parse(line,) as CostDismissalRecord;
+    return parseShadowRecord(line,);
   } catch (error) {
     loggerForRecord.warn(`skipping an unparseable shadow line: ${String(error,)}`,);
     return NOT_PARSED;

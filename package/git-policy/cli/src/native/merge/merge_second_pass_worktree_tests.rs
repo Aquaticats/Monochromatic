@@ -8,7 +8,8 @@
 //!  `binary_word_merge_tests.rs`.
 
 use super::*;
-use crate::merge_second_pass::tests::{Change, World, corpus, runner, world};
+use crate::merge_second_pass::tests::{Change, World, await_it, corpus, runner, world};
+use crate::merge_second_pass::{GitReply, resolved_record};
 use crate::merge_second_pass_worktree_unchanged::LARGEST_RECORDED_BYTES;
 use crate::test_support::{git, git_context, git_output, git_text, remove};
 use std::path::{Path, PathBuf};
@@ -114,17 +115,24 @@ fn the_ending_command_is_the_one_the_state_files_name() {
 struct Scripted {
     /// The command word and the standard input of every start,
     /// in order.
-    calls: std::cell::RefCell<Vec<(String, Vec<u8>)>>,
+    calls: std::sync::Mutex<Vec<(String, Vec<u8>)>>,
     /// The command word that exits with status 1.
     failing: &'static str,
 }
 
 /// Recording the starts instead of running Git.
 impl GitRunner for Scripted {
-    fn run(&self, arguments: &[&str], input: Option<&[u8]>, _index_file: Option<&Path>) -> Result<GitReply, String> {
-        self.calls.borrow_mut().push((arguments[0].to_owned(), input.map(<[u8]>::to_vec).unwrap_or_default()));
-        let code: Option<i32> = if arguments[0] == self.failing { Some(1) } else { Some(0) };
-        return Ok(GitReply { code, stdout: Vec::new(), stderr: b"boom".to_vec() });
+    fn run<'a>(
+        &'a self,
+        arguments: &'a [&'a str],
+        input: Option<&'a [u8]>,
+        _index_file: Option<&'a Path>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<GitReply, String>> + Send + 'a>> {
+        return Box::pin(async move {
+            self.calls.lock().expect("no control panics while it holds the starts").push((arguments[0].to_owned(), input.map(<[u8]>::to_vec).unwrap_or_default()));
+            let code: Option<i32> = if arguments[0] == self.failing { Some(1) } else { Some(0) };
+            return Ok(GitReply { code, stdout: Vec::new(), stderr: b"boom".to_vec() });
+        });
     }
 }
 
@@ -139,9 +147,9 @@ fn merged_file() -> Merged {
 /// nothing else runs when both work.
 #[test]
 fn a_merged_file_is_staged_and_then_checked_out() {
-    let runner = Scripted { calls: std::cell::RefCell::new(Vec::new()), failing: "none" };
-    install(&runner, &[merged_file()], &[String::from("dd")]).expect("both steps work");
-    let calls = runner.calls.borrow();
+    let runner = Scripted { calls: std::sync::Mutex::new(Vec::new()), failing: "none" };
+    await_it(install(&runner, &[merged_file()], &[String::from("dd")])).expect("both steps work");
+    let calls = runner.calls.lock().expect("no control panics while it holds the starts");
     assert_eq!(calls.iter().map(|(word, _)| { return word.as_str(); }).collect::<Vec<&str>>(), vec!["update-index", "checkout-index"]);
     assert_eq!(calls[0].1, resolved_record(0o100_644, "dd", b"a.md"));
     assert_eq!(calls[1].1, b"a.md\0".to_vec());
@@ -151,10 +159,10 @@ fn a_merged_file_is_staged_and_then_checked_out() {
 /// so the index never says resolved over a file with markers.
 #[test]
 fn a_failed_checkout_puts_the_conflict_stages_back() {
-    let runner = Scripted { calls: std::cell::RefCell::new(Vec::new()), failing: "checkout-index" };
-    let error: String = install(&runner, &[merged_file()], &[String::from("dd")]).expect_err("the checkout failed");
+    let runner = Scripted { calls: std::sync::Mutex::new(Vec::new()), failing: "checkout-index" };
+    let error: String = await_it(install(&runner, &[merged_file()], &[String::from("dd")])).expect_err("the checkout failed");
     assert!(error.contains("boom"), "{error}");
-    let calls = runner.calls.borrow();
+    let calls = runner.calls.lock().expect("no control panics while it holds the starts");
     assert_eq!(calls.iter().map(|(word, _)| { return word.as_str(); }).collect::<Vec<&str>>(), vec!["update-index", "checkout-index", "update-index"]);
     assert_eq!(calls[2].1, restore_records(&merged_file().stages));
 }
@@ -162,9 +170,9 @@ fn a_failed_checkout_puts_the_conflict_stages_back() {
 /// A failed staging stops before the worktree is written.
 #[test]
 fn a_failed_staging_writes_nothing_to_the_worktree() {
-    let runner = Scripted { calls: std::cell::RefCell::new(Vec::new()), failing: "update-index" };
-    assert!(install(&runner, &[merged_file()], &[String::from("dd")]).is_err());
-    assert_eq!(runner.calls.borrow().len(), 1);
+    let runner = Scripted { calls: std::sync::Mutex::new(Vec::new()), failing: "update-index" };
+    assert!(await_it(install(&runner, &[merged_file()], &[String::from("dd")])).is_err());
+    assert_eq!(runner.calls.lock().expect("no control panics while it holds the starts").len(), 1);
 }
 
 /// The index entries of a repository's index,
@@ -348,9 +356,9 @@ fn merged_of(world: &World, entries: &[IndexEntry]) -> (Merged, String, BTreeMap
     let conflicts: Vec<Conflict> = conflicts_of_index(entries, &created);
     let context: GitContext = git_context();
     let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
-    let verdicts: Vec<Verdict> = second_pass(&pass, conflicts.as_slice(), AttributeSource::Invocation).expect("the pass runs");
+    let verdicts: Vec<Verdict> = await_it(second_pass(&pass, conflicts.as_slice(), AttributeSource::Invocation)).expect("the pass runs");
     let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("the one file resolves by word: {verdicts:?}") };
-    let oid: String = write_blob(&pass, file.bytes.as_slice()).expect("the merged blob");
+    let oid: String = await_it(write_blob(&pass, file.bytes.as_slice())).expect("the merged blob");
     let held: BTreeMap<Vec<u8>, Held> = held_paths(world.repo.as_path(), &created);
     return ((**file).clone(), oid, held);
 }
@@ -375,7 +383,7 @@ fn a_resolution_another_command_staged_is_left_alone() {
     let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
     assert_eq!(kept.moved, vec![b"a.md".to_vec()], "the path that moved is named");
     assert!(kept.files.is_empty(), "nothing is installed over it");
-    install(&runner(&git_context(), world.repo.as_path()), kept.files.as_slice(), kept.oids.as_slice()).expect("nothing to install is not a failure");
+    await_it(install(&runner(&git_context(), world.repo.as_path()), kept.files.as_slice(), kept.oids.as_slice())).expect("nothing to install is not a failure");
     assert_eq!(staged_text(world.repo.as_path(), "a.md"), Some(String::from("a resolution another command wrote\n")), "the index keeps the other command's resolution");
     assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), b"a resolution another command wrote\n".to_vec(), "the worktree keeps it too");
     remove(world.root.as_path());
@@ -396,7 +404,7 @@ fn a_path_that_did_not_move_is_installed() {
     let before = Before { worktree_root: world.repo.as_path(), entries: fresh.as_slice(), held: &held };
     let kept: Kept = still_the_same(&before, vec![file], vec![oid]);
     assert!(kept.moved.is_empty(), "nothing moved: {:?}", kept.moved);
-    install(&runner(&git_context(), world.repo.as_path()), kept.files.as_slice(), kept.oids.as_slice()).expect("the install works");
+    await_it(install(&runner(&git_context(), world.repo.as_path()), kept.files.as_slice(), kept.oids.as_slice())).expect("the install works");
     assert_eq!(std::fs::read(world.repo.join("a.md")).expect("the file"), expected, "the worktree holds the merged bytes");
     assert_eq!(staged_text(world.repo.as_path(), "a.md"), Some(String::from_utf8_lossy(expected.as_slice()).into_owned()), "and the index does too");
     assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--unmerged"]), "", "the conflict stages are gone");

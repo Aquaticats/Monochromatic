@@ -44,6 +44,13 @@ import {
   stripNonProseRegions,
 } from './uncertainty.ts';
 
+import {
+  makeHookInputParser,
+  makeJsonWriter,
+  type Parser,
+  type JsonWriter,
+} from '../../runtime/handler-runtime.ts';
+
 /**
  Module logger for the stop-reminders handler.
  */
@@ -366,39 +373,24 @@ const stopRemindersHandler: (event: ReadonlyDeep<StopInput>,) => Promise<StopRem
  
  Input is trusted; it comes from Claude Code's hook dispatch system.
  
- @param raw - JSON payload from Claude Code stdin
- 
- @returns parsed Stop event
- 
  @example
  ```ts
  const event = stopRemindersParser(await text(process.stdin));
  ```
  */
-function stopRemindersParser(raw: string,): StopInput {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON contract from Claude Code hook system
-  return JSON.parse(raw,) as StopInput;
-}
+const stopRemindersParser: Parser<StopInput> = makeHookInputParser<StopInput>();
 
 /**
  Serializes the stop-reminders output for stdout.
  
  No trailing newline; matches Claude Code's wire convention.
  
- @param output - {@link StopRemindersOutput} handler result to serialize
- 
- @returns JSON string for stdout
- 
- @mutates output - `JSON.stringify` may invoke `toJSON`, getters, or proxy traps.
- 
  @example
  ```ts
  process.stdout.write(stopRemindersWriter({}));
  ```
  */
-function stopRemindersWriter(output: StopRemindersOutput,): string {
-  return JSON.stringify(output,);
-}
+const stopRemindersWriter: JsonWriter<StopRemindersOutput> = makeJsonWriter<StopRemindersOutput>();
 
 export type { StopRemindersOutput, } from './decision.ts';
 

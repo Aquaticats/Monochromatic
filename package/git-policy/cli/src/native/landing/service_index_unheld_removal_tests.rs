@@ -242,7 +242,8 @@ fn a_lock_filled_during_the_scan_is_never_removed() {
 /// Why:
 ///  A descriptor of this process on a file no repository could hold is skipped by the count,
 ///  and the count decides whether the lock may be removed at all.
-///  A memory file's link is `/memfd:<name> (deleted)`, with the leading slash the kernel writes:
+///  A memory file's link is `/memfd:<name> (deleted)`,
+/// with the leading slash the kernel writes:
 ///  a test for `memfd:` alone missed it,
 ///  the count became unknown,
 ///  and an abandoned lock stayed while a capture was open

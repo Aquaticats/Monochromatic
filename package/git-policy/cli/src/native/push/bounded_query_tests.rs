@@ -519,3 +519,38 @@ fn a_writer_still_held_at_the_ceiling_is_the_cut_request() {
     running.join().expect("the query thread ends");
     crate::test_support::remove(root.as_path());
 }
+
+/// What:
+///  A system that refuses every thread leaves a query's request unwritten and says which limit refused it.
+/// Why:
+///  The write half of a push query is a thread of its own,
+/// because a command may answer before it reads its input (`bounded_query_input.rs`);
+///  without the writer the command reads nothing and its answer is not about the request.
+///  A person who meets this has to be told the limit that refused the thread,
+/// because nothing in the command can be changed to work around it.
+///  The child is refused every thread for real (`RLIMIT_NPROC`),
+/// and the reader it writes to is started while a process may still start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // under prlimit --nproc=1: expect(feedStandardInput(pipe, bytes)).rejects.toContain('ulimit -u');
+/// ```
+#[cfg(unix)]
+#[test]
+fn where_no_thread_can_start_the_input_writer_names_the_limit() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_the_input_writer_names_the_limit") {
+        return;
+    }
+    // The reader is a process of its own, which the refusal refuses as well, so it starts while the limit still allows it.
+    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
+    let mut reader: Command = shell("sleep 20");
+    let mut reading: Child = reader.stdin(Stdio::piped()).spawn().expect("the reader starts");
+    let pipe: ChildStdin = reading.stdin.take().expect("the input");
+    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
+    let refused: Result<InputWriter, String> = feed_standard_input(Some(pipe), b"request".to_vec(), Duration::from_secs(1), None);
+    let _killed = reading.kill();
+    let _waited = reading.wait();
+    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises again");
+    let said: String = refused.err().expect("no thread could be started to give the command its request");
+    assert!(said.contains("ulimit -u") && said.contains("pids.max"), "the refusal names the limits that refused the thread: {said}");
+}

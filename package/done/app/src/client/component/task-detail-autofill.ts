@@ -9,11 +9,29 @@ import type {
   TaskComplexity,
   TaskPriority,
 } from '../../lib/types.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
 import {
   AUTOFILL_DEBOUNCE_MS,
   type AutofillResult,
   METADATA_UNSET,
 } from './task-detail-types.ts';
+
+//region Logging
+
+/**
+ Logger for this module: the component reports a suggestion request that failed for a reason other than its own abort.
+ */
+const l = tagged({
+  tag: 'done-task-detail-autofill',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Sentinel for "no debounce timer is scheduled".
@@ -199,10 +217,7 @@ export function createAutofillController(callbacks: AutofillCallbacks,): Autofil
     catch (error: unknown) {
       if (!((error instanceof DOMException) && (error.name
         === 'AbortError'))) {
-        console.error(
-          'Autofill request failed:',
-          error,
-        );
+        l.error(`autofill request failed: ${caughtValueText(error,)}`,);
       }
     }
 

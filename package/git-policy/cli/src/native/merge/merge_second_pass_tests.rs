@@ -98,11 +98,19 @@ pub(crate) fn merge_tree_of(world: &World) -> (String, Vec<Conflict>) {
     return conflicts_of_merge_tree(output.stdout.as_slice());
 }
 
+/// The awaited faces run as a task of the runtime reaches them.
+/// Why:
+///   Every start of the pass is awaited,
+/// so a task of the runtime is the caller these controls must prove the folder serves.
+pub(crate) fn await_it<Output>(work: impl std::future::Future<Output = Output>) -> Output {
+    return crate::lazy_runtime::run_on_runtime(work).expect("the runtime runs the work");
+}
+
 /// The verdicts of the second pass over the world's merge.
 fn verdicts_of(world: &World) -> Vec<Verdict> {
     let (_, conflicts) = merge_tree_of(world);
     let context: GitContext = git_context();
-    return second_pass(&runner(&context, world.repo.as_path()), conflicts.as_slice(), AttributeSource::Invocation).expect("the pass runs");
+    return await_it(async { return second_pass(&runner(&context, world.repo.as_path()), conflicts.as_slice(), AttributeSource::Invocation).await; }).expect("the pass runs");
 }
 
 /// The merge-tree stages parse into one conflict per path with all three sides,
