@@ -3145,6 +3145,20 @@ so nothing in the wrapper deletes through it today,
 but a hook inside the shadow can reach every other commit's private index copy through it.
 Nothing was changed for it here.
 
+Note 2026-11-10T01:03:00-05:00:
+this is fixed.
+The shadow leaves both names of the record scratch root out now,
+through `is_private_shadow_entry` in `package/git-policy/cli/src/native/shadow/shadow_links.rs`,
+and `the_repository_scratch_root_never_reaches_the_shadow` beside it fails whenever the rule is removed.
+Measured by counting the links one shadow makes for this repository's common directory:
+27 before,
+25 after,
+because that directory held `monochromatic-git-policy-cli-scratch` and the earlier `cli-git-scratch` both.
+Nothing reads a scratch root through a shadow:
+the wrapper's own `shadow.join` calls name `config`,
+`objects` and the entries a shadow writes for itself,
+and no hook reads one either.
+
 ### What this record does not claim
 
 - That any of these candidates takes a commit under 5 s while the volume stalls.

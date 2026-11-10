@@ -5,6 +5,7 @@
 use super::*;
 use crate::candidate_private_index::{PRIVATE_INDEX_PREFIX, STAGING_SUFFIX};
 use crate::test_support::{fixture, git, remove, repository};
+use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 
 /// Shared entries of a plain repository become links to the real entries,
 ///  and private entries stay absent from the shadow.
@@ -91,12 +92,69 @@ fn private_names_cover_conclusion_state_and_locks() {
         "ORIG_HEAD.lock",
         "cli-git-add-policy-1-2-3",
         "cli-git-add-policy-1-2-3.making",
+        REPOSITORY_SCRATCH.current,
+        REPOSITORY_SCRATCH.earlier,
     ] {
         assert!(is_private_shadow_entry(name), "{name}");
     }
     for name in ["hooks", "info", "rr-cache", "description", "logs-not", "cli-git-add-policies"] {
         assert!(!is_private_shadow_entry(name), "{name}");
     }
+}
+
+/// What:
+///  The repository's scratch root is left out of every shadow,
+///  under the name of this release and under the one an earlier release gave it.
+/// Why:
+///   The scratch root holds the shadow itself,
+/// so the link points the shadow at the directory it lives in and,
+///  through it,
+/// at every other command's private files;
+/// a link also costs one directory-entry creation on a volume where those calls
+///  wait (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
+/// Every other shared entry still links,
+/// so the scratch root is the one name left out.
+#[test]
+fn the_repository_scratch_root_never_reaches_the_shadow() {
+    let root: PathBuf = fixture("shadow-links-scratch-root");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    let names: [&str; 2] = [REPOSITORY_SCRATCH.current, REPOSITORY_SCRATCH.earlier];
+    for name in names {
+        std::fs::create_dir(common.join(name)).expect("a scratch root");
+    }
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
+    for name in names {
+        assert!(
+            std::fs::symlink_metadata(shadow.join(name)).is_err(),
+            "a shadow reaches its own directory through {name}"
+        );
+    }
+    let mut expected: Vec<String> = shared_entry_names(common.as_path());
+    let mut linked: Vec<String> = entry_names(shadow.as_path());
+    expected.sort();
+    linked.sort();
+    assert_eq!(linked, expected, "every shared entry except the scratch root links");
+    remove(root.as_path());
+}
+
+/// The names of the entries a real common directory shares with a shadow,
+/// in the order the directory lists them.
+fn shared_entry_names(common: &Path) -> Vec<String> {
+    return entry_names(common).into_iter().filter(|name| { return !is_private_shadow_entry(name); }).collect();
+}
+
+/// The names of the entries one directory holds,
+/// in the order the directory lists them.
+fn entry_names(directory: &Path) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(directory).expect("a readable directory") {
+        let entry: std::fs::DirEntry = entry.expect("a readable entry");
+        names.push(entry.file_name().to_string_lossy().into_owned());
+    }
+    return names;
 }
 
 /// The wrapper's own private copy of an index never reaches the shadow,
