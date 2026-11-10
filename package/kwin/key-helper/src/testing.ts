@@ -69,6 +69,7 @@ export {
  */
 export {
   findNewestNvimSocket,
+  findNvimSockets,
   nvimSocketDirectory,
   sendNvimInput,
 } from './nvim.ts';

@@ -74,10 +74,12 @@ export class CommandFailedError extends KeyHelperError {
  */
 export class NoNvimSocketError extends KeyHelperError {
   /**
-   Construct with a fixed, descriptive message.
+   @param refusals - Why each socket that refused a connection refused it; empty when the directory held no socket at all
    */
-  constructor() {
-    super('no nvim socket found');
+  constructor({ refusals = [], }: { readonly refusals?: readonly string[]; } = {}) {
+    super(refusals.length === 0
+      ? 'no nvim socket found'
+      : `no nvim socket accepted the input: ${refusals.join('; ')}`,);
     this.name = 'NoNvimSocketError';
   }
 }
