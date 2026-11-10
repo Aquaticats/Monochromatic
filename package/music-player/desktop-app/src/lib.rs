@@ -400,6 +400,20 @@ pub mod default_library;
 pub mod dialog_backend;
 
 /// What:
+///      `pub mod folder_chooser;` running the folder chooser and saying what it did (`src/folder_chooser.rs`).
+/// Why:
+///       A chooser that exists but cannot open a window must say so,
+/// with the program's own explanation,
+///  instead of
+///           looking like a cancel (issue 1010).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * as folderChooser from "./folder_chooser";
+/// ```
+pub mod folder_chooser;
+
+/// What:
 ///      `pub mod engine;` the worker-thread front door (`src/engine.rs`).
 /// Why:
 ///       Spawns the worker and drives a `Controller` from the command channel.
