@@ -285,15 +285,15 @@ each of the crates whose manifest carries the shadow policy passes its own Clipp
 
 ## What does not work
 
-- **Attribute on the macro call**:
+- Attribute on the macro call:
   rustc says `allow` is ignored on `slint::include_modules!()` and Clippy still inspects the included file.
-- **Fixing `target/.../out/app.rs`**:
+- Fixing `target/.../out/app.rs`:
   the file is generated and profile-specific;
   `slint-build` overwrites it on the next relevant build.
-- **Removing the package-level deny**:
+- Removing the package-level deny:
   this makes generated output quiet by also permitting implicit returns in maintained Rust,
   which discards the intended policy.
-- **Allowing the lint at crate root**:
+- Allowing the lint at crate root:
   this also exempts maintained source and is broader than the generated boundary.
 
 ## Upstream filing decision

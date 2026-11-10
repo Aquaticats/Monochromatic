@@ -207,15 +207,15 @@ builds still pay the full cost.
 
 ## What does not work
 
-- **Switching to tsc for DTS**:
+- Switching to tsc for DTS:
    would be slower,
    not faster.
   The OXC path is already the fastest available.
-- **Setting `dts: { oxc: true }` explicitly**:
+- Setting `dts: { oxc: true }` explicitly:
    redundant;
   `rolldown-plugin-dts` auto-detects `isolatedDeclarations:
   true` from tsconfig.
-- **Disabling minification**:
+- Disabling minification:
    saves ~1 ms,
    irrelevant.
 - **Running with `DEBUG='rolldown-plugin-dts:*'` or

@@ -413,13 +413,13 @@ disable the plugin instead.
 
 ## What does not work
 
-- **Setting `--ignore-scripts` or other npm flags**:
+- Setting `--ignore-scripts` or other npm flags:
    the cost is in
   walking the lockfile,
    not in running install scripts.
    Lockfile walk
   happens before script invocation.
-- **`npm ci` instead of `npm install`**:
+- `npm ci` instead of `npm install`:
    would be faster for a small
   lockfile,
    but with the bloated 71 MB lockfile it still has to walk
@@ -427,11 +427,11 @@ disable the plugin instead.
    not measurably faster,
    and would fail outright if
   the lockfile drifted.
-- **Deleting `node_modules` only**:
+- Deleting `node_modules` only:
    lockfile stays bloated,
    next install
   is just as slow.
-- **Pinning npm version**:
+- Pinning npm version:
    the bug is in npm's relative-symlink
   resolution,
    not in a specific version.
@@ -440,7 +440,7 @@ disable the plugin instead.
 - **`CLAUDE_CODE_DISABLE_*` env vars**:
    there is no env var to skip
   SessionStart hooks selectively.
-- **Reordering plugins in `enabledPlugins`**:
+- Reordering plugins in `enabledPlugins`:
    hooks fire in parallel;
   reordering doesn't help.
 

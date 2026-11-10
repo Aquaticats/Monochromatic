@@ -460,7 +460,7 @@ fill listed first.
    Firefox
   `fill=rgb(0,100,180) track=transparent topEdge=rgb(143,143,157)`,
   Chromium `fill=rgb(0,128,0) track=rgb(128,128,128)`.
-- **`accent-color: #ffffff` on a themed Chromium progress**:
+- `accent-color: #ffffff` on a themed Chromium progress:
    the fill
   IS honored (white),
    but Chromium flips the rest of the control to
@@ -479,7 +479,7 @@ fill listed first.
    The pseudos only style the fallback boxes,
   so they require the element to be author-styled (or
   `appearance: none`) before they do anything.
-- **`::-moz-progress-bar` alone on a pristine Firefox progress**:
+- `::-moz-progress-bar` alone on a pristine Firefox progress:
    no
   effect either;
    the devolution check reads only the element's own
@@ -489,7 +489,7 @@ fill listed first.
    Verified
   empirically against the same Firefox 151 binary with a lime fill
   that stayed `#0060df`.
-- **`appearance: none` plus webkit pseudos in Firefox**:
+- `appearance: none` plus webkit pseudos in Firefox:
    fill stays
   the fallback blue;
    Gecko has no `::-webkit-progress-*`.

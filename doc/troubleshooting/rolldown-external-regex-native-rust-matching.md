@@ -386,13 +386,13 @@ stated so the choice stays auditable:
   anchored matchers into the JS callback path.
   Output equivalence means there is no functional gain to weigh against
   the cost.
-- **Plain string entries instead of patterns**:
+- Plain string entries instead of patterns:
   the string arm is exact equality
   (`is_external.rs:43`),
   so strings cannot cover `electron/<subpath>` or the open set of `node:`
   builtins without enumerating every specifier,
   which breaks on any new subpath import.
-- **Reading the audit criterion as satisfied "at similar time complexity"**:
+- Reading the audit criterion as satisfied "at similar time complexity":
   asymptotically both forms are linear per specifier,
   but the criterion compared pattern shapes while the two forms execute on
   different machines:

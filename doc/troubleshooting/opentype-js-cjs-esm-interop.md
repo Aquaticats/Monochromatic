@@ -374,7 +374,7 @@ than disabling the rule package-wide.
    which is a
   larger,
    unrelated diff than this issue's scope.
-- **Disabling `import/no-named-as-default-member` package-wide**:
+- Disabling `import/no-named-as-default-member` package-wide:
    the rule is
   a genuine footgun-catcher elsewhere;
    only this module's ambient declaration

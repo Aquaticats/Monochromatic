@@ -350,7 +350,7 @@ SUBSET (hb-subset-wasm defaults):
 
 Two catalogs fall out of the output:
 
-- **Resolves cleanly**:
+- Resolves cleanly:
    every `fvar`-reachable name ID survives the
   subset (256 through 275:
    axis names and named-instance subfamily
@@ -360,7 +360,7 @@ Two catalogs fall out of the output:
   happen to coincide with `fvar`'s (257,
    258,
    260 … 274) also resolve.
-- **Dangles**:
+- Dangles:
    every name ID only `STAT` references:
    298 and 301
   (axis records),
@@ -438,13 +438,13 @@ reads them;
 
 ## What does not work
 
-- **Doing nothing**:
+- Doing nothing:
    the font renders fine,
    but every Firefox page
   load logs two console errors,
    which poisons any "no console errors"
   verification gate and hides real failures in the noise.
-- **Retaining the needed IDs through the wrapper**:
+- Retaining the needed IDs through the wrapper:
    `hb-subset-wasm`
   0.4.0 exposes no name-ID control.
    Its `SubsetOptions` are `text`,
@@ -461,7 +461,7 @@ reads them;
   name-ID set (`hb_subset_input_set(…, HB_SUBSET_SETS_NAME_ID)`,
    the
   CLI's `--name-IDs=*`) is not reachable through it.
-- **`passthroughTables: ['STAT']`**:
+- `passthroughTables: ['STAT']`:
    passing `STAT` through changes
   nothing;
    the table already survives byte-identically by default.

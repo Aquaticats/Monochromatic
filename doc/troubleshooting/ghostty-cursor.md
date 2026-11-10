@@ -121,7 +121,7 @@ for a Claude Code update that supports cursor-style customisation
 
 ## What does not work
 
-- **`cursor-style = bar` in `ghostty.config`**:
+- `cursor-style = bar` in `ghostty.config`:
    correctly sets the
   terminal default.
    Claude Code hides the real cursor,
@@ -131,12 +131,12 @@ for a Claude Code update that supports cursor-style customisation
   starts**:
    correctly resets the shape to the configured default,
   but the shape no longer applies because the cursor is hidden.
-- **`Se` / `Ss` terminfo capabilities**:
+- `Se` / `Ss` terminfo capabilities:
    Claude Code does not use
   terminfo for cursor shape;
    the hardcoded `f$.inverse` rendering
   bypasses any terminfo entry.
-- **`infocmp` / patching Ghostty's terminfo**:
+- `infocmp` / patching Ghostty's terminfo:
    same as above;
    the
   application does not consult terminfo for cursor shape.

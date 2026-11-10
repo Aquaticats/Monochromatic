@@ -493,7 +493,7 @@ function setup(): void {
 }
 ```
 
-**Reassign to a new `const` with an explicit type annotation**
+Reassign to a new `const` with an explicit type annotation
 after the null check.
 The explicit annotation becomes the variable's declared type,
 which is non-null regardless of closure context:
@@ -1060,18 +1060,18 @@ Verified to work for `tsgo --build` but does not prevent the LSP crash.
 
 ### What does not work
 
-- **tsconfig `include`/`exclude` patterns in LSP mode**:
+- tsconfig `include`/`exclude` patterns in LSP mode:
   these work for CLI `tsgo --build` and for normal project loading
   when tsgo is spawned by a `.ts` trigger,
   but do not prevent the crash when tsgo is spawned by a non-source trigger.
   The LSP's `DidOpenFile` → `ensureConfiguredProjectAndAncestorsForFile`
   likely adds the trigger file as a root file name,
   bypassing `matchFiles` extension filtering.
-- **Shadow root / symlink directory**:
+- Shadow root / symlink directory:
   pnpm workspace `node_modules` resolution breaks because `${configDir}`
   resolves to the shadow path and the nested `node_modules` structure
   does not contain hoisted dependencies.
-- **Restarting without any delay**:
+- Restarting without any delay:
   creates a crash loop;
    the 1 s flat retry gives time for the user
   to navigate away from the problematic file.

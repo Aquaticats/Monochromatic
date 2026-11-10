@@ -150,27 +150,27 @@ file-sink statically on the client.
 
 ## What does not work
 
-- **Try/catch alone**:
+- Try/catch alone:
    catches the JS rejection,
    but the browser
   has already logged the network-level error.
    The console pollution
   remains.
-- **Marking `node:fs/promises` as external in the client config**:
+- Marking `node:fs/promises` as external in the client config:
   the bundler leaves the import as-is in the output and the browser
   still attempts the fetch at runtime.
    External-marking only
   affects whether the bundler inlines the module;
    it does not stop
   the browser from executing the import.
-- **Tree-shaking**:
+- Tree-shaking:
    dynamic `import()` expressions inside functions
   are not statically analysable,
    so bundlers cannot eliminate them.
   The static chain "client entry -> logger factory -> file sink
   module" guarantees the file-sink module is included even when its
   exports are unused.
-- **Polyfilling `node:` schemes**:
+- Polyfilling `node:` schemes:
    there is no portable polyfill
   for `node:fs/promises` in the browser;
    even rollup's

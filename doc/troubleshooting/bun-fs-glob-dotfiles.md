@@ -178,7 +178,7 @@ Two files used `Bun.Glob`:
    matches named directories only
   (`package/*/*/dist/final`);
    no dot-file concern.
-   **Migrated**
+   Migrated
   to `node:fs/promises` glob.
 
 `package/file-enforcer/core/src/io/glob.ts` was removed on 2026-10-31 in `e7b5130459` (feat(*):

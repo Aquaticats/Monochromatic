@@ -208,7 +208,7 @@ appear unnecessary.
 
 ### Source locations
 
-- **tsgolint rule**:
+- tsgolint rule:
   `internal/rules/no_unnecessary_type_assertion/no_unnecessary_type_assertion.go`
   - `getUncastType` (line 232-249):
      uses
@@ -217,12 +217,12 @@ appear unnecessary.
   - The IIFE special case (line 235-246) already works around
     a similar issue by using `getResolvedSignature` +
     `GetReturnTypeOfSignature` instead.
-- **typescript-go contextual type**:
+- typescript-go contextual type:
   `internal/checker/checker.go:28318-28322`:
    returns the
   asserted type as contextual type for children of
   `AsExpression`.
-- **typescript-go signature caching**:
+- typescript-go signature caching:
   `internal/checker/checker.go:8162-8164`:
   `getResolvedSignature` caches the resolved signature,
   preserving the contextually-influenced inference.

@@ -209,18 +209,18 @@ makes the effort worthwhile.
 
 ## What does not work
 
-- **Workers on a `workers.dev` URL + Njalla HTTP redirect**:
+- Workers on a `workers.dev` URL + Njalla HTTP redirect:
    the
   public URL changes after redirect;
    not a transparent alternate
   endpoint,
    which defeats the diversification goal.
-- **Cloudflare Tunnel**:
+- Cloudflare Tunnel:
    the public hostname must live on a
   Cloudflare zone;
    collapses into Path 1 (move apex) or Path 4
   (SaaS Custom Hostnames).
-- **Cloudflare Pages with custom domain**:
+- Cloudflare Pages with custom domain:
    same constraint as
   Tunnel (custom-domain binding requires the hostname's zone on
   Cloudflare).

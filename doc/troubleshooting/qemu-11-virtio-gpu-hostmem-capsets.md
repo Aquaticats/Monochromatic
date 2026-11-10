@@ -672,7 +672,7 @@ headless passthrough design.
 
 ### Enhanced hostmem, Venus, and AMD native-context profile
 
-**Pros:**
+Pros:
 The real domain now exposes OpenGL 4.6 through native radeonsi,
 Venus Vulkan,
 and native RADV on the RX 7600.
@@ -683,7 +683,7 @@ viewer-driven resize,
 reboot,
 and finite Vulkan rendering checks pass.
 
-**Cons:**
+Cons:
 The AMD native-context backend is packaged as experimental.
 libvirt needs an unsupported override,
 and Venus requires disabling QEMU seccomp for every VM in this Flatpak
@@ -693,31 +693,31 @@ No comparative performance or long-duration stability run was performed.
 
 ### Baseline SPICE GL plus virgl profile
 
-**Pros:**
+Pros:
 The display path is hardware accelerated,
 local,
 configured with blob resources,
 and uses only stable libvirt XML.
 It retains libvirt's default QEMU seccomp defense.
 
-**Cons:**
+Cons:
 OpenGL is limited to 4.3 and Vulkan is software-rendered.
 It does not meet the user's preference to exercise the installed stack's
 current GPU API capabilities.
 
 ### Whole-GPU passthrough
 
-**Pros:**
+Pros:
 It removes the virtual API translation layer and can provide physical-GPU
 behavior.
 
-**Cons:**
+Cons:
 The current host has no second display GPU,
 SR-IOV virtual function,
 or mediated device.
 Whole-device assignment conflicts with the local desktop and SPICE workflow.
 
-**Ranking:**
+Ranking:
 enhanced virtual GPU profile > baseline SPICE GL profile > whole-GPU
 passthrough.
 The enhanced profile beats the baseline because the user's explicit priority

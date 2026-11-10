@@ -738,7 +738,7 @@ patch updated 9 existing snapshots in the same run:
    These are the same bug surface,
    just hit by
   bare names rather than `node:`-prefixed ones.
-- **1 genuine regression**:
+- 1 genuine regression:
   `package_json_browser_map_native_module_disabled`.
    The
   fixture's `node_modules/demo-pkg/package.json` carries

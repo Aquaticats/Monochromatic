@@ -193,7 +193,7 @@ project chose this approach because the alternative
 
 ## What does not work
 
-- **Re-exporting under a string key**:
+- Re-exporting under a string key:
   `export { CalloutAlert as 'callout-alert' } from './callout-alert.ts'`
   combined with `import * as mdxComponents from './index.ts'`
   does not fix it.
@@ -201,7 +201,7 @@ project chose this approach because the alternative
   `_components['callout-alert']` is missing;
    it is that MDX
   never emits that lookup for explicit JSX.
-- **Providing `providerImportSource`**:
+- Providing `providerImportSource`:
    setting
   `compile(src, { providerImportSource: '@mdx-js/react' })`
   wires `useMDXComponents` into the compile output for
@@ -210,7 +210,7 @@ project chose this approach because the alternative
   unchanged.
    The compile output still emits
   `_jsx("callout-alert", ...)` as a literal string tag.
-- **Intercepting at the jsx runtime boundary**:
+- Intercepting at the jsx runtime boundary:
    a wrapper that
   dispatches string tag names through a components map does
   work,

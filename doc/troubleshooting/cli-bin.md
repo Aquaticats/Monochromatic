@@ -202,9 +202,9 @@ at all.
 
 Both mechanisms are required for full cross-platform support:
 
-- **Unix**:
+- Unix:
    shebang tells the kernel which interpreter to use.
-- **Windows**:
+- Windows:
    generated `.cmd` wrapper invokes the runtime;
    shebang is
   ignored.

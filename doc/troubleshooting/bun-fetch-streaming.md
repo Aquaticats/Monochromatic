@@ -198,18 +198,18 @@ Existing transport options for streaming inference:
    uses fetch
   ReadableStream;
    affected.
-- **HTTP chunked via fetch**:
+- HTTP chunked via fetch:
    uses fetch ReadableStream;
   affected.
-- **WebSocket via `ws` (OpenAI Responses API only)**:
+- WebSocket via `ws` (OpenAI Responses API only):
    does not
   use fetch ReadableStream;
    not affected.
-- **WebSocket via Bun native**:
+- WebSocket via Bun native:
    does not use fetch
   ReadableStream;
    not affected.
-- **undici fetch (bypasses Bun's native fetch)**:
+- undici fetch (bypasses Bun's native fetch):
    unclear;
   Bun polyfills Node APIs;
    untested.

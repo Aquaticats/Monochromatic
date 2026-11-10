@@ -489,14 +489,14 @@ The matching durable UI procedure is in
 
 Set these values in `chrome://flags`:
 
-- **Vulkan**:
-   **Default**
-- **Skia Graphite**:
-   **Enabled**
-- **Hardware-accelerated video decode**:
-   **Default**
-- **Force enable WebGPU interop**:
-   **Enabled**
+- Vulkan:
+   Default
+- Skia Graphite:
+   Enabled
+- Hardware-accelerated video decode:
+   Default
+- Force enable WebGPU interop:
+   Enabled
 
 This is the recommended configuration for the tested machine.
 It preserves the user's Graphite selection,

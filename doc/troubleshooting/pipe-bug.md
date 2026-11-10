@@ -263,9 +263,9 @@ The same `\<` bug causes a different symptom when the user command contains `&&`
 but **no pipes**.
  Tools like `rg` and `fd` auto-detect whether stdin is a TTY:
 
-- **TTY stdin**:
+- TTY stdin:
    search current directory (normal interactive behavior)
-- **Non-TTY stdin**:
+- Non-TTY stdin:
    read input from stdin (filter mode)
 
 Claude Code's stdin is a non-TTY socket that never sends EOF.
@@ -317,14 +317,14 @@ rg -l 'pattern' --type ts . && echo done
 
 These were investigated but turned out to be irrelevant:
 
-- **`async_redirect_stdin()`**:
+- `async_redirect_stdin()`:
    Opens `/dev/null` and dup2's to fd 0 for async commands.
   The strace pattern matched,
    but the actual cause was `do_redirections()` applying the
   command-level `< /dev/null` redirect,
    not async stdin handling.
 
-- **Redirect propagation from eval builtin**:
+- Redirect propagation from eval builtin:
    Hypothesized that eval's redirects leak
   into pipeline children.
    In reality,
@@ -332,7 +332,7 @@ These were investigated but turned out to be irrelevant:
   (from eval joining its arguments),
    not propagated from eval's redirect list.
 
-- **ONESHOT fork optimization**:
+- ONESHOT fork optimization:
    `should_suppress_fork()` / `can_optimize_connection()`
   in evalstring.
   c.
@@ -342,26 +342,26 @@ These were investigated but turned out to be irrelevant:
   only handles `&&`/`||`/`;`,
    not `|`.
 
-- **`set -m` (job control)**:
+- `set -m` (job control):
    Investigated extensively.
    Not the cause.
 
-- **`set -t` (onecmd)**:
+- `set -t` (onecmd):
    Investigated extensively.
    Not the cause.
 
-- **`setsid` / `--new-session`**:
+- `setsid` / `--new-session`:
    Red herring.
    `setsid` without `-w` breaks all output.
 
-- **Socket as stdin**:
+- Socket as stdin:
    Thought this was the missing reproduction ingredient.
   Actually,
    the missing ingredient was the `\<` escaping,
    which reproduction
   attempts outside the sandbox did not use.
 
-- **bwrap flags**:
+- bwrap flags:
    `--unshare-pid`,
    `--unshare-net`,
    `--new-session` are all irrelevant.

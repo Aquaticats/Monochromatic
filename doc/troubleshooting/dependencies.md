@@ -335,23 +335,23 @@ Trigger package:
 
 Catalogues:
 
-- **Works**:
+- Works:
    `npm install`,
    `pnpm install`,
    `yarn install` against the
   same trigger package.
    All three strip `+<build>` from the version
   string before constructing the registry URL.
-- **Works**:
+- Works:
    registry URL `GET /@optique/core/1.0.0-dev.1692` (without
   build metadata) returns 200 OK.
-- **Fails**:
+- Fails:
    `vlt install` with the trigger package.
    URL
   `GET /@optique/core/1.0.0-dev.1692+5c265bd4` returns 404,
    and the
   percent-encoded variant `%2B5c265bd4` also returns 404.
-- **Fails (no recovery)**:
+- Fails (no recovery):
    `vlt install` with `vlt.json` graph
   modifiers (`"#@optique/core": ">=1.0.0-dev.0"`,
   `"#@optique/run": ">=1.0.0-dev.0"`).
@@ -360,11 +360,11 @@ Catalogues:
   (`src/graph/src/reify/extract-node.ts:57`),
    which is downstream of
   modifier application (`src/graph/src/ideal/append-nodes.ts:269-288`).
-- **Fails (no recovery)**:
+- Fails (no recovery):
    lockfile restoration.
    vlt re-resolves
   specs during install.
-- **Fails (no recovery)**:
+- Fails (no recovery):
    cache clearing
   (`rm -rf ~/.cache/vlt/{package-info,registry-client}`).
    Build
@@ -1085,7 +1085,7 @@ supply the CLI.
 
 The remediation was tested with pnpm 11.21.0 on 2026-08-12.
 
-**Vulnerable catalog before the override:**
+Vulnerable catalog before the override:
 
 - `pnpm why image-size --recursive` reported the single chain through
   `texture-compressor@1.0.2`.
@@ -1093,7 +1093,7 @@ The remediation was tested with pnpm 11.21.0 on 2026-08-12.
   `texture-compressor@1.0.2` and `image-size@0.7.5`.
 - GitHub reported alerts #77 and #78 as open against `pnpm-lock.yaml`.
 
-**Clean catalog after the override:**
+Clean catalog after the override:
 
 - `mise run prepare:pnpm:install` completed successfully and removed both packages.
 - `pnpm why image-size --recursive` and

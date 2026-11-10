@@ -204,7 +204,7 @@ the translation;
 
 ## Alternatives we considered and rejected
 
-- **Escape every `{` in the translation as `\{`**:
+- Escape every `{` in the translation as `\{`:
    mechanical
   but voluminous;
    the JSON schema has dozens of braces,
@@ -226,10 +226,10 @@ the translation;
    Tradeoff:
    harms translation
   consistency.
-- **Pre-compute every translation eagerly at boot**:
+- Pre-compute every translation eagerly at boot:
   triggers the same regex on the same input;
    does not help.
-- **Switch to a different i18n library**:
+- Switch to a different i18n library:
    disproportionate
   to one bug in one prompt;
    `typesafe-i18n` is otherwise

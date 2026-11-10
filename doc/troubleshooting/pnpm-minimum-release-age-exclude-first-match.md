@@ -289,7 +289,7 @@ and reported "Already up to date" with no violation.
    this is also the shape
   `pnpm audit --fix` produces,
    so the list self-assembles into the broken form.
-- **`PNPM_CONFIG_TRUST_LOCKFILE=true`**:
+- `PNPM_CONFIG_TRUST_LOCKFILE=true`:
    skips lockfile verification,
    so the
   gate passes,
@@ -299,7 +299,7 @@ and reported "Already up to date" with no violation.
   change unapplied with the lockfile unchanged).
    See
   `doc/troubleshooting/pnpm-minimum-release-age-trust-lockfile.md`.
-- **`pnpm install --force` alone**:
+- `pnpm install --force` alone:
    did not re-trigger the `.pnpmfile.mjs` hook
   on 11.6.0 while `pnpmfileChecksum` was unchanged,
    so it neither applied a

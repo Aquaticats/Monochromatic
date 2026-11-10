@@ -318,20 +318,20 @@ The recovery work therefore used `-c` instead of replacing the Flatpak binary.
 
 ## What does not work
 
-- **Trusting generated help as parser proof**:
+- Trusting generated help as parser proof:
   help is a separate string and can name an unregistered option.
-- **Moving `--compress` before or after other convert options**:
+- Moving `--compress` before or after other convert options:
   both positions fail with status `1`.
-- **Retrying the same long form**:
+- Retrying the same long form:
   the failure is deterministic in the parser table,
   not an image-content or timing failure.
-- **Treating the first prototype-build failure as a patch failure**:
+- Treating the first prototype-build failure as a patch failure:
   the first container lacked `diff` and Meson stopped with
   `Program 'diff' not found or not executable`.
   Adding `diffutils` let configuration,
   compilation,
   and the behavioral test complete.
-- **Replacing the installed binary for this workflow**:
+- Replacing the installed binary for this workflow:
   the verified `-c` workaround avoids an unnecessary local package-maintenance boundary.
 
 ## Upstream filing decision
@@ -411,7 +411,7 @@ but must not submit this AI-generated wording or patch.
 
 ### Upstream filing artifact
 
-**Do not file as-is.**
+Do not file as-is.
 The retained draft is an audit record,
 not a fileable contribution.
 

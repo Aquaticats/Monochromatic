@@ -1,10 +1,10 @@
 # AWS CloudFront mirror: hostname correction and Free-plan restrictions
 
-**Original investigation**:
+Original investigation:
  2026-05-09.
-**Reassessment**:
+Reassessment:
  2026-09-07.
-**CAA renewal remedy**:
+CAA renewal remedy:
  2026-10-09.
  The mirror leaf became an ANAME carrying its own CAA,
  a second hostname
@@ -12,7 +12,7 @@
 and issue 6 is retracted.
  See
 [`doc/handover/acm-caa-renewal-blocked.md`](../handover/acm-caa-renewal-blocked.md).
-**Hostname move**:
+Hostname move:
  2026-10-09,
  later the same day.
  The public mirror hostname moved from
@@ -37,7 +37,7 @@ which is the property this document was written to protect.
 moved to the same leaf-CAA shape at `fastly.aquati.cat`.
  Tracked as
 [issue 674](https://github.com/Aquaticat/Monochromatic/issues/674).
-**Subject**:
+Subject:
  Setting up `aws.aquati.cat` as a public CloudFront mirror of
 self-hosted `aquati.cat` while keeping the apex CAA limited to
 `letsencrypt.org`.
@@ -49,7 +49,7 @@ path (certificate issuance,
 (CloudFront HTTP 502).
 The reassessment retracts the inference that this proves an unfinished TLS 1.3 rollout.
 
-**Mirror status on 2026-09-07**:
+Mirror status on 2026-09-07:
 Restored and verified at `2026-09-07T21:42Z`.
 The live endpoint serves matching origin content through a native origin Host/SNI override.
 Direct probes of `aquati.cat:443` still negotiate TLS 1.3 and reject TLS 1.2 over IPv4 and IPv6 with `aquati.cat` SNI.
@@ -516,7 +516,7 @@ dig +short CNAME aws.aquati.cat
 
 ## Issue 6: removing the subdomain CAA stays safe because ACM follows CNAMEs
 
-**Retracted on 2026-10-09.**
+Retracted on 2026-10-09.
 The mechanism below is wrong,
 and relying on it is what let a renewal run into expiry.
 RFC 8659 section 3 climbs the parents of the queried FQDN;
@@ -1385,7 +1385,7 @@ Its historical rejection does not make future execution safe.
 
 ## Current configuration state
 
-**Status**:
+Status:
 mirror restoration verified on 2026-09-07.
 The deployed function overrides origin HTTP Host and TLS SNI to `aquati.cat`.
 Both original policies remain associated,

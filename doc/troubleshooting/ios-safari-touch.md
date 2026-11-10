@@ -220,18 +220,18 @@ adds a prefix to the maintenance surface.
 
 ## What does not work
 
-- **`touch-action: none` alone**:
+- `touch-action: none` alone:
    iOS ignores it for certain
   gesture patterns.
-- **`event.preventDefault()` on `pointerdown` alone**:
+- `event.preventDefault()` on `pointerdown` alone:
   insufficient;
    iOS intercepts at the touch-event level before
   pointer events are generated.
-- **`user-scalable=no` in the viewport meta tag**:
+- `user-scalable=no` in the viewport meta tag:
    suppresses
   page zoom but does not prevent `pointercancel` from firing on
   canvas gestures.
-- **`setPointerCapture` alone**:
+- `setPointerCapture` alone:
    Safari had a separate bug
   (fixed in 15.5) where captured pointers did not receive
   `pointermove`/`pointerup` if the contact point moved

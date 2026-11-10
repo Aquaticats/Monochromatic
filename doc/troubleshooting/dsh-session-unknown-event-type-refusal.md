@@ -388,7 +388,7 @@ Decision:
  constraints 1 and 4 are partial or failing,
  and constraint 6 is unmet.
  Draft kept as an auditable record,
- **do not file as-is**:
+ do not file as-is:
 
 ~~~md
 ### Title

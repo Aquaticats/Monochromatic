@@ -368,21 +368,21 @@ the configuration patterns we needed,
  led us to write a
 comment-preserving JSONC parser in `package/jsonc-edit/core-ts`:
 
-- **No ambiguous table semantics**:
+- No ambiguous table semantics:
    JSON objects have one
   definition site.
-- **Comments preserved**:
+- Comments preserved:
    `//` and `/* */` survive round-trip
   parsing.
-- **Trailing commas**:
+- Trailing commas:
    easier to edit and diff.
-- **Ecosystem alignment**:
+- Ecosystem alignment:
    VS Code,
    TypeScript,
    ESLint,
    oxlint
   all use JSONC.
-- **Escape hatch to TypeScript**:
+- Escape hatch to TypeScript:
    when config needs logic (`if`,
   `map`,
    `await`),

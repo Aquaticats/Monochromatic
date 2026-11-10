@@ -573,7 +573,7 @@ not a new issue.
 
 Constraint 4 does not hold,
 so the default policy applies:
-**do not file now.**
+do not file now.
 Both drafts below are kept as an auditable record and may be posted once a
 maintainer invitation exists (`lgtmi`/`lgtm` on pi,
 or a Discussions thread

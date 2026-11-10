@@ -136,7 +136,7 @@ Add `/etc/fstab` entries:
 
 ## What does not work
 
-- **Git worktrees**:
+- Git worktrees:
    each worktree has its own checkout,
    so changes
   in one do not propagate live to the other.
@@ -152,21 +152,21 @@ Add `/etc/fstab` entries:
   and gets treated as the same workspace.
    Mount binds are not
   canonicalised away.
-- **Code-server / VS Code in browser**:
+- Code-server / VS Code in browser:
    works in a different process
   altogether so collisions are avoided,
    but the workflow is
   browser-based and tooling integrations (extensions,
    debugger
   protocols) differ from the desktop VS Code.
-- **A Windows-native second window of the WSL folder via `\\wsl$\…`**:
+- A Windows-native second window of the WSL folder via `\\wsl$\…`:
   loses Remote-WSL integration;
    editing files is fine but extensions
   expecting the WSL connection (test runners,
    debuggers,
    language
   servers configured for WSL paths) misbehave.
-- **Virtual machines**:
+- Virtual machines:
    resource heavy,
    slow boot,
    file synchronisation
