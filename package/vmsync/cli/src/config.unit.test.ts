@@ -200,6 +200,34 @@ await describe({
         },),
 
         it({
+          name: 'closes a block comment whose body starts with a slash',
+          fn: async () => {
+            const input = '{/*/*/ "a": 1}';
+            const stripped = stripJsoncComments(input,);
+            expect(stripped,).toBe('{ "a": 1}',);
+            expect(() => {
+              JSON.parse(stripped,);
+            },)
+              .not
+              .toThrow();
+          },
+        },),
+
+        it({
+          name: 'closes a block comment whose body starts with two slashes',
+          fn: async () => {
+            expect(stripJsoncComments('{"a": /*// x */ 1}',),).toBe('{"a":  1}',);
+          },
+        },),
+
+        it({
+          name: 'consumes an unterminated block comment to end of input',
+          fn: async () => {
+            expect(stripJsoncComments('{"a": /* never closed',),).toBe('{"a": ',);
+          },
+        },),
+
+        it({
           name: 'strips multiple single-line comments',
           fn: async () => {
             const input = '{\n// first\n"a": 1,\n// second\n"b": 2\n}';

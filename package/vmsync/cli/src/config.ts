@@ -183,6 +183,7 @@ export function validateName(name: string,): void {
 /**
  Strips single-line (`//`) and multi-line (`/* *\/`) comments from a JSONC string,
  preserving string literals that contain comment-like sequences.
+ An unterminated multi-line comment consumes the rest of the input.
  
  @param text - JSONC source text
  
@@ -247,18 +248,21 @@ export function stripJsoncComments(text: string,): string {
           !== '\n'))
         i += 1;
     }
-    else {
-      if ((ch === '/') && (text[i + 1]
+    else if ((ch === '/')
+      && (text[i + 1]
         === '*')) {
+      i += 2;
+      while ((i < text
+        .length) && (!((text[i]
+          === '*') && (text[i + 1]
+            === '/'))))
+        i += 1;
+      if (i < text
+        .length)
         i += 2;
-        while ((i < text
-          .length) && (!((text[i - 1]
-            === '*') && (text[i]
-              === '/'))))
-          i += 1;
-      }
-      else
-        result.push(ch,);
+    }
+    else {
+      result.push(ch,);
       i += 1;
     }
   }
