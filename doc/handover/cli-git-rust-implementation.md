@@ -167,6 +167,39 @@ branch and checked-out files,
 and no ignored state.
 The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
 
+#### Landings while the gate on `283d7d9053` runs, and what they left open (2026-11-09T19:02:02-05:00)
+
+Landed on main,
+each tested on main first:
+`13d8f918ec` (a lint run whose analysis child crashed fails),
+`fb0dab9ccb` (statusline diagnostics and tagged loggers across the packages issue 1677 names),
+`d302e16ded` (the wrapper's perf tests and read fixture remove their folders when a test fails),
+`5fde185d69` (MCP logger comments)
+and `b51cb087ee` (a named pipe where a rules file or the index lock is expected ends in a sentence).
+
+Left open:
+
+- `landing::service_index_prestage::tests::the_marker_made_ahead_names_this_process_and_the_batch`
+  failed once in a 216-test selection on the FIFO branch after `8.261 s`.
+  It passed alone in `0.196 s`,
+  and the same selection then passed whole.
+  The coordinator's output filter dropped its message,
+  so the cause is not known.
+  The gate log of `776281f4ee` shows no failure of it.
+  Check filters now keep `panicked` lines.
+- A `lint:oxlint` run now goes red when the TypeScript 7.1 API server crashes,
+  and says the findings are incomplete.
+  `doc/troubleshooting/typescript-7-config-registry-nil-panic.md` holds the cause.
+  Lost findings are read from the code and were not observed:
+  ten runs on one worktree had no panic.
+- The console sink sends `info` records to stdout through `console.info`.
+  `package/mcp/stdio` and `package/mcp/mvm` log nothing at `info`,
+  and only their comments say why.
+  No test stops a later `info` call from writing into the frame stream.
+- Issue 1292 stays open for the inline `[cycle]`-style prefixes in `hall-monitor`.
+- A landing that adds a workspace dependency leaves the main checkout unlinked until
+  `mise exec -- pnpm install --frozen-lockfile --offline` runs there.
+
 #### Claude Sonnet audits, the gate on `742076c71d`, and what waits for an agent slot (2026-11-09T16:48:18-05:00)
 
 The release gate on `742076c71d` ended with 69 of 6,699 tests failed
@@ -1950,9 +1983,11 @@ What the branch changed (2026-11-09):
   (`index/index_reset_file.rs`),
   which is what lets a landing leave those entries out for a list derived from the branch.
 
-Measurements, controls and the spread:
+Measurements,
+controls and the spread:
 `doc/planning/cli-git-commit-latency-under-many-agents.md`,
-"What a batch's own refresh costs, and what moving it bought".
+"What a batch's own refresh costs,
+and what moving it bought".
 
 Still to do:
 
