@@ -52,6 +52,17 @@ export {
 } from './errors.ts';
 
 /**
+ The autostart entry the install writes.
+
+ @internal
+ */
+export {
+  buildAutostartDesktopEntry,
+  desktopEntryQuote,
+  writeAutostartEntry,
+} from './install.ts';
+
+/**
  Combo-to-evdev translation and its ydotool runner.
 
  @internal

@@ -70,12 +70,15 @@ import {
   readlinkSync,
   rmSync,
   symlinkSync,
-  writeFileSync,
 } from 'node:fs'
 import {
   join,
   resolve,
 } from 'node:path'
+
+// The autostart entry itself is built in src/install.ts, where it is tested:
+// its Exec value crosses the desktop-entry grammar and /bin/sh.
+import { writeAutostartEntry, } from './src/install.ts'
 
 const home = process.env.HOME
 if (!home) { throw new Error('HOME is not set',) }
@@ -104,20 +107,10 @@ if (needLink) {
 }
 
 // 2. Write the autostart entry pointing at the in-repo SEA binary.
-const autostartDir = join(home, '.config/autostart',)
-mkdirSync(autostartDir, { recursive: true, },)
-const desktop = [
-  '[Desktop Entry]',
-  'Type=Application',
-  'Name=Key Helper D-Bus Service',
-  'Comment=Bridges KWin script commands to Neovim RPC and ydotool',
-  `Exec=/bin/sh -c 'exec ${binPath} 2>&1 | systemd-cat -t key-helper -p debug'`,
-  'Terminal=false',
-  'X-KDE-autostart-phase=2',
-  '',
-].join('\\n',)
-writeFileSync(join(autostartDir, 'key-helper-service.desktop',), desktop,)
-console.log('wrote autostart: key-helper-service.desktop',)
+await writeAutostartEntry({
+  homeDirectory: home,
+  binPath,
+},)
 
 // 3. Enable the KWin script in kwinrc.
 execFileSync(
