@@ -1607,11 +1607,6 @@ Seen only inside a larger run,
 passing alone,
 and open under `AGENTS.md` `SUF`:
 
-- `landing::service_land::adoption_tests::a_socket_that_cannot_start_the_earlier_helper_does_not_hold_the_adoption`,
-  `an_open_batch_of_the_earlier_helper_is_finished_by_the_new_service` and `the_adoption_says_what_it_did_with_each_batch`
-  timed out at 300 s in a run of 341 tests that took 932 s.
-- `package_repair::a_running_repair_does_not_hold_another_add` failed once at 58.5 s;
-  it passed alone in 2 s and in a rerun of its set.
 - `[cache option] [drops the cache when watch sees a change]` in `package/upstream-fork/conf`
   failed on main and in two landing runs.
   The agent `oxlint-findings-left-on-main` owns it,

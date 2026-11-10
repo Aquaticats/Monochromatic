@@ -255,15 +255,16 @@ fn a_running_repair_does_not_hold_another_add() {
     let record: PathBuf = fixture.root.join("pnpm-record");
     let started: PathBuf = fixture.root.join("held-started");
     let release: PathBuf = fixture.root.join("held-release");
+    let pause: String = format!("0.{HOLD_PAUSE_MILLISECONDS:03}");
     executable(
         bin(&fixture).join("pnpm").as_path(),
         format!(
-            "#!/bin/sh\necho \"$* | $(pwd -P)\" >> '{record}'\ncase \"$(pwd -P)\" in\n  */one) : > '{started}'; while [ ! -e '{release}' ] && {lives}; do sleep 0.{pause}; done;;\nesac\nexit 0\n",
+            "#!/bin/sh\necho \"$* | $(pwd -P)\" >> '{record}'\ncase \"$(pwd -P)\" in\n  */one) : > '{started}'; while [ ! -e '{release}' ] && {lives}; do sleep {pause}; done;;\nesac\nexit 0\n",
             record = record.display(),
             started = started.display(),
             release = release.display(),
             lives = while_test_lives(fixture.root.as_path()),
-            pause = format!("{HOLD_PAUSE_MILLISECONDS:03}"),
+            pause = pause.as_str(),
         )
         .as_bytes(),
     );
