@@ -35,7 +35,7 @@ use crate::git_metadata::path_from_git_bytes;
 /// The exact path bytes a Git command is given.
 use crate::path_bytes::os_from_path_bytes;
 /// The Git context and request the real index is listed in.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// `BTreeMap<K, V>` is a map kept sorted by key.
 use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.
@@ -292,6 +292,20 @@ pub fn commit_refusal(added: &CommitAddedPath<'_>) -> Result<Option<&'static str
 }
 
 /// What:
+///  A Git failure as its message text.
+///  `GitFailure` is the one-field failure a Git started by the wrapper reports.
+/// Why:
+///  `map_err` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failureMessage = (failure: GitFailure) => failure.message;
+/// ```
+fn git_failure_message(failure: GitFailure) -> String {
+    return failure.0;
+}
+
+/// What:
 ///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
 ///  `&u8` borrows the byte,
 /// as `split` hands it over.
@@ -367,7 +381,7 @@ pub fn real_index_entries(
     // The listing is the caller's own pathspecs, and the caller's pathspec mode would read them as file names.
     request.without_prefix = true;
     request.index = Some(index.to_path_buf());
-    let output: GitOutput = run_git_checked(context, &request).map_err(|failure| return failure.0)?;
+    let output: GitOutput = run_git_checked(context, &request).map_err(git_failure_message)?;
     let mut entries: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_nul_byte) {
         let Some(tab) = record.iter().position(is_tab_byte) else {
