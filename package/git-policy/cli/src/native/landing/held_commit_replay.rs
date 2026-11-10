@@ -130,7 +130,11 @@ fn merged_tree(git: &GitContext, held: &Held, base: &str, head: &str, prepared: 
     // No worktree is read, so the landed tip's `.gitattributes` is the one the merge applies.
     let process_environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     let variables: Vec<(OsString, OsString)> = environment_with_overlay(process_environment.as_slice(), git.overlay.as_slice());
-    let probing: ContextRunner = ContextRunner { context: git, cwd: held.repository.as_path(), without_prefix: true, object_directory: None, environment: Vec::new() };
+    // The probe keeps none of the caller's options, so the repository the record names is carried here: a Git directory beside
+    //  the work tree is found only when it is named, and a plain layout needs no argument at all
+    //  (`repository_selection.rs`, `of_paths`).
+    let repository: Vec<OsString> = crate::repository_selection::of_paths(held.git_dir.as_path(), held.repository.as_path());
+    let probing: ContextRunner = ContextRunner { context: git, cwd: held.repository.as_path(), without_prefix: true, repository, object_directory: None, environment: Vec::new() };
     let probe: AttributeProbe = AttributeProbe { directory: held.repository.as_path(), global_prefix: &[], variables: variables.as_slice(), runner: &probing };
     request.environment.extend(attribute_tree_variables_on_the_runtime(head, &probe));
     let output: GitOutput = run_git(git, &request).map_err(git_did_not_start)?;

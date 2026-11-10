@@ -224,3 +224,115 @@ fn a_held_commit_that_conflicts_keeps_its_record_and_names_the_paths() {
     assert_eq!(subjects(repo.as_path(), 2), format!("{OTHER_SUBJECT}\nbase"), "the branch is left as the other session made it");
     remove(root.as_path());
 }
+
+/// The commit the branch names,
+/// in a repository whose Git directory is not `<work_tree>/.git`.
+fn head_beside(git_dir: &Path, work_tree: &Path) -> String {
+    let git_dir_argument: String = format!("--git-dir={}", git_dir.display());
+    let work_tree_argument: String = format!("--work-tree={}", work_tree.display());
+    return git_text(
+        work_tree,
+        &[git_dir_argument.as_str(), work_tree_argument.as_str(), "rev-parse", "HEAD"],
+    )
+    .trim()
+    .to_string();
+}
+
+/// What:
+///  A repository whose Git directory lies beside its work tree,
+///  with one commit,
+///  and the two paths a held record names.
+/// Why:
+///  A commit honours `--git-dir` and `--work-tree`,
+///  and a record written for such a repository names both.
+///  Git finds no repository from the work tree at all in this layout,
+///  which is what shows that a settlement names the record's repository instead of hoping the
+///  directory finds it (`repository_selection.rs`,
+/// `of_paths`).
+fn repository_beside_its_work_tree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let root: PathBuf = fixture(name);
+    let git_dir: PathBuf = root.join("git");
+    let work_tree: PathBuf = root.join("work");
+    std::fs::create_dir_all(work_tree.as_path()).expect("the work tree");
+    let git_dir_text: String = git_dir.display().to_string();
+    git(root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", git_dir_text.as_str()]);
+    git(git_dir.as_path(), &["config", "core.bare", "false"]);
+    let git_dir_argument: String = format!("--git-dir={git_dir_text}");
+    let work_tree_argument: String = format!("--work-tree={}", work_tree.display());
+    std::fs::write(work_tree.join("base.txt"), b"base\n").expect("the base file");
+    git(root.as_path(), &[git_dir_argument.as_str(), work_tree_argument.as_str(), "add", "--", "base.txt"]);
+    git(root.as_path(), &[git_dir_argument.as_str(), work_tree_argument.as_str(), "commit", "--quiet", "--message=base"]);
+    return (root, git_dir, work_tree);
+}
+
+/// What:
+///  A held commit lands in a repository whose Git directory is not `<work_tree>/.git`,
+///  and so does one whose branch moved.
+/// Why:
+///  The record names the repository its batch was prepared in,
+///  and a settlement that let the current directory find the repository would act on nothing here.
+///  The context it is given carries no selection of its own,
+///  as a plain `git status` in that work tree carries none.
+#[test]
+fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
+    let (root, git_dir, work_tree) = repository_beside_its_work_tree("held-settle-beside");
+    let git_dir_argument: String = format!("--git-dir={}", git_dir.display());
+    let work_tree_argument: String = format!("--work-tree={}", work_tree.display());
+    let beside = |arguments: &[&str]| {
+        let mut words: Vec<String> = vec![git_dir_argument.clone(), work_tree_argument.clone()];
+        words.extend(arguments.iter().map(|word| { return (*word).to_string(); }));
+        let borrowed: Vec<&str> = words.iter().map(String::as_str).collect();
+        return git_text(root.as_path(), borrowed.as_slice());
+    };
+    let base: String = head_beside(git_dir.as_path(), work_tree.as_path());
+    std::fs::write(work_tree.join(EDITED), b"the edit\n").expect("the edit");
+    beside(&["add", "--", EDITED]);
+    beside(&["commit", "--quiet", "--message", HELD_SUBJECT]);
+    let held_commit: String = head_beside(git_dir.as_path(), work_tree.as_path());
+    beside(&["update-ref", "--no-deref", kept_reference(1).as_str(), held_commit.as_str()]);
+    beside(&["reset", "--hard", "--quiet", base.as_str()]);
+    std::fs::write(work_tree.join(EDITED), b"the edit\n").expect("the edit stays in the work tree");
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(journal.as_path()).expect("the journal");
+    let intent: Intent = Intent {
+        seq: 1,
+        repository: work_tree.clone(),
+        common_dir: git_dir.clone(),
+        reference: String::from("refs/heads/main"),
+        old: base.clone(),
+        new: held_commit.clone(),
+        ids: vec![String::from("request-1")],
+        commits: vec![held_commit.clone()],
+        paths: vec![EDITED.as_bytes().to_vec()],
+        derived: false,
+        cleanup: None,
+        index: git_dir.join("index"),
+        git_dir: git_dir.clone(),
+    };
+    write_intent(journal.as_path(), &intent).expect("the intent");
+    write_start(journal.as_path(), 1, &witness_of(intent.index.as_path()).expect("the index file")).expect("the witness");
+    let holding: Holding<'_> = Holding {
+        journal: journal.as_path(),
+        repository: work_tree.as_path(),
+        common_dir: git_dir.as_path(),
+        git_dir: git_dir.as_path(),
+        index: intent.index.as_path(),
+        reference: intent.reference.as_str(),
+        seq: 1,
+        intent: &intent,
+        locks: vec![],
+        reflog: b"commit: the held edit".as_slice(),
+    };
+    let held: Held = hold(holding).expect("the held record");
+    // No global option names the repository here, exactly as a plain command in that work tree carries none.
+    let context: GitContext = GitContext { real_git: PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(git_dir.clone()) };
+    let settled: Settled = one(&context, &held, Clearing::Never);
+    assert_eq!(settled, Settled::Landed { commit: held_commit.clone() });
+    assert_eq!(head_beside(git_dir.as_path(), work_tree.as_path()), held_commit, "the branch names the commit the batch made");
+    let shown: String = beside(&["show", format!("HEAD:{EDITED}").as_str()]);
+    assert_eq!(shown, "the edit", "the bytes it captured are what landed");
+    let status: String = beside(&["status", "--porcelain=v1"]);
+    assert_eq!(status, "", "the index caught up in the repository the record names");
+    assert!(!path_of(held.git_dir.as_path(), 1).exists(), "the record goes with the settlement");
+    remove(root.as_path());
+}

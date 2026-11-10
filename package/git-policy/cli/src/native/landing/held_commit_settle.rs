@@ -428,6 +428,40 @@ fn after_a_settled_batch(git: &GitContext, held: &Held) -> Settled {
 /// if (locksStand()) return { waitsFor: locks }; const current = revParse(); ...
 /// ```
 pub fn one(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
+    let acting: GitContext = context_of(git, held);
+    return one_for(&acting, held, clearing);
+}
+
+/// What:
+///  The Git context every start of a settlement runs in:
+///  the caller's,
+///  with the repository the record names after whatever its own options wrote.
+/// Why:
+///  A Git directory beside the work tree is found only when it is named,
+///  and the record's absolute paths must win over an earlier relative option
+///  (`repository_selection.rs`,
+///  `of_paths`).
+///  The caller's own options stay in front,
+///  so a plain layout keeps the context it was given and nothing starts Git that would not have.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const acting = { ...context, globalPrefix: [...context.globalPrefix, ...ofPaths(held.gitDir, held.repository)] };
+/// ```
+fn context_of(git: &GitContext, held: &Held) -> GitContext {
+    let mut prefix: Vec<std::ffi::OsString> = git.global_prefix.clone();
+    prefix.extend(crate::repository_selection::of_paths(held.git_dir.as_path(), held.repository.as_path()));
+    return GitContext { global_prefix: prefix, ..git.clone() };
+}
+
+/// What:
+///  `one` over a context that already names the record's repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// oneFor(acting, held, clearing)
+/// ```
+fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
     if let Err(locks) = readiness(lock_roots(held).as_slice(), clearing) {
         return Settled::WaitsForLocks(locks);
     }
