@@ -1,10 +1,11 @@
 // The columns of one `strace --summary-only` row, read in one pass so the counters of the idle-cost measurement can
 // take the columns they need.
-// What: the words of a row, with no empty word for the whitespace between or around them.
-// Why: the measurement collected the row through `trim().split(/\s+/)`, and the repository lint bans a pattern where
-// a walk over the row reads the same words.
+// What: the words of a row, with no empty word for the whitespace between or around them, and the shape of the
+// columns a call row states.
+// Why: the measurement collected the row through `trim().split(/\s+/)` and tested two of its columns through
+// patterns, and the repository lint bans a pattern where a walk over the row reads the same text.
 // Tested in strace-summary.test.ts.
-import { isWhitespace } from './scan-characters.ts';
+import { isDecimalNumberCharacter, isWhitespace } from './scan-characters.ts';
 
 /**
  Columns one summary row holds.
@@ -31,4 +32,25 @@ export function reportedColumns(line: string): string[] {
     if (cursor > columnStart) columns.push(line.slice(columnStart, cursor));
   }
   return columns;
+}
+
+/**
+ Whether a column states a plain decimal number strace prints.
+ 
+ @param column - One column of a summary row.
+ 
+ @returns Whether every character of the column is an ASCII digit or the decimal point, and there is one.
+ 
+ @example
+ ```ts
+ isPrintedDecimal('0.000123'); // true
+ isPrintedDecimal('1e3'); // false
+ ```
+ */
+export function isPrintedDecimal(column: string): boolean {
+  if (column.length === 0) return false;
+  for (const character of column) {
+    if (!isDecimalNumberCharacter(character)) return false;
+  }
+  return true;
 }
