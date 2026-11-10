@@ -21,9 +21,11 @@ const RULES: &[&str] = &["AKIA[A-Z2-7]{4}", "^deny-code:", "[0-9]{15,16}"];
 const GENERATED_CASES: usize = 64;
 
 // Bytes fed to the structured generator per case. One case draws a rule count, up to four
-// patterns of bounded size, a line count, up to eight lines, and two extra choices per
-// line, so this budget is more than the generator can consume.
-const CASE_BYTES: usize = 512;
+// patterns of bounded size, a line count, up to eight lines, and up to `MAX_CONTENT` bytes
+// per line, so a small budget leaves most lines empty and most patterns truncated. At this
+// size the sweep keeps at least one rule in about half its cases and produces matching and
+// unmatched lines in quantity, which is the breadth the fixed table cannot supply.
+const CASE_BYTES: usize = 1024;
 
 // What:  one line per routing path that must match, plus lines that must match nothing.
 // Why:   the two tables are the positive and negative controls for every agreement check
@@ -47,12 +49,16 @@ fn assert_verdict(set: &RegexSet, line: &[u8], expected: bool) {
 }
 
 // What:  one reproducible generator input: byte `offset` of case `index` is
-//        `index ^ offset`.
-// Why:   the sweep must be identical on every run. XORing two counters needs no PRNG
-//        dependency, no seeded state, and no tuning constant, and it varies the leading
-//        bytes (which decide the drawn counts) from case to case.
+//        `index ^ offset ^ (offset >> 8)`.
+// Why:   the sweep must be identical on every run. XORing counters needs no PRNG
+//        dependency, no seeded state, and no tuning constant; folding in the offset's high
+//        byte keeps the stream from repeating every 256 positions, so a case that consumes
+//        the whole budget still reads fresh bytes, and varying the leading bytes (which
+//        decide the drawn counts) separates the cases.
 fn case_bytes(index: usize) -> Vec<u8> {
-    return (0..CASE_BYTES).map(|offset| return (index as u8) ^ (offset as u8)).collect()
+    return (0..CASE_BYTES)
+        .map(|offset| return (index as u8) ^ (offset as u8) ^ ((offset >> 8) as u8))
+        .collect()
 }
 
 #[test]

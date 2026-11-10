@@ -5,7 +5,9 @@
 //        `fuzz_from_bytes` calls the boolean and attribution queries without comparing
 //        their verdicts, so a defect confined to one face would go uncaught; this target
 //        is the only one that pins `is_match(line) == matches(line).next().is_some()`
-//        (TCV).
+//        (TCV). Its fixed positive and negative controls live in
+//        `src/is_match_matches_tests.rs`, because a generated ruleset may compile to an
+//        empty set and then assert nothing.
 
 #![no_main]
 
