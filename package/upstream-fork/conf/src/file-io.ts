@@ -12,7 +12,11 @@
  @module
  */
 
-import path from 'node:path';
+import {
+  basename,
+  dirname,
+  join,
+} from 'node:path';
 import process from 'node:process';
 import { randomUUID, } from 'node:crypto';
 import {
@@ -333,9 +337,9 @@ export function writeFileAtomic({
    Randomly-named sibling the content is staged in before the atomic
    rename.
    */
-  const temporaryPath = path.join(
-    path.dirname(filePath,),
-    `.${path.basename(filePath,)}.${randomUUID()}.tmp`,
+  const temporaryPath = join(
+    dirname(filePath,),
+    `.${basename(filePath,)}.${randomUUID()}.tmp`,
   );
   try {
     writeFileSync(
