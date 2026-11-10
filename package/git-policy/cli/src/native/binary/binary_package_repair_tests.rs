@@ -23,7 +23,7 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
+use super::support::{Fixture, Observed, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
@@ -210,20 +210,44 @@ fn a_missing_pnpm_never_fails_the_add() {
     remove(&fixture);
 }
 
-/// The most the fixture pnpm waits for its release,
-/// in tenths of a second;
-/// a bound so that a failing control cannot hang.
-const HOLD_TENTHS: u32 = 150;
+/// How long the held repair of the first add looks between two glances at its release,
+/// in milliseconds;
+/// the loop that waits ends at the release,
+/// at the end of the fixture or of this control process,
+/// never at a count of its own.
+const HOLD_PAUSE_MILLISECONDS: u32 = 50;
 
-/// How long the control waits for the held repair to start,
-/// in tenths of a second.
-const START_WAIT_TENTHS: u32 = 300;
+/// How long the control waits between two glances at whether the held repair has started.
+const START_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// The longest the control waits for the held repair to start,
+/// which is a backstop that names the wait,
+/// not the bound that decides a healthy run:
+/// the wait ends the moment the repair starts,
+/// or the moment the first add ends.
+/// Measured on 2026-11-09 on this host with about twenty agents running:
+/// the repair of the first add started between 30 and 45 s after the add began,
+/// and the test runner's own per-test bound is 300 s
+/// (`.config/nextest.toml`,
+/// 60 s times 5),
+/// so this control reports a repair that never starts
+///  with its own words before the runner ends the whole test.
+/// A wrong guess here is a named failure,
+/// not a control that reports a lock that is not there.
+const START_BACKSTOP: std::time::Duration = std::time::Duration::from_secs(200);
 
 /// While one add's repair runs,
 /// another add in the same repository is not held by it:
 /// the repairs touch only their own new
 ///  worktree,
 /// so the settlement lock is released before they start.
+/// The held repair ends when this control writes its release file,
+/// at the end of its fixture,
+/// or with this process,
+/// so a loaded host cannot end the hold before the second add returns and make the control report a lock
+///  that is not there;
+/// every wait of the control ends at an event of the programs it started,
+/// and the one backstop above names what it waits for.
 #[test]
 fn a_running_repair_does_not_hold_another_add() {
     let fixture: Fixture = fixture("repair-lock-free");
@@ -234,20 +258,29 @@ fn a_running_repair_does_not_hold_another_add() {
     executable(
         bin(&fixture).join("pnpm").as_path(),
         format!(
-            "#!/bin/sh\necho \"$* | $(pwd -P)\" >> '{record}'\ncase \"$(pwd -P)\" in\n  */one) : > '{started}'; waited=0; while [ ! -e '{release}' ] && [ $waited -lt {HOLD_TENTHS} ]; do sleep 0.1; waited=$((waited + 1)); done;;\nesac\nexit 0\n",
+            "#!/bin/sh\necho \"$* | $(pwd -P)\" >> '{record}'\ncase \"$(pwd -P)\" in\n  */one) : > '{started}'; while [ ! -e '{release}' ] && {lives}; do sleep 0.{pause}; done;;\nesac\nexit 0\n",
             record = record.display(),
             started = started.display(),
             release = release.display(),
+            lives = while_test_lives(fixture.root.as_path()),
+            pause = format!("{HOLD_PAUSE_MILLISECONDS:03}"),
         )
         .as_bytes(),
     );
     let mut first = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "one", "../one"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().expect("start the first add");
-    let mut waited: u32 = 0;
-    while !started.exists() && waited < START_WAIT_TENTHS {
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        waited += 1;
+    let began: std::time::Instant = std::time::Instant::now();
+    let mut ended: Option<std::process::ExitStatus> = None;
+    while !started.exists() && ended.is_none() {
+        ended = first.try_wait().expect("poll the first add");
+        if !started.exists() && ended.is_none() {
+            assert!(began.elapsed() < START_BACKSTOP, "the first add's repair had not started after {} s and the first add was still running, so the add is stuck before pnpm", START_BACKSTOP.as_secs());
+            std::thread::sleep(START_PAUSE);
+        }
     }
-    assert!(started.exists(), "the first add's repair never started");
+    if let Some(status) = ended {
+        let collected = first.wait_with_output().expect("collect the first add that ended early");
+        panic!("the first add ended ({status}) before its repair started, so its worktree was never repaired: {}", String::from_utf8_lossy(&collected.stderr));
+    }
     let second: Observed = add(&fixture, repo.as_path(), &["--quiet"], "two", "../two");
     assert!(first.try_wait().expect("poll the first add").is_none(), "the first add ended before the second returned, so the second waited for it: {}", stderr_of(&second));
     assert!(!release.exists());
