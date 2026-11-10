@@ -22,12 +22,21 @@ async function fixtureObserver(): Promise<void> {
 }
 
 /**
- Reject telemetry entry so accidental native execution fails locally.
+ Reject a span start so accidental native telemetry fails locally.
 
  @throws {@link StreamFixtureStopError} when invoked unexpectedly
  */
-async function stopTelemetry(): Promise<never> {
+async function stopTelemetrySpan(): Promise<never> {
   return await Promise.reject(new StreamFixtureStopError(),);
+}
+
+/**
+ Reject a span write so accidental native telemetry fails locally.
+
+ @throws {@link StreamFixtureStopError} when invoked unexpectedly
+ */
+function stopTelemetryWrite(): never {
+  throw new StreamFixtureStopError();
 }
 
 /**
@@ -61,7 +70,16 @@ export function createStreamFixtureOptions({
     maxTokens: 8_192,
     samplingParams: { top_p: 0.25, },
     signal: new AbortController().signal,
-    telemetryContext: { startSpan: stopTelemetry, },
+    /**
+     Caller-owned parent span exercises the current native telemetry field by identity.
+     */
+    telemetry: {
+      startSpan: stopTelemetrySpan,
+      addLink: stopTelemetryWrite,
+      addEvent: stopTelemetryWrite,
+      setAttributes: stopTelemetryWrite,
+      setStatus: stopTelemetryWrite,
+    },
     fetch: fixtureFetch,
     env: { STREAM_FIXTURE_ENV: 'preserved', },
     headers: { 'x-stream-fixture': 'preserved', },

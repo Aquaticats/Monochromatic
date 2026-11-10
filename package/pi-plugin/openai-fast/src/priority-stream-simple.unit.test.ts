@@ -117,13 +117,20 @@ await describe({
             if (call?.options?.onPayload === undefined)
               throw new Error('Expected captured native simple options',);
             /**
-             Every base field except intentionally composed payload callback is identity-preserved.
+             Caller-owned references stay identity-preserved; helper-derived merges are compared by value.
              */
             const keys = Object.keys(expected,) as readonly (keyof typeof expected)[];
             /**
              Native option key selects the corresponding preserved field.
              */
             for (const key of keys) {
+              if (key === 'samplingParams') {
+                /**
+                 Installed helper spreads a fresh sampling object per call.
+                 */
+                expect(call.options.samplingParams,).toEqual(expected.samplingParams,);
+                continue;
+              }
               if (key !== 'onPayload')
                 expect(call.options[key],).toBe(expected[key],);
             }
