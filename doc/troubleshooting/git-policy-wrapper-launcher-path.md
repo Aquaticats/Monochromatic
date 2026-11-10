@@ -132,65 +132,15 @@ move the shadow repository and replay modules into a shadow folder).
 [Issue 575](https://github.com/Aquaticats/Monochromatic/issues/575) covers related explicit real-Git invocations.
 Recognizing only absolute paths would miss this incident's ordinary `git` spelling.
 
-## Scoped commit fails at an unrelated LFS file when the LFS directory is read-only
+## The LFS clean filter incident is in its own record
 
-### Symptom
-
-A pathspec-scoped commit of ordinary source files through the wrapper exits 128 while Git processes an unrelated
-tracked LFS asset:
-
-```text
-Error cleaning Git LFS object: open <worktree>/.git/cli-git/shadow/<transaction>/lfs/tmp/<number>: no such file or directory
-error: external filter 'git-lfs filter-process' failed
-fatal: <asset>: clean filter 'lfs' failed
-```
-
-The owned files stay staged and uncommitted.
-The same commit through the host wrapper succeeds.
-[Issue 1770](https://github.com/Aquaticats/Monochromatic/issues/1770) records the consumer incident.
-
-### Root cause
-
-Git LFS creates its temporary files under `<git storage directory>/lfs/tmp`
-(`git lfs env` prints it as `TempDir`) and offers no setting that moves only that directory;
-`lfs.storage` moves the whole LFS store.
-The wrapper's shadow repository links its `lfs` entry to the real `.git/lfs`
-(`package/git-policy/cli/src/native/shadow_links.rs`),
-so the failing path is the shadow path while the directory that must exist and be writable is the real one.
-When `.git/lfs/tmp` is absent and `.git/lfs` cannot be written to,
-Git LFS cannot create it and reports `no such file or directory` on the temporary file.
-In the failing probes the clean filter ran for the unrelated modified asset,
-not for the named files.
-
-### Controlled verification
-
-The probes used disposable repositories with an LFS-tracked PNG modified in the worktree and an explicit ordinary-file
-commit pathspec,
-with the installed `0.1.6` wrapper and Git `2.56.0`.
-
-- A writable `.git/lfs`,
-  with or without `tmp`:
-  the wrapper commits only the named file.
-  A Fedora 44 container limited to 2 GiB and 2 CPUs,
-  with a disposable `HOME` and no network,
-  behaves the same.
-- `.git/lfs` read-only and `tmp` absent:
-  the wrapper fails with the message above,
-  and raw Git fails with the same
-  message naming `.git/lfs/tmp`,
-  so the wrapper does not cause it.
-- `.git/lfs` read-only and `tmp` present and writable:
-  the wrapper commits only the named file.
-
-The consumer's mount permissions were not inspected,
-so that the consumer's `.git/lfs` was read-only is consistent
-with the evidence but not confirmed.
-
-### Remedy and ownership
-
-The environment that runs the child (container mounts or ownership) must leave `.git/lfs` writable,
-or create `.git/lfs/tmp` with write access before the child starts.
-Launch acceptance should run a scoped commit of an ordinary file in a repository that tracks LFS files.
-The wrapper cannot supply the directory:
-it runs with the child's permissions,
-and redirecting storage with `lfs.storage` would discard LFS objects of an owned asset when the shadow is removed.
+The scoped commit that `git-policy-shadow-lfs.md` describes,
+with its symptom,
+root cause and three-arm verification,
+lives in `git-policy-shadow-lfs.md` and not here.
+It is a boundary of the environment,
+not of the launcher PATH:
+Git LFS could not create `.git/lfs/tmp`,
+and raw Git failed with the same message when no wrapper ran.
+This record keeps the missing helper and the missing wrapper executable,
+which are launcher PATH incidents.
