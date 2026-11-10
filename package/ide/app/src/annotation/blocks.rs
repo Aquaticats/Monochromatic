@@ -23,8 +23,11 @@ use crate::language::{hints::HintsSnapshot, identity::DocumentStamp};
 /// The shaper that paints the source measures hint labels and their anchor positions.
 use crate::shaped_text::TextShaper;
 /// The assembled record of one line's rows,
-///  and the sizes that fit a message row to the text area.
-use crate::virtual_row::{Block, CONTINUATION_INDENT, MESSAGE_ROWS, MessageRow, ROW_TEXT};
+///  the sizes that fit a message row to the text area,
+///  and the one cap that cuts a message to its row limit.
+use crate::virtual_row::{
+    Block, CONTINUATION_INDENT, MessageRow, ROW_TEXT, cap_message_rows,
+};
 /// What:
 ///  `Rope` is Helix's character-indexed text buffer.
 /// Why:
@@ -56,7 +59,7 @@ use std::{
 
 /// What:
 ///  The rows of one line's messages broken so that each fits `limit` logical pixels,
-///  capped again at [`MESSAGE_ROWS`] rows for each message,
+///  capped again at [`crate::virtual_row::MESSAGE_ROWS`] rows for each message by the one cap,
 ///  with the number of rows that had to be broken by shaping.
 ///  `widths` holds the shaped width of every row of `rows`;
 ///  only a row wider than the limit is shaped again.
@@ -152,7 +155,7 @@ fn fit_messages(
         }
         from = to;
     }
-    // Each message is its first row and the continued rows after it.
+    // Each message is its first row and the continued rows after it, cut by the one row cap.
     let mut capped = Vec::new();
     let mut first = 0;
     while first < fitted.len() {
@@ -160,15 +163,7 @@ fn fit_messages(
         while end < fitted.len() && fitted[end].continued {
             end += 1;
         }
-        if end - first > MESSAGE_ROWS {
-            capped.extend_from_slice(&fitted[first..first + MESSAGE_ROWS - 1]);
-            capped.push(MessageRow {
-                text: format!("… {} more lines", end - first + 1 - MESSAGE_ROWS),
-                ..fitted[first + MESSAGE_ROWS - 1].clone()
-            });
-        } else {
-            capped.extend_from_slice(&fitted[first..end]);
-        }
+        capped.extend(cap_message_rows(&fitted[first..end]));
         first = end;
     }
     return (capped, broken);
