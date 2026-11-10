@@ -17,6 +17,8 @@ import {
   pollIntervalMs,
 } from './wayland-constants.js';
 
+//region Filesystem preconditions
+
 /**
  Asserts that a required executable or directory exists before spawning.
  
@@ -95,6 +97,10 @@ export async function waitForPath(
   throw new Error(`Timed out waiting for ${path}`,
   );
 }
+
+//endregion Filesystem preconditions
+
+//region Control socket protocol
 
 /**
  Parses first socket response payload as a UTF-8 string.
@@ -212,3 +218,5 @@ export async function expectOkControlCommand(
     throw new Error(`Control command failed: ${command}: ${response}`,
     );
 }
+
+//endregion Control socket protocol

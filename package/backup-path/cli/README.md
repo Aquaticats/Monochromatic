@@ -15,8 +15,8 @@ to lose.
    (e.g. `2026-05-14T061711.030Z`).
 4. Creates `./bak/<timestamp>/` relative to the current working directory.
 5. Recursively copies the source into `./bak/<timestamp>/<basename>`,
-   preserving file mtimes and atimes and erroring if the destination
-   already exists.
+   preserving file mtimes and atimes and rejecting a copy whose
+   destination already exists.
 
 ## Usage
 
@@ -54,12 +54,20 @@ No environment variables are read.
    so a missing `./bak/` parent
   fails with `ENOENT: no such file or directory, mkdir 'bak/...'`.
   Run `mkdir bak` once in the working directory on first use.
-- Destination existence is rejected via `errorOnExist: true`.
-   The
-  millisecond-resolution timestamp prevents this from firing under
-  normal serial use;
-   back-to-back invocations within the same
-  millisecond would collide.
+- An existing destination is rejected,
+  not replaced.
+  The copy runs `fs.cp` with `force: false` and `errorOnExist: true`,
+  which raises `ERR_FS_CP_EEXIST` and leaves the earlier copy as it was.
+  Both options are needed:
+  `force` defaults to `true`,
+  and on its own it leaves `errorOnExist` inert,
+  so a collision would replace the earlier copy in silence.
+- `./bak/<timestamp>/` is created with a non-recursive `mkdir`,
+  so an invocation whose timestamped folder already exists fails there
+  first,
+  with `EEXIST` from `mkdir`.
+  The millisecond-resolution timestamp makes that happen only for a
+  second invocation inside the same millisecond.
 - The copy uses Node's `fs.cp` with `preserveTimestamps: true`.
    File
   permissions and ownership follow the platform default of that API

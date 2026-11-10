@@ -25,6 +25,8 @@ import type {
   PaneId,
 } from './strip.js';
 
+//region Layout vocabulary
+
 /**
  One pane's rail wrapper inside its column's normal flow: the margin above it
  and the wrapper height the pane sticks within.
@@ -63,6 +65,10 @@ export type ColumnLayout = {
   readonly column: number;
   readonly rails: readonly RailLayout[];
 };
+
+//endregion Layout vocabulary
+
+//region Row grid and rail heights
 
 /**
  Vertical pixel offset of a grid row; panes tile down each column at a fixed
@@ -165,6 +171,10 @@ export function railHeightPx(
     - rowY({ row: pane.row, },);
 }
 
+//endregion Row grid and rail heights
+
+//region Column stacks
+
 /**
  Groups the strip into per-column flow stacks of rail wrappers: within each
  column, wrappers are ordered by row and separated by margins that place each
@@ -262,3 +272,5 @@ export function computeColumnLayouts(
     },
   );
 }
+
+//endregion Column stacks

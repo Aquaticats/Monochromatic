@@ -6,6 +6,7 @@
 
 import { setTimeout as delay, } from 'node:timers/promises';
 
+import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
 import {
   describe,
   expect,
@@ -407,7 +408,7 @@ await describe({
 
             expect(error.message,).toContain('Search Fetch search call',);
             expect(error.message,).toContain(`whole-call deadline of ${String(WHOLE_CALL_DEADLINE_MILLISECONDS)} ms`,);
-            expect(error.message,).toContain(`${String(WHOLE_CALL_DEADLINE_MILLISECONDS / 1_000)} s by default`,);
+            expect(error.message,).toContain(`${String(WHOLE_CALL_DEADLINE_MILLISECONDS / MS_PER_SECOND)} s by default`,);
             expect(error.message,).toContain('including every fallback hop',);
             expect(error.name,).toBe('WholeCallDeadlineError',);
           },
@@ -467,7 +468,7 @@ await describe({
 
             expect(caught,).toBeInstanceOf(WholeCallDeadlineError,);
             expect((caught as WholeCallDeadlineError).message,).toContain(`whole-call deadline of ${String(SHORT_DEADLINE_MILLISECONDS)} ms`,);
-            expect((caught as WholeCallDeadlineError).message,).toContain(`${String(WHOLE_CALL_DEADLINE_MILLISECONDS / 1_000)} s by default`,);
+            expect((caught as WholeCallDeadlineError).message,).toContain(`${String(WHOLE_CALL_DEADLINE_MILLISECONDS / MS_PER_SECOND)} s by default`,);
             expect((caught as WholeCallDeadlineError).deadlineMs,).toBe(SHORT_DEADLINE_MILLISECONDS,);
           },
         },),

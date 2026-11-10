@@ -35,6 +35,8 @@ import type {
   Strip,
 } from './strip-types.js';
 
+//region Re-exported model surface
+
 // Re-export the domain types, sentinels, and constructors so consumers and
 // tests import one module for the whole model surface.
 export type {
@@ -57,6 +59,10 @@ export {
   firstPaneInColumn,
   paneById,
 } from './strip-query.js';
+
+//endregion Re-exported model surface
+
+//region Tidy tree layout
 
 /**
  Whether a pane lays out as a root: it has no parent link, or its recorded
@@ -274,6 +280,10 @@ function relayout({ panes, }: { readonly panes: readonly Pane[]; },): readonly P
   },);
 }
 
+//endregion Tidy tree layout
+
+//region Pane insertion
+
 /**
  Inserts a freshly minted pane, focuses it, and re-lays-out.
  
@@ -345,6 +355,10 @@ function insertPane(
     },
   };
 }
+
+//endregion Pane insertion
+
+//region Open, spawn, focus, and close
 
 /**
  Opens a root pane for a location in column 0, deduplicating first: when a
@@ -563,3 +577,5 @@ export function closePane(
       : { active: strip.active, }),
   };
 }
+
+//endregion Open, spawn, focus, and close

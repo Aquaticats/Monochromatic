@@ -13,14 +13,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  fetchAllPages,
-  waitForAction,
-} from '@monochromatic-dev/mvm-cli/ts/backend/hetzner/api.ts';
-import {
   createServer,
   deleteServer,
+  fetchAllPages,
   getMvmServerByName,
-} from '@monochromatic-dev/mvm-cli/ts/backend/hetzner/api-resources.ts';
+  waitForAction,
+} from '../../../dist/final/node/index.mjs';
 
 /**
  One recorded fetch invocation.

@@ -22,9 +22,16 @@ type ArrowParamsNode = {
  without closing a parenthesized parameter group.
  
  Reached only when the text scanner and the parser disagree, for example a
- nested template literal inside a parameter default value.
+ nested template literal inside a parameter default value, or a regex literal,
+ which the scanner reads as code rather than as a literal.
  */
-class ArrowParamsUnbalancedError extends Error {}
+class ArrowParamsUnbalancedError extends Error {
+  /**
+   Names the scanner disagreement in stacks and caught values, so the throw is
+   never read as a plain `Error`.
+   */
+  override readonly name = 'ArrowParamsUnbalancedError';
+}
 
 /**
  Async keyword that may prefix arrow function source text.
@@ -57,6 +64,33 @@ function indexAfterAsyncPrefix({ fullText, }: { readonly fullText: string; },): 
   while (isWhitespaceChar(fullText.charAt(index,),))
     index += 1;
   return index;
+}
+
+/**
+ Checks whether a block comment's `*\/` terminator starts at `index`.
+ 
+ @param text - source text holding the scan
+ 
+ @param index - position of the candidate `*`
+ 
+ @returns whether `text` holds `*\/` at `index`
+ 
+ @example
+ ```ts
+ startsBlockCommentEnd({ text: '*\/', index: 0 }); // true
+ startsBlockCommentEnd({ text: '* /', index: 0 }); // false
+ ```
+ */
+function startsBlockCommentEnd(
+  {
+    text,
+    index,
+  }: {
+    readonly text: string;
+    readonly index: number;
+  },
+): boolean {
+  return (text.charAt(index,) === '*') && (text.charAt(index + 1,) === '/');
 }
 
 /**
@@ -108,10 +142,14 @@ function indexAfterTrivia(
     if ((char === '/')
       && (text.charAt(cursor + 1,) === '*')) {
       cursor += 2;
-      while ((cursor < text.length)
-        && !((text.charAt(cursor,) === '*')
-          && (text.charAt(cursor + 1,) === '/')))
+      while (cursor < text.length) {
+        if (startsBlockCommentEnd({
+          text,
+          index: cursor,
+        },))
+          break;
         cursor += 1;
+      }
       cursor += 2;
       continue;
     }
@@ -124,6 +162,11 @@ function indexAfterTrivia(
  Extracts the verbatim text of the first parenthesized group at or after
  `index`, skipping string literals and comments so delimiters inside them do
  not open or close the group.
+ 
+ Every binding is declared at function-body root because the scan builds the
+ group text as it walks, and the trailing `return paramsText` is the helper
+ shape `no-function-root-let` allows: the function itself is the tight scope
+ of that build.
  
  @param text - source text holding the scan
  
@@ -170,6 +213,12 @@ function scanParenGroupText(
    Cursor advanced one lexical unit at a time over `text`.
    */
   let cursor = index;
+  /**
+   Verbatim text of the parameter group, empty until the scan reads the paren
+   that closes it. A group holds at least `()`, so empty text means the scan
+   ran out of `text` before closing one.
+   */
+  let paramsText = '';
   while (cursor < text.length) {
     /**
      Character under the cursor.
@@ -183,8 +232,10 @@ function scanParenGroupText(
       continue;
     }
     if (commentKind === 'block') {
-      if ((char === '*')
-        && (text.charAt(cursor + 1,) === '/')) {
+      if (startsBlockCommentEnd({
+        text,
+        index: cursor,
+      },)) {
         commentKind = '';
         cursor += 2;
         continue;
@@ -230,24 +281,101 @@ function scanParenGroupText(
     }
     if (char === ')') {
       depth -= 1;
-      if (depth === 0)
-        return text.slice(
+      if (depth === 0) {
+        paramsText = text.slice(
           groupStart,
           cursor + 1,
         );
+        break;
+      }
       cursor += 1;
       continue;
     }
     cursor += 1;
   }
-  throw new ArrowParamsUnbalancedError(
-    'arrow parameter text has no balanced parenthesized group',
-  );
+  if (paramsText === '')
+    throw new ArrowParamsUnbalancedError(
+      'arrow parameter text has no balanced parenthesized group',
+    );
+  return paramsText;
 }
 
 //endregion Scanning
 
 //region Extraction
+
+/**
+ Finds the index where an arrow function's parameter list starts, past an
+ `async` prefix and any `<...>` type parameter group.
+ 
+ @param fullText - complete source text of the ArrowFunctionExpression node
+ 
+ @param node - arrow function AST node, read for its `async` flag and
+ `typeParameters` presence
+ 
+ @returns index after the `async` prefix and type parameter group, or just
+ after the `async` prefix when no group leads the parameter list
+ 
+ @example
+ ```ts
+ indexAfterTypeParameters({
+   fullText: 'async <T>(x: T) => x',
+   node: { async: true, typeParameters: {}, },
+ }); // 9
+ ```
+ */
+function indexAfterTypeParameters(
+  {
+    fullText,
+    node,
+  }: {
+    readonly fullText: string;
+    readonly node: ArrowParamsNode;
+  },
+): number {
+  /**
+   Index after the `async` prefix and its following whitespace.
+   */
+  const afterAsync = node.async ? indexAfterAsyncPrefix({ fullText, },) : 0;
+  if ((node.typeParameters
+    === null) || (node.typeParameters
+      === undefined))
+    return afterAsync;
+  if (!fullText.startsWith(
+    '<',
+    afterAsync,
+  ))
+    return afterAsync;
+  /**
+   Index after the `>` closing the group, still after the `async` prefix while
+   the group is unbalanced.
+   */
+  let afterGroup = afterAsync;
+  /**
+   Angle-bracket nesting counter so nested generics resolve before the group closes.
+   */
+  let depth = 0;
+  for (
+    let cursor = afterAsync;
+    (cursor < fullText.length) && (afterGroup === afterAsync);
+    cursor += 1
+  ) {
+    /**
+     Character under the scan.
+     */
+    const character = fullText.charAt(cursor,);
+    if (character === '<') {
+      depth += 1;
+      continue;
+    }
+    if (character !== '>')
+      continue;
+    depth -= 1;
+    if (depth === 0)
+      afterGroup = cursor + 1;
+  }
+  return afterGroup;
+}
 
 /**
  Extracts the parameter list text (including parentheses) from an arrow
@@ -309,50 +437,15 @@ export function extractParamsText(
   },
 ): string {
   /**
-   Skip `async ` prefix if present.
-   */
-  let start = 0;
-  if (node.async)
-    start = indexAfterAsyncPrefix({ fullText, },);
-
-  /**
-   Skip type parameters `<...>` if present.
-   Count angle bracket depth to handle nested generics.
-   */
-  if ((node.typeParameters
-    !== null) && (node.typeParameters
-      !== undefined)) {
-    /**
-     Source slice starting at the first non-`async` character; inspected for a leading `<`.
-     */
-    const tpText = fullText.slice(start,);
-    if (tpText.startsWith('<',)) {
-      /**
-       Angle-bracket nesting counter so nested generics resolve before the params open.
-       */
-      let depth = 0;
-      for (let loopIndex = 0; loopIndex < tpText
-        .length; loopIndex++) {
-        if (tpText[loopIndex]
-          === '<')
-          depth++;
-        else if (tpText[loopIndex]
-          === '>') {
-          depth--;
-          if (depth === 0) {
-            start += loopIndex + 1;
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  /**
    Source from after the `async` prefix and type parameters, holding the
    parameter list.
    */
-  const rest = fullText.slice(start,);
+  const rest = fullText.slice(
+    indexAfterTypeParameters({
+      fullText,
+      node,
+    },),
+  );
   /**
    Index of the parameter list itself, past whitespace and comments.
    */

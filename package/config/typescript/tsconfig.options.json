@@ -7,10 +7,12 @@
     "${configDir}/.astro/types.d.ts"
   ],
   "exclude": [
-    "dist",
-    "bak",
-    "node_modules",
-    "**/deprecated/**",
+    // Every entry spells out ${configDir}: TypeScript resolves a bare relative
+    // path against the file that declares it, so an unprefixed entry would
+    // filter this package's own directories in every consumer.
+    "${configDir}/dist",
+    "${configDir}/bak",
+    "${configDir}/node_modules",
     "${configDir}/**/deprecated/**",
     // tsgo's LSP panics on files with unrecognized extensions
     // during project loading. See doc/troubleshooting/typescript.md
