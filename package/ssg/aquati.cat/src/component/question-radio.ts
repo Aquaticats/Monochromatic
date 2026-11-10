@@ -342,8 +342,8 @@ const FULL_ROW = 100;
  Scoped entirely under `question-radio`. Uses `:has()` and adjacent-sibling
  selectors to show and color explanations based on radio `:checked` state
  without any JavaScript. Correct and wrong hues come from the site's
- `--color-ok` and `--color-err` tokens, whose mixes lean on the theme
- foreground, so the verdict follows the site's dark-mode toggle.
+ `--color-ok` and `--color-err` tokens, which every theme declares, so the
+ verdict follows the site's dark-mode toggle.
  
  @returns CSS string for the quiz component
  

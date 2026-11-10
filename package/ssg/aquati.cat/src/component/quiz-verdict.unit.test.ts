@@ -51,16 +51,6 @@ const COLOUR_LITERALS = [
 ] as const;
 
 /**
- Derivation the verdict token documentation promises.
- */
-const DERIVATION = 'color-mix(';
-
-/**
- Token naming the theme's text colour, which a verdict colour is mixed toward.
- */
-const FOREGROUND_TOKEN = '--color-fg';
-
-/**
  Question stylesheets paired with the component each one styles.
  */
 const QUESTION_STYLESHEETS = [
@@ -173,55 +163,28 @@ await describe({
       },
     },),
     it({
-      name: 'derives each verdict colour from the theme foreground',
-      fn: async function derivesVerdictColourFromForeground(): Promise<void> {
-        for (const token of [OK_TOKEN, ERR_TOKEN,]) {
-          for (const [value,] of [
-            declaredValuesIn(
-              tokenStyles(),
-              token,
-            ),
-            declaredValuesIn(
-              darkModeTokenStyles(),
-              token,
-            ),
-          ])
-            expect(value,).toContain(DERIVATION,);
-        }
-      },
-    },),
-    it({
       name: 'gives the light and dark theme different verdict colours',
       fn: async function differsPerTheme(): Promise<void> {
         for (const token of [OK_TOKEN, ERR_TOKEN,]) {
-          for (const theme of [tokenStyles(), darkModeTokenStyles(),]) {
-            /**
-             Declared value of the verdict token in this theme's block.
-             */
-            const [value,] = declaredValuesIn(
-              theme,
-              token,
-            );
-            /**
-             Declared value of the foreground the verdict is mixed toward.
-             */
-            const [foreground,] = declaredValuesIn(
-              theme,
-              FOREGROUND_TOKEN,
-            );
+          /**
+           Value the light theme declares for the verdict.
+           */
+          const [light,] = declaredValuesIn(
+            tokenStyles(),
+            token,
+          );
+          /**
+           Value the dark theme declares for the verdict.
+           */
+          const [dark,] = declaredValuesIn(
+            darkModeTokenStyles(),
+            token,
+          );
 
-            expect(value,).toContain(`var(${FOREGROUND_TOKEN})`,);
-            expect(foreground,).not.toBe('',);
-          }
+          expect(light,).not.toBe('',);
+          expect(dark,).not.toBe('',);
+          expect(light,).not.toBe(dark,);
         }
-
-        expect(declaredValuesIn(
-          tokenStyles(),
-          FOREGROUND_TOKEN,
-        )[0],).not.toBe(declaredValuesIn(
-          darkModeTokenStyles(),
-          FOREGROUND_TOKEN,
-        )[0],);
       },
     },),
   ],
