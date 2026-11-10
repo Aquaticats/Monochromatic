@@ -4079,6 +4079,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      typebox:
+        specifier: 'catalog:'
+        version: 1.4.6
 
   package/pi-plugin/spawn:
     dependencies:
