@@ -92,3 +92,32 @@ export function pngPayloads(text) {
   }
 }
 //endregion
+
+//region The preselect guard reads one input tag, not a pattern
+/** Opens the tag a preselection would sit in. */
+const INPUT_TAG_OPEN = '<input';
+
+/** Names the choice a questionnaire must not preselect. */
+const RADIO_TYPE_ATTRIBUTE = 'type="radio"';
+
+/** Marks a control the page rendered as chosen. */
+const CHECKED_ATTRIBUTE = 'checked';
+
+/**
+ * Rejects a page whose radio input arrives already checked.
+ * A tag ends at its next `>`, so both attributes have to sit inside that one tag
+ * and in that order, which is exactly what the withdrawn pattern required.
+ */
+export function hasPreselectedRadio(text) {
+  let cursor = 0;
+  for (;;) {
+    const openAt = text.indexOf(INPUT_TAG_OPEN, cursor);
+    if (openAt === -1) return false;
+    const closeAt = text.indexOf('>', openAt);
+    const tag = text.slice(openAt, closeAt === -1 ? text.length : closeAt);
+    const typeAt = tag.indexOf(RADIO_TYPE_ATTRIBUTE);
+    if (typeAt !== -1 && tag.indexOf(CHECKED_ATTRIBUTE, typeAt + RADIO_TYPE_ATTRIBUTE.length) !== -1) return true;
+    cursor = openAt + INPUT_TAG_OPEN.length;
+  }
+}
+//endregion

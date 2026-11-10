@@ -6,7 +6,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-import { pngPayloads, usesClipboardApi } from './command-question.markup-scan.mjs';
+import { hasPreselectedRadio, pngPayloads, usesClipboardApi } from './command-question.markup-scan.mjs';
 
 const root = process.cwd();
 // This round is archived: its template and page live in `questions/archive`, and
@@ -336,7 +336,7 @@ function validate() {
       }
     }
   }
-  if (/<input[^>]*type="radio"[^>]*checked/.test(html)) throw new Error('Command questionnaire must not preselect a choice.');
+  if (hasPreselectedRadio(html)) throw new Error('Command questionnaire must not preselect a choice.');
   for (const text of [
     'name="inapp"',
     'name="global"',

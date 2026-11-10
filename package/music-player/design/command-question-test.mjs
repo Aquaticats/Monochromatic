@@ -9,7 +9,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-import { pngPayloads, usesClipboardApi } from './command-question.markup-scan.mjs';
+import { hasPreselectedRadio, pngPayloads, usesClipboardApi } from './command-question.markup-scan.mjs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -81,12 +81,36 @@ for (const [name, markup, expected] of payloadCases) {
 }
 //endregion
 
+//region A radio that arrives checked is refused, and the scan reads one tag as the pattern did
+// The two attributes have to share one tag and keep their order, and `checked` is a substring there, so a name that
+// merely contains it counts, exactly as it did under the pattern.
+const preselectCases = [
+  ['a checked radio', '<input type="radio" name="inapp" value="I1" checked>', true],
+  ['a radio that is not checked', '<input type="radio" name="inapp" value="I1">', false],
+  ['a checked checkbox', '<input type="checkbox" name="aside" checked>', false],
+  ['checked before the radio type', '<input checked type="radio" name="inapp">', false],
+  ['a checked control in the next tag', '<input type="radio" name="inapp"><input checked>', false],
+  ['a checked radio after another input', '<input type="text"><input type="radio" checked>', true],
+  ['a tag whose attribute value closes it early', '<input data-probe=">" type="radio" checked>', false],
+  ['a checked name that only contains the word', '<input type="radio" data-checked="no">', true],
+  ['an uppercase input tag', '<INPUT type="radio" checked>', false],
+  ['a radio without its closing bracket', '<input type="radio" checked', true],
+  ['markup without an input', '<fieldset><legend>Placement</legend></fieldset>', false],
+  ['nothing at all', '', false],
+];
+for (const [name, markup, expected] of preselectCases) {
+  const found = hasPreselectedRadio(markup);
+  if (found !== expected) fail(name, found, expected);
+}
+//endregion
+
 //region The script carries none of the patterns the audit filed against it
 // Each entry is the site string its issue records. The control runs the same search over a page that carries the
 // first site, so an empty result means the pattern is gone rather than that the search reads nothing.
 const FILED_SITES = [
   [String.raw`/navigator\.clipboard|clipboardData|execCommand\(\s*['"]copy/`, '#787'],
   [String.raw`/data:image\/png;base64,([A-Za-z0-9+/=]+)/g`, '#788 and #789'],
+  [String.raw`/<input[^>]*type="radio"[^>]*checked/`, '#790'],
 ];
 const siteSearchControl = `if (${FILED_SITES[0][0]}.test(html)) throw`;
 if (!siteSearchControl.includes(FILED_SITES[0][0])) throw new Error('The site search cannot see the site string it looks for.');
@@ -209,6 +233,14 @@ try {
       ),
       diagnostic: 'data URLs',
     },
+    {
+      name: 'a preselected radio',
+      mutate: (page) => page.replace(
+        '</body>',
+        '<input type="radio" name="probe" value="P1" checked></body>'
+      ),
+      diagnostic: 'must not preselect a choice',
+    },
   ];
   for (const { name, mutate, diagnostic } of mutations) {
     const mutated = mutate(pristine);
@@ -228,7 +260,7 @@ try {
       pristine
     );
   }
-  console.log(`Command questionnaire: ${clipboardCases.length} clipboard readings and ${payloadCases.length} payload readings hold, ${FILED_SITES.length} filed patterns are gone, and ${mutations.length} changed pages are refused.`);
+  console.log(`Command questionnaire: ${clipboardCases.length} clipboard, ${payloadCases.length} payload and ${preselectCases.length} preselect readings hold, ${FILED_SITES.length} filed patterns are gone, and ${mutations.length} changed pages are refused.`);
 } finally {
   rmSync(
     fixture,
