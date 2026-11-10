@@ -22,7 +22,15 @@ most of them on 2026-10-19 in `ff55ced353`.
 `package/git-policy/cli/src/native/shadow/shadow_create.rs`,
 moved 2026-11-03 in `373765289c`.
 
-## Original consumer evidence
+Note 2026-11-10T13:20:00-05:00:
+the read-only-LFS section of `git-policy-wrapper-launcher-path.md`
+moved into this record,
+because it reports the same failure as the 2026-10-18 consumer run recorded here
+rather than a launcher-path finding.
+Its probe established why the LFS temporary path is unavailable,
+which the original consumer evidence had left open.
+
+## Symptom
 
 On 2026-10-18,
 the configured MiMo RPC worker `pi-mimo-rpc-session-9Tl0ts` attempts a protected,
@@ -52,6 +60,62 @@ The worker stops Git retries and preserves its complete original tool event and 
 Supervisor delivery of those exact paths through the qualified host wrapper succeeds as `9363d8998b`.
 This establishes an environment-sensitive boundary failure,
 without identifying why the LFS temporary path is unavailable.
+A second probe,
+recorded under "Root cause" and "Verification" in this file,
+identified the mechanism and showed raw Git failing the same way;
+it did not inspect the consumer's mount permissions.
+
+## Root cause
+
+Git LFS creates its temporary files under `<git storage directory>/lfs/tmp`
+(`git lfs env` prints it as `TempDir`) and offers no setting that moves only that directory;
+`lfs.storage` moves the whole LFS store.
+The wrapper's shadow repository links its `lfs` entry to the real `.git/lfs`
+(`package/git-policy/cli/src/native/shadow/shadow_links.rs`,
+moved there on 2026-11-03 in `373765289c` from
+`package/git-policy/cli/src/native/shadow_links.rs`),
+so the failing path is the shadow path
+while the directory that must exist and be writable is the real one.
+When `.git/lfs/tmp` is absent and `.git/lfs` cannot be written to,
+Git LFS cannot create it and reports `no such file or directory` on the temporary file.
+In the failing probes the clean filter ran for the unrelated modified asset,
+not for the named files.
+
+## Verification
+
+The probes used disposable repositories with an LFS-tracked PNG modified in the worktree and an explicit ordinary-file
+commit pathspec,
+with the installed `0.1.6` wrapper and Git `2.56.0`.
+A pathspec-scoped commit of ordinary source files through the wrapper then exits 128 while Git processes the
+unrelated tracked LFS asset,
+with Git LFS naming the missing temporary file:
+
+```text
+Error cleaning Git LFS object: open <worktree>/.git/cli-git/shadow/<transaction>/lfs/tmp/<number>: no such file or directory
+error: external filter 'git-lfs filter-process' failed
+fatal: <asset>: clean filter 'lfs' failed
+```
+
+The owned files stay staged and uncommitted,
+and the same commit through the host wrapper succeeds.
+
+- A writable `.git/lfs`,
+  with or without `tmp`:
+  the wrapper commits only the named file.
+  A Fedora 44 container limited to 2 GiB and 2 CPUs,
+  with a disposable `HOME` and no network,
+  behaves the same.
+- `.git/lfs` read-only and `tmp` absent:
+  the wrapper fails with the message above,
+  and raw Git fails with the same
+  message naming `.git/lfs/tmp`,
+  so the wrapper does not cause it.
+- `.git/lfs` read-only and `tmp` present and writable:
+  the wrapper commits only the named file.
+
+The consumer's mount permissions were not inspected,
+so that the consumer's `.git/lfs` was read-only is consistent
+with the evidence but not confirmed.
 
 ## Owned boundary and report
 
@@ -79,3 +143,12 @@ and the historical `bad line length character: Not ` failure remain separate inc
 This also differs from the missing-wrapper PATH incident in
 [issue 1768](https://github.com/Aquaticats/Monochromatic/issues/1768)
 and [divergent auto-push reconciliation](git-policy-auto-push-reconciliation.md).
+
+## Remedy and ownership
+
+The environment that runs the child (container mounts or ownership) must leave `.git/lfs` writable,
+or create `.git/lfs/tmp` with write access before the child starts.
+Launch acceptance should run a scoped commit of an ordinary file in a repository that tracks LFS files.
+The wrapper cannot supply the directory:
+it runs with the child's permissions,
+and redirecting storage with `lfs.storage` would discard LFS objects of an owned asset when the shadow is removed.

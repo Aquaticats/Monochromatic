@@ -70,8 +70,11 @@ use crate::repository_facts::RepositoryFacts;
 /// Where a command runs,
 ///  and the directory Git works in.
 use crate::repository_location::{RepositoryLocation, effective_directory};
-/// The add-explicit rule core.
-use crate::rule_add_explicit::{BULK_ADD_CODE, decide_add_explicit};
+/// The add-explicit rule core,
+///  its question and the measurement it reads.
+use crate::rule_add_explicit::{
+    BULK_ADD_CODE, StagedSelection, add_explicit_question, decide_add_explicit, pathspec_spellings,
+};
 /// The branch-worktree-only check,
 /// one policy of its own file.
 use crate::policy_branch_worktree::check_branch_worktree;
@@ -366,14 +369,42 @@ fn check_require_root(
 /// What:
 ///  The add-explicit check.
 /// Why:
-///   The decision needs the arguments only.
+///   A flag stages every changed path whatever the repository holds,
+///  while a pathspec is judged by what Git says it selects,
+///  so the question is asked first and the measurement only when one is needed.
+///  A measurement that cannot be made lets the command through with one line,
+///  because the guard may never stop a command it could not judge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkAddExplicit(args: string[]): PolicyOutcome;
+/// function checkAddExplicit(facts, args, notices): PolicyOutcome;
 /// ```
-fn check_add_explicit(arguments: &[OsString]) -> PolicyOutcome {
-    match decide_add_explicit(arguments) {
+fn check_add_explicit(
+    facts: &mut dyn RepositoryFacts,
+    arguments: &[OsString],
+    notices: &mut Vec<String>,
+) -> PolicyOutcome {
+    // `let Some(x) = ... else { ... };` unwraps the question or returns when nothing stages in bulk.
+    let Some(question) = add_explicit_question(arguments) else {
+        return clean();
+    };
+    let spellings: Vec<OsString> = pathspec_spellings(&question);
+    // `Option<StagedSelection>` is "the measurement, or nothing when it could not be made".
+    let mut measured: Option<StagedSelection> = None;
+    if !spellings.is_empty() {
+        // `match` unpacks the answer; `Ok`/`Err` are the success/failure variants.
+        match facts.staged_selection(spellings) {
+            Ok(selection) => measured = Some(selection),
+            Err(reason) => {
+                notices.push(format!(
+                    "monochromatic-git-policy-cli: could not check whether this git add stages the whole \
+                     repository, so the command runs unchanged: {reason}\n"
+                ));
+            }
+        }
+    }
+    // `.as_ref()` lends the measurement as an optional borrowed one.
+    match decide_add_explicit(&question, measured.as_ref()) {
         Some(message) => return rejected(BULK_ADD_CODE, message),
         None => return clean(),
     }
@@ -420,7 +451,9 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
             PolicyId::BranchWorktreeOnly => {
                 return check_branch_worktree(&mut self.facts, self.arguments.as_slice());
             }
-            PolicyId::AddExplicit => return check_add_explicit(self.arguments.as_slice()),
+            PolicyId::AddExplicit => {
+                return check_add_explicit(&mut self.facts, self.arguments.as_slice(), &mut self.notices);
+            }
             PolicyId::FinalNewline => {
                 return check_final_newline(
                     &mut self.content,

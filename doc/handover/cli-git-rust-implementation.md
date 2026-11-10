@@ -7472,14 +7472,28 @@ post-commit trigger.
 The direct route got the same defect and its fix in `1899e041ef`;
 the commit route's two arms were not changed and have no control.
 Separately,
-`add-explicit` names four whole-tree pathspec spellings and lets five that Git
-resolves to the whole tree pass,
+`add-explicit` named four whole-tree pathspec spellings and let five that Git
+resolved to the whole tree pass,
 `:/*`,
 `:/**`,
 `:(top)`,
 `**` and
 `:(glob)**`,
-while `:(top)/*` fails inside Git and is reported as `content-unavailable`.
+while `:(top)/*` failed inside Git and was reported as `content-unavailable`.
+Status 2026-11-10:
+the fixed list is gone;
+a pathspec is now refused when real Git finds it selects every path of the
+repository or of the caller's directory and the spelling names no character of a
+name,
+so all nine of those spellings and `.//`,
+`sub/..`,
+`:(icase)*` and
+`:!x` are refused,
+and the finding names the count
+(branch `fix/git-policy-cli-git-add-refuses-a-whole-tree-however-spelled`,
+`e9f349911c`;
+`SPEC.md`,
+"Bulk staging").
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,
@@ -10382,6 +10396,35 @@ How a question reaches him,
 2026-11-05:
 he asked for it as plain prose in the session ("async"),
 not through the question tool.
+
+When the btrfs controls run,
+recorded 2026-11-10T09:54:58-05:00:
+asked whether a systemd timer should start `native:test:host:btrfs`
+and whether the gate should count the `BTRFS CONTROL NOT RUN` lines,
+he chose "Before each release (Recommended)":
+"A wrapper release waits for that run,
+and a skipped test fails it."
+No timer.
+The gate is `package/git-policy/cli/bin/native-release-host-controls.ts`,
+named as the crate's `dispatchGate` in `package/crate-release/cli/releasable-crates.json`,
+and what it refuses is in `package/git-policy/cli/README.md` ("Development").
+What it costs:
+a full run of `native:test:host:btrfs` took 3286 seconds on 2026-11-10
+(6974 tests,
+54 minutes 46 seconds,
+in its own `systemd-run --user --scope` at 600% CPU and 20 GB beside this host's other building agents),
+and the gate's deadline is 10,800 seconds beside that figure,
+three times the measured run and twice the projection from a second,
+more contended run that was still completing tests at three quarters of that rate when it was stopped.
+That timed run's three required controls passed
+(`subvolume::fs_btrfs_ioctl::tests::btrfs_create_snapshot_and_destroy_each_work_once` in 8.3 s,
+`subvolume::subvolume_btrfs_tests::a_real_migration_makes_subvolumes_and_clones_file_data` in 27.8 s,
+and `worktree_ladder::a_worktree_added_from_the_main_checkout_is_a_subvolume` in 9.8 s);
+979 of its tests failed with `[double-spawn] failed to exec ... No such file or directory`
+because another agent's build replaced this worktree's test binary while the run held it,
+which is why the gate judges a run by the controls it names
+and by what each control printed,
+not by the exit status alone.
 
 ## Working rules for this effort
 

@@ -165,7 +165,7 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
             let _removed = std::fs::remove_file(&to);
             return Ok(Some(entry.relative.clone()));
         }
-        return Err(format!("{} cannot be cloned ({})", from.display(), error.0));
+        return Err(format!("{} cannot be cloned ({error})", from.display()));
     }
     say_where(std::fs::set_permissions(&to, before.permissions()), to.as_path(), "cannot take its mode")?;
     let times: FileTimes = FileTimes::new().set_accessed(before.accessed().unwrap_or(std::time::UNIX_EPOCH)).set_modified(before.modified().unwrap_or(std::time::UNIX_EPOCH));
