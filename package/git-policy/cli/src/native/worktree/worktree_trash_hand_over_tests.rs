@@ -107,17 +107,21 @@ fn a_hand_over_with_no_service_leaves_the_trash_and_its_record_under_the_common_
 }
 
 /// What:
-///  A trash handed over with a service in reach is left standing for it,
-/// the service is woken for the repository's common
-///  directory,
-/// and the person reads one line about what became of the directories.
+///  A routine trash handed over with a service in reach is left standing for it,
+/// the service is woken for the repository's
+///  common directory,
+/// and the person reads nothing.
 /// Why:
 ///   The wake names the common directory because that is the work directory the record is in and the one the
 ///  service drains;
 /// a wake that named the new worktree would leave the record where nothing looks for it.
+/// Every add now hands the
+///  snapshot's stand-ins and its own `.git` copy over,
+/// so a line about a trash the add made itself would print on every add and
+///  tell nobody anything.
 #[cfg(target_os = "linux")]
 #[test]
-fn the_service_is_woken_for_the_common_directory_and_the_add_does_not_wait() {
+fn a_routine_hand_over_wakes_the_service_and_says_nothing() {
     let name: String = "2".repeat(40);
     let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-woken", name.as_str(), 3);
     let address: String = format!("trash-hand-over-{}", std::process::id());
@@ -131,10 +135,44 @@ fn the_service_is_woken_for_the_common_directory_and_the_add_does_not_wait() {
     let work: String = encode_client(&ClientMessage::Work { git_dir: common.clone(), review_key: None });
     assert!(heard.contains(&work), "the service was woken for the common directory: {heard:?}");
     assert!(worktree.join(TRASH_PARENT).join(&name).join("d0").is_dir(), "the add returns without emptying anything");
+    assert_eq!(notices, Vec::<u8>::new(), "a trash the add made itself is said by its note alone: {:?}", String::from_utf8_lossy(notices.as_slice()));
+    remove(root.as_path());
+}
+
+/// What:
+///  A hand-over that took over trash an earlier add left says so once,
+/// in the singular when it hands one directory over.
+/// Why:
+///   Nothing of this add would ever empty a trash another add left,
+/// and no other command mentions it,
+/// so the person
+///  hears about it once,
+/// here;
+/// a routine trash is said by the snapshot's own note and needs no line of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pending.takenOver = 1; const said = handOverWith(pending); expect(said).toContain('the 1 directory left out of the new worktree');
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_hand_over_that_took_over_an_earlier_adds_trash_says_so_once() {
+    let name: String = "8".repeat(40);
+    let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-taken-over", name.as_str(), 1);
+    let address: String = format!("trash-hand-over-taken-over-{}", std::process::id());
+    let service: FixtureService = serve_this_release(address.as_str());
+    let route: Route = Route { address: Bind::Abstract(address), provision: None };
+    let router = |_git: &Path, _directory: &Path| return Some(route.clone());
+    let mut pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
+    pending.taken_over = 1;
+    let mut notices: Vec<u8> = Vec::new();
+    hand_over_with(&git_context(), &pending, &mut notices, &reach(&router, &nothing_to_set_up)).expect("handed over");
+    let _heard: Vec<String> = service.finish();
     let said: String = String::from_utf8(notices).expect("utf8");
     assert_eq!(said.lines().count(), 1, "one line: {said:?}");
-    assert!(said.contains("3 directories") && said.contains(worktree.display().to_string().as_str()), "the line counts them and names the worktree: {said:?}");
-    assert!(said.contains("handed to the commit service"), "and says who empties them: {said:?}");
+    assert!(said.contains("the 1 directory left out of the new worktree"), "one directory reads in the singular: {said:?}");
+    assert!(said.contains("was handed to the commit service"), "and the sentence agrees with it: {said:?}");
+    assert!(said.contains(worktree.display().to_string().as_str()), "and it names the worktree: {said:?}");
     remove(root.as_path());
 }
 
