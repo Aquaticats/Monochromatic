@@ -4,6 +4,8 @@
  @module
  */
 
+import { createValueStore, } from './value-store.ts';
+
 /**
  Observable value container with method-based access.
  
@@ -23,6 +25,10 @@ export type Observable<T,> = {
 
 /**
  Creates an observable value container that calls a synchronous handler when the value is set.
+ 
+ Arrangement with `createObservableAsync`: the two sides share one core. Each wraps
+ {@link createValueStore}, which owns the value container and the order of its update; this side
+ adds only the synchronous handler discipline, and neither side is generated from the other.
  
  State updates before `onChange` runs, so a handler that reads `getValue()` sees the new value.
  `setValue` returns `void` and propagates a thrown error from `onChange` to the caller synchronously.
@@ -60,22 +66,18 @@ export function createObservable<T,>(
   },
 ): Observable<T> {
   /**
-   Internal store backing the methods; held on an object property so mutation avoids a function-root `let`.
+   Store the container reads and writes; the async variant wraps the same one.
    */
-  const state: { current: T; } = { current: initialValue, };
+  const store = createValueStore(initialValue,);
   return {
-    getValue: function getValue(): T {
-      return state.current;
-    },
+    getValue: store.getValue,
     setValue: function setValue(newValue: T,): void {
       /**
-       Snapshot of the prior value preserved for the change handler call.
+       The store already holds the new value when it reports the one it replaced.
        */
-      const old = state.current;
-      state.current = newValue;
       onChange(
         newValue,
-        old,
+        store.replaceValue(newValue,),
       );
     },
   };
