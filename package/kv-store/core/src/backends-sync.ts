@@ -10,6 +10,12 @@ import type { SyncStorageBackend, } from './types.ts';
 /**
  Query all sync backends for a key and return typed results with priority info.
  
+ Hand-written twin of `queryAllBackends` in `backends-async.ts`, on the same
+ deliberate split the two stores use (see `create-store.ts`); the two must
+ collect the same result shape.
+ 
+ Internal helper; not part of the package public API.
+ 
  @param backends - sync storage backends to query
  
  @param key - lookup key
