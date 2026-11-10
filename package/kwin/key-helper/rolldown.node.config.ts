@@ -83,6 +83,16 @@ const testingConfig: NodeFlavorConfig = nodeConfig({
   outputOverrides: { cleanDir: false, },
 });
 
+/**
+ Both builds of this package, in the order they must run: the daemon bundle
+ first, because its config clears the shared output folder, then the testing
+ bundle, whose config leaves that folder alone.
+
+ @example
+ ```ts
+ export default config;
+ ```
+ */
 const config: RolldownOptions[] = defineConfig([
   daemonConfig,
   testingConfig,

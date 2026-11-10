@@ -30,6 +30,9 @@ export {
   INITIAL_SHIFT_STATE,
   parseBitmap,
   reduceShiftEvent,
+  type ShiftEvent,
+  type ShiftKey,
+  type ShiftResult,
   type ShiftState,
 } from './evdev-parse.ts';
 

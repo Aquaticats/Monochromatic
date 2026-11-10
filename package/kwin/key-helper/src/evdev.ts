@@ -326,11 +326,17 @@ export async function startEvdevMonitor({
           doubleShift
         } = reduceShiftEvent({
           state: monitor.state,
-          event: {
-            isShift: (code === KEY_LEFTSHIFT) || (code === KEY_RIGHTSHIFT),
-            value,
-            now: performance.now(),
-          },
+          event: (code === KEY_LEFTSHIFT) || (code === KEY_RIGHTSHIFT)
+            ? {
+              type: 'shift',
+              key: code === KEY_LEFTSHIFT ? 'left' : 'right',
+              value,
+              now: performance.now(),
+            }
+            : {
+              type: 'other',
+              value,
+            },
         });
         monitor.state = nextState;
         if (doubleShift) {
