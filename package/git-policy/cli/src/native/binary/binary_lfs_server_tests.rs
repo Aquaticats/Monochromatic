@@ -40,6 +40,9 @@ struct ServerState {
     /// Whether the batch endpoint refuses,
     /// as a server that rejects the credentials would.
     refuse_batch: bool,
+    /// Whether the batch endpoint asks for a login,
+    /// as the Worker of the 2026-11-10 incident did: an HTTP 401 with the realm it wants.
+    login_required: bool,
     /// How many of the next batch requests are answered with HTTP 503,
     /// as the incident's server did.
     fail_batches: usize,
@@ -102,9 +105,17 @@ fn read_request(stream: &TcpStream) -> Option<(String, Vec<u8>)> {
 }
 
 /// Write one response with a body and close the connection.
-fn respond(mut stream: &TcpStream, status: &str, body: &str) {
+fn respond(stream: &TcpStream, status: &str, body: &str) {
+    return respond_with(stream, status, "", body);
+}
+
+/// Write one response with a body,
+/// the headers `extra` adds
+/// (each line terminated by `\r\n`)
+/// and a closed connection.
+fn respond_with(mut stream: &TcpStream, status: &str, extra: &str, body: &str) {
     let text: String = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: application/vnd.git-lfs+json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "HTTP/1.1 {status}\r\nContent-Type: application/vnd.git-lfs+json\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     // A client that went away is not a server failure.
@@ -127,6 +138,16 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
                 respond(stream, "503 Service Unavailable", "{}");
                 return;
             }
+        }
+        if state.lock().expect("state").login_required {
+            // The header a client reads as "send a login this way": the Worker's own answer (401 plus the realm).
+            respond_with(
+                stream,
+                "401 Unauthorized",
+                "LFS-Authenticate: Basic realm=\"monochromatic-lfs\"\r\n",
+                "{\"message\":\"a login is needed\"}",
+            );
+            return;
         }
         if state.lock().expect("state").refuse_batch {
             respond(stream, "403 Forbidden", "{\"message\":\"the fixture server refuses every batch\"}");
@@ -772,3 +793,210 @@ fn a_submodule_push_without_a_new_pointer_still_gets_the_notice() {
     drop(server);
     remove_settled(&fixture);
 }
+
+//region A push nobody typed never opens the password dialog
+
+/// A recording stand-in for the desktop password program a host names in `SSH_ASKPASS`,
+/// as this machine names `/usr/bin/ksshaskpass`.
+/// It records every question and answers one,
+/// so a route that asks a person is seen at once and never waits for an answer that will not come.
+fn recording_askpass(fixture: &Fixture) -> PathBuf {
+    let log: PathBuf = fixture.root.join("askpass-questions.txt");
+    let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nprintf 'someone\\n'\n", log = log.display());
+    super::support::executable(fixture.root.join("askpass").as_path(), script.as_bytes());
+    return log;
+}
+
+/// Every question the stand-in password program was asked,
+/// in order.
+fn questions(log: &Path) -> Vec<String> {
+    return std::fs::read_to_string(log).unwrap_or_default().lines().map(str::to_owned).collect();
+}
+
+/// A pseudo-terminal the test keeps open:
+/// the master end,
+/// which nothing writes into,
+/// and the slave end,
+/// which a child's standard input is made from.
+struct Terminal {
+    /// Kept open for the child's whole run.
+    _master: std::fs::File,
+    /// The end the child's standard input is made from.
+    slave: std::fs::File,
+}
+
+/// Open a new pseudo-terminal.
+fn terminal() -> Terminal {
+    use std::os::fd::FromRawFd;
+    use std::os::unix::fs::OpenOptionsExt;
+    // SAFETY: `posix_openpt` returns a descriptor nothing else owns, which `File` takes over at once; the two calls after it
+    //  only read or change that descriptor. `O_NOCTTY` keeps the terminal from becoming this test process's own.
+    let (master, descriptor): (std::fs::File, libc::c_int) = unsafe {
+        let descriptor: libc::c_int = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
+        assert!(descriptor >= 0, "a pseudo-terminal is opened");
+        let master: std::fs::File = std::fs::File::from_raw_fd(descriptor);
+        assert_eq!(libc::grantpt(descriptor), 0, "the slave is granted");
+        assert_eq!(libc::unlockpt(descriptor), 0, "the slave is unlocked");
+        (master, descriptor)
+    };
+    let name: std::ffi::CString = super::support::pseudo_terminal_slave_name(descriptor);
+    let slave: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(libc::O_NOCTTY)
+        .open(name.to_str().expect("a UTF-8 terminal name"))
+        .expect("the slave opens");
+    return Terminal { _master: master, slave };
+}
+
+/// What:
+///  Run one wrapped push whose standard input is `/dev/null`
+///  (or a terminal, when `at` is given)
+///  and whose process is in a session of its own.
+/// Why:
+///   The incident's push came from a session with no controlling terminal,
+/// and a control that inherited this host's terminal would exercise the other route;
+/// the new session makes the control's meaning the same wherever the suite runs.
+fn observe_push(fixture: &Fixture, repo: &Path, arguments: &[&str], variables: &[(&str, &str)], at: Option<&std::fs::File>) -> Observed {
+    use std::os::unix::process::CommandExt;
+    let mut command: std::process::Command = super::commit::wrapped_commit(fixture, repo, arguments);
+    command.envs(variables.iter().copied()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    match at {
+        Some(slave) => {
+            command.stdin(std::process::Stdio::from(slave.try_clone().expect("duplicate the terminal")));
+        }
+        None => {
+            command.stdin(std::process::Stdio::null());
+        }
+    }
+    // SAFETY: between fork and exec only async-signal-safe calls run: `setsid`, and on the terminal route one `ioctl` on
+    //  descriptor 0, which is the terminal the command was given.
+    let with_terminal: bool = at.is_some();
+    unsafe {
+        command.pre_exec(move || {
+            libc::setsid();
+            if with_terminal {
+                libc::ioctl(0, libc::TIOCSCTTY, 0);
+            }
+            return Ok(());
+        });
+    }
+    let child: std::process::Child = command.spawn().expect("the wrapped push starts");
+    let output: std::process::Output = child.wait_with_output().expect("the wrapped push finishes");
+    assert_ne!(
+        std::os::unix::process::ExitStatusExt::signal(&output.status),
+        Some(super::support::TIMED_OUT_SIGNAL),
+        "the push hit the fixture's wall-clock bound: {arguments:?}"
+    );
+    return Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+}
+
+/// The programs still running whose working directory is inside the fixture,
+/// as `"pid:command"`, after waiting a moment for the ones a finished run is ending.
+fn processes_under(root: &Path) -> Vec<String> {
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let mut found: Vec<String> = Vec::new();
+        if let Ok(entries) = std::fs::read_dir("/proc") {
+            for entry in entries.flatten() {
+                let process: PathBuf = entry.path();
+                let Ok(cwd) = std::fs::read_link(process.join("cwd")) else {
+                    continue;
+                };
+                if !cwd.starts_with(root) {
+                    continue;
+                }
+                let command: String = std::fs::read(process.join("cmdline"))
+                    .unwrap_or_default()
+                    .split(|byte| { return *byte == 0; })
+                    .map(|word| { return String::from_utf8_lossy(word).into_owned(); })
+                    .collect::<Vec<String>>()
+                    .join(" ");
+                found.push(format!("{}:{command}", entry.file_name().to_string_lossy()));
+            }
+        }
+        if found.is_empty() || std::time::Instant::now() > deadline {
+            return found;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// The second words of a push the incident's form names: an explicit URL destination and a bare refspec.
+const URL_FORM_DESTINATION: &str = "refs/heads/fixture-url-form";
+
+/// The ref a push in the incident's form publishes.
+fn published_url_form(fixture: &Fixture, origin: &Path) -> String {
+    let output = direct(fixture)
+        .current_dir(origin)
+        .args(["rev-parse", "--verify", "--quiet", URL_FORM_DESTINATION])
+        .output()
+        .expect("rev-parse starts");
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    return if text.is_empty() { String::from("absent") } else { text };
+}
+
+/// A push nobody typed does not open the desktop password dialog:
+/// the LFS server asks for a login,
+/// `SSH_ASKPASS` names a recorder,
+/// the command's session has no controlling terminal,
+/// and the upload fails at once with the login the caller can act on.
+#[test]
+fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_dialog() {
+    let fixture: Fixture = fixture("lfs-real-no-terminal");
+    let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    server.state.lock().expect("state").login_required = true;
+    let log: PathBuf = recording_askpass(&fixture);
+    let askpass: String = fixture.root.join("askpass").to_string_lossy().into_owned();
+    let destination: String = format!("file://{}", origin.display());
+    let refspec: String = format!("HEAD:{URL_FORM_DESTINATION}");
+    let pushed: Observed = observe_push(
+        &fixture,
+        repo.as_path(),
+        &["push", destination.as_str(), refspec.as_str()],
+        &[("SSH_ASKPASS", askpass.as_str())],
+        None,
+    );
+    let stderr: String = stderr_of(&pushed);
+    eprintln!("THE DIAGNOSTIC OF THE UNATTENDED PUSH:\n{stderr}");
+    assert!(!log.exists(), "the desktop password program was started: {:?}", questions(log.as_path()));
+    assert_ne!(pushed.code, Some(0), "a login the caller does not have is a failure: {stderr}");
+    assert_eq!(published_url_form(&fixture, origin.as_path()), "absent", "nothing was published: {stderr}");
+    assert!(server.uploads().is_empty(), "{stderr}");
+    assert_eq!(processes_under(fixture.root.as_path()), Vec::<String>::new(), "the run left a program behind");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// A push a person typed keeps Git's and git-lfs's own prompting:
+/// with a controlling terminal in its session,
+/// the same login-requiring server reaches the password program.
+#[test]
+fn a_push_with_a_controlling_terminal_keeps_its_prompting() {
+    let fixture: Fixture = fixture("lfs-real-terminal");
+    let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    server.state.lock().expect("state").login_required = true;
+    let log: PathBuf = recording_askpass(&fixture);
+    let at: Terminal = terminal();
+    let askpass: String = fixture.root.join("askpass").to_string_lossy().into_owned();
+    let destination: String = format!("file://{}", origin.display());
+    let refspec: String = format!("HEAD:{URL_FORM_DESTINATION}");
+    let pushed: Observed = observe_push(
+        &fixture,
+        repo.as_path(),
+        &["push", destination.as_str(), refspec.as_str()],
+        &[("SSH_ASKPASS", askpass.as_str())],
+        Some(&at.slave),
+    );
+    let stderr: String = stderr_of(&pushed);
+    assert!(!questions(log.as_path()).is_empty(), "the route at a terminal asked nobody: {stderr}");
+    assert_ne!(pushed.code, Some(0), "the server refuses the login the stand-in gives: {stderr}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+//endregion
