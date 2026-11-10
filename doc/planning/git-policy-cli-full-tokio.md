@@ -8592,9 +8592,12 @@ cleared.
   `refactor/git-policy-cli-tokio-drain-pending-and-landing-round` in
   `.claude/worktrees/pi-tokio-drain-pending-and-landing-round`,
   from main at `42cea0ccee`,
-  and main merged into it at `ec99918fe2` when `origin/main` had moved to
-  `403cf459bb`,
-  before the last checks.
+  and main merged into it twice while the run went on
+  (`ec99918fe2`,
+  when `origin/main` had moved to `403cf459bb`,
+  and `bf647f4fcb`,
+  when it had moved again to `23fc2569b5`),
+  each before the checks that follow it.
   Commit `2a00940c40` is the work,
   `78cb8d9135` is this section's own commit,
   and `f28892147a` is its measurement and its last run.
@@ -8810,10 +8813,11 @@ cleared.
   203 of 203 in 17.5 s at the merged tip (`ec99918fe2`),
   where main had brought 39 more tests into these folders
   (5831 and 5870 skipped),
-  and 204 of 204 in 17.6 s at the tip of `f28892147a`,
+  204 of 204 in 17.6 s at the tip of `f28892147a`,
   where the last control,
   `the_synchronous_wait_answers_from_inside_the_runtime`,
-  had joined the selection.
+  had joined the selection,
+  and 204 of 204 in 22.4 s at the second merged tip (`bf647f4fcb`).
 - The binary target's own landing tests,
   `native:test:binary:host`:
   `service::a_landing_waits_for_the_index_lock_before_the_branch_moves`,
