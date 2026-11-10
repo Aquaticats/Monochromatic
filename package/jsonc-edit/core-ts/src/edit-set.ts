@@ -203,10 +203,10 @@ export function jsoncSet({
 /**
  Rebuilds `node` with the path target removed. At the final segment the matching
  record entries (all, since duplicates are undefined behavior) or the array
- element are dropped; earlier segments are descended. Deleting an address that
- holds nothing (a missing key, an index past the length) returns the node
- unchanged, so a delete is idempotent, while a segment that names no array
- element (negative, fractional, or not finite) throws.
+ element are dropped; earlier segments are descended. Deleting a missing record
+ key returns the record unchanged, so that delete is idempotent, while an array
+ index that names no element (negative, fractional, not finite, or at or past
+ the length) throws.
  
  @param node - Current node being descended.
  
@@ -287,6 +287,12 @@ function deleteAtPath({
   if ((node.kind === 'array') && ((typeof segment) === 'number')) {
     if (!isArrayIndex({ segment, },))
       throw new JsoncPathNotFoundError({ path, },);
+    // A delete removes an element, so an index with no element to remove names no address. Setting
+    // at the length may append; deleting there cannot, and the Rust port answers the same way.
+    if (segment
+      >= node.elements
+        .length)
+      throw new JsoncPathNotFoundError({ path, },);
     if (isLast)
       return {
         ...node,
@@ -298,10 +304,6 @@ function deleteAtPath({
             return index !== segment;
           },),
       };
-    if (segment
-      >= node.elements
-        .length)
-      throw new JsoncPathNotFoundError({ path, },);
     /**
      Matched element rebuilt while siblings retain identity.
      */
@@ -325,9 +327,10 @@ function deleteAtPath({
 }
 
 /**
- Deletes the value at a path, returning a fresh state. A path whose address holds
- nothing is left unchanged, so deleting a missing key or an index past the array
- length is a no-op.
+ Deletes the value at a path, returning a fresh state. Deleting a record key that
+ is absent leaves the record unchanged, so that delete is a no-op, while a final
+ array index at or past the array length throws `JsoncPathNotFoundError` instead
+ of leaving the array alone.
  
  @param state - Edit state.
  
