@@ -606,6 +606,109 @@ export type SVGPathCommand =
     | { readonly type: 'Z'; };
 
 /**
+ Letters that open one SVG path command, as one string rather than a set because each test is a
+ single membership check on a five-letter alphabet.
+ */
+const PATH_COMMAND_LETTERS = 'MLHVZ';
+
+/**
+ Checks whether one character opens a path command.
+ 
+ @param character - one character, or the empty string where an index falls outside the text
+ 
+ @returns whether the character is one of `M`, `L`, `H`, `V`, `Z`
+ 
+ @example
+ ```ts
+ isPathCommandLetter('L'); // true
+ isPathCommandLetter('l'); // false
+ ```
+ */
+function isPathCommandLetter(character: string,): boolean {
+  return PATH_COMMAND_LETTERS.includes(character,);
+}
+
+/**
+ One token of a path `d` attribute: a command letter or a signed decimal.
+ */
+type PathToken =
+  | {
+    readonly kind: 'command';
+    readonly letter: string;
+  }
+    | {
+      readonly kind: 'number';
+      readonly text: string;
+    };
+
+/**
+ Reads every token of one path `d` attribute, in the order they appear.
+ 
+ A command letter is one character of the five-letter alphabet; a number is a sign that a digit
+ follows, then the same decimal run the transform reader uses. Separators and any other character
+ are skipped one at a time, which is what makes `M0,0` and `M0 0` tokenize alike.
+ 
+ @param d - SVG path data string
+ 
+ @returns tokens in path order
+ 
+ @example
+ ```ts
+ pathTokens('M0 0 L10 10 Z').length; // 6
+ ```
+ */
+function pathTokens(d: string,): PathToken[] {
+  /**
+   Tokens found so far, in the order they appear.
+   */
+  const tokens: PathToken[] = [];
+  /**
+   Index the scan has reached.
+   */
+  let cursor = 0;
+  while (cursor < d.length) {
+    /**
+     Character the scan is examining.
+     */
+    const character = d.charAt(cursor,);
+    if (isPathCommandLetter(character,)) {
+      tokens.push({
+        kind: 'command',
+        letter: character,
+      },);
+      cursor += 1;
+      continue;
+    }
+    /**
+     Index the number's digits begin at, just past any sign.
+     */
+    const digitsStart = character === '-'
+      ? cursor + 1
+      : cursor;
+    /**
+     Index one past the number, or `digitsStart` when no digit follows.
+     */
+    const numberEnd = decimalRunEnd({
+      text: d,
+      start: digitsStart,
+    },);
+    if (numberEnd > digitsStart) {
+      tokens.push({
+        kind: 'number',
+        text: d.slice(
+          cursor,
+          numberEnd,
+        ),
+      },);
+      cursor = numberEnd;
+      continue;
+    }
+    cursor += 1;
+  }
+  return tokens;
+}
+
+/**
  Tokenize an SVG path `d` attribute into absolute commands.
  Only handles M, L, H, V, Z (the commands used in the Aquaticat glyph SVG).
  
@@ -624,12 +727,14 @@ export function parseSvgPathD(d: string,): SVGPathCommand[] {
    Accumulator of parsed commands, returned to the caller in path order.
    */
   const commands: SVGPathCommand[] = [];
-  /* oxlint-disable no-restricted-syntax/no-regex -- SVG path tokenizer; the alternation either matches one command letter or one signed decimal in linear time, and the input is a bounded `d=` attribute value (Aquaticat master strip). No backtracking risk on either branch. */
   /**
-   Matches either a command letter (M/L/H/V/Z) or a signed decimal number.
+   Tokens of the attribute, read once so a paired Y coordinate can consume the next of them.
    */
-  const tokenRegex = /(?<command>[MLHVZ])|(?<number>-?\d+(?:\.\d+)?)/gu;
-  /* oxlint-enable no-restricted-syntax/no-regex */
+  const tokens = pathTokens(d,);
+  /**
+   Index of the next token the loop has not consumed.
+   */
+  let tokenIndex = 0;
 
   /**
    Last command letter seen, which determines how subsequent number tokens are consumed.
@@ -639,52 +744,40 @@ export function parseSvgPathD(d: string,): SVGPathCommand[] {
    was set most recently.
    */
   let currentCmd = '';
-  /**
-   One ordered token stream over the path data. A paired Y coordinate consumes
-   the next token from this same iterator, so iteration state lives here and
-   never in the regex's `lastIndex`.
-   */
-  const tokens = d.matchAll(tokenRegex,);
 
-  for (const tok of tokens) {
+  while (tokenIndex < tokens.length) {
     /**
-     Named capture groups from the current token: `command` for a letter, `number` for a value.
+     Token under examination, taken from its own list so the index stays the only cursor.
      */
-    const { groups, } = tok;
-    /**
-     Captured command letter (`command` group) from the current token, undefined when the token is a number.
-     */
-    const commandLetter = groups?.command;
-    if (commandLetter !== undefined) {
-      currentCmd = commandLetter;
+    const token = tokens[tokenIndex];
+    tokenIndex += 1;
+    if (token === undefined)
+      throw new Error(`path data token ${tokenIndex} is missing from its own list: ${d}`,);
+
+    if (token.kind === 'command') {
+      currentCmd = token.letter;
       if (currentCmd === 'Z')
         commands.push({ type: 'Z', },);
       continue;
     }
 
     /**
-     Numeric value of the current number token (`number` group of `tokenRegex`).
+     Numeric value of the current number token.
      */
-    const num = Number(groups?.number,);
+    const num = Number(token.text,);
 
     if ((currentCmd === 'M') || (currentCmd === 'L')) {
       /**
        Y coordinate token paired with the just-consumed X for M/L commands.
        */
-      const yTok = tokens.next();
-      if (yTok.done === true)
+      const yToken = tokens[tokenIndex];
+      tokenIndex += 1;
+      if (yToken === undefined) {
         throw new Error(
           `path data ends where a Y coordinate belongs, after ${num}: ${d}`,
         );
-      /**
-       Named capture groups of the paired Y token; `number` holds the coordinate value.
-       */
-      const { groups: yGroups, } = yTok.value;
-      /**
-       Numeric text of the paired Y coordinate, absent when the token is a command letter.
-       */
-      const yNumber = yGroups?.number;
-      if (yNumber === undefined) {
+      }
+      if (yToken.kind === 'command') {
         throw new Error(
           `expected a Y coordinate after ${num} in path data: ${d}`,
         );
@@ -692,7 +785,7 @@ export function parseSvgPathD(d: string,): SVGPathCommand[] {
       commands.push({
         type: currentCmd,
         x: num,
-        y: Number(yNumber,),
+        y: Number(yToken.text,),
       },);
     }
     else if (currentCmd === 'H') {

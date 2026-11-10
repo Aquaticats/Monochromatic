@@ -456,6 +456,62 @@ await describe({
             },).toThrow('Y coordinate',);
           },
         },),
+        it({
+          name: 'reads a second point as no number',
+          fn: async () => {
+            expect(parseSvgPathD('M0 0 H1.5.5',),).toStrictEqual([
+              {
+                type: 'M',
+                x: 0,
+                y: 0,
+              },
+              {
+                type: 'H',
+                x: 1.5,
+              },
+              {
+                type: 'H',
+                x: 5,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'skips a sign that no digit follows',
+          fn: async () => {
+            expect(parseSvgPathD('M0 0 H-',),).toStrictEqual([
+              {
+                type: 'M',
+                x: 0,
+                y: 0,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'keeps the last command in force across a letter it does not read',
+          fn: async () => {
+            expect(parseSvgPathD('M0 0 L10 10 Q1 2',),).toStrictEqual([
+              {
+                type: 'M',
+                x: 0,
+                y: 0,
+              },
+              {
+                type: 'L',
+                x: 10,
+                y: 10,
+              },
+              {
+                type: 'L',
+                x: 1,
+                y: 2,
+              },
+            ],);
+          },
+        },),
       ],
     },),
 
@@ -478,13 +534,12 @@ await describe({
             /**
              Number of `RegExp.prototype.exec` calls the module makes.
              
-             Each tokenizer needs one call per token when it drives the loop
-             itself, so any count above the one-shot translate lookup means a
-             loop is reading its tokens from shared regex state.
+             Both tokenizers read tokens from their own cursor, so a call here
+             means a loop is back on shared regex state.
              */
             const execCalls = source.split('.exec(',).length - 1;
 
-            expect(execCalls,).toBeLessThan(2,);
+            expect(execCalls,).toBe(0,);
           },
         },),
       ],
