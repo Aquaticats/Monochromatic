@@ -8,7 +8,9 @@
  @module
  */
 
-import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+import { NamedError, } from '@monochromatic-dev/named-error-core/ts';
+
+/* oxlint-disable unicorn/custom-error-definition -- Every class here takes its name from `NamedError`, which derives it from the concrete class, so no literal is left to check; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
 
 /**
  Base class for every adb-related failure raised by this CLI. Catch this to
@@ -23,139 +25,50 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
  }
  ```
  */
-export class AdbError extends Error {
-  /**
-   Wrap `message` and the optional `cause`.
-   
-   @param message - Human-readable description of what adb interaction failed.
-   
-   @param options - Standard `ErrorOptions`; pass `{ cause }` to chain an
-                    underlying error such as a `SubprocessError`.
-   
-   @mutates options - `super` may invoke a `cause` getter or proxy trap on supplied ErrorOptions
-   */
-  constructor(
-    message: string,
-    options?: ForeignBorrowed<Readonly<ErrorOptions>>,
-  ) {
-    super(
-      message,
-      options,
-    );
-    this.name = 'AdbError';
-  }
-}
+export class AdbError extends NamedError {}
 
 /**
  Thrown when the `adb` executable cannot be found on `PATH` (spawn `ENOENT`).
+ Its message is a hint pointing at the platform-tools install.
  */
-export class AdbNotFoundError extends AdbError {
-  /**
-   Wrap `message` and the optional `cause`.
-   
-   @param message - Human-readable hint pointing at platform-tools install.
-   
-   @param options - Standard `ErrorOptions`; pass `{ cause }` to chain the
-                    spawn error.
-   
-   @mutates options - `super` may invoke a `cause` getter or proxy trap on supplied ErrorOptions
-   */
-  constructor(
-    message: string,
-    options?: ForeignBorrowed<Readonly<ErrorOptions>>,
-  ) {
-    super(
-      message,
-      options,
-    );
-    this.name = 'AdbNotFoundError';
-  }
-}
+export class AdbNotFoundError extends AdbError {}
 
 /**
  Thrown when no authorized device is connected (`adb devices` lists none in
- the {@link ./constants.ts CONNECTED_STATE} state).
+ the {@link ./constants.ts CONNECTED_STATE} state). Its message names the
+ missing device.
  */
-export class NoDevicesError extends AdbError {
-  /**
-   Wrap `message` and the optional `cause`.
-   
-   @param message - Human-readable description naming the missing device.
-   
-   @param options - Standard `ErrorOptions`; pass `{ cause }` to chain an
-                    underlying error.
-   
-   @mutates options - `super` may invoke a `cause` getter or proxy trap on supplied ErrorOptions
-   */
-  constructor(
-    message: string,
-    options?: ForeignBorrowed<Readonly<ErrorOptions>>,
-  ) {
-    super(
-      message,
-      options,
-    );
-    this.name = 'NoDevicesError';
-  }
-}
+export class NoDevicesError extends AdbError {}
 
 /**
  Thrown when an adb invocation exits non-zero or otherwise fails to produce
- usable output. Carries the failing command context in its message.
+ usable output. Its message names the command and what stderr said.
  */
-export class AdbCommandError extends AdbError {
-  /**
-   Wrap `message` and the optional `cause`.
-   
-   @param message - Human-readable description naming command plus stderr.
-   
-   @param options - Standard `ErrorOptions`; pass `{ cause }` to chain the
-                    `SubprocessError`.
-   
-   @mutates options - `super` may invoke a `cause` getter or proxy trap on supplied ErrorOptions
-   */
-  constructor(
-    message: string,
-    options?: ForeignBorrowed<Readonly<ErrorOptions>>,
-  ) {
-    super(
-      message,
-      options,
-    );
-    this.name = 'AdbCommandError';
-  }
-}
+export class AdbCommandError extends AdbError {}
 
 /**
  Thrown when at least one exemption write failed, so the device does not match
- the selection the user confirmed.
+ the selection the user confirmed. Its message has one line per application
+ whose write failed, naming the application, the mode, and what adb answered.
  
  @example
  ```ts
  throw new ExemptApplyError('com.example (ignore): adb shell failed',);
  ```
  */
-export class ExemptApplyError extends Error {
-  /**
-   @param message - one line per application whose write failed, naming the
-   application, the mode, and what adb answered
-   */
-  constructor(message: string,) {
-    super(message,);
-    this.name = 'ExemptApplyError';
-  }
-}
+export class ExemptApplyError extends NamedError {}
 
 /**
  Thrown by the clack prompt wrappers when the user cancels (Esc / Ctrl-C).
  Not an {@link AdbError}: the top-level handler treats it as a clean exit.
  */
-export class PromptCancelledError extends Error {
+export class PromptCancelledError extends NamedError {
   /**
    Construct with a fixed message; cancellation carries no extra detail.
    */
   constructor() {
     super('Prompt cancelled by user.',);
-    this.name = 'PromptCancelledError';
   }
 }
+
+/* oxlint-enable unicorn/custom-error-definition */
