@@ -6675,11 +6675,25 @@ Measured after: the seven copy kill sweeps (`mkdir`,
 `unlink`) passed `3` of `3` rounds,
 about `250` kills with no failure,
 where `5` of `8` runs of the selection that contains them failed one or two sweeps each;
-the selection passed `5` of `6` runs afterwards,
-and the unit filters `worktree_copy`,
+the selection passed `6` of `8` runs afterwards,
+`63` of `63` each (`19`, `22`, `25`, `35.9`, `102` and `122` seconds);
+one of the two others ran under load average `132` to `160` and failed `12` of `63` with no copy sweep among them,
+and the other ran at load `98` to `118` and failed `7` fault sweeps on the harness's own bound,
+`the wrapper was still running after 120 seconds and its group was ended`,
+with no recovery failure named.
+The unit filters `worktree_copy`,
 `worktree_add`,
 `stage_claim`,
 `worktree_dirty` and `subvolume` ran `731` of `731` with Clippy clean.
+`main` moved more than `250` commits after this branch's last merge and now carries `LadderResult.placed` in the same
+rung files,
+where this branch adds `LadderResult.claim`:
+the merge conflicts there and is left to the owner,
+who merges branches himself.
+A resolution keeps both fields,
+keeps the handover in `finish_clones`,
+`finish_snapshot` and `Ladder::finish`,
+and keeps the rungs from writing the completion marker while a copy is owed.
 `s9` killed `convert-worktree-to-subvolume` in `8` of `8` trials and every rerun finished with exit 0,
 nothing lost or changed,
 nothing left beside the worktree and no temporary in its administrative directory;
