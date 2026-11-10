@@ -31,6 +31,9 @@ use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 /// What a preparation handed back.
 use crate::service_prepare::{NativeInputs, Ready};
+/// The build phase's stretches,
+/// which the work that builds the commit marks as it goes.
+use crate::commit_build_part_durations::BuildPartClock;
 /// How a stopped transaction ends.
 use crate::commit_transaction::{CommitInvocation, TransactionStop};
 use std::ffi::OsString;
@@ -68,6 +71,9 @@ pub(crate) struct RequestOf<'a> {
     pub reissued: Option<&'a Vec<OsString>>,
     /// The identity this commit's requests carry.
     pub id: &'a str,
+    /// The build's clock,
+    /// handed on so the shadow's creation and Git's build name their own stretches.
+    pub clock: &'a mut BuildPartClock,
 }
 
 /// The rebuilt line as the arguments a Git start reads.
@@ -91,7 +97,7 @@ fn the_line_as_arguments(line: &Vec<OsString>) -> &[OsString] {
 /// function theRequestOf(fields: RequestOf): [CommitRequest, string, string?];
 /// ```
 pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, String, Option<String>), TransactionStop> {
-    let RequestOf { amendment, embedded_in_use, tree, ready, invocation, native_inputs, reissued, id } = fields;
+    let RequestOf { amendment, embedded_in_use, tree, ready, invocation, native_inputs, reissued, id, clock } = fields;
     if let Some(found) = amendment {
         // The amended commit's own fields, on the tree the replay settled, with the branch as it is now as the single
         //  parent.
@@ -100,7 +106,10 @@ pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, St
         return Ok((sent, parent, Some(subject)));
     }
     let Some(made) = embedded_in_use else {
-        let built: GitBuilt = build_with_git(&BuildInput {
+        // The stretch that decides what the shadow carries and then creates it names itself, and the creation hands the
+        //  clock on to its own stages.
+        clock.next("shadow");
+        let built: GitBuilt = build_with_git(&mut BuildInput {
             context: invocation.context,
             cwd: invocation.cwd,
             capture: &native_inputs.capture,
@@ -111,6 +120,7 @@ pub(crate) fn the_request_of(fields: RequestOf<'_>) -> Result<(CommitRequest, St
             mode: native_inputs.mode,
             staged_all: native_inputs.staged_all,
             selected_privately: native_inputs.selected_privately,
+            clock,
         })?;
         let parent: String = built.parents.first().cloned().unwrap_or_default();
         let sent: CommitRequest = request_for_git_built(ready, native_inputs, id, built.commit, invocation.region.amend);
