@@ -202,6 +202,18 @@ fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     assert!(!pending.join(item.id_before_the_branch()).exists(), "the record an earlier release named is forgotten too");
     assert_eq!(crate::work_item::hold(work.as_path(), &item), Ok(()), "a later hold asks nothing of a blocked id");
     assert!(!state_directory(work.as_path(), crate::work_item::HELD).join(item.id()).exists(), "the blocked verdict stands, so the push is not held again");
+    // The verdict keeps the branch and the gate's words, because the next push of that branch reads them to know where it must stop
+    //  and every command reads them to say why.
+    let verdicts: Vec<crate::work_item_holding::BlockedVerdict> = crate::work_item_holding::blocked_verdicts(work.as_path());
+    assert_eq!(
+        verdicts,
+        vec![crate::work_item_holding::BlockedVerdict {
+            branch_ref: String::from("refs/heads/main"),
+            commit: String::from(OID),
+            reason: String::from("final-newline: the file does not end with a newline"),
+        }],
+        "one verdict, with its branch, its commit and its words"
+    );
     remove(root.as_path());
 }
 
