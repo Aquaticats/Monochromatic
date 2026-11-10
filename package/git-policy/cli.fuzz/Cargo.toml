@@ -20,7 +20,7 @@ shadow_unrelated = "deny"
 # Existing repository libFuzzer harness; no structured-generator crate is needed because
 # every generator here builds values through the subject's own types.
 libfuzzer-sys = { workspace = true, features = ["arbitrary-derive"] }
-monochromatic-git-policy-cli = { path = "../cli", version = "=0.6.1-alpha.7" }
+monochromatic-git-policy-cli = { path = "../cli", version = "=0.6.1-alpha.8" }
 monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.3" }
 # The finding model and the two results of one in-process run, which the Markdown policy reads
 # (`markdown_linter_output::interpret_embedded_run`); the same feature selection as the subject, so one build of it.

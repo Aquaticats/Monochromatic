@@ -380,32 +380,32 @@ Updated:
   0.2.0 publish criterion was already satisfied;
    nothing re-published.
 - OPEN DECISIONS FOR THE USER after #389 (recorded 2026-07-17):
-  1. Push-to-main full-tree CI scan is legitimately RED with 7 redacted
-     findings:
-      the 6 accepted over-matches documented by #387
-     (two planning docs,
-      one troubleshooting doc,
-      one package README)
-     plus ONE secret-ruleset match at
-     `package-deprecated/audit/oph-common-look-and-feel/src/index.html`
-     line 2657 (local rule compiled index 4;
-     fires only with the sensitive ruleset;
-     content deliberately not read by agents;
-     maintainer must inspect).
-  2. Same mechanism blocks committing any edit to
-     `doc/planning/forbidden-strings-rule-port-review.md`
-     (its rule 518 example strings self-match);
-     the #389 agent could not land its pointer note there.
-     Remediation options presented to the user,
-     ranking B > A > D > C:
-     B reshape doc examples to not match,
-     A extend a skip/exclusion surface,
-     D scanner allowlist feature (plan rejected),
-     C accept red.
-  3. #381 seedless-routing:
-      CLOSED wontfix 2026-07-17 by user directive
-     ("Close #381 based on #380"),
-      with the #380-numbers rationale in the close comment.
+  1.  Push-to-main full-tree CI scan is legitimately RED with 7 redacted
+      findings:
+       the 6 accepted over-matches documented by #387
+      (two planning docs,
+       one troubleshooting doc,
+       one package README)
+      plus ONE secret-ruleset match at
+      `package-deprecated/audit/oph-common-look-and-feel/src/index.html`
+      line 2657 (local rule compiled index 4;
+      fires only with the sensitive ruleset;
+      content deliberately not read by agents;
+      maintainer must inspect).
+  2.  Same mechanism blocks committing any edit to
+      `doc/planning/forbidden-strings-rule-port-review.md`
+      (its rule 518 example strings self-match);
+      the #389 agent could not land its pointer note there.
+      Remediation options presented to the user,
+      ranking B > A > D > C:
+      B reshape doc examples to not match,
+      A extend a skip/exclusion surface,
+      D scanner allowlist feature (plan rejected),
+      C accept red.
+  3.  #381 seedless-routing:
+       CLOSED wontfix 2026-07-17 by user directive
+      ("Close #381 based on #380"),
+       with the #380-numbers rationale in the close comment.
 - POST-CUTOVER FOLLOW-UPS (2026-07-17,
    after the migration chain closed):
   - #391 got a brainstorm comment (user asked for ideas):
@@ -969,60 +969,60 @@ Filed,
 
 ## Planned launch order
 
-1. On #377 completion:
-   launch #378 (fast path,
-    opus,
-    engine crate)
-   and #379 (differential fuzz target,
-    sonnet,
-    fuzz sidecar) in parallel.
-2. On #378 completion:
-   launch #392 (sonnet,
-    engine crate;
-   its widened gate then also covers test code added by #377/#378).
-3. After #378 and #392:
-   orchestrator publishes `forbidden-regex` 0.1.0 and extends
-   `cargo-publish.yml` (#382).
-   Publish is authorized;
-   run it from this session.
-4. On #376 plus #377 completion:
-   launch #383 (scanner rule-compiler module,
-    opus).
-   Then #384 (scan path),
-    then #385 (teardown),
-    sequential,
-    same crate.
-5. After #385:
-   #386 (fuzz retarget) and #387 (differential validation plus perf)
-   and #388 (git-policy parser,
-    after #384 in fact) as crates free up.
-6. #389 cutover reclassified ready-for-agent (user,
-    2026-07-17):
-   full AFK plan in the issue comment
-   (API-side commit for the red-case PR,
-   0.2.0 via the existing cargo-publish lane,
-   runbook still authored under `doc/runbook/`).
-   RESOLVED by user 2026-07-17:
-   the current gh secret is STALE;
-   the gitignored local rules file is authoritative,
-   so the cutover overwrites the secret from the ported local file
-   without preserving the old value.
-   AUTHORIZATION (user,
-    2026-07-17,
-    supersedes the earlier no-read rule):
-   the agent may freely read and manipulate the gitignored local
-   ruleset files;
-   the constraint is human exposure,
-    not agent context.
-   Contents must still never reach any human other than the maintainer:
-   no tracked files,
-    no commit messages,
-    no issue text,
-    no pushed logs,
-   no CI output (scanner redaction invariant unchanged).
-7. #390 hygiene last.
-8. #380 (bench numbers) after #378;
-   #381 (seedless routing) is bench-gated by #380 and may close wontfix.
+1.  On #377 completion:
+    launch #378 (fast path,
+     opus,
+     engine crate)
+    and #379 (differential fuzz target,
+     sonnet,
+     fuzz sidecar) in parallel.
+2.  On #378 completion:
+    launch #392 (sonnet,
+     engine crate;
+    its widened gate then also covers test code added by #377/#378).
+3.  After #378 and #392:
+    orchestrator publishes `forbidden-regex` 0.1.0 and extends
+    `cargo-publish.yml` (#382).
+    Publish is authorized;
+    run it from this session.
+4.  On #376 plus #377 completion:
+    launch #383 (scanner rule-compiler module,
+     opus).
+    Then #384 (scan path),
+     then #385 (teardown),
+     sequential,
+     same crate.
+5.  After #385:
+    #386 (fuzz retarget) and #387 (differential validation plus perf)
+    and #388 (git-policy parser,
+     after #384 in fact) as crates free up.
+6.  #389 cutover reclassified ready-for-agent (user,
+     2026-07-17):
+    full AFK plan in the issue comment
+    (API-side commit for the red-case PR,
+    0.2.0 via the existing cargo-publish lane,
+    runbook still authored under `doc/runbook/`).
+    RESOLVED by user 2026-07-17:
+    the current gh secret is STALE;
+    the gitignored local rules file is authoritative,
+    so the cutover overwrites the secret from the ported local file
+    without preserving the old value.
+    AUTHORIZATION (user,
+     2026-07-17,
+     supersedes the earlier no-read rule):
+    the agent may freely read and manipulate the gitignored local
+    ruleset files;
+    the constraint is human exposure,
+     not agent context.
+    Contents must still never reach any human other than the maintainer:
+    no tracked files,
+     no commit messages,
+     no issue text,
+     no pushed logs,
+    no CI output (scanner redaction invariant unchanged).
+7.  #390 hygiene last.
+8.  #380 (bench numbers) after #378;
+    #381 (seedless routing) is bench-gated by #380 and may close wontfix.
 
 ## Model-class ledger (for the escalation policy)
 

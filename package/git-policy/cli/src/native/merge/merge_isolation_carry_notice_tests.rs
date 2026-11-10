@@ -44,7 +44,7 @@ fn changed_and_merged_paths_get_their_own_lines() {
     let lines: Vec<String> = report_lines("feature", &report);
     assert_eq!(lines.len(), 2);
     assert!(lines[0].contains("b.txt") && lines[0].contains("by word"), "{}", lines[0]);
-    assert!(lines[1].contains("a.txt") && lines[1].contains("changed again"), "{}", lines[1]);
+    assert!(lines[1].contains("a.txt") && lines[1].contains("was written again"), "{}", lines[1]);
 }
 
 /// An empty report says nothing.

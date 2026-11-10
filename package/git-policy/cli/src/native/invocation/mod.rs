@@ -187,3 +187,7 @@ pub mod forwarded_command;
 /// The guarded decision about the command Git will really run,
 /// alias expansion included.
 pub mod guarded_forwarded_command;
+
+/// The repository a command line names by its global options,
+/// as the arguments that name it in another process.
+pub mod repository_selection;

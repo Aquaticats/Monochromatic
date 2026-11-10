@@ -200,6 +200,9 @@ pub mod preparation_notice;
 
 pub mod service_prepare;
 
+/// The findings a preparation ends with when the selection the command line makes cannot be committed.
+pub mod service_prepare_selection_refusals;
+
 /// The staging start that puts every unmerged file's working copy into the commit's own index.
 pub mod service_prepare_unmerged_staging;
 

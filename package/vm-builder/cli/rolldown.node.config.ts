@@ -22,6 +22,12 @@ import {
  the domain removal makes from `dist/final/node/domain-removal.mjs`.
  `src/domain-xml.ts` is a fifth entry for the same reason: the unit test reads the rendered document from
  `dist/final/node/domain-xml.mjs`.
+ `src/dev-vm.ts` is a sixth entry for the same reason: the unit test reads the VM's identity and its disk paths from
+ `dist/final/node/dev-vm.mjs`.
+ `src/libvirt-import.ts` is a seventh entry for the same reason: the unit test records the commands the import steps run
+ from `dist/final/node/libvirt-import.mjs`.
+ `src/image-signing.ts` is an eighth entry for the same reason: the unit test records the commands the push and cosign
+ steps run from `dist/final/node/image-signing.mjs`.
  */
 const config: NodeFlavorConfig = nodeConfig({
   input: [
@@ -30,6 +36,9 @@ const config: NodeFlavorConfig = nodeConfig({
     './src/container-arguments.ts',
     './src/domain-removal.ts',
     './src/domain-xml.ts',
+    './src/dev-vm.ts',
+    './src/libvirt-import.ts',
+    './src/image-signing.ts',
   ],
 },);
 

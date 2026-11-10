@@ -560,85 +560,85 @@ the manager and Claude do not read the shell's PATH):
 Coordinator answers of 2026-11-07,
 after the file list for W2 and W3:
 
-1. Reader for W2:
-   reuse what is on main,
-   never copy from another worktree.
-   First grep main for an existing `by-uuid` lookup;
-   if none,
-   add one small function beside
-   `src/native/subvolume/fs_mount_options.rs`,
-   with its own tests,
-   and use `read_mount_facts` for the table.
-   One reader of each fact in the crate.
-2. One fixture table:
-   a single JSON file inside `package/git-policy/cli` (the container gate copies only a crate snapshot,
-   so a path outside the crate fails there and in the packaged crate).
-   The W1 TypeScript test reads it by relative path;
-   a comment in both suites names the other;
-   both assert the row count and iterate every row;
-   add a W1 test that fails when the path does not resolve.
-3. Folder `src/native/repository_link_check/` until the layout move (issue 6261 steps 2 to 6).
-   No `uses/` folder (no folder of the crate has one;
-   the move adds them all at once).
-   Add the folder to the list of folders to move in `doc/planning/cli-git-source-layout.md`.
-4. Gate in `startup_gate.rs`,
-   `recover_for_command(context, identity)`,
-   in this order:
-   identity file absent,
-   return;
-   resolved Git directory not under the link,
-   the canonical root or the stale NVMe path,
-   return;
-   phase `before` with one `lstat` saying directory,
-   return;
-   only phase `after` with a link does the full walk.
-   No process start on the hot path (forwarded p95 near 2 ms):
-   no `findmnt`.
-   Take the `native:perf` baseline from current main before the first edit of the invocation entry
-   (same-binary spread first,
-   saved under `${HOME}/temp/agent/860-w-items/`) and report before and after.
-5. Frozen-move message ("the repository is frozen for the move to the 860;
-   nothing was written;
-   try again after the move finishes"):
-   translate `ErrorKind::ReadOnlyFilesystem` at the one place where commit I/O errors become user text
-   (grep for it;
-   send the coordinator the file and function before editing it if it is under `service/` or `landing/`).
-6. `src/native/service/service_instance.rs` and `src/native/landing/service_route.rs` may be edited now:
-   `try_instance_of(git_dir) -> Result<String, GitDirUnreachable>` (error when `canonicalize` fails;
-   `instance_of` keeps
-   its signature,
-   with a doc line not to use it to name anything new);
-   `choose_route` returns no route for an unresolvable Git directory;
-   `service_status` says the cause.
-7. W3 waits:
-   `service_work.rs`,
-   `service_work_handlers_replanning_and_acceptance.rs` and `service_server_work_loop.rs`
-   only after the coordinator says the commit-stall branch is in main.
-   Keep the change to the smallest function-level edit with behavior tests,
-   because tokio step T10 converts the work loop.
-8. W9:
-   rule SCR forbids shell scripts,
-   so do not write one and do not raise it with the owner yet.
-   Find a form without a script (a link to an existing bin,
-   a TypeScript bin in a repository package,
-   a Rust bin,
-   a mise or systemd setting) and tell the coordinator what the two lines must do and which forms were tried.
-   One candidate:
-   a bin in `package/repository-link/check` that,
-   invoked through a link named `spawn-claude` or
-   `spawn-pi`,
-   runs the check and then the program that name maps to.
-9. Order of work:
-   W2,
-   W3 (when told),
-   W4 and W5,
-   W10,
-   W6,
-   W7 and W9,
-   W11,
-   W12 to W15,
-   then the releases and lock moves.
-   Keep this handover current after every merged item.
+1.  Reader for W2:
+    reuse what is on main,
+    never copy from another worktree.
+    First grep main for an existing `by-uuid` lookup;
+    if none,
+    add one small function beside
+    `src/native/subvolume/fs_mount_options.rs`,
+    with its own tests,
+    and use `read_mount_facts` for the table.
+    One reader of each fact in the crate.
+2.  One fixture table:
+    a single JSON file inside `package/git-policy/cli` (the container gate copies only a crate snapshot,
+    so a path outside the crate fails there and in the packaged crate).
+    The W1 TypeScript test reads it by relative path;
+    a comment in both suites names the other;
+    both assert the row count and iterate every row;
+    add a W1 test that fails when the path does not resolve.
+3.  Folder `src/native/repository_link_check/` until the layout move (issue 6261 steps 2 to 6).
+    No `uses/` folder (no folder of the crate has one;
+    the move adds them all at once).
+    Add the folder to the list of folders to move in `doc/planning/cli-git-source-layout.md`.
+4.  Gate in `startup_gate.rs`,
+    `recover_for_command(context, identity)`,
+    in this order:
+    identity file absent,
+    return;
+    resolved Git directory not under the link,
+    the canonical root or the stale NVMe path,
+    return;
+    phase `before` with one `lstat` saying directory,
+    return;
+    only phase `after` with a link does the full walk.
+    No process start on the hot path (forwarded p95 near 2 ms):
+    no `findmnt`.
+    Take the `native:perf` baseline from current main before the first edit of the invocation entry
+    (same-binary spread first,
+    saved under `${HOME}/temp/agent/860-w-items/`) and report before and after.
+5.  Frozen-move message ("the repository is frozen for the move to the 860;
+    nothing was written;
+    try again after the move finishes"):
+    translate `ErrorKind::ReadOnlyFilesystem` at the one place where commit I/O errors become user text
+    (grep for it;
+    send the coordinator the file and function before editing it if it is under `service/` or `landing/`).
+6.  `src/native/service/service_instance.rs` and `src/native/landing/service_route.rs` may be edited now:
+    `try_instance_of(git_dir) -> Result<String, GitDirUnreachable>` (error when `canonicalize` fails;
+    `instance_of` keeps
+    its signature,
+    with a doc line not to use it to name anything new);
+    `choose_route` returns no route for an unresolvable Git directory;
+    `service_status` says the cause.
+7.  W3 waits:
+    `service_work.rs`,
+    `service_work_handlers_replanning_and_acceptance.rs` and `service_server_work_loop.rs`
+    only after the coordinator says the commit-stall branch is in main.
+    Keep the change to the smallest function-level edit with behavior tests,
+    because tokio step T10 converts the work loop.
+8.  W9:
+    rule SCR forbids shell scripts,
+    so do not write one and do not raise it with the owner yet.
+    Find a form without a script (a link to an existing bin,
+    a TypeScript bin in a repository package,
+    a Rust bin,
+    a mise or systemd setting) and tell the coordinator what the two lines must do and which forms were tried.
+    One candidate:
+    a bin in `package/repository-link/check` that,
+    invoked through a link named `spawn-claude` or
+    `spawn-pi`,
+    runs the check and then the program that name maps to.
+9.  Order of work:
+    W2,
+    W3 (when told),
+    W4 and W5,
+    W10,
+    W6,
+    W7 and W9,
+    W11,
+    W12 to W15,
+    then the releases and lock moves.
+    Keep this handover current after every merged item.
 10. Merge gate for the wrapper:
     merge main first,
     `mise run toolchain:install`,

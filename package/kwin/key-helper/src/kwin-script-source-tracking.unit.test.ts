@@ -26,6 +26,10 @@ import {
   relative,
 } from 'node:path';
 
+//region Repository root
+// The root is found by walking the filesystem rather than by asking Git, so the
+// failure that walk can reach gets a class of its own.
+
 /** Raised when the walk from this file reaches the filesystem root without a `.git` entry. */
 class RepositoryRootNotFoundError extends Error {
   /**
@@ -64,6 +68,12 @@ function repositoryRootFrom(startDirectory: string,): string {
 /** Repository root, the directory the `.gitignore` under guard sits in. */
 const repositoryRoot = repositoryRootFrom(import.meta.dirname,);
 
+//endregion Repository root
+
+//region Files under guard
+// The package's KWin script folder and the two files the blanket ignore
+// patterns would hide from a fresh clone.
+
 /** The KWin script package this test's package ships beside its daemon. */
 const kwinScriptDirectory = join(import.meta.dirname, '..', 'kwin-script',);
 
@@ -75,6 +85,10 @@ const kwinScriptDirectory = join(import.meta.dirname, '..', 'kwin-script',);
  so a clone missing either one installs a script Plasma cannot run.
  */
 const filesTheBlanketPatternsMatch = ['contents/code/main.js', 'metadata.json',] as const;
+
+//endregion Files under guard
+
+//region Reading the pattern
 
 /**
  Reports the last `.gitignore` pattern Git applies to a path, tracked or not.
@@ -102,6 +116,12 @@ function reportedPattern(repositoryPath: string,): string {
   return (verdict ?? '').split(':',).slice(2,).join(':',);
 }
 
+//endregion Reading the pattern
+
+//region Cases
+// One case per file, which must stay tracked and keep the negation that names
+// its own repository path.
+
 await describe({
   name: 'the root .gitignore keeps the KWin script addable',
   children: filesTheBlanketPatternsMatch.map((file,) => it({
@@ -122,3 +142,5 @@ await describe({
     },
   },)),
 },);
+
+//endregion Cases

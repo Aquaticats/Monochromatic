@@ -73,6 +73,12 @@ pub struct GitRequest {
     pub arguments: Vec<OsString>,
     /// Whether the invocation's global prefix is left out (shadow and private-store commands).
     pub without_prefix: bool,
+    /// The repository selection this request names itself,
+    ///  as `--git-dir <absolute>` and `--work-tree <absolute>`
+    ///  (`repository_selection::from_global_options`).
+    ///  Empty unless `in_the_callers_repository` asked for it:
+    /// a start that keeps none of the caller's other options still has to read the repository the caller named.
+    pub repository_selection: Vec<OsString>,
     /// Whether every pathspec in this request is the wrapper's own,
     ///  so no pathspec mode the caller set reaches it,
     /// from the environment or from the global options the request forwards.
@@ -152,6 +158,29 @@ impl GitRequest {
     }
 
     /// What:
+    ///  This request with the caller's repository selection,
+    ///  as `repository_selection::from_global_options` names it.
+    /// Why:
+    ///   The repository a command line names is not the one its directory holds:
+    ///  a Git directory beside its work tree,
+    ///  or one an environment variable sends elsewhere,
+    ///  is found only when it is named,
+    ///  and a start that keeps none of the caller's other options would otherwise read the directory's own repository.
+    ///  The selection comes after the forwarded prefix,
+    ///  so its absolute paths win over a relative spelling there,
+    ///  and before the request's own arguments,
+    ///  so a request that names a private repository still wins.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// request.inTheCallersRepository(repositorySelection({ cwd, globalPrefix }))
+    /// ```
+    pub fn in_the_callers_repository(mut self, selection: Vec<OsString>) -> Self {
+        self.repository_selection = selection;
+        return self;
+    }
+
+    /// What:
     ///  The complete argument list Git receives:
     /// the caller's global options,
     /// then this request's own.
@@ -172,6 +201,7 @@ impl GitRequest {
                 arguments.extend(global_prefix.iter().cloned());
             }
         }
+        arguments.extend(self.repository_selection.iter().cloned());
         arguments.extend(self.arguments.iter().cloned());
         return arguments;
     }

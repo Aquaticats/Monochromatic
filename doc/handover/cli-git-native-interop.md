@@ -147,15 +147,15 @@ Clippy inside the gate).
 `bin/provision-incumbent.mjs` rebuilt the incumbent on demand,
 the way it was built before the retirement:
 
-1. `git worktree add --detach` of the pinned revision under `${HOME}/temp/agent`.
-2. `pnpm install --frozen-lockfile --prefer-offline --filter '@monochromatic-dev/git-policy-cli...'`.
-3. The pinned revision's own `pack:npm` task (the rolldown bundle `dist/final/node/index.mjs`,
-   then `pnpm pack`).
-4. `npm install --ignore-scripts` of that tarball into a staging directory,
-   the layout the end-to-end image once
-   carried as `/opt/cli-git`.
-5. The worktree is removed with its administrative entry,
-   whether provisioning passed or failed.
+1.  `git worktree add --detach` of the pinned revision under `${HOME}/temp/agent`.
+2.  `pnpm install --frozen-lockfile --prefer-offline --filter '@monochromatic-dev/git-policy-cli...'`.
+3.  The pinned revision's own `pack:npm` task (the rolldown bundle `dist/final/node/index.mjs`,
+    then `pnpm pack`).
+4.  `npm install --ignore-scripts` of that tarball into a staging directory,
+    the layout the end-to-end image once
+    carried as `/opt/cli-git`.
+5.  The worktree is removed with its administrative entry,
+    whether provisioning passed or failed.
 
 The image runner copied the staging directory to `/opt/cli-git`.
 The provisioned incumbent for this run:
@@ -389,22 +389,22 @@ and releases the
 recorded `index.lock` by identity.
 The merged timelines of the failing runs (the driver prints them with `--verbose`) show the order:
 
-1. A native survivor recovered the dead landing under the lock,
-   released the dead worker's `index.lock`,
-   and started
-   landing its own commit,
-   which created a new `index.lock`.
-2. An incumbent survivor that had classified the same owner as dead earlier then logged `released owned lock
-   .../index.lock` and removed the shadow repository of the same dead transaction,
-   a few milliseconds later.
-3. The native survivor's landing failed with `opening the index lock ... No such file or directory`
-   (or `protecting .../index.lock failed`),
-   exit status 2,
-   and left its own transaction behind.
-4. Every later command of either wrapper in that repository failed with the same error,
-   because the left transaction
-   has a landed commit and an index install that needs a lock that no longer exists.
-   The repository was whole (`git fsck` clean) but wedged until the state is removed by hand.
+1.  A native survivor recovered the dead landing under the lock,
+    released the dead worker's `index.lock`,
+    and started
+    landing its own commit,
+    which created a new `index.lock`.
+2.  An incumbent survivor that had classified the same owner as dead earlier then logged `released owned lock
+    .../index.lock` and removed the shadow repository of the same dead transaction,
+    a few milliseconds later.
+3.  The native survivor's landing failed with `opening the index lock ... No such file or directory`
+    (or `protecting .../index.lock failed`),
+    exit status 2,
+    and left its own transaction behind.
+4.  Every later command of either wrapper in that repository failed with the same error,
+    because the left transaction
+    has a landed commit and an index install that needs a lock that no longer exists.
+    The repository was whole (`git fsck` clean) but wedged until the state is removed by hand.
 
 Rates on the final native code,
 seed 2 repeated 100 times:

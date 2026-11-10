@@ -63,7 +63,7 @@ fn world(label: &str) -> World {
 impl World {
     /// The context the service lands in.
     fn context(&self) -> LandContext {
-        return LandContext { git: crate::test_support::git_context(), journal: self.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+        return LandContext { git: crate::test_support::git_context(), journal: self.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
     }
 
     /// The socket the service listens on.

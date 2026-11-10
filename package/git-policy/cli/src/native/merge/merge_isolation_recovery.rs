@@ -23,8 +23,8 @@ pub use crate::merge_isolation_recovery_steps::{
 #[cfg(test)]
 use crate::merge_isolation_recovery_steps::{finish_asides, merge_changes};
 use crate::merge_isolation_recovery_cleanup::{
-    drop_record, drop_side_ref_awaiting, edits_on_the_merges_own_paths, no_commit_names_the_merges_parent,
-    staged_work_on_the_merges_paths,
+    a_landed_merge_in_another_branchs_worktree, drop_record, drop_side_ref_awaiting, edits_on_the_merges_own_paths,
+    no_commit_names_the_merges_parent, staged_work_on_the_merges_paths,
 };
 /// The person's own work a merge carries,
 /// in the file that carries it.
@@ -112,6 +112,18 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     };
     match current.as_deref() {
         Some(head) if head == intent.new_oid.as_str() => {
+            // The branch already names the merge, and the record is what still names the worktree its install went into: a
+            //  checkout another branch owns may hold the merge's index entries and files, so the branch is read before the
+            //  record goes (the owner's "never discard user data"; a trial reviewer's finding).
+            let checked_out: Option<String> = symbolic_ref_awaiting(place, root).await.map_err(partly_installed)?;
+            if checked_out != intent.target_ref {
+                return Err(partly_installed(a_landed_merge_in_another_branchs_worktree(
+                    target,
+                    root,
+                    checked_out.as_deref(),
+                    record,
+                )));
+            }
             // The merge is in the branch, so the person's own work in its paths is merged with it now, and the record goes only
             //  once every byte of theirs is back in the checkout.
             if !carry_the_capture_awaiting(place, root, intent, out).await? {

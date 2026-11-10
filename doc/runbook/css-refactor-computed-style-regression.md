@@ -61,14 +61,14 @@ Keep screenshots only to look at a difference the diff already found.
 
 ## Validate the probe before trusting a zero
 
-1. Run it with the same server on both sides:
-   it must print `summary: 0 differences`.
-2. Positive control:
-   copy the site,
-   change one ordinary property (here `padding-block: 2rem` to `calc(2rem + 1px)`
-   on a note) and one hover-only colour,
-   serve the copy,
-   and confirm both are reported.
+1.  Run it with the same server on both sides:
+    it must print `summary: 0 differences`.
+2.  Positive control:
+    copy the site,
+    change one ordinary property (here `padding-block: 2rem` to `calc(2rem + 1px)`
+    on a note) and one hover-only colour,
+    serve the copy,
+    and confirm both are reported.
 
 ## Chromium pitfall: auto margins read as 0px
 
