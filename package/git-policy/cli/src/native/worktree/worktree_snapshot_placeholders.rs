@@ -221,6 +221,34 @@ pub(crate) fn open_below_stand_ins(root: &File, names: &[OsString], shown: &str)
 }
 
 /// What:
+///  The moments at which a control may change the snapshot while a folder is taken whole.
+/// Why:
+///   A folder goes into the trash behind one rename and is checked before it,
+/// so only a moment between the check and
+///  the rename lets a control show what a directory made in that window comes to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FoldSeams = { beforeTake: () => void };
+/// ```
+pub(crate) struct FoldSeams<'a> {
+    /// Called after every entry of a folder was checked and before the folder goes into the trash.
+    pub(crate) before_take: &'a mut dyn FnMut(),
+}
+
+/// What:
+///  Do nothing;
+/// the seams of the fold run this unless a control puts work there.
+/// Why:
+///   The real fold has nothing to do between its steps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const doNothing = () => {};
+/// ```
+fn do_nothing() {}
+
+/// What:
 ///  The trash this step puts whole worktree folders into:
 /// the one the leave-out answered with,
 /// or one made here when
@@ -323,7 +351,7 @@ impl HandOver {
     ///  data,
     /// and the fresh folder keeps the mode of the one it replaces.
     /// `None` means the folder stays and its stand-ins are removed one by one.
-    fn take_folder(&mut self, root: &File, source: &SnapshotSource, parent: &File, name: &OsStr, held: &File, listed: &[OsString], shown: &Path) -> Result<Option<usize>, String> {
+    fn take_folder(&mut self, root: &File, source: &SnapshotSource, parent: &File, name: &OsStr, held: &File, listed: &[OsString], shown: &Path, seams: &mut FoldSeams<'_>) -> Result<Option<usize>, String> {
         if listed.is_empty() {
             return Ok(None);
         }
@@ -333,6 +361,7 @@ impl HandOver {
             }
         }
         let mode: u32 = subject_failure(held.metadata(), &shown.display(), "cannot be examined")?.permissions().mode() & MODE_BITS;
+        (seams.before_take)();
         if !self.take_entry(root, source, parent, name, shown)? {
             return Ok(None);
         }
@@ -409,7 +438,7 @@ fn remove_stand_ins(held: &File, shown: &str, listed: &[OsString]) -> Result<usi
 /// ```ts
 /// function standInsBelow({ root, source, folder, handOver }): number;
 /// ```
-fn stand_ins_below(root: &File, source: &SnapshotSource, folder: &Path, hand_over: &mut HandOver) -> Result<usize, String> {
+fn stand_ins_below(root: &File, source: &SnapshotSource, folder: &Path, hand_over: &mut HandOver, seams: &mut FoldSeams<'_>) -> Result<usize, String> {
     let Ok(relative) = folder.strip_prefix(source.root.as_path()) else { return Ok(0) };
     let shown: String = folder.display().to_string();
     let names: Vec<OsString> = subject_failure(plain_components(relative), &shown, "is not a plain path inside the source")?;
@@ -432,7 +461,7 @@ fn stand_ins_below(root: &File, source: &SnapshotSource, folder: &Path, hand_ove
         Ok(found) => found,
         Err(error) => return Err(format!("{shown} cannot be listed in the snapshot ({error})")),
     };
-    if let Some(count) = hand_over.take_folder(root, source, &parent, name.as_os_str(), &held, listed.as_slice(), folder)? {
+    if let Some(count) = hand_over.take_folder(root, source, &parent, name.as_os_str(), &held, listed.as_slice(), folder, seams)? {
         return Ok(count);
     }
     return remove_stand_ins(&held, &shown, listed.as_slice());
@@ -455,10 +484,25 @@ fn stand_ins_below(root: &File, source: &SnapshotSource, folder: &Path, hand_ove
 /// await removeSnapshotPlaceholders({ root, source, plan, handOver });
 /// ```
 pub(crate) fn remove_snapshot_placeholders(root: &File, source: &SnapshotSource, plan: &AddPlan, hand_over: &mut HandOver) -> Result<(), String> {
+    return remove_snapshot_placeholders_with(root, source, plan, hand_over, &mut FoldSeams { before_take: &mut do_nothing });
+}
+
+/// What:
+///  The same run of the step with the moments at which a control may change the snapshot given.
+/// Why:
+///   A control has no way to write into the snapshot between the check of a folder and its rename;
+/// the seam is that moment,
+///  and the production run puts nothing there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await removeSnapshotPlaceholdersWith({ root, source, plan, handOver, seams });
+/// ```
+pub(crate) fn remove_snapshot_placeholders_with(root: &File, source: &SnapshotSource, plan: &AddPlan, hand_over: &mut HandOver, seams: &mut FoldSeams<'_>) -> Result<(), String> {
     let mut removed: usize = 0;
     let folders_before: usize = hand_over.taken.len();
     for folder in worktree_folders(source.nested.as_slice(), plan.destination.as_path(), source.root.as_path()) {
-        removed += stand_ins_below(root, source, folder.as_path(), hand_over)?;
+        removed += stand_ins_below(root, source, folder.as_path(), hand_over, seams)?;
     }
     let took: usize = hand_over.taken.len() - folders_before;
     debug(TAG, format!("{}: {removed} stand-in folders of nested subvolumes removed from the snapshot, {took} worktree folders taken whole into the trash", plan.destination.display()).as_str());
