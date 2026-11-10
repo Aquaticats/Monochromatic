@@ -18,7 +18,7 @@ import {
   FAVICON_SIZE,
   renderFaviconPngBase64,
   renderFaviconSvg,
-} from './favicon.ts';
+} from '../dist/final/node/testing.mjs';
 
 /**
  Stick count of the whole wordmark: the w's four strokes plus the

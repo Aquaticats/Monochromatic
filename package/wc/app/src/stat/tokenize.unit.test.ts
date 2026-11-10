@@ -20,7 +20,7 @@ import {
   splitParagraphs,
   splitSentences,
   splitWords,
-} from './tokenize.ts';
+} from '../../dist/final/node/testing.mjs';
 
 await describe({
   name: countBytes.name,

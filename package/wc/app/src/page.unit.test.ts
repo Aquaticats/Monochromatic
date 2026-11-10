@@ -10,11 +10,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { FAVICON_SIZE, } from './favicon.ts';
 import {
+  FAVICON_SIZE,
   FREQUENCY_COLUMN_LABELS,
   renderPage,
-} from './page.ts';
+} from '../dist/final/node/testing.mjs';
 
 /**
  Fixture base64 payload standing in for the favicon PNG bytes.

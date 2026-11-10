@@ -13,7 +13,7 @@ import {
 import {
   renderStatsSection,
   STAT_TILES,
-} from './page-stats.ts';
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: renderStatsSection.name,

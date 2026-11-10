@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { analyzeText, } from './analyze.ts';
+import { analyzeText, } from '../../dist/final/node/testing.mjs';
 
 await describe({
   name: analyzeText.name,

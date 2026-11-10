@@ -15,7 +15,7 @@ import {
 import {
   renderDarkColors,
   renderRootColors,
-} from './styles-colors.ts';
+} from '../dist/final/node/testing.mjs';
 
 /**
  Custom-property names both palette fragments must declare.

@@ -189,6 +189,37 @@ async function collectCharset(
 //region Font subsetting
 
 /**
+ Reads the upstream woff2, turning a missing source file into the hint that names
+ where the file belongs. Module scope rather than a nested function: it reads only
+ module constants, so nothing about it depends on the caller.
+
+ @returns font bytes as loaded from `fonts-source/`
+
+ @throws when the upstream font is missing from `fonts-source/`
+
+ @example
+ ```ts
+ const input = await readFontInput();
+ ```
+ */
+async function readFontInput(): Promise<Buffer> {
+  try {
+    return await readFile(INPUT_FONT_PATH,);
+  }
+  catch (error) {
+    if ((Error.isError(error,)) && ('code' in error)
+      && (error.code
+        === 'ENOENT')) {
+      throw new Error(
+        `${INPUT_FONT_PATH} not found. Place the full upstream woff2 in fonts-source/ before running format:fonts.`,
+        { cause: error, },
+      );
+    }
+    throw error;
+  }
+}
+
+/**
  Subsets the Inter woff2: reads {@link INPUT_FONT_PATH}, writes subsetted
  bytes to {@link OUTPUT_FONT_PATH}.
  
@@ -208,22 +239,7 @@ async function subsetInter(
    Buffer loaded from disk; ENOENT is rethrown with an actionable hint
    pointing at the source dir.
    */
-  const input: Buffer = await (async function readFontInput(): Promise<Buffer> {
-    try {
-      return await readFile(INPUT_FONT_PATH,);
-    }
-    catch (error) {
-      if ((Error.isError(error,)) && ('code' in error)
-        && (error.code
-          === 'ENOENT')) {
-        throw new Error(
-          `${INPUT_FONT_PATH} not found. Place the full upstream woff2 in fonts-source/ before running format:fonts.`,
-          { cause: error, },
-        );
-      }
-      throw error;
-    }
-  })();
+  const input: Buffer = await readFontInput();
 
   /**
    Original byte length captured before subsetting for the savings log

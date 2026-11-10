@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { renderStyles, } from './styles.ts';
+import { renderStyles, } from '../dist/final/node/testing.mjs';
 
 /**
  Fixture base64 payload standing in for the subsetted font bytes.

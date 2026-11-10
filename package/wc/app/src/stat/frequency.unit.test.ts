@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { computeFrequency, } from './frequency.ts';
+import { computeFrequency, } from '../../dist/final/node/testing.mjs';
 
 await describe({
   name: computeFrequency.name,
