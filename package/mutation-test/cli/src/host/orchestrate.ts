@@ -73,6 +73,8 @@ const MAX_SINGLE_RETRIES = 1;
  ```
  */
 export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunOutcome> {
+  //region Run state
+
   /**
    Logger scoped to the run.
    */
@@ -157,6 +159,10 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
    */
   const counters = { shards: 0, };
 
+  //endregion Run state
+
+  //region Mutants no test can kill
+
   for (const group of allGroups) {
     if (group.tests
       .length
@@ -177,6 +183,10 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
       );
     }
   }
+
+  //endregion Mutants no test can kill
+
+  //region Taint accounting
 
   /**
    Fetches one mutant entry, throwing on unknown ids.
@@ -244,6 +254,10 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
     );
     return false;
   }
+
+  //endregion Taint accounting
+
+  //region Shard rounds
 
   /**
    Runs one round of manifests, returning ids needing another round.
@@ -356,6 +370,8 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
   // Rounds are inherently sequential: each consumes the previous round's
   // taint fallout. Parallelism lives inside runRound via the p-limit gate.
   {
+    //region Rounds
+
     /**
      Mutable round state: manifests to run and their shard size.
      */
@@ -396,6 +412,10 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
       },);
     }
 
+    //endregion Rounds
+
+    //region Position-1 confirmation
+
     /**
      Survived or timed-out results needing position-1 confirmation.
      */
@@ -432,8 +452,14 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
         },),),];
       }
     }
+
+    //endregion Position-1 confirmation
   }
   /* oxlint-enable no-await-in-loop */
+
+  //endregion Shard rounds
+
+  //region Result assembly
 
   /**
    Mutant ids with no final result after all rounds; must be empty.
@@ -469,3 +495,5 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
     shardCount: counters.shards,
   };
 }
+
+//endregion Result assembly
