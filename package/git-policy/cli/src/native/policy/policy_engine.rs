@@ -103,10 +103,11 @@ pub struct PolicyFinding {
 ///  because a
 ///       commit must not fail over a copy somebody else is holding.
 ///  The hint is the note's own,
-///  because
-///       two notes can leave work behind for reasons the person answers differently:
-/// a copy
-///       somebody holds, and a Git read that failed.
+///  because two notes leave work behind for reasons the person answers
+///       differently;
+///  one about a copy somebody holds,
+///  and one about a Git read that failed,
+///  each ask for their own remedy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
