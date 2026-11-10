@@ -6,6 +6,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
+import { findPngDataPayloads } from './evidence-text-scan.ts';
 
 const root = process.cwd();
 const templatePath = join(
@@ -405,7 +406,7 @@ function validate() {
       || (!figure.includes('data-scheme="light"'))) {
       throw new Error(`${scene.panel}/${scene.stage}/${scene.text}: review card has the wrong panel, scheme or physical frame.`);
     }
-    const urls = [...figure.matchAll(/data:image\/png;base64,([A-Za-z0-9+/=]+)/g)].map((match) => match[1]);
+    const urls = findPngDataPayloads({ text: figure });
     if (urls.length !== 2) throw new Error(`${scene.panel}/${scene.stage}: expected both native schemes.`);
     for (const [mode, encoded] of modes.map((
       mode,
