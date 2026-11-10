@@ -20,26 +20,28 @@ moved 2026-11-03 in `a004a6ab2c`.
 `package/git-policy/cli/src/native/shadow/shadow_links.rs`,
 moved 2026-11-03 in `373765289c`.
 
-## User boundary and observed failure
+## Symptom
 
-The user requires reasonable consumers to use the tool correctly without unexpected behavior.
-Documentation alone does not satisfy that requirement.
+Measured inside the running container,
+ordinary `git` resolved to `/usr/bin/git`,
+so the policy wrapper was not on that command's search path at all.
+Commit `8b34f75c03b65edc6fdfc575c48f22e44a9def77` consequently included concurrent documents
+that the worker had not named.
+
+## Root cause
 
 A Pi RPC investigation launcher supplied a replacement `PATH` containing fixture binaries,
 user-local binaries and system directories.
 It omitted the repository's `.cache/cli-git-bin` directory.
-Measured inside the running container,
-ordinary `git` resolved to `/usr/bin/git`.
 This was the supervising agent's launcher defect,
 not an intentional bypass by the worker.
 
 The worker separately recomputed an unstaged path list after staging it.
 The list became empty.
-Commit `8b34f75c03b65edc6fdfc575c48f22e44a9def77` consequently included concurrent documents.
 The command-construction failure and inactive wrapper are distinct defects.
 The wrapper could reject that operation only if invoked.
 
-## Controlled verification
+## Verification
 
 The installed wrapper link identifies version `0.1.6`.
 The underlying Git reports `2.56.0`.
@@ -70,6 +72,9 @@ The corrected assertion uses the observed `pathspec-required` code;
 both attempt logs are retained.
 
 ## Remedy and ownership
+
+The user requires reasonable consumers to use the tool correctly without unexpected behavior.
+Documentation alone does not satisfy that requirement.
 
 ### Separate missing-helper failure
 
@@ -132,65 +137,7 @@ move the shadow repository and replay modules into a shadow folder).
 [Issue 575](https://github.com/Aquaticats/Monochromatic/issues/575) covers related explicit real-Git invocations.
 Recognizing only absolute paths would miss this incident's ordinary `git` spelling.
 
-## Scoped commit fails at an unrelated LFS file when the LFS directory is read-only
-
-### Symptom
-
-A pathspec-scoped commit of ordinary source files through the wrapper exits 128 while Git processes an unrelated
-tracked LFS asset:
-
-```text
-Error cleaning Git LFS object: open <worktree>/.git/cli-git/shadow/<transaction>/lfs/tmp/<number>: no such file or directory
-error: external filter 'git-lfs filter-process' failed
-fatal: <asset>: clean filter 'lfs' failed
-```
-
-The owned files stay staged and uncommitted.
-The same commit through the host wrapper succeeds.
-[Issue 1770](https://github.com/Aquaticats/Monochromatic/issues/1770) records the consumer incident.
-
-### Root cause
-
-Git LFS creates its temporary files under `<git storage directory>/lfs/tmp`
-(`git lfs env` prints it as `TempDir`) and offers no setting that moves only that directory;
-`lfs.storage` moves the whole LFS store.
-The wrapper's shadow repository links its `lfs` entry to the real `.git/lfs`
-(`package/git-policy/cli/src/native/shadow_links.rs`),
-so the failing path is the shadow path while the directory that must exist and be writable is the real one.
-When `.git/lfs/tmp` is absent and `.git/lfs` cannot be written to,
-Git LFS cannot create it and reports `no such file or directory` on the temporary file.
-In the failing probes the clean filter ran for the unrelated modified asset,
-not for the named files.
-
-### Controlled verification
-
-The probes used disposable repositories with an LFS-tracked PNG modified in the worktree and an explicit ordinary-file
-commit pathspec,
-with the installed `0.1.6` wrapper and Git `2.56.0`.
-
-- A writable `.git/lfs`,
-  with or without `tmp`:
-  the wrapper commits only the named file.
-  A Fedora 44 container limited to 2 GiB and 2 CPUs,
-  with a disposable `HOME` and no network,
-  behaves the same.
-- `.git/lfs` read-only and `tmp` absent:
-  the wrapper fails with the message above,
-  and raw Git fails with the same
-  message naming `.git/lfs/tmp`,
-  so the wrapper does not cause it.
-- `.git/lfs` read-only and `tmp` present and writable:
-  the wrapper commits only the named file.
-
-The consumer's mount permissions were not inspected,
-so that the consumer's `.git/lfs` was read-only is consistent
-with the evidence but not confirmed.
-
-### Remedy and ownership
-
-The environment that runs the child (container mounts or ownership) must leave `.git/lfs` writable,
-or create `.git/lfs/tmp` with write access before the child starts.
-Launch acceptance should run a scoped commit of an ordinary file in a repository that tracks LFS files.
-The wrapper cannot supply the directory:
-it runs with the child's permissions,
-and redirecting storage with `lfs.storage` would discard LFS objects of an owned asset when the shadow is removed.
+A second LFS failure from the same session,
+where an unrelated tracked asset's clean filter met a read-only `.git/lfs`,
+is a different incident and is recorded in
+[git-policy-shadow-lfs.md](git-policy-shadow-lfs.md).
