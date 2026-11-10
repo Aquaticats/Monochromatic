@@ -1,3 +1,8 @@
+# What the runtime image's `COPY . /baked` takes from the repository root. `.gitignore` keeps local configuration,
+# secrets and machine-specific files out of git, and this list keeps the same files out of the image layer, which is
+# what `*.local.*`, `.env` and `.env*.local` cover (an appended deny list, a resolved browser target list, a decrypted
+# environment and a local task file all match). The build output and cache trees in the middle are what the mutation
+# run never needs and would otherwise copy tens of gigabytes.
 .git
 **/node_modules
 **/dist
@@ -6,6 +11,7 @@
 **/output
 **/corpus
 **/.stryker-tmp
-.env.local.json
-mise.local.toml
+.env
+.env*.local
+*.local.*
 .claude

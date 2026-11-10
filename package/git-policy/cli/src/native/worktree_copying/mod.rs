@@ -142,6 +142,12 @@ pub mod worktree_copy_notices;
 #[cfg(unix)]
 pub mod worktree_copy_synchronize;
 
+/// What becomes of the destination a refused `git worktree add` left:
+/// the empty folder this command made is removed,
+/// and one it left with something in it is named on the command's output.
+#[cfg(unix)]
+pub mod worktree_copy_after_refusal;
+
 /// The process that owns one item of a copy transaction,
 /// written into the item's name,
 /// and the proof that it still runs.

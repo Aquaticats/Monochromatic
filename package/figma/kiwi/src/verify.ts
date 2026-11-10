@@ -7,56 +7,23 @@
  ```
  */
 
-import { homedir, } from 'node:os';
-import { join, } from 'node:path';
-
 import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/caught-value-core/ts';
 
+import {
+  FIGMA_EXPORT_FIXTURES,
+  FIGMA_FILE_TYPES,
+  figmaExportFixturePath,
+} from './fixture.figma-export.ts';
 import {
   FIGMA_DOCUMENT_ABSENT,
   parseFigmaFile,
 } from './index.ts';
-
-/**
- Reference directory holding hand-curated Figma exports used as integration fixtures.
- 
- The files are not checked into the repository, so this script only verifies on a
- machine that keeps them under the home directory. `homedir()` keeps the path
- independent of the `/home` vs `/var/home` mount, and the sibling integration
- tests in `package/figma/to-penpot/src/index.unit.test.ts` read this same
- directory.
- */
-const FIGMA_EXPORT_DIR = join(
-  homedir(),
-  'Seafile',
-  'Plain',
-  'Text',
-  'Reference',
-  'Figma export',
-);
+import type { FigmaFileType, } from './types.ts';
 
 /**
  Number of sample nodes printed from each decoded document.
  */
 const NODE_PREVIEW_COUNT = 3;
-
-/**
- Fixture catalogue covering every Figma file extension the parser must decode.
- */
-const TEST_FILES = [
-  {
-    name: 'Color palette - base.fig',
-    type: 'fig',
-  },
-  {
-    name: 'MTM6162-040 participation 2 cover.deck',
-    type: 'deck',
-  },
-  {
-    name: 'Todo app - Brainstorming.jam',
-    type: 'jam',
-  },
-] as const;
 
 /**
  Result of verifying one fixture.
@@ -82,8 +49,8 @@ async function main(): Promise<void> {
   /**
    Per-fixture verification results.
    */
-  const results = await Promise.all(TEST_FILES.map(function verifyFixture(test,): Promise<VerifyResult> {
-    return verifyOne({ test, },);
+  const results = await Promise.all(FIGMA_FILE_TYPES.map(function verifyFixture(fileType,): Promise<VerifyResult> {
+    return verifyOne({ fileType, },);
   },),);
   /**
    Count of passing fixtures.
@@ -105,34 +72,35 @@ async function main(): Promise<void> {
 /**
  Verifies one fixture.
  
- @param test - Fixture descriptor.
+ @param fileType - Figma export kind whose fixture this call verifies
  
  @returns Verification result.
  
  @example
  ```ts
- await verifyOne({ test: TEST_FILES[0] });
+ await verifyOne({ fileType: 'fig' });
  ```
  */
 async function verifyOne(
-  { test, }: { readonly test: (typeof TEST_FILES)[number]; },
+  { fileType, }: { readonly fileType: FigmaFileType; },
 ): Promise<VerifyResult> {
   /**
-   Absolute fixture path.
+   Catalogue entry for this export kind.
    */
-  const path = join(
-    FIGMA_EXPORT_DIR,
-    test.name,
-  );
-  console.log(`\n=== Testing: ${test.name} ===`,);
+  const fixture = FIGMA_EXPORT_FIXTURES[fileType];
+  /**
+   Absolute path of the catalogue entry.
+   */
+  const path = figmaExportFixturePath(fixture,);
+  console.log(`\n=== Testing: ${fixture.fileName} ===`,);
 
   try {
     /**
      Parsed fixture.
      */
     const file = await parseFigmaFile(path,);
-    if (file.fileType !== test.type)
-      return fail({ message: `expected type "${test.type}", got "${file.fileType}"`, },);
+    if (file.fileType !== fileType)
+      return fail({ message: `expected type "${fileType}", got "${file.fileType}"`, },);
 
     console.log(`  Type: ${file.fileType}`,);
     logSchemaSummary({ file, },);

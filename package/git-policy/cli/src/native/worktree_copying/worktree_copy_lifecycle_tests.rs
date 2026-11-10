@@ -1020,10 +1020,224 @@ fn a_creation_that_git_refused_leaves_no_record() {
     assert!(!settlement.git.succeeded(), "Git refused the add");
     assert_eq!(recorded_names(common.as_path()), Vec::<String>::new(), "nothing is left to act on");
     assert_eq!(String::from_utf8(stderr).expect("utf8"), String::new(), "an add Git never made is not reported");
-    assert!(
-        std::fs::read_dir(&destination).is_ok_and(|mut entries| return entries.next().is_none()),
-        "the refused add leaves its empty directory in place rather than removing one it may not own"
+    remove(root.as_path());
+}
+
+/// The arguments of a quiet `git worktree add -b <name> <destination> <revision>`.
+fn add_at_revision(name: &str, destination: &Path, revision: &str) -> Vec<String> {
+    let mut arguments: Vec<String> = add_arguments(name, destination);
+    arguments.push(revision.to_string());
+    return arguments;
+}
+
+/// The arguments of a quiet `git worktree add <destination> <branch>`,
+/// the form that names a branch instead of making one.
+fn add_existing_branch(branch: &str, destination: &Path) -> Vec<String> {
+    return ["worktree", "add", "--quiet"].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned(), branch.to_string()]).collect();
+}
+
+/// A refused add leaves no folder where the worktree would have been:
+/// an empty folder inside a repository is acted on by any Git command run in it,
+/// as if the enclosing checkout were the worktree.
+#[cfg(unix)]
+#[test]
+fn a_refused_add_leaves_no_folder_where_the_worktree_would_have_been() {
+    let root: PathBuf = fixture("lifecycle-refused-removes");
+    let (main, common) = source(root.as_path());
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let destination: PathBuf = canonical_root.join("topic");
+    // Real Git's own answer for the same refusal is the oracle for the status the wrapper must keep.
+    let oracle: GitStatus = run_real(main.as_path(), add_arguments("main", canonical_root.join("oracle").as_path()).as_slice());
+    assert!(!oracle.succeeded(), "Git refuses a branch that already exists");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        &mut |_step: &GitStep<'_>| {
+            return Ok(run_real(
+                main.as_path(),
+                add_arguments("main", destination.as_path()).as_slice(),
+            ));
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), oracle.code.unwrap_or(1), "Git's own status is kept");
+    assert_eq!(String::from_utf8(stderr).expect("utf8"), String::new(), "an add Git never made is not reported");
+    assert!(!destination.exists(), "the directory this command made is removed again while it is empty");
+    remove(root.as_path());
+}
+
+/// Every refusal real Git makes before it fills a destination leaves no folder behind either:
+/// a start point that does not exist,
+/// and a branch another worktree has checked out.
+#[cfg(unix)]
+#[test]
+fn a_refusal_before_the_worktree_leaves_no_folder() {
+    let root: PathBuf = fixture("lifecycle-refused-routes");
+    let (main, common) = source(root.as_path());
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    // A branch another worktree holds, so this command's Git refuses the add before it makes anything.
+    let holder: PathBuf = canonical_root.join("holder");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "locked", holder.to_str().expect("utf8")]);
+    let bad_start: PathBuf = canonical_root.join("bad-start");
+    let locked_copy: PathBuf = canonical_root.join("locked-copy");
+    let routes: [(&str, &Path, Vec<String>); 2] = [
+        ("a start point that does not exist", bad_start.as_path(), add_at_revision("fresh", bad_start.as_path(), "no-such-revision")),
+        ("a branch another worktree holds", locked_copy.as_path(), add_existing_branch("locked", locked_copy.as_path())),
+    ];
+    for (route, destination, arguments) in routes {
+        let oracle: GitStatus = run_real(main.as_path(), arguments.as_slice());
+        assert!(!oracle.succeeded(), "Git refuses {route}");
+        let mut stderr: Vec<u8> = Vec::new();
+        let settlement: Settlement = run_with_worktree_copy(
+            &creation_from(main.as_path(), common.as_path(), Some(destination)),
+            &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), arguments.as_slice())),
+            &mut stderr,
+        )
+        .expect("settled");
+        assert_eq!(exit_code(&settlement), oracle.code.unwrap_or(1), "Git's own status is kept for {route}");
+        assert_eq!(String::from_utf8(stderr).expect("utf8"), String::new(), "an add Git never made is not reported for {route}");
+        assert!(!destination.exists(), "no folder is left for {route}");
+    }
+    remove(root.as_path());
+}
+
+/// A destination that stood before the command is the person's:
+/// the refused add leaves it,
+/// empty or holding what they put there.
+#[cfg(unix)]
+#[test]
+fn a_refused_add_leaves_a_destination_that_stood_before_it() {
+    let root: PathBuf = fixture("lifecycle-refused-before");
+    let (main, common) = source(root.as_path());
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let empty: PathBuf = canonical_root.join("empty");
+    std::fs::create_dir(empty.as_path()).expect("an empty destination the person made");
+    let holding: PathBuf = canonical_root.join("holding");
+    std::fs::create_dir_all(holding.join("deeper")).expect("a destination the person made");
+    std::fs::write(holding.join("deeper/note"), b"mine").expect("the person's file");
+    for destination in [empty.as_path(), holding.as_path()] {
+        let settlement: Settlement = run_with_worktree_copy(
+            &creation_from(main.as_path(), common.as_path(), Some(destination)),
+            &mut |_step: &GitStep<'_>| {
+                return Ok(run_real(
+                    main.as_path(),
+                    add_arguments("main", destination).as_slice(),
+                ));
+            },
+            &mut Vec::new(),
+        )
+        .expect("settled");
+        assert!(!settlement.git.succeeded(), "Git refused the add into {}", destination.display());
+        assert!(destination.is_dir(), "{} stood before the command and stays", destination.display());
+    }
+    assert_eq!(std::fs::read(holding.join("deeper/note")).expect("the person's file"), b"mine");
+    assert_eq!(std::fs::read_dir(empty.as_path()).expect("listed").count(), 0, "the destination the person made stays empty");
+    remove(root.as_path());
+}
+
+/// A destination this command made and another program wrote into while real Git ran stays with what it holds,
+/// and the line for the person names the path it left there.
+#[cfg(unix)]
+#[test]
+fn a_destination_written_into_is_left_there_and_named() {
+    let root: PathBuf = fixture("lifecycle-refused-written-into");
+    let (main, common) = source(root.as_path());
+    let destination: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        &mut |_step: &GitStep<'_>| {
+            // Another program writes into the directory this command made, before real Git refuses the add.
+            std::fs::write(destination.join("someone-elses-file"), b"theirs").expect("written by another program");
+            return Ok(GitStatus { code: Some(1) });
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 1, "Git's own refusal is kept");
+    assert_eq!(
+        std::fs::read(destination.join("someone-elses-file")).expect("the other program's file"),
+        b"theirs",
+        "a destination that holds anything is never removed"
     );
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert!(said.contains("left in place"), "the person is told the directory stayed: {said}");
+    assert!(
+        said.contains(destination.to_str().expect("utf8 destination")),
+        "the line names the path it left: {said}"
+    );
+    remove(root.as_path());
+}
+
+/// A refused add leaves the folder the person already had above the destination,
+/// and makes none where they had none.
+#[cfg(unix)]
+#[test]
+fn a_refused_add_leaves_the_folders_above_the_destination_to_the_person() {
+    let root: PathBuf = fixture("lifecycle-refused-parents");
+    let (main, common) = source(root.as_path());
+    let canonical_root: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root");
+    let parents: PathBuf = canonical_root.join("parents");
+    std::fs::create_dir(parents.as_path()).expect("the person's folder");
+    let below_a_parent: PathBuf = parents.join("topic");
+    let below_nothing: PathBuf = canonical_root.join("absent/topic");
+    for destination in [below_a_parent.as_path(), below_nothing.as_path()] {
+        let settlement: Settlement = run_with_worktree_copy(
+            &creation_from(main.as_path(), common.as_path(), Some(destination)),
+            &mut |_step: &GitStep<'_>| {
+                return Ok(run_real(
+                    main.as_path(),
+                    add_arguments("main", destination).as_slice(),
+                ));
+            },
+            &mut Vec::new(),
+        )
+        .expect("settled");
+        assert!(!settlement.git.succeeded(), "Git refused the add into {}", destination.display());
+        assert!(!destination.exists(), "the destination this command made is gone: {}", destination.display());
+    }
+    assert!(parents.is_dir(), "the folder the person already had stays");
+    assert_eq!(std::fs::read_dir(parents.as_path()).expect("listed").count(), 0, "and holds nothing new");
+    assert!(!canonical_root.join("absent").exists(), "the wrapper makes no folder of its own above the destination");
+    remove(root.as_path());
+}
+
+/// A destination Git registered before the command is that command's worktree,
+/// so the refused add leaves it and its contents exactly as they were.
+#[cfg(unix)]
+#[test]
+fn a_refused_add_leaves_a_registered_destination_untouched() {
+    let root: PathBuf = fixture("lifecycle-refused-registered");
+    let (main, common) = source(root.as_path());
+    let destination: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("taken");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "taken", destination.to_str().expect("utf8")]);
+    let pointer_before: Vec<u8> = std::fs::read(destination.join(".git")).expect("the registration pointer");
+    let mut names_before: Vec<String> = std::fs::read_dir(destination.as_path())
+        .expect("listed")
+        .map(|entry| return entry.expect("entry").file_name().to_string_lossy().into_owned())
+        .collect();
+    names_before.sort();
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(destination.as_path())),
+        &mut |_step: &GitStep<'_>| {
+            return Ok(run_real(
+                main.as_path(),
+                add_arguments("other", destination.as_path()).as_slice(),
+            ));
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert!(!settlement.git.succeeded(), "Git refused the second add at that path");
+    assert_eq!(std::fs::read(destination.join(".git")).expect("the registration pointer"), pointer_before, "the registered worktree keeps its pointer");
+    let mut names_after: Vec<String> = std::fs::read_dir(destination.as_path())
+        .expect("listed")
+        .map(|entry| return entry.expect("entry").file_name().to_string_lossy().into_owned())
+        .collect();
+    names_after.sort();
+    assert_eq!(names_after, names_before, "the registered worktree keeps everything that was in it");
     remove(root.as_path());
 }
 
