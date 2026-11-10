@@ -91,6 +91,32 @@ pub struct PolicyFinding {
 }
 
 /// What:
+///  One piece of work a check left undone,
+///  named for the person who ran the command.
+/// `Option<EventPath>` is the file it concerns,
+///  when it concerns one.
+/// Why:
+///   A check sometimes has to leave a file alone rather than overwrite changes it did
+///       not write;
+///  a note names that file and why,
+///  and never stops the command,
+///  because a
+///       commit must not fail over a copy somebody else is holding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PolicyNote = { message: string; path?: EventPath };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PolicyNote {
+    /// The explanation for the person who ran the command.
+    pub message: String,
+    /// The repository path the note is about,
+    ///  when it is about one.
+    pub path: Option<EventPath>,
+}
+
+/// What:
 ///  What one policy check returned.
 ///  An `enum` is a closed set of named alternatives;
 ///       `Failed { code, message }` carries named fields.
@@ -107,13 +133,29 @@ pub struct PolicyFinding {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PolicyOutcome = { kind: 'findings'; findings: PolicyFinding[] } | { kind: 'unavailable'; needs: string } | { kind: 'failed'; code: EngineFailureCode; message: string; path?: EventPath };
+/// type PolicyOutcome = { kind: 'findings'; findings: PolicyFinding[] } | { kind: 'findings-with-notes'; findings: PolicyFinding[]; notes: PolicyNote[] } | ...;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PolicyOutcome {
     /// The policy was evaluated;
     ///  an empty list means it found nothing.
     Findings(Vec<PolicyFinding>),
+    /// The policy was evaluated,
+    ///  and it left some work alone: the findings it made,
+    ///  and one
+    ///       note for each thing it did not touch.
+    ///  A note is reported and the pass goes on,
+    ///       whatever the policy's severity,
+    ///  so a command never fails over a file a
+    ///       policy chose not to change.
+    FindingsWithNotes {
+        /// The findings of this evaluation;
+        ///  each correction among them ends the pass.
+        findings: Vec<PolicyFinding>,
+        /// The work the policy left alone,
+        ///  in the order it names them.
+        notes: Vec<PolicyNote>,
+    },
     /// The policy needs something this executable does not implement yet;
     ///  the text names it.
     Unavailable(&'static str),
@@ -368,9 +410,10 @@ pub fn run_policy_stage(
             crate::prepare_work_spans::policy_span_name(policy_descriptor(*policy).name, request.trigger).as_str(),
             began.elapsed(),
         );
-        // `match` unpacks the three outcomes; only `Findings` continues past it.
-        let findings: Vec<PolicyFinding> = match outcome {
-            PolicyOutcome::Findings(found) => found,
+        // `match` unpacks the outcomes; only the two that found something continue past it.
+        let (findings, notes): (Vec<PolicyFinding>, Vec<PolicyNote>) = match outcome {
+            PolicyOutcome::Findings(found) => (found, Vec::new()),
+            PolicyOutcome::FindingsWithNotes { findings: found, notes: noted } => (found, noted),
             PolicyOutcome::Unavailable(needs) => {
                 return StageResult {
                     events,
@@ -440,6 +483,18 @@ pub fn run_policy_stage(
             }
         };
         let found_any: bool = !findings.is_empty();
+        // A note is a report, never a stop: it is written as an engine failure whose chosen hint says the command goes on, because
+        //  a commit must not fail over a file the policy chose not to change.
+        for note in notes {
+            events.push(PolicyEvent::EngineFailure {
+                code: EngineFailureCode::PolicyIncomplete,
+                hint: crate::policy_events::EngineFailureHint::Chosen(Some(crate::policy_events::LEFT_ALONE_HINT)),
+                message: note.message,
+                trigger: Some(request.trigger),
+                policy: Some(*policy),
+                path: note.path,
+            });
+        }
         let mut proposed: bool = false;
         // `for finding in findings` moves each finding out of the list into its event.
         for finding in findings {

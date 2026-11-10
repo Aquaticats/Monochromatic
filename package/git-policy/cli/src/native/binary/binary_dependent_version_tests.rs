@@ -769,3 +769,74 @@ fn a_commit_leaves_a_dependent_whose_worktree_copy_changed() {
     );
     remove(&fixture);
 }
+
+/// A dependent whose manifest is staged but not part of the commit is left behind:
+/// the landing writes the commit's entry into the real index,
+/// so adding it would replace what the person
+///  staged.
+/// The commit lands with only the hand bump,
+/// the staging survives,
+/// and the report names both.
+#[test]
+fn a_commit_leaves_behind_a_dependent_the_real_index_already_changes() {
+    let fixture: Fixture = fixture("dependent-version-commit-staged");
+    let repo: PathBuf = chain_workspace(&fixture);
+    let staged_on_top: String = format!("{} ", manifest("@s/b", "2.0.0", Some("@s/a")));
+    write(repo.as_path(), "package/module/b/package.json", &staged_on_top);
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "package/module/b/package.json"],
+    );
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "package/module/a/package.json"],
+    );
+    let landed: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &[
+            "commit",
+            "--message=bump",
+            "--",
+            "package/module/a/package.json",
+        ],
+    );
+    assert_eq!(
+        landed.code,
+        Some(0),
+        "{}{}",
+        String::from_utf8_lossy(&landed.stdout),
+        String::from_utf8_lossy(&landed.stderr)
+    );
+    assert_eq!(
+        committed_manifest(&fixture, repo.as_path(), "b"),
+        manifest("@s/b", "2.0.0", Some("@s/a")),
+        "the dependent stays at the version the branch holds"
+    );
+    assert_eq!(
+        git_text(
+            &fixture,
+            repo.as_path(),
+            &["diff", "--cached", "--name-only"]
+        ),
+        "package/module/b/package.json\n",
+        "the staging the person made is still staged"
+    );
+    assert_eq!(
+        read(repo.as_path(), "b"),
+        staged_on_top,
+        "the staged copy is untouched"
+    );
+    let errors: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert!(
+        errors.contains("package/module/b/package.json"),
+        "the report names the dependent: {errors}"
+    );
+    assert!(
+        errors.contains("it has staged changes"),
+        "the report names the reason: {errors}"
+    );
+    remove(&fixture);
+}

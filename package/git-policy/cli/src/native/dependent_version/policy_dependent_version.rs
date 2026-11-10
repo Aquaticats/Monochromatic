@@ -3,7 +3,9 @@
 //!  the native planner over the lifecycle's
 //!       prepared candidate state,
 //!  its findings,
-//!  and the corrections a direct fix applies.
+//!  the corrections a direct fix applies,
+//!  and the ones a
+//!       commit adds to itself.
 //! Why:
 //!  The check keeps what the ported policy reported
 //!  (`package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts`,
@@ -12,13 +14,22 @@
 //!      finding per publishable dependent of a raised manifest,
 //!  each with a full-content
 //!      patch,
-//!  on `direct-check` and `direct-fix`;
-//!  on `pre-forward` it plans only for a
-//!      forwarded `commit`.
-//!  A real `git commit` runs through the commit transaction instead of being forwarded,
-//!  so `pre-forward` reaches this check only
-//!      for `git add`,
-//!  where the policy finds nothing.
+//!  on `direct-check`,
+//!  `direct-fix` and a wrapped `git commit`
+//!  (`doc/decision/private-npm-registry.md:158-177`,
+//!  the owner's 2026-09-15 decision:
+//!  a hand bump and its
+//!      dependents' patch bumps land in one commit,
+//!  and the worktree copies take the committed
+//!      bytes while they still match `HEAD`).
+//!  Every other forwarded command,
+//!  `git add`
+//!      above all,
+//!  applies no correction and so is not planned.
+//!  A dependent whose copies hold
+//!      something else is named and left exactly as it is:
+//!  the commit lands without it rather
+//!      than failing or overwriting somebody's work.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -53,20 +64,25 @@ use crate::event_path::EventPath;
 use crate::diagnostics::EngineFailureCode;
 /// The pathname conversion every worktree read uses.
 use crate::git_metadata::path_from_git_bytes;
-/// The precondition for a file the fix did not select.
+/// The precondition for a file the lifecycle did not select,
+///  its reasons and its messages.
 use crate::policy_added_path::{
-    ADDED_PATH_STAGED_REASON, added_path_message, head_mode, worktree_refusal,
+    ADDED_PATH_STAGED_REASON, ADDED_PATH_UNSTAGED_REASON, CommitAddedPath, Entry, added_path_message,
+    commit_added_path_message, commit_refusal, head_mode, real_index_entries, worktree_refusal,
 };
 /// The lifecycle's candidates and the correction a fix applies.
 use crate::policy_content::{ContentState, Correction, LifecycleContent};
-/// The finding and outcome types of a check.
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
+/// The finding,
+///  note and outcome types of a check.
+use crate::policy_engine::{PolicyFinding, PolicyNote, PolicyOutcome};
 /// The lifecycle points.
 use crate::policy_trigger::Trigger;
 /// The facts interface that prepares candidates and locates the worktree.
 use crate::repository_facts::RepositoryFacts;
 /// The worktree's top level.
 use crate::worktree_identity::worktree_root;
+/// `BTreeMap<K, V>` is a map kept sorted by key.
+use std::collections::BTreeMap;
 /// Borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// `Rc<T>` is a shared,
@@ -286,30 +302,79 @@ fn correction_of(
 }
 
 /// What:
-///  Check the lifecycle's candidate state.
-///  `<F: RepositoryFacts>` accepts any facts
-///       provider;
-///  `&mut ContentState` lends the shared candidates and takes corrections.
+///  Everything one dependent-version check reads and returns.
+///  `'a` names how long the borrows of the
+///       candidate state,
+///  the lifecycle and the provider last;
+///  `'index` is the real index's own.
 /// Why:
-///   See the module comment.
-///  Corrections are proposed only on `direct-fix`,
-///  the one
-///       lifecycle that applies them;
-///  every proposal of the pass is checked before any
-///       is recorded,
-///  so a refused one leaves the pass without partial corrections.
+///   One record keeps the six facts of a check together,
+///  so no caller can pair a
+///       trigger with the wrong lifecycle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function checkDependentVersion(content, lifecycle, facts, trigger): Promise<PolicyOutcome>;
+/// type DependentCheck = { content; lifecycle; facts; trigger; forwardsCommit; realIndex };
 /// ```
-pub fn check_dependent_version<F: RepositoryFacts>(
-    content: &mut ContentState,
-    lifecycle: &LifecycleContent,
-    facts: &mut F,
-    trigger: Trigger,
-) -> PolicyOutcome {
-    if trigger == Trigger::PreForward {
+pub struct DependentCheck<'a, 'index, F: RepositoryFacts> {
+    /// The shared candidate state.
+    pub content: &'a mut ContentState,
+    /// What the lifecycle asks the candidate layer for.
+    pub lifecycle: &'a LifecycleContent,
+    /// The repository facts this invocation reads.
+    pub facts: &'a mut F,
+    /// The lifecycle point.
+    pub trigger: Trigger,
+    /// Whether the forwarded command is `git commit`,
+    ///  which adds the dependents' manifests to
+    ///       itself.
+    pub forwards_commit: bool,
+    /// The real index a landing writes,
+    ///  when this lifecycle may add a path to what it
+    ///       lands.
+    pub real_index: Option<&'index Path>,
+}
+
+/// What:
+///  Check the lifecycle's candidate state.
+///  `<F: RepositoryFacts>` accepts any facts
+///       provider;
+///  `&mut ContentState` lends the shared candidates and takes corrections;
+///  `forwards_commit`
+///       says the forwarded command is `git commit`,
+///  which adds the dependents' manifests to
+///       itself;
+///  `real_index` is the real index the landing writes, or nothing for a lifecycle
+///       that adds no path.
+/// Why:
+///   See the module comment.
+///  Corrections are proposed on `direct-fix` and on the commit path,
+///  the two
+///       lifecycles that apply them;
+///  every proposal of the pass is checked before any
+///       is recorded,
+///  so a refused one leaves the pass without partial corrections.
+///  A commit
+///       reports a dependent it may not add and lands without it,
+///  because a commit never fails
+///       over a copy somebody is holding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function checkDependentVersion(check: DependentCheck): Promise<PolicyOutcome>;
+/// ```
+pub fn check_dependent_version<F: RepositoryFacts>(check: DependentCheck<'_, '_, F>) -> PolicyOutcome {
+    let DependentCheck {
+        content,
+        lifecycle,
+        facts,
+        trigger,
+        forwards_commit,
+        real_index,
+    } = check;
+    // A commit applies the ripple itself; every other forwarded command can only report one.
+    let plans_commit: bool = trigger == Trigger::PreForward && forwards_commit;
+    if trigger == Trigger::PreForward && !plans_commit {
         return clean();
     }
     let version: Rc<CandidateVersion> = match content.version(lifecycle, facts) {
@@ -320,13 +385,13 @@ pub fn check_dependent_version<F: RepositoryFacts>(
     let candidates: Vec<Candidate> = version.candidates().iter().map(planner_candidate).collect();
     let request: DependentRequest<'_> = DependentRequest {
         trigger,
-        forwards_commit: false,
+        forwards_commit,
         candidates: candidates.as_slice(),
     };
     if !should_plan(&request) {
         return clean();
     }
-    let root: Option<PathBuf> = if trigger == Trigger::DirectFix {
+    let root: Option<PathBuf> = if trigger == Trigger::DirectFix || plans_commit {
         match facts.location() {
             Ok(location) => worktree_root(&location.identity).map(Path::to_path_buf),
             Err(message) => return failed(EngineFailureCode::ContentUnavailable, message),
@@ -351,22 +416,259 @@ pub fn check_dependent_version<F: RepositoryFacts>(
         lifecycle_workspace(store, corrected, listed.as_slice());
     let findings: Vec<DependentFinding> = match find_dependent_bumps(&request, &mut workspace) {
         Ok(found) => found,
+        // A commit never fails over the ripple: what the planner could not read or decide is reported, and it lands without it.
+        Err(error) if plans_commit => return noted(&plan_error_message(&error)),
         Err(error) => return plan_failure(&error),
     };
+    let real: BTreeMap<Vec<u8>, Entry> = match added_entries(
+        plans_commit,
+        &findings,
+        version.as_ref(),
+        facts,
+        root.as_deref(),
+        real_index,
+    ) {
+        Ok(found) => found,
+        Err(message) if plans_commit => return noted(&message),
+        Err(message) => return failed(EngineFailureCode::ContentUnavailable, message),
+    };
+    let mut kept: Vec<DependentFinding> = Vec::new();
     let mut proposals: Vec<Correction> = Vec::new();
-    for finding in &findings {
-        if let (Trigger::DirectFix, Some(bump)) = (trigger, finding.patch.as_ref()) {
-            let selected: bool = version.candidate_at_path(&bump.path).is_some();
-            match correction_of(bump, selected, &mut workspace, root.as_deref()) {
-                Ok(correction) => proposals.push(correction),
-                Err(outcome) => return outcome,
+    let mut notes: Vec<PolicyNote> = Vec::new();
+    for finding in findings {
+        // A dependent nobody can bump automatically is named by a direct command and reported by a commit, which still lands.
+        let Some(bump) = finding.patch.clone() else {
+            if plans_commit {
+                notes.push(note_of(finding.message.as_str(), finding.path.as_deref()));
+            } else {
+                kept.push(finding);
             }
+            continue;
+        };
+        let selected: bool = version.candidate_at_path(&bump.path).is_some();
+        if !plans_commit {
+            if trigger == Trigger::DirectFix {
+                match correction_of(&bump, selected, &mut workspace, root.as_deref()) {
+                    Ok(correction) => proposals.push(correction),
+                    Err(outcome) => return outcome,
+                }
+            }
+            kept.push(finding);
+            continue;
+        }
+        match committed_correction(&bump, selected, &mut workspace, root.as_deref(), &real) {
+            Ok(correction) => {
+                proposals.push(correction);
+                kept.push(finding);
+            }
+            Err(left) => notes.push(left_behind(&bump, &left)),
         }
     }
     for correction in proposals {
         content.propose(correction);
     }
-    return PolicyOutcome::Findings(findings.iter().map(policy_finding).collect());
+    let reported: Vec<PolicyFinding> = kept.iter().map(policy_finding).collect();
+    if notes.is_empty() {
+        return PolicyOutcome::Findings(reported);
+    }
+    return PolicyOutcome::FindingsWithNotes {
+        findings: reported,
+        notes,
+    };
+}
+
+/// What:
+///  The outcome of a check that decided nothing and says why,
+///  without stopping the
+///       command.
+/// Why:
+///   On the commit path a planner that cannot decide must cost the commit its ripple and
+///       never its landing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noted = (message) => ({ kind: 'findings-with-notes', findings: [], notes: [{ message }] });
+/// ```
+fn noted(message: &str) -> PolicyOutcome {
+    return PolicyOutcome::FindingsWithNotes {
+        findings: Vec::new(),
+        notes: vec![note_of(message, None)],
+    };
+}
+
+/// What:
+///  One note for the person,
+///  about `path` when one is named.
+/// Why:
+///   A note always names its file in the event's own field,
+///  never inside the message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noteOf = (message, path) => ({ message, path: path && eventPath(path) });
+/// ```
+fn note_of(message: &str, path: Option<&[u8]>) -> PolicyNote {
+    return PolicyNote {
+        message: String::from(message),
+        path: path.map(EventPath::from_git_bytes),
+    };
+}
+
+/// What:
+/// Why a commit did not add one dependent's manifest to itself.
+/// Why:
+///   A copy that holds work the commit does not carry and a copy that could not be read
+///       are both reasons to leave the file exactly as it is,
+///  and both are reported.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LeftBehind = { kind: 'holds'; reason: string } | { kind: 'unreadable'; message: string };
+/// ```
+enum LeftBehind {
+    /// A copy of the manifest holds what the commit does not carry.
+    Holds(&'static str),
+    /// A copy of the manifest could not be read,
+    ///  so nothing is known about it.
+    Unreadable(String),
+}
+
+/// What:
+///  The note for a dependent the commit left out,
+///  naming the file,
+///  the version it keeps
+///  and the reason.
+/// Why:
+///   The person must know which dependent stayed behind and what to do about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftBehind = (bump, left) => noteOf(left.kind === 'holds' ? commitAddedPathMessage({ ...bump, reason: left.reason }) : `... ${left.message}.`, bump.path);
+/// ```
+fn left_behind(bump: &ManifestBump, left: &LeftBehind) -> PolicyNote {
+    let shown: String = display_path(bump.path.as_slice());
+    let message: String = match left {
+        LeftBehind::Holds(reason) => commit_added_path_message(
+            shown.as_str(),
+            bump.planned.name.as_str(),
+            bump.planned.bump.from.as_str(),
+            bump.planned.bump.to.as_str(),
+            reason,
+        ),
+        LeftBehind::Unreadable(error) => format!(
+            "mono/dependent-version-bump left {} at {} and out of this commit: a copy of {shown} could not be read ({error}), \
+             so nothing was written over it. Check that the file can be read, then commit again.",
+            bump.planned.name, bump.planned.bump.from
+        ),
+    };
+    return note_of(message.as_str(), Some(bump.path.as_slice()));
+}
+
+/// What:
+///  The real index's entries for the manifests this commit would add to itself,
+///  by
+///       pathname.
+///  Empty for every lifecycle that adds no path,
+///  and for a
+///       commit whose findings all name paths it selected.
+/// Why:
+///   One Git start lists every added dependent,
+///  and only a commit that adds one reaches
+///       it at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function addedEntries({ plansCommit, findings, version, facts, root, realIndex }): Promise<Map<string, Entry>>;
+/// ```
+fn added_entries<F: RepositoryFacts>(
+    plans_commit: bool,
+    findings: &[DependentFinding],
+    version: &CandidateVersion,
+    facts: &mut F,
+    root: Option<&Path>,
+    real_index: Option<&Path>,
+) -> Result<BTreeMap<Vec<u8>, Entry>, String> {
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    if plans_commit {
+        for finding in findings {
+            if let Some(bump) = &finding.patch
+                && version.candidate_at_path(&bump.path).is_none()
+            {
+                paths.push(bump.path.clone());
+            }
+        }
+    }
+    let (Some(top_level), Some(index)) = (root, real_index) else {
+        return Ok(BTreeMap::new());
+    };
+    if paths.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    return real_index_entries(&facts.transaction_context(), top_level, index, paths.as_slice());
+}
+
+/// What:
+///  The correction a commit applies for one planned bump,
+///  or why it left the manifest
+///       alone.
+/// Why:
+///   A manifest the commit already changes is corrected over its candidate bytes;
+///  a
+///       manifest it does not change is added only while every copy of it holds the file
+///       the
+///       bump was computed against.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function committedCorrection({ bump, selected, workspace, root, real }): Promise<Correction | LeftBehind>;
+/// ```
+fn committed_correction(
+    bump: &ManifestBump,
+    selected: bool,
+    workspace: &mut LifecycleWorkspace<'_>,
+    root: Option<&Path>,
+    real: &BTreeMap<Vec<u8>, Entry>,
+) -> Result<Correction, LeftBehind> {
+    let mode: CandidateMode = if bump.mode == TrackedMode::Executable {
+        CandidateMode::Executable
+    } else {
+        CandidateMode::Regular
+    };
+    let correction: Correction = Correction {
+        path: bump.path.clone(),
+        mode,
+        before: Rc::from(bump.original.as_slice()),
+        after: Rc::from(bump.replacement.as_slice()),
+    };
+    if selected {
+        return Ok(correction);
+    }
+    // The commit index holds the bytes the bump was computed against; the other three copies must hold the same file.
+    let Some(top_level) = root else {
+        return Err(LeftBehind::Holds(ADDED_PATH_UNSTAGED_REASON));
+    };
+    let commit: Entry = match workspace.index_entry(&bump.path) {
+        Ok(Some(found)) => found,
+        Ok(None) => return Err(LeftBehind::Holds(ADDED_PATH_STAGED_REASON)),
+        Err(error) => return Err(LeftBehind::Unreadable(error.reason)),
+    };
+    let head: Option<Entry> = match workspace.head_entry(&bump.path) {
+        Ok(found) => found,
+        Err(error) => return Err(LeftBehind::Unreadable(error.reason)),
+    };
+    let added: CommitAddedPath<'_> = CommitAddedPath {
+        path: bump.path.as_slice(),
+        head,
+        commit,
+        real: real.get(&bump.path).cloned(),
+        original: bump.original.as_slice(),
+        root: top_level,
+    };
+    return match commit_refusal(&added) {
+        Ok(None) => Ok(correction),
+        Ok(Some(reason)) => Err(LeftBehind::Holds(reason)),
+        Err(error) => Err(LeftBehind::Unreadable(error.to_string())),
+    };
 }
 
 /// Check controls over fixture repositories stay out of the release executable.
