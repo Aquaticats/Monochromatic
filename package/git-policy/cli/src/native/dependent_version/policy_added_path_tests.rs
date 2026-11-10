@@ -144,7 +144,9 @@ fn the_worktree_copy_must_match_head() {
     remove(root.as_path());
 }
 
-/// The commit-lifecycle message names the dependent, both versions, the reason and both
+/// The commit-lifecycle message names the dependent,
+/// both versions,
+/// the reason and both
 /// remedies,
 /// so the person knows which dependent stayed behind and what to do about it.
 #[test]
@@ -165,7 +167,9 @@ fn the_commit_message_names_the_dependent_and_both_remedies() {
     );
 }
 
-/// A commit adds a path only while `HEAD`, its own index, the real index and the worktree copy
+/// A commit adds a path only while `HEAD`,
+/// its own index,
+/// the real index and the worktree copy
 /// all hold the file the bump was computed against,
 /// and each copy that differs is named by its own
 ///  reason.

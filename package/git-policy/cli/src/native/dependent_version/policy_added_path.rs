@@ -288,6 +288,52 @@ pub fn commit_refusal(added: &CommitAddedPath<'_>) -> Result<Option<&'static str
 }
 
 /// What:
+///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
+/// Why:
+///  `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether one byte is the tab that separates an entry's metadata from its path.
+///  `&u8` borrows the byte,
+/// as `position` hands it over.
+/// Why:
+///  `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isTabByte = (byte: number) => byte === 0x09;
+/// ```
+fn is_tab_byte(byte: &u8) -> bool {
+    return *byte == b'\t';
+}
+
+/// What:
+///  Whether one byte is the space that separates an entry's mode,
+///  object and stage.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
+/// Why:
+///  `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSpaceByte = (byte: number) => byte === 0x20;
+/// ```
+fn is_space_byte(byte: &u8) -> bool {
+    return *byte == b' ';
+}
+
+/// What:
 ///  The real index's stage-0 entries for the given paths.
 ///  A path the index holds no stage-0 entry for is absent from the map.
 /// Why:
@@ -317,14 +363,14 @@ pub fn real_index_entries(
     // The listing is the caller's own pathspecs, and the caller's pathspec mode would read them as file names.
     request.without_prefix = true;
     request.index = Some(index.to_path_buf());
-    let output: GitOutput = run_git_checked(context, &request).map_err(|failure| failure.0)?;
+    let output: GitOutput = run_git_checked(context, &request).map_err(|failure| return failure.0)?;
     let mut entries: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
-    for record in output.stdout.split(|byte: &u8| return *byte == 0) {
-        let Some(tab) = record.iter().position(|byte: &u8| return *byte == b'\t') else {
+    for record in output.stdout.split(is_nul_byte) {
+        let Some(tab) = record.iter().position(is_tab_byte) else {
             continue;
         };
         let metadata: &[u8] = &record[..tab];
-        let fields: Vec<&[u8]> = metadata.split(|byte: &u8| return *byte == b' ').collect();
+        let fields: Vec<&[u8]> = metadata.split(is_space_byte).collect();
         let [raw_mode, raw_object, stage] = fields.as_slice() else {
             continue;
         };

@@ -154,7 +154,6 @@ fn chain_workspace(fixture: &Fixture) -> PathBuf {
 }
 
 /// The stale finding event about dependent `name` at `sequence`.
-
 fn stale(sequence: u64, name: &str, from: &str, to: &str) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"direct-check\",\

@@ -1031,25 +1031,35 @@ all three passed again.
 - Direct `check` and `fix` run the planner over the candidate state.
   `fix` installs corrections through the engine's atomic install,
   as the other content policies do.
-- `git add` plans nothing.
-  `check_dependent_version` returns no findings for every pre-forward trigger,
-  before it reads a candidate,
-  and it passes `forwards_commit: false` in the request it builds.
-- `git commit` plans nothing either.
-  The commit path's own stage request is `Trigger::PreForward`
-  (`commit/commit_command.rs:207-212`),
-  and the convergence passes run under that same request
-  (`commit/commit_convergence.rs`),
-  so the early return reaches them too.
-  The commit lands,
-  and no publish set can fail it:
-  the planner reads the registry configuration only on `direct-check` and
-  `direct-fix`.
-  A commit that raises a version and leaves a dependent stale is therefore
-  reported by `check` and `fix` alone,
-  which is finding 2 of
+- `git add` plans nothing: it applies no correction,
+  so `check_dependent_version` returns no findings for a pre-forward trigger whose command is not
+  `commit`, before it reads a candidate.
+- `git commit` plans and applies the ripple
+  (branch `feat/git-policy-cli-commit-adds-the-dependents-it-bumps`,
+  commits `947920acf0` and `f638a19a7e`).
+  The commit transaction's convergence sets `forwards_commit` on the shipped checks
+  (`commit_convergence.rs`),
+  so the same `Trigger::PreForward` pass plans, and the corrections are written into the
+  private commit index.
+  Every such correction names a manifest the commit did not select, so it is an added path:
+  `policy_added_path::commit_refusal` admits it only while `HEAD`, the commit's own index,
+  the real index (one `git ls-files` listing per commit) and the worktree copy all hold the
+  bytes the bump was computed against.
+  The landing then writes the committed manifests into the worktree while each copy still holds
+  those bytes (`commit_worktree_records.rs`), and keeps a copy that moved.
+  A dependent that fails the precondition, one whose version cannot be patch-bumped, and a
+  publish set the commit cannot read are notes, not failures: the engine reports a note as an
+  engine-failure event with its own hint and the pass goes on
+  (`PolicyOutcome::FindingsWithNotes`,
+  `LEFT_ALONE_HINT`),
+  so a commit never fails over the ripple.
+  This closes finding 2 of
   `doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
-  still open and a decision rather than a defect of the reader.
+  which the owner answered on 2026-11-10 by choosing
+  "A commit adds the dependents' manifests and updates them in the worktree when that copy
+  still matches `HEAD`".
+  A direct check and fix keep their old behavior for the same dependent: a fix refuses it with
+  `patch-conflict` and changes nothing.
 
 ### Release task differential
 

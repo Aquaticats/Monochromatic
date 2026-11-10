@@ -141,7 +141,8 @@ pub enum PolicyOutcome {
     ///  an empty list means it found nothing.
     Findings(Vec<PolicyFinding>),
     /// The policy was evaluated,
-    ///  and it left some work alone: the findings it made,
+    ///  and it left some work alone:
+    /// the findings it made,
     ///  and one
     ///       note for each thing it did not touch.
     ///  A note is reported and the pass goes on,
