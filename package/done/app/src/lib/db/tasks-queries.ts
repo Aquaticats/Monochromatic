@@ -2,6 +2,12 @@
  Read-only query functions for the task data-access layer.
  */
 import db from '../db.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
 import {
   type BlockedTaskLink,
   type SearchTask,
@@ -22,6 +28,18 @@ import {
   SQL_SELECT_IN_PROGRESS,
   SQL_SELECT_INBOX_UNBLOCKED,
 } from './tasks-sql.ts';
+
+//region Logging
+
+/**
+ Logger for this module: search explains why it fell back from the full-text index.
+ */
+const l = tagged({
+  tag: 'done-tasks-queries',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Retrieves a single task by UUID via {@link getTaskRowById}, mapped to the
@@ -212,10 +230,7 @@ export async function searchTasks(searchQuery: string,): Promise<SearchTask[]> {
   catch (ftsQueryError: unknown) {
     // Turso FTS rejects some user query syntax, and errors when the index is
     // absent on a build without it; log the cause, then fall back to LIKE.
-    console.error(
-      'searchTasks FTS query failed; falling back to LIKE matching:',
-      ftsQueryError,
-    );
+    l.warn(`FTS query failed, so the search falls back to LIKE matching: ${caughtValueText(ftsQueryError,)}`,);
     /* oxlint-disable typescript/no-unsafe-type-assertion -- database LIKE query returns TaskRow with is_blocked column */
     /**
      Fallback LIKE rows when the FTS syntax is rejected by SQLite.

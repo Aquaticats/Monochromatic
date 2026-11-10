@@ -401,6 +401,7 @@ dependencies = [
  "gix-hash",
  "gix-index",
  "ignore",
+ "libc",
  "memchr",
  "rayon",
  "tracing",
