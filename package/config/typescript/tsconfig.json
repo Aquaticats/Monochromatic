@@ -1,5 +1,9 @@
 {
-  "extends": "./tsconfig.options.json",
+  // The unit test imports the test harness, whose workspace source reads platform
+  // types, so this project needs the DOM lib like every other package;
+  // see doc/troubleshooting/typescript.md "All packages must extend
+  // config-typescript/dom".
+  "extends": "./tsconfig.dom.json",
   "files": [],
   "compilerOptions": {
     // TS6310: Referenced project may not disable emit
