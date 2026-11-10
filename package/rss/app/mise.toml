@@ -36,6 +36,13 @@ extends = "lint:oxlint"
 extends = "format:oxlint"
 
 [tasks."lint:types"]
+description = "Build the declarations the tests import, then type-check"
+run = [
+  { tasks = ["build:js:node"] },
+  { tasks = ["lint:types:cases"] },
+]
+
+[tasks."lint:types:cases"]
 extends = "lint:types"
 
 [tasks."test:unit"]
