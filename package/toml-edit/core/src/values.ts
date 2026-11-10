@@ -23,6 +23,7 @@ import {
   encodeWrapped,
   isPlainObject,
   isWrappedInput,
+  NEGATIVE_ZERO_TEXT,
 } from './value-encoders.ts';
 
 export { encodeKey, } from './keys.ts';
@@ -217,6 +218,11 @@ function encodeString(
 /**
  Encode a JS number, preserving existing raw spelling when value is unchanged.
  
+ Negative zero is the one integral JS number that encodes as a float, because
+ TOML integers carry no signed zero and `String(-0)` answers `'0'`.
+ Comparison goes through `Object.is`, so a change of sign between `0` and `-0`
+ rewrites the text and a re-set `NaN` keeps the spelling it was parsed with.
+ 
  @returns Computed string.
  */
 function encodeNumber(
@@ -238,9 +244,11 @@ function encodeNumber(
         === 'integer') || (existing.node
           .kind
           === 'float'))
-      && (existing.node
-        .value
-        === value)
+      && Object.is(
+        existing.node
+          .value,
+        value,
+      )
   ) {
     return existing.node
       .number;
@@ -250,6 +258,11 @@ function encodeNumber(
       return 'nan';
     return value > 0 ? 'inf' : '-inf';
   }
+  if (Object.is(
+    value,
+    -0,
+  ))
+    return `${NEGATIVE_ZERO_TEXT}.0`;
   return String(value,);
 }
 

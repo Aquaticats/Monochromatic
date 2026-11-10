@@ -59,7 +59,7 @@ const INTEGER_EXCLUSIVE_MAX_BIGINT = 1n << BigInt(INTEGER_MAGNITUDE_BITS,);
  Negative zero's digits, which `String(-0)` cannot produce because it returns
  `'0'`; TOML keeps the sign in `-0.0`.
  */
-const NEGATIVE_ZERO_TEXT = '-0';
+export const NEGATIVE_ZERO_TEXT = '-0';
 
 /**
  Encode a tagged wrapper input ({@link tomlInteger}, {@link tomlFloat}, date kinds).
