@@ -21,7 +21,6 @@ const emptySetMatchers: CompiledMatchers = {
   matches: function matchesNothing(): boolean {
     return false;
   },
-  requiresAllInputs: false,
 };
 
 //endregion Empty set
@@ -29,8 +28,7 @@ const emptySetMatchers: CompiledMatchers = {
 //region Compilation
 
 /**
- Compiled matcher over one pattern list: tests one input at a time and
- reports whether `isMatch` must require every input to match.
+ Compiled matcher over one pattern list: tests one input at a time.
  
  @example
  ```ts
@@ -50,12 +48,6 @@ export type CompiledMatchers = {
    @returns Whether the input matches under the resolved options.
    */
   readonly matches: (input: string,) => boolean;
-  /**
-   Whether `isMatch` must require every input to match. Set only when
-   `allPatterns` holds with more than one negated pattern and no normal
-   pattern, matching upstream `matcher`'s multi-negation handling.
-   */
-  readonly requiresAllInputs: boolean;
 };
 
 /**
@@ -70,7 +62,7 @@ export type CompiledMatchers = {
  
  @param options - Validated matching flags.
  
- @returns Compiled matcher plus the multi-negation mode flag.
+ @returns Compiled matcher.
  
  @example
  ```ts
@@ -156,8 +148,6 @@ export function compileMatchers(
 
   return {
     matches,
-    requiresAllInputs: options.allPatterns && (negated.length > 1)
-      && (positive.length === 0),
   };
 }
 

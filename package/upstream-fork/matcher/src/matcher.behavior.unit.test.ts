@@ -846,8 +846,8 @@ await describe({
       name: 'keeps some-branch under allPatterns with a single negation',
       fn: async () => {
         /**
-         One negation plus one positive: requiresAllInputs stays false,
-         so isMatch needs only one matching input.
+         One negation plus one positive: every input is still judged on its
+         own, so isMatch needs only one matching input.
          */
         const patterns = [
           '!bar',

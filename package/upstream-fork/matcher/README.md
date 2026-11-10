@@ -77,12 +77,11 @@ Otherwise the default mode keeps an input hitting any normal pattern,
 while
 `allPatterns` requires every normal pattern to hit.
 
-`isMatch` follows the same per-input rule,
-except under `allPatterns` with
-more than one negated pattern and no normal pattern:
-then every input must
-match,
-matching upstream's multi-negation handling.
+`isMatch` answers the same per-input rule
+and reports whether any input answers `true`,
+which is upstream's `some` over the inputs in every option mode,
+including `allPatterns` with
+more than one negated pattern and no normal pattern.
 
 #### Case folding
 

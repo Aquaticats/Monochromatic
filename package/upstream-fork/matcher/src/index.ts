@@ -96,9 +96,8 @@ export function matcher(
  Reports whether any input matches the patterns.
  
  Accepts a string or a readonly string list for both `inputs` and `patterns`.
- Uses the same per-input verdict as `matcher`, except when `allPatterns`
- holds with more than one negated pattern and no normal pattern: then every
- input must match, matching upstream `matcher`'s `isMatch` handling.
+ Answers the same per-input verdict as `matcher` and keeps the inputs that
+ answer `true`, which is what upstream `matcher`'s `isMatch` does.
  
  @param inputs - Input string or readonly list of input strings.
  
@@ -107,7 +106,7 @@ export function matcher(
  
  @param options - Case-sensitivity and all-patterns flags.
  
- @returns Whether the inputs match under the rule above.
+ @returns Whether any input matches under the rule above.
  
  @throws InvalidInputsError when `inputs` is invalid.
  
@@ -153,12 +152,6 @@ export function isMatch(
     patterns: sanitizedPatterns,
     options: resolved,
   },);
-
-  if (compiled.requiresAllInputs)
-    return (sanitizedInputs.length > 0)
-      && sanitizedInputs.every(function everyMatching(input: string,): boolean {
-        return compiled.matches(input,);
-      },);
 
   return sanitizedInputs.some(function someMatching(input: string,): boolean {
     return compiled.matches(input,);

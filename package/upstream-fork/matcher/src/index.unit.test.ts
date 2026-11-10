@@ -76,7 +76,7 @@ await describe({
     },),
 
     it({
-      name: 'requires every input under allPatterns with only negations',
+      name: 'judges each input on its own under allPatterns with only negations',
       fn: async () => {
         expect(isMatch({
           inputs: [
@@ -88,7 +88,7 @@ await describe({
             '!baz',
           ],
           options: { allPatterns: true, },
-        },),).toBe(false,);
+        },),).toBe(true,);
         expect(isMatch({
           inputs: [
             'foo',
