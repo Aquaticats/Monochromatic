@@ -341,8 +341,11 @@ impl ClaimRenewal {
     pub fn stop_on_the_calling_thread(self) {
         match crate::lazy_runtime::run_on_runtime(self.stop_awaiting()) {
             Ok(()) => {}
-            // The runtime refused the wait, so the task is told to stop and left to end on its own, which is what a drop does.
-            Err(refusal) => crate::service_warn!("the renewal of claims was not waited for: {refusal}"),
+            // A caller inside the runtime cannot enter it, and its wait would hold the worker the task needs to end: the task is
+            //  told to stop and ends on its own, and a rename it finishes later finds the claim moved on and changes nothing. That
+            //  caller is a job of the blocking pool today (`landing/service_round.rs`, `DrainEachDirectory::run`), and the round
+            //  that awaits this stop is the landing round's own piece, so the line is the log's and not the journal's.
+            Err(refusal) => crate::diagnostic_log::debug("claimRenewal", format!("the renewal of claims was not waited for: {refusal}").as_str()),
         }
     }
 }

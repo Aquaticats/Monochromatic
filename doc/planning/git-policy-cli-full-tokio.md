@@ -8355,6 +8355,17 @@ the container gate,
   `drain_pending` keeps the behaviour of that thread:
   every exit of its loop breaks instead of returning,
   and the stop the drop used to make is made explicitly at the end of the drain.
+  A caller that is already inside the runtime cannot make that wait
+  (`DrainEachDirectory::run`,
+  `landing/service_round.rs`,
+  runs in a job of the blocking pool),
+  so its stop is the signal only and the task ends on its own,
+  which costs nothing:
+  a renewal renames a claim only from the name it last wrote,
+  and a claim that was settled is no longer there.
+  That is the one place where the round's behaviour differs from before this
+  run,
+  and the round that awaits the stop is the landing round's own piece.
 - The brief's third item,
   `drain_pending` as a task,
   is not done.
