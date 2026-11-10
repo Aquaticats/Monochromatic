@@ -49,6 +49,9 @@ use crate::merge_isolation_recovery::recover_interrupted_merges;
 /// The person's own work in the paths the merge changes,
 /// and the durable ref that keeps it.
 use crate::merge_isolation_carry::{capture_work, keep_capture};
+/// The directory a merge would replace with a file,
+/// and the sentence that stops the merge instead.
+use crate::merge_isolation_a_directory_the_merge_replaces::{a_directory_the_merge_would_replace, the_line};
 use crate::merge_isolation_carry_parts::Capture;
 /// The editor a merge opens for its message when the checkout holds the person's own work.
 use crate::merge_isolation_editor::{EditorPlace, EditorRefusal, asked_once};
@@ -260,6 +263,15 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
             .as_slice(),
     );
     let carrying: bool = !overlapping_paths(dirty.as_slice(), touched.as_slice()).is_empty();
+    // A directory standing where the merge writes a file is the person's own work, and Git's update of the checkout deletes
+    //  everything in it: measured, an untracked `a.txt/nested/file.txt` and a staged one both went with the directory, the
+    //  staged one with its index entry. No layer of the carry can hold a directory, so the merge stops here, before the
+    //  first byte of the worktree, the index or the branch changes (`SPEC.md`, "A directory that stands where the merge puts a file").
+    if let Some(found) = a_directory_the_merge_would_replace(&session.context, root, head, target, touched.as_slice())
+        .map_err(Bail::from)?
+    {
+        return Err(refused(1, the_line(reference.as_str(), &found)));
+    }
     // A merge that would open an editor is native Git's while the checkout holds nothing the merge would write over:
     //  it performs the merge itself and then opens the editor. Over the person's own work it cannot run at all, because
     //  it refuses such a checkout before the editor opens (`doc/planning/cli-git-merge-with-staged-index.md`), so the
