@@ -5392,6 +5392,7 @@ all durations in whole milliseconds taken from the monotonic clock:
   `fitting request`,
   `request`,
   `shadow` (what the shadow must carry),
+  `shadow pool` (taking a finished shadow instead of making one),
   `shadow skeleton`,
   `shadow config`,
   `shadow links`,
@@ -5404,6 +5405,11 @@ all durations in whole milliseconds taken from the monotonic clock:
   A build that stops inside itself still states its time,
   because the phase is closed where the command stops and in the record's own writer,
   so no build is ever reported as time that no phase covers.
+  A build that took a finished shadow from the pool names `shadow pool` and no `shadow skeleton`,
+  `shadow config` or `shadow links` stretch,
+  which is how a reading tells the two routes apart
+  (`SPEC.md`,
+  "A shadow taken from the pool").
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:

@@ -10827,7 +10827,8 @@ these private entries:
 - `COMMIT_EDITMSG`,
   which native `git commit` rewrites during every commit,
   so concurrent preparations never share one message file.
-- The copied conclusion state
+- The copied conclusion state,
+  which is made only when the worktree holds some
   (see "Sequencer conclusion state").
 - `monochromatic-git-policy-cli`,
   which is never linked.
@@ -10839,6 +10840,12 @@ such as `info`,
 `lfs`,
 and `modules`,
 is a symbolic link to the real entry by default.
+A lock,
+and the file a command stages a lock in
+(`<lock name>.cli-git-marker-<pid>.<pid namespace>-<batch>-<token>`),
+is never linked:
+a shadow Git that wrote one would collide with the real holder,
+and every command of a repository stages a marker of its own while it runs.
 A per-worktree entry that Git resolves in the owning worktree's Git directory,
 such as a linked worktree's `info/sparse-checkout`,
 is copied;
@@ -10888,6 +10895,67 @@ The shadow `config` has this layout:
 
 Cli-git writes the file itself,
 quoting every path value under git-config value syntax at the final interpolation.
+
+#### A shadow taken from the pool
+
+The creation of a shadow is about forty calls that create a directory entry on the volume a commit already waits on,
+and the owner chose to stop paying it on every commit
+(`doc/handover/questions-for-the-owner.md`,
+"May a commit take its private repository from a pool made ahead?",
+"Pool made ahead (Recommended),
+We don't need to build a shadow for every commit.
+Be smarter.").
+So a commit takes a finished shadow from a pool when the pool holds one this invocation can use,
+and makes its creation exactly as it did before when it does not:
+an empty pool is not a failure,
+and nothing about a claim can fail a commit.
+
+The pool lives in `<common-dir>/monochromatic-git-policy-cli-scratch/shadow-pool/<worktree>`,
+one folder per worktree because a member's `config` names the worktree root the commit runs in.
+A member is everything the creation makes that does not depend on the commit:
+the skeleton,
+the private mode,
+the `config`,
+`objects/info/alternates`,
+the links and the copied `config.worktree`.
+It holds no ref store and no conclusion state,
+which a commit adds after it takes one,
+from this invocation's own capture.
+
+- A claim is one `rename` of a member onto the commit's `<scratch>/shadow`,
+  which fails for the second claimant,
+  so no lock is taken and no commit waits for another
+  (`AGENTS.md`,
+  `NLK`).
+- A claimed member is checked before it is used,
+  and everything the check reads is a read:
+  its `config` must be the text this invocation's creation would write,
+  its alternates must name this invocation's object directory,
+  its `HEAD` must be the creation's own placeholder,
+  every directory of the skeleton must be there,
+  every shared entry must be a link to this repository's own entry,
+  it must hold no entry a creation does not make,
+  and no pack and no ref.
+  A member that fails the check is removed and the next one is tried,
+  and a pool with none left leaves the commit making its creation.
+- A reftable repository and a linked worktree that keeps its own `info` are never pooled:
+  Git writes those shadows' own tables and entries,
+  so their commit makes its creation.
+- The resident service fills the pool beside the landing loop,
+  never on a committing person's path:
+  it reads a repository's format facts and object directory the way an invocation's capture does,
+  makes one member into a folder named as a fill,
+  publishes it whole with one `rename`,
+  and stops at two members for a worktree.
+- A fill that a stop interrupts leaves a folder named as a fill,
+  which no claim takes and the next fill of that pool removes once it is fifteen minutes old.
+  The wrapper's own sweep of the repository scratch folder removes a pool that has gone unused for longer,
+  and the next landing fills it again.
+
+`buildParts` names the claim `shadow pool`:
+a build that took a member names no `shadow skeleton`,
+`shadow config` or `shadow links` stretch,
+so a reading of the record can tell the one route from the other.
 
 #### Private `HEAD` shape
 
@@ -11294,6 +11362,15 @@ The landing removes the same state from the worktree exactly as native Git remov
 each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
 A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
+
+The copies folder is made only when the worktree holds conclusion state:
+a commit that concludes nothing has nothing the folder could hold,
+the landing answers an absent folder as no conclusion state at all
+(`reproduce_conclusion_cleanup`),
+and the one `mkdir` it used to make was the largest stretch of a build in the records
+(`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+"What each part of a commit's private repository is for,
+and how many commits need it").
 
 ### The amend a moved branch makes
 
