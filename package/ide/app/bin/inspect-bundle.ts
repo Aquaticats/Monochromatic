@@ -12,6 +12,7 @@ import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
+import { isGrammarLibraryName } from './grammar-library-name.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
 const only = process.env.usage_only ? new Set(process.env.usage_only.split(',')) : undefined;
@@ -41,7 +42,7 @@ const filesBelow = (directory: string): string[] => readdirSync(directory, { wit
 const listedGrammars = (): { revision: unknown; libraries: string[] } => {
   const manifest = JSON.parse(readFileSync(join(runtime, 'manifest.json'), 'utf8'));
   demand({ condition: Array.isArray(manifest.grammars) && manifest.grammars.length > 0, message: 'runtime/manifest.json lists no grammar' });
-  for (const library of manifest.grammars) demand({ condition: typeof library === 'string' && /^[A-Za-z0-9_-]+\.so$/.test(library), message: 'runtime/manifest.json entry is not a grammar library name: ' + library });
+  for (const library of manifest.grammars) demand({ condition: typeof library === 'string' && isGrammarLibraryName(library), message: 'runtime/manifest.json entry is not a grammar library name: ' + library });
   return { revision: manifest.helixRevision, libraries: manifest.grammars };
 };
 // Every file the build script embeds, as [path in the embedded layout, file on disk]: the same list as build.rs.

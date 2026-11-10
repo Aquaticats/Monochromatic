@@ -1,7 +1,7 @@
 // The character classes the inspection scripts' scans share, checked against the pattern classes they replace.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isAsciiDigit, isDecimalNumberCharacter, isLineTerminator, isWhitespace } from './scan-characters.ts';
+import { isAsciiDigit, isDecimalNumberCharacter, isLineTerminator, isLowercaseHexadecimalDigit, isWhitespace, isWordCharacter } from './scan-characters.ts';
 
 const digits = '0123456789';
 
@@ -52,4 +52,22 @@ test('rejects the characters beside whitespace in the code unit table', () => {
   const beside = [0x1fff, 0x200b, 0x2010, 0x202e, 0x2030, 0x205e, 0x2060, 0x2fff, 0x3001, 0xfeff - 1, 0xfeff + 1];
   for (const code of beside) assert.equal(isWhitespace(String.fromCharCode(code)), false, 'code unit ' + code);
   for (const character of ['a', '0', '\u0085', '\u180e', '', '  ']) assert.equal(isWhitespace(character), false, JSON.stringify(character));
+});
+
+test('accepts the letters, digits and underscore a word character names', () => {
+  const named = ['a', 'z', 'A', 'Z', '_', ...digits];
+  for (const character of named) assert.equal(isWordCharacter(character), true, character);
+});
+
+test('rejects the characters beside the word characters in the code unit table', () => {
+  const beside = ['`', '{', '@', '[', '^', ']', '-', '.', ' ', '\u00e9', '', 'ab'];
+  for (const character of beside) assert.equal(isWordCharacter(character), false, JSON.stringify(character));
+});
+
+test('accepts the digits and the lowercase letters a hexadecimal print holds', () => {
+  for (const character of [...digits, 'a', 'f', 'c']) assert.equal(isLowercaseHexadecimalDigit(character), true, character);
+});
+
+test('rejects an uppercase hexadecimal letter, a letter past f, and anything else', () => {
+  for (const character of ['A', 'F', 'g', 'G', 'x', '-', ' ', '', 'ff']) assert.equal(isLowercaseHexadecimalDigit(character), false, JSON.stringify(character));
 });

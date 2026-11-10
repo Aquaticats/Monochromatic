@@ -149,3 +149,65 @@ export function isWhitespace(character: string): boolean {
     || code === byteOrderMarkCodeUnit
     || isLineTerminator(character);
 }
+
+/** Code unit of the underscore a word character may hold. */
+const underscoreCodeUnit = 0x5f;
+
+/** Code unit of the lowercase a, the first letter of the ASCII word characters. */
+const firstLowercaseLetterCodeUnit = 0x61;
+
+/** Code unit of the lowercase z, the last letter of the lowercase run. */
+const lastLowercaseLetterCodeUnit = 0x7a;
+
+/** Code unit of the uppercase A, the first letter of the uppercase run. */
+const firstUppercaseLetterCodeUnit = 0x41;
+
+/** Code unit of the uppercase Z, the last letter of the uppercase run. */
+const lastUppercaseLetterCodeUnit = 0x5a;
+
+/**
+ Whether character is an ASCII word character, which a name of letters, digits and underscores holds.
+ 
+ @param character - Single character of the text.
+ 
+ @returns Whether character is a letter of either case, a digit, or an underscore.
+ 
+ @example
+ ```ts
+ isWordCharacter('_'); // true
+ isWordCharacter('-'); // false, a hyphen is not a word character
+ ```
+ */
+export function isWordCharacter(character: string): boolean {
+  if (character.length !== 1) return false;
+  const code = character.charCodeAt(0);
+  return isAsciiDigit(character)
+    || code === underscoreCodeUnit
+    || (code >= firstLowercaseLetterCodeUnit && code <= lastLowercaseLetterCodeUnit)
+    || (code >= firstUppercaseLetterCodeUnit && code <= lastUppercaseLetterCodeUnit);
+}
+
+/** Code unit of the lowercase a, the first hexadecimal letter. */
+const firstHexadecimalLetterCodeUnit = 0x61;
+
+/** Code unit of the lowercase f, the last hexadecimal letter. */
+const lastHexadecimalLetterCodeUnit = 0x66;
+
+/**
+ Whether character is one of the lowercase ASCII hexadecimal digits.
+ 
+ @param character - Single character of the text.
+ 
+ @returns Whether character is a digit or a letter from `a` to `f`.
+ 
+ @example
+ ```ts
+ isLowercaseHexadecimalDigit('f'); // true
+ isLowercaseHexadecimalDigit('F'); // false, a commit id is printed in lowercase
+ ```
+ */
+export function isLowercaseHexadecimalDigit(character: string): boolean {
+  if (character.length !== 1) return false;
+  const code = character.charCodeAt(0);
+  return isAsciiDigit(character) || (code >= firstHexadecimalLetterCodeUnit && code <= lastHexadecimalLetterCodeUnit);
+}
