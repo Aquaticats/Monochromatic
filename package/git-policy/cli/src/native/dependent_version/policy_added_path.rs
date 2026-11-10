@@ -222,24 +222,17 @@ pub fn worktree_refusal(
 }
 
 /// What:
-///  Why a commit may not add one tracked path to itself,
-///  or nothing when every copy holds
-///       the file the correction was computed against.
-///  `Err` is a read the system refused for another reason than a copy being absent.
+///  The four copies of one path a commit compares before it adds that path to
+///       itself,
+///  and the bytes the correction was computed against.
 /// Why:
-///  A commit adds a path the person did not select only while `HEAD`,
-///  the real index,
-///  the
-///       commit's own index and the worktree all hold that one blob,
-///  so the commit lands what the
-///       person saw and the worktree copy takes the committed bytes afterwards.
-///  A copy that
-///       holds something else is somebody's work,
-///       and it is left exactly as it is.
+///   One record keeps them together,
+///  so the rule that judges them cannot be handed a pair from
+///       different files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function commitRefusal({ path, head, commit, real, original, root }): Promise<string | undefined>;
+/// type CommitAddedPath = { path: string; head?: Entry; commit: Entry; real?: Entry; original: Uint8Array; root: string };
 /// ```
 pub struct CommitAddedPath<'a> {
     /// The repository path the correction names.
@@ -260,9 +253,20 @@ pub struct CommitAddedPath<'a> {
 }
 
 /// What:
-/// Why the commit may not add the path,
-///  or nothing when it may.
+///  Why a commit may not add one tracked path to itself,
+///  or nothing when every copy holds
+///       the file the correction was computed against.
+///  `Err` is a read the system refused for another reason than a copy being absent.
 /// Why:
+///  A commit adds a path the person did not select only while `HEAD`,
+///  the real index,
+///  the
+///       commit's own index and the worktree all hold that one blob,
+///  so the commit lands what the
+///       person saw and the worktree copy takes the committed bytes afterwards.
+///  A copy that
+///       holds something else is somebody's work,
+///       and it is left exactly as it is.
 ///  The reasons are the fix's own,
 ///  checked in the same order,
 ///  so one rule answers both lifecycles.

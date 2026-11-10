@@ -13623,9 +13623,11 @@ and the escape hatch.
 
 #### What a commit does with the ripple
 
-A wrapped `git commit` plans the same ripple as `check` and `fix`
-(owner decision 2026-09-15:
-"A commit adds the dependents' manifests and updates them in the worktree when that copy still matches HEAD").
+A wrapped `git commit` plans the same ripple as `check` and `fix`,
+as the owner's answer of 2026-11-10 decides
+(quoted in "Finding and patch validation")
+and the decision of 2026-09-15 records
+(`doc/decision/private-npm-registry.md:158-177`).
 When a workspace manifest's `version` differs from the base the commit recorded,
 every publishable dependent is patch-bumped,
 transitively,

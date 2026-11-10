@@ -91,9 +91,10 @@ fn a_skipped_check_is_reported_and_does_not_block_the_command() {
 #[test]
 fn a_note_is_reported_and_does_not_block_the_command() {
     let path: EventPath = EventPath::from_git_bytes(b"b/package.json");
+    let config: PolicyConfig = all_listed();
     let (result, _called) = run(
         Trigger::PreForward,
-        &PolicyConfig::defaults(),
+        &config,
         &no_controls(),
         &[],
         vec![(
@@ -138,9 +139,10 @@ fn a_note_is_reported_and_does_not_block_the_command() {
 /// ```
 #[test]
 fn a_note_beside_an_error_finding_still_blocks() {
+    let config: PolicyConfig = all_listed();
     let (result, _called) = run(
         Trigger::PreForward,
-        &PolicyConfig::defaults(),
+        &config,
         &no_controls(),
         &[],
         vec![(

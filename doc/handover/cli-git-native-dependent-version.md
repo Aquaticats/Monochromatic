@@ -1251,9 +1251,13 @@ traced in the code:
    but they never reach the
    filter.
 3. Forwarded `git commit`.
-   Only the `add` branch sets candidates (`wrapped_command.rs:296-299`),
-   and the trigger is `PreForward`,
-   so the planner returns clean.
+   A real commit runs through the commit transaction, not through the forwarded stage,
+   and the transaction's own request is `Trigger::PreForward` with `forwards_commit` set
+   (`commit_convergence.rs`),
+   so since 2026-11-10 the planner plans there and the corrections reach the private index.
+   The forwarded `wrapped_command.rs` path still sets candidates only for `add`
+   (`wrapped_command.rs:296-299`),
+   so a forwarded `commit` never reaches this route.
 
 On route 1 every candidate is listed by construction,
 and on routes 2 and 3 the filter is never reached.
