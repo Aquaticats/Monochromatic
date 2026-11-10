@@ -12,14 +12,16 @@ thing that went wrong.
 **What happened.**
  Components were built to remembered Material Design 3 figures.
 Three were wrong:
- two-line list rows were built at 56dp (the spec is 72dp — 56dp is
+ two-line list rows were built at 56dp (the spec is 72dp,
+56dp is
 the *one*-line height),
  segmented buttons at 48dp visual height (the spec is 40dp
 visual with a 48dp tap target),
  and slider handles at 4×26px (the updated M3 slider
 handle is 4×44px on a 16px track).
 
-**Caught in review** — on the grounds that neither side should be trusting a
+**Caught in review**:
+on the grounds that neither side should be trusting a
 memorised spec when the real values are a lookup away.
 
 **The rule.**
@@ -38,14 +40,16 @@ from the repo,
 
 ---
 
-## 2. Device dimensions were invented — including inside the question asked about them
+## 2. Device dimensions were invented, including inside the question asked about them
 
 **What happened.**
- Foldable layouts were drawn at 924×600 and 370×760 — numbers with
+ Foldable layouts were drawn at 924×600 and 370×760,
+numbers with
 no source.
  Worse,
  the question that finally asked which device was being targeted
-offered answer options containing made-up dp figures ("cover ≈390×844dp") — so the
+offered answer options containing made-up dp figures ("cover ≈390×844dp"),
+so the
 guesswork was baked into the question itself.
 
 **Caught in review**:
@@ -56,7 +60,8 @@ guesswork was baked into the question itself.
  then derive dp from published px and density.
 device-metrics.md has the real numbers for the Pixel 9 Pro Fold and the arithmetic
 used to get them.
- The inner display is **essentially square** — every earlier mockup
+ The inner display is **essentially square**:
+every earlier mockup
 used a wide landscape frame and was structurally wrong,
  not just slightly off.
 
@@ -65,12 +70,14 @@ used a wide landscape frame and was structurally wrong,
 ## 3. Candidates were presented without ever being looked at
 
 **What happened.**
- Several designs went out with wide squashed play buttons —
-a 96×60 rounded rectangle where a circle belongs — and later with a transport row
+ Several designs went out with wide squashed play buttons,
+a 96×60 rounded rectangle where a circle belongs,
+and later with a transport row
 whose prev/next buttons were flung to opposite screen edges.
 
 **Caught in review**,
- twice — first the fat transport buttons,
+ twice,
+first the fat transport buttons,
  later a layout that
 was simply broken on arrival.
 
@@ -79,7 +86,8 @@ was simply broken on arrival.
 user.
  Note that **iframe content is not captured** by the screenshot tooling,
  so a
-contact sheet of candidate files renders blank — check files one at a time.
+contact sheet of candidate files renders blank,
+check files one at a time.
 
 ---
 
@@ -90,7 +98,8 @@ contact sheet of candidate files renders blank — check files one at a time.
 `margin:0 auto` to centre them.
  In a flex row,
  `margin:0 auto` consumes all free space
-on both sides — which pushed the neighbouring buttons to the container edges and broke
+on both sides,
+which pushed the neighbouring buttons to the container edges and broke
 every single-column layout.
  It shipped.
 
@@ -124,7 +133,7 @@ wrapping,
 
 ---
 
-## 5b. The 1,000-folder rule was misread as "show 1,000 rows" — three times
+## 5b. The 1,000-folder rule was misread as "show 1,000 rows": three times
 
 **What happened.**
  unf-b,
@@ -137,9 +146,11 @@ wrapping,
 per row would make the scrolling area absurdly large.
  We should be prepared to handle
 1k sub-dirs."
- Decision D3 already said it — "wrapped 48dp targets,
+ Decision D3 already said it,
+"wrapped 48dp targets,
  not a single narrow
-column" — and picker-f already demonstrated it.
+column",
+and picker-f already demonstrated it.
  Neither was read closely enough.
 
 **The rule.**
@@ -162,7 +173,8 @@ the failure,
  in softer words
 ("every question offers a way out"),
  and two forms in session 3 went out as pure
-option pickers anyway — the picker-verdict form and the round-two follow-up.
+option pickers anyway,
+the picker-verdict form and the round-two follow-up.
  The user:
 "I also said a standing rule is to always include free text input for me to fill out
 for any option in a prev session,
@@ -190,12 +202,13 @@ Where a form is a follow-up round,
  Two of the user's rejections were written down in these documents in
 a narrower form than they were meant:
 
-* "we don't really need this as tabs" (about the CA / CH / CL–CO split) was recorded in
+* "we don't really need this as tabs" (about the CA / CH / CL to CO split) was recorded in
   D17 as *no sub-buckets as tabs*.
    The segmentation itself was what died.
    It came back
   as a rail accordion in pk-d.
-* "picker names not as a wall of chips" was recorded as presentation being "open" — and
+* "picker names not as a wall of chips" was recorded as presentation being "open",
+  and
   then written into D28 as *chips are still the presentation*.
 * One name per 48dp row had been rejected for the long scroll (5b) and was rebuilt
   three more times (pk-a,
@@ -223,7 +236,8 @@ The user,
    candidate.
     If the general form is not obvious,
     ask which it is before writing it.
-2. **Keep the NO list next to the decision** — D17 now carries all three picker NOs.
+2. **Keep the NO list next to the decision**:
+   D17 now carries all three picker NOs.
 3. **Check a new candidate against the NO list before showing it.**
     Every rejected pk-*
    candidate would have failed that check in one line.
@@ -251,7 +265,8 @@ that scales to fit (see unf-f,
 
 **What happened.**
  A whole round was spent asking what should happen after the last
-track in a folder — but the mode control (Repeat / In order / Shuffle folder /
+track in a folder,
+but the mode control (Repeat / In order / Shuffle folder /
 Shuffle all) already answers it.
  The round produced two candidates that were moot
 before they were built.
@@ -276,7 +291,7 @@ when playback moves.
 
 **The rule.**
  If the question is about appearance or behaviour,
- build 2–3 real
+ build 2 to 3 real
 candidates first and ask by showing them.
 
 ---
@@ -300,7 +315,8 @@ scrolling children.
  but
 every frame sat on a #4A4458 purple desk with a near-black caption bar,
  and the frames
-only filled the top third of a tall preview — so two thirds of the screen was dark and
+only filled the top third of a tall preview,
+so two thirds of the screen was dark and
 the study read as "not a light theme" at a glance.
  The user,
  having already asked five
@@ -322,7 +338,8 @@ separate causes,
    which does not resolve in every context
   that renders a candidate;
    and
-* **the real cause** — the design system publishes its dark scheme under
+* **the real cause**:
+  the design system publishes its dark scheme under
   `[data-theme="dark"]`,
    the HOST sets that attribute on `<html>` when the user's app
   is in dark mode,
@@ -352,7 +369,7 @@ and give `html`/`body` the literal desk colour since they sit above that root.
    design's own root element;
  keep baseline fallbacks in every `var()`.
  Then verify by
-   forcing the opposite scheme on `<html>` (`data-theme="dark"`) and screenshotting —
+   forcing the opposite scheme on `<html>` (`data-theme="dark"`) and screenshotting,
    a light study must stay light.
  Neither a missing stylesheet nor a dark-mode host may
    be able to invert a theme.
@@ -362,14 +379,16 @@ and give `html`/`body` the literal desk colour since they sit above that root.
     a light caption bar and light badge text;
     dark candidates get a dark
    one.
-    The surround is part of what the user judges — it is never left at whatever the
+    The surround is part of what the user judges,
+   it is never left at whatever the
    previous candidate used.
 2. **Frames fill the viewport.**
     A fixed design height scaled to fit leaves dead desk
    below it,
     which dominates the impression.
     Let the frame take the available height.
-3. **Look at the rendered output before asking about it** — and when the question is
+3. **Look at the rendered output before asking about it**:
+   and when the question is
    "does this read as X",
     look at it in the USER's view,
     at their window size,
@@ -383,19 +402,22 @@ and give `html`/`body` the literal desk colour since they sit above that root.
  and each
 was then broken by someone reading those exact words:
 
-* "every question offers a way out" — read as a preference;
+* "every question offers a way out":
+  read as a preference;
    two forms went out with no
   free-text field at all (5e).
-* "no sub-buckets *as tabs*" — read as banning one presentation;
+* "no sub-buckets *as tabs*":
+  read as banning one presentation;
    the segmentation came
   back as a rail accordion (5d).
-* "picker names not as a wall of chips" was filed under presentation being *open* —
+* "picker names not as a wall of chips" was filed under presentation being *open*,
   and then written back into a decision as chips (5d).
 
 The user:
  "Record that never to record rules as 'soft' again."
 
-**The rule — how a rule gets written here.**
+**The rule:
+how a rule gets written here.**
 1. **Imperative,
     absolute,
     no hedging.**
@@ -418,9 +440,11 @@ The user:
     the candidate name is only an example.
     A rule
    recorded as its instance shrinks to that instance.
-3. **State the scope explicitly when it is narrower than the words** — "this is about
+3. **State the scope explicitly when it is narrower than the words**:
+   "this is about
    the styling,
-    not the layout" — rather than leaving the reader to guess which half
+    not the layout",
+   rather than leaving the reader to guess which half
    died.
     If the scope is not known,
     ask before writing it down.
@@ -430,7 +454,8 @@ The user:
     where it can be cited and checked against.
 5. **Anything the user calls a rule,
     a constraint or a standing instruction is
-   absolute** unless they later relax it — and a relaxation is recorded the same way.
+   absolute** unless they later relax it,
+   and a relaxation is recorded the same way.
 
 ## 5h. The cost of this session, measured
 
@@ -451,12 +476,12 @@ user changed their mind:
 <tr>
 <td>1</td>
 <td>pk-a/b/c picker presentations</td>
-<td>rebuilt a pattern rejected 3× already (rows) — 5d</td>
+<td>rebuilt a pattern rejected 3× already (rows), 5d</td>
 </tr>
 <tr>
 <td>2</td>
 <td>pk-e/pk-f</td>
-<td>rows again, in different column counts — 5d</td>
+<td>rows again, in different column counts, 5d</td>
 </tr>
 <tr>
 <td>3</td>
@@ -466,12 +491,12 @@ user changed their mind:
 <tr>
 <td>4</td>
 <td>same, split into files</td>
-<td>light studies rendered dark on the user&#39;s host — 5g</td>
+<td>light studies rendered dark on the user&#39;s host, 5g</td>
 </tr>
 <tr>
 <td>5</td>
 <td>same, with my picks</td>
-<td>pros and cons were in chat, not where the user was looking — 5e/6</td>
+<td>pros and cons were in chat, not where the user was looking, 5e/6</td>
 </tr>
 </tbody>
 </table>
@@ -499,7 +524,8 @@ given how many mistakes we made."
     (D17-style
    NOs,
     kept next to the decision.)
-2. Has each candidate been rendered and looked at — in the user's view,
+2. Has each candidate been rendered and looked at,
+   in the user's view,
     at their
    window size,
     in their colour scheme?
@@ -991,7 +1017,8 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
 1. **EVERY question form ends with a free-text field.
     No exceptions.**
     Not "usually",
-   not "when the options feel thin" — every form,
+   not "when the options feel thin",
+   every form,
     every round.
     Options are always a
    partial guess at the problem space,
@@ -1008,7 +1035,9 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
     and the correction that chips were a styling objection and not a layout
    one.
     Two forms in session 3 shipped without one (see 5e) and both cost a round.
-   The field is labelled openly — "anything else you want settled or changed" — and
+   The field is labelled openly,
+   "anything else you want settled or changed",
+   and
    sits last.
     A `user-questions` item,
     letting the user raise what the questions
@@ -1018,7 +1047,8 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
     not by describing.
 3. **Design calls belong to the designer.**
     Bring a recommendation with reasoning;
-   ask only what the owner alone can answer — their library,
+   ask only what the owner alone can answer,
+   their library,
     hardware and habits.
 4. **Known defects are stated up front**,
     in the same breath as the work.
@@ -1030,12 +1060,13 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
 6. **Every option is presented with my own assessment:
     pros,
     cons,
-    and a pick —
+    and a pick,
    written as a LIST.**
     The user asks for choices,
-    not a menu read out flatly —
+    not a menu read out flatly,
    "you're supposed to comment on each option with what you think yourself of the pros
-   and cons of that option" — and wants it structured:
+   and cons of that option",
+   and wants it structured:
     "I would like pros and cons in
    list form."
     So,
@@ -1068,7 +1099,8 @@ Do not reduce the 48dp interaction minimum to achieve this alignment.
     It survives the bound MD3 design
    system,
     whose own dark surface role is neutral6 (#141218) with a five-step container
-   ramp above it — where MD3 and true black disagree,
+   ramp above it,
+   where MD3 and true black disagree,
     **the surface roles get
    overridden,
     not the rule** (decisions.md B1).

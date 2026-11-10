@@ -10,7 +10,8 @@ one-person project.
  If it was just for me,
  I wouldn't have needed to support 3 desktop
 platforms."
- Read every decision below in that light — the library,
+ Read every decision below in that light,
+the library,
  hardware and habits
 behind them are a design target,
  not one person's setup.
@@ -20,7 +21,8 @@ now apply to all future work:
 - **Audience (stated 2026-09-03):**
    "People with big local music libraries."
    Big local
-  libraries is the defining trait — not audiophiles,
+  libraries is the defining trait,
+  not audiophiles,
    not DJs,
    not people who want a
   media-library app.
@@ -33,7 +35,7 @@ now apply to all future work:
    a
   list does not.
 - **Folder names are not Latin-only.**
-   The 27-cell A–Z + # rail assumes they are.
+   The 27-cell A to Z + # rail assumes they are.
   Japanese,
    Cyrillic and Greek names all bucket into "#" today,
    which is wrong for
@@ -72,7 +74,8 @@ implementation detail to rebuild it.
 
 ### A1. Material Design 3 is the shared spec, on both platforms
 **Why.**
- Compose gives MD3 for free on Android — theme,
+ Compose gives MD3 for free on Android,
+theme,
  motion,
  touch targets,
  dynamic
@@ -85,8 +88,10 @@ desktop.
 is already specified,
  which an in-house system would have to invent.
 **Rejected.**
- Adobe Spectrum 2 (deliberately supplies platform-specific variants — the
-opposite of one identity — and is Adobe brand identity,
+ Adobe Spectrum 2 (deliberately supplies platform-specific variants,
+the
+opposite of one identity,
+and is Adobe brand identity,
  not a neutral system);
 Fluent 2;
  a "pro audio tool" aesthetic;
@@ -109,14 +114,16 @@ vertical space on personality that a dense track list cannot afford.
 No per-platform look.
  Both platforms follow the **OS accent colour** where one is
 exposed (Android dynamic colour;
- desktop system accent) — the user pointed out that
+ desktop system accent),
+the user pointed out that
 desktops expose an accent too,
  so this is not an Android-only feature.
 
 ### A4. Desktop toolkit = Slint (settled 2026-09-03)
 The hand-porting cost of MD3 components to Slint was accepted explicitly.
  Consequence:
-every component used on desktop must be portable by hand — prefer the small set already
+every component used on desktop must be portable by hand,
+prefer the small set already
 in use (outlined segmented button,
  icon button,
  slider,
@@ -132,11 +139,12 @@ desktop) still hold,
 
 ## B. Theme and colour
 
-### B1. Theme follows the OS; dark is TRUE BLACK — standing rule (revised 2026-09-04)
+### B1. Theme follows the OS; dark is TRUE BLACK: standing rule (revised 2026-09-04)
 The app follows the system light/dark setting.
  **The dark scheme's background is #000
 and this is a standing rule,
- not a preference** — the user,
+ not a preference**,
+the user,
  when it was re-offered as a
 question:
  "true black is a standing rule!"
@@ -148,10 +156,13 @@ question:
 is neutral6 (#141218) with a five-step container ramp above it;
  this project overrides
 those roles rather than the rule.
- Everything else in the dark scheme — the primary,
+ Everything else in the dark scheme,
+the primary,
 secondary-container,
- outline and on-surface roles — comes from MD3 unchanged.
- A light scheme is therefore now required — MD3 supplies one,
+ outline and on-surface roles,
+comes from MD3 unchanged.
+ A light scheme is therefore now required,
+MD3 supplies one,
 but this project has never drawn a single light surface,
  so the light side of every
 component (outlines carrying separation on black do not translate) is unbuilt work.
@@ -164,7 +175,8 @@ The original entry,
  OLED.
  The user raised true black as a constraint that had not been asked
 about.
- There is **no light theme** — one theme only.
+ There is **no light theme**:
+one theme only.
 
 ### B2. True-black surface ladder
 MD3’s dark surface levels are remapped so the base is pure black,
@@ -253,8 +265,9 @@ for row titles,
  body-medium 14px,
  body-small 12px for the supporting line,
 label-large 14px/500 for buttons and segments.
- Annotation labels use 11–12px with
-wide letter-spacing in a monospace face — but note that in the candidates,
+ Annotation labels use 11 to 12px with
+wide letter-spacing in a monospace face,
+but note that in the candidates,
  monospace
 is used only for **demo annotations**,
  not for product UI.
@@ -358,13 +371,15 @@ pressed inner-corner     4px   (corner-extra-small)
 ```
 It **wraps to a grid on narrow screens**,
  and when it wraps only the four outer corners
-round — the block keeps flush sides.
+round,
+the block keeps flush sides.
  This wrapping behaviour was specified by the user
 via uploads/segmented buttons.png.
 **Rejected.**
  Detached pills (mode-a/mode-b:
  read as four unrelated buttons);
-the outlined segmented button (mode-c) — kept as the fallback if the connected group
+the outlined segmented button (mode-c),
+kept as the fallback if the connected group
 proves impractical,
  and it is the one that matches the user’s reference image exactly.
 
@@ -379,12 +394,12 @@ boundaries.
  Candidates o6-a and o6-b explored this as a
 separate question and are moot.
 
-### D3. Folder picker = A–Z jump strip over a flat name-sorted grid
+### D3. Folder picker = A to Z jump strip over a flat name-sorted grid
 ~1,000 artist folders,
  flat (no nesting in the picker),
  sorted by name.
  A 27-cell
-strip (A–Z plus #) jumps within it.
+strip (A to Z plus #) jumps within it.
  Cells and folder rows are **wrapped 48dp targets**,
 not a single narrow column.
 **Rejected.**
@@ -393,8 +408,10 @@ not a single narrow column.
 section headers alone (picker-a);
  a persistent sidebar (picker-c).
  Note the Android
-fast-scroller drag-bubble idiom was discussed as a possible addition — a large bubble
-showing the current letter while dragging — but was not settled.
+fast-scroller drag-bubble idiom was discussed as a possible addition,
+a large bubble
+showing the current letter while dragging,
+but was not settled.
 
 ### D4. Open shares the Folders app-bar line (revised 2026-09-04)
 `Open` changes the directory.
@@ -416,12 +433,13 @@ picker more vertical space while Open remains one tap away.
 chip;
  a second `Camellia` button above the picker.
 
-### D5. Subfolders are headers inside one flat list — not a layer (confirmed on desc-d, 2026-09-03)
+### D5. Subfolders are headers inside one flat list: not a layer (confirmed on desc-d, 2026-09-03)
 A folder containing subfolders shows **one flat list**:
  its own tracks first,
  then each
 subfolder as a **header row** (name + count) followed by that subfolder's tracks.
-Subfolders "don't create another layer of interaction" (user's words) — nothing to
+Subfolders "don't create another layer of interaction" (user's words),
+nothing to
 enter or leave,
  no breadcrumb,
  no Up.
@@ -464,7 +482,8 @@ Move to trash           (destructive, error colour)
 ### D8. Move to trash = delete immediately, offer Undo (revised 2026-09-03)
 No confirmation dialog.
  Undo is a **compact toast,
- not a full-width snackbar** — the
+ not a full-width snackbar**,
+the
 Todoist model:
  a small dark pill floating over the list near the bottom edge,
  content
@@ -489,7 +508,8 @@ dismissible bar explains what happened.
  When several files fail at once the bar
 **collapses to a count** rather than stacking one bar per file.
  A folder renamed while
-playing changes nothing visible — the open file keeps playing and the folder list
+playing changes nothing visible,
+the open file keeps playing and the folder list
 refreshes on the next read.
 **Rejected.**
  Errors in place (err-a),
@@ -500,11 +520,13 @@ error-coloured and explained itself,
 
 ### D10. Empty state = candidate empty-a
 When nothing is open,
- the screen explains the **first-run analysis up front** — an
+ the screen explains the **first-run analysis up front**:
+an
 hour at high CPU,
  once,
  pausable,
- playback works throughout — alongside a primary
+ playback works throughout,
+alongside a primary
 "Open a folder" button and Settings.
 **Why.**
  There is room here and nothing to interrupt;
@@ -569,24 +591,27 @@ Chosen over transport-right (unf-f).
 
 ### D17. Folder picker = filter, never a list (candidate unf-f/unf-g)
 One-column letter rail (27 × 48dp,
- scrolls on its own — user asked for one column).
+ scrolls on its own,
+user asked for one column).
 The rule the picker must obey:
  **cope with 1k folders,
  never list 1k rows**
 (review-notes 5b).
 
 **Two hard NOs inside this,
- both stated by the user and both violated since — read them
+ both stated by the user and both violated since,
+read them
 before touching the picker:**
 1. **No sub-letter segmentation,
     in any form.**
-    The CA / CH / CL–CO split is dead —
+    The CA / CH / CL to CO split is dead,
    "we don't really need this as tabs" killed the *segmentation*,
     not just its
    presentation as tabs.
     A rail accordion (pk-d) is the same idea wearing a different
    hat and is equally out.
-2. **No chip STYLING on the names** — but the wrapped,
+2. **No chip STYLING on the names**:
+   but the wrapped,
     several-per-line LAYOUT is
    fine and in fact required.
     "Chips are out,
@@ -600,13 +625,14 @@ before touching the picker:**
    name;
     names are plain text at their natural width,
     several per line.
-3. **One item per row is out** — in one column (pk-a,
+3. **One item per row is out**:
+   in one column (pk-a,
     pk-c),
     in two (pk-b) or in three
    (pk-e,
     pk-f).
     It has been rejected at least four times:
-    a letter holding 70–100
+    a letter holding 70 to 100
    names makes the scroll absurdly long,
     which is the original failure
    (review-notes 5b).
@@ -641,7 +667,7 @@ mode group wrapped 2×2.
  Controls-only with the list behind a row
 (cover-d).
 
-### D15. The A–Z jump strip must NOT be a grid of boxed keys
+### D15. The A to Z jump strip must NOT be a grid of boxed keys
 The 9×3 grid of rounded cells (unf-a/unf-b/unf-c) "looks like a keyboard,
  which
 doesn't fly."
@@ -769,7 +795,8 @@ The user’s own proposal,
 continuous** and only the row that would fall in the crease moves out of it.
 **Platform note.**
  Compose can detect tabletop posture;
- desktop toolkits cannot — so
+ desktop toolkits cannot,
+so
 this behaviour is Android-only by nature.
 **Rejected.**
  Splitting the screen into list-above / controls-below at the hinge
@@ -780,7 +807,7 @@ this behaviour is Android-only by nature.
 
 ## F. Input
 
-### F1. Keyboard map — DRAFT ONLY (candidate keys-a), superseded by D102
+### F1. Keyboard map: DRAFT ONLY (candidate keys-a), superseded by D102
 Not reviewed by the user;
 the map the human accepted in D102 replaces it.
  Current draft:
@@ -821,14 +848,15 @@ row treatment,
  deck and visual system stay as built.
  Do not propose artwork again.
 
-### D20. Volume = icon button + vertical popover slider, everywhere — superseded in-app by D43
+### D20. Volume = icon button + vertical popover slider, everywhere: superseded in-app by D43
 The YouTube model,
  chosen over the inline full-width slider row.
  Spec:
  a 48dp icon
 button in the transport block;
  tapping/clicking it opens a vertical slider popover
-anchored to the button (MD3 menu surface — `surface container high` #1A1A1F,
+anchored to the button (MD3 menu surface,
+`surface container high` #1A1A1F,
  elevation
 level 2,
  corner-extra-small container,
@@ -837,11 +865,13 @@ md3-tokens.md).
  Same on Android and desktop;
  on desktop the popover also takes ↑/↓ and
 scroll.
- **Revises D18** — the transport block loses its volume row,
+ **Revises D18**:
+the transport block loses its volume row,
  which frees a full
 row of vertical space in both the unfolded left half and the cover screen.
  **Revises
-D14** — the cover screen keeps volume,
+D14**,
+the cover screen keeps volume,
  but as the icon,
  not the inline slider.
 
@@ -853,20 +883,23 @@ focused),
  and it is configurable.
  Consequences to
 design:
- a fourth Settings row (D11 said the pane is deliberately short — it stays short
+ a fourth Settings row (D11 said the pane is deliberately short,
+it stays short
 at four),
  plus the in-app binding,
  which must not collide with F1's map.
  Global hotkey
 registration differs per platform (Android has no equivalent;
  on Linux/Wayland it is
-compositor-dependent) — check feasibility per platform before drawing the setting.
+compositor-dependent),
+check feasibility per platform before drawing the setting.
 
 ### D22. Scrollbars: desktop bar always visible; the letter rail has none
 Touch input keeps Material's non-interactive fading 4dp bar.
  Pointer input gets the
 same bar **always visible and draggable**,
- with a 12dp grab zone — it does not fade.
+ with a 12dp grab zone,
+it does not fade.
 Chosen by last input,
  never the OS-native scrollbar.
  The letter rail (D17) shows **no
@@ -885,7 +918,8 @@ Settings and the template editor keep the bars described here.
 No library total ("1,043 folders") and no per-letter count.
  The picker is a filter
 (D17),
- and a count is a list affordance — it implies a length the user is not meant to
+ and a count is a list affordance,
+it implies a length the user is not meant to
 care about.
  Removes the header count from unf-h and the count beside the letter.
 
@@ -906,7 +940,9 @@ Reverses F1's draft,
  which had Ctrl+F opening the picker on the grounds that there is
 no search.
  Search is now expected to arrive later and keeps its idiomatic binding.
-Ctrl+O — previously "open a directory" — opens the **picker**;
+Ctrl+O,
+previously "open a directory",
+opens the **picker**;
  the map is to be aligned
 with IntelliJ IDEA conventions generally,
  which needs one pass over the whole list
@@ -919,7 +955,8 @@ A 56dp bar at the bottom edge:
  "Analysing true peak · 412 of 1,218" plus a
 **fixed-width (100dp) Pause button that is always rendered**,
  so nothing appears,
-disappears or reflows mid-scan — the defect that killed scan-a.
+disappears or reflows mid-scan,
+the defect that killed scan-a.
  The bar itself appears
 when analysis starts and leaves when it finishes (D13).
  **Rejected.**
@@ -931,10 +968,12 @@ hour-long operation);
  scan-d.
 
 ### D27. First run opens the system music library and ASKS before analysing
-If the platform exposes a designated music library — Android MediaStore,
+If the platform exposes a designated music library,
+Android MediaStore,
  XDG
 `XDG_MUSIC_DIR` on Linux,
- Music on macOS/Windows — the app **opens it automatically on
+ Music on macOS/Windows,
+the app **opens it automatically on
 first launch**;
  no empty state,
  no "Open a folder" step.
@@ -952,7 +991,8 @@ Dismiss forever  never ask; Re-analyse on the track menu is the only entry point
 Candidate first-run-a shows all four states.
  Until a library is analysed,
  rows show
-duration only and the deck subtitle omits the dB value — the absence is not an error
+duration only and the deck subtitle omits the dB value,
+the absence is not an error
 and is never explained in place.
  Note this pushes against D10's empty state,
  which now
@@ -965,7 +1005,7 @@ Automatic opening of the system music library stands.
 
 ### D28. The picker rail adapts to the library's writing systems (revises D3, D17)
 **Only writing systems present in the library get a section in the rail:**
- Latin A–Z,
+ Latin A to Z,
 Japanese kana rows (+ 漢 for kanji),
  Cyrillic,
  Greek,
@@ -1009,7 +1049,7 @@ break,
  but neither is drawn,
  and neither gets special-cased UI for now.
 
-### D31. Picker names = plain text, several per line — CHOSEN (candidate pk-g, 2026-09-03)
+### D31. Picker names = plain text, several per line: CHOSEN (candidate pk-g, 2026-09-03)
 Chosen over pk-h (14px with middot separators,
  2.0 screens):
  the 16px/24dp-gap version
@@ -1036,20 +1076,24 @@ nothing truncated                        names take the width they need
 selected: primary + 500 + 2dp target-width indicator
           never text underline or filled pill
 ```
-This is the unf-f/g/h/i layout with the chip styling removed — the layout was never the
+This is the unf-f/g/h/i layout with the chip styling removed,
+the layout was never the
 problem.
- **Measured** extent at 418dp (not estimated — review-notes #1):
+ **Measured** extent at 418dp (not estimated,
+review-notes #1):
  names pack
 about 2.1 per line,
  so C (72 names) is 35 lines / 2.2 screens and the worst letter,
  S
 (90 names),
- is 41 lines / 2.5 screens — against 4+ screens for one name per row.
+ is 41 lines / 2.5 screens,
+against 4+ screens for one name per row.
  pk-g
 reads these off the DOM and displays them,
  so the claim can be re-checked at any width.
 **Rejected on the way here:**
- wrapped chips (unf-f/g/h/i — the styling);
+ wrapped chips (unf-f/g/h/i,
+the styling);
  one name per
 row in one,
  two or three columns (pk-a,
@@ -1063,7 +1107,8 @@ re-introduced prefix ranges (pk-d).
 ### D32. The dark ramp is the project's own, measured down from black (candidate dark-b)
 Chosen over 2a (MD3's own dark containers sitting above the #000 window),
  because
-MD3's steps are warmer and start higher — the panes read as grey cards floating on
+MD3's steps are warmer and start higher,
+the panes read as grey cards floating on
 black,
  which defeats the point of true black.
  The ramp,
@@ -1095,7 +1140,8 @@ unf-j,
  plus everything built from now on.
  The
 other ~60 candidates keep their hand-inlined values as history and are not touched.
-Every rebuilt file **pins its scheme inline on its own root** — the host sets
+Every rebuilt file **pins its scheme inline on its own root**:
+the host sets
 `data-theme="dark"` on `<html>`,
  and inheriting that silently inverts a light design
 (review-notes 5g).
@@ -2416,7 +2462,7 @@ No production implementation is authorized by this record.
 ### D85. The Settings pane has no closing sentence (2026-10-05)
 
 The human dropped settings-a's closing paragraph,
-`That's everything. There is no library to configure, no tags to read, and no audio processing beyond normalisation — so
+`That's everything. There is no library to configure, no tags to read, and no audio processing beyond normalisation, so
 this pane stays short until the app grows.`
 D11's wording about the pane saying out loud that it is short is withdrawn
 with it.
@@ -5051,7 +5097,8 @@ Cause and the source reading:
 
 ## Pending after the theme picks (2026-09-04)
 
-- **Order of remaining work** — my recommendation:
+- **Order of remaining work**:
+  my recommendation:
    cover screen,
    accessibility pass,
   command bar.

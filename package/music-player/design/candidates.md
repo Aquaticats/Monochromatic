@@ -50,7 +50,8 @@ which were left as historical style comparisons.
 
 ## Support files (not designs)
 
-- **artists.js** — ~1,218 generated folder names plus helpers (`bucketOf`,
+- **artists.js**:
+  ~1,218 generated folder names plus helpers (`bucketOf`,
    `LETTERS`,
   `scriptOf`,
    `SCRIPT_LABEL`,
@@ -58,22 +59,26 @@ which were left as historical style comparisons.
    Now includes **non-Latin names** (Japanese,
   Cyrillic,
    Greek,
-   Hangul) — real libraries are not Latin-only.
+   Hangul),
+  real libraries are not Latin-only.
    **Use this in every
   folder demo.**
    Forgetting the scale rule has caused six rejections.
-- **buckets.js** — `railFor(names)` builds the adaptive rail (D28):
+- **buckets.js**:
+  `railFor(names)` builds the adaptive rail (D28):
    only writing
   systems present get a section;
    cells are single letters / kana rows.
    It deliberately
-  does **no** sub-letter splitting — that was killed (D17).
-- **support.js** — generated Design Component runtime.
+  does **no** sub-letter splitting,
+  that was killed (D17).
+- **support.js**:
+  generated Design Component runtime.
    Never edit.
 
 ---
 
-## CHOSEN — these define the product
+## CHOSEN: these define the product
 
 <table>
 <thead>
@@ -150,7 +155,8 @@ on and are not settings.</td>
 - **Every option candidate prints its own PROS / CONS / MY READ** in the caption bar
   at the bottom of the frame (review-notes standing standard 6).
    The same text goes in
-  the form's question subtitle and in chat — the user may be reading any of the three.
+  the form's question subtitle and in chat,
+  the user may be reading any of the three.
 - **A theme study pins its colour scheme inline on its own root element** and links the
   token sheets from `candidates/_ds/…` (copied there),
    never `../_ds/…`.
@@ -222,7 +228,7 @@ pause action the clearest focal point without compressing the stack.
  This choice
 settles both matrix dimensions and supersedes the recommendation.
 
-## ROUND 13 — redundant current-track and Open cues
+## ROUND 13: redundant current-track and Open cues
 
 All studies inherit chosen option 1B:
  centered deck,
@@ -323,7 +329,7 @@ O2 uses the tonal folder `Open` button.
  This supersedes the recommendation for 1A
 without changing the settled transport treatment.
 
-## ROUND 10 — white-divider clarification
+## ROUND 10: white-divider clarification
 
 Three native full-device captures keep the chosen `1c` tonal structure and `3a`
 neutral metadata treatment.
@@ -359,7 +365,7 @@ recapture must also apply D36:
 fill,
  and a leading play icon as the current-track cue.
 
-## ROUND 9 — theme work (all built on the bound MD3 bundle)
+## ROUND 9: theme work (all built on the bound MD3 bundle)
 
 <table>
 <thead>
@@ -395,12 +401,12 @@ and white horizontal picker/transport divider.</td>
 <tr>
 <td>**dark-a**</td>
 <td>418×fill</td>
-<td>REJECTED — MD3&#39;s own dark container ramp above #000; the panes read as grey cards floating on black.</td>
+<td>REJECTED, MD3&#39;s own dark container ramp above #000; the panes read as grey cards floating on black.</td>
 </tr>
 <tr>
 <td>**dark-b**</td>
 <td>418×fill</td>
-<td>**CHOSEN (D32)** — the project&#39;s own ramp measured down from black: #000 / #0A0A0D / #121216 / #1A1A1F /
+<td>**CHOSEN (D32)**: the project&#39;s own ramp measured down from black: #000 / #0A0A0D / #121216 / #1A1A1F /
 #22222A.</td>
 </tr>
 <tr>
@@ -422,7 +428,7 @@ d>
 </tr>
 <tr>
 <td>**candidates/_ds/**</td>
-<td>—</td>
+<td>none</td>
 <td>Copied MD3 token sheets (palette, color, fonts, typography, shape, elevation, spacing, state) so candidate files
 resolve them without `../`.</td>
 </tr>
@@ -528,7 +534,7 @@ settled baseline combines the `light-c` tonal structure with `dbtp-a`.
 vertical center spacer and horizontal picker/transport divider white while retaining
 the visible dynamic rail line.
 
-## ROUND 8 — verdicts in
+## ROUND 8: verdicts in
 
 <table>
 <thead>
@@ -564,7 +570,7 @@ S = 2.5), not estimated.</td>
 </tbody>
 </table>
 
-## ROUND 7 — verdicts in
+## ROUND 7: verdicts in
 
 <table>
 <thead>
@@ -578,14 +584,14 @@ S = 2.5), not estimated.</td>
 <tr>
 <td>**scan-ef**</td>
 <td>2×411×923</td>
-<td>**scan-F CHOSEN (D26)** — right frame: 56dp bar, count + always-rendered fixed-width Pause, no reflow. scan-E
+<td>**scan-F CHOSEN (D26)**: right frame: 56dp bar, count + always-rendered fixed-width Pause, no reflow. scan-E
 (left, 2dp bottom-edge line, no text or control) rejected as too little for an hour-long job.</td>
 </tr>
 <tr>
 <td>**first-run-a**</td>
 <td>411×923</td>
 <td>**Settled behaviour (D27).** Auto-opens the system music library and asks before analysing: Scan once / Always scan
-/ Dismiss once / Dismiss forever, all 48dp. Interactive — walks into the scan-F bar, the dismissed state and
+/ Dismiss once / Dismiss forever, all 48dp. Interactive, walks into the scan-F bar, the dismissed state and
 always-scan. D84 (2026-10-05) supersedes the ask-before-analysing prompt and its four answers: true-peak analysis is
 automatic and not optional. Automatic opening of the system music library stands.</td>
 </tr>
@@ -598,38 +604,38 @@ drops with the bar. Tap rows to trash, × to dismiss the bar.</td>
 <tr>
 <td>**unf-i**</td>
 <td>852×883</td>
-<td>Superseded by unf-j. unf-h + D20 volume popover, D23, D24 — but still chip-styled names.</td>
+<td>Superseded by unf-j. unf-h + D20 volume popover, D23, D24, but still chip-styled names.</td>
 </tr>
 <tr>
 <td>**pk-a**</td>
 <td>418×883</td>
-<td>REJECTED — one name per 48dp row, single column. The long-scroll failure again.</td>
+<td>REJECTED, one name per 48dp row, single column. The long-scroll failure again.</td>
 </tr>
 <tr>
 <td>**pk-b**</td>
 <td>418×883</td>
-<td>REJECTED — two columns of one-name rows. Same failure, halved.</td>
+<td>REJECTED, two columns of one-name rows. Same failure, halved.</td>
 </tr>
 <tr>
 <td>**pk-c**</td>
 <td>418×883</td>
-<td>REJECTED — same column with hairline dividers. Same failure.</td>
+<td>REJECTED, same column with hairline dividers. Same failure.</td>
 </tr>
 <tr>
 <td>**pk-d**</td>
 <td>418×883</td>
-<td>VOID — bounded the extent by re-introducing prefix ranges (Ca / Ch / Cr) as a rail accordion, which D17 had already
+<td>VOID, bounded the extent by re-introducing prefix ranges (Ca / Ch / Cr) as a rail accordion, which D17 had already
 killed, and kept chip styling. Do not build on it.</td>
 </tr>
 <tr>
 <td>**pk-e**</td>
 <td>418×883</td>
-<td>REJECTED — three columns of one-name rows, plus truncation.</td>
+<td>REJECTED, three columns of one-name rows, plus truncation.</td>
 </tr>
 <tr>
 <td>**pk-f**</td>
 <td>418×883</td>
-<td>REJECTED — one full-width column bounded by a type-to-narrow field. Rows again; the field also pre-empts the
+<td>REJECTED, one full-width column bounded by a type-to-narrow field. Rows again; the field also pre-empts the
 reserved search (D25).</td>
 </tr>
 </tbody>
@@ -655,7 +661,7 @@ reserved search (D25).</td>
 </tbody>
 </table>
 
-## ROUND 5 — verdicts in
+## ROUND 5: verdicts in
 
 <table>
 <thead>
@@ -721,7 +727,7 @@ content-width chips, ~one screen max. Interactive. Deck right.</td>
 </tbody>
 </table>
 
-## ROUND 3 — rejected (unf-d/unf-e still one folder per row)
+## ROUND 3: rejected (unf-d/unf-e still one folder per row)
 
 <table>
 <thead>
@@ -740,7 +746,7 @@ content-width chips, ~one screen max. Interactive. Deck right.</td>
 <tr>
 <td>**unf-e**</td>
 <td>852×883</td>
-<td>Same, A–Z as borderless text index under the list (48dp invisible targets).</td>
+<td>Same, A to Z as borderless text index under the list (48dp invisible targets).</td>
 </tr>
 <tr>
 <td>**desc-d**</td>
@@ -757,7 +763,7 @@ at folded geometry, font scales, and the D41/D42 dark policy. Its inline volume 
 </tbody>
 </table>
 
-## ROUND 2 — verdicts in
+## ROUND 2: verdicts in
 
 <table>
 <thead>
@@ -771,8 +777,8 @@ at folded geometry, font scales, and the D41/D42 dark policy. Its inline volume 
 <tr>
 <td>**unf-b**</td>
 <td>852×883</td>
-<td>REJECTED — letter grid reads as a keyboard. Unfolded, deck RIGHT. ~1,218 folders (artists.js) in two columns of
-48dp rows with letter headers + counts; 27-cell A–Z strip (48dp) pinned at the bottom of the left half, tap to jump;
+<td>REJECTED, letter grid reads as a keyboard. Unfolded, deck RIGHT. ~1,218 folders (artists.js) in two columns of
+48dp rows with letter headers + counts; 27-cell A to Z strip (48dp) pinned at the bottom of the left half, tap to jump;
 total folder count in the header; tracks + deck right; 16dp seam. Interactive.</td>
 </tr>
 <tr>
@@ -818,7 +824,8 @@ All seven use the verified colour roles (md3-tokens.md):
  outline #938F99,
 on-secondary-container #E8DEF8.
  The descend demos assume parent tracks play before
-subfolders (unconfirmed — see open-questions.md #3).
+subfolders (unconfirmed,
+see open-questions.md #3).
 
 ## Historical rejected or unresolved candidates
 
@@ -849,7 +856,7 @@ subfolders (unconfirmed — see open-questions.md #3).
 <tr>
 <td>**scan-b**</td>
 <td>860×~540</td>
-<td>Scan indicator, reflow-free version — half of the intended behaviour.</td>
+<td>Scan indicator, reflow-free version, half of the intended behaviour.</td>
 </tr>
 <tr>
 <td>**scan-d**</td>
@@ -861,19 +868,25 @@ subfolders (unconfirmed — see open-questions.md #3).
 
 ---
 
-## SUPERSEDED — keep for reference, do not build on
+## SUPERSEDED: keep for reference, do not build on
 
 ### Wrong-aspect fold layouts (all drawn in a landscape frame; the inner display is square)
-- **fold-a** — single-column folder sidebar;
+- **fold-a**:
+  single-column folder sidebar;
    contradicted the wrapped-target decision.
-- **fold-b** — early split with a tweakable ratio.
-- **fold-c** — deck spanning the full width (put the play button on the crease).
+- **fold-b**:
+  early split with a tweakable ratio.
+- **fold-c**:
+  deck spanning the full width (put the play button on the crease).
 - **fold-d**,
-   **fold-e** — interactive fold-state demos with props.
-- **fold-f** — seam gutter introduced,
+   **fold-e**:
+  interactive fold-state demos with props.
+- **fold-f**:
+  seam gutter introduced,
    controls left / tracks right,
    quiet left half.
-- **fold-g** — folder grid fills the left half,
+- **fold-g**:
+  folder grid fills the left half,
    deck moved bottom-right.
   fold-f and fold-g were the real O2 comparison and that comparison is void at the
   wrong aspect;
@@ -881,26 +894,32 @@ subfolders (unconfirmed — see open-questions.md #3).
 
 ### Cover screen at an invented size
 - **o7-a**,
-   **o7-b** — 370×760,
+   **o7-b**:
+  370×760,
    a size with no source.
    cover-a/cover-b are their
   resized descendants.
 
-### Moot — the question was already answered elsewhere
-- **o6-a** — end of folder:
+### Moot: the question was already answered elsewhere
+- **o6-a**:
+  end of folder:
    playback stops,
    Play again / Pick another folder.
-- **o6-b** — end of folder:
+- **o6-b**:
+  end of folder:
    rolls into the next folder with a NEXT chip.
   Both moot:
    the mode control (Repeat / In order / Shuffle folder / Shuffle all)
   already determines end-of-folder behaviour.
 
 ### Mode control explorations
-- **mode-a** — detached pills,
+- **mode-a**:
+  detached pills,
    wrapping.
-- **mode-b** — alternative detached treatment.
-- **mode-c** — outlined segmented button built to match uploads/segmented buttons.png
+- **mode-b**:
+  alternative detached treatment.
+- **mode-c**:
+  outlined segmented button built to match uploads/segmented buttons.png
   exactly (one container,
    content-width segments,
    wraps to a grid with flush rounded
@@ -909,56 +928,77 @@ subfolders (unconfirmed — see open-questions.md #3).
    this is the fallback if the connected button group is dropped.**
 
 ### Historical folder picker explorations, superseded by D17 and D31
-- **picker-a** — letter section rows.
-- **picker-b** — the jump strip (the direction that won).
-- **picker-c** — persistent sidebar.
+- **picker-a**:
+  letter section rows.
+- **picker-b**:
+  the jump strip (the direction that won).
+- **picker-c**:
+  persistent sidebar.
 - **picker-d**,
    **picker-e**,
-   **picker-f** — built at ~1,000 folders with real 48dp
+   **picker-f**:
+  built at ~1,000 folders with real 48dp
   targets;
    **picker-f is interactive**.
    These are the best existing reference for
-  handling the real folder count — read them before rebuilding unf-a.
+  handling the real folder count,
+  read them before rebuilding unf-a.
 
 ### Row treatments (two-line won)
-- **rows-a** — single line.
-   **rows-b** — columnar.
-   **rows-c** — two line (won).
+- **rows-a**:
+  single line.
+   **rows-b**:
+  columnar.
+   **rows-c**:
+  two line (won).
 
 ### Design-generation comparison (MD3 baseline won)
-- **md1** — Material 1 era.
-   **md2** — Material 2.
-   **md3** — MD3 baseline (won).
-- **md3-expressive** — MD3 Expressive:
+- **md1**:
+  Material 1 era.
+   **md2**:
+  Material 2.
+   **md3**:
+  MD3 baseline (won).
+- **md3-expressive**:
+  MD3 Expressive:
    asymmetric radii,
    heavier type,
    larger
   controls.
    Rejected for spending vertical space on personality.
-- **md3-hybrid** — MD3 baseline with selected Expressive touches.
+- **md3-hybrid**:
+  MD3 baseline with selected Expressive touches.
 
 ### Identity explorations (MD3 won)
-- **id-fluent** — Fluent-flavoured.
-   **id-protool** — pro-audio tool aesthetic.
-- **id-own** — a bespoke in-house identity.
+- **id-fluent**:
+  Fluent-flavoured.
+   **id-protool**:
+  pro-audio tool aesthetic.
+- **id-own**:
+  a bespoke in-house identity.
    Rejected on the user’s own argument:
    an
   in-house system means designing and maintaining every state by hand.
 
 ### Scan indicator explorations
-- **scan-a** — known defect:
+- **scan-a**:
+  known defect:
    the Pause button appears and disappears,
    so it is not
   reflow-free.
-   **scan-c** — alternative treatment.
+   **scan-c**:
+  alternative treatment.
 
 ### Tabletop explorations
-- **tabletop-a** — split at the hinge,
+- **tabletop-a**:
+  split at the hinge,
    list above / controls below.
-- **tabletop-b** — posture-agnostic.
+- **tabletop-b**:
+  posture-agnostic.
 
 ### Error handling
-- **err-a** — errors in place:
+- **err-a**:
+  errors in place:
    the dead row keeps its position,
    turns error-coloured
   and explains itself;
@@ -967,15 +1007,21 @@ subfolders (unconfirmed — see open-questions.md #3).
   favour of err-b’s cleaner list.
 
 ### Other paired alternatives and revised choices
-- **o1-a** — originally chosen with Open beside a folder chip;
+- **o1-a**:
+  originally chosen with Open beside a folder chip;
    superseded by D4's
   removal of that chip and placement of Open on the `Folders` app-bar line.
-- **o1-b** — Open in the overflow menu.
-- **sub-b** — drill-in navigation with breadcrumb and Up.
-- **ctx-a** — four-item minimal context menu.
-- **empty-b** — bare empty state,
+- **o1-b**:
+  Open in the overflow menu.
+- **sub-b**:
+  drill-in navigation with breadcrumb and Up.
+- **ctx-a**:
+  four-item minimal context menu.
+- **empty-b**:
+  bare empty state,
    scan line in the bottom bar behind "Why?".
-- **settings-b** — grouped cards with headers,
+- **settings-b**:
+  grouped cards with headers,
    plus the analysis-status row and
   Re-analyse.
    Worth revisiting only if decision D12 (status lives nowhere) changes.
@@ -984,17 +1030,22 @@ subfolders (unconfirmed — see open-questions.md #3).
 
 ## Reading order if you are new
 
-1. **picker-f** — how ~1,000 folders and the jump strip actually behave.
-2. **mode-d** — the component the whole UI hinges on,
+1. **picker-f**:
+   how ~1,000 folders and the jump strip actually behave.
+2. **mode-d**:
+   the component the whole UI hinges on,
     at real token values.
 3. **sub-a**,
     **ctx-b**,
     **err-b**,
     **empty-a**,
-    **settings-a** — the settled surfaces.
-4. **unf-a** — the rejected unfolded layout,
+    **settings-a**:
+   the settled surfaces.
+4. **unf-a**:
+   the rejected unfolded layout,
     to see the structure being kept.
-5. **uploads/music-player-mockup.html** — the user’s original proposal,
+5. **uploads/music-player-mockup.html**:
+   the user’s original proposal,
     which is the
    baseline this all started from.
 
@@ -1009,24 +1060,28 @@ menus,
 sheets,
 and text-field specs.
 
-- **P1** — outlined MD3 text-field trigger (56dp,
+- **P1**:
+  outlined MD3 text-field trigger (56dp,
   floating Folder label,
   4dp corners) plus
   an inset floating menu container (4dp corners,
   fixed high step in dark) over the list,
   ending above the deck.
   Not selected for the provisional baseline.
-- **P2** — same field trigger;
+- **P2**:
+  same field trigger;
   the picker replaces the list slot in place while the deck
   stays visible;
   caret flips to close.
   The comparison recommended P2,
   but the user chose
   P4 for the provisional baseline.
-- **P3** — app-bar title plus caret trigger with the P1 floating menu container.
+- **P3**:
+  app-bar title plus caret trigger with the P1 floating menu container.
   Not
   selected for the provisional baseline.
-- **P4** — app-bar title trigger with the P2 in-slot container.
+- **P4**:
+  app-bar title trigger with the P2 in-slot container.
   Selected by D46 as a
   **temporary pre-1.x decision**;
   the user believes a better solution exists.

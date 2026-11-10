@@ -32,7 +32,7 @@
       </sc-for>
     </div>
   </div>
-  <div style="flex:0 0 auto;padding:9px 14px;border-top:1px solid #282828;color:#55555c;font-size:12px;font-family:ui-monospace,monospace">F — two-level index. Letter on the strip, then a second row narrows to Ca/Ch/Co… Never more than one screen of names. Click around it.</div>
+  <div style="flex:0 0 auto;padding:9px 14px;border-top:1px solid #282828;color:#55555c;font-size:12px;font-family:ui-monospace,monospace">F: two-level index. Letter on the strip, then a second row narrows to Ca/Ch/Co… Never more than one screen of names. Click around it.</div>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:860,&quot;height&quot;:520}}">
@@ -71,7 +71,7 @@ class Component extends DCLogic {
       }
     });
     return out.map((b) => ({
-      label: b.from === b.to ? b.from : b.from + "–" + b.to,
+      label: b.from === b.to ? b.from : b.from + " to " + b.to,
       names: b.names
     }));
   }

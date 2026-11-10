@@ -389,9 +389,14 @@ dir = "{{config_root}}"
 run = "node selected-search-question.mjs validate"
 
 [tasks."test:unit"]
-description = "Check the selected Fold Search artifact against its sanitized captures"
+description = "Check the selected Fold Search artifact against its sanitized captures, then the package prose bans"
 dir = "{{config_root}}"
-run = "node selected-search-question.mjs validate"
+run = ["node selected-search-question.mjs validate", "node prose-dashes-test.mjs"]
+
+[tasks."test:prose:dashes"]
+description = "Hold the package's authored prose to the AGENTS.md ban on em and en dashes in prose"
+dir = "{{config_root}}"
+run = "node prose-dashes-test.mjs"
 
 [tasks."build:search:status-evidence"]
 description = "Embed sanitized keyboard-closed Search status captures for the selected Fold layout"
