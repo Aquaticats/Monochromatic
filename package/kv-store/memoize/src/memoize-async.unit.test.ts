@@ -1,4 +1,8 @@
-import { createStore, } from '@monochromatic-dev/kv-store-core/ts';
+import {
+  ABSENT,
+  createStore,
+  type Store,
+} from '@monochromatic-dev/kv-store-core/ts';
 import {
   describe,
   expect,
@@ -133,6 +137,120 @@ await describe({
 
         await memoized({ args: [1,], salt: 'v1', },);
         expect(calls.length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'clear during an in-flight computation leaves the cache empty',
+      fn: async () => {
+        const gate = Promise.withResolvers<number>();
+        const started = Promise.withResolvers<void>();
+        const calls: number[] = [];
+        async function slowDoubler(x: number,): Promise<number> {
+          calls.push(x,);
+          started.resolve();
+          return await gate.promise;
+        }
+        const memoized = await memoizeAsync({ fn: slowDoubler, keyFn: String, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await started.promise;
+        await memoized.clear();
+        gate.resolve(2,);
+
+        expect(await pending,).toBe(2,);
+        expect(await memoized.store.get('1:v1',),).toBe(ABSENT,);
+
+        // The wiped key recomputes instead of being served from the repopulated cache.
+        expect(await memoized({ args: [1,], salt: 'v1', },),).toBe(2,);
+        expect(calls.length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'delete during an in-flight computation leaves the deleted key absent',
+      fn: async () => {
+        const gate = Promise.withResolvers<number>();
+        const started = Promise.withResolvers<void>();
+        const calls: number[] = [];
+        async function slowDoubler(x: number,): Promise<number> {
+          calls.push(x,);
+          started.resolve();
+          return await gate.promise;
+        }
+        const memoized = await memoizeAsync({ fn: slowDoubler, keyFn: String, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await started.promise;
+        await memoized.delete('1:v1',);
+        gate.resolve(2,);
+
+        expect(await pending,).toBe(2,);
+        expect(await memoized.store.get('1:v1',),).toBe(ABSENT,);
+
+        // The deleted key recomputes instead of being served from the restored cache.
+        expect(await memoized({ args: [1,], salt: 'v1', },),).toBe(2,);
+        expect(calls.length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'clear waits for a cache write already in progress before emptying the store',
+      fn: async () => {
+        const base = await createStore({ storeId: 'memoize-clear-during-write', },);
+        const writeGate = Promise.withResolvers<void>();
+        const writeStarted = Promise.withResolvers<void>();
+        const store: Store = {
+          ...base,
+          async set(key: string, value: unknown,): Promise<Store> {
+            writeStarted.resolve();
+            await writeGate.promise;
+            return await base.set(key, value,);
+          },
+        };
+        async function doubler(x: number,): Promise<number> {
+          return x * 2;
+        }
+        const memoized = await memoizeAsync({ fn: doubler, keyFn: String, store, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await writeStarted.promise;
+        const clearing = memoized.clear();
+        writeGate.resolve();
+        await clearing;
+
+        expect(await pending,).toBe(2,);
+        expect(await base.get('1:v1',),).toBe(ABSENT,);
+      },
+    },),
+
+    it({
+      name: 'delete waits for a cache write already in progress for that key',
+      fn: async () => {
+        const base = await createStore({ storeId: 'memoize-delete-during-write', },);
+        const writeGate = Promise.withResolvers<void>();
+        const writeStarted = Promise.withResolvers<void>();
+        const store: Store = {
+          ...base,
+          async set(key: string, value: unknown,): Promise<Store> {
+            writeStarted.resolve();
+            await writeGate.promise;
+            return await base.set(key, value,);
+          },
+        };
+        async function doubler(x: number,): Promise<number> {
+          return x * 2;
+        }
+        const memoized = await memoizeAsync({ fn: doubler, keyFn: String, store, },);
+
+        const pending = memoized({ args: [1,], salt: 'v1', },);
+        await writeStarted.promise;
+        const deleting = memoized.delete('1:v1',);
+        writeGate.resolve();
+        await deleting;
+
+        expect(await pending,).toBe(2,);
+        expect(await base.get('1:v1',),).toBe(ABSENT,);
       },
     },),
 
