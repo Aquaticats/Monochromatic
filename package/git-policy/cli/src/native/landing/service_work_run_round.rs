@@ -22,6 +22,7 @@ use crate::parallel_budget::HostResources;
 use crate::service_review_key::ReviewKey;
 use crate::service_round::{Assignment, RoundAnswer, RoundDrain, drain_directories};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 /// What:
 ///  Runs one round of wakes:
@@ -70,7 +71,7 @@ pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandle
             directories.push(directory);
         }
     }
-    let round: GitHandlers = handlers.for_round(keys);
+    let round: Arc<GitHandlers> = Arc::new(handlers.for_round(keys));
     return run_planned_round(host, directories.as_slice(), &round, retries, now);
 }
 
@@ -90,12 +91,15 @@ pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandle
 /// A directory whose drain planned a push under another directory (a common directory of a bare repository) is named
 ///  too,
 /// so that its wake is not lost.
+/// The handlers are shared as one value the round's tasks may carry,
+/// because a task outlives the frame that
+///  starts it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const due = dirs.map((d) => retries.takeDue(d)); const answers = await Promise.all(dirs.map((d, i) => drain(d, due[i]))); retries.apply(answers.flatMap(changes));
 /// ```
-pub fn run_planned_round<H: WorkHandlers + Sync>(host: &HostResources, directories: &[PathBuf], handlers: &H, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
+pub fn run_planned_round<H: WorkHandlers + Sync + Send + 'static>(host: &HostResources, directories: &[PathBuf], handlers: &Arc<H>, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
     // A child a stop left behind and the kernel has since released is collected here, so the service keeps no zombie for a
     //  process it abandoned.
     let _collected: usize = crate::stop_of_a_push_and_sweep_of_its_locks::reap_abandoned_children();
@@ -108,7 +112,7 @@ pub fn run_planned_round<H: WorkHandlers + Sync>(host: &HostResources, directori
             retrying: Retrying { first: Some(first), due: retries.take_due(directory.as_path(), taken_at), plans: retries.plans().map(Path::to_path_buf) },
         });
     }
-    let answered: RoundAnswer = drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers, now, host });
+    let answered: RoundAnswer = drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: Arc::clone(handlers), now, host });
     let mut named: Vec<PathBuf> = directories.to_vec();
     for change in &answered.changes {
         if let RetryChange::Plan { git_dir, .. } = change

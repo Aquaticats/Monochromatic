@@ -136,6 +136,29 @@ pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership
 }
 
 /// What:
+///  The line for a destination this command made and real Git refused,
+/// which now holds something another program put there.
+/// Why:
+///   The add made no worktree,
+/// so the folder at the path is not one the person asked for,
+/// and it is not
+///  this command's to remove while it holds anything;
+/// they are told the path and that what it holds stays,
+/// because a
+///  folder they think is their new worktree is one a Git command there acts past.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: ${quote(destination)} holds something now, so ...`
+/// ```
+pub(crate) fn refused_destination_written_into_notice(destination: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the folder this command made at {} holds something now, so it was left in place and nothing in it was removed. This add made no worktree there; if that folder is not a worktree another command registered (`git worktree list` shows those), look at what it holds and remove it yourself if it should not stay.\n",
+        quote(destination.to_string_lossy().as_ref())
+    );
+}
+
+/// What:
 ///  Whether the destination is absent,
 /// or an empty directory holding nothing Git made,
 /// in the cases where this command can

@@ -13,7 +13,7 @@ import spawn, { type SubprocessError, } from 'nano-spawn';
 const REPO_ROOT = await findRootCached({ marker: MISE_MONOREPO, },);
 
 /** Built bin path, resolved from the monorepo root. */
-const BIN_PATH = 'package/vmsync/cli/dist/final/node/index.mjs';
+const BIN_PATH = 'package/vmsync/cli/dist/final/node/cli.mjs';
 
 /**
  Runs the built vmsync bin as a subprocess and returns stdout, stderr, and exit code.

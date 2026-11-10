@@ -92,6 +92,10 @@ export {
   filterPnpmOutput,
   isAllowedCycleWarning,
 } from './pnpm-output-filter.ts';
+export {
+  processIdsWithCmdline,
+  type ProcessTableReads,
+} from './process-ids-by-cmdline.ts';
 export { buildTscArgs, } from './tsc-args.ts';
 export {
   type CapturedSubprocessFailure,
