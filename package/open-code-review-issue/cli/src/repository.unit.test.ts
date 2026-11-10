@@ -12,22 +12,20 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
- Asserts that a repository selector is refused as a selection error.
+ Reports the error a repository selector is refused with.
  
  @param value - Candidate `--repo` value.
+ 
+ @returns The thrown value, or `undefined` when the selector is accepted.
  */
-function expectRefused(value: string,): void {
-  /**
-   Captured repository validation failure.
-   */
-  let caught: unknown;
+function refusalOf(value: string,): unknown {
   try {
     parseRepositoryUrl(value,);
+    return undefined;
   }
   catch (error: unknown) {
-    caught = error;
+    return error;
   }
-  expect(caught,).toBeInstanceOf(RepositorySelectionError,);
 }
 
 await describe({
@@ -58,32 +56,36 @@ await describe({
           'https://example.com/Aquaticat/issues-api',
         ];
         for (const value of values) {
-          expectRefused(value,);
+          expect(refusalOf(value,),).toBeInstanceOf(RepositorySelectionError,);
         }
       },
     },),
     it({
       name: 'rejects a non-ASCII owner character',
       fn: async () => {
-        expectRefused('https://github.com/Aquaticat\u00E9/issues-api',);
+        expect(refusalOf('https://github.com/Aquaticat\u00E9/issues-api',),)
+          .toBeInstanceOf(RepositorySelectionError,);
       },
     },),
     it({
       name: 'rejects a supplementary plane owner character',
       fn: async () => {
-        expectRefused('https://github.com/Aquaticat\u{1F600}/issues-api',);
+        expect(refusalOf('https://github.com/Aquaticat\u{1F600}/issues-api',),)
+          .toBeInstanceOf(RepositorySelectionError,);
       },
     },),
     it({
       name: 'rejects a supplementary plane repository name character',
       fn: async () => {
-        expectRefused('https://github.com/Aquaticat/issues\u{1F600}-api',);
+        expect(refusalOf('https://github.com/Aquaticat/issues\u{1F600}-api',),)
+          .toBeInstanceOf(RepositorySelectionError,);
       },
     },),
     it({
       name: 'rejects a lone surrogate in the repository name',
       fn: async () => {
-        expectRefused('https://github.com/Aquaticat/issues\uD800-api',);
+        expect(refusalOf('https://github.com/Aquaticat/issues\uD800-api',),)
+          .toBeInstanceOf(RepositorySelectionError,);
       },
     },),
     it({

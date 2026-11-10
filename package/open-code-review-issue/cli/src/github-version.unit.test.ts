@@ -10,22 +10,20 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
- Asserts that version output is refused as a version error.
+ Reports the error version output is refused with.
  
  @param stdout - Captured `gh --version` output.
+ 
+ @returns The thrown value, or `undefined` when the output is accepted.
  */
-function expectRefused(stdout: string,): void {
-  /**
-   Captured version validation failure.
-   */
-  let caught: unknown;
+function refusalOf(stdout: string,): unknown {
   try {
     parseGitHubCliVersion({ stdout, },);
+    return undefined;
   }
   catch (error: unknown) {
-    caught = error;
+    return error;
   }
-  expect(caught,).toBeInstanceOf(GitHubCliVersionError,);
 }
 
 await describe({
@@ -56,26 +54,27 @@ await describe({
           'unexpected output',
         ];
         for (const stdout of values) {
-          expectRefused(stdout,);
+          expect(refusalOf(stdout,),).toBeInstanceOf(GitHubCliVersionError,);
         }
       },
     },),
     it({
       name: 'rejects a fullwidth digit in a version component',
       fn: async () => {
-        expectRefused('gh version \uFF12.97.0',);
+        expect(refusalOf('gh version \uFF12.97.0',),).toBeInstanceOf(GitHubCliVersionError,);
       },
     },),
     it({
       name: 'rejects a supplementary plane digit look-alike in a version component',
       fn: async () => {
-        expectRefused('gh version 2.97.\u{1D7D8}',);
+        expect(refusalOf('gh version 2.97.\u{1D7D8}',),).toBeInstanceOf(GitHubCliVersionError,);
       },
     },),
     it({
       name: 'rejects an Arabic-Indic digit in a version component',
       fn: async () => {
-        expectRefused('gh version 2.\u0669\u0667.0',);
+        expect(refusalOf('gh version 2.\u0669\u0667.0',),)
+          .toBeInstanceOf(GitHubCliVersionError,);
       },
     },),
   ],
