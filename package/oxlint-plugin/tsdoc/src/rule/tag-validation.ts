@@ -4,6 +4,7 @@
  @module
  */
 
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type {
   Context,
@@ -11,7 +12,6 @@ import type {
   VisitorWithHooks,
 } from '@oxlint/plugins';
 
-import { isWhitespaceChar, } from '../comment-text.ts';
 import {
   commentReportLoc,
   createTsdocVisitor,
@@ -67,7 +67,7 @@ export function containsBoundedAccessTag({
     /**
      Whether the preceding char satisfies the `(?:^|\s)` anchor.
      */
-    const beforeOk = (before === '') || isWhitespaceChar(before,);
+    const beforeOk = (before === '') || isWhitespace(before,);
     if (!beforeOk) {
       from = idx + 1;
       continue;
@@ -86,7 +86,7 @@ export function containsBoundedAccessTag({
      Whether the trailing char satisfies the `(?:\s|$|\*)` anchor.
      */
     const afterOk = (after === '') || (after === '*')
-      || isWhitespaceChar(after,);
+      || isWhitespace(after,);
     if (afterOk)
       return true;
     from = idx + 1;

@@ -6,7 +6,7 @@
  @module
  */
 
-import { isWhitespaceChar, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type {
   Context,
@@ -81,7 +81,7 @@ export const noMultiAsterisks: CreateOnceRule = {
             const afterDoubledAsterisk = trimmed.charAt(2,);
             if (trimmed.startsWith('**',)
               && ((afterDoubledAsterisk.length === 0)
-                || isWhitespaceChar(afterDoubledAsterisk,))) {
+                || isWhitespace(afterDoubledAsterisk,))) {
               context.report({
                 loc: commentLineReportLoc({
                   comment,

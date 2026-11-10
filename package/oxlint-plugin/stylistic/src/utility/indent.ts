@@ -1,4 +1,4 @@
-import { isWhitespaceChar, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
 /**
  Returns the leading run of ASCII whitespace from `text`.
@@ -30,7 +30,7 @@ export function leadingWhitespace(text: string,): string {
   function scan(): number {
     for (let cursorIndex = 0; cursorIndex < text
       .length; cursorIndex += 1) {
-      if (!isWhitespaceChar(text.charAt(cursorIndex,),))
+      if (!isWhitespace(text.charAt(cursorIndex,),))
         return cursorIndex;
     }
     return text.length;

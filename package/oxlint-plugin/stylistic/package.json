@@ -9,7 +9,7 @@
     "monochromatic"
   ],
   "dependencies": {
-    "@monochromatic-dev/oxlint-plugin-shared": "workspace:*",
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",
     "@oxlint/plugins": "catalog:"

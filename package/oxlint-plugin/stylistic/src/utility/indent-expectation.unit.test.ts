@@ -1,7 +1,7 @@
 import {
-  isWhitespaceChar,
+  isWhitespace,
   isWordChar,
-} from '@monochromatic-dev/oxlint-plugin-shared/ts';
+} from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import {
   describe,
   expect,
@@ -161,7 +161,7 @@ function tokensOf(sourceText: string,): readonly ExpectationToken[] {
   let cursor = 0;
   while (cursor < sourceText.length) {
     const character = sourceText.charAt(cursor,);
-    if (isWhitespaceChar(character,)) {
+    if (isWhitespace(character,)) {
       cursor += 1;
       continue;
     }

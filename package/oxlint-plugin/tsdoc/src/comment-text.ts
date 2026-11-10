@@ -9,16 +9,11 @@
  */
 
 import {
-  isWhitespaceChar as sharedIsWhitespaceChar,
-  isWordChar as sharedIsWordChar,
-} from '@monochromatic-dev/oxlint-plugin-shared/ts';
+  isWhitespace,
+  isWordChar,
+} from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import type { Comment, } from '@oxlint/plugins';
 import type { ReadonlyDeep, } from 'type-fest';
-
-export {
-  isWhitespaceChar,
-  isWordChar,
-} from '@monochromatic-dev/oxlint-plugin-shared/ts';
 
 /**
  Triple-backtick delimiter that opens or closes a fenced code block.
@@ -216,7 +211,7 @@ export function wordRunEnd({
 },): number {
   for (let cursor = start; cursor < text
     .length; cursor += 1) {
-    if (!sharedIsWordChar(text.charAt(cursor,),))
+    if (!isWordChar(text.charAt(cursor,),))
       return cursor;
   }
   return text.length;
@@ -252,7 +247,7 @@ export function tokenEnd({
 },): number {
   for (let cursor = start; cursor < text
     .length; cursor += 1) {
-    if (sharedIsWhitespaceChar(text.charAt(cursor,),))
+    if (isWhitespace(text.charAt(cursor,),))
       return cursor;
   }
   return text.length;
@@ -287,7 +282,7 @@ export function whitespaceRunEnd({
 },): number {
   for (let cursor = start; cursor < text
     .length; cursor += 1) {
-    if (!sharedIsWhitespaceChar(text.charAt(cursor,),))
+    if (!isWhitespace(text.charAt(cursor,),))
       return cursor;
   }
   return text.length;

@@ -1,4 +1,4 @@
-import { isWhitespaceChar, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
 /**
  Parameters for {@link isOnlyWhitespaceOrSeparator}.
@@ -40,7 +40,7 @@ export function isOnlyWhitespaceOrSeparator(
     separator,
   } = params;
   for (const char of text) {
-    if ((!isWhitespaceChar(char,)) && (char !== separator))
+    if ((!isWhitespace(char,)) && (char !== separator))
       return false;
   }
   return true;

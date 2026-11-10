@@ -1,4 +1,4 @@
-import { isWhitespaceChar, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type {
   Comment,
@@ -185,7 +185,7 @@ function hasCanonicalPrefix({
    Character after marker, empty at line end.
    */
   const following = content.charAt(prefixIndex + 1,);
-  return (following.length === 0) || isWhitespaceChar(following,);
+  return (following.length === 0) || isWhitespace(following,);
 }
 
 /**

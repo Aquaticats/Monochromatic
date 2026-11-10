@@ -13,6 +13,7 @@
     "typescript": "catalog:"
   },
   "devDependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/oxlint-plugin-prefer-readonly-parameter-type": "workspace:*",
     "@monochromatic-dev/oxlint-plugin-shared": "workspace:*",

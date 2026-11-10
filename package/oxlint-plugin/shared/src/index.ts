@@ -14,11 +14,6 @@
 export type ReadonlyRecord = Readonly<Record<string, unknown>>;
 
 export {
-  isWhitespaceChar,
-  isWordChar,
-} from './text-character.ts';
-
-export {
   type ParsedMutationContractBlock,
   parseMutationContractBlocks,
 } from './mutation-contract.ts';

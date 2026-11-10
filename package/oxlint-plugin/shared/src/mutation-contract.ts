@@ -5,9 +5,9 @@
  */
 
 import {
-  isWhitespaceChar,
+  isWhitespace,
   isWordChar,
-} from './text-character.ts';
+} from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
 /**
  Block tags that terminate an open `@mutates` block.
@@ -106,7 +106,7 @@ type ReadonlyOpenMutationSegment = {
  */
 function firstTokenEnd(text: string,): number {
   for (let index = 0; index < text.length; index++) {
-    if (isWhitespaceChar(text.charAt(index,),))
+    if (isWhitespace(text.charAt(index,),))
       return index;
   }
   return text.length;

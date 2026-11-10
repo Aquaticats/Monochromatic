@@ -1,4 +1,4 @@
-import { isWhitespaceChar, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
 /**
  Minimal node shape required by {@link extractParamsText}.
@@ -59,9 +59,9 @@ function indexAfterAsyncPrefix({ fullText, }: { readonly fullText: string; },): 
    Cursor after the async keyword, advanced across following whitespace.
    */
   let index = ASYNC_KEYWORD.length;
-  if (!isWhitespaceChar(fullText.charAt(index,),))
+  if (!isWhitespace(fullText.charAt(index,),))
     return 0;
-  while (isWhitespaceChar(fullText.charAt(index,),))
+  while (isWhitespace(fullText.charAt(index,),))
     index += 1;
   return index;
 }
@@ -126,7 +126,7 @@ function indexAfterTrivia(
      Character under the cursor.
      */
     const char = text.charAt(cursor,);
-    if (isWhitespaceChar(char,)) {
+    if (isWhitespace(char,)) {
       cursor += 1;
       continue;
     }

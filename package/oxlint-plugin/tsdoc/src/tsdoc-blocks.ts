@@ -8,12 +8,12 @@
  @module
  */
 
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import { parseMutationContractBlocks, } from '@monochromatic-dev/oxlint-plugin-shared/ts';
 import type { Comment, } from '@oxlint/plugins';
 import type { ReadonlyDeep, } from 'type-fest';
 
 import {
-  isWhitespaceChar,
   leadingTag,
   type NormalizedLine,
   normalizeLines,
@@ -98,7 +98,7 @@ type Segment = {
  */
 function hasNonWhitespace(s: string,): boolean {
   for (const ch of s) {
-    if (!isWhitespaceChar(ch,))
+    if (!isWhitespace(ch,))
       return true;
   }
   return false;

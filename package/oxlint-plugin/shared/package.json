@@ -4,7 +4,9 @@
   "private": false,
   "type": "module",
   "description": "Shared runtime primitives for Monochromatic oxlint plugin packages.",
-  "dependencies": {},
+  "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*"
+  },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
