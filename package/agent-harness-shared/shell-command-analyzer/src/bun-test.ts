@@ -5,6 +5,8 @@
  */
 
 import { analyzeShellCommand, } from './analyzer.ts';
+import { isBunTestCommandLine, } from './bun-test-command-line.ts';
+import { unwrapWrappers, } from './command-wrapper-words.ts';
 
 //region Constants
 
@@ -39,6 +41,11 @@ const BUN_TEST_BAN_REASON: string = [
  shell grammar instead of text boundaries. Function bodies stay visible so
  `f(){ bun test; }; f` cannot hide the banned invocation behind a shell name.
  
+ Program wrappers are stripped before the subcommand is read, so `env bun test`,
+ `timeout 10 bun test`, and `command bun test` reach the same answer as `bun test`,
+ and `bun` global options are read so `bun --cwd /tmp test` does not hide `test` behind
+ an option value.
+ 
  @param command - shell command from agent harness Bash tool input
  
  @returns whether command contains `bun test`
@@ -59,8 +66,17 @@ function invokesBunTest(command: string,): boolean {
 
   return analysis.commands
     .some(function commandIsBunTest(info,): boolean {
-      return (info.name === 'bun')
-        && (info.args[0] === 'test');
+      /**
+       Innermost program words, with every wrapper layer the command line spelled stripped.
+       */
+      const wrapped = unwrapWrappers({
+        words: [
+          info.name,
+          ...info.args,
+        ],
+      },);
+
+      return isBunTestCommandLine({ words: wrapped.words, },);
     },);
 }
 

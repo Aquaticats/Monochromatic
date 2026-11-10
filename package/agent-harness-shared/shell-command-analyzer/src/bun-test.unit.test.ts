@@ -57,6 +57,43 @@ await describe({
             expect(invokesBunTest('bun test_runner',),).toBe(false,);
           },
         },),
+        it({
+          name: 'detects bun test behind wrapper commands',
+          fn: async function testBunTestBehindWrappers() {
+            expect(invokesBunTest('env bun test',),).toBe(true,);
+            expect(invokesBunTest('timeout 10 bun test',),).toBe(true,);
+            expect(invokesBunTest('nohup bun test',),).toBe(true,);
+            expect(invokesBunTest('nice bun test',),).toBe(true,);
+            expect(invokesBunTest('command bun test',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'detects bun test behind a wrapper chain that carries an assignment',
+          fn: async function testBunTestBehindWrapperChain() {
+            expect(invokesBunTest('env X=1 sudo nice -n 5 bun test',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'detects bun test launched through an absolute bun path',
+          fn: async function testBunTestThroughAbsolutePath() {
+            expect(invokesBunTest('/usr/local/bin/bun test',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'detects bun test after bun global flags',
+          fn: async function testBunTestAfterGlobalFlags() {
+            expect(invokesBunTest('bun --cwd /tmp test',),).toBe(true,);
+            expect(invokesBunTest('bun -c bunfig.toml test',),).toBe(true,);
+            expect(invokesBunTest('bun --smol test',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'allows a test word a known bun subcommand owns',
+          fn: async function testTestWordUnderKnownSubcommand() {
+            expect(invokesBunTest('env bun run test',),).toBe(false,);
+            expect(invokesBunTest('bun install test',),).toBe(false,);
+          },
+        },),
       ],
     },),
     describe({
