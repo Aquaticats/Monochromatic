@@ -448,6 +448,8 @@ Read-only commands,
    in the common Git directory
    (`"reason":"not-ahead"` and the like),
    so a push that did not happen can be explained from the file.
+   A full file moves aside to the next free generation there too,
+   and the generations are kept up to 32 MiB together like every other log.
    The file is shared by every worktree,
   so each line names its `worktree`,
   `gitDir` and `instance`,
@@ -2048,17 +2050,33 @@ then `.2`,
 and on;
 the highest is
  the newest) and a new file starts.
- Rotated files that name no saved copy still on disk are kept up to four mebibytes,
-oldest removed first;
- a rotated file with a `saved-conflict` line whose copy still exists is never removed.
+The rotated files are kept up to 32 MiB together,
+oldest removed first,
+and
+ a rotated file with a `saved-conflict` line whose copy still exists is never removed,
+which can take the log past 32 MiB.
+ The reading of a rotated file to see whether it names a copy happens on a thread of its own,
+never on the command's path.
  A rotation killed between taking the file and placing it leaves the file at a private name (`.moving-<process>-<count>`);
  the next rotation gives it the next free number,
  so every line is read by number,
  and the time of a line is in the line,
  not in its number.
- The four mebibytes are derived from the measured rate of this file (about 23 KB a day) and the 30 days copies are kept;
- the timing logs and the push trigger log keep one rotated file,
-`.1`.
+ Every other log of the wrapper keeps its rotations the same way,
+under the same 32 MiB,
+with no copy to pin:
+the commit timing log,
+the worktree-add timing log,
+the push trigger log and the standards-review shadow log.
+The owner answered on 2026-11-10 in the question tool,
+"Keep more,
+capped (Recommended)":
+32 MiB per log,
+and an audit line naming a saved copy that still exists is never dropped.
+The bound is about six days of commit timing at the pace measured on 2026-11-10
+(1,143,526 bytes of 229 records in 5.4 hours),
+and the whole history of an ordinary audit log
+(782,685 bytes in 1,619 lines over twenty days).
  A failed write never changes a command's result.
 
 The forms and their alternatives follow.
@@ -5221,7 +5239,10 @@ Guard tests keep it so:
   and no lock is
   taken.
   The tracked file only switches the review on and is never written by the service.
-  The log has no rotation.
+  The live log moves aside to the next free generation at one mebibyte like every other log of the wrapper,
+  and its generations are kept up to 32 MiB together.
+  A commit's receipt line is looked for in the log and in every generation of it,
+  so an entry that rotated away is still an entry and its commit is never reviewed twice.
   `SHADOW_REVIEW_LOG` points it at another file;
   the runbook is `doc/runbook/standards-review-gate.md`.
 
@@ -5256,8 +5277,12 @@ in one append with no flush to disk.
 Every worktree of the repository writes to the one file,
 and a worktree's `instance` field tells the lines apart.
 The file moves aside to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,
-replacing the older one.
-At the rate measured on 2026-11-03 (760,605 bytes in about 30 hours) that keeps three to four days of timing.
+then `.2`,
+and on,
+and the generations are kept up to 32 MiB together,
+oldest removed first,
+as every log of the wrapper.
+At the rate measured on 2026-11-10 (1,143,526 bytes of 229 records in 5.4 hours) that is about six days of timing.
 A failed write never changes the commit's result.
 A commit that stops before it reaches the service,
 because the machine has no way to start one,
