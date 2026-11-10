@@ -333,6 +333,35 @@ pub(crate) fn syncing_is_faithful() -> bool {
 }
 
 /// What:
+///  Flushes a file this module did not open to disk,
+/// when this process's syncs must reach the disk,
+/// and records the sync either way.
+/// Why:
+///  A writer with a handle of its own (a worktree-copy install log,
+/// a registration's owner file) is durability work of the same kind as the records published here,
+/// so it obeys the same answer a control gives with `skip_the_durability_syncs_here`;
+/// otherwise that control still waits for a filesystem commit it never checks.
+/// The record is made whatever the answer,
+/// so the order of a routine's flushes stays observable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const flushFileWhenFaithful = async (handle: FileHandle, path: string) => { recordFileSync(path); if (isFaithful()) await handle.sync(); };
+/// ```
+pub(crate) fn flush_file_when_faithful(file: &File, path: &Path) -> std::io::Result<()> {
+    // The path is read only by the test-only record; a release build leaves it unused.
+    #[cfg(not(test))]
+    let _path_for_tests: &Path = path;
+    #[cfg(test)]
+    record_file_sync(path);
+    if !syncing_is_faithful() {
+        return Ok(());
+    }
+    // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
+    return file.sync_all();
+}
+
+/// What:
 ///  Flushes the staging file to disk when the write is durable,
 /// and does nothing otherwise.
 /// Why:
@@ -347,16 +376,7 @@ fn sync_when_durable(file: &File, path: &Path, durable: bool) -> std::io::Result
     if !durable {
         return Ok(());
     }
-    // The path is read only by the test-only record; a release build leaves it unused.
-    #[cfg(not(test))]
-    let _path_for_tests: &Path = path;
-    #[cfg(test)]
-    record_file_sync(path);
-    if !syncing_is_faithful() {
-        return Ok(());
-    }
-    // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
-    return file.sync_all();
+    return flush_file_when_faithful(file, path);
 }
 
 /// What:

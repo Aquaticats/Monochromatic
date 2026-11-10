@@ -171,16 +171,27 @@ pub struct StatusReport {
 /// so the route cannot be chosen without it;
 /// the preparation of the commit
 ///  asks the same question later and shares the answer's cost when the file system can give it.
+///  A command line that names its repository selects the instance of that one:
+///  the reader answers for the directory it is given and cannot honour a Git directory beside the work tree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// worktreeGitDir(context, cwd) // undefined outside a repository
 /// ```
 pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
-    if let Some(layout) = read_layout_in(cwd, context.overlay.as_slice()) {
+    let selection: Vec<std::ffi::OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    let named: bool = !selection.is_empty();
+    if !named
+        && let Some(layout) = read_layout_in(cwd, context.overlay.as_slice())
+    {
         return Some(layout.git_dir);
     }
-    let output = run_git(context, &GitRequest::new(cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"])).ok()?;
+    let mut request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
+    if named {
+        request.without_prefix = true;
+        request.repository_selection = selection;
+    }
+    let output = run_git(context, &request).ok()?;
     if !output.succeeded() {
         return None;
     }

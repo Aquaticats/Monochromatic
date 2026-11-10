@@ -26,6 +26,7 @@
 //! ```
 
 use crate::add_timing::{begin_work, end_work};
+use crate::diagnostic_log::debug;
 pub use crate::worktree_snapshot_source_changed_paths::{ChangedPaths, changed_paths, plain};
 use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot, read_config_snapshot_awaiting};
 use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
@@ -39,6 +40,9 @@ use crate::worktree_trash_ignore_rule::{trash_location_is_ignored, trash_locatio
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "worktreeSnapshotSource";
 
 /// What:
 ///  The source a snapshot is taken from and what the later steps need to know about it.
@@ -439,16 +443,50 @@ async fn read_configuration_timed_awaiting((context, root): (&GitContext, &Path)
 /// or removed in the
 ///  foreground,
 /// and a linked worktree has the same ignore rules as the checkout it was made from.
+/// The
+///  repository's own exclude line is written before the question is asked,
+/// so the answer does not depend on what the
+///  target commit ignores:
+/// an add whose target commit ignores nothing under `.claude/` still gets a trash it can set aside
+///  at once,
+/// and the standing trash is still unstageable (`worktree_trash_exclude_line.rs`).
+/// A line that cannot be
+///  written leaves the question to the ignore rules the repository already has,
+/// and a `false` answer removes the directories
+///  in the foreground,
+/// which is the safe shape the person already had.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const began = beginWork(); const ignored = trashLocationIsIgnored(context, root); endWork('trashIgnored', began);
+/// const began = beginWork(); ensureTrashIsExcluded(commonDir); const ignored = trashLocationIsIgnored(context, root); endWork('trashIgnored', began);
 /// ```
-fn trash_location_ignored_timed((context, root, _git_dir, _common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
+fn trash_location_ignored_timed((context, root, _git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
     let began: std::time::Instant = begin_work();
-    let ignored: bool = trash_location_is_ignored(context, root);
+    let ignored: bool = ignore_line_written(common_dir) && trash_location_is_ignored(context, root);
     end_work("trashIgnored", began);
     return ignored;
+}
+
+/// What:
+///  Write the repository's exclude line for the trash place,
+/// and say whether it is there.
+/// Why:
+///   The question that follows decides whether a trash is made at all,
+/// so a repository whose exclude file cannot be written
+///  keeps the foreground removal rather than a trash nothing keeps out of the index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ignoreLineWritten = (commonDir) => { try { ensureTrashIsExcluded(commonDir); return true; } catch (reason) { debug(reason); return false; } };
+/// ```
+fn ignore_line_written(common_dir: &Path) -> bool {
+    return match crate::worktree_trash_exclude_line::ensure_trash_is_excluded(common_dir) {
+        Ok(_added) => true,
+        Err(reason) => {
+            debug(TAG, reason.as_str());
+            false
+        }
+    };
 }
 
 /// What:
@@ -463,9 +501,11 @@ fn trash_location_ignored_timed((context, root, _git_dir, _common_dir): (&GitCon
 /// ```ts
 /// const began = beginWork(); const ignored = await trashLocationIsIgnoredAwaiting(context, root); endWork('trashIgnored', began);
 /// ```
-async fn trash_location_ignored_timed_awaiting((context, root, _git_dir, _common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
+async fn trash_location_ignored_timed_awaiting((context, root, _git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
     let began: std::time::Instant = begin_work();
-    let ignored: bool = trash_location_is_ignored_awaiting(context, root).await;
+    // The write is a few bytes of one file, small enough to do on this task rather than as a job of the pool, and the
+    //  question below must not be asked before it.
+    let ignored: bool = ignore_line_written(common_dir) && trash_location_is_ignored_awaiting(context, root).await;
     end_work("trashIgnored", began);
     return ignored;
 }

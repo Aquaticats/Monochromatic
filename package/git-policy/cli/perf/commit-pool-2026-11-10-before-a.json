@@ -1,0 +1,2849 @@
+{
+  "schemaVersion": 2,
+  "date": "2026-11-10T12:16:13.906Z",
+  "binary": "/var/mnt/encrypted/temp/agent/pi-shadow-pool/bin-before",
+  "samplesPerScenario": 8,
+  "forwardedBoundMilliseconds": 2000,
+  "commitDeltaBoundMilliseconds": 5000,
+  "platform": "linux",
+  "failures": [],
+  "report": [
+    {
+      "scenario": "commit-signed-service",
+      "kind": "commit",
+      "direct": {
+        "median": 97.12048899999999,
+        "p95": 506.684137,
+        "medianAbsoluteDeviation": 84.20432
+      },
+      "wrapped": {
+        "median": 62709.2281285,
+        "p95": 81214.64522,
+        "medianAbsoluteDeviation": 11877.258396000001
+      },
+      "addedMedianMilliseconds": 62612.1076395,
+      "addedP95Milliseconds": 80707.961083,
+      "pairedDelta": {
+        "median": 62527.015327,
+        "p95": 80707.961083,
+        "maximum": 80707.961083
+      },
+      "rawDirect": [
+        17.725987,
+        81.757849,
+        16.099283,
+        506.684137,
+        9.733055,
+        242.923475,
+        112.483129,
+        354.692548
+      ],
+      "rawWrapped": [
+        72424.452104,
+        31206.023983,
+        50958.809996,
+        81214.64522,
+        63979.242259,
+        74713.326788,
+        48148.119899,
+        61439.213998
+      ],
+      "rawPairedDeltas": [
+        72406.726117,
+        31124.266133999998,
+        50942.710713,
+        80707.961083,
+        63969.509204,
+        74470.403313,
+        48035.63677,
+        61084.52145
+      ]
+    }
+  ],
+  "evidence": {
+    "commitTiming": {
+      "commit-service": [],
+      "commit-signed-service": [
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-10T12:08:59.117Z",
+          "level": "info",
+          "startMillis": 1794312466698,
+          "pid": 2690881,
+          "release": "0.6.1-alpha.7",
+          "instance": "4ca5bd0ac0662ba47ba2831fa7ece19a",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-7Rz0TT/wrapped-signed-repo/.git",
+          "requestId": "6811cdbc-fd62-4875-ad17-f8d9449ac4b8",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 72418,
+          "routeMs": 3,
+          "prepareMs": 9,
+          "attempts": 1,
+          "prepareSpans": [
+            {
+              "name": "index read",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index copy",
+              "calls": 2,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index seed",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index equals base",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index stat check",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy require-root at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy linked-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy branch-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy add-explicit at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "candidates prepared",
+              "calls": 2,
+              "totalMs": 5,
+              "longestMs": 2
+            },
+            {
+              "name": "policy final-newline at pre-forward",
+              "calls": 1,
+              "totalMs": 4,
+              "longestMs": 4
+            },
+            {
+              "name": "policy final-newline at post-commit",
+              "calls": 1,
+              "totalMs": 12,
+              "longestMs": 12
+            }
+          ],
+          "prepareSpansDropped": 0,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "scratchSteps": [
+            {
+              "ceilingMs": 16332,
+              "armed": true,
+              "stoppedAfterMs": null,
+              "noticeMs": 0,
+              "wroteMs": 0,
+              "linesDropped": 0,
+              "looks": 29,
+              "looksFound": 28,
+              "below": [
+                {
+                  "name": "git",
+                  "seenMs": 6753
+                }
+              ],
+              "belowCpuMs": 0,
+              "belowUnlisted": false,
+              "belowUnended": 0,
+              "blindLooks": 0,
+              "blockedLooks": 28
+            }
+          ],
+          "buildMs": 64926,
+          "buildParts": {
+            "branch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "message": {
+              "ms": 0,
+              "calls": 1
+            },
+            "amend tree": {
+              "ms": 0,
+              "calls": 1
+            },
+            "fitting request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow skeleton": {
+              "ms": 41042,
+              "calls": 1
+            },
+            "shadow config": {
+              "ms": 1,
+              "calls": 1
+            },
+            "shadow links": {
+              "ms": 84,
+              "calls": 1
+            },
+            "shadow conclusion": {
+              "ms": 16613,
+              "calls": 1
+            },
+            "shadow refs": {
+              "ms": 7,
+              "calls": 1
+            },
+            "client build": {
+              "ms": 2,
+              "calls": 1
+            },
+            "commit read back": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "buildPartsDropped": 0,
+          "provisionMs": 0,
+          "submitMs": 6998,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.7"
+          ],
+          "answeredByRelease": "0.6.1-alpha.7",
+          "answerWaitMs": 6997,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 12,
+          "handoffMs": 2,
+          "otherMs": 466,
+          "scratchRemovalMs": 0,
+          "removalsThatDidNotFinish": 0,
+          "stderrMs": 0,
+          "prepareParts": {
+            "layout": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedBefore": {
+              "ms": 0,
+              "calls": 1
+            },
+            "capture": {
+              "ms": 0,
+              "calls": 1
+            },
+            "stagedDeletions": {
+              "ms": 0,
+              "calls": 1
+            },
+            "scratch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "index": {
+              "ms": 0,
+              "calls": 1
+            },
+            "interactive": {
+              "ms": 0,
+              "calls": 1
+            },
+            "conclusionState": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedFiles": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changedPaths": {
+              "ms": 0,
+              "calls": 1
+            },
+            "policies": {
+              "ms": 2,
+              "calls": 1
+            },
+            "worktreeRecords": {
+              "ms": 0,
+              "calls": 1
+            },
+            "treeCheck": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changes": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "preparePartsDropped": 0,
+          "longestQuietMs": 28.711,
+          "quietMs": {
+            "/usr/bin/git rev-parse": 0.287,
+            "git add": 2.264,
+            "git cat-file": 28.711,
+            "git cat-file --batch": 8.469,
+            "git rev-parse": 3.198,
+            "git version": 0.957
+          },
+          "steps": [
+            {
+              "name": "git version",
+              "offsetMs": 0,
+              "durationMs": 2
+            },
+            {
+              "name": "git add",
+              "offsetMs": 4,
+              "durationMs": 2
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 57764,
+              "durationMs": 7139
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 64904,
+              "durationMs": 3
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 64908,
+              "durationMs": 29
+            }
+          ],
+          "stepsDropped": 0,
+          "landing": {
+            "lockHoldMs": 254,
+            "queuedBehind": 0,
+            "readsMs": 6614,
+            "reads": {
+              "config": 47,
+              "branch": 5,
+              "parents": 0,
+              "changed": 0,
+              "content": 0,
+              "witness": 8,
+              "conclusion": 54,
+              "owed": 52,
+              "follow": 0
+            },
+            "syncs": [
+              {
+                "what": "intent-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "intent-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "lock-marker",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "index-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "journal-dir",
+                "waited": false,
+                "ms": 0
+              }
+            ]
+          }
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-10T12:09:30.315Z",
+          "level": "info",
+          "startMillis": 1794312539129,
+          "pid": 2793416,
+          "release": "0.6.1-alpha.7",
+          "instance": "4ca5bd0ac0662ba47ba2831fa7ece19a",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-7Rz0TT/wrapped-signed-repo/.git",
+          "requestId": "0a5610be-376e-4064-beb7-a5916121daa9",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 31186,
+          "routeMs": 0,
+          "prepareMs": 39,
+          "attempts": 1,
+          "prepareSpans": [
+            {
+              "name": "index read",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index copy",
+              "calls": 2,
+              "totalMs": 2,
+              "longestMs": 1
+            },
+            {
+              "name": "index seed",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index equals base",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index stat check",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy require-root at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy linked-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy branch-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy add-explicit at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "candidates prepared",
+              "calls": 2,
+              "totalMs": 4,
+              "longestMs": 3
+            },
+            {
+              "name": "policy final-newline at pre-forward",
+              "calls": 1,
+              "totalMs": 5,
+              "longestMs": 5
+            },
+            {
+              "name": "policy final-newline at post-commit",
+              "calls": 1,
+              "totalMs": 7,
+              "longestMs": 7
+            }
+          ],
+          "prepareSpansDropped": 0,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "scratchSteps": [
+            {
+              "ceilingMs": 16332,
+              "armed": true,
+              "stoppedAfterMs": null,
+              "noticeMs": 0,
+              "wroteMs": 0,
+              "linesDropped": 0,
+              "looks": 1,
+              "looksFound": 0,
+              "below": [],
+              "belowCpuMs": 0,
+              "belowUnlisted": false,
+              "belowUnended": 0,
+              "blindLooks": 0,
+              "blockedLooks": 0
+            }
+          ],
+          "buildMs": 30984,
+          "buildParts": {
+            "branch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "message": {
+              "ms": 0,
+              "calls": 1
+            },
+            "amend tree": {
+              "ms": 0,
+              "calls": 1
+            },
+            "fitting request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow skeleton": {
+              "ms": 6,
+              "calls": 1
+            },
+            "shadow config": {
+              "ms": 2,
+              "calls": 1
+            },
+            "shadow links": {
+              "ms": 30,
+              "calls": 1
+            },
+            "shadow conclusion": {
+              "ms": 30639,
+              "calls": 1
+            },
+            "shadow refs": {
+              "ms": 73,
+              "calls": 1
+            },
+            "client build": {
+              "ms": 4,
+              "calls": 1
+            },
+            "commit read back": {
+              "ms": 1,
+              "calls": 1
+            }
+          },
+          "buildPartsDropped": 0,
+          "provisionMs": 0,
+          "submitMs": 122,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.7"
+          ],
+          "answeredByRelease": "0.6.1-alpha.7",
+          "answerWaitMs": 122,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 8,
+          "handoffMs": 24,
+          "otherMs": 7,
+          "scratchRemovalMs": 0,
+          "removalsThatDidNotFinish": 0,
+          "stderrMs": 0,
+          "prepareParts": {
+            "layout": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedBefore": {
+              "ms": 0,
+              "calls": 1
+            },
+            "capture": {
+              "ms": 1,
+              "calls": 1
+            },
+            "stagedDeletions": {
+              "ms": 2,
+              "calls": 1
+            },
+            "scratch": {
+              "ms": 5,
+              "calls": 1
+            },
+            "index": {
+              "ms": 4,
+              "calls": 1
+            },
+            "interactive": {
+              "ms": 0,
+              "calls": 1
+            },
+            "conclusionState": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedFiles": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changedPaths": {
+              "ms": 0,
+              "calls": 1
+            },
+            "policies": {
+              "ms": 3,
+              "calls": 1
+            },
+            "worktreeRecords": {
+              "ms": 0,
+              "calls": 1
+            },
+            "treeCheck": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changes": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "preparePartsDropped": 0,
+          "longestQuietMs": 17.719,
+          "quietMs": {
+            "/usr/bin/git rev-parse": 1.319,
+            "git add": 17.719,
+            "git cat-file": 0.029,
+            "git cat-file --batch": 7.102,
+            "git rev-parse": 8.964
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 13,
+              "durationMs": 18
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 34,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 30795,
+              "durationMs": 213
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 31010,
+              "durationMs": 10
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 31021,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0,
+          "landing": {
+            "lockHoldMs": 67,
+            "queuedBehind": 0,
+            "readsMs": 38,
+            "reads": {
+              "config": 0,
+              "branch": 1,
+              "parents": 0,
+              "changed": 0,
+              "content": 0,
+              "witness": 7,
+              "conclusion": 4,
+              "owed": 9,
+              "follow": 0
+            },
+            "syncs": [
+              {
+                "what": "intent-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "intent-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "index-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "journal-dir",
+                "waited": false,
+                "ms": 0
+              }
+            ]
+          }
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-10T12:10:21.382Z",
+          "level": "info",
+          "startMillis": 1794312570431,
+          "pid": 2838886,
+          "release": "0.6.1-alpha.7",
+          "instance": "4ca5bd0ac0662ba47ba2831fa7ece19a",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-7Rz0TT/wrapped-signed-repo/.git",
+          "requestId": "9527fa1e-7d4a-453a-ab27-0b03b303553a",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 50950,
+          "routeMs": 0,
+          "prepareMs": 11,
+          "attempts": 1,
+          "prepareSpans": [
+            {
+              "name": "index read",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index copy",
+              "calls": 2,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index seed",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index equals base",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index stat check",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy require-root at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy linked-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy branch-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy add-explicit at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "candidates prepared",
+              "calls": 2,
+              "totalMs": 9,
+              "longestMs": 6
+            },
+            {
+              "name": "policy final-newline at pre-forward",
+              "calls": 1,
+              "totalMs": 4,
+              "longestMs": 4
+            },
+            {
+              "name": "policy final-newline at post-commit",
+              "calls": 1,
+              "totalMs": 7,
+              "longestMs": 7
+            }
+          ],
+          "prepareSpansDropped": 0,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "scratchSteps": [
+            {
+              "ceilingMs": 16332,
+              "armed": true,
+              "stoppedAfterMs": null,
+              "noticeMs": 0,
+              "wroteMs": 0,
+              "linesDropped": 0,
+              "looks": 2,
+              "looksFound": 1,
+              "below": [
+                {
+                  "name": "git",
+                  "seenMs": 0
+                }
+              ],
+              "belowCpuMs": 0,
+              "belowUnlisted": false,
+              "belowUnended": 0,
+              "blindLooks": 0,
+              "blockedLooks": 1
+            }
+          ],
+          "buildMs": 27518,
+          "buildParts": {
+            "branch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "message": {
+              "ms": 0,
+              "calls": 1
+            },
+            "amend tree": {
+              "ms": 0,
+              "calls": 1
+            },
+            "fitting request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow skeleton": {
+              "ms": 3,
+              "calls": 1
+            },
+            "shadow config": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow links": {
+              "ms": 3,
+              "calls": 1
+            },
+            "shadow conclusion": {
+              "ms": 27198,
+              "calls": 1
+            },
+            "shadow refs": {
+              "ms": 5,
+              "calls": 1
+            },
+            "client build": {
+              "ms": 0,
+              "calls": 1
+            },
+            "commit read back": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "buildPartsDropped": 0,
+          "provisionMs": 0,
+          "submitMs": 23276,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.7"
+          ],
+          "answeredByRelease": "0.6.1-alpha.7",
+          "answerWaitMs": 23276,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 8,
+          "handoffMs": 87,
+          "otherMs": 47,
+          "scratchRemovalMs": 0,
+          "removalsThatDidNotFinish": 0,
+          "stderrMs": 0,
+          "prepareParts": {
+            "layout": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedBefore": {
+              "ms": 0,
+              "calls": 1
+            },
+            "capture": {
+              "ms": 0,
+              "calls": 1
+            },
+            "stagedDeletions": {
+              "ms": 0,
+              "calls": 1
+            },
+            "scratch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "index": {
+              "ms": 1,
+              "calls": 1
+            },
+            "interactive": {
+              "ms": 0,
+              "calls": 1
+            },
+            "conclusionState": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedFiles": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changedPaths": {
+              "ms": 0,
+              "calls": 1
+            },
+            "policies": {
+              "ms": 2,
+              "calls": 1
+            },
+            "worktreeRecords": {
+              "ms": 0,
+              "calls": 1
+            },
+            "treeCheck": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changes": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "preparePartsDropped": 0,
+          "longestQuietMs": 3.691,
+          "quietMs": {
+            "/usr/bin/git rev-parse": 1.144,
+            "git add": 1.169,
+            "git cat-file": 3.691,
+            "git cat-file --batch": 1.156,
+            "git rev-parse": 3.308
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 7,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 27223,
+              "durationMs": 297
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 27521,
+              "durationMs": 3
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 27525,
+              "durationMs": 4
+            }
+          ],
+          "stepsDropped": 0,
+          "landing": {
+            "lockHoldMs": 23161,
+            "queuedBehind": 0,
+            "readsMs": 61,
+            "reads": {
+              "config": 0,
+              "branch": 1,
+              "parents": 0,
+              "changed": 0,
+              "content": 0,
+              "witness": 6,
+              "conclusion": 21,
+              "owed": 26,
+              "follow": 0
+            },
+            "syncs": [
+              {
+                "what": "intent-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "intent-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "index-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "journal-dir",
+                "waited": false,
+                "ms": 0
+              }
+            ]
+          }
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-10T12:11:42.465Z",
+          "level": "info",
+          "startMillis": 1794312623338,
+          "pid": 2912497,
+          "release": "0.6.1-alpha.7",
+          "instance": "4ca5bd0ac0662ba47ba2831fa7ece19a",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-7Rz0TT/wrapped-signed-repo/.git",
+          "requestId": "be45102a-e2c7-43d7-9d06-776e5c5a83ff",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 79127,
+          "routeMs": 0,
+          "prepareMs": 8305,
+          "attempts": 1,
+          "prepareSpans": [
+            {
+              "name": "index read",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index copy",
+              "calls": 2,
+              "totalMs": 36,
+              "longestMs": 28
+            },
+            {
+              "name": "index seed",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index equals base",
+              "calls": 1,
+              "totalMs": 11,
+              "longestMs": 11
+            },
+            {
+              "name": "index stat check",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy require-root at pre-forward",
+              "calls": 1,
+              "totalMs": 1,
+              "longestMs": 1
+            },
+            {
+              "name": "policy linked-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy branch-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy add-explicit at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "candidates prepared",
+              "calls": 2,
+              "totalMs": 8,
+              "longestMs": 7
+            },
+            {
+              "name": "policy final-newline at pre-forward",
+              "calls": 1,
+              "totalMs": 12,
+              "longestMs": 12
+            },
+            {
+              "name": "policy final-newline at post-commit",
+              "calls": 1,
+              "totalMs": 1,
+              "longestMs": 1
+            }
+          ],
+          "prepareSpansDropped": 0,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "scratchSteps": [
+            {
+              "ceilingMs": 16332,
+              "armed": true,
+              "stoppedAfterMs": null,
+              "noticeMs": 0,
+              "wroteMs": 0,
+              "linesDropped": 0,
+              "looks": 63,
+              "looksFound": 62,
+              "below": [
+                {
+                  "name": "git",
+                  "seenMs": 15252
+                },
+                {
+                  "name": "ssh-keygen",
+                  "seenMs": 750
+                }
+              ],
+              "belowCpuMs": 0,
+              "belowUnlisted": false,
+              "belowUnended": 0,
+              "blindLooks": 0,
+              "blockedLooks": 61
+            }
+          ],
+          "buildMs": 44747,
+          "buildParts": {
+            "branch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "message": {
+              "ms": 0,
+              "calls": 1
+            },
+            "amend tree": {
+              "ms": 0,
+              "calls": 1
+            },
+            "fitting request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow skeleton": {
+              "ms": 44,
+              "calls": 1
+            },
+            "shadow config": {
+              "ms": 13,
+              "calls": 1
+            },
+            "shadow links": {
+              "ms": 94,
+              "calls": 1
+            },
+            "shadow conclusion": {
+              "ms": 19084,
+              "calls": 1
+            },
+            "shadow refs": {
+              "ms": 9960,
+              "calls": 1
+            },
+            "client build": {
+              "ms": 4,
+              "calls": 1
+            },
+            "commit read back": {
+              "ms": 2,
+              "calls": 1
+            }
+          },
+          "buildPartsDropped": 0,
+          "provisionMs": 0,
+          "submitMs": 2197,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.7"
+          ],
+          "answeredByRelease": "0.6.1-alpha.7",
+          "answerWaitMs": 1133,
+          "positions": [],
+          "waitingNotices": 1,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 2304,
+          "gateMs": 1,
+          "handoffMs": 0,
+          "otherMs": 21568,
+          "scratchRemovalMs": 0,
+          "removalsThatDidNotFinish": 0,
+          "stderrMs": 0,
+          "prepareParts": {
+            "layout": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedBefore": {
+              "ms": 0,
+              "calls": 1
+            },
+            "capture": {
+              "ms": 0,
+              "calls": 1
+            },
+            "stagedDeletions": {
+              "ms": 0,
+              "calls": 1
+            },
+            "scratch": {
+              "ms": 8165,
+              "calls": 1
+            },
+            "index": {
+              "ms": 52,
+              "calls": 1
+            },
+            "interactive": {
+              "ms": 0,
+              "calls": 1
+            },
+            "conclusionState": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedFiles": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changedPaths": {
+              "ms": 0,
+              "calls": 1
+            },
+            "policies": {
+              "ms": 10,
+              "calls": 1
+            },
+            "worktreeRecords": {
+              "ms": 0,
+              "calls": 1
+            },
+            "treeCheck": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changes": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "preparePartsDropped": 0,
+          "longestQuietMs": 70.061,
+          "quietMs": {
+            "/usr/bin/git rev-parse": 0.031,
+            "git add": 70.061,
+            "git cat-file": 0.2,
+            "git cat-file --batch": 3.953,
+            "git rev-parse": 2.753
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 8215,
+              "durationMs": 72
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 8294,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 37505,
+              "durationMs": 15538
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 53045,
+              "durationMs": 4
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 53050,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0,
+          "landing": {
+            "lockHoldMs": 1129,
+            "queuedBehind": 0,
+            "readsMs": 1,
+            "reads": {
+              "config": 0,
+              "branch": 0,
+              "parents": 0,
+              "changed": 0,
+              "content": 0,
+              "witness": 0,
+              "conclusion": 0,
+              "owed": 0,
+              "follow": 0
+            },
+            "syncs": [
+              {
+                "what": "intent-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "intent-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "index-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "journal-dir",
+                "waited": false,
+                "ms": 0
+              }
+            ]
+          }
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-10T12:12:47.005Z",
+          "level": "info",
+          "startMillis": 1794312703430,
+          "pid": 3028230,
+          "release": "0.6.1-alpha.7",
+          "instance": "4ca5bd0ac0662ba47ba2831fa7ece19a",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-7Rz0TT/wrapped-signed-repo/.git",
+          "requestId": "1c40e383-35af-4502-b254-f83631ee372e",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 63575,
+          "routeMs": 0,
+          "prepareMs": 11,
+          "attempts": 1,
+          "prepareSpans": [
+            {
+              "name": "index read",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index copy",
+              "calls": 2,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index seed",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index equals base",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index stat check",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy require-root at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy linked-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy branch-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy add-explicit at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "candidates prepared",
+              "calls": 2,
+              "totalMs": 3,
+              "longestMs": 3
+            },
+            {
+              "name": "policy final-newline at pre-forward",
+              "calls": 1,
+              "totalMs": 4,
+              "longestMs": 4
+            },
+            {
+              "name": "policy final-newline at post-commit",
+              "calls": 1,
+              "totalMs": 2,
+              "longestMs": 2
+            }
+          ],
+          "prepareSpansDropped": 0,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "scratchSteps": [
+            {
+              "ceilingMs": 16332,
+              "armed": true,
+              "stoppedAfterMs": null,
+              "noticeMs": 0,
+              "wroteMs": 0,
+              "linesDropped": 0,
+              "looks": 1,
+              "looksFound": 0,
+              "below": [],
+              "belowCpuMs": 0,
+              "belowUnlisted": false,
+              "belowUnended": 0,
+              "blindLooks": 0,
+              "blockedLooks": 0
+            }
+          ],
+          "buildMs": 63375,
+          "buildParts": {
+            "branch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "message": {
+              "ms": 0,
+              "calls": 1
+            },
+            "amend tree": {
+              "ms": 0,
+              "calls": 1
+            },
+            "fitting request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow skeleton": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow config": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow links": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow conclusion": {
+              "ms": 63108,
+              "calls": 1
+            },
+            "shadow refs": {
+              "ms": 40,
+              "calls": 1
+            },
+            "client build": {
+              "ms": 0,
+              "calls": 1
+            },
+            "commit read back": {
+              "ms": 2,
+              "calls": 1
+            }
+          },
+          "buildPartsDropped": 0,
+          "provisionMs": 0,
+          "submitMs": 183,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.7"
+          ],
+          "answeredByRelease": "0.6.1-alpha.7",
+          "answerWaitMs": 182,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 1,
+          "otherMs": 1,
+          "scratchRemovalMs": 0,
+          "removalsThatDidNotFinish": 0,
+          "stderrMs": 0,
+          "prepareParts": {
+            "layout": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedBefore": {
+              "ms": 0,
+              "calls": 1
+            },
+            "capture": {
+              "ms": 0,
+              "calls": 1
+            },
+            "stagedDeletions": {
+              "ms": 0,
+              "calls": 1
+            },
+            "scratch": {
+              "ms": 2,
+              "calls": 1
+            },
+            "index": {
+              "ms": 0,
+              "calls": 1
+            },
+            "interactive": {
+              "ms": 0,
+              "calls": 1
+            },
+            "conclusionState": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedFiles": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changedPaths": {
+              "ms": 0,
+              "calls": 1
+            },
+            "policies": {
+              "ms": 2,
+              "calls": 1
+            },
+            "worktreeRecords": {
+              "ms": 0,
+              "calls": 1
+            },
+            "treeCheck": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changes": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "preparePartsDropped": 0,
+          "longestQuietMs": 3.258,
+          "quietMs": {
+            "/usr/bin/git rev-parse": 1.341,
+            "git add": 1.534,
+            "git cat-file": 2.654,
+            "git cat-file --batch": 0.804,
+            "git rev-parse": 3.258
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 4,
+              "durationMs": 2
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 8,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 63161,
+              "durationMs": 215
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 63380,
+              "durationMs": 4
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 63384,
+              "durationMs": 3
+            }
+          ],
+          "stepsDropped": 0,
+          "landing": {
+            "lockHoldMs": 165,
+            "queuedBehind": 0,
+            "readsMs": 6,
+            "reads": {
+              "config": 0,
+              "branch": 0,
+              "parents": 0,
+              "changed": 0,
+              "content": 0,
+              "witness": 0,
+              "conclusion": 1,
+              "owed": 3,
+              "follow": 0
+            },
+            "syncs": [
+              {
+                "what": "intent-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "intent-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "index-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "journal-dir",
+                "waited": false,
+                "ms": 0
+              }
+            ]
+          }
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-10T12:14:01.808Z",
+          "level": "info",
+          "startMillis": 1794312767279,
+          "pid": 3117424,
+          "release": "0.6.1-alpha.7",
+          "instance": "4ca5bd0ac0662ba47ba2831fa7ece19a",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-7Rz0TT/wrapped-signed-repo/.git",
+          "requestId": "d5ba669c-b6ee-469b-a586-04db55d534e9",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 74529,
+          "routeMs": 0,
+          "prepareMs": 11,
+          "attempts": 1,
+          "prepareSpans": [
+            {
+              "name": "index read",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index copy",
+              "calls": 2,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index seed",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index equals base",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index stat check",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy require-root at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy linked-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy branch-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy add-explicit at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "candidates prepared",
+              "calls": 2,
+              "totalMs": 3,
+              "longestMs": 2
+            },
+            {
+              "name": "policy final-newline at pre-forward",
+              "calls": 1,
+              "totalMs": 4,
+              "longestMs": 4
+            },
+            {
+              "name": "policy final-newline at post-commit",
+              "calls": 1,
+              "totalMs": 2,
+              "longestMs": 2
+            }
+          ],
+          "prepareSpansDropped": 0,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "scratchSteps": [
+            {
+              "ceilingMs": 16332,
+              "armed": true,
+              "stoppedAfterMs": null,
+              "noticeMs": 2,
+              "wroteMs": 0,
+              "linesDropped": 0,
+              "looks": 2,
+              "looksFound": 1,
+              "below": [
+                {
+                  "name": "git",
+                  "seenMs": 0
+                }
+              ],
+              "belowCpuMs": 0,
+              "belowUnlisted": false,
+              "belowUnended": 0,
+              "blindLooks": 0,
+              "blockedLooks": 1
+            }
+          ],
+          "buildMs": 73829,
+          "buildParts": {
+            "branch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "message": {
+              "ms": 0,
+              "calls": 1
+            },
+            "amend tree": {
+              "ms": 0,
+              "calls": 1
+            },
+            "fitting request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow skeleton": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow config": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow links": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow conclusion": {
+              "ms": 73471,
+              "calls": 1
+            },
+            "shadow refs": {
+              "ms": 0,
+              "calls": 1
+            },
+            "client build": {
+              "ms": 3,
+              "calls": 1
+            },
+            "commit read back": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "buildPartsDropped": 0,
+          "provisionMs": 0,
+          "submitMs": 467,
+          "sends": 1,
+          "reachMs": 1,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.7"
+          ],
+          "answeredByRelease": "0.6.1-alpha.7",
+          "answerWaitMs": 466,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 217,
+          "otherMs": 0,
+          "scratchRemovalMs": 0,
+          "removalsThatDidNotFinish": 0,
+          "stderrMs": 0,
+          "prepareParts": {
+            "layout": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedBefore": {
+              "ms": 0,
+              "calls": 1
+            },
+            "capture": {
+              "ms": 0,
+              "calls": 1
+            },
+            "stagedDeletions": {
+              "ms": 0,
+              "calls": 1
+            },
+            "scratch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "index": {
+              "ms": 0,
+              "calls": 1
+            },
+            "interactive": {
+              "ms": 0,
+              "calls": 1
+            },
+            "conclusionState": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedFiles": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changedPaths": {
+              "ms": 0,
+              "calls": 1
+            },
+            "policies": {
+              "ms": 2,
+              "calls": 1
+            },
+            "worktreeRecords": {
+              "ms": 0,
+              "calls": 1
+            },
+            "treeCheck": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changes": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "preparePartsDropped": 0,
+          "longestQuietMs": 28.588,
+          "quietMs": {
+            "/usr/bin/git rev-parse": 1.288,
+            "git add": 3.125,
+            "git cat-file": 27.716,
+            "git cat-file --batch": 1.18,
+            "git rev-parse": 28.588
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 4
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 7,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 73485,
+              "durationMs": 293
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 73781,
+              "durationMs": 29
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 73811,
+              "durationMs": 29
+            }
+          ],
+          "stepsDropped": 0,
+          "landing": {
+            "lockHoldMs": 400,
+            "queuedBehind": 0,
+            "readsMs": 90,
+            "reads": {
+              "config": 0,
+              "branch": 1,
+              "parents": 0,
+              "changed": 0,
+              "content": 0,
+              "witness": 51,
+              "conclusion": 18,
+              "owed": 16,
+              "follow": 0
+            },
+            "syncs": [
+              {
+                "what": "intent-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "intent-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "index-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "journal-dir",
+                "waited": false,
+                "ms": 0
+              }
+            ]
+          }
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-10T12:14:50.318Z",
+          "level": "info",
+          "startMillis": 1794312842182,
+          "pid": 3230641,
+          "release": "0.6.1-alpha.7",
+          "instance": "4ca5bd0ac0662ba47ba2831fa7ece19a",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-7Rz0TT/wrapped-signed-repo/.git",
+          "requestId": "e6ca26a7-388c-4fae-b4a5-f999c7416edc",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 48136,
+          "routeMs": 0,
+          "prepareMs": 88,
+          "attempts": 1,
+          "prepareSpans": [
+            {
+              "name": "index read",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index copy",
+              "calls": 2,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index seed",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index equals base",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index stat check",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy require-root at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy linked-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy branch-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy add-explicit at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "candidates prepared",
+              "calls": 2,
+              "totalMs": 4,
+              "longestMs": 4
+            },
+            {
+              "name": "policy final-newline at pre-forward",
+              "calls": 1,
+              "totalMs": 6,
+              "longestMs": 6
+            },
+            {
+              "name": "policy final-newline at post-commit",
+              "calls": 1,
+              "totalMs": 2,
+              "longestMs": 2
+            }
+          ],
+          "prepareSpansDropped": 0,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "scratchSteps": [
+            {
+              "ceilingMs": 16332,
+              "armed": true,
+              "stoppedAfterMs": null,
+              "noticeMs": 1,
+              "wroteMs": 0,
+              "linesDropped": 0,
+              "looks": 2,
+              "looksFound": 1,
+              "below": [
+                {
+                  "name": "git",
+                  "seenMs": 0
+                }
+              ],
+              "belowCpuMs": 0,
+              "belowUnlisted": false,
+              "belowUnended": 0,
+              "blindLooks": 0,
+              "blockedLooks": 1
+            }
+          ],
+          "buildMs": 46632,
+          "buildParts": {
+            "branch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "message": {
+              "ms": 0,
+              "calls": 1
+            },
+            "amend tree": {
+              "ms": 0,
+              "calls": 1
+            },
+            "fitting request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow skeleton": {
+              "ms": 22,
+              "calls": 1
+            },
+            "shadow config": {
+              "ms": 3,
+              "calls": 1
+            },
+            "shadow links": {
+              "ms": 22,
+              "calls": 1
+            },
+            "shadow conclusion": {
+              "ms": 46175,
+              "calls": 1
+            },
+            "shadow refs": {
+              "ms": 92,
+              "calls": 1
+            },
+            "client build": {
+              "ms": 1,
+              "calls": 1
+            },
+            "commit read back": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "buildPartsDropped": 0,
+          "provisionMs": 0,
+          "submitMs": 312,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.7"
+          ],
+          "answeredByRelease": "0.6.1-alpha.7",
+          "answerWaitMs": 311,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 3,
+          "handoffMs": 92,
+          "otherMs": 1006,
+          "scratchRemovalMs": 0,
+          "removalsThatDidNotFinish": 0,
+          "stderrMs": 0,
+          "prepareParts": {
+            "layout": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedBefore": {
+              "ms": 0,
+              "calls": 1
+            },
+            "capture": {
+              "ms": 0,
+              "calls": 1
+            },
+            "stagedDeletions": {
+              "ms": 0,
+              "calls": 1
+            },
+            "scratch": {
+              "ms": 1,
+              "calls": 1
+            },
+            "index": {
+              "ms": 3,
+              "calls": 1
+            },
+            "interactive": {
+              "ms": 0,
+              "calls": 1
+            },
+            "conclusionState": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedFiles": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changedPaths": {
+              "ms": 5,
+              "calls": 1
+            },
+            "policies": {
+              "ms": 4,
+              "calls": 1
+            },
+            "worktreeRecords": {
+              "ms": 0,
+              "calls": 1
+            },
+            "treeCheck": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changes": {
+              "ms": 2,
+              "calls": 1
+            }
+          },
+          "preparePartsDropped": 0,
+          "longestQuietMs": 65.49,
+          "quietMs": {
+            "/usr/bin/git rev-parse": 1.298,
+            "git add": 65.49,
+            "git cat-file": 2.177,
+            "git cat-file --batch": 1.572,
+            "git rev-parse": 6.281
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 5,
+              "durationMs": 67
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 81,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 46406,
+              "durationMs": 303
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 46711,
+              "durationMs": 7
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 46719,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0,
+          "landing": {
+            "lockHoldMs": 215,
+            "queuedBehind": 0,
+            "readsMs": 68,
+            "reads": {
+              "config": 0,
+              "branch": 0,
+              "parents": 0,
+              "changed": 0,
+              "content": 0,
+              "witness": 10,
+              "conclusion": 26,
+              "owed": 23,
+              "follow": 0
+            },
+            "syncs": [
+              {
+                "what": "intent-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "intent-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "index-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "journal-dir",
+                "waited": false,
+                "ms": 0
+              }
+            ]
+          }
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-10T12:15:51.757Z",
+          "level": "info",
+          "startMillis": 1794312891025,
+          "pid": 3302588,
+          "release": "0.6.1-alpha.7",
+          "instance": "4ca5bd0ac0662ba47ba2831fa7ece19a",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-7Rz0TT/wrapped-signed-repo/.git",
+          "requestId": "2d282021-a070-4876-b922-6398ede0f190",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 60732,
+          "routeMs": 0,
+          "prepareMs": 11,
+          "attempts": 1,
+          "prepareSpans": [
+            {
+              "name": "index read",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index copy",
+              "calls": 2,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index seed",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index equals base",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "index stat check",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy require-root at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy linked-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy branch-worktree-only at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "policy add-explicit at pre-forward",
+              "calls": 1,
+              "totalMs": 0,
+              "longestMs": 0
+            },
+            {
+              "name": "candidates prepared",
+              "calls": 2,
+              "totalMs": 2,
+              "longestMs": 2
+            },
+            {
+              "name": "policy final-newline at pre-forward",
+              "calls": 1,
+              "totalMs": 5,
+              "longestMs": 5
+            },
+            {
+              "name": "policy final-newline at post-commit",
+              "calls": 1,
+              "totalMs": 2,
+              "longestMs": 2
+            }
+          ],
+          "prepareSpansDropped": 0,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "scratchSteps": [
+            {
+              "ceilingMs": 16332,
+              "armed": true,
+              "stoppedAfterMs": null,
+              "noticeMs": 0,
+              "wroteMs": 0,
+              "linesDropped": 0,
+              "looks": 2,
+              "looksFound": 1,
+              "below": [
+                {
+                  "name": "git",
+                  "seenMs": 0
+                },
+                {
+                  "name": "ssh-keygen",
+                  "seenMs": 0
+                }
+              ],
+              "belowCpuMs": 0,
+              "belowUnlisted": false,
+              "belowUnended": 0,
+              "blindLooks": 0,
+              "blockedLooks": 1
+            }
+          ],
+          "buildMs": 60008,
+          "buildParts": {
+            "branch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "message": {
+              "ms": 0,
+              "calls": 1
+            },
+            "amend tree": {
+              "ms": 0,
+              "calls": 1
+            },
+            "fitting request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "request": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow skeleton": {
+              "ms": 196,
+              "calls": 1
+            },
+            "shadow config": {
+              "ms": 0,
+              "calls": 1
+            },
+            "shadow links": {
+              "ms": 2,
+              "calls": 1
+            },
+            "shadow conclusion": {
+              "ms": 59359,
+              "calls": 1
+            },
+            "shadow refs": {
+              "ms": 13,
+              "calls": 1
+            },
+            "client build": {
+              "ms": 0,
+              "calls": 1
+            },
+            "commit read back": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "buildPartsDropped": 0,
+          "provisionMs": 0,
+          "submitMs": 197,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.7"
+          ],
+          "answeredByRelease": "0.6.1-alpha.7",
+          "answerWaitMs": 196,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 1,
+          "otherMs": 511,
+          "scratchRemovalMs": 0,
+          "removalsThatDidNotFinish": 0,
+          "stderrMs": 0,
+          "prepareParts": {
+            "layout": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedBefore": {
+              "ms": 0,
+              "calls": 1
+            },
+            "capture": {
+              "ms": 0,
+              "calls": 1
+            },
+            "stagedDeletions": {
+              "ms": 0,
+              "calls": 1
+            },
+            "scratch": {
+              "ms": 0,
+              "calls": 1
+            },
+            "index": {
+              "ms": 0,
+              "calls": 1
+            },
+            "interactive": {
+              "ms": 0,
+              "calls": 1
+            },
+            "conclusionState": {
+              "ms": 0,
+              "calls": 1
+            },
+            "unmergedFiles": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changedPaths": {
+              "ms": 0,
+              "calls": 1
+            },
+            "policies": {
+              "ms": 3,
+              "calls": 1
+            },
+            "worktreeRecords": {
+              "ms": 0,
+              "calls": 1
+            },
+            "treeCheck": {
+              "ms": 0,
+              "calls": 1
+            },
+            "changes": {
+              "ms": 0,
+              "calls": 1
+            }
+          },
+          "preparePartsDropped": 0,
+          "longestQuietMs": 2.142,
+          "quietMs": {
+            "/usr/bin/git rev-parse": 1.13,
+            "git add": 1.892,
+            "git cat-file": 1.827,
+            "git cat-file --batch": 2.076,
+            "git rev-parse": 2.142
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 2
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 6,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 59585,
+              "durationMs": 428
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 60014,
+              "durationMs": 3
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 60017,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0,
+          "landing": {
+            "lockHoldMs": 88,
+            "queuedBehind": 0,
+            "readsMs": 3,
+            "reads": {
+              "config": 0,
+              "branch": 0,
+              "parents": 0,
+              "changed": 0,
+              "content": 0,
+              "witness": 0,
+              "conclusion": 0,
+              "owed": 1,
+              "follow": 0
+            },
+            "syncs": [
+              {
+                "what": "intent-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "intent-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "index-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-file",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "indexed-dir",
+                "waited": false,
+                "ms": 0
+              },
+              {
+                "what": "journal-dir",
+                "waited": false,
+                "ms": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "serviceLandings": [
+      "monochromatic-git-policy-cli-service: answered request=\"6811cdbc-fd62-4875-ad17-f8d9449ac4b8\" branch=\"refs/heads/main\" outcome=landed batch=1794312465333516 size=1 position=1 queued_behind=0 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=10 lock_stage_ms=1 lock_stage_kind=cold lock_place_ms=6 lock_hold_ms=254 reads_ms=6614 objects_ms=1 journal_ms=14 ref_ms=87 index_update_ms=157 attempts=1 landing_ms=6886 reads_config_ms=47 reads_branch_ms=5 reads_parents_ms=0 reads_changed_ms=0 reads_content_ms=0 reads_witness_ms=8 reads_conclusion_ms=54 reads_owed_ms=52 reads_follow_ms=0 syncs_waited=0 syncs_queued=7 sync_held_ms=0 syncs=\"intent-file=queued;intent-dir=queued;lock-marker=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued\" answer_ms=110 total_ms=6997 quiet_ms=63.234 quiet_steps=\"git update-ref=63.234\" steps=\"git update-ref@214+63\" steps_dropped=0 at_ms=1794312538636",
+      "monochromatic-git-policy-cli-service: answered request=\"0a5610be-376e-4064-beb7-a5916121daa9\" branch=\"refs/heads/main\" outcome=landed batch=1794312465333517 size=1 position=1 queued_behind=0 read_ms=0 queued_ms=1 settle_ms=1 lock_wait_ms=11 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=6 lock_hold_ms=67 reads_ms=38 objects_ms=3 journal_ms=3 ref_ms=35 index_update_ms=24 attempts=1 landing_ms=115 reads_config_ms=0 reads_branch_ms=1 reads_parents_ms=0 reads_changed_ms=0 reads_content_ms=0 reads_witness_ms=7 reads_conclusion_ms=4 reads_owed_ms=9 reads_follow_ms=0 syncs_waited=0 syncs_queued=6 sync_held_ms=0 syncs=\"intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued\" answer_ms=0 total_ms=122 quiet_ms=13.025 quiet_steps=\"git config=0.901;git maintenance=1.466;git rev-parse=1.154;git update-ref=13.025\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@64+14\" steps_dropped=0 at_ms=1794312570275",
+      "monochromatic-git-policy-cli-service: answered request=\"9527fa1e-7d4a-453a-ab27-0b03b303553a\" branch=\"refs/heads/main\" outcome=landed batch=1794312465333518 size=1 position=1 queued_behind=0 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=9 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=8 lock_hold_ms=23161 reads_ms=61 objects_ms=12 journal_ms=15 ref_ms=23120 index_update_ms=35 attempts=1 landing_ms=23253 reads_config_ms=0 reads_branch_ms=1 reads_parents_ms=0 reads_changed_ms=0 reads_content_ms=0 reads_witness_ms=6 reads_conclusion_ms=21 reads_owed_ms=26 reads_follow_ms=0 syncs_waited=0 syncs_queued=6 sync_held_ms=0 syncs=\"intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued\" answer_ms=22 total_ms=23276 quiet_ms=133.668 quiet_steps=\"git config=1.449;git maintenance=2.418;git rev-parse=3.695;git update-ref=133.668\" steps=\"git config@0+1;git maintenance@0+2;git update-ref@23074+134\" steps_dropped=0 at_ms=1794312621237",
+      "monochromatic-git-policy-cli-service: answered request=\"be45102a-e2c7-43d7-9d06-776e5c5a83ff\" branch=\"refs/heads/main\" outcome=landed batch=1794312465333519 size=1 position=1 queued_behind=0 read_ms=0 queued_ms=1 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=1129 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=1126 index_update_ms=2 attempts=1 landing_ms=1131 reads_config_ms=0 reads_branch_ms=0 reads_parents_ms=0 reads_changed_ms=0 reads_content_ms=0 reads_witness_ms=0 reads_conclusion_ms=0 reads_owed_ms=0 reads_follow_ms=0 syncs_waited=0 syncs_queued=6 sync_held_ms=0 syncs=\"intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued\" answer_ms=0 total_ms=1133 quiet_ms=527.156 quiet_steps=\"git config=0.228;git maintenance=527.156;git rev-parse=1.262;git update-ref=525.850\" steps=\"git config@0+2;git maintenance@0+10131;git update-ref@4+1126\" steps_dropped=0 at_ms=1794312678589",
+      "monochromatic-git-policy-cli-service: answered request=\"1c40e383-35af-4502-b254-f83631ee372e\" branch=\"refs/heads/main\" outcome=landed batch=1794312465333520 size=1 position=1 queued_behind=0 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=5 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=165 reads_ms=6 objects_ms=0 journal_ms=3 ref_ms=162 index_update_ms=2 attempts=1 landing_ms=180 reads_config_ms=0 reads_branch_ms=0 reads_parents_ms=0 reads_changed_ms=0 reads_content_ms=0 reads_witness_ms=0 reads_conclusion_ms=1 reads_owed_ms=3 reads_follow_ms=0 syncs_waited=0 syncs_queued=6 sync_held_ms=0 syncs=\"intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued\" answer_ms=0 total_ms=182 quiet_ms=161.195 quiet_steps=\"git config=0.267;git maintenance=1.218;git rev-parse=1.515;git update-ref=161.195\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@18+161\" steps_dropped=0 at_ms=1794312767000",
+      "monochromatic-git-policy-cli-service: answered request=\"d5ba669c-b6ee-469b-a586-04db55d534e9\" branch=\"refs/heads/main\" outcome=landed batch=1794312465333521 size=1 position=1 queued_behind=0 read_ms=0 queued_ms=7 settle_ms=1 lock_wait_ms=9 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=400 reads_ms=90 objects_ms=1 journal_ms=0 ref_ms=303 index_update_ms=44 attempts=1 landing_ms=450 reads_config_ms=0 reads_branch_ms=1 reads_parents_ms=0 reads_changed_ms=0 reads_content_ms=0 reads_witness_ms=51 reads_conclusion_ms=18 reads_owed_ms=16 reads_follow_ms=0 syncs_waited=0 syncs_queued=6 sync_held_ms=0 syncs=\"intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued\" answer_ms=0 total_ms=466 quiet_ms=59.450 quiet_steps=\"git config=6.480;git maintenance=3.347;git rev-parse=1.213;git update-ref=59.450\" steps=\"git config@0+6;git maintenance@0+3;git update-ref@351+60\" steps_dropped=0 at_ms=1794312841587",
+      "monochromatic-git-policy-cli-service: answered request=\"e6ca26a7-388c-4fae-b4a5-f999c7416edc\" branch=\"refs/heads/main\" outcome=landed batch=1794312465333522 size=1 position=1 queued_behind=0 read_ms=0 queued_ms=8 settle_ms=1 lock_wait_ms=6 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=5 lock_hold_ms=215 reads_ms=68 objects_ms=0 journal_ms=5 ref_ms=154 index_update_ms=50 attempts=1 landing_ms=285 reads_config_ms=0 reads_branch_ms=0 reads_parents_ms=0 reads_changed_ms=0 reads_content_ms=0 reads_witness_ms=10 reads_conclusion_ms=26 reads_owed_ms=23 reads_follow_ms=0 syncs_waited=0 syncs_queued=6 sync_held_ms=0 syncs=\"intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued\" answer_ms=12 total_ms=310 quiet_ms=130.690 quiet_steps=\"git config=1.154;git maintenance=2.956;git rev-parse=1.071;git update-ref=130.690\" steps=\"git config@0+1;git maintenance@0+3;git update-ref@106+131\" steps_dropped=0 at_ms=1794312889214",
+      "monochromatic-git-policy-cli-service: answered request=\"2d282021-a070-4876-b922-6398ede0f190\" branch=\"refs/heads/main\" outcome=landed batch=1794312465333523 size=1 position=1 queued_behind=0 read_ms=0 queued_ms=14 settle_ms=6 lock_wait_ms=69 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=54 lock_hold_ms=88 reads_ms=3 objects_ms=0 journal_ms=0 ref_ms=64 index_update_ms=23 attempts=1 landing_ms=161 reads_config_ms=0 reads_branch_ms=0 reads_parents_ms=0 reads_changed_ms=0 reads_content_ms=0 reads_witness_ms=0 reads_conclusion_ms=0 reads_owed_ms=1 reads_follow_ms=0 syncs_waited=0 syncs_queued=6 sync_held_ms=0 syncs=\"intent-file=queued;intent-dir=queued;index-dir=queued;indexed-file=queued;indexed-dir=queued;journal-dir=queued\" answer_ms=12 total_ms=196 quiet_ms=21.792 quiet_steps=\"git config=1.264;git maintenance=6.650;git rev-parse=1.353;git update-ref=21.792\" steps=\"git config@0+1;git maintenance@0+6;git update-ref@138+22\" steps_dropped=0 at_ms=1794312951242"
+    ]
+  }
+}

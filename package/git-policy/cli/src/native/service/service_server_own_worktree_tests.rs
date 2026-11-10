@@ -78,7 +78,7 @@ impl World {
             git: crate::test_support::git_context(),
             journal: self.journal.clone(),
             on_objects_written: None,
-            lock_ceiling: crate::wait_ceilings::LOCK_CEILING,
+            lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
         };
         let settings: ServeSettings = self.settings();
         return std::thread::spawn(move || { serve(listener, &context, &settings); });
@@ -148,7 +148,7 @@ fn a_service_whose_worktree_is_on_a_device_that_is_not_mounted_keeps_serving() {
         git: crate::test_support::git_context(),
         journal: world.journal.clone(),
         on_objects_written: None,
-        lock_ceiling: crate::wait_ceilings::LOCK_CEILING,
+        lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
     };
     let thread: std::thread::JoinHandle<()> = std::thread::spawn(move || { serve(listener, &context, &settings); });
     std::thread::sleep(CHECK * 10);

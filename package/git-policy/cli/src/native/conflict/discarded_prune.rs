@@ -44,7 +44,8 @@
 
 use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::diagnostic_log::debug;
-use crate::discard_audit::{AUDIT_FILE, append_line, check_appendable};
+use crate::discard_audit::{AUDIT_FILE, AUDIT_RETENTION};
+use crate::log_lines_appended_without_a_lock::{append_line, check_appendable};
 use crate::discarded_store::{Interrupted, OpenFailure, Store, Tally};use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -337,7 +338,7 @@ struct Removal<'pass> {
 /// said as a problem when the line cannot be written.
 fn write_audit(context: &Removal, outcome_word: &str, removed: &Removed, tally: &Tally, outcome: &mut PruneOutcome) {
     let line: String = audit_line(outcome_word, removed, tally.names.as_slice(), context.limits, context.folder_bytes, context.now_millis);
-    if let Err(error) = append_line(context.audit_path, line.as_bytes()) {
+    if let Err(error) = append_line(context.audit_path, line.as_bytes(), &AUDIT_RETENTION) {
         debug(TAG, &format!("the audit record of {} could not be written: {error}", removed.path.display()));
         outcome.problems.push(Problem { path: removed.path.clone(), kind: ProblemKind::RemovedWithoutAudit, detail: error.to_string() });
     }

@@ -27,6 +27,10 @@ import {
   watchShiftDevices,
 } from '../dist/final/node/testing.mjs';
 
+//region Fixtures
+// The evdev protocol values a record is built from and the device path the cases
+// stand in for, so no real `/dev/input` device is opened.
+
 /**
  evdev `type` value for a key event.
  */
@@ -72,6 +76,10 @@ const KEY_RELEASE = 0;
  */
 const FAKE_DEVICE_PATH = '/dev/input/event-memory';
 
+//endregion Fixtures
+
+//region Building one record
+
 /**
  Build one raw evdev key record.
  
@@ -106,6 +114,12 @@ function keyRecord({ code, value }: {
   );
   return record;
 }
+
+//endregion Building one record
+
+//region Stand-in devices and monitors
+// The two seams the module takes as arguments, driven here: a device whose
+// stream a case writes records into, and a monitor the watcher must stop.
 
 /**
  A stream-backed stand-in device, with the close recorded.
@@ -266,6 +280,11 @@ function disposingMonitor({ monitor }: { readonly monitor: DeviceMonitor; }): {
     },
   };
 }
+
+//endregion Stand-in devices and monitors
+
+//region Cases
+// The monitor that decodes records and the watcher that rescans after one ends.
 
 await describe({
   name: '',
@@ -605,3 +624,5 @@ await describe({
     }),
   ],
 });
+
+//endregion Cases

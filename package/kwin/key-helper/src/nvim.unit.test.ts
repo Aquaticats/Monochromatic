@@ -48,6 +48,10 @@ import {
   sendNvimInput,
 } from '../dist/final/node/testing.mjs';
 
+//region Fixtures
+// The socket filenames and ages the cases order, the RPC field values they
+// decode, and the two disposable shapes a case holds.
+
 /**
  Prefix Neovim gives its listen-socket filenames.
  */
@@ -159,6 +163,12 @@ type FakeNvim = {
    */
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
+
+//endregion Fixtures
+
+//region Scratch folders and sockets
+// A folder that removes itself, a plain file with a chosen age, and a stale
+// socket file of the kind a Neovim that died without cleanup leaves behind.
 
 /**
  Create an empty disposable folder.
@@ -274,6 +284,10 @@ async function makeStaleSocket({
   );
 }
 
+//endregion Scratch folders and sockets
+
+//region Reading a frame
+
 /**
  Read the message id out of a decoded RPC frame.
  
@@ -299,6 +313,12 @@ function messageIdOf({ message }: { readonly message: unknown; }): number {
   const [, msgId,] = frame;
   return (typeof msgId) === 'number' ? msgId : UNREADABLE_MESSAGE_ID;
 }
+
+//endregion Reading a frame
+
+//region The stand-in Neovim
+// A listening socket that records the frames it receives, so a case asserts on
+// what Neovim was asked to do without starting Neovim.
 
 /**
  Start a stand-in Neovim that answers every `nvim_input` request.
@@ -374,6 +394,12 @@ async function startFakeNvim({
   };
 }
 
+//endregion The stand-in Neovim
+
+//region Runtime directory override
+// The socket folder reaches the module through `XDG_RUNTIME_DIR`, which a case
+// sets and this disposer puts back.
+
 /**
  `XDG_RUNTIME_DIR` pointed at a folder for one case, restored when disposed.
  
@@ -404,6 +430,12 @@ function overrideRuntimeDirectory({ value }: { readonly value: string; }): {
     },
   };
 }
+
+//endregion Runtime directory override
+
+//region Cases
+// Directory resolution, the socket list, the newest pick, and the input sender
+// that walks every candidate.
 
 await describe({
   name: '',
@@ -677,3 +709,5 @@ await describe({
     }),
   ],
 });
+
+//endregion Cases

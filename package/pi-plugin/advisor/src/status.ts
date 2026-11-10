@@ -15,6 +15,8 @@ import { resolveEffectiveScope, } from '@monochromatic-dev/agent-harness-shared-
 import { piAdvisorTranscriptSerialization, } from './run-context.ts';
 import type { AdvisorConfig, } from './types.ts';
 
+//region Status text construction
+
 /**
  Build `/advisor status` text.
  
@@ -138,3 +140,5 @@ export async function buildAdvisorStatus(
   ]
     .join('\n',);
 }
+
+//endregion Status text construction

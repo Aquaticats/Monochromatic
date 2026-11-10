@@ -13,7 +13,7 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::private_storage::sync_directory;
+use crate::private_storage::{flush_file_when_faithful, sync_directory};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal::{Role, assert_private_path};
@@ -250,7 +250,7 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
     if complete_length < total_length {
         file.set_len(complete_length)
             .map_err(raw_failure_of)?;
-        file.sync_all()
+        flush_file_when_faithful(&file, path.as_path())
             .map_err(raw_failure_of)?;
     }
     if !existed {
@@ -263,11 +263,12 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
 }
 
 impl InstallLog {
-    /// Appends one line and waits until it is durable;
+    /// Appends one line and waits until it is durable,
+    /// as far as the process's durability answer reaches;
     /// an empty batch writes nothing.
     fn append_line(&mut self, line: &str) -> Result<(), WorktreeCopyError> {
         let written: std::io::Result<()> = match self.file.write_all(line.as_bytes()) {
-            Ok(()) => self.file.sync_all(),
+            Ok(()) => flush_file_when_faithful(&self.file, self.path.as_path()),
             Err(error) => Err(error),
         };
         if let Err(error) = written {

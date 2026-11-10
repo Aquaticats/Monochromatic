@@ -141,6 +141,14 @@ pub mod earlier_name_moved_to_current_in_place;
 ///  and the finder for a reader that moves nothing.
 pub mod kept_names_in_the_git_directories;
 
+/// One line or entry appended to a log with one write,
+/// and the rotation that takes a full file off its name.
+pub mod log_lines_appended_without_a_lock;
+
+/// The numbered generations a log's rotations leave,
+/// the bound on their bytes and the pass that removes the oldest.
+pub mod log_generations_kept_to_a_bound;
+
 /// Whether any process has a file open for writing,
 /// found with a read lease that is taken and given back at once.
 pub mod file_open_for_write_by_any_process;

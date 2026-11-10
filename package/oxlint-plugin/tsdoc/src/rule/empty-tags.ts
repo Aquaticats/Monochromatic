@@ -68,7 +68,7 @@ type TaggedLine = {
  Linear scan over the leading `@word` run, the whitespace gap, and the
  remainder; no backtracking. Mirrors `/^(@\w+)\s+(.+)/`.
  
- @param s - line content (with the leading `*` already stripped)
+ @param line - line content (with the leading `*` already stripped)
  
  @returns parsed tag + rest, or {@link UNTAGGED_LINE} when the shape does not match
  
@@ -78,14 +78,14 @@ type TaggedLine = {
  parseTaggedLine('@param'); // UNTAGGED_LINE
  ```
  */
-export function parseTaggedLine(s: string,): TaggedLine | typeof UNTAGGED_LINE {
-  if (!s.startsWith('@',))
+export function parseTaggedLine(line: string,): TaggedLine | typeof UNTAGGED_LINE {
+  if (!line.startsWith('@',))
     return UNTAGGED_LINE;
   /**
    Exclusive end of the tag-name run; cursor starts at 1 to skip the leading at-sign.
    */
   const tagEnd = wordRunEnd({
-    text: s,
+    text: line,
     start: 1,
   },);
   if (tagEnd === 1)
@@ -94,7 +94,7 @@ export function parseTaggedLine(s: string,): TaggedLine | typeof UNTAGGED_LINE {
    First index past the inter-token whitespace; rest starts here.
    */
   const restStart = whitespaceRunEnd({
-    text: s,
+    text: line,
     start: tagEnd,
   },);
   if (restStart === tagEnd)
@@ -102,12 +102,12 @@ export function parseTaggedLine(s: string,): TaggedLine | typeof UNTAGGED_LINE {
   /**
    Remaining content; must be non-empty to match `(.+)`.
    */
-  const rest = s.slice(restStart,);
+  const rest = line.slice(restStart,);
   if (rest.length
     === 0)
     return UNTAGGED_LINE;
   return {
-    tag: s.slice(
+    tag: line.slice(
       0,
       tagEnd,
     ),

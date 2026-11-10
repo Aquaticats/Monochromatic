@@ -280,7 +280,7 @@ fn sha256_world(name: &str) -> (World, PathBuf) {
     git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir(&journal).expect("journal");
-    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
     let trace: PathBuf = root.join("trace.json");
     context.git.overlay.push((std::ffi::OsString::from("GIT_TRACE2_EVENT"), trace.clone().into_os_string()));
     return (World { root, repo, context }, trace);
