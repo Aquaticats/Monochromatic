@@ -375,6 +375,16 @@ which compiles the targets against the subject.
 and `lock:subject` seeds this lock from the subject's,
 so both lock the same registry versions.
 
+`.github/workflows/git-policy-cli-fuzz.yml` compiles this package against the subject
+on every pull request and push that touches either one,
+by running `lint:types` through the task CLI CI uses
+(`package/git-policy/cli.fuzz/task.ts` is its mise-free definition,
+`doc/decision/mise-free-ci.md`).
+So a stale lock and a subject change that moved a public type
+both fail CI before a campaign would have hit them;
+the failure was measured in `doc/planning/catching-a-stale-fuzz-sidecar-lockfile.md`,
+and the local path stays the root `lint` and this package's `lint`.
+
 ## Campaigns
 
 `mise run //package/git-policy/cli.fuzz:smoke` builds AddressSanitizer targets with the read-only nightly compiler,
