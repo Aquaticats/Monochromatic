@@ -35,6 +35,9 @@ pub mod worktree_completion_file_inspection;
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
 
+/// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
+pub mod worktree_removal_held_commits;
+
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
 /// its destination and insertion point.
 #[cfg(unix)]
