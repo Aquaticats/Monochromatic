@@ -50,9 +50,9 @@ catalog:
   '@deepseek-ai/schemastery': '3.18.5'
   '@deepseek-ai/dsh-llm-pi-ai': '0.2.2-rc.1'
   '@deepseek-ai/dsh-settings': '0.2.2-rc.1'
-  '@earendil-works/pi-ai': '>=1.5.0'
-  '@earendil-works/pi-coding-agent': '>=1.5.0'
-  '@earendil-works/pi-tui': '>=1.5.0'
+  '@earendil-works/pi-ai': '>=1.5.1'
+  '@earendil-works/pi-coding-agent': '>=1.5.1'
+  '@earendil-works/pi-tui': '>=1.5.1'
   '@electron/packager': '>=20.3.0'
   '@homebridge/dbus-native': '>=0.7.9'
   '@inquirer/checkbox': '>=5.2.8'
@@ -189,7 +189,7 @@ catalog:
   'toml-eslint-parser': '>=1.0.3'
   'ts-pattern': '>=5.9.2'
   'type-fest': '>=5.10.0'
-  'typebox': '>=1.4.5'
+  'typebox': '>=1.4.6'
   'typesafe-i18n': '>=5.27.1'
   # Exact prerelease pin: a `>=7.1.0-beta` lower bound resolves the
   # `7.1.0-dev.*` nightlies (semver orders `dev` after `beta`), and
