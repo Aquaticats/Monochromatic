@@ -46,25 +46,9 @@ use std::path::{Path, PathBuf};
 ///  open to the owner's veto.
 pub(crate) const COMPARE_BUFFER_BYTES: usize = 64 * 1_024;
 
-/// What:
-///  The metadata of one no-follow entry,
-/// or its absence.
-/// Why:
-///   A missing destination entry is a normal answer for the comparison,
-/// not a failure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await lstatOrAbsent(path)
-/// ```
-pub fn lstat_or_absent(path: &Path) -> Result<Option<std::fs::Metadata>, WorktreeCopyError> {
-    // `match` separates "no entry" (not an error) from every other failure.
-    match std::fs::symlink_metadata(path) {
-        Ok(metadata) => return Ok(Some(metadata)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(raw_failure(&error)),
-    }
-}
+// The metadata question a comparison asks of both sides is the one every walk of a live checkout asks, so it has one
+//  home (`worktree_copy_vanished_entry.rs`): a missing entry is an answer, and every other failure is not.
+pub use crate::worktree_copy_vanished_entry::lstat_or_absent;
 
 /// What:
 ///  Whether two regular files hold the same bytes,
