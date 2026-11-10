@@ -24,20 +24,12 @@
 use crate::corpus::Track;
 /// Imports the candidate policy and the shared per-window sampling.
 use crate::evaluate::{Candidate, sampled_windows};
+/// Imports the bench's one dBTP conversion.
+use crate::levels::peak_dbtp_or_silence;
 /// Imports the safe-provenance path set.
 use std::collections::HashSet;
-/// Imports the shared dB and policy math.
-use truepeak_core::{Policy, default_policy, peak_dbtp};
-
-/// Convert a linear peak to dBTP,
-///  treating silence as a very negative level.
-fn db(peak: f64) -> f64 {
-    if peak <= 0.0 {
-        return f64::NEG_INFINITY
-    } else {
-        return peak_dbtp(peak)
-    }
-}
+/// Imports the shared policy math.
+use truepeak_core::{Policy, default_policy};
 
 /// A density's feasible no-classifier outcome.
 #[derive(Clone, Copy, Debug)]
@@ -88,9 +80,9 @@ pub fn evaluate_density(
         decoded += threshold;
         let windows = sampled_windows(track, candidate);
         let sampled_max = windows.iter().fold(0.0_f64, |peak, &window| return peak.max(window));
-        let full_db = db(f64::from(track.full_peak));
+        let full_db = peak_dbtp_or_silence(f64::from(track.full_peak));
         if full_db > policy.ceiling_dbtp {
-            max_under_read = max_under_read.max(full_db - db(sampled_max));
+            max_under_read = max_under_read.max(full_db - peak_dbtp_or_silence(sampled_max));
         }
     }
 
@@ -145,13 +137,13 @@ pub fn provenance_margin(
         if track.duration_secs <= threshold {
             continue;
         }
-        let full_db = db(f64::from(track.full_peak));
+        let full_db = peak_dbtp_or_silence(f64::from(track.full_peak));
         if full_db <= policy.ceiling_dbtp {
             continue;
         }
         let windows = sampled_windows(track, candidate);
         let sampled_max = windows.iter().fold(0.0_f64, |peak, &window| return peak.max(window));
-        let under_read = full_db - db(sampled_max);
+        let under_read = full_db - peak_dbtp_or_silence(sampled_max);
         if safe_paths.contains(&track.path) {
             max_under_read_safe = max_under_read_safe.max(under_read);
         } else {

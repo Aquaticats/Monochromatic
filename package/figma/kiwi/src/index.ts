@@ -21,6 +21,7 @@ export {
   parseCanvasHeader,
 } from './canvas.ts';
 export {
+  KiwiDecodeError,
   decodeDocument,
   decodeMessage,
   decodeStruct,

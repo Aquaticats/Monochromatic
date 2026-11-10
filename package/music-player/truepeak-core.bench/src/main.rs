@@ -9,6 +9,8 @@
 
 /// The per-track corpus record and loader.
 mod corpus;
+/// The bench's one dBTP conversion and its silence floor.
+mod levels;
 /// The per-candidate evaluation against the corpus.
 mod evaluate;
 /// The classifier that routes risky long tracks to a full scan from probe features.
@@ -25,6 +27,11 @@ mod buckets;
 /// The quarter-measure answer's probe:
 ///  even pass one plus frontier zoom.
 mod zoom;
+
+/// Fixtures shared by the unit tests,
+///  placed in the build directory rather than a system temporary one.
+#[cfg(test)]
+mod test_fixtures;
 
 /// Imports `anyhow` helpers for application-level error returns.
 use anyhow::{Context, Result};
