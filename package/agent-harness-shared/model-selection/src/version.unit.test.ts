@@ -60,6 +60,36 @@ await describe({
               .toBeGreaterThan(0,);
           },
         },),
+        it({
+          name: 'compares every position of vectors that differ in the second number',
+          fn: async function testCompareVersionPositions() {
+            expect(compareVersions({
+              a: fixtureModel({ provider: 'openai', id: 'gpt-4.1', },),
+              b: fixtureModel({ provider: 'openai', id: 'gpt-4.2', },),
+            },),)
+              .toBeGreaterThan(0,);
+            expect(compareVersions({
+              a: fixtureModel({ provider: 'openai', id: 'gpt-4.2', },),
+              b: fixtureModel({ provider: 'openai', id: 'gpt-4.2', },),
+            },),)
+              .toBe(0,);
+          },
+        },),
+        it({
+          name: 'sorts a shorter vector ahead when the extra positions are zero',
+          fn: async function testCompareVersionLengths() {
+            expect(compareVersions({
+              a: fixtureModel({ provider: 'openai', id: 'gpt-4', },),
+              b: fixtureModel({ provider: 'openai', id: 'gpt-4.0', },),
+            },),)
+              .toBeLessThan(0,);
+            expect(compareVersions({
+              a: fixtureModel({ provider: 'openai', id: 'gpt-4.0', },),
+              b: fixtureModel({ provider: 'openai', id: 'gpt-4', },),
+            },),)
+              .toBeGreaterThan(0,);
+          },
+        },),
       ],
     },),
     describe({

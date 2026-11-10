@@ -132,15 +132,24 @@ export function compareVersions<TModel extends Pick<ModelPricing, 'id'>,>(
     leftVersions.length,
     rightVersions.length,
   );
-  for (let loopIndex = 0; loopIndex < maxLength; loopIndex++) {
-    /**
-     Per-position delta with `b` first so higher versions sort earlier.
-     */
-    const diff = (rightVersions[loopIndex]
-      ?? 0) - (leftVersions[loopIndex]
-        ?? 0);
-    if (diff !== 0)
-      return diff;
+  /**
+   Per-position deltas with `b` first so higher versions sort earlier, and a
+   vector that ended early counting as zero for the remaining positions.
+   */
+  const positionDeltas = Array.from(
+    { length: maxLength, },
+    function versionPositionDelta(
+      _unused,
+      position,
+    ) {
+      return (rightVersions[position]
+        ?? 0) - (leftVersions[position]
+          ?? 0);
+    },
+  );
+  for (const delta of positionDeltas) {
+    if (delta !== 0)
+      return delta;
   }
   return leftVersions.length
     - rightVersions

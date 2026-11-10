@@ -72,6 +72,35 @@ await describe({
             expect(result.thinkingLevel,).toBeUndefined();
           },
         },),
+        it({
+          name: 'carries a thinking suffix across the strips before the matching body',
+          fn: async function testCarriedThinkingSuffix() {
+            const leadingLevel = parseModelPattern({
+              pattern: 'sonnet:unknown:high',
+              availableModels,
+            },);
+            expect(leadingLevel.model,).toBe(aliasModel,);
+            expect(leadingLevel.thinkingLevel,).toBe('high',);
+
+            const trailingLevel = parseModelPattern({
+              pattern: 'sonnet:high:unknown',
+              availableModels,
+            },);
+            expect(trailingLevel.model,).toBe(aliasModel,);
+            expect(trailingLevel.thinkingLevel,).toBe('high',);
+          },
+        },),
+        it({
+          name: 'keeps the first valid thinking suffix when later strips carry another',
+          fn: async function testFirstThinkingSuffixWins() {
+            const result = parseModelPattern({
+              pattern: 'sonnet:high:low',
+              availableModels,
+            },);
+            expect(result.model,).toBe(aliasModel,);
+            expect(result.thinkingLevel,).toBe('low',);
+          },
+        },),
       ],
     },),
     describe({
