@@ -166,6 +166,46 @@ await describe({
         },),
 
         it({
+          name: 'surfaces a boundary failure this package cannot describe',
+          fn: async () => {
+            /** Fake Pi registration harness. */
+            const harness = createFakePiHarness();
+            /** Recording logger standing in for the module root logger. */
+            const recording = createRecordingLogger();
+            /**
+             Inject boundary failure whose own text conversion throws, so building the
+             desktop-refusal error fails instead of the delivery it describes.
+             */
+            const unreadable = {
+              toString: function throwOnText(): string {
+                throw new Error('unreadable boundary failure',);
+              },
+            };
+
+            registerAgentSettledNotification({
+              pi: harness.api,
+              l: recording.logger,
+              invoke: async function rejectNotification(): Promise<void> {
+                throw unreadable;
+              },
+            },);
+
+            /** Settled-event callback registered by the extension. */
+            const handler = getOnlyHandler({
+              handlersByEvent: harness.handlersByEvent,
+              event: 'agent_settled',
+            },);
+            // A defect this package cannot turn into a desktop refusal must stay
+            // visible rather than read as an expected desktop outage.
+            await expect(handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            ),).rejects.toThrow('unreadable boundary failure',);
+            expect(recording.calls.warn,).toEqual([],);
+          },
+        },),
+
+        it({
           name: 'warns once about unavailable delivery and logs repeats at debug',
           fn: async () => {
             /** Fake Pi registration harness. */
