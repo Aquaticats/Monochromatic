@@ -598,7 +598,7 @@ impl NativeCommitNotice {
                             facts.stopped_after = Some(waited);
                             // What: The step was sent the stop; the notice says so when the kernel still holds it.
                             // Why:  A step in an uninterruptible call ends only when its call returns, so the command waits
-                            //       the kernel's time (owner, 2026-11-09, "Keep waiting and say so"), and one line says why
+                            //       the kernel's time (owner, 2026-11-10, "Keep waiting and say so"), and one line says why
                             //       the terminal is still here.
                             say_the_kernel_holds_the_step(&watched, waited, &lines, &mut facts);
                             break 'notice;
