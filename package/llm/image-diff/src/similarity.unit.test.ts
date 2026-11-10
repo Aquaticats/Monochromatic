@@ -43,6 +43,48 @@ await describe({
               .toThrow('Vector length mismatch',);
           },
         },),
+        it({
+          name: 'throws instead of returning a partial sum when the first vector has a hole',
+          fn: async () => {
+            // oxlint-disable-next-line no-sparse-arrays -- the hole is the input under test.
+            const firstWithHole: readonly number[] = [1, , 1,];
+            expect(function callWithHoleInFirst() {
+              dotProduct({
+                a: firstWithHole,
+                b: [1, 1, 1,],
+              },);
+            },)
+              .toThrow(TypeError,);
+            expect(function callWithHoleInFirst() {
+              dotProduct({
+                a: firstWithHole,
+                b: [1, 1, 1,],
+              },);
+            },)
+              .toThrow(/index 1/,);
+          },
+        },),
+        it({
+          name: 'throws instead of returning a partial sum when the second vector has a hole',
+          fn: async () => {
+            // oxlint-disable-next-line no-sparse-arrays -- the hole is the input under test.
+            const secondWithHole: readonly number[] = [1, , 1,];
+            expect(function callWithHoleInSecond() {
+              dotProduct({
+                a: [1, 1, 1,],
+                b: secondWithHole,
+              },);
+            },)
+              .toThrow(TypeError,);
+            expect(function callWithHoleInSecond() {
+              dotProduct({
+                a: [1, 1, 1,],
+                b: secondWithHole,
+              },);
+            },)
+              .toThrow(/index 1/,);
+          },
+        },),
       ],
     },),
     describe({
