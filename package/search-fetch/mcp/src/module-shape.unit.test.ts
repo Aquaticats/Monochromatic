@@ -65,6 +65,23 @@ const BLOCK_COMMENT_CLOSER = '*/';
  */
 const LINE_COMMENT_OPENER = '//';
 
+/**
+ Declaration of the module logger the sibling modules log through.
+ */
+const LOGGER_DECLARATION = 'const l = tagged(';
+
+/**
+ Logger levels a module logger can be called at.
+ */
+const LOGGER_LEVELS: readonly string[] = [
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'trace',
+  'fatal',
+];
+
 //endregion Fixtures
 
 //region Helpers
@@ -319,6 +336,48 @@ await describe({
           },
         },);
       },),
+    },),
+    describe({
+      name: 'module logger use',
+      children: [
+        it({
+          name: 'logs through every module logger the package declares',
+          fn: async () => {
+            /**
+             Every product module with its comment-free lines.
+             */
+            const modules = await Promise.all((await productModules()).map(
+              async function read(file,) {
+                return { file, lines: await moduleLines(file,), };
+              },
+            ),);
+            /**
+             Modules that build the module logger.
+             */
+            const declaring = modules.filter(function declaresLogger(module,) {
+              return module.lines.some(function bindsLogger(line,) {
+                return line.includes(LOGGER_DECLARATION,);
+              },);
+            },);
+            /**
+             Modules that build the module logger and never log through it.
+             */
+            const silent = declaring.filter(function neverLogs(module,) {
+              return !module.lines.some(function logs(line,) {
+                return LOGGER_LEVELS.some(function atLevel(level,) {
+                  return line.includes(`l.${level}(`,);
+                },);
+              },);
+            },);
+
+            // A scan that saw no logger at all cannot prove the others log.
+            expect(declaring.length,).toBeGreaterThan(0,);
+            expect(silent.map(function toFile(module,) {
+              return module.file;
+            },),).toEqual([],);
+          },
+        },),
+      ],
     },),
   ],
 },);
