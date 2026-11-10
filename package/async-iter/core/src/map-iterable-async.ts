@@ -31,8 +31,10 @@ async function markRejectionHandled(promise: Promise<unknown>,): Promise<void> {
  is awaited, so all mappers run at the same time. This is a collect-to-array
  mapper, not a lazy async-iterator transform that yields one value at a time.
  
- A mapper rejection reaches the caller as this function's rejection, and never as
- an unhandled rejection, however long the source takes to finish yielding.
+ A mapper rejection is never left unhandled, however long the source takes to
+ finish yielding. It reaches the caller as this function's rejection; when the
+ source itself fails during iteration, the caller gets that source error instead
+ and the mapper results are discarded.
  
  @param fn - async mapper invoked once per item; every call starts eagerly so the calls overlap
  
