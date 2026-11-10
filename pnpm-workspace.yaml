@@ -14,6 +14,9 @@ modulesCacheMaxAge: 0
 
 # TODO: Ideally we want all deps here to be TypeScript (little to no JS) and fuzzed.
 catalog:
+  # `Paused consumer` names the package-paused/ manifest an entry serves. Paused
+  # packages are not workspace members (`package/*/*` glob), so nothing in the
+  # active workspace installs these entries; see package-paused/README.md.
   '@anthropic-ai/sdk': '>=1.6.0'
   '@changesets/cli': '>=3.0.3'
   '@clack/prompts': '>=1.8.1'
@@ -67,8 +70,11 @@ catalog:
   '@lezer/rust': '>=1.0.3'
   '@lezer/xml': '>=1.0.6'
   '@lezer/yaml': '>=1.0.4'
+  # Paused consumer: package-paused/webapp-forge/server.
   '@libsql/client': '>=0.17.3'
+  # Paused consumer: package-paused/webapp-forge/server.
   '@libsql/kysely-libsql': '>=0.4.1'
+  # Paused consumer: package-paused/dev-script/inference-canary-viewer.
   '@lobehub/icons-static-svg': '>=1.82.0'
   '@luma.gl/engine': '>=9.4.2'
   '@mdx-js/mdx': '>=3.1.1'
@@ -80,6 +86,7 @@ catalog:
   '@optique/run': '>=1.3.6'
   '@oxlint/plugins': '>=1.92.0'
   '@playwright/test': '>=1.65.0'
+  # Paused consumer: package-paused/module/es.
   '@total-typescript/ts-reset': '>=0.6.1'
   '@tursodatabase/database': '>=0.8.3'
   '@types/chai': '>=5.2.3'
@@ -92,19 +99,23 @@ catalog:
   '@types/semver': '>=7.8.0'
   '@types/sinon': '>=22.0.2'
   '@types/sinon-chai': '>=4.0.1'
+  # Paused consumer: package-paused/web-demo/glass.
   '@types/three': '>=0.182.0'
   '@valibot/to-json-schema': '>=1.8.0'
   'ajv': '>=8.20.0'
   'ajv-formats': '>=3.0.1'
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
   'atomically': '>=2.1.1'
+  # Paused consumer: package-paused/webapp-forge/server.
   'aws4fetch': '>=1.0.20'
+  # Paused consumer: package-paused/webapp-forge/server.
   'better-auth': '>=1.6.9'
   'browserslist': '>=4.29.5'
   'chai': '>=6.3.0'
   'chai-as-promised': '>=8.0.2'
   'chokidar': '>=6.0.0'
   'cidr-tools': '>=13.0.4'
+  # Paused consumer: package-paused/desktop-daemon/editord.
   'crossws': '>=0.4.4'
   # css-edit.bench baseline parser; not a runtime dependency anywhere.
   'css-tree': '>=3.2.1'
@@ -124,6 +135,7 @@ catalog:
   'farmhashjs': '>=1.0.1'
   'feedsmith': '>=3.0.1'
   'h3': '>=2.0.8'
+  # Paused consumer: package-paused/module/es.
   'happy-rusty': '>=1.9.1'
   'hb-subset-wasm': '>=0.5.0'
   'hyphen': '>=1.14.1'
@@ -132,13 +144,19 @@ catalog:
   'jsonc-eslint-parser': '>=3.3.0'
   'jsonc-parser': '>=3.3.1'
   'jspdf': '>=4.2.1'
+  # Paused consumer: package-paused/webapp-forge/server.
   'kysely': '>=0.28.17'
+  # Paused consumer: package-paused/desktop-daemon/editord.
   'lezer-json5': '>=2.0.0'
+  # Paused consumer: package-paused/desktop-daemon/editord.
   'lezer-toml': '>=1.0.0'
+  # Paused consumers: package-paused/dev-script/inference-canary-viewer,
+  # package-paused/webapp-content/messages-demo.
   'micromark': '>=4.0.2'
   'mitata': '>=1.0.34'
   'nano-spawn': '>=2.1.0'
   'neovim': '>=5.4.0'
+  # Paused consumer: package-paused/dev-script/inference-canary.
   'openai': '>=6.22.0'
   'opentype.js': '>=2.0.0'
   'oxlint': '>=1.92.0'
@@ -155,6 +173,7 @@ catalog:
   # make-asynchronous-fork.fuzz differential subject; not a runtime dependency anywhere.
   'make-asynchronous': '>=2.1.0'
   # p-waterfall is omitted: package/pipe/core provides sequential async composition.
+  # Paused consumer: package-paused/webapp-edu/paper2vn.
   'pdfjs-dist': '>=4.0.0'
   'picomatch': '>=4.0.7'
   'pinyin-pro': '>=3.29.5'
@@ -174,8 +193,10 @@ catalog:
   'remark-sectionize': '>=2.1.0'
   'rolldown': '>=1.3.1'
   'rolldown-plugin-dts': '>=0.30.0'
+  # Paused consumer: package-paused/module/es.
   'safe-stringify': '>=1.3.0'
   'semver': '>=7.8.6'
+  # Paused consumer: package-paused/module/es.
   'serialize-error': '>=13.0.1'
   'sharp': '>=0.35.5'
   'showify': '>=0.2.8'
@@ -183,13 +204,16 @@ catalog:
   'sinon-chai': '>=4.0.1'
   'string-dedent': '>=3.0.2'
   'superjson': '>=2.2.6'
+  # Paused consumer: package-paused/stylesheet/monochromatic.
   'the-new-css-reset': '>=1.11.3'
+  # Paused consumer: package-paused/web-demo/glass.
   'three': '>=0.182.0'
   'tiny-readdir-glob': '>=2.0.0'
   'toml-eslint-parser': '>=1.0.3'
   'ts-pattern': '>=5.9.2'
   'type-fest': '>=5.10.0'
   'typebox': '>=1.4.6'
+  # Paused consumer: package-paused/webapp-edu/paper2vn.
   'typesafe-i18n': '>=5.27.1'
   # Exact prerelease pin: a `>=7.1.0-beta` lower bound resolves the
   # `7.1.0-dev.*` nightlies (semver orders `dev` after `beta`), and
@@ -202,6 +226,7 @@ catalog:
   'unified': '>=11.0.5'
   'valibot': '>=1.5.0'
   'wawoff2': '>=2.0.1'
+  # Paused consumer: package-paused/dev-script/inference-canary.
   'why-is-node-running': '>=3.2.2'
   'woff2-encode-wasm': '>=0.1.3'
   'yaml': '>=3.0.0-2'
