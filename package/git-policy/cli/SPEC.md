@@ -11555,9 +11555,27 @@ and a `--fixup` or `--squash` option goes because the message it built is in the
 A selection the person made with `--patch`,
 `--interactive` or `--include` is already in the private index,
 so the rebuild keeps that tree and carries no selection option at all.
-A `--fixup=reword:` commit is refused with its message saved and the command to run again:
+A `--fixup=reword:` commit lands on the branch as it is now,
+carrying that branch's own tree:
 Git throws the index away for that option,
-so its commit is the branch's own tree and the change this preparation captured is not the change it would make.
+so its commit is the branch's tree and the change this preparation captured is not the change it would make.
+The commit is therefore written from the fields of the commit Git built
+(`AmendedCommit`,
+`stored_commit_fields` and `rebuilt_onto` in `service_amend_replayed.rs`)
+on the tree the replay settles,
+which is the branch's tree unchanged,
+and its one parent is the branch as it is now.
+`rewords_a_commit` in `service_commit_line_reissued.rs` tells the commit loop that an empty commit is what the line asked for,
+so the attempt's preparation holds that empty change instead of ending as `already-committed`,
+and the person's staged change stays staged,
+as it does after Git's own commit for that option.
+The person is told the landed commit's summary line and nothing more:
+no message file is saved,
+because running the same command makes that message again,
+and the amend note is not printed because no amendment was made.
+A line a rebuild cannot read back at all,
+such as an abbreviated borrowing option the wrapper does not guess at,
+is still refused with its message saved and the command to run again.
 A commit prepared on a branch that did not exist yet has no parent it must keep:
 the change it captured is a whole root tree,
 and its base is the empty tree (`Captured::unborn` in `service_replay.rs`),

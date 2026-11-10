@@ -1,7 +1,5 @@
 //! What:
-//!  What decides,
-//! path by path,
-//! how a merge carries a person's own work:
+//!  What decides, path by path, how a merge carries a person's own work:
 //! putting the merge's paths back to the branch before
 //!  Git updates them,
 //! merging each of the person's two layers with the merge afterwards,
@@ -21,28 +19,32 @@
 //!  The reads it judges are `merge_isolation_carry_reads.rs`
 //! and the writes it plans are `merge_isolation_carry_writes.rs`,
 //! so this file holds the judgements alone.
+//!  Each entry point keeps a synchronous face for a command's own step
+//!  and an awaited twin for a caller that is already a task of the runtime.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await clear({ context, root, changes, capture }); await carry({ context, root, changes, capture });
 //! ```
 
+/// The entry of the process runtime that a synchronous caller takes.
+use crate::lazy_runtime::run_on_runtime;
 /// The decisions a path's layers come to,
 /// and the planning of one path's writes.
-use crate::merge_isolation_carry_plans::{Note, plan_index, plan_worktree};
+use crate::merge_isolation_carry_plans::{Note, plan_index_awaiting, plan_worktree_awaiting};
 /// What one carried path adds to the report.
 use crate::merge_isolation_carry_notice::Report;
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};
 /// The Git reads of one path,
 /// which this file judges and never spells for Git itself.
-use crate::merge_isolation_carry_reads::{file_form, index_entry, raw_bytes};
+use crate::merge_isolation_carry_reads::{file_form_awaiting, index_entry_awaiting, raw_bytes_awaiting};
 /// The write plan of one path,
 /// and the one step that lands it.
-use crate::merge_isolation_carry_writes::{FileWrite, IndexWrite, Step, write_steps};
+use crate::merge_isolation_carry_writes::{FileWrite, IndexWrite, Step, write_steps_awaiting};
 /// The paths the merge changes,
 /// and the state a path holds now.
-use crate::merge_isolation_changes::{Change, WorktreeState, worktree_state};
+use crate::merge_isolation_changes::{Change, WorktreeState, worktree_state, worktree_state_awaiting};
 /// The runner the word-level pass is given,
 /// and the Git context every read and write names.
 use crate::merge_second_pass::ContextRunner;
@@ -53,23 +55,9 @@ use std::path::Path;
 
 /// The paths the merge changes,
 /// read again by whoever holds a `merge_isolation_carry_reads` name.
-pub use crate::merge_isolation_carry_reads::changes_between;
+pub use crate::merge_isolation_carry_reads::{changes_between, changes_between_awaiting};
 /// Why a carry stopped.
 pub use crate::merge_isolation_carry_writes::{CarryFailure, LockWait};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /// What:
 ///  Whether a worktree state is one the capture or the change explains.
@@ -108,7 +96,6 @@ fn entry_explained(entry: &Option<(String, String)>, allowed: &[Option<(&str, &s
     }
     return false;
 }
-
 
 /// What:
 ///  The change the merge makes to one captured path.
@@ -171,8 +158,6 @@ fn index_pair(staged: &CapturedIndex) -> (&str, &str) {
     return (staged.mode.as_str(), staged.oid.as_str());
 }
 
-
-
 /// The runner that merges one layer.
 ///
 /// In TS you'd write (pseudocode):
@@ -184,7 +169,6 @@ fn rooted(context: &GitContext) -> GitContext {
     return GitContext { global_prefix: Vec::new(), ..context.clone() };
 }
 
-
 /// The runner that merges one layer,
 /// from the top of the worktree.
 ///
@@ -195,12 +179,6 @@ fn rooted(context: &GitContext) -> GitContext {
 fn runner_of<'a>(context: &'a GitContext, root: &'a Path) -> ContextRunner<'a> {
     return ContextRunner { context, cwd: root, without_prefix: true, object_directory: None, environment: Vec::new() };
 }
-
-
-
-
-
-
 
 /// What:
 ///  Put the branch's own content back at every captured path,
@@ -226,16 +204,42 @@ pub fn clear(
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<(), CarryFailure> {
+    return match run_on_runtime(clear_awaiting(context, root, git_dir, changes, capture, wait, out)) {
+        Ok(found) => found,
+        Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
+    };
+}
+
+/// What:
+///  The same clear of the captured paths,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   Each captured path reads its own worktree state and index entry through Git,
+/// and every start of a step is refused from inside the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function clear({ context, root, gitDir, changes, capture, out }): Promise<void>;
+/// ```
+pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
+    context: &GitContext,
+    root: &Path,
+    git_dir: &Path,
+    changes: &[Change],
+    capture: &Capture,
+    wait: LockWait,
+    out: &mut W,
+) -> Result<(), CarryFailure> {
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = change_for(changes, entry) else { continue };
-        let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let state: WorktreeState = worktree_state_awaiting(&rooted(context), root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
         let old_object: Option<&str> = old_oid_of(change);
         if !explained(&state, &[captured_object, old_object]) {
             return Err(CarryFailure::Foreign(entry.path.clone()));
         }
-        let current: Option<(String, String)> = index_entry(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let old_entry: Option<(&str, &str)> = old_entry_of(change);
         if !entry_explained(&current, &[captured_entry, old_entry]) {
@@ -246,12 +250,12 @@ pub fn clear(
             None => IndexWrite::Remove,
         };
         let worktree: FileWrite = match old_object {
-            Some(oid) => FileWrite::Bytes(file_form(context, root, entry.path.as_slice(), oid).map_err(CarryFailure::Failed)?, change.old_mode.clone()),
+            Some(oid) => FileWrite::Bytes(file_form_awaiting(context, root, entry.path.as_slice(), oid).await.map_err(CarryFailure::Failed)?, change.old_mode.clone()),
             None => FileWrite::Remove,
         };
         steps.push(Step { path: entry.path.clone(), index, worktree });
     }
-    return write_steps(context, root, git_dir, steps.as_slice(), wait, out);
+    return write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await;
 }
 
 /// What:
@@ -279,6 +283,34 @@ pub fn carry(
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<Report, CarryFailure> {
+    return match run_on_runtime(carry_awaiting(context, root, git_dir, changes, capture, wait, out)) {
+        Ok(found) => found,
+        Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
+    };
+}
+
+/// What:
+///  The same merge of every captured layer,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The word-level merge,
+/// the object writes and the index write are each a start,
+/// and a synchronous start registers the step's pipes by entering the runtime,
+///  which is refused from inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function carry({ context, root, gitDir, changes, capture, out }): Promise<Report>;
+/// ```
+pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
+    context: &GitContext,
+    root: &Path,
+    git_dir: &Path,
+    changes: &[Change],
+    capture: &Capture,
+    wait: LockWait,
+    out: &mut W,
+) -> Result<Report, CarryFailure> {
     // The merge of one layer runs from the top of the worktree, where a relative global option of the invocation does not reach.
     let rooted_context: GitContext = rooted(context);
     let runner: ContextRunner<'_> = runner_of(&rooted_context, root);
@@ -286,10 +318,10 @@ pub fn carry(
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = change_for(changes, entry) else { continue };
-        let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let state: WorktreeState = worktree_state_awaiting(&rooted(context), root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
         let merged_object: Option<&str> = new_oid_of(change);
-        let (worktree, note, target) = plan_worktree((&runner, context, root), change, entry)?;
+        let (worktree, note, target) = plan_worktree_awaiting((&runner, context, root), change, entry).await?;
         // What stands there is the capture, the merge's own, or the bytes this carry writes:
         // a carry that was killed after writing a path finds its
         //  own bytes and writes the same ones again. Anything else was written by someone else since the capture.
@@ -297,7 +329,7 @@ pub fn carry(
             report.changed.push(entry.path.clone());
             continue;
         }
-        let current: Option<(String, String)> = index_entry(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let merged_entry: Option<(&str, &str)> = new_entry_of(change);
         let old_entry: Option<(&str, &str)> = old_entry_of(change);
@@ -305,7 +337,7 @@ pub fn carry(
             report.changed.push(entry.path.clone());
             continue;
         }
-        let index: IndexWrite = plan_index(&runner, change, entry)?;
+        let index: IndexWrite = plan_index_awaiting(&runner, change, entry).await?;
         match note {
             Note::Merged => report.merged.push(entry.path.clone()),
             Note::Conflict => report.conflicts.push(entry.path.clone()),
@@ -314,11 +346,9 @@ pub fn carry(
         }
         steps.push(Step { path: entry.path.clone(), index, worktree });
     }
-    write_steps(context, root, git_dir, steps.as_slice(), wait, out)?;
+    write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await?;
     return Ok(report);
 }
-
-
 
 /// What:
 ///  Put the person's layers back exactly as they were,
@@ -343,9 +373,36 @@ pub fn restore(
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<(), CarryFailure> {
+    return match run_on_runtime(restore_awaiting(context, root, git_dir, changes, capture, wait, out)) {
+        Ok(found) => found,
+        Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
+    };
+}
+
+/// What:
+///  The same putting back of the person's layers,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   Each captured path reads its state,
+/// its index entry and the bytes to write through Git,
+/// and every start of a step is refused from inside the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function restore({ context, root, gitDir, changes, capture, out }): Promise<void>;
+/// ```
+pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
+    context: &GitContext,
+    root: &Path,
+    git_dir: &Path,
+    changes: &[Change],
+    capture: &Capture,
+    wait: LockWait,
+    out: &mut W,
+) -> Result<(), CarryFailure> {
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
-        let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let state: WorktreeState = worktree_state_awaiting(&rooted(context), root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
         // The branch's own content is what a clear leaves, so it is what a restore may replace.
         let change: Option<&Change> = change_for(changes, entry);
@@ -354,7 +411,7 @@ pub fn restore(
         if !explained(&state, &[captured_object, old_object, merged_object]) {
             return Err(CarryFailure::Foreign(entry.path.clone()));
         }
-        let current: Option<(String, String)> = index_entry(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let old_entry: Option<(&str, &str)> = change.and_then(old_entry_of);
         let merged_entry: Option<(&str, &str)> = change.and_then(new_entry_of);
@@ -366,12 +423,12 @@ pub fn restore(
             None => IndexWrite::Remove,
         };
         let worktree: FileWrite = match entry.worktree.as_ref() {
-            Some(file) => FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, file.mode.clone()),
+            Some(file) => FileWrite::Bytes(raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?, file.mode.clone()),
             None => FileWrite::Remove,
         };
         steps.push(Step { path: entry.path.clone(), index, worktree });
     }
-    return write_steps(context, root, git_dir, steps.as_slice(), wait, out);
+    return write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await;
 }
 
 /// Whether nothing but the branch's own content is at a captured path,
@@ -393,8 +450,6 @@ pub fn only_the_branches_content(context: &GitContext, root: &Path, changes: &[C
     }
     return Ok(true);
 }
-
-
 
 /// The writing half of a carry,
 /// judged and written one path at a time.

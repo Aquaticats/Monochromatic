@@ -34,8 +34,11 @@
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture, slots};
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
-/// Real Git.
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+/// Real Git,
+/// on either face.
+use crate::lazy_runtime::run_on_runtime;
+use crate::transaction_git::{GitContext, GitOutput, GitRequest};
+use crate::transaction_git_awaiting::run_git_awaiting;
 /// The worktree shapes.
 use crate::merge_isolation_changes::worktree_path;
 /// Owned operating-system text.
@@ -142,11 +145,11 @@ pub fn git_cwd<'a>(context: &GitContext, root: &'a Path) -> &'a Path {
 /// ```ts
 /// async function runBytes(context, root: string, args: OsString[], input?: Uint8Array): Promise<GitOutput>;
 /// ```
-fn run_bytes(context: &GitContext, root: &Path, arguments: &[OsString], input: Option<Vec<u8>>) -> Result<GitOutput, String> {
+async fn run_bytes_awaiting(context: &GitContext, root: &Path, arguments: &[OsString], input: Option<Vec<u8>>) -> Result<GitOutput, String> {
     let mut request: GitRequest = GitRequest::new::<&str>(git_cwd(context, root), &[]);
     request.arguments = arguments.to_vec();
     request.input = input;
-    return match run_git(context, &request) {
+    return match run_git_awaiting(context, &request).await {
         Ok(output) => Ok(output),
         Err(error) => Err(format!("git could not start: {error}")),
     };
@@ -231,7 +234,7 @@ fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)>, String> 
 /// ```ts
 /// async function objectFor(context, root, path: Uint8Array, bytes: Uint8Array, filtered: boolean): Promise<string>;
 /// ```
-fn object_for(context: &GitContext, root: &Path, path: &[u8], bytes: &[u8], filtered: bool) -> Result<String, String> {
+async fn object_for_awaiting(context: &GitContext, root: &Path, path: &[u8], bytes: &[u8], filtered: bool) -> Result<String, String> {
     let mut arguments: Vec<OsString> = vec![
         OsString::from("hash-object"),
         OsString::from("-w"),
@@ -244,7 +247,7 @@ fn object_for(context: &GitContext, root: &Path, path: &[u8], bytes: &[u8], filt
         arguments.push(OsString::from("--no-filters"));
     }
     arguments.push(OsString::from("--stdin"));
-    let output: GitOutput = run_bytes(context, root, arguments.as_slice(), Some(bytes.to_vec()))?;
+    let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), Some(bytes.to_vec())).await?;
     if !output.succeeded() {
         return Err(format!("the bytes of {} could not be written: {}", String::from_utf8_lossy(path), output.error_text()));
     }
@@ -274,9 +277,9 @@ struct Entry {
 /// ```ts
 /// async function stagedEntries(context, root): Promise<Entry[]>;
 /// ```
-fn staged_entries(context: &GitContext, root: &Path) -> Result<Vec<Entry>, String> {
+async fn staged_entries_awaiting(context: &GitContext, root: &Path) -> Result<Vec<Entry>, String> {
     let arguments: Vec<OsString> = vec![OsString::from("ls-files"), OsString::from("--stage"), OsString::from("-z")];
-    let output: GitOutput = run_bytes(context, root, arguments.as_slice(), None)?;
+    let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await?;
     if !output.succeeded() {
         return Err(format!("git ls-files failed: {}", output.error_text()));
     }
@@ -307,20 +310,39 @@ fn staged_entries(context: &GitContext, root: &Path) -> Result<Vec<Entry>, Strin
 /// async function captureWork({ context, root, paths }): Promise<Capture>;
 /// ```
 pub fn capture_work(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Result<Capture, String> {
+    return match run_on_runtime(capture_work_awaiting(context, root, paths)) {
+        Ok(found) => found,
+        Err(refusal) => Err(format!("{refusal}")),
+    };
+}
+
+/// What:
+///  The same capture of the person's work,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   Every byte is written as an object through Git,
+/// and a synchronous start registers the step's pipes by entering the runtime,
+///  which is refused from inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function captureWork({ context, root, paths }): Promise<Capture>;
+/// ```
+pub async fn capture_work_awaiting(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Result<Capture, String> {
     if paths.is_empty() {
         return Err(String::from("no path holds work to carry"));
     }
-    let staged: Vec<Entry> = staged_entries(context, root)?;
+    let staged: Vec<Entry> = staged_entries_awaiting(context, root).await?;
     let mut captured: Vec<CapturedPath> = Vec::new();
     for path in paths {
         let location = worktree_path(root, path.as_slice());
         let worktree: Option<CapturedFile> = match bytes_at(location.as_path())? {
             Some((bytes, mode)) => {
-                let raw: String = object_for(context, root, path.as_slice(), bytes.as_slice(), false)?;
+                let raw: String = object_for_awaiting(context, root, path.as_slice(), bytes.as_slice(), false).await?;
                 let blob: String = if mode == SYMBOLIC_LINK_MODE {
                     raw.clone()
                 } else {
-                    object_for(context, root, path.as_slice(), bytes.as_slice(), true)?
+                    object_for_awaiting(context, root, path.as_slice(), bytes.as_slice(), true).await?
                 };
                 Some(CapturedFile { mode: String::from(mode), raw, blob })
             }
@@ -349,13 +371,13 @@ pub fn capture_work(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Res
 /// ```ts
 /// async function captureTree(context, root, capture): Promise<string>;
 /// ```
-fn capture_tree(context: &GitContext, root: &Path, capture: &Capture) -> Result<String, String> {
+async fn capture_tree_awaiting(context: &GitContext, root: &Path, capture: &Capture) -> Result<String, String> {
     let mut listing: Vec<u8> = Vec::new();
     for slot in slots(capture.paths.as_slice()) {
         listing.extend_from_slice(format!("100644 blob {}\t{}\n", slot.oid, slot.name).as_bytes());
     }
     let arguments: Vec<OsString> = vec![OsString::from("mktree")];
-    let output: GitOutput = run_bytes(context, root, arguments.as_slice(), Some(listing))?;
+    let output: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), Some(listing)).await?;
     if !output.succeeded() {
         return Err(format!("the capture's tree could not be written: {}", output.error_text()));
     }
@@ -381,11 +403,31 @@ fn capture_tree(context: &GitContext, root: &Path, capture: &Capture) -> Result<
 /// async function keepCapture({ context, root, capture }): Promise<Capture>;
 /// ```
 pub fn keep_capture(context: &GitContext, root: &Path, capture: &Capture) -> Result<Capture, String> {
-    let tree: String = capture_tree(context, root, capture)?;
+    return match run_on_runtime(keep_capture_awaiting(context, root, capture)) {
+        Ok(found) => found,
+        Err(refusal) => Err(format!("{refusal}")),
+    };
+}
+
+/// What:
+///  The same commit on a ref of its own,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The tree,
+/// the commit and the ref are each a Git step,
+/// and a synchronous start registers the step's pipes by entering the runtime,
+///  which is refused from inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function keepCapture({ context, root, capture }): Promise<Capture>;
+/// ```
+pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &Capture) -> Result<Capture, String> {
+    let tree: String = capture_tree_awaiting(context, root, capture).await?;
     let mut arguments: Vec<OsString> = vec![OsString::from("commit-tree"), OsString::from(tree.as_str())];
     arguments.push(OsString::from("-m"));
     arguments.push(OsString::from("monochromatic-git-policy-cli: the work a merge carries"));
-    let created: GitOutput = run_bytes(context, root, arguments.as_slice(), None)?;
+    let created: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await?;
     if !created.succeeded() {
         return Err(format!("the capture could not be committed: {}", created.error_text()));
     }
@@ -404,7 +446,7 @@ pub fn keep_capture(context: &GitContext, root: &Path, capture: &Capture) -> Res
             OsString::from(commit.as_str()),
             zeros.clone(),
         ];
-        let written: GitOutput = run_bytes(context, root, write.as_slice(), None)?;
+        let written: GitOutput = run_bytes_awaiting(context, root, write.as_slice(), None).await?;
         if written.succeeded() {
             return Ok(Capture { commit, reference: Some(reference), paths: capture.paths.clone() });
         }
@@ -431,6 +473,25 @@ pub fn keep_capture(context: &GitContext, root: &Path, capture: &Capture) -> Res
 /// async function dropCaptureRef({ context, root, capture }): Promise<void>;
 /// ```
 pub fn drop_capture_ref(context: &GitContext, root: &Path, capture: &Capture) {
+    match run_on_runtime(drop_capture_ref_awaiting(context, root, capture)) {
+        Ok(()) => {}
+        // A deletion that could not be started leaves the ref where it is, which is what the awaited face reports too.
+        Err(refusal) => debug(TAG, format!("the capture's ref was left where it is: {refusal}").as_str()),
+    }
+}
+
+/// What:
+///  The same deletion of a capture's ref,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   A deletion that fails is logged and not retried,
+/// and the log line is the answer either face gives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function dropCaptureRef({ context, root, capture }): Promise<void>;
+/// ```
+pub async fn drop_capture_ref_awaiting(context: &GitContext, root: &Path, capture: &Capture) {
     let Some(reference) = capture.reference.as_deref() else { return };
     let arguments: Vec<OsString> = vec![
         OsString::from("update-ref"),
@@ -439,10 +500,10 @@ pub fn drop_capture_ref(context: &GitContext, root: &Path, capture: &Capture) {
         OsString::from(reference),
         OsString::from(capture.commit.as_str()),
     ];
-    match run_bytes(context, root, arguments.as_slice(), None) {
+    match run_bytes_awaiting(context, root, arguments.as_slice(), None).await {
         Ok(output) if output.succeeded() => {}
-        Ok(output) => debug(TAG, format!("the capture's ref {reference} was left where it is: {}", output.error_text()).as_str()),
-        Err(error) => debug(TAG, format!("the capture's ref {reference} was left where it is: {error}").as_str()),
+        Ok(output) => return debug(TAG, format!("the capture's ref {reference} was left where it is: {}", output.error_text()).as_str()),
+        Err(error) => return debug(TAG, format!("the capture's ref {reference} was left where it is: {error}").as_str()),
     }
 }
 

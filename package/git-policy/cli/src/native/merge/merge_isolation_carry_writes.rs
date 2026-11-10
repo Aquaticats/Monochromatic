@@ -16,7 +16,7 @@
 //! await writeSteps({ context, root, gitDir, steps, out }); // one update-index call, then one file at a time
 //! ```
 
-use crate::merge_isolation_carry_reads::run_bytes;
+use crate::merge_isolation_carry_reads::run_bytes_awaiting;
 use crate::merge_isolation_changes::worktree_path;
 use crate::transaction_git::{GitContext, GitOutput};
 use std::ffi::OsString;
@@ -261,18 +261,20 @@ fn entry_width(step: &Step) -> Option<usize> {
 /// so the wait is named and bounded,
 /// and a lock
 ///  that outlasts it leaves everything as it was.
+///  Both Git starts are awaited,
+///  because a start enters the runtime and is refused from inside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function writeSteps({ context, root, gitDir, steps, out }): Promise<void>;
+/// async function writeStepsAwaiting({ context, root, gitDir, steps, out }): Promise<void>;
 /// ```
-pub(crate) fn write_steps(
+pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     context: &GitContext,
     root: &Path,
     git_dir: &Path,
     steps: &[Step],
     wait: LockWait,
-    out: &mut dyn std::io::Write,
+    out: &mut W,
 ) -> Result<(), CarryFailure> {
     let waited = match wait {
         LockWait::BeforeTheApply => crate::index_holder_wait::wait_for_index_release_before_a_merge_that_clears_a_dead_lock(git_dir.join("index").as_path(), out),
@@ -288,7 +290,7 @@ pub(crate) fn write_steps(
     let records: Vec<u8> = index_records(steps, width);
     if !records.is_empty() {
         let arguments: Vec<OsString> = vec![OsString::from("update-index"), OsString::from("-z"), OsString::from("--index-info")];
-        let written: GitOutput = run_bytes(context, root, arguments.as_slice(), Some(records)).map_err(CarryFailure::Failed)?;
+        let written: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), Some(records)).await.map_err(CarryFailure::Failed)?;
         if !written.succeeded() {
             let detail: String = written.error_text();
             if detail.contains("index.lock") {
@@ -319,7 +321,7 @@ pub(crate) fn write_steps(
     //  every entry whose content still hashes to what the index says, so the next step reads the checkout as it is.
     if wrote_a_file {
         let arguments: Vec<OsString> = vec![OsString::from("update-index"), OsString::from("-q"), OsString::from("--refresh")];
-        let refreshed: GitOutput = run_bytes(context, root, arguments.as_slice(), None).map_err(CarryFailure::Failed)?;
+        let refreshed: GitOutput = run_bytes_awaiting(context, root, arguments.as_slice(), None).await.map_err(CarryFailure::Failed)?;
         if !refreshed.succeeded() && refreshed.code != Some(1) {
             return Err(CarryFailure::Failed(refreshed.error_text()));
         }

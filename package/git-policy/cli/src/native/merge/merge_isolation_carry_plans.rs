@@ -11,15 +11,17 @@
 //!  the step that lands these writes is `merge_isolation_carry_writes.rs`
 //!  and the judgements that call them are `merge_isolation_carry_apply.rs`,
 //!  which is at its code-line limit.
+//!  Both plans are awaited,
+//!  because the word-level pass awaits every Git start it makes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const [write, note, target] = await planWorktree(places, change, entry);
+//! const [write, note, target] = await planWorktreeAwaiting(places, change, entry);
 //! ```
 
 use crate::merge_isolation_carry_layers::{Decision, Layer, Outcome, Side, decide, write_layer_bytes};
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath};
-use crate::merge_isolation_carry_reads::{file_form, raw_bytes};
+use crate::merge_isolation_carry_reads::{file_form_awaiting, raw_bytes_awaiting};
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::Change;
 use crate::merge_second_pass::GitRunner;
@@ -66,66 +68,43 @@ pub(crate) fn plain_file_mode() -> String {
 }
 
 /// What:
-///  One awaited step of the word-level pass,
-/// run to its end from this synchronous path.
-/// Why:
-///   The pass awaits every Git start it makes
-/// (`merge_second_pass_git_runner.rs`),
-/// and the merge that
-///  carries a person's work is a command's synchronous step,
-/// so this one entry of the process runtime is taken for it.
-/// Everything else the carry does is a plain start,
-/// which must stay outside the runtime.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const decision = runOnRuntime(decide(runner, path, layer));
-/// ```
-pub(crate) fn on_the_runtime<T>(future: impl std::future::Future<Output = Result<T, String>>) -> Result<T, CarryFailure> {
-    return match crate::lazy_runtime::run_on_runtime(future) {
-        Ok(found) => found.map_err(CarryFailure::Failed),
-        Err(error) => Err(CarryFailure::Failed(format!(
-            "the word-level pass over a path this merge carries could not run: {error}"
-        ))),
-    };
-}
-
-/// What:
 ///  The worktree side of one captured path.
 /// Why:
-///  The layer's decision and what the report says of it are one answer.
+///  The layer's decision and what the report says of it are one answer,
+///  and the decision is awaited
+///  because the pass behind it awaits every Git start it makes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function planWorktree(places, change, entry, state): Promise<[FileWrite, Note]>;
+/// async function planWorktreeAwaiting(places, change, entry, state): Promise<[FileWrite, Note]>;
 /// ```
-pub(crate) fn plan_worktree(
+pub(crate) async fn plan_worktree_awaiting(
     places: (&dyn GitRunner, &GitContext, &Path),
     change: &Change,
     entry: &CapturedPath,
 ) -> Result<(FileWrite, Note, Option<String>), CarryFailure> {
     let (runner, context, root) = places;
     let layer: Layer = Layer { base: side(change, false), ours: entry.worktree.as_ref().map(side_of_file), theirs: side(change, true) };
-    let decision: Decision = on_the_runtime(decide(runner, entry.path.as_slice(), &layer))?;
+    let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;
     let mode: String = decision.mode.clone().unwrap_or_else(plain_file_mode);
     return match decision.outcome {
         Outcome::Merges => Ok((FileWrite::Leave, Note::None, None)),
         Outcome::Ours => match &entry.worktree {
             Some(file) => Ok((
-                FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, mode),
+                FileWrite::Bytes(raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?, mode),
                 Note::None,
                 Some(file.blob.clone()),
             )),
             None => Ok((FileWrite::Remove, Note::None, None)),
         },
         Outcome::Merged { bytes, conflict, .. } => {
-            let oid: String = on_the_runtime(write_layer_bytes(runner, bytes.as_slice()))?;
-            let form: Vec<u8> = file_form(context, root, entry.path.as_slice(), oid.as_str()).map_err(CarryFailure::Failed)?;
+            let oid: String = write_layer_bytes(runner, bytes.as_slice()).await.map_err(CarryFailure::Failed)?;
+            let form: Vec<u8> = file_form_awaiting(context, root, entry.path.as_slice(), oid.as_str()).await.map_err(CarryFailure::Failed)?;
             return Ok((FileWrite::Bytes(form, mode), if conflict { Note::Conflict } else { Note::Merged }, Some(oid)));
         }
         Outcome::Kept(why) => match &entry.worktree {
             Some(file) => Ok((
-                FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, mode),
+                FileWrite::Bytes(raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?, mode),
                 Note::Kept(why),
                 Some(file.blob.clone()),
             )),
@@ -142,12 +121,14 @@ pub(crate) fn plan_worktree(
 /// it stays staged over the merged file when it merges,
 /// and holds both
 ///  sides when it does not.
+///  The decision is awaited,
+///  because the pass behind it awaits every Git start it makes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function planIndex(runner, context, root, change, entry): Promise<IndexWrite>;
+/// async function planIndexAwaiting(runner, context, root, change, entry): Promise<IndexWrite>;
 /// ```
-pub(crate) fn plan_index(
+pub(crate) async fn plan_index_awaiting(
     runner: &dyn GitRunner,
     change: &Change,
     entry: &CapturedPath,
@@ -165,7 +146,7 @@ pub(crate) fn plan_index(
         return Ok(IndexWrite::Leave);
     }
     let layer: Layer = Layer { base, ours: ours.clone(), theirs: side(change, true) };
-    let decision: Decision = on_the_runtime(decide(runner, entry.path.as_slice(), &layer))?;
+    let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;
     let mode: String = decision.mode.clone().unwrap_or_else(plain_file_mode);
     return match decision.outcome {
         Outcome::Merges => Ok(IndexWrite::Leave),
@@ -174,7 +155,7 @@ pub(crate) fn plan_index(
             None => Ok(IndexWrite::Remove),
         },
         Outcome::Merged { bytes, .. } => {
-            let oid: String = on_the_runtime(write_layer_bytes(runner, bytes.as_slice()))?;
+            let oid: String = write_layer_bytes(runner, bytes.as_slice()).await.map_err(CarryFailure::Failed)?;
             Ok(IndexWrite::Entry(mode, oid))
         }
         Outcome::Gone(_) => Ok(IndexWrite::Remove),

@@ -337,25 +337,32 @@ fn a_commit_that_reuses_another_commit_lands_on_a_branch_that_moved() {
 }
 
 /// What:
-///  A `--fixup=reword:<commit>` commit is the one line a moved branch still refuses,
-///  and its words say what happened and what to run.
+///  A `--fixup=reword:<commit>` commit whose branch moved lands on the branch as it is now,
+///  carrying that branch's own tree and the message the editor settled,
+///  with the person's staged change still staged.
 /// Why:
-///  Git throws the index away for that option,
-///  so its commit is the branch's own tree:
-///  a replay of the change this preparation captured would land changes the command itself discards,
-///  which is not what the person asked for.
-///  Nothing is invented instead:
-///  the message is made again by the same command,
-///  so no message file is saved and the words name running the commit again.
+///  "Commits should never fail.",
+///  and the acceptance bar of `SPEC.md`:
+/// "nothing the machine or other processes do ends them with a nonzero status".
+///  Another session moving the branch is exactly that case.
+///  Git's own commit for this option carries the branch's tree and takes the index out of it,
+///  so the commit made on the moved branch keeps the moved branch's tree
+///  (`doc/decision/cli-git-concurrent-commits.md`,
+/// "Serial landing":
+/// a replay never lands changes the person did not choose,
+/// and a replay of the captured tree here would land changes the command itself discards).
+///  The message is the one the editor settled,
+///  so the commit is written from the fields of the commit Git built rather than by running the line again,
+///  which would ask the person a second time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const held = heldCommit({ arguments: ['commit', '--fixup=reword:HEAD', '--no-enforce-only'] }); await waitHeld(held);
+/// const held = heldCommit({ arguments: ['commit', '--fixup=reword:<target>', '--no-enforce-only'] }); await waitHeld(held);
 /// await throughService(['commit', '-m', 'unrelated', '--', 'x.txt']); release(held);
-/// expect(held.stderr).toSayRunTheCommitAgain();
+/// expect(head().tree).toBe(head().parent.tree); expect(head().subject).toBe('amend! target');
 /// ```
 #[test]
-fn a_reword_fixup_is_refused_with_the_command_to_run_again() {
+fn a_reword_fixup_lands_on_a_branch_that_moved_with_the_branchs_own_tree() {
     let fixture: Fixture = fixture("reword-fixup-on-a-moved-branch");
     let repo: PathBuf = fixture.root.join("repo");
     std::fs::create_dir(&repo).expect("repository directory");
@@ -393,14 +400,25 @@ fn a_reword_fixup_is_refused_with_the_command_to_run_again() {
     assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
     let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
     let ended: Ended = release(held);
-    assert_eq!(ended.code, Some(1), "{}", ended.stderr);
-    assert!(ended.stderr.contains("moved while this commit was being prepared"), "what happened: {}", ended.stderr);
-    assert!(ended.stderr.contains("cannot be moved onto a different last commit"), "why: {}", ended.stderr);
-    assert!(ended.stderr.contains("Run the commit again"), "what to run: {}", ended.stderr);
-    assert!(!ended.stderr.contains("saved in"), "no message file is offered for a line the same command makes again: {}", ended.stderr);
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), moved, "nothing else landed");
+    assert_eq!(ended.code, Some(0), "{}", ended.stderr);
+    assert_eq!(parents(&fixture, &repo), vec![moved], "the commit sits on the branch as it is now");
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", "HEAD^{tree}"]).trim(),
+        git_text(&fixture, &repo, &["rev-parse", "HEAD^^{tree}"]).trim(),
+        "the commit carries the branch's own tree"
+    );
+    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]), "amend! target\n", "the message the editor settled");
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "-1", "--format=%b"]).trim_end(),
+        "target\n\nwritten in the editor",
+        "the target's own message, and the line the person added"
+    );
+    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\n", "the person's staged change is not in the commit");
+    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:x.txt"]), "landed by another session\n", "nothing the other commit landed is lost");
     assert_eq!(git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]), "a.txt\n", "the staged change is still staged for its owner");
-    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\n", "the command's own commit would not have held it either");
+    assert_eq!(git_text(&fixture, &repo, &["rev-list", "--count", "HEAD"]), "3\n", "the target commit, the other session's, and this one");
+    assert!(!ended.stderr.contains("while this amend was being prepared"), "no amendment is named: {}", ended.stderr);
+    assert!(ended.stderr.contains("did not land"), "the build Git printed before the branch moved is named as lost: {}", ended.stderr);
     git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
     let _killed = service.kill();
     let _waited = service.wait();
