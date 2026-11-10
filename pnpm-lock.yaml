@@ -8014,6 +8014,9 @@ importers:
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
+      '@monochromatic-dev/named-error-core':
+        specifier: workspace:*
+        version: link:../../named-error/core
       ajv:
         specifier: 'catalog:'
         version: 8.20.0

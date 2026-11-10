@@ -17,6 +17,7 @@
   "dependencies": {
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/named-error-core": "workspace:*",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
     "dot-prop": "catalog:",

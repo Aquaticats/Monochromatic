@@ -6,8 +6,18 @@
  gaining typed diagnostics. Message texts match upstream `conf` 15.1.0
  verbatim.
  
+ Every class is named after itself. The `Error` subclasses take that name from
+ `NamedError`; the `TypeError` subclasses cannot, because upstream `conf`
+ throws `TypeError` there and a caller's `instanceof TypeError` must keep its
+ answer, so each takes it from its own class rather than from a repeated
+ literal.
+ 
  @module
  */
+
+import { NamedError, } from '@monochromatic-dev/named-error-core/ts';
+
+/* oxlint-disable unicorn/custom-error-definition -- Every class here is named after its own class: the `Error` subclasses through `NamedError`, the `TypeError` subclasses through their own identifier, so no hand-written literal is left to check; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
 
 //region Argument errors
 
@@ -33,7 +43,7 @@ export class InvalidKeyError extends TypeError {
    */
   constructor(message: string,) {
     super(message,);
-    this.name = 'InvalidKeyError';
+    this.name = InvalidKeyError.name;
   }
 }
 
@@ -59,7 +69,7 @@ export class InvalidCallbackError extends TypeError {
    */
   constructor(message: string,) {
     super(message,);
-    this.name = 'InvalidCallbackError';
+    this.name = InvalidCallbackError.name;
   }
 }
 
@@ -83,7 +93,7 @@ export class MissingValueError extends TypeError {
    */
   constructor() {
     super('Use `delete()` to clear values',);
-    this.name = 'MissingValueError';
+    this.name = MissingValueError.name;
   }
 }
 
@@ -109,7 +119,7 @@ export class ReservedKeyError extends TypeError {
     super(
       "Please don't use the __internal__ key, as it's used to manage this module internal operations.",
     );
-    this.name = 'ReservedKeyError';
+    this.name = ReservedKeyError.name;
   }
 }
 
@@ -145,7 +155,7 @@ export class UnsupportedValueTypeError extends TypeError {
     super(
       `Setting a value of type \`${type}\` for key \`${key}\` is not allowed as it's not supported by JSON`,
     );
-    this.name = 'UnsupportedValueTypeError';
+    this.name = UnsupportedValueTypeError.name;
   }
 }
 
@@ -172,7 +182,7 @@ export class NonArrayValueError extends TypeError {
    */
   constructor({ key, }: { readonly key: string; },) {
     super(`The key \`${key}\` is already set to a non-array value`,);
-    this.name = 'NonArrayValueError';
+    this.name = NonArrayValueError.name;
   }
 }
 
@@ -202,7 +212,7 @@ export class InvalidEncryptionAlgorithmError extends TypeError {
    */
   constructor({ supported, }: { readonly supported: readonly string[]; },) {
     super(`The \`encryptionAlgorithm\` option must be one of: ${supported.join(', ')}`,);
-    this.name = 'InvalidEncryptionAlgorithmError';
+    this.name = InvalidEncryptionAlgorithmError.name;
   }
 }
 
@@ -219,14 +229,13 @@ export class InvalidEncryptionAlgorithmError extends TypeError {
  }
  ```
  */
-export class MissingProjectNameError extends Error {
+export class MissingProjectNameError extends NamedError {
   /**
    Builds the error with upstream `conf`'s message text so migrating callers
    see identical diagnostics.
    */
   constructor() {
     super('Please specify the `projectName` option.',);
-    this.name = 'MissingProjectNameError';
   }
 }
 
@@ -243,14 +252,13 @@ export class MissingProjectNameError extends Error {
  }
  ```
  */
-export class MissingProjectVersionError extends Error {
+export class MissingProjectVersionError extends NamedError {
   /**
    Builds the error with upstream `conf`'s message text so migrating callers
    see identical diagnostics.
    */
   constructor() {
     super('Please specify the `projectVersion` option.',);
-    this.name = 'MissingProjectVersionError';
   }
 }
 
@@ -274,7 +282,7 @@ export class InvalidSchemaError extends TypeError {
    */
   constructor() {
     super('The `schema` option must be an object.',);
-    this.name = 'InvalidSchemaError';
+    this.name = InvalidSchemaError.name;
   }
 }
 
@@ -298,7 +306,7 @@ export class RootSchemaPropertiesError extends TypeError {
    */
   constructor() {
     super('The `rootSchema` option must not contain a `properties` key. Use the `schema` option for properties.',);
-    this.name = 'RootSchemaPropertiesError';
+    this.name = RootSchemaPropertiesError.name;
   }
 }
 
@@ -319,7 +327,7 @@ export class RootSchemaPropertiesError extends TypeError {
  }
  ```
  */
-export class SchemaViolationError extends Error {
+export class SchemaViolationError extends NamedError {
   /**
    Builds the error with upstream `conf`'s `Config schema violation: ...`
    message text.
@@ -328,7 +336,6 @@ export class SchemaViolationError extends Error {
    */
   constructor({ violations, }: { readonly violations: readonly string[]; },) {
     super(`Config schema violation: ${violations.join('; ')}`,);
-    this.name = 'SchemaViolationError';
   }
 }
 
@@ -345,14 +352,13 @@ export class SchemaViolationError extends Error {
  }
  ```
  */
-export class DecryptionFailedError extends Error {
+export class DecryptionFailedError extends NamedError {
   /**
    Builds the error with upstream `conf`'s message text so migrating callers
    see identical diagnostics.
    */
   constructor() {
     super('Failed to decrypt config data.',);
-    this.name = 'DecryptionFailedError';
   }
 }
 
@@ -369,14 +375,13 @@ export class DecryptionFailedError extends Error {
  }
  ```
  */
-export class InvalidAuthenticationTagError extends Error {
+export class InvalidAuthenticationTagError extends NamedError {
   /**
    Builds the error with upstream `conf`'s message text so migrating callers
    see identical diagnostics.
    */
   constructor() {
     super('Invalid authentication tag length.',);
-    this.name = 'InvalidAuthenticationTagError';
   }
 }
 
@@ -394,7 +399,7 @@ export class InvalidAuthenticationTagError extends Error {
  }
  ```
  */
-export class MigrationFailedError extends Error {
+export class MigrationFailedError extends NamedError {
   /**
    Builds the error with upstream `conf`'s message text so migrating callers
    see identical diagnostics.
@@ -405,8 +410,9 @@ export class MigrationFailedError extends Error {
     super(
       `Something went wrong during the migration! Changes applied to the store until this failed migration will be restored. ${reason}`,
     );
-    this.name = 'MigrationFailedError';
   }
 }
 
 //endregion Data errors
+
+/* oxlint-enable unicorn/custom-error-definition */
