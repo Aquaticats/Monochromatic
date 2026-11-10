@@ -83,7 +83,7 @@ fn private_git<S: AsRef<OsStr>>(
 ) -> Result<GitOutput, GitFailure> {
     return run_git_checked(
         context,
-        &indexed_request(cwd, arguments, Some(index), Some(object_directory)),
+        &indexed_request(context, cwd, arguments, Some(index), Some(object_directory)),
     );
 }
 
@@ -267,6 +267,7 @@ fn stage_into_the_private_index(
             // literal mode would read it as a file name and stage nothing, and two glob modes at once make Git refuse it
             // and fail the commit.
             let staged: GitRequest = indexed_request(
+                context,
                 cwd,
                 &["add", "--update", "--", ":/"],
                 Some(indexes.commit_index.as_path()),
@@ -467,6 +468,7 @@ fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes,
 /// ```
 fn reads_itself_as_the_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
     let request = indexed_request(
+        context,
         cwd,
         &["diff-index", "--cached", "--name-only", "-z", "--no-renames", base_revision],
         Some(indexes.commit_index.as_path()),
@@ -578,7 +580,7 @@ pub fn list_unmerged_index_paths(
     // from a subdirectory would otherwise be answered with names read from that directory.
     let output: GitOutput = run_git_checked(
         context,
-        &indexed_request(cwd, &["ls-files", "--unmerged", "-z", "--full-name"], Some(commit_index), None),
+        &indexed_request(context, cwd, &["ls-files", "--unmerged", "-z", "--full-name"], Some(commit_index), None),
     )?;
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for record in output.stdout.split(is_nul_byte) {
@@ -613,6 +615,7 @@ pub fn list_changed_index_paths(
     let output: GitOutput = run_git_checked(
         context,
         &indexed_request(
+            context,
             cwd,
             &["diff", "--cached", "--name-only", "-z", base_revision],
             Some(commit_index),
