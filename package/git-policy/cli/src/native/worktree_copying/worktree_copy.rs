@@ -44,18 +44,18 @@ use crate::diagnostic_log::warn;
 use crate::forwarding::{ChildStarted, NoChildRecorded};
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
+use crate::worktree_copy_after_refusal::settle_refused_destination;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_creation};
 use crate::worktree_copy_notices::nothing_but_a_reservation;
-use crate::worktree_copy_notices::refused_destination_written_into_notice;
 use crate::worktree_copy_registry::{WorktreeCopyObservation, destination_is_registered, observe_copy_source};
 use crate::worktree_copy_synchronize::synchronize_after;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
-use crate::worktree_subvolume::{CreatedSubvolume, CreatedDestinationSettlement, Reservation, reserve_destination, settle_created_destination};
+use crate::worktree_subvolume::{CreatedSubvolume, Reservation, reserve_destination};
 #[cfg(target_os = "linux")]
 use crate::package_repair::RepairSwitch;
 #[cfg(target_os = "linux")]
@@ -446,17 +446,10 @@ fn settle_creation(
     // <branch> <path> main`). `rmdir` cannot remove a directory that holds anything, so a destination another program
     // wrote into stays with everything in it, and the person is told which path this command left there. Nothing is
     // removed while the copy failed: what stands at the path is not known then.
-    if made_here
-        && copy_failure.is_none()
-        && !git.succeeded()
-        && let Reservation::Mine(made) = &reserved
-    {
-        match settle_created_destination(made) {
-            CreatedDestinationSettlement::HoldsSomething => {
-                // The person's stream carries this line, and a closed one keeps the status Git gave.
-                let _written = stderr.write_all(refused_destination_written_into_notice(made.path.as_path()).as_bytes());
-            }
-            CreatedDestinationSettlement::Removed | CreatedDestinationSettlement::Gone | CreatedDestinationSettlement::LeftAlone => {}
+    if made_here && copy_failure.is_none() && !git.succeeded() && let Reservation::Mine(made) = &reserved {
+        // The person's stream carries this line, and a closed one keeps the status Git gave.
+        if let Some(line) = settle_refused_destination(made) {
+            let _written = stderr.write_all(line.as_bytes());
         }
     }
     // A record whose copy did not run (a destination Git did not register, a snapshot that carried the state itself) is

@@ -261,8 +261,11 @@ pub enum CreatedDestinationSettlement {
 ///  worktree;
 /// a leftover empty subvolume would also make the next attempt at the same path look like an accepted empty
 ///  directory.
-/// A destination that holds anything
-///  is Git's result (or its late failure's, or another program's) and stays,
+/// A destination that holds anything stays,
+/// whether that is Git's result,
+/// a late failure's,
+/// or another program's:
+/// it is not this command's to remove while something is in it,
 /// and so does an object that another process put at the path:
 /// the
 ///  identity recorded at creation must still be the identity of what the name leads to,
