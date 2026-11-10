@@ -7,6 +7,8 @@
 //! and replaces itself with the real tool (which inherits that priority).
 //! A lone version or help flag instead runs the real tool as a child
 //! and then adds the shadow's own line or section (`announce.rs`).
+//! A run whose standard output is not a terminal runs the real tool as a child too,
+//! and passes its output on up to a cap (`output_cap.rs`).
 //! Why:
 //! Every search an agent or a script starts goes through here,
 //! so a broad search yields the disk to the desktop instead of stalling it.

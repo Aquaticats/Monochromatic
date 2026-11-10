@@ -18,7 +18,9 @@ the binary lowers its own disk priority to best-effort level 7
 set directly with the `ioprio_set` system call)
 and replaces itself with the real tool,
 which keeps the priority.
-So it adds no process.
+So it adds no process,
+except while it caps an output (see "The output cap"):
+then it stays alive as the real tool's parent for one pipe copy.
 Exit codes,
 signals and terminal behavior are kept.
 Started as `search-shadow`,
@@ -35,6 +37,11 @@ concurrent cold readers raise everyone's read wait
 from about 1 ms to about 8 ms (median) with 100 to 200 ms tails,
 which stalls the desktop.
 The measurements are in `doc/planning/agent-search-io-throttle.md`.
+
+The output cap answers a second failure the refusals cannot:
+an `rg` over a tree that is not a repository printed 13,328,044,032 bytes into a 16 GiB tmpfs and filled it,
+which stalls every session the same way.
+That run had an ordinary pattern and an ordinary directory (issue 3474).
 
 ## What it does
 
@@ -85,6 +92,8 @@ The measurements are in `doc/planning/agent-search-io-throttle.md`.
   The message suggests a narrower directory,
   `rg PATTERN PATH` or `rg --files PATH`,
   and the same `SEARCH_SHADOW_ALLOW_WIDE=1` escape.
+- Caps the real tool's standard output at 4 MiB (4,194,304 bytes)
+  when that output is not a terminal (see "The output cap").
 - Only slows down the other tools
   (`ugrep` / `ug` / `ag` / `ack` / `fd` / `fdfind` / `tree` / `du` / `ncdu` / `tokei` / `cloc`).
   `fd` is never refused.
@@ -172,6 +181,51 @@ as byte-identical copies of `src/shadow_identity.rs`:
 the four crates share no dependency,
 and `tests/shadow_identity_copies.rs` fails when the copies differ.
 
+## The output cap
+
+An output nothing is watching is where a runaway search fills a disk,
+so a run whose standard output is not a terminal passes that output through the shadow:
+
+- The real tool starts as a child with its standard output on a pipe,
+  and the shadow copies the bytes on while the count is under 4 MiB (4,194,304 bytes).
+- Past the cap the shadow closes the pipe,
+  writes one line to standard error,
+  gives the tool five seconds to end,
+  and kills it after that.
+  The line names the command,
+  the cap,
+  the exit status and the real tool's own path,
+  then both ways forward:
+  read a smaller part (a path,
+  `--max-count`,
+  `--max-depth`)
+  or run the real tool itself.
+  The exit code is `124`,
+  `timeout(1)`'s convention for a command it stopped.
+- Standard output keeps exactly the first 4 MiB the tool printed,
+  byte for byte,
+  so `rg PATTERN PATH > file` leaves a file that is the beginning of the answer and no invented text.
+  What was cut is said on standard error.
+- A terminal's output is never capped.
+  There the shadow still replaces itself with the real tool,
+  so colors,
+  a pager and a full-screen tool such as `ncdu` behave as they do without the shadow.
+- A reader that stops listening (`rg PATTERN | head`) is not the cap:
+  the shadow stops copying,
+  the tool finds its pipe closed,
+  and the run keeps the tool's own status.
+- An output that cannot be written (a full disk) ends with exit code `1` and one line saying what it failed on,
+  because a shortened answer that passes for a complete one is the failure this crate exists to prevent.
+
+The cap runs after the refusal policies,
+so a refused run still prints only its refusal,
+and it does not apply to a lone `--version` or `--help`,
+whose output is the tool's own short text.
+
+No variable lifts the cap.
+Running the real tool by its own path is how to read an output larger than 4 MiB,
+and the line on standard error names that path.
+
 ## Version and help
 
 A shadow is invisible by default,
@@ -213,6 +267,9 @@ and what the shadow adds for that tool:
   the `-maxdepth` refusal.
 - Every other tool:
   "never refuses a run".
+
+Every section also names the output cap:
+its 4,194,304 bytes and the status `124` a capped run ends with.
 
 Only a lone flag counts.
 `rg --version foo`,
@@ -283,6 +340,10 @@ which holds the locked ripgrep.
   the policy refused the walk (or a bad `search-shadow` command line).
 - `2` also:
   a shadow started this one as the real tool (the arrival stop above).
+- `124`:
+  the cap stopped the real tool after it printed past 4 MiB.
+- `1`:
+  the real tool's output could not be written (a full disk, an input/output error).
 - `126`:
   the real tool was found but could not be started
   (or,

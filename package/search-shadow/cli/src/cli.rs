@@ -33,8 +33,8 @@ use std::env;
 /// Imports `Path` (a borrowed read-only path) and `PathBuf` (the owned one).
 use std::path::{Path, PathBuf};
 
-/// Imports the shadowed tool names and the exit code for a bad command line.
-use crate::constants::{SHADOWED_NAMES, USAGE_EXIT_CODE};
+/// Imports the shadowed tool names, the output cap and the exit code for a bad command line.
+use crate::constants::{MAX_OUTPUT_BYTES, SHADOWED_NAMES, USAGE_EXIT_CODE};
 
 /// Imports the function that creates the shadow links.
 use crate::link::link_shadows;
@@ -80,7 +80,8 @@ pub fn build_command() -> Command {
 
     return Command::new("search-shadow")
         .about(format!(
-            "search-shadow is a shadow: it stands in for other tools, it is not a tool of its own. It shadows {shadowed}. Started under one of those names it runs the real tool at the lowest best-effort disk priority, refuses wide rg, grep and find walks, and prints one extra line after the tool's --version and one extra section after its --help. Started as search-shadow it offers the link command."
+            "search-shadow is a shadow: it stands in for other tools, it is not a tool of its own. It shadows {shadowed}. Started under one of those names it runs the real tool at the lowest best-effort disk priority, refuses wide rg, grep and find walks, caps the tool's output at {} bytes when that output is not a terminal, and prints one extra line after the tool's --version and one extra section after its --help. Started as search-shadow it offers the link command.",
+            MAX_OUTPUT_BYTES,
         ))
         .version(version_text)
         .subcommand_required(true)
