@@ -37,6 +37,8 @@ use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout_after_success_for;
 /// What to upload.
 use crate::lfs_upload_plan::{GitQuery, PlanError, Settings, UploadPlan, plan_upload, read_settings};
+/// The start that rides out a refused start of a child.
+use crate::start_retry::RetryStart;
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// Standard error as a writable stream.
@@ -92,7 +94,7 @@ impl GitQuery for InteractiveQuery<'_> {
     fn ask(&mut self, query_arguments: &[&str]) -> Result<String, String> {
         let mut arguments: Vec<OsString> = self.request.prefix.to_vec();
         arguments.extend(query_arguments.iter().map(OsString::from));
-        let output = match git_command(self.request.real_git, arguments.as_slice(), self.request.overlay).output() {
+        let output = match git_command(self.request.real_git, arguments.as_slice(), self.request.overlay).output_retrying() {
             Ok(done) => done,
             Err(error) => return Err(error.to_string()),
         };
