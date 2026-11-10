@@ -2374,3 +2374,314 @@ A measurement of a Markdown commit's gate would need a run whose agents commit M
   the embedded linter runs at both lifecycle points for it.
 - The four ranked entries of this record are proposals,
   not work in progress.
+
+## What the build phase waits on, named (2026-11-09T21:13:51-05:00)
+
+What this answers:
+what `buildMs` and `otherMs` held that no step named,
+what concurrent commits share,
+and what the record states now so that a future slow build names its cause.
+
+The owner's words for the slow commits nobody could explain:
+"If we can't figure it out, then we have a defect and should log more."
+This is that logging.
+
+### Where the numbers come from
+
+Two files the wrapper writes for every wrapped commit,
+copied aside before they were read because the machine keeps committing:
+`.git/monochromatic-git-policy-cli-commit-timing.jsonl` and its one generation `.1`,
+1 077 records of the release `0.6.1-alpha.5` between 2026-11-09T17:36Z and 2026-11-10T01:44Z,
+about twenty agents committing.
+A record states its phases,
+`startMillis`,
+every Git step with the offset it began at and how long it ran,
+and then the figures of the landing.
+
+1 009 of those records name a step inside the shadow repository,
+which is the first Git child of the shadow's ref snapshot,
+`git for-each-ref`.
+The stretch between the end of the preparation and the first of those steps is what no step covers,
+and the section "The shadow's creation, measured and made cheaper" already sized it.
+This section states what it is,
+what a stopped commit does with it,
+and what concurrent commits have in common.
+
+### The share of the build it is
+
+Over the 940 records that landed:
+
+- the whole command:
+  11 745 636 ms in all,
+  median 6 491 ms.
+- `buildMs`:
+  5 936 684 ms,
+  50.5 percent of the whole.
+- the stretch between the preparation's end and the shadow's first Git child:
+  5 633 600 ms,
+  94.9 percent of `buildMs` and 48.0 percent of the whole command,
+  median 1 208 ms,
+  p90 16 386 ms,
+  p95 24 412 ms,
+  p99 61 980 ms,
+  max 141 560 ms.
+  491 of the 940 records hold more than one second of it,
+  and in 585 of them it is all of `buildMs` bar a hundred milliseconds.
+  Over all 1 009 records that name a creation the same percentiles are 1 416,
+  18 525,
+  28 478,
+  71 614 and 141 560 ms,
+  541 of them over one second.
+- every Git child of those records,
+  10 579 steps of every phase added up:
+  911 262 ms,
+  15.3 percent of their `buildMs` and 7.8 percent of the whole,
+  a median of 248 ms of steps for one commit,
+  which is the figure the section "The steps, by what they cost" of the first reading puts at 153 ms for its own window.
+
+So the question "what is inside `buildMs` that no step names" has one answer in these records:
+the shadow repository's creation,
+which is in-process filesystem work,
+so `steps` cannot name it and the phases cannot split it.
+
+The four records this task began from,
+quoted whole in the fields that matter:
+
+- `2026-11-10T01:36:44.711Z` on `refs/heads/main`:
+  `totalMs` 65 222,
+  `prepareMs` 1 502,
+  `buildMs` 63 444,
+  `submitMs` 131,
+  and its longest step `git commit` at 65 ms.
+  Its shadow's steps begin at an offset of 64 835 ms,
+  so 63 333 ms of the build held no child at all.
+- `2026-11-10T01:28:10.156Z`,
+  `2026-11-10T01:28:10.158Z` and `2026-11-10T01:28:13.036Z`,
+  on three different branches:
+  `buildMs` 30 298,
+  30 265 and 30 347,
+  and the stretch before their first shadow step was 29 648,
+  29 647 and 29 647 ms.
+
+### What a stopped commit did with it
+
+69 of the records stopped.
+67 of them state `buildMs` 0 while their shadow steps ran,
+and their `otherMs` is 1 313 193 ms in all against 1 105 754 ms of that same unnamed stretch.
+
+The shape is one line of code:
+`service_commit` added the build's elapsed time on its way out of the phase,
+so a stop inside the phase left through the error path and the figure was never taken,
+and what no phase covered then held the whole phase.
+
+One record shows it plainly,
+`2026-11-10T00:43:22.851Z`:
+`totalMs` 91 526,
+`prepareMs` 17 475,
+`buildMs` 0,
+`otherMs` 74 051,
+and its shadow steps begin at an offset of 87 909 ms.
+Its build was 70 434 ms and the record gave it to no phase.
+
+### What concurrent commits share
+
+The three records of 01:28 are the evidence,
+and it is stronger than the reading this task began from:
+
+- their creations lasted 29 648,
+  29 647 and 29 647 ms,
+  and ended at 01:28:08.347Z,
+  the same millisecond.
+- their preparations ended at 01:27:38.700Z,
+  also the same millisecond,
+  although their commands had begun 5.4 s and 1.4 s apart.
+
+Over all 1 009 records,
+a creation ends within 10 ms of another creation 122 times,
+while a preparation ends within 10 ms of another preparation 41 times.
+Among the 362 creations that lasted over five seconds,
+the same comparison is 70 times against 16.
+
+So the creations of concurrent commits finish together far more often than they start together:
+something they share is released at one instant,
+and the journal says what:
+at 17:36:06.238748 and 17:36:06.241497 local,
+two different commit services answered two requests,
+and those two commits' creations ended at 17:36:06.024 and 17:36:06.026.
+The journal's own last line before that is at 17:36:03.432,
+so no line it carries was written in those 2.8 s,
+and everything it carries resumes at once.
+The 01:28 cluster's end is the same event:
+20:28:08 local is when the journal resumes there.
+The two queries, for a reader who wants to see the gaps:
+`journalctl --user --since "2026-11-09 17:36:02" --until "2026-11-09 17:36:07"` and
+`journalctl --user --since "2026-11-09 20:27:00" --until "2026-11-09 20:29:00"`.
+
+What they share is the repository's volume,
+`/dev/mapper/crypt_sda` on btrfs with `compress=zstd:3`,
+and the calls every creation makes on it:
+a stall that ends releases every process blocked in one at the same instant.
+This record cannot say what makes the volume stall:
+the kernel journal holds no blocked-task warning in either window,
+and the load the other sessions keep up is normal here,
+which makes it neither a cause of a stall nor a reason to stop measuring one.
+What it can do is make a commit say which call it was waiting in,
+which is the change below.
+
+### What the creation is, counted
+
+One wrapped commit of the release built from this branch,
+in a disposable repository of twelve files whose common directory holds the 40 private index copies this one does,
+its own service under a runtime directory of its own,
+traced with
+`strace -f -ttt -T -e trace=%file,%desc`:
+
+- from the first call that names the shadow directory to the `execve` of the step that reads its refs:
+  193 to 194 calls in 8.0 to 10.2 ms of wall time,
+  and their own durations add up to 2.1 to 2.7 ms,
+  so the rest is this host's scheduling.
+- by call:
+  `openat` 34,
+  `read` 39,
+  `readlink` 27,
+  `statx` 24,
+  `getdents64` 10,
+  `mkdir` 8,
+  `write` 7,
+  `symlink` 6,
+  `chmod` 4,
+  `renameat2` 1,
+  and five or fewer each of five more.
+- six commits of the same fixture without tracing:
+  `buildMs` 8 to 16 ms,
+  and the creation's own share of it 2 to 6 ms.
+
+Against that,
+the 29 648 ms of the record at 01:28 is the same work of the same shape,
+taken there where this fixture takes 8 to 10 ms of wall time.
+The two are not the same call for call:
+the wrapper those records were written by was installed at 07:23 local on 2026-11-09,
+before `918f05385b` took the private index copies out of every shadow at 14:18 local,
+and this repository's common directory holds 40 of them.
+So the figures do not divide into a rate per call.
+What they say is that this work,
+and no step of it,
+is what the host charges for the wait.
+
+The calls are what Git and a hook in the shadow read:
+`mkdir` makes the repository Git is handed,
+the `openat` and `read` are that repository's config and the real repository's,
+`getdents64` and `symlink` are the shared entries,
+and `openat` and `statx` also ask the conclusion-state question.
+
+### The change, in one commit
+
+`feat(git-policy-cli): the timing record names every stretch of the build phase, and a stopped build states its time`,
+made on `fix/git-policy-cli-commit-build-phase-unattributed-time`:
+
+- `buildParts` states every stretch of the build that held no Git child,
+  by name,
+  in the same shape as `prepareParts` and through the same writer,
+  with its own ledger and its own bound (`buildPartsDropped`),
+  because a build's name must never be read as a preparation's.
+  Its names are `branch`,
+  `message`,
+  `amend tree`,
+  `fitting request`,
+  `request`,
+  `shadow`,
+  `shadow skeleton`,
+  `shadow config`,
+  `shadow links`,
+  `shadow conclusion`,
+  `shadow refs`,
+  `client build`,
+  `commit read back` and `amend fields`,
+  and the seams sit where the work already changed hands:
+  the creation marks its stages in `shadow_create.rs`,
+  and the clock is handed to it so no stretch can hold another's work.
+- The build phase's clock is closed where the command stops and,
+  if no seam closed it,
+  where the record is written,
+  so a stopped commit states `buildMs` and never leaves the phase to `otherMs`.
+- `routeMs` states the one stretch before the first preparation that no phase covered:
+  the route to a service,
+  this commit's identity,
+  the standard input,
+  and the client's settings.
+  So `otherMs` is what it says it is:
+  the removal of a scratch tree and a write that waits for its reader,
+  both of which the record already names apart.
+
+Proof by removal,
+each control run against this branch's own change undone:
+
+- `commit_timing::the_record_names_every_stretch_of_the_build_phase` failed with
+  `the record has no build parts: {...}` once the record no longer wrote the field,
+  and passes with it.
+- `commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time` failed with
+  `the stopped build states its time: {...,"buildMs":0,"buildParts":{...},"otherMs":2025,...}`
+  while its `git commit` step ran 2 022 ms,
+  once both closers were removed.
+  That record is the defect of the live records reproduced on purpose:
+  `buildMs` 0 and the whole phase in `otherMs`.
+- `commit_build_part_durations::tests::*` hold the ledger itself:
+  an open stretch is kept when the build leaves,
+  a Git child is taken out of the stretch that held it,
+  a name marked twice is added together with its `calls`,
+  the list stops at its bound and counts the rest,
+  and a hostile name stays one JSON member.
+
+### After
+
+The same fixture,
+the release built from this branch,
+six commits of one service:
+
+- one commit's build of 1 438 ms:
+  `shadow skeleton` 1 426 ms,
+  every other name 0.
+  The stall that the live records hide inside an unnamed stretch is now one name.
+- twenty more commits:
+  `buildMs` median 9 ms,
+  max 16 ms,
+  `otherMs` 0 in all twenty,
+  and the creation named whenever it cost anything (`shadow skeleton` 7 ms and 5 ms).
+- `routeMs` is 0 to 2 ms in those six records and 3 ms in the record of another run,
+  which is the size of the stretch that used to be part of `otherMs`.
+
+What this does not claim:
+these commits met no stall,
+so nothing here measures a faster commit.
+What the records now measure is where a slow build waited.
+
+### The choices this leaves to the owner
+
+Nothing in the creation can be removed without changing what a commit is allowed to do:
+
+- The links are one per shared entry of the common directory,
+  enumerated rather than named,
+  so a repository's creation cost grows with whatever that directory collects.
+  Naming a fixed list instead would stop that,
+  and would also stop a hook in the shadow from resolving an entry the list does not hold
+  (`modules`, `lfs`, `info`, `rr-cache`, `branches`, a file an earlier release left).
+  The private index copies were taken out of the enumeration already,
+  on the argument that no hook resolves one.
+- The creation has to exist before the scratch `git commit` runs,
+  so it is on the commit's path by construction.
+  It could be made beside the preparation,
+  or in the service,
+  which would overlap it with work the commit already does,
+  at the cost of a tree whose owner,
+  lifetime and removal all move.
+  That is a decision about where a commit's state lives,
+  not a performance fix this record can make.
+
+What this does not determine:
+
+- whether the same calls cost the same on the person's own disk:
+  the fixture is on this volume,
+  and the live records are this volume at other moments.
+- what makes the volume stall.
+  The record now names the call a commit was in when it did,
+  which is what a later reading needs to correlate it with the kernel's own view.
