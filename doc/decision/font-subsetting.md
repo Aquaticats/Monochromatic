@@ -224,42 +224,12 @@ reading `hb-subset-wasm/src/api.ts:251-504` and
 
 ### Output sizes after migration (2026-05-12)
 
-<table>
-<thead>
-<tr>
-<th>Font</th>
-<th>subset-font</th>
-<th>hb-subset-wasm pipeline</th>
-<th>delta</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>inter.woff2</td>
-<td>76 468</td>
-<td>76 448</td>
-<td>−20</td>
-</tr>
-<tr>
-<td>interItalic.woff2</td>
-<td>82 444</td>
-<td>82 856</td>
-<td>+412</td>
-</tr>
-<tr>
-<td>monaspaceNeon.woff2</td>
-<td>78 344</td>
-<td>78 980</td>
-<td>+636</td>
-</tr>
-<tr>
-<td>materialSymbols.woff2</td>
-<td>7 372</td>
-<td>7 516</td>
-<td>+144</td>
-</tr>
-</tbody>
-</table>
+Font, subset-font, hb-subset-wasm pipeline, delta:
+
+- inter.woff2: 76 468, 76 448, −20
+- interItalic.woff2: 82 444, 82 856, +412
+- monaspaceNeon.woff2: 78 344, 78 980, +636
+- materialSymbols.woff2: 7 372, 7 516, +144
 
 All within ~1%;
  differences attributable to HarfBuzz version (`10.4.0` vs

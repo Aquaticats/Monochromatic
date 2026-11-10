@@ -25,42 +25,24 @@ from the live repo and the cloned candidate repositories under `/tmp/agent`.
 
 ## Candidates surveyed
 
-<table>
-<thead>
-<tr>
-<th align="left">Candidate</th>
-<th align="left">Source audited</th>
-<th align="left">Validation run</th>
-<th align="left">Nature</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td align="left">`pi-context` (`ttttmr/pi-context`)</td>
-<td align="left">Yes, `/tmp/agent/pi-context-20260615`</td>
-<td align="left">`npm run typecheck` passes; manual Pi CLI test only</td>
-<td align="left">Third-party Pi package</td>
-</tr>
-<tr>
-<td align="left">`pi-context-tools` (`theduke/pi-context-tools`)</td>
-<td align="left">Yes, `/tmp/agent/pi-context-tools-20260615`</td>
-<td align="left">`npm run typecheck` and `npm run lint` pass; tests are `echo &quot;No tests yet&quot;`</td>
-<td align="left">Third-party Pi package</td>
-</tr>
-<tr>
-<td align="left">`pi-boomerang` (`nicobailon/pi-boomerang`)</td>
-<td align="left">Yes, `/tmp/agent/pi-boomerang-20260615`</td>
-<td align="left">`npm run test` passes (176 vitest tests)</td>
-<td align="left">Third-party Pi package</td>
-</tr>
-<tr>
-<td align="left">Pi built-in auto-compaction and `/tree`</td>
-<td align="left">N/A (core feature)</td>
-<td align="left">Daily use in this repo</td>
-<td align="left">Pi core, no plugin needed</td>
-</tr>
-</tbody>
-</table>
+Candidate, Source audited, Validation run, Nature:
+
+- `pi-context` (`ttttmr/pi-context`)
+  - Yes, `/tmp/agent/pi-context-20260615`
+  - `npm run typecheck` passes; manual Pi CLI test only
+  - Third-party Pi package
+- `pi-context-tools` (`theduke/pi-context-tools`)
+  - Yes, `/tmp/agent/pi-context-tools-20260615`
+  - `npm run typecheck` and `npm run lint` pass; tests are `echo &quot;No tests yet&quot;`
+  - Third-party Pi package
+- `pi-boomerang` (`nicobailon/pi-boomerang`)
+  - Yes, `/tmp/agent/pi-boomerang-20260615`
+  - `npm run test` passes (176 vitest tests)
+  - Third-party Pi package
+- Pi built-in auto-compaction and `/tree`
+  - N/A (core feature)
+  - Daily use in this repo
+  - Pi core, no plugin needed
 
 ## Source-audit findings for `pi-context`
 
