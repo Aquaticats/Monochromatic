@@ -1,0 +1,29 @@
+{
+  "extends": "@monochromatic-dev/config-typescript/dom",
+  "include": [
+    "${configDir}/src/bridge-types.ts",
+    "${configDir}/src/confinement.ts",
+    "${configDir}/src/listing-sort.ts",
+    "${configDir}/src/listing.ts"
+  ],
+  "compilerOptions": {
+    "allowImportingTsExtensions": false,
+    "composite": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "erasableSyntaxOnly": true,
+    "isolatedDeclarations": true,
+    "module": "node20",
+    "moduleResolution": "node16",
+    "noEmit": false,
+    "noEmitOnError": true,
+    "outDir": "${configDir}/dist/main",
+    "rootDir": "${configDir}/src",
+    "sourceMap": true,
+    "types": [
+      "node",
+    ],
+    "verbatimModuleSyntax": true,
+  },
+}
