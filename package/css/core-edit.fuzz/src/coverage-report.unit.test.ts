@@ -263,17 +263,19 @@ await describe({
          Coverage and baseline both at `EXECUTED_FUNCTIONS`.
          */
         const fixture = await writeCoverageFixture(fixtureDir.path,);
-        await writeFile(
-          fixture.baselinePath,
-          JSON.stringify({ [FIXTURE_SOURCE_PATH]: EXECUTED_FUNCTIONS, },),
-        );
+        /**
+         Committed baseline the run must meet.
+         */
+        const baseline = { [FIXTURE_SOURCE_PATH]: EXECUTED_FUNCTIONS, };
+        await writeFile(fixture.baselinePath, JSON.stringify(baseline,),);
         /**
          Gate run in check mode.
          */
         const run = await runGate(['check', fixture.coverageDir, fixture.baselinePath,],);
         expect(run.status,).toBe(0,);
         expect(run.stdout,).toContain('coverage gate passed',);
-        expect(run.stdout,).toContain('1 files at or above baseline',);
+        expect(run.stdout,).toContain(`${String(Object.keys(baseline,)
+          .length,)} files at or above baseline`,);
       },
     },),
 
