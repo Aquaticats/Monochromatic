@@ -11,6 +11,8 @@
  because their provider modules load an optional peer package this repository
  does not install (`@google/genai` for google-generative-ai and google-vertex,
  `@aws-sdk/client-bedrock-runtime` for bedrock-converse-stream).
+ Their table entries are covered in `provider-dispatch.unit.test.ts` instead,
+ which drives the dispatch table with fake provider modules.
 
  @module
  */

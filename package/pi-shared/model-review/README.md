@@ -55,6 +55,19 @@ not consensus voting.
 and normalized failure diagnostic
 when no candidate returns a valid verdict.
 
+## Provider dispatch
+
+`dispatchProviderStream()` sends one isolated request through the lazy Pi AI
+provider module that the dispatch table records for the selected model's `api`,
+and `PROVIDER_STREAMS_BY_API` is that table.
+Each key names the API its module implements,
+so the table is the only per-provider statement in the package.
+An unregistered API fails with a message listing every registered one.
+
+Tests drive the table with fake provider modules,
+which keeps the Bedrock and Google entries covered
+without adding their optional SDKs as dependencies.
+
 ## Consumer boundary
 
 Auto-mode uses this package for its structured guard verdict transport.
