@@ -5,6 +5,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
+import { setTimeout as sleep, } from 'node:timers/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   dirname,
@@ -21,6 +22,15 @@ import {
   memoryPathOf,
   readRememberedActivityWord,
 } from '../dist/final/node/statusline.mjs';
+
+/**
+ Upper bound on the wait for the remembered read's start signal.
+
+ The signal arrives in the same turn once both reads are concurrent, so the bound is
+ only ever reached by a sequential pair, which must fail the assertion instead of
+ hanging the suite.
+ */
+const REMEMBERED_START_BOUND_MS = 1_000;
 
 /**
  Throwaway home directory that removes itself at the end of an `await using` scope.
@@ -316,6 +326,48 @@ await describe({
           transcriptPath,
           home: home.path,
         },),).toBe('Compiling',);
+      },
+    },),
+    it({
+      name: 'starts both reads before either one finishes',
+      fn: async function testReadsConcurrently(): Promise<void> {
+        await using home = await makeHome();
+        /**
+         Read lifecycle events in observed order.
+         */
+        const order: string[] = [];
+        /**
+         Signal the remembered read raises once it started, which is the only thing
+         that lets the fresh read finish.
+         */
+        const rememberedStarted = Promise.withResolvers<void>();
+
+        expect(await readRememberedActivityWord({
+          transcriptPath: join(
+            home.path,
+            'session-a.jsonl',
+          ),
+          home: home.path,
+          readFresh: async function gatedFreshRead(): Promise<string> {
+            order.push('fresh started',);
+            await Promise.race([
+              rememberedStarted.promise,
+              sleep(REMEMBERED_START_BOUND_MS,),
+            ],);
+            order.push('fresh finished',);
+            return 'Compiling';
+          },
+          readRemembered: async function signallingRememberedRead(): Promise<string> {
+            order.push('remembered started',);
+            rememberedStarted.resolve();
+            return 'Testing';
+          },
+        },),).toBe('Compiling',);
+        expect(order,).toEqual([
+          'fresh started',
+          'remembered started',
+          'fresh finished',
+        ],);
       },
     },),
   ],
