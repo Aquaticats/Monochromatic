@@ -70,7 +70,7 @@ export class PerfSamplesFailedError extends Error {
 }
 
 /**
- Requirements a finished run's judged figures reached, which is the answer the measurement gave.
+ Requirements a finished run's judged figures broke: the answer the measurement gave is that the wrapper is too slow.
  */
 export class PerfBoundsExceededError extends Error {
   /**
