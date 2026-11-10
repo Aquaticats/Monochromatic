@@ -70,8 +70,36 @@ pub trait WorkHandlers {
     /// which share a repository and a branch;
     /// the last is the newest.
     fn push(&self, items: &[WorkItem]) -> Verdict;
+    /// The same push,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The round's items are tasks,
+    /// and a handler that starts Git cannot be called from one;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// pushAwaiting(items: WorkItem[]): Promise<Verdict>
+    /// ```
+    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.push(items)));
+    }
     /// Run the repository's automatic upkeep.
     fn maintenance(&self, item: &WorkItem) -> Verdict;
+    /// The same upkeep,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The upkeep runs Git,
+    /// and a task may not start one from a synchronous face;
+    /// a handler that does no upkeep keeps the synchronous one as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// maintenanceAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn maintenance_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.maintenance(item)));
+    }
     /// Review one landed commit into the repository's shadow log.
     fn review(&self, item: &WorkItem) -> Verdict;
     /// Empty the directory of left-out files a snapshot-made worktree set aside;

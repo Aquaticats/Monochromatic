@@ -10,8 +10,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { Post, } from './content.ts';
-import { generateLanguageRss, } from './rss.ts';
+import {
+  generateLanguageRss,
+  type Post,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Older publication date that must not become item pubDate.
@@ -39,7 +41,9 @@ const UPDATED_POST: Post = {
     description: 'UI/UX designer and developer bridging design and engineering.',
     tags: ['portfolio',],
     published: PUBLISHED_DATE,
+    publishedOffsetMinutes: 0,
     updated: UPDATED_DATE,
+    updatedOffsetMinutes: 0,
   },
   body: '# About',
   filePath: 'src/content/en/about.mdx',
@@ -57,7 +61,9 @@ const OLDER_POST: Post = {
     description: 'Older post description.',
     tags: ['archive',],
     published: new Date('2026-04-01T00:00:00.000Z',),
+    publishedOffsetMinutes: 0,
     updated: OLDER_UPDATED_DATE,
+    updatedOffsetMinutes: 0,
   },
   body: '# Older',
   filePath: 'src/content/en/older.mdx',

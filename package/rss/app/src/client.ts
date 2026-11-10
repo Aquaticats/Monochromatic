@@ -171,6 +171,91 @@ const elements: NodeListOf<HTMLElement> = document.querySelectorAll<HTMLElement>
   '.feed',
 );
 /**
+ Ignores the feed element a reader scrolled past, once its link or metadata is
+ known.
+ 
+ Module scope rather than the listener's own closure, so the event callback
+ stays a thin dispatch and every statement below reads `element` explicitly.
+ 
+ @param element - Feed element the reader scrolled past
+ 
+ @mutates element - `element.dataset` records the ignored state once the endpoint accepts the record.
+ */
+async function ignoreScrolledOutElement(element: HTMLElement,): Promise<void> {
+  try {
+    tagged({
+      tag: bindScrollIgnore.name,
+      l: clientLogger,
+    },)
+      .debug('scrolled out, ignoring the feed entry',);
+    /**
+     Required metadata wrapper so a missing element fails loud, not silent.
+     */
+    const metadata = nonNullishOrThrow(
+      element.querySelector<HTMLElement>('.feed__metadata',),
+    );
+    /**
+     Required link anchor inside metadata so the href is guaranteed present.
+     */
+    const anchor: HTMLAnchorElement = nonNullishOrThrow(
+      metadata.querySelector<HTMLAnchorElement>('.feed__link',),
+    );
+
+    /**
+     Request body shape varies by whether the href is a valid URL.
+     */
+    const body: Record<string, string> = v
+      .safeParse(
+      v.pipe(
+        v.string(),
+        v.url(),
+      ),
+      anchor.href,
+      )
+      .success
+      ? { link: anchor.href, }
+      : { metadataOuterHtml: metadata.outerHTML, };
+
+    /**
+     Ignore-API response held so the ok check and text read share one Response.
+     */
+    const response = await fetch(
+      `/api/ignore/new`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body,),
+      },
+    );
+    if (!response.ok) {
+      tagged({
+        tag: bindScrollIgnore.name,
+        l: clientLogger,
+      },)
+        .error(`ignore request failed: ${String(response.status,)} ${response.statusText}`,);
+      return;
+    }
+    /**
+     Response text persisted for the success log line.
+     */
+    const text = await response.text();
+    tagged({
+      tag: bindScrollIgnore.name,
+      l: clientLogger,
+    },)
+      .debug(`ignored: ${text}`,);
+    element.dataset
+      .ignored = '';
+  }
+  catch (error: unknown) {
+    tagged({
+      tag: bindScrollIgnore.name,
+      l: clientLogger,
+    },)
+      .error(`scrolledOut handler failed: ${caughtValueText(error,)}`,);
+  }
+}
+
+/**
  Binds one host-created feed element to observer and event-listener state.
  
  @param element - Feed element supplied by browser NodeList iteration.
@@ -182,79 +267,7 @@ function bindScrollIgnore(element: HTMLElement,): void {
   element.addEventListener(
     'scrolledOut',
     function onScrolledOut() {
-      void (async function onScrolledOutAsync(): Promise<void> {
-        try {
-          tagged({
-            tag: bindScrollIgnore.name,
-            l: clientLogger,
-          },)
-            .debug('scrolled out, ignoring the feed entry',);
-          /**
-           Required metadata wrapper so a missing element fails loud, not silent.
-           */
-          const metadata = nonNullishOrThrow(
-            element.querySelector<HTMLElement>('.feed__metadata',),
-          );
-          /**
-           Required link anchor inside metadata so the href is guaranteed present.
-           */
-          const anchor: HTMLAnchorElement = nonNullishOrThrow(
-            metadata.querySelector<HTMLAnchorElement>('.feed__link',),
-          );
-
-          /**
-           Request body shape varies by whether the href is a valid URL.
-           */
-          const body: Record<string, string> = v
-            .safeParse(
-            v.pipe(
-              v.string(),
-              v.url(),
-            ),
-            anchor.href,
-            )
-            .success
-            ? { link: anchor.href, }
-            : { metadataOuterHtml: metadata.outerHTML, };
-
-          /**
-           Ignore-API response held so the ok check and text read share one Response.
-           */
-          const response = await fetch(
-            `/api/ignore/new`,
-            {
-              method: 'POST',
-              body: JSON.stringify(body,),
-            },
-          );
-          if (!response.ok) {
-            tagged({
-              tag: bindScrollIgnore.name,
-              l: clientLogger,
-            },)
-              .error(`ignore request failed: ${String(response.status,)} ${response.statusText}`,);
-            return;
-          }
-          /**
-           Response text persisted for the success log line.
-           */
-          const text = await response.text();
-          tagged({
-            tag: bindScrollIgnore.name,
-            l: clientLogger,
-          },)
-            .debug(`ignored: ${text}`,);
-          element.dataset
-            .ignored = '';
-        }
-        catch (error: unknown) {
-          tagged({
-            tag: bindScrollIgnore.name,
-            l: clientLogger,
-          },)
-            .error(`scrolledOut handler failed: ${caughtValueText(error,)}`,);
-        }
-      })();
+      void ignoreScrolledOutElement(element,);
     },
   );
 }

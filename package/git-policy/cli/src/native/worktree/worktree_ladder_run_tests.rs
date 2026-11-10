@@ -30,6 +30,7 @@ fn no_plan_means_the_persons_run() {
     let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
     assert_eq!(result.git, GitStatus { code: Some(0) });
     assert_eq!(result.carried, None);
+    assert_eq!(result.placed, None, "no rung put an object at the destination");
     assert!(result.claim.is_none(), "no plan means no record");
 }
 
@@ -49,6 +50,8 @@ fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of(
     let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
     assert_eq!(result.git, FAILED);
     assert_eq!(result.carried, None);
+    assert_eq!(result.placed, None);
+    assert!(result.claim.is_none(), "Git never ran, so no rung took a claim");
     assert!(!plan.destination.exists());
     remove(root.as_path());
 }
@@ -70,6 +73,7 @@ fn btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume() {
     let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
     assert_eq!(result.git, FAILED);
     assert_eq!(result.carried, None);
+    assert_eq!(result.placed, None);
     assert!(!plan.destination.exists(), "the empty subvolume is removed after a failed Git");
     assert!(result.claim.is_some(), "the record of the add is handed to the lifecycle rather than dropped");
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stands until its owner settles it");
@@ -94,6 +98,7 @@ fn btrfs_an_eligible_source_runs_git_without_a_checkout_and_a_failure_releases_t
     let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
     assert_eq!(result.git, FAILED);
     assert_eq!(result.carried, None);
+    assert_eq!(result.placed, None);
     assert!(result.claim.is_none(), "a Git that failed before the snapshot released the claim");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the claim is released");
     remove(root.as_path());

@@ -167,6 +167,46 @@ branch and checked-out files,
 and no ignored state.
 The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
 
+#### Wrapper landings on the evening of the overlay fix, and what they left open (2026-11-09T19:38:39-05:00)
+
+Landed on main,
+each tested on main first:
+
+- `994813362d`:
+  recovery clears the index lock a killed Git left and finishes the merge (305 unit and 44 end-to-end tests).
+- `72031f5156`:
+  a branch write refused by a reference lock names every standing lock (415 unit and 10 end-to-end tests).
+  The commit still does not land past a dead lock;
+  `doc/handover/questions-for-the-owner.md` asks the owner which of its options to take.
+- `355bacb1cd`:
+  the lock scan reads an overlay descriptor in a bounded child.
+  Its full container run ended 18 failed of 6,832,
+  and none of the 18 is an overlay test.
+- `7ef420a0e8`:
+  the two word-merge controls wait on the pass itself through a gated stand-in Git (9 unit and 40 end-to-end tests).
+
+Still open before a fresh release gate:
+
+- That run's 17 binary failures are in the `budget`,
+  `service_lane`,
+  `service_native`,
+  `service_replay`,
+  `service_provision`,
+  `dependent_version` and `option_order_guard` groups.
+  `fix/git-policy-cli-gate-failures-after-todays-landings` is working on gate failures,
+  and whether it covers all 17 is not known until it reports.
+  The one unit failure,
+  `worktree_copy_stage_claim::tests::a_record_whose_named_git_still_runs_is_kept_while...`,
+  has no owner yet.
+- `fix/git-policy-cli-worktree-copy-install-keeps-modes-and-finishes` passes 715 of 715 unit tests on main,
+  but `fault_trace::a_worktree_copy_killed_at_each_mkdir_leaves_a_recoverable_repository` failed:
+  a kill at the third `mkdir` left a worktree with no ignored rules file and no record naming it.
+  It went back to its agent and has not landed.
+
+The installed wrapper printed `could not stage ignored state from "/var/mnt/encrypted/repository/Monochromatic". Cause: No such file or directory (os error 2)` on five `git worktree add` runs during a landing.
+Each worktree stayed registered on its branch,
+and the agent runs restarted in them.
+
 #### Landings while the gate on `283d7d9053` runs, and what they left open (2026-11-09T19:02:02-05:00)
 
 Landed on main,
@@ -262,9 +302,15 @@ under rule `WGH`:
   and under rule `SUF` it stays a contention defect until it is.
 - `merge-and-pull-never-fail`:
   a dead Git's `index.lock` makes every command exit 2,
-  read-only commands wait 60 s over a saved merge,
-  and the owner's "Carry edits forward" is still not built:
+  and read-only commands wait 60 s over a saved merge:
   both are briefed.
+  Built since:
+  "Carry edits forward" (`feat/git-policy-cli-merge-carries-unsaved-edits-forward`,
+  `SPEC.md` "A merge whose paths hold the person's own work carries it forward"),
+  with one gap left:
+  a merge that would open an editor is still forwarded,
+  so native Git refuses it over unsaved work
+  (`--no-edit` completes it).
 - `never-stuck`:
   a FIFO at `.git/index.lock` or at a rules file blocked every command that read it for ever,
   and the commit service's landing behind it.
@@ -1505,6 +1551,72 @@ Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footpr
 Each item names what remains,
 where it lives and its evidence.
 
+### The wrapper landings of 2026-11-09 evening and the alpha they go into (2026-11-09T20:44:34-05:00)
+
+Landed on main,
+each tested on main before it landed:
+
+- `39801a1d28`,
+  the gate failures.
+- `85fa333a3d`,
+  read commands over a saved merge.
+- `3a1368a777`,
+  a merge carries unsaved and staged edits forward:
+  337 unit and 139 end-to-end tests.
+- `44928fdb53`,
+  the service's push chain awaited up to the work handlers:
+  1230 unit and 111 end-to-end tests.
+- `de4f941a05`,
+  a directory or pattern pathspec commits nothing unstaged,
+  the reflog message matches native Git,
+  and a service stopped by a signal removes its marker:
+  321 unit and 45 end-to-end tests.
+- `6bfecdf39a`,
+  a snapshot worktree add no longer reports a missing copy of ignored files:
+  573 unit and 36 end-to-end tests.
+- `7a7b494dcc`,
+  a first commit,
+  a `--patch` selection and a reused message land on a branch that moved:
+  31 end-to-end tests.
+  Of its 341 selected unit tests 338 passed and three timed out at the bound;
+  those three passed alone,
+  22 of 22 in their module.
+
+The release gate runs on `7a7b494dcc`:
+`~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-7a7b494dcc-20261109T204405-0500.log`.
+The next alpha is the first release with the owner's "About 16 seconds" ceiling.
+The worktree copy install branch,
+the wrapper lint branch,
+the commit build phase branch and the tokio recovery seam are not in this gate,
+and they go into the alpha after it.
+
+Measured from the main checkout's commit timing records over about four hours with about twenty agents committing,
+600 records,
+on the installed `0.6.1-alpha.5`:
+the total is 3,054 ms at the median,
+42,148 ms at p95 and 154,225 ms at most,
+and 45 records ended `stopped/1`.
+The four of those over 30 s each show `git commit` at about 3,025 ms,
+the old 3,006 ms ceiling.
+In the slowest records `buildMs` holds 24 to 63 s that no recorded step accounts for,
+and three commits on different branches finished that phase together after 30 s,
+so something they share holds them.
+The agent `commit-build-phase-unattributed-time` owns finding it and naming it in the record.
+
+Seen only inside a larger run,
+passing alone,
+and open under `AGENTS.md` `SUF`:
+
+- `landing::service_land::adoption_tests::a_socket_that_cannot_start_the_earlier_helper_does_not_hold_the_adoption`,
+  `an_open_batch_of_the_earlier_helper_is_finished_by_the_new_service` and `the_adoption_says_what_it_did_with_each_batch`
+  timed out at 300 s in a run of 341 tests that took 932 s.
+- `package_repair::a_running_repair_does_not_hold_another_add` failed once at 58.5 s;
+  it passed alone in 2 s and in a rerun of its set.
+- `[cache option] [drops the cache when watch sees a change]` in `package/upstream-fork/conf`
+  failed on main and in two landing runs.
+  The agent `oxlint-findings-left-on-main` owns it,
+  and the `conf` branch `fix/module-conf-fork-ready-bugs` lands after it.
+
 ### The shared locks, claims and transactions, after the audit's four fixes (2026-11-09T02:38:55-05:00)
 
 The audit is `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
@@ -1536,7 +1648,8 @@ now worded as this host's reading of the record.
 ### A sent-back commit keeps its private index, and a reference lock is named (2026-11-09T19:30:00-05:00)
 
 Branch `fix/git-policy-cli-commit-survives-dead-ref-lock-and-a-moved-branch`,
-from the Sonnet audit `~/temp/agent/sonnet-audits/commit-kills-and-concurrency/` (`final.md`, `findings.md`).
+from the Sonnet audit `~/temp/agent/sonnet-audits/commit-kills-and-concurrency/` (`final.md`,
+`findings.md`).
 Two findings,
 each with its control and its fix:
 a commit the service sent back to be prepared again read the private index of the attempt that captured it
@@ -3087,7 +3200,6 @@ still need building:
 a commit lands and exits 0 and the index catches up when the lock frees,
 a merge saves on a side ref and finishes the checkout when the lock frees),
 "Allowed refusals" (the person's hooks and required filters),
-"Carry edits forward" (merge over unsaved edits),
 and moved head stacks a new commit (amend,
 merge conclusion,
 revert).
@@ -6432,6 +6544,44 @@ are in append mode now).
   the new control would now name that as `limit=stall` instead of as a clock,
   which is what a
   reproduction would need.
+- `word_merge::an_edit_made_while_the_pass_merges_is_not_replaced` and
+  `word_merge::a_same_length_resolution_with_a_restored_time_is_not_replaced`
+  failed under host load at their own fifteen-second window:
+  at `c0bb93d036` the first failed at 16.06 s,
+  and on another branch the second at 16.29 s with the same assertion,
+  each passing alone.
+  Cause:
+  each control found the pass's own `git check-attr` by walking `/proc` for that child inside a window,
+  so the window,
+  and not the pass,
+  was what a loaded host ran out of.
+  Fixed on `test/git-policy-cli-word-merge-controls-wait-on-a-marker` (`76b18e0f3b`,
+  `3e9133dbd5`,
+  `47f4caf239`):
+  a stand-in Git on the run's `PATH` holds the pass at that one query and reads the control's word on a pipe
+  before it goes on (`binary_word_merge_pass_gate.rs`),
+  so the control waits on the pass and no clock is involved.
+  Planted,
+  each control against the guard it pins:
+  a baseline read at install time fails the first at 4.160 s with
+  "the other command's bytes survive",
+  and a length comparison instead of a byte comparison fails the second at 10.739 s.
+  Checks:
+  57 of 57 `word_merge` and `merge_second_pass` controls of the library,
+  39 of 39 of the binary target with the pair at 1.186 s and 1.224 s under a load average of 148,
+  and 39 of 39 again in 30.851 s at a load average of 68,
+  and 40 of 40 at the final commit,
+  the gate's own control included,
+  in 138.881 s with the pair at 1.004 s and 1.020 s,
+  and Clippy clean on every target.
+  The gate's own control is planted as well:
+  with the command's own end never spoken it waited until nextest's bound ended the test
+  (`TIMEOUT` at 300.007 s).
+  One run of the same binary selection at an 8 GiB scope memory cap had
+  `word_merge_finish::a_cherry_pick_range_is_resolved_and_continued`
+  ended by the supervisor's five-second idle rule while the commit service took 5,140 ms to land;
+  both of this pair passed in that run,
+  and the planning doc's section records it.
 
 ### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
 

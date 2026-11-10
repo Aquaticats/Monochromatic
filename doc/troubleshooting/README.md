@@ -118,7 +118,7 @@ Retired `@narumitw/pi-goal` behavior and migration:
 
 - paused or interrupted goals block unrelated built-in and custom tools
 - cached package files are not active configuration
-- migrate globally to repository-owned `@monochromatic-dev/pi-goal`
+- migrate globally to repository-owned `@monochromatic-dev/pi-plugin-goal`
 
 ### [OpenAI OAuth requests hit Cloudflare 520](openai-api-oauth-cloudflare-520.md)
 

@@ -85,6 +85,7 @@ fn record_of(world: &World, owner: TransactionOwner, target_ref: Option<&str>) -
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
         side_ref: None,
+        carried: None,
     };
     return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record");
 }
@@ -268,6 +269,7 @@ fn deferred_record_of(world: &World, id: &str, side_ref: &str) -> PathBuf {
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
         side_ref: Some(String::from(side_ref)),
+        carried: None,
     };
     return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record of a saved merge");
 }
@@ -996,6 +998,7 @@ fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),
         side_ref: None,
+        carried: None,
     };
     let place: RecoveryPlace = place(world);
     let changes: Vec<Change> = merge_changes(&place, world.repo.as_path(), &intent).expect("the merge's changes");

@@ -84,6 +84,9 @@ fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     assert_eq!(result.git, GitStatus { code: Some(0) });
     assert_eq!(result.carried, Some(root.join("topic")));
     assert!(result.claim.is_some(), "the record of the add travels on to the copy");
+    // The swap put the snapshot where Git's directory stood, so the destination is the object the rung made and not the one that was reserved before Git ran.
+    assert_eq!(result.placed, crate::worktree_add_binding::path_identity(root.join("topic").as_path()), "the destination is the snapshot the rung swapped in");
+    assert_eq!(result.trash, None);
     assert!(steps.is_empty(), "{steps:?}");
     let head: String = git_text(repo.as_path(), &["log", "-1", "--format=HEAD is now at %h %s"]);
     assert_eq!(printed, format!("{head}\n"));
@@ -164,6 +167,8 @@ fn btrfs_a_refused_step_destroys_the_stage_and_completes_the_checkout_like_git()
     });
     assert_eq!(result.git, GitStatus { code: Some(0) });
     assert_eq!(result.carried, None);
+    assert_eq!(result.placed, None, "Git's own checkout left the directory that was reserved");
+    assert_eq!(result.trash, None);
     assert!(result.claim.is_some(), "the record of the add travels on to the copy");
     assert_eq!(printed, "", "Git's own reset prints the line, not the ladder");
     assert_eq!(steps.len(), 1, "{steps:?}");
@@ -188,6 +193,8 @@ fn btrfs_a_failing_checkout_step_gives_its_status() {
     });
     assert_eq!(result.git, GitStatus { code: Some(1) });
     assert_eq!(result.carried, None);
+    assert_eq!(result.placed, None, "Git's own checkout left the directory that was reserved");
+    assert_eq!(result.trash, None);
     assert!(result.claim.is_some(), "the record of the add travels on to the copy");
     assert!(root.join("topic/.git").exists() && root.join("topic/stray").exists(), "nothing was deleted");
     assert!(repo.join(".git/worktrees/topic").exists(), "nothing was unregistered");

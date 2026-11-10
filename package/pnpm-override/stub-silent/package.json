@@ -3,7 +3,7 @@
   "name": "@monochromatic-dev/pnpm-override-stub-silent",
   "description": "Silent Proxy stub for packages blocklisted by .pnpmfile.mjs (action: silent).",
   "private": false,
-  "type": "commonjs",
+  "type": "module",
   "main": "./index.cjs",
   "types": "./index.d.cts",
   "exports": {
@@ -19,6 +19,8 @@
   ],
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:"
   },
   "dependencies": {},

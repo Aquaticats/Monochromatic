@@ -82,6 +82,7 @@ const INVENTORY: &[&str] = &[
     "service/journald_native.rs",
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
+    "landing/service_index_prestage.rs",
 ];
 
 /// Every `.rs` file below `root`,

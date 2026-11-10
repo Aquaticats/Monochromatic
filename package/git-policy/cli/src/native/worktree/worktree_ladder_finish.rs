@@ -97,11 +97,14 @@ impl From<PlaceError> for Ended {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Served = { line: string; trash?: PendingTrash };
+/// type Served = { line: string; placed: ObjectId; trash?: PendingTrash };
 /// ```
 struct Served {
     /// The line Git's checkout prints.
     line: String,
+    /// The object the destination names now:
+    /// the snapshot that was swapped into it.
+    placed: ObjectId,
     /// The trash the snapshot left,
     /// when it left one.
     trash: Option<PendingTrash>,
@@ -123,7 +126,7 @@ struct Served {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function serveSnapshot(args): Promise<{ line: string; trash?: PendingTrash }>;
+/// async function serveSnapshot(args): Promise<{ line: string; placed: ObjectId; trash?: PendingTrash }>;
 /// ```
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
     verify_association(bound)?;
@@ -167,7 +170,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     let exchange_entered: bool = begin_step("exchange");
     let exchange_outcome = put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id);
     end_step(exchange_entered);
-    exchange_outcome?;
+    let placed: ObjectId = exchange_outcome?;
     let settle_displaced_entered: bool = begin_step("settleDisplaced");
     let settle_displaced_outcome = settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice());
     end_step(settle_displaced_entered);
@@ -180,7 +183,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     if let Some(manifest) = trash {
         pending = Some(PendingTrash { destination: plan.destination.clone(), git_dir: target.admin.clone(), manifest, quiet: plan.quiet });
     }
-    return Ok(Served { line: target.line, trash: pending });
+    return Ok(Served { line: target.line, placed, trash: pending });
 }
 
 /// What:
@@ -363,14 +366,14 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```
 fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     if !git.succeeded() {
-        return LadderResult { git, carried: None, trash: None, claim: Some(claim) };
+        return LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) };
     }
     let bound: Bound = match bind(&claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
             warn(TAG, format!("monochromatic-git-policy-cli: {} was left as Git made it, without a checkout: {reason}", plan.destination.display()).as_str());
             report_incomplete(plan);
-            return LadderResult { git: GitStatus { code: Some(1) }, carried: None, trash: None, claim: Some(claim) };
+            return LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) };
         }
     };
     return match serve_clones(source, plan, &bound, run_git, context) {
@@ -378,13 +381,13 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
             debug(TAG, format!("clones served {}", plan.destination.display()).as_str());
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(line.as_bytes());
-            LadderResult { git, carried: None, trash: None, claim: Some(claim) }
+            LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) }
         }
         Err(reason) => {
             debug(TAG, format!("the clone rung ended: {reason}; Git checks the worktree out").as_str());
             // The clones failed after the cause that already sent the add this way, if any: the person hears the later one.
             *slow = Some(explain_failure(reason.as_str()));
-            LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, trash: None, claim: Some(claim) }
+            LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }
         }
     };
 }
@@ -409,7 +412,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
         Err(reason) => {
             warn(TAG, format!("monochromatic-git-policy-cli: {} was left as Git made it, without a checkout: {reason}", plan.destination.display()).as_str());
             report_incomplete(plan);
-            return LadderResult { git: GitStatus { code: Some(1) }, carried: None, trash: None, claim: Some(claim) };
+            return LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) };
         }
     };
     let mut made: Option<ObjectId> = None;
@@ -428,18 +431,18 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             if let Some(changed) = changes_left_out(source) {
                 record_left_out(plan.destination.as_path(), changed);
             }
-            LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()), trash: served.trash, claim: Some(claim) }
+            LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()), placed: Some(served.placed), trash: served.trash, claim: Some(claim) }
         }
         Err(ended) if ended.stage_is_ours => {
             debug(TAG, format!("the snapshot rung ended: {}; Git checks the worktree out", ended.reason).as_str());
             discard_stage(stage, made);
             *slow = Some(explain_failure(ended.reason.as_str()));
-            LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, trash: None, claim: Some(claim) }
+            LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }
         }
         Err(ended) => {
             warn(TAG, format!("monochromatic-git-policy-cli: the add of {} ended in a state the wrapper cannot untangle: {}; {} is not touched", plan.destination.display(), ended.reason, stage.display()).as_str());
             report_incomplete(plan);
-            LadderResult { git: GitStatus { code: Some(1) }, carried: None, trash: None, claim: Some(claim) }
+            LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) }
         }
     };
 }
@@ -490,14 +493,14 @@ impl Ladder {
             (Rung::Snapshot(source, claim), Some(plan)) => {
                 if !git.succeeded() {
                     release_claim(claim, false);
-                    return LadderResult { git, carried: None, trash: None, claim: None };
+                    return LadderResult { git, carried: None, placed: None, trash: None, claim: None };
                 }
                 let stage: PathBuf = claim.container().to_path_buf();
                 finish_snapshot(&source, plan, stage.as_path(), claim, run_git, context, out, note, &mut slow)
             }
             (Rung::Snapshot(_, claim), None) => {
                 release_claim(claim, false);
-                LadderResult { git, carried: None, trash: None, claim: None }
+                LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }
             (Rung::Clone(source, subvolume, claim), Some(plan)) => {
                 let result: LadderResult = finish_clones(&source, plan, git, claim, run_git, context, out, &mut slow);
@@ -511,13 +514,13 @@ impl Ladder {
                     settle_subvolume_destination(created);
                 }
                 release_claim(claim, false);
-                LadderResult { git, carried: None, trash: None, claim: None }
+                LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }
             (Rung::Git(subvolume), _) => {
                 if let Some(created) = subvolume.as_ref() {
                     settle_subvolume_destination(created);
                 }
-                LadderResult { git, carried: None, trash: None, claim: None }
+                LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }
         };
         // Only an add that succeeded is told as a slow one; a refused or failed add has a worse thing to say.

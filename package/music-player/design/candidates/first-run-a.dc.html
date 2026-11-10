@@ -76,10 +76,10 @@ class Component extends DCLogic {
     ];
     const analysed = s.mode === "scanning" || s.pref === "always";
     const capt = {
-      prompt: "FIRST RUN — the app found the system music library (Android MediaStore / XDG Music) and opened it without being asked. Analysis does NOT start on its own: the bottom edge asks once, with all four answers as 48dp targets. Tap one.",
-      scanning: "SCANNING — the chosen Scan-F bar: count plus a fixed-width Pause that is always rendered, so nothing reflows mid-scan. It leaves when the scan finishes (D13). Rows show true peak as it arrives; unanalysed rows show duration only.",
-      dismissed: "DISMISSED ONCE — bottom edge is empty, the library plays immediately, and rows carry no dB value until something asks for one. The prompt returns next launch. \"Dismiss forever\" would leave Re-analyse on the track menu as the only entry point (D12).",
-      never: "DISMISSED FOREVER — same screen, but the prompt never returns; Re-analyse on the track context menu is the only remaining entry point (D12)."
+      prompt: "FIRST RUN: the app found the system music library (Android MediaStore / XDG Music) and opened it without being asked. Analysis does NOT start on its own: the bottom edge asks once, with all four answers as 48dp targets. Tap one.",
+      scanning: "SCANNING: the chosen Scan-F bar: count plus a fixed-width Pause that is always rendered, so nothing reflows mid-scan. It leaves when the scan finishes (D13). Rows show true peak as it arrives; unanalysed rows show duration only.",
+      dismissed: "DISMISSED ONCE: bottom edge is empty, the library plays immediately, and rows carry no dB value until something asks for one. The prompt returns next launch. \"Dismiss forever\" would leave Re-analyse on the track menu as the only entry point (D12).",
+      never: "DISMISSED FOREVER: same screen, but the prompt never returns; Re-analyse on the track context menu is the only remaining entry point (D12)."
     };
     return {
       scale: s.scale, boxW: Math.round(411 * s.scale) + "px", boxH: Math.round(923 * s.scale) + "px",

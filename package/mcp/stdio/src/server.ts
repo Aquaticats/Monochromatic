@@ -124,75 +124,6 @@ export function createMcpServer(
     ...((config.title === undefined) ? {} : { title: config.title, }),
   };
 
-  //region Request dispatch: routes JSON-RPC methods to handlers
-
-  /**
-   Routes a version-checked request to the matching method handler.
-   
-   @param request - Inbound request whose declared revision this server implements.
-   
-   @returns JSON-RPC success or error response.
-   */
-  function routeRequest(request: JsonRpcRequest,): Promise<JsonRpcOutbound> {
-    /**
-     Request `id` is echoed in the response; `method` selects the branch below.
-     */
-    const {
-      id,
-      method,
-    } = request;
-
-    if (method === 'server/discover') {
-      return Promise.resolve(respondSuccess({
-        id,
-        result: buildDiscoverResult({
-          serverInfo,
-          capabilities: config.capabilities ?? {
-            tools: {},
-            ...(resources === undefined ? {} : { resources: {}, }),
-          },
-          cache: config.discoverCache ?? DEFAULT_CACHE_HINT,
-          ...((config.instructions === undefined) ? {} : { instructions: config.instructions, }),
-        },),
-      },),);
-    }
-    if (method === 'tools/list') {
-      return Promise.resolve(respondSuccess({
-        id,
-        result: buildListToolsResult({
-          tools: [...toolMap.values(),].map(function getDefinition(registered,) {
-            return registered.definition;
-          },),
-          serverInfo,
-          cache: config.toolsCache ?? DEFAULT_CACHE_HINT,
-        },),
-      },),);
-    }
-    if (method === 'tools/call') {
-      return handleToolCall({
-        toolMap,
-        request,
-        serverInfo,
-      },);
-    }
-    if (method === 'resources/list') {
-      return respondResourcesList({ id, },);
-    }
-    if (method === 'resources/read') {
-      return respondResourcesRead({
-        id,
-        ...(request.params === undefined ? {} : { params: request.params, }),
-      },);
-    }
-    return Promise.resolve(
-      respondError({
-        id,
-        code: JSON_RPC_METHOD_NOT_FOUND,
-        message: `Method not found: ${method}`,
-      },),
-    );
-  }
-
   //region Resource dispatch: answers the dynamic resource surface when configured
 
   /**
@@ -302,6 +233,75 @@ export function createMcpServer(
   }
 
   //endregion
+
+  //region Request dispatch: routes JSON-RPC methods to handlers
+
+  /**
+   Routes a version-checked request to the matching method handler.
+   
+   @param request - Inbound request whose declared revision this server implements.
+   
+   @returns JSON-RPC success or error response.
+   */
+  function routeRequest(request: JsonRpcRequest,): Promise<JsonRpcOutbound> {
+    /**
+     Request `id` is echoed in the response; `method` selects the branch below.
+     */
+    const {
+      id,
+      method,
+    } = request;
+
+    if (method === 'server/discover') {
+      return Promise.resolve(respondSuccess({
+        id,
+        result: buildDiscoverResult({
+          serverInfo,
+          capabilities: config.capabilities ?? {
+            tools: {},
+            ...(resources === undefined ? {} : { resources: {}, }),
+          },
+          cache: config.discoverCache ?? DEFAULT_CACHE_HINT,
+          ...((config.instructions === undefined) ? {} : { instructions: config.instructions, }),
+        },),
+      },),);
+    }
+    if (method === 'tools/list') {
+      return Promise.resolve(respondSuccess({
+        id,
+        result: buildListToolsResult({
+          tools: [...toolMap.values(),].map(function getDefinition(registered,) {
+            return registered.definition;
+          },),
+          serverInfo,
+          cache: config.toolsCache ?? DEFAULT_CACHE_HINT,
+        },),
+      },),);
+    }
+    if (method === 'tools/call') {
+      return handleToolCall({
+        toolMap,
+        request,
+        serverInfo,
+      },);
+    }
+    if (method === 'resources/list') {
+      return respondResourcesList({ id, },);
+    }
+    if (method === 'resources/read') {
+      return respondResourcesRead({
+        id,
+        ...(request.params === undefined ? {} : { params: request.params, }),
+      },);
+    }
+    return Promise.resolve(
+      respondError({
+        id,
+        code: JSON_RPC_METHOD_NOT_FOUND,
+        message: `Method not found: ${method}`,
+      },),
+    );
+  }
 
   /**
    Validates the request's declared protocol revision, then routes it.

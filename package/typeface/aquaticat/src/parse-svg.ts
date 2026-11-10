@@ -62,6 +62,16 @@ type MutableCell = {
 const ATTRIBUTE_ABSENT: unique symbol = Symbol('aquaticat/svg-attribute-not-present-in-element',);
 
 /**
+ Matches one attribute of a raw attribute string: its name, the quote that
+ opens its value, and that value. Matching a whole attribute at a time keeps a
+ `name=<quote>` sequence inside another attribute's value, or a name that
+ merely ends with the sought one, from being read as the attribute itself.
+ */
+/* oxlint-disable no-restricted-syntax/no-regex -- SVG attribute tokenizer: one name of non-space, non-`=` characters, then one quoted value. The lazy value stops at the next matching quote, so every character is visited a bounded number of times; the input is one element's attribute string from a bounded master strip. */
+const ATTRIBUTE_REGEX = /(?<name>[^\s=]+)\s*=\s*(?<quote>['"])(?<value>.*?)\k<quote>/gsu;
+/* oxlint-enable no-restricted-syntax/no-regex */
+
+/**
  Extracts an XML attribute value by name from a raw attribute string.
  Accepts both double- and single-quoted values: the Figma-exported master
  strip SVG this parser reads uses single quotes throughout.
@@ -85,38 +95,13 @@ function attr({
   readonly attrs: string;
   readonly name: string;
 },): string | typeof ATTRIBUTE_ABSENT {
-  for (const quote of [
-    '"',
-    '\'',
-  ] as const) {
+  for (const match of attrs.matchAll(ATTRIBUTE_REGEX,)) {
     /**
-     Literal token to locate for this quote style; the value starts immediately after this prefix.
+     Name and value of the attribute the current match spans, if it captured both.
      */
-    const needle = `${name}=${quote}`;
-    /**
-     Index of the first occurrence of `name=<quote>`; -1 when this quote style is absent.
-     */
-    const start = attrs.indexOf(needle,);
-    if (start === (-1))
-      continue;
-    /**
-     First char of the value, just past the quote opener.
-     */
-    const valueStart = start + needle
-      .length;
-    /**
-     Closing-quote position bounded by value start; -1 when the SVG is malformed.
-     */
-    const valueEnd = attrs.indexOf(
-      quote,
-      valueStart,
-    );
-    if (valueEnd === (-1))
-      continue;
-    return attrs.slice(
-      valueStart,
-      valueEnd,
-    );
+    const { groups, } = match;
+    if (groups?.name === name)
+      return groups.value ?? '';
   }
   return ATTRIBUTE_ABSENT;
 }
@@ -150,9 +135,7 @@ export function parseSvg(svgContent: string,): Cell[] {
   const elementRegex = /<(?<tag>rect|path)\s+(?<attrs>[^>]*?)\/>/gu;
   /* oxlint-enable no-restricted-syntax/no-regex */
 
-  for (let match = elementRegex.exec(svgContent,); match !== null;
-    match = elementRegex.exec(svgContent,))
-    {
+  for (const match of svgContent.matchAll(elementRegex,)) {
     /**
      Named capture groups from the current match: `tag` is the element name and `attrs` the raw attribute string.
      */
@@ -250,14 +233,14 @@ export function parseSvg(svgContent: string,): Cell[] {
      Most recently pushed cell, which owns every `<path>` until the next `<rect>` appears.
      */
     const currentCell = cells.at(-1,);
-    if (currentCell !== undefined) {
-      currentCell.paths
-        .push({
-          d,
-          isStroked,
-          strokeWidth,
-        },);
-    }
+    if (currentCell === undefined)
+      throw new Error(`path data before the first cell rect: ${d}`,);
+    currentCell.paths
+      .push({
+        d,
+        isStroked,
+        strokeWidth,
+      },);
   }
 
   return cells;
@@ -318,13 +301,19 @@ export function parseSvgPathD(d: string,): SVGPathCommand[] {
   /**
    Last command letter seen, which determines how subsequent number tokens are consumed.
    
-   Declared as `let` because the regex loop reassigns it whenever a new command
+   Declared as `let` because the token loop reassigns it whenever a new command
    letter is matched; coordinate tokens between letters apply to whatever letter
    was set most recently.
    */
   let currentCmd = '';
+  /**
+   One ordered token stream over the path data. A paired Y coordinate consumes
+   the next token from this same iterator, so iteration state lives here and
+   never in the regex's `lastIndex`.
+   */
+  const tokens = d.matchAll(tokenRegex,);
 
-  for (let tok = tokenRegex.exec(d,); tok !== null; tok = tokenRegex.exec(d,)) {
+  for (const tok of tokens) {
     /**
      Named capture groups from the current token: `command` for a letter, `number` for a value.
      */
@@ -349,17 +338,28 @@ export function parseSvgPathD(d: string,): SVGPathCommand[] {
       /**
        Y coordinate token paired with the just-consumed X for M/L commands.
        */
-      const yTok = tokenRegex.exec(d,);
-      if (yTok === null)
-        break;
+      const yTok = tokens.next();
+      if (yTok.done === true)
+        throw new Error(
+          `path data ends where a Y coordinate belongs, after ${num}: ${d}`,
+        );
       /**
        Named capture groups of the paired Y token; `number` holds the coordinate value.
        */
-      const { groups: yGroups, } = yTok;
+      const { groups: yGroups, } = yTok.value;
+      /**
+       Numeric text of the paired Y coordinate, absent when the token is a command letter.
+       */
+      const yNumber = yGroups?.number;
+      if (yNumber === undefined) {
+        throw new Error(
+          `expected a Y coordinate after ${num} in path data: ${d}`,
+        );
+      }
       commands.push({
         type: currentCmd,
         x: num,
-        y: Number(yGroups?.number,),
+        y: Number(yNumber,),
       },);
     }
     else if (currentCmd === 'H') {

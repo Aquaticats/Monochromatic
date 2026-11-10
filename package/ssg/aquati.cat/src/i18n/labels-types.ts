@@ -19,11 +19,15 @@ export type Label =
     | 'siteDescription'
     | 'chooseALang'
     | 'searchPlaceholder'
-    | 'noResults'
-    | 'page'
     | 'postNotInLang'
     | 'redirectingToLangChooser'
     | 'themeToggle'
     | 'langSwitcher'
     | 'published'
-    | 'updated';
+    | 'updated'
+    | 'brandImageAlt'
+    | 'alertCaution'
+    | 'alertImportant'
+    | 'alertNote'
+    | 'alertTip'
+    | 'alertWarning';

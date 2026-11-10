@@ -99,6 +99,7 @@ pub struct Ladder {
 /// Git's status as the person should see it,
 /// the destination whose
 ///  ignored state the rung already carried,
+/// the object the rung left at that destination,
 /// the trash a snapshot left there,
 /// and the claim that names this add.
 /// Why:
@@ -108,6 +109,10 @@ pub struct Ladder {
 ///  once the repair has run,
 /// beside it,
 /// so the lifecycle owns the emptying.
+/// A rung that swapped its own snapshot into the destination
+///  replaced the directory Git made,
+/// so the object at the path is the snapshot and not the one the lifecycle reserved,
+///  and only the rung can say which object that is.
 /// The claim is handed over rather than released:
 /// a rung that takes the claim from the caller would otherwise leave the add with no record between the end of its
 ///  checkout and the copy's own claim,
@@ -115,7 +120,7 @@ pub struct Ladder {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LadderResult = { git: GitStatus; carried?: string; trash?: PendingTrash; claim?: StageClaim };
+/// type LadderResult = { git: GitStatus; carried?: string; placed?: ObjectId; trash?: PendingTrash; claim?: StageClaim };
 /// ```
 #[derive(Debug)]
 pub struct LadderResult {
@@ -123,6 +128,10 @@ pub struct LadderResult {
     pub git: GitStatus,
     /// The destination that received the source's ignored state with the snapshot.
     pub carried: Option<PathBuf>,
+    /// The object that destination names now,
+    /// when a rung put its own there;
+    /// the snapshot that was swapped into place.
+    pub placed: Option<crate::fs_beneath::ObjectId>,
     /// The trash that snapshot left in the destination,
     /// when it left one.
     #[cfg(target_os = "linux")]

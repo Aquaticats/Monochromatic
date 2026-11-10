@@ -2,7 +2,7 @@
  Post card component.
  
  Renders a single blog post as a card with title, description,
- tags, and date range inside a `<post-card>` custom element.
+ tags, and date range, inside the list item the grid places in its `<ul>`.
  Styles and template are colocated so internal class names
  (`.overlay`, `.description`, `.tags`, `.date`, `.tag-link`)
  are scoped to this file.
@@ -28,7 +28,11 @@ import { prettyDate, } from '../template/pretty-date.ts';
 /**
  Card layout and internal element styles.
  
- @returns CSS string for the `<post-card>` element
+ Scoped to the list item that holds a `<post-card>`, because the custom element
+ itself is `display: contents` (see the site-wide `[data-is]` rule) and so has
+ no box to position the card's overlay against.
+ 
+ @returns CSS string for the post grid's list items
  
  @example
  ```ts
@@ -37,8 +41,8 @@ import { prettyDate, } from '../template/pretty-date.ts';
  */
 export function css(): string {
   return [
-    $({
-      rule: 'post-card li',
+    $({ 
+      rule: 'li:has(> post-card)',
       decls: {
         position: 'relative',
       },
@@ -104,7 +108,11 @@ export function css(): string {
 //region HTML
 
 /**
- Renders a post card inside a `<post-card>` custom element.
+ Renders a post card inside the list item that holds it.
+ 
+ The `<li>` is the list item, so the post grid's `<ul>` keeps only list items as
+ children per the HTML list content model; the `<post-card>` element sits inside
+ the item and carries the card's own styles.
  
  @param post - post data to render
  
@@ -136,65 +144,63 @@ export function html(post: Post,): string {
     },);
 
   return h({
-    tag: 'post-card',
-    attrs: { 'data-is': '', },
-    children: [
-      h({
-        tag: 'li',
-        children: [
-          h({
-            tag: 'a',
-            class: 'overlay',
-            attrs: { href: `/${post.lang}/${post.name}`, },
-            text: post.data
-              .title,
-          },),
-          h({
-            tag: 'div',
-            children: [
-              h({
-                tag: 'h2',
-                text: post.data
-                  .title,
-              },),
-              h({
-                tag: 'p',
-                class: 'description',
-                text: post.data
-                  .description,
-              },),
-              h({
-                tag: 'aside',
-                children: [
-                  h({
-                    tag: 'ul',
-                    class: 'tags',
-                    children: tagItems,
-                  },),
-                  h({
-                    tag: 'span',
-                    class: 'date',
-                    children: [
-                      prettyDate({
-                        date: post.data
-                          .published,
-                        lang: post.lang,
-                      },),
-                      ' - ',
-                      prettyDate({
-                        date: post.data
-                          .updated,
-                        lang: post.lang,
-                      },),
-                    ],
-                  },),
-                ],
-              },),
-            ],
-          },),
-        ],
-      },),
-    ],
+    tag: 'li',
+    children: [h({
+      tag: 'post-card',
+      attrs: { 'data-is': '', },
+      children: [
+        h({
+          tag: 'a',
+          class: 'overlay',
+          attrs: { href: `/${post.lang}/${post.name}`, },
+          text: post.data
+            .title,
+        },),
+        h({
+          tag: 'div',
+          children: [
+            h({
+              tag: 'h2',
+              text: post.data
+                .title,
+            },),
+            h({
+              tag: 'p',
+              class: 'description',
+              text: post.data
+                .description,
+            },),
+            h({
+              tag: 'aside',
+              children: [
+                h({
+                  tag: 'ul',
+                  class: 'tags',
+                  children: tagItems,
+                },),
+                h({
+                  tag: 'span',
+                  class: 'date',
+                  children: [
+                    prettyDate({
+                      date: post.data
+                        .published,
+                      lang: post.lang,
+                    },),
+                    ' - ',
+                    prettyDate({
+                      date: post.data
+                        .updated,
+                      lang: post.lang,
+                    },),
+                  ],
+                },),
+              ],
+            },),
+          ],
+        },),
+      ],
+    },),],
   },);
 }
 

@@ -273,6 +273,13 @@ export type PenpotDocument = {
   manifest: PenpotManifest;
   file: PenpotFile;
   pages: Map<Uuid, PenpotPage>;
+  /**
+   Root frame of every page, keyed by page id.
+   
+   Penpot requires each page to carry the same all-zero root-frame id, so the
+   frames cannot share one shape-id keyed map across pages.
+   */
+  rootFrames: Map<Uuid, PenpotShape>;
   shapes: Map<Uuid, PenpotShape>;
   media: Map<Uuid, PenpotMedia>;
   storageObjects: Map<Uuid, {

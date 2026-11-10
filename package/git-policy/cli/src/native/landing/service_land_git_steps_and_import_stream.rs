@@ -84,6 +84,22 @@ pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: 
 }
 
 pub(crate) fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+    let words: Vec<std::ffi::OsString> = arguments.iter().map(std::ffi::OsString::from).collect();
+    return run_words(git, repository, words.as_slice(), input);
+}
+
+/// What:
+///  `run` for a command line that is not all UTF-8,
+///  which the reflog message of a commit whose message is not UTF-8 needs.
+/// Why:
+///   The message is one argument of `git update-ref -m`,
+/// so its bytes reach Git as they are and no text conversion can change them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git(['update-ref', '-m', message, '--stdin'], { input: transaction })
+/// ```
+pub(crate) fn run_words(git: &GitContext, repository: &Path, arguments: &[std::ffi::OsString], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.input = input;
     return match run_git(git, &request) {

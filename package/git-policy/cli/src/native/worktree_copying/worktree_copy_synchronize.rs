@@ -293,14 +293,9 @@ pub(crate) fn synchronize_after(
     if !copies {
         return Ok(Vec::new());
     }
-    // A snapshot rung swapped this command's own snapshot into the destination after proving the registration it was
-    // bound to, so the worktree is this command's whatever object the reservation captured before that swap: the ignored
-    // state the person asked for is already there, and the record of this add is settled as a whole one's.
-    if let Some(carried_root) = carried
-        && carried_root == destination
-    {
-        return Ok(vec![destination.to_path_buf()]);
-    }
+    // A snapshot rung that served the add reports the object it swapped into the destination, and `settle_creation`
+    // reserves that object as this command's own, so the ownership question below answers `Mine` for a worktree the
+    // snapshot filled and no missing-copy line is written. Nothing here needs to skip the question.
     let ownership: DestinationOwnership = ownership_of(reserved, git_succeeded, destination);
     // This command's own name for the registration: its stage claim's random name, which no other command shares, and the
     // process, so the person's line can name which process made a worktree this command did not.
