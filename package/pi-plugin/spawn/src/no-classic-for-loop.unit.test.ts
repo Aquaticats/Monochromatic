@@ -114,7 +114,7 @@ async function shippedModuleNames(): Promise<readonly string[]> {
  A classic head separates its clauses with semicolons, which no `for...of` or
  `for...in` head carries between its own parentheses. The head is read from its
  `for (` prefix to the last `)` on the line, so a head split across lines reads
- as compliant; every loop in this codebase sits on one line.
+ as compliant; no loop head in this package spans a line break.
 
  @param line - one line of module source
 
