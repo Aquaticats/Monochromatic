@@ -74,16 +74,21 @@ console.log(r.resolve('proper-lockfile'))"
 ## Repair with pnpm itself
 
 Reprobed at 2026-11-10T02:05:55-05:00 against
-`@earendil-works/pi-coding-agent` 1.5.1, the version this repository pins today
+`@earendil-works/pi-coding-agent` 1.5.1,
+the version this repository pins today
 (the 1.5.0/`6997a68d` directory this record first named no longer receives installs):
-`pnpm install --force --offline --frozen-lockfile`, run in the affected worktree,
+`pnpm install --force --offline --frozen-lockfile`,
+run in the affected worktree,
 rewrote the link and needed no hand-written symlink.
 
-Before the `--force` run, seventeen of the twenty-five `1.5.1/<hash>` link directories
-under the store carried a dangling `node_modules/proper-lockfile`, including
+Before the `--force` run,
+seventeen of the twenty-five `1.5.1/<hash>` link directories
+under the store carried a dangling `node_modules/proper-lockfile`,
+including
 `a0e03dcc9a3e104accb0b5668344df7db96167cc345e0684dff316a3ac16121a`,
 the one the worktree's `package/pi-plugin/advisor` resolves.
-Its target climbed thirteen levels and then named `var/mnt/...`, so resolution
+Its target climbed thirteen levels and then named `var/mnt/...`,
+so resolution
 from the real parent landed on `/var/var/mnt/...`:
 
 ```text
@@ -91,22 +96,31 @@ from the real parent landed on `/var/var/mnt/...`:
 ```
 
 A plain `pnpm install --offline --frozen-lockfile` in the same worktree reported
-`Already up to date` and changed nothing, matching the symptom above.
+`Already up to date` and changed nothing,
+matching the symptom above.
 The `--force` run finished in 24 seconds and wrote the same thirteen levels against
-`mnt/...` instead, which resolves through `/var` to the worktree's shim:
+`mnt/...` instead,
+which resolves through `/var` to the worktree's shim:
 
 ```text
 ../../../../../../../../../../../../../mnt/encrypted/repository/Monochromatic/.claude/worktrees/<worktree>/package/pnpm-override/shim-proper-lockfile
 ```
 
-Re-probed after the run, `os.path.exists()` through that link answered `true`,
+Re-probed after the run,
+`os.path.exists()` through that link answered `true`,
 and the four unit suites of `package/pi-plugin/advisor` that load
 `@earendil-works/pi-coding-agent` at runtime
-(`extension`, `operation-failure-accounting`, `rendering-error`, `rendering-operation`)
-ran green; before it, each failed with `ERR_MODULE_NOT_FOUND: Cannot find package
+(`extension`,
+`operation-failure-accounting`,
+`rendering-error`,
+`rendering-operation`)
+ran green;
+before it,
+each failed with `ERR_MODULE_NOT_FOUND: Cannot find package
 'proper-lockfile'`.
 
-`--force` repairs only the resolution the install used. The sixteen other dangling
+`--force` repairs only the resolution the install used.
+The sixteen other dangling
 `1.5.1/<hash>` directories stayed dangling when that run finished.
 
 ## Limits
