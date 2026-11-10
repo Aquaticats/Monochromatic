@@ -366,9 +366,6 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
-## Answered in the question tool, recorded 2026-11-10T11:15:59-05:00
-
-### A clean that deletes ignored files in a linked worktree
 ## Answered in a message, recorded 2026-11-10T09:15:14-05:00
 
 ### Container base stays CachyOS
@@ -616,22 +613,18 @@ exit 0,
 and the audit log records the command",
 about a linked worktree holding `node_modules/`,
 `dist/`,
-a `.env` copied from the main checkout and a file the agent wrote itself.
+a `.env` copied from main and a hand-written `notes.local.txt`,
+all ignored.
 It follows the earlier "Log only" for `git worktree remove`.
+The main checkout always refuses that clean,
+and that stays:
+an untracked file still refuses a `-x` clean in a linked worktree,
+and a tracked change still refuses every clean.
 `git clean -x` counts tracked and untracked work only,
-`git clean -X` asks nothing and runs,
-the main checkout still refuses both,
-and an untracked file still refuses a `-x` clean.
+and `git clean -X` asks nothing and runs.
 Branch `fix/git-policy-cli-git-clean-in-a-linked-worktree-allowed-and-logged`,
 documented in `package/git-policy/cli/SPEC.md`,
 section "Discarding commands".
-and the audit log records the command."
-The example held `node_modules/`,
-`dist/`,
-a `.env` copied from main and a hand-written `notes.local.txt`,
-all ignored.
-The main checkout always refuses,
-and that stays.
 
 ### A `git add` that selects the whole repository
 

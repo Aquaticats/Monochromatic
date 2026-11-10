@@ -1416,7 +1416,8 @@ highest priority first:
   (`package/git-policy/cli/SPEC.md`,
   "Discarding commands";
   the answer is recorded under "Answered in the question tool,
-  recorded 2026-11-10T11:15:59-05:00" in `doc/handover/questions-for-the-owner.md`).
+  recorded 2026-11-10T08:04:14-05:00" in `doc/handover/questions-for-the-owner.md`,
+  as "`git clean -fdx` in a linked worktree").
   The owner question on forced checkouts is still in `questions-for-the-owner.md`.
   Its report names 83 `service run` processes alive from other worktrees,
   and `fault_trace::slow_flushes_delay_a_commit_and_change_nothing_else` failing before its changes because its `strace` injection never matched.
