@@ -9,6 +9,10 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { mkdirSync as makeScratchBase } from 'node:fs';
+import {
+  needRuleNames,
+  ruleNameAt
+} from './text-scan.mjs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -907,15 +911,155 @@ const relaxed = join(
   fixture,
   'scan-indicator-relaxed.mjs'
 );
-function ruleLine({
+// The whole `need({ ... });` call that declares `rule`, with the indentation before it and the newline
+// after it, so deleting it from a builder copy leaves the surrounding block valid.
+// What: find each `need(` call, read its declared rule name with the shared `ruleNameAt`, and where the
+// name matches, walk to the call's closing parenthesis.
+// Why: the printed builder spreads one call over several lines, so a line is not a statement; the call,
+// not its layout, is the unit a mutation deletes.
+function ruleStatement({
   source,
   rule
 }) {
-  const lines = source.split('\n')
-    .filter(line => line.includes(`need({ rule: '${rule}',`));
-  if (lines.length !== 1) throw new Error(`Exact scan-indicator rule line absent: ${  rule}`);
-  return `${lines[0]  }\n`;
+  let from = 0;
+  while (from < source.length) {
+    const at = source.indexOf(
+      'need(',
+      from
+    );
+    if (at === (-1)) break;
+    if (ruleNameAt({
+      source,
+      callStart: at
+    }) === rule) {
+      const end = callEnd({
+        source,
+        callStart: at
+      });
+      const lineStart = source.lastIndexOf(
+        '\n',
+        at
+      ) + 1;
+      const lineEnd = source.indexOf(
+        '\n',
+        end
+      );
+      return source.slice(
+        lineStart,
+        lineEnd === (-1) ? source.length : lineEnd + 1
+      );
+    }
+    from = at + 1;
+  }
+  throw new Error(`Exact scan-indicator rule call absent: ${  rule}`);
 }
+
+// Where the `need(` call at `callStart` ends: just past its closing parenthesis and its semicolon.
+// What: count parentheses, skipping over quoted strings, template text and comments, because a detail or a
+// holds expression can carry brackets that are not the call's own.
+function callEnd({
+  source,
+  callStart
+}) {
+  let depth = 0;
+  let index = callStart + 'need'.length;
+  while (index < source.length) {
+    const character = source[index];
+    if ((character === "'") || (character === '"') || (character === '`')) {
+      index = quotedEnd({
+        source,
+        start: index
+      });
+      continue;
+    }
+    if ((character === '/') && (source[index + 1] === '/')) {
+      const lineEnd = source.indexOf(
+        '\n',
+        index
+      );
+      if (lineEnd === (-1)) break;
+      index = lineEnd;
+      continue;
+    }
+    if ((character === '/') && (source[index + 1] === '*')) {
+      const close = source.indexOf(
+        '*/',
+        index + '/*'.length
+      );
+      if (close === (-1)) break;
+      index = close + '*/'.length;
+      continue;
+    }
+    if (character === '(') depth += 1;
+    else if (character === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        const after = index + 1;
+        return source[after] === ';' ? after + 1 : after;
+      }
+    }
+    index += 1;
+  }
+  throw new Error('Scan-indicator rule call is not closed.');
+}
+
+// The text between the braces of the function declaration named `name`.
+// What: find `function <name>(`, then the opening brace, then walk to its matching closing brace.
+// Why: a mutation that removes a function's work has to name the function, not the layout somebody
+// last printed it in.
+function functionBody({
+  source,
+  name
+}) {
+  const declaration = source.indexOf(`function ${name}(`);
+  if (declaration === (-1)) throw new Error(`Exact scan-indicator function absent: ${  name}`);
+  const open = source.indexOf(
+    '{',
+    declaration
+  );
+  if (open === (-1)) throw new Error(`Exact scan-indicator function has no body: ${  name}`);
+  let depth = 0;
+  let index = open;
+  while (index < source.length) {
+    const character = source[index];
+    if ((character === "'") || (character === '"') || (character === '`')) {
+      index = quotedEnd({
+        source,
+        start: index
+      });
+      continue;
+    }
+    if (character === '{') depth += 1;
+    else if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(
+        open + 1,
+        index
+      );
+    }
+    index += 1;
+  }
+  throw new Error(`Exact scan-indicator function is not closed: ${  name}`);
+}
+
+// Just past the quoted text that opens at `start`.
+function quotedEnd({
+  source,
+  start
+}) {
+  const quote = source[start];
+  let index = start + 1;
+  while (index < source.length) {
+    if (source[index] === '\\') {
+      index += 2;
+      continue;
+    }
+    if (source[index] === quote) return index + 1;
+    index += 1;
+  }
+  throw new Error('Scan-indicator rule call holds an unterminated string.');
+}
+
 function escapingHolds() {
   const input = structuredClone(manifest);
   pick({
@@ -955,7 +1099,7 @@ try {
     ),
     'utf8'
   );
-  const rules = [...new Set([...source.matchAll(/need\(\{ rule: '([a-z-]+)',/g)].map(match => match[1]))];
+  const rules = [...new Set(needRuleNames({ source }))];
   const covered = new Set(cases.map(testCase => testCase.rule));
   const uncovered = rules.filter(rule => !covered.has(rule));
   const unknown = [...covered].filter(rule => !rules.includes(rule));
@@ -972,17 +1116,19 @@ try {
       ...rules,
       'html-escape'
     ].includes(target)))) throw new Error('Unknown scan-indicator consumer mutation.');
-    const escape = `return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');`;
-    if (source.split(escape)
-      .length
-      !== 2) throw new Error('Exact scan-indicator escape body absent.');
+    // The escaping rule is checked by deleting the escape itself, so the mutation names the function and
+    // replaces everything between its braces; pinning the printed body made this test fail on a reformat.
+    const escapeBody = functionBody({
+      source,
+      name: 'escapeHtml'
+    });
     let subject = source;
     if (target === 'html-escape') subject = source.replace(
-      escape,
+      escapeBody,
       'return text;'
     );
     else if (target !== undefined) subject = source.replace(
-      ruleLine({
+      ruleStatement({
         source,
         rule: target
       }),
@@ -995,7 +1141,7 @@ try {
     writeFileSync(
       relaxed,
       subject.replace(
-        ruleLine({
+        ruleStatement({
           source,
           rule: 'status-reading-authored'
         }),
