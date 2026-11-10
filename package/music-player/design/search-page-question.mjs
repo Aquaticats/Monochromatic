@@ -507,7 +507,7 @@ function validate() {
       });
     }
   }
-  const urls = [...html.matchAll(/data:image\/png;base64,([A-Za-z0-9+/=]+)/g)].map((match) => match[1]);
+  const urls = findPngDataPayloads({ text: html });
   if ((urls.length !== ((scenes.length
     * 2)
     + 2)) || (new Set(urls).size !== (scenes.length
