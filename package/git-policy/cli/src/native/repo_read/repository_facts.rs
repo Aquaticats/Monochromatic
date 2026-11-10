@@ -46,6 +46,8 @@ use crate::repository_location::{
 use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
 use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
 use crate::command_clean::clean_would_delete_from_answer;
+/// The answer one `git add` selection question gives.
+use crate::rule_add_explicit::StagedSelection;
 /// The expression Git resolves for a shorthand only `switch` and `checkout` read.
 use crate::command_discard::previous_branch_expression;
 use crate::rule_worktree_dirty::{
@@ -104,6 +106,11 @@ pub trait RepositoryFacts {
     fn location(&mut self) -> Result<RepositoryLocation, String>;
     /// Whether the index differs from `HEAD`.
     fn index_vs_head(&mut self) -> Result<IndexVsHead, String>;
+    /// How many paths the given positional pathspecs select,
+    ///  and how many the whole worktree and the directory the command runs in give,
+    ///  for the `git add` these pathspecs belong to.
+    /// Asked only when a pathspec is no ordinary named path.
+    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String>;
     /// Whether the worktree holds uncommitted state of the given scope.
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String>;
     /// The worktree's ignored files whose paths the given revision's tree also tracks,
@@ -199,7 +206,7 @@ pub struct GitFacts {
     real_git: PathBuf,
     /// The arguments before the subcommand,
     ///  without wrapper controls.
-    global_prefix: Vec<OsString>,
+    pub(super) global_prefix: Vec<OsString>,
     /// Variables added to every Git child.
     overlay: Vec<(OsString, OsString)>,
     /// The remembered location answer,
@@ -279,7 +286,7 @@ impl GitFacts {
     /// ```ts
     /// async query(args: string[], fact: string): Promise<MetadataOutput>;
     /// ```
-    fn query(&mut self, arguments: Vec<OsString>, fact: &str) -> Result<MetadataOutput, String> {
+    pub(super) fn query(&mut self, arguments: Vec<OsString>, fact: &str) -> Result<MetadataOutput, String> {
         self.queries += 1;
         // `match` unpacks the start result; `Ok`/`Err` are the success/failure variants.
         match run_metadata_git(
@@ -362,6 +369,21 @@ impl GitFacts {
 }
 
 /// What:
+///  The text one unreadable location answer is reported as.
+///  `std::io::Error` is the operating system's own error.
+/// Why:
+///   Callers of the facts interface report failures as text,
+///  and a named function keeps the conversion out of a closure the linter cannot keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const errorAsMessage = (error: Error) => error.message;
+/// ```
+fn error_as_message(error: std::io::Error) -> String {
+    return error.to_string();
+}
+
+/// What:
 ///  `impl RepositoryFacts for GitFacts` provides the interface's methods for the
 ///       real-Git provider.
 /// Why:
@@ -387,7 +409,9 @@ impl RepositoryFacts for GitFacts {
         let arguments: Vec<OsString> = location_query_arguments(self.global_prefix.as_slice());
         let answer: Result<RepositoryLocation, String> =
             match self.query(arguments, "the repository location") {
-                Ok(output) => read_location(&output),
+                // An unreadable answer becomes the message the caller reports.
+                Ok(output) => parse_location_output(output.success, output.stdout.as_slice())
+                    .map_err(error_as_message),
                 Err(message) => Err(message),
             };
         // `Some(x)` is the "present" case of `Option`.
@@ -406,6 +430,10 @@ impl RepositoryFacts for GitFacts {
         // A trailing `?` returns the failure to our caller, or unwraps the output.
         let output: MetadataOutput = self.query(arguments, "the index state")?;
         return Ok(index_state_from_exit(output.code));
+    }
+
+    fn staged_selection(&mut self, pathspecs: Vec<OsString>) -> Result<StagedSelection, String> {
+        return crate::repository_facts_staged_selection::staged_selection(self, pathspecs);
     }
 
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
@@ -514,6 +542,9 @@ impl RepositoryFacts for GitFacts {
         );
     }
 
+    /// What:
+    ///  The location when it was already asked for,
+    ///  without asking.
     fn asked_location(&self) -> Option<Result<RepositoryLocation, String>> {
         return self.location.clone();
     }
@@ -550,44 +581,25 @@ impl RepositoryFacts for GitFacts {
 }
 
 /// What:
-///  Read the location answer,
-///  turning an unreadable one into a message.
-///       `&MetadataOutput` borrows the captured query result.
-/// Why:
-///   Callers of the facts interface report failures as text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { return parseLocationOutput(output.success, output.stdout); } catch (e) { throw String(e); }
-/// ```
-fn read_location(output: &MetadataOutput) -> Result<RepositoryLocation, String> {
-    match parse_location_output(output.success, output.stdout.as_slice()) {
-        Ok(location) => return Ok(location),
-        // `.to_string()` renders the input/output error as owned text.
-        Err(error) => return Err(error.to_string()),
-    }
-}
-
-/// What:
 ///  Whether the file at the path Git printed exists,
 ///  without following a final link.
 ///       `&[u8]` borrows the path bytes.
 /// Why:
 ///   Git itself tests these head files with `lstat`,
 ///  so a dangling link counts as
-///       present here too.
+///       present here too,
+///  and the ref-storage reader already answers the same question one `Path` at a time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const exists = await lstat(path).then(() => true, () => false);
+/// const exists = (path: Buffer) => { const found = pathFromGitBytes(path); return found !== undefined && somethingIsAt(found); };
 /// ```
 fn head_file_exists(path: &[u8]) -> bool {
     // `match` unpacks "a path or nothing": empty bytes are not a path.
-    match path_from_git_bytes(path) {
-        // `.is_ok()` is true when the file's metadata could be read.
-        Some(found) => return std::fs::symlink_metadata(found).is_ok(),
-        None => return false,
-    }
+    return match path_from_git_bytes(path) {
+        Some(found) => crate::sequencer_marker::something_is_at(found.as_path()),
+        None => false,
+    };
 }
 
 /// Query-count and disposable-repository controls stay out of the release executable.

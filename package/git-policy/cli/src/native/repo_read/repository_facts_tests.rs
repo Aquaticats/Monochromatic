@@ -20,6 +20,7 @@ use crate::command_test_support::{
     git, git_status, repository, repository_with_tracked_file, start_conflicted_merge,
 };
 use crate::repository_location::RepositoryLocation;
+use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
 use crate::test_support::{REAL_GIT, executable, fixture, remove};
@@ -372,6 +373,106 @@ fn each_fact_is_one_process_with_the_global_prefix_and_overlay() {
          overlay|-C somewhere diff-index --quiet --cached HEAD --\n\
          overlay|-C somewhere rev-parse --path-format=absolute --git-path MERGE_HEAD --git-path CHERRY_PICK_HEAD --git-path REVERT_HEAD\n\
          overlay|-C somewhere for-each-ref --format=%(refname) refs/heads/topic refs/remotes/*/topic\n"
+    );
+    remove(root.as_path());
+}
+
+/// What one `git add` selects is counted against the whole worktree and against the directory the
+///  command runs in,
+/// so a spelling that reaches everything from below the top is refused there too.
+#[test]
+fn a_selection_is_counted_against_the_repository_and_the_callers_directory() {
+    let root: PathBuf = fixture("facts-selection");
+    let main: PathBuf = repository(root.as_path(), "main");
+    std::fs::write(main.join("a.txt"), b"a\n").expect("a.txt");
+    std::fs::write(main.join("b.md"), b"b\n").expect("b.md");
+    std::fs::create_dir(main.join("sub")).expect("sub directory");
+    std::fs::write(main.join("sub/c.txt"), b"c\n").expect("c.txt");
+    git(main.as_path(), &["add", "--", "a.txt", "b.md", "sub/c.txt"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=tree"]);
+    let spellings = |values: &[&str]| -> Vec<OsString> {
+        let mut words: Vec<OsString> = Vec::<OsString>::new();
+        for value in values {
+            words.push(OsString::from(value));
+        }
+        return words;
+    };
+    // From the top level the whole worktree and the caller's own directory are the same three paths.
+    let mut at_top: GitFacts = facts_in(&[main.as_path()]);
+    assert_eq!(
+        at_top.staged_selection(spellings(&[":/"])),
+        Ok(StagedSelection {
+            selected: 3,
+            repository: 3,
+            directory: 3,
+        })
+    );
+    assert_eq!(at_top.queries, 2, "one listing of the spellings and one of the worktree");
+    // From `sub` the top of the worktree is three paths and the caller's directory is one, so only the
+    //  top-level spelling reaches everything.
+    let below: PathBuf = main.join("sub");
+    let mut at_top_of_below: GitFacts = facts_in(&[below.as_path()]);
+    assert_eq!(
+        at_top_of_below.staged_selection(spellings(&[":/"])),
+        Ok(StagedSelection {
+            selected: 3,
+            repository: 3,
+            directory: 1,
+        })
+    );
+    let mut at_below: GitFacts = facts_in(&[below.as_path()]);
+    assert_eq!(
+        at_below.staged_selection(spellings(&["."])),
+        Ok(StagedSelection {
+            selected: 1,
+            repository: 3,
+            directory: 1,
+        })
+    );
+    // A spelling that selects one path of the three is no sweep, and both sets are still counted.
+    let mut named: GitFacts = facts_in(&[main.as_path()]);
+    assert_eq!(
+        named.staged_selection(spellings(&["*.md"])),
+        Ok(StagedSelection {
+            selected: 1,
+            repository: 3,
+            directory: 3,
+        })
+    );
+    assert_eq!(named.queries, 2);
+    // A spelling nothing matches asks nothing further either.
+    let mut nothing: GitFacts = facts_in(&[main.as_path()]);
+    assert_eq!(
+        nothing.staged_selection(spellings(&["nothing-here"])),
+        Ok(StagedSelection {
+            selected: 0,
+            repository: 0,
+            directory: 0,
+        })
+    );
+    assert_eq!(nothing.queries, 1);
+    remove(root.as_path());
+}
+
+/// A selection that cannot be listed is a failure naming the fact,
+///  never an empty answer that would prove a command stages nothing.
+#[test]
+fn an_unlistable_selection_fails_the_fact() {
+    let root: PathBuf = fixture("facts-selection-missing");
+    let missing: PathBuf = root.join("no-git");
+    let mut facts: GitFacts = git_facts(missing.as_path(), &[], &[]);
+    let failure: String = facts
+        .staged_selection(vec![OsString::from(".")])
+        .expect_err("no Git to ask");
+    assert!(
+        failure.starts_with(
+            format!(
+                "monochromatic-git-policy-cli could not start {} to read the paths a git add selects: ",
+                missing.display()
+            )
+            .as_str()
+        ),
+        "{failure}"
     );
     remove(root.as_path());
 }

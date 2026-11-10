@@ -115,7 +115,14 @@ Read-only commands,
   `linked-worktree-only` keeps every command form that can discard uncommitted work out of the main worktree,
    and out of a linked worktree while it holds uncommitted work (see "Discarding commands").
   `branch-worktree-only` sends branch creation through `git worktree add`.
-  `add-explicit` rejects bulk staging patterns such as `git add .`.
+  `add-explicit` refuses a `git add` whose pathspec selects every path of the repository or of the
+   directory it runs in,
+   however that pathspec is spelled (`git add .`,
+  `git add *`,
+  `git add .//`,
+  `git add sub/..`),
+   and says how many paths it selected.
+  A `git add` that names its paths starts no process for this.
 - Commits landed by a service.
   A `git commit` is prepared in a private index,
    the content policies check the exact bytes,
@@ -2571,6 +2578,15 @@ Listing one with a severity is the only way to turn it on,
    default `error`.
 - `add-explicit`:
    default `error`.
+  A `git add` must name the paths it stages.
+  Bulk flags (`-A`,
+  `--all`,
+  `-u`,
+  `--update`) are refused from the arguments alone,
+  and a positional pathspec is refused when Git finds it selects every path of the repository or of
+   the directory the command runs in,
+   unless the spelling names a character of a name (see `SPEC.md`,
+  "Bulk staging").
 - `final-newline`:
    default `warn`.
   Text files end with exactly one line feed.

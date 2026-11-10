@@ -8181,45 +8181,103 @@ The wrapper recognizes its flag only before Git's `--` separator and removes it 
 
 ### Bulk staging
 
-`add-explicit` decides from the arguments and the caller's pathspec-mode variable alone,
-reads no file and starts no process.
-It rejects `-A`,
+`add-explicit` refuses a `git add` whose pathspec selects every path it could reach,
+however that pathspec is spelled,
+and the finding says how many paths it selected.
+
+`-A`,
 `--all`,
 `-u`
-and `--update`
-with the option spellings Git accepts,
-and it rejects a positional pathspec equal to one of nine fixed spellings that Git resolves to
-the whole worktree
-(or,
-for `.` and `./`,
-to every changed path below the working directory):
+and `--update` are decided from the arguments alone,
+with the option spellings Git accepts.
+They stage every changed path whatever the tree holds,
+so they are refused without asking the repository anything,
+and the finding says whether every changed path or every changed tracked path is swept up.
+
+A positional pathspec is judged by what Git says it selects.
+An ordinary named path,
+meaning one with no pathspec magic,
+no glob character and no `.` or `..` segment
+(`file.ts`,
+`dir/`,
+`.hidden`),
+stages what its name holds:
+it is let through and starts no process.
+Every other spelling is measured,
+with two listings after the caller's own global options:
+
+- `ls-files -z --cached --others --exclude-standard` with the caller's own pathspecs,
+  in the caller's own pathspec mode,
+  so `--literal-pathspecs` and `GIT_LITERAL_PATHSPECS` answer for that caller.
+  `--cached` and `--others` together are the paths `git add` can stage,
+  and `--exclude-standard` leaves out the ignored ones it would skip.
+- when that listing holds at least one path,
+  `--no-literal-pathspecs ls-files -z --cached --others --exclude-standard --full-name -- :/`
+  is every path the worktree gives.
+  The wrapper wrote that pathspec,
+  so no caller mode may read it as a name,
+  and the paths under the caller's own directory prefix are the set that directory gives.
+
+A selection is always a subset of those paths,
+so equal counts are equal sets,
+and the policy refuses a pathspec when its selection is the repository's whole set
+or the set of the directory the command runs in,
+and only then when the spelling names no character of a name:
+a pattern of wildcards alone (`*`,
+`**`,
+`:(glob)**`),
+a spelling that resolves to a directory (`sub/..`,
+`.//`,
+`././`),
+an exclusion (`:!x`,
+`:^x`,
+`:(exclude)x`,
+`:(attr:!nope)`),
+or a filter such as case-insensitive matching with no pattern that names anything.
+A spelling that names a character of a name is let through even where the tree happens to fit it,
+because `*.txt` in a repository whose every path is a `.txt` file stages by name and not by reach.
+Several pathspecs of one command are measured together,
+and only the reach-only ones are named.
+
+The finding names every refused token as the caller wrote it,
+says what it selects
+(`It selects all 5 paths of this repository.`,
+`It selects all 2 paths of this directory.`),
+and offers `--no-enforce-bulk-add` for one invocation.
+A flag alone says the set it reaches instead,
+which needs no measurement:
+`It selects every changed path in this repository.` or
+`It selects every changed tracked path in this repository.`
+
+Under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1` the pattern of a spelling is a name,
+so only a spelling that resolves to a directory is reach-only:
 `.`,
-`./`,
-`*`,
-`:/`,
-`:/*`,
-`:/**`,
-`:(top)`,
-`**`
-and `:(glob)**`.
-The list is a fixed enumeration in `command/command_add.rs` and is therefore incomplete by nature:
-pathspec magic and globs can select the same set in further spellings.
-`:(top)/*` is not in it because Git 2.56.0 fails in its own pathspec preparation
-(`fatal: oops in prep_exclude`),
-so the command stops as an engine failure naming `content-unavailable` before the policy is asked.
-The rejection names every matched token as the caller wrote it and offers
-`--no-enforce-bulk-add` for one invocation.
-A token that names the working directory still does so whatever pathspec mode the caller set,
-so `.` and `./` stay bulk under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1`;
-every other spelling of the list is one plain name under that mode
-(so `**` stages a file named `**`,
-and `:/` names no file and is left to Git's own refusal),
-and the policy reads the caller's mode
-(the last of `--literal-pathspecs` and `--no-literal-pathspecs` among its global options,
-and otherwise the variable's own boolean reading)
-before it judges a spelling.
-A variable value Git would refuse to read as a boolean is no mode,
-so an unmodelled spelling keeps the rejection rather than lifting it.
+`./`
+and `sub/..` are refused there,
+while `**` stages the one file of that name.
+The mode is the last of `--literal-pathspecs` and `--no-literal-pathspecs` among the caller's global options,
+and otherwise the variable's own boolean reading;
+a value Git would refuse to read as a boolean is no mode.
+
+A listing that cannot start,
+fails or reaches the read ceiling never blocks the command:
+the add runs unchanged,
+and one line on standard error says the check could not be made with the reason Git gave.
+The read is bounded by `READ_CEILING` (`repo_read/git_metadata.rs`,
+`PLUMBING_STEP_CEILING` in `service/wait_ceilings.rs`: two minutes),
+and the person is never held longer.
+A spelling Git itself cannot prepare,
+such as `:(top)/*` (Git 2.56.0 fails in its own `prep_exclude`),
+gets that line and then Git's own refusal.
+
+An ordinary name costs nothing;
+a spelling that is no ordinary name costs two listing reads,
+the second only when the first found a path.
+Measured on 2026-11-10 in a worktree of 22,993 paths,
+five samples of each:
+the selection listing took 8.9 to 9.7 ms and the worktree listing 46.8 to 49.2 ms,
+so the guard adds under 60 ms to a `git add` whose pathspec is no ordinary name,
+and the whole worktree listing is the larger part.
 
 ## Whole-sequence fixing
 
