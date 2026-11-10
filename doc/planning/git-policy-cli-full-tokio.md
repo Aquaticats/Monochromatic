@@ -8281,7 +8281,12 @@ the container gate,
   Commits `3119b082ad` (the folder's awaited Git),
   `56ac3e5cff` (the sink through the caller and the completed fast-forward),
   `9ae3763224` (the renewal's stop)
-  and `4a1933e2b9` (the folder's files and its closures).
+  and `4a1933e2b9` (the folder's files and its closures),
+  then `078fe5e35f` and `632563c60d` and `3e296677a4` (this section and its
+  corrections),
+  `0f7dd7eb3b` (the two `return`s clippy asked for)
+  and `0f3ff72ea7` (the renewal's stop inside the runtime).
+  `283cd190c7` and `4e6689c961` are this section's own runs.
   Not merged into main.
 - The brief's first item,
   the recovery folder's awaited Git seam,
