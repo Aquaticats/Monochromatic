@@ -276,10 +276,10 @@ and handovers.
 
 After the initial schedule:
 
-1. Collect every new CAC synonym or feature term from official metadata.
-2. Append one de-duplicated CAC-only query round to each applicable source.
-3. Freeze the expanded schedule.
-4. Record later terms without adding queries.
+1.  Collect every new CAC synonym or feature term from official metadata.
+2.  Append one de-duplicated CAC-only query round to each applicable source.
+3.  Freeze the expanded schedule.
+4.  Record later terms without adding queries.
 
 ## Query ledger and saturation
 
@@ -1089,15 +1089,15 @@ Source input:
 
 Top-level operations:
 
-1. Copy the read-only source into private scratch.
-2. Activate the manifest-pinned `pnpm@10.30.3` through Node 24 Corepack.
-3. Run `pnpm install --frozen-lockfile --ignore-scripts`.
-4. Enumerate every installed package manifest containing
-   `preinstall`,
-   `install`,
-   `postinstall`,
-   or `prepare`.
-5. Record scratch byte use and stop if it exceeds 1.5 GiB.
+1.  Copy the read-only source into private scratch.
+2.  Activate the manifest-pinned `pnpm@10.30.3` through Node 24 Corepack.
+3.  Run `pnpm install --frozen-lockfile --ignore-scripts`.
+4.  Enumerate every installed package manifest containing
+    `preinstall`,
+    `install`,
+    `postinstall`,
+    or `prepare`.
+5.  Record scratch byte use and stop if it exceeds 1.5 GiB.
 
 Reachable command tree:
  container shell,

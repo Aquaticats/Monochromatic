@@ -493,24 +493,24 @@ Cli-git is owned by this repository,
 `.out-of-scope/` has no matching exemption,
 and the fix lands here.
 
-1. **Is it really upstream's fault?**
-   No external upstream exists;
-   the defects are in this repository's worktree-copy journaling,
-   recovery,
-   and lock usage.
-2. **Can upstream fix it?**
-   The owned implementation was fixed.
-3. **Are they supporting this use case?**
-   Yes;
-   linked-worktree ignored-state copying is a documented feature in `package/git-policy/cli/README.md`.
-4. **Would the repo welcome our contribution?**
-   This is the owning repository.
-5. **Will they likely fix it?**
-   The fix and regression tests are committed.
-6. **Have we prototyped a minimal compatible fix?**
-   Yes;
-   the regression tests fail before it and pass after,
-   and each guard was shown to fail its tests when removed.
+1.  **Is it really upstream's fault?**
+    No external upstream exists;
+    the defects are in this repository's worktree-copy journaling,
+    recovery,
+    and lock usage.
+2.  **Can upstream fix it?**
+    The owned implementation was fixed.
+3.  **Are they supporting this use case?**
+    Yes;
+    linked-worktree ignored-state copying is a documented feature in `package/git-policy/cli/README.md`.
+4.  **Would the repo welcome our contribution?**
+    This is the owning repository.
+5.  **Will they likely fix it?**
+    The fix and regression tests are committed.
+6.  **Have we prototyped a minimal compatible fix?**
+    Yes;
+    the regression tests fail before it and pass after,
+    and each guard was shown to fail its tests when removed.
 
 Nothing should be posted externally.
 The repository commits and this record are the filing artifact.

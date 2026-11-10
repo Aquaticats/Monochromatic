@@ -216,40 +216,40 @@ Tradeoff:
  It stops
 at constraint 1.
 
-1. Is it really upstream's fault?
-    No,
-    not as a bug.
-    The binding-loop detection is correct:
-    `default-font-size:
-   0.9rem` genuinely is `x = 0.9 * x`.
-    The gap versus the web is that CSS adds an explicit special case
-   (root-element `rem` uses the initial value) that Slint does not.
-    That is a design choice,
-    so a "make
-   `default-font-size` resolve its own `rem` against the platform default like CSS does for `:root`" request would
-   be a feature enhancement,
-    not a defect report.
-2. Can upstream fix it?
-    A CSS-style carve-out is implementable in principle (resolve the property's own `rem`
-   against the platform/fallback base rather than the resolved value),
-    but it is a semantic change,
-    not a bug fix.
-3. Are they supporting this use case?
-    Relative scaling via `rem` is supported for ordinary properties;
-    only the
-   self-referential base is special.
-    The supported path is the host-applied base above.
-4. Would the repo welcome the contribution?
-    Not evaluated;
-    no filing follows from constraint 1.
-5. Will they likely fix it?
-    Not applicable;
-    no defect.
-6. Have we prototyped a minimal fix?
-    Not applicable;
-    the resolution is a consumer-side idiom (the host-applied
-   scale),
-    not an upstream change.
+1.  Is it really upstream's fault?
+     No,
+     not as a bug.
+     The binding-loop detection is correct:
+     `default-font-size:
+    0.9rem` genuinely is `x = 0.9 * x`.
+     The gap versus the web is that CSS adds an explicit special case
+    (root-element `rem` uses the initial value) that Slint does not.
+     That is a design choice,
+     so a "make
+    `default-font-size` resolve its own `rem` against the platform default like CSS does for `:root`" request would
+    be a feature enhancement,
+     not a defect report.
+2.  Can upstream fix it?
+     A CSS-style carve-out is implementable in principle (resolve the property's own `rem`
+    against the platform/fallback base rather than the resolved value),
+     but it is a semantic change,
+     not a bug fix.
+3.  Are they supporting this use case?
+     Relative scaling via `rem` is supported for ordinary properties;
+     only the
+    self-referential base is special.
+     The supported path is the host-applied base above.
+4.  Would the repo welcome the contribution?
+     Not evaluated;
+     no filing follows from constraint 1.
+5.  Will they likely fix it?
+     Not applicable;
+     no defect.
+6.  Have we prototyped a minimal fix?
+     Not applicable;
+     the resolution is a consumer-side idiom (the host-applied
+    scale),
+     not an upstream change.
 
 Decision:
  do not file.

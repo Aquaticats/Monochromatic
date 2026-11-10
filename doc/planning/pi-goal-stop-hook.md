@@ -555,15 +555,15 @@ evidence-producing calls.
 
 Before spending a reviewer call:
 
-1. Require an active goal.
-2. Trim and require non-empty `goal_id` and `summary`.
-3. Require exact equality with the active generation identifier.
-4. Reject a plainly contradictory summary.
-5. Capture the current run,
-   generation,
-   runtime epoch,
-   branch leaf,
-   and tool-call identifier.
+1.  Require an active goal.
+2.  Trim and require non-empty `goal_id` and `summary`.
+3.  Require exact equality with the active generation identifier.
+4.  Reject a plainly contradictory summary.
+5.  Capture the current run,
+    generation,
+    runtime epoch,
+    branch leaf,
+    and tool-call identifier.
 
 Use a bounded lexical check for explicit contradictions such as:
 
@@ -693,29 +693,29 @@ Extract and reuse auto-mode's structured-judge transport and fallback orchestrat
 goal package.
 Preserve these behaviors:
 
-1. Call the selected reviewer with forced structured-tool choice.
-2. If the model omits the tool,
-   retry without tools and request direct JSON.
-3. If that JSON retry returns no text,
-   retry direct JSON once more.
-4. Treat unexpected tools,
-   malformed structured output,
-   timeout,
-   auth failure,
-   and exhausted transport as attempt failures.
-5. After the initial reviewer exhausts its complete attempt,
-   resolve up to two distinct authenticated fallback reviewers before sending fallback requests.
-6. Run selected fallback attempts concurrently.
-7. The first fallback promise fulfilled with a successfully parsed valid verdict wins,
-   whether approval or denial.
-8. A fallback rejected by transport or contract failure does not settle the race
+1.  Call the selected reviewer with forced structured-tool choice.
+2.  If the model omits the tool,
+    retry without tools and request direct JSON.
+3.  If that JSON retry returns no text,
+    retry direct JSON once more.
+4.  Treat unexpected tools,
+    malformed structured output,
+    timeout,
+    auth failure,
+    and exhausted transport as attempt failures.
+5.  After the initial reviewer exhausts its complete attempt,
+    resolve up to two distinct authenticated fallback reviewers before sending fallback requests.
+6.  Run selected fallback attempts concurrently.
+7.  The first fallback promise fulfilled with a successfully parsed valid verdict wins,
+    whether approval or denial.
+8.  A fallback rejected by transport or contract failure does not settle the race
 while another fallback can still return a verdict.
-   In auto-mode's current source,
-   a valid denial is a fulfilled verdict and therefore can win;
-   `rejected contender` refers to a rejected promise,
-   not a denial verdict.
-9. If no fallback exists or every fallback attempt fails,
-   enter the manual or non-interactive fallback.
+    In auto-mode's current source,
+    a valid denial is a fulfilled verdict and therefore can win;
+    `rejected contender` refers to a rejected promise,
+    not a denial verdict.
+9.  If no fallback exists or every fallback attempt fails,
+    enter the manual or non-interactive fallback.
 
 This is availability fallback,
 not consensus voting.
@@ -1416,25 +1416,25 @@ It must explain that no pre-goal or abandoned-branch context is sent.
 Implementation should proceed in independently verifiable stages.
 Commit each stage before starting the next.
 
-1. Add `package/pi-shared/model-review/` with generic structured-review and fallback behavior.
-2. Migrate auto-mode to the shared module without changing observable behavior.
-3. Add goal package scaffold,
-   README,
-   pure state events,
-   reducer,
-   and controller tests.
-4. Add command,
-   footer,
-   custom-message,
-   and active-prompt adapters.
-5. Add stop-hook lifecycle policy and every continuation regression test.
-6. Add reviewer context,
-   model selection,
-   strict verdict,
-   and shared transport integration.
-7. Add manual TUI fallback and non-interactive terminal behavior.
-8. Add built-extension and Pi-runtime verification.
-9. Complete disposable end-user scenarios.
+1.  Add `package/pi-shared/model-review/` with generic structured-review and fallback behavior.
+2.  Migrate auto-mode to the shared module without changing observable behavior.
+3.  Add goal package scaffold,
+    README,
+    pure state events,
+    reducer,
+    and controller tests.
+4.  Add command,
+    footer,
+    custom-message,
+    and active-prompt adapters.
+5.  Add stop-hook lifecycle policy and every continuation regression test.
+6.  Add reviewer context,
+    model selection,
+    strict verdict,
+    and shared transport integration.
+7.  Add manual TUI fallback and non-interactive terminal behavior.
+8.  Add built-extension and Pi-runtime verification.
+9.  Complete disposable end-user scenarios.
 10. Migrate global Pi settings to the local package path and verify the actual consumer boundary.
 11. Commit the final migration with `Closes #360` in the commit body.
 

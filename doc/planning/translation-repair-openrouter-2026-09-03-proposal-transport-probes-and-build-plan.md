@@ -325,23 +325,23 @@ A threshold of 20 USD (one XIEPT2-scale entry plus margin) and a top-up of one d
 
 Asked on 2026-09-03 after this record was written:
 
-1. Batch API:
+1.  Batch API:
 not viable for the pass as designed;
 use realtime,
 or redesign for batch.
-2. Kimi-K3 when only OpenRouter would buy it:
+2.  Kimi-K3 when only OpenRouter would buy it:
 seat at 3 and 15 USD per million,
 or withhold it there.
-3. Allowlist:
+3.  Allowlist:
 add `openai/gpt-oss-120b`,
 `google/gemma-4-26b-a4b-it` and `deepseek/deepseek-v4-pro-0813`,
-    or accept an OpenRouter tier without them.
-    (As asked,
-    the option text said this "leaves the editor stage on Qwen alone";
-    that was wrong,
-    gemma is a translator and Qwen a checker.
-    Corrected in the decision doc.)
-4. Zero data retention:
+     or accept an OpenRouter tier without them.
+     (As asked,
+     the option text said this "leaves the editor stage on Qwen alone";
+     that was wrong,
+     gemma is a translator and Qwen a checker.
+     Corrected in the decision doc.)
+4.  Zero data retention:
 `zdr: true` on every request,
 or plain routing.
 
@@ -514,53 +514,53 @@ like Hyper's.
 In commit order,
 each unit tested and committed before the next:
 
-1. `provider-name.ts`:
+1.  `provider-name.ts`:
 `ProviderName` gains `openrouter`;
 `PROVIDER_ORDER` states the routing preference (Synthetic,
-    Hyper,
-    OpenRouter);
-    helpers over the record shape.
-2. `openrouter-catalog.ts` and `roster-reach.ts`:
+     Hyper,
+     OpenRouter);
+     helpers over the record shape.
+2.  `openrouter-catalog.ts` and `roster-reach.ts`:
 slugs,
 `sharedWith` for all nine,
 vision flags and output ceilings from the listing;
-    `ModelReach` becomes a record keyed by provider;
-    Gemini 3.8 Flash joins the blocklist.
-3. `budget-routing.ts`:
+     `ModelReach` becomes a record keyed by provider;
+     Gemini 3.8 Flash joins the blocklist.
+3.  `budget-routing.ts`:
 `routeProviderFor` walks `PROVIDER_ORDER` over a dryness record and a saturation record;
-    the two-provider dry error is renamed `EveryProviderDryError` (misleading name,
-    CRN) and the old name goes to the local forbidden-strings appendix;
-    `openRouterIsDry` and its meter fields.
-4. `provider-budget.ts` and `budget-hold-wait.ts`:
+     the two-provider dry error is renamed `EveryProviderDryError` (misleading name,
+     CRN) and the old name goes to the local forbidden-strings appendix;
+     `openRouterIsDry` and its meter fields.
+4.  `provider-budget.ts` and `budget-hold-wait.ts`:
 a third meter,
 `METERS` gains `openrouter=` and `openrouterUsd=`,
-    a refusal hold moves traffic only while some other provider reads wet,
-    the all-dry wait generalizes.
-5. `provider-router.ts`:
+     a refusal hold moves traffic only while some other provider reads wet,
+     the all-dry wait generalizes.
+5.  `provider-router.ts`:
 callers keyed by provider,
 a bounded re-route (one attempt per provider),
 the re-ask asks the next wet provider serving the model;
-    the re-ask path splits into its own file at the line budget.
-6. `required-providers.ts`,
+     the re-ask path splits into its own file at the line budget.
+6.  `required-providers.ts`,
 `run-config.ts`,
 `budget-sample.ts`:
 the third key,
 optional and loud;
 the run client exposes the dryness record for the seat reader.
-7. `run-seats.ts`:
+7.  `run-seats.ts`:
 benches derive from where each model would be served (first provider in order that serves it and reads wet):
-    Hyper-slow rules apply when served by Hyper,
-    Kimi-K3 is withheld from every seat when served by OpenRouter,
-    and `gemma-4-26b-a4b-it` takes the third checker seat there so both checker assertions hold per phase.
-    Whether Qwen3.8-27B's rule is "served by Hyper" or "not served by Synthetic" is decided by its OpenRouter median in
-    the probe.
-8. `spend-line.ts`,
+     Hyper-slow rules apply when served by Hyper,
+     Kimi-K3 is withheld from every seat when served by OpenRouter,
+     and `gemma-4-26b-a4b-it` takes the third checker seat there so both checker assertions hold per phase.
+     Whether Qwen3.8-27B's rule is "served by Hyper" or "not served by Synthetic" is decided by its OpenRouter median in
+     the probe.
+8.  `spend-line.ts`,
 `spend-read.ts`,
 `spend-cost.ts`:
 a `cost=` field in USD from the wire,
 an OpenRouter bucket in USD kept apart from hypercredits;
-    `meter-sample-read.ts` and `meter-report.ts` accept the third field and its absence in older logs.
-9. `openrouter-client.ts` and its credits parser,
+     `meter-sample-read.ts` and `meter-report.ts` accept the third field and its absence in older logs.
+9.  `openrouter-client.ts` and its credits parser,
 on the transport the probe picks.
 10. Live verification,
 then the decision doc,

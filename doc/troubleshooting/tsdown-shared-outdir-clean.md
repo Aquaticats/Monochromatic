@@ -136,30 +136,30 @@ Environment:
 `.out-of-scope/` was checked:
  no tsdown exemption exists.
 
-1. Really upstream's fault?
-    No;
-    `clean: true` defaulting to the config's own outDir is
-   reasonable,
-    documented option behavior,
-    and the multi-config-one-outDir arrangement violated this repo's own
-   one-subdir-per-config convention.
-2. Can upstream fix it?
-    Conceivably (e.g. cleaning only files the config would emit),
-    but that
-   is a design change,
-    not a defect fix.
-3. Supported use case?
-    Multiple configs are supported;
-    sharing one outDir between them with
-   default clean is not a documented pattern.
-4. Would the repo welcome the contribution?
-    Not evaluated;
-    constraint 1 fails.
-5. Will they likely fix it?
-    Nothing to fix.
-6. Prototyped minimal fix?
-    Not applicable;
-    the consumer-side arrangement recorded above removes the collision.
+1.  Really upstream's fault?
+     No;
+     `clean: true` defaulting to the config's own outDir is
+    reasonable,
+     documented option behavior,
+     and the multi-config-one-outDir arrangement violated this repo's own
+    one-subdir-per-config convention.
+2.  Can upstream fix it?
+     Conceivably (e.g. cleaning only files the config would emit),
+     but that
+    is a design change,
+     not a defect fix.
+3.  Supported use case?
+     Multiple configs are supported;
+     sharing one outDir between them with
+    default clean is not a documented pattern.
+4.  Would the repo welcome the contribution?
+     Not evaluated;
+     constraint 1 fails.
+5.  Will they likely fix it?
+     Nothing to fix.
+6.  Prototyped minimal fix?
+     Not applicable;
+     the consumer-side arrangement recorded above removes the collision.
 
 Decision:
  nothing to file.

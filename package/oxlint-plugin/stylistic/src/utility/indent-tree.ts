@@ -94,7 +94,9 @@ export type ChildNodesOfParams = {
 /**
  Collects the child nodes `visitorKeys` names for `node`, in property order.
  
- @param params - node to enumerate and visitor-key map naming its child properties
+ @param node - node whose child slots are enumerated
+ 
+ @param visitorKeys - visitor-key map naming each node kind's child properties
  
  @returns child nodes in parser source order
  
@@ -107,10 +109,21 @@ export function childNodesOf({
   node,
   visitorKeys,
 }: ChildNodesOfParams,): readonly ExpectationNode[] {
+  /**
+   Child property names this node kind declares; kinds without an entry have
+   no child slots.
+   */
   const keys = visitorKeys[node.type] ?? [];
+  /**
+   Child nodes collected so far, in property order.
+   */
   const children: ExpectationNode[] = [];
   for (const key of keys) {
-    const value = Reflect.get(
+    /**
+     Value of one visitor-key property; only node shapes join the walk, so
+     metadata such as `loc` and token arrays stay out.
+     */
+    const value: unknown = Reflect.get(
       node,
       key,
     );
@@ -134,7 +147,9 @@ export function childNodesOf({
  token-owner merge relies on. The walk holds an explicit stack of open nodes
  instead of recursing, keeping stack depth constant on deeply nested input.
  
- @param params - root node and visitor-key map
+ @param root - node the walk starts from; record `0` is this node
+ 
+ @param visitorKeys - visitor-key map naming each node kind's child properties
  
  @returns node records; record `0` is `root`
  
@@ -147,6 +162,9 @@ export function collectIndentNodeRecords({
   root,
   visitorKeys,
 }: CollectIndentNodeRecordsParams,): readonly IndentNodeRecord[] {
+  /**
+   Records in pre-order: the root first, then each child after its parent.
+   */
   const records: IndentNodeRecord[] = [{
     node: root,
     parentIndex: -1,
@@ -181,11 +199,17 @@ export function collectIndentNodeRecords({
       openFrames.pop();
       continue;
     }
+    /**
+     Child the frame's cursor points at; its record is appended next.
+     */
     const child = at({
       arr: frame.children,
       index: frame.childIndex,
     },);
     frame.childIndex += 1;
+    /**
+     Record index the child takes, which is the current record count.
+     */
     const recordIndex = records.length;
     records.push({
       node: child,
@@ -228,6 +252,9 @@ export function collectTemplateSpans(
   number,
   number
 ])[] {
+  /**
+   Accumulated spans, appended in record order.
+   */
   const spans: (readonly [
     number,
     number
@@ -279,7 +306,9 @@ export type EffectiveRecordIndexOfParams = {
  members here, while the indentation model anchors braces and members at the
  declaration line directly.
  
- @param params - records and candidate index
+ @param records - pre-order records whose ancestry is being collapsed
+ 
+ @param recordIndex - candidate record index, `-1` for the no-record sentinel
  
  @returns `recordIndex` itself, or its nearest non-wrapper ancestor index
  
@@ -292,6 +321,9 @@ export function effectiveRecordIndexOf({
   records,
   recordIndex,
 }: EffectiveRecordIndexOfParams,): number {
+  /**
+   Record the walk is testing; each wrapper step moves it one parent higher.
+   */
   let current = recordIndex;
   while (current >= 0) {
     /**
@@ -324,7 +356,9 @@ export type TokenOwnerRecordIndexesParams = {
  One merge pass over two offset-sorted lists: O(tokens + nodes) time and
  O(tokens) space, keeping lint hot paths linear.
  
- @param params - offset-sorted records and tokens
+ @param records - offset-sorted records, parents always before children
+ 
+ @param tokens - offset-sorted tokens to map onto their owning records
  
  @returns owning record index per token, `-1` when no record contains it
  
@@ -338,9 +372,9 @@ export function tokenOwnerRecordIndexes({
   tokens,
 }: TokenOwnerRecordIndexesParams,): readonly number[] {
   /**
-   Owning record index per token, pre-filled with the no-owner sentinel.
+   Owning record index per token, appended in token order as the merge advances.
    */
-  const owners = new Array<number>(tokens.length,).fill(-1);
+  const owners: number[] = [];
   /**
    Record indices whose spans currently contain the merge cursor.
    */
@@ -352,6 +386,9 @@ export function tokenOwnerRecordIndexes({
    @returns source end offset of the top containment record
    */
   function topRecordEnd(): number {
+    /**
+     Index of the containment record whose end bounds the merge cursor.
+     */
     const topIndex = at({
       arr: containmentStack,
       index: containmentStack.length - 1,
@@ -363,12 +400,19 @@ export function tokenOwnerRecordIndexes({
       .node
       .end;
   }
+  /**
+   First record not yet pushed onto the containment stack; records are
+   consumed in start order, one forward sweep.
+   */
   let recordCursor = 0;
   for (
     let tokenIndex = 0;
     tokenIndex < tokens.length;
     tokenIndex += 1
   ) {
+    /**
+     Offset of the token being assigned, which record spans are compared to.
+     */
     const tokenStart = at({
       arr: tokens,
       index: tokenIndex,
@@ -399,16 +443,19 @@ export function tokenOwnerRecordIndexes({
     ) {
       containmentStack.pop();
     }
+    /**
+     Innermost record containing the token, `-1` when the stack is empty.
+     */
     const innermostIndex = (containmentStack.length > 0)
       ? at({
         arr: containmentStack,
         index: containmentStack.length - 1,
       },)
       : -1;
-    owners[tokenIndex] = effectiveRecordIndexOf({
+    owners.push(effectiveRecordIndexOf({
       records,
       recordIndex: innermostIndex,
-    },);
+    },),);
   }
   return owners;
 }

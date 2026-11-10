@@ -195,25 +195,25 @@ It intentionally excludes checkout-local dependency artifacts and unrelated root
 
 ### Constraint check
 
-1. **Is it really upstream's fault?
-   ** No.
-   Git and GitHub Actions preserved a valid repository and config;
-   this repository changed `/home` to `/var/home` unconditionally.
-2. **Can upstream fix it?
-   ** Not at the relevant boundary.
-   GitHub cannot correct a path rewrite implemented by `module-fs-path`.
-3. **Are they supporting this use case?
-   ** GitHub Actions supports checkout,
-   process cwd,
-   and temporary repositories,
-   all of which worked under real Git.
-4. **Would the repo welcome our contribution?
-   ** Not evaluated as an upstream contribution because constraint one fails.
-5. **Will they likely fix it?
-   ** Not applicable because there is no upstream defect to fix.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** Yes at the consumer boundary.
-   Commit `ac70fa47c` removes the unsupported transform and adds a regression fixture.
+1.  **Is it really upstream's fault?
+    ** No.
+    Git and GitHub Actions preserved a valid repository and config;
+    this repository changed `/home` to `/var/home` unconditionally.
+2.  **Can upstream fix it?
+    ** Not at the relevant boundary.
+    GitHub cannot correct a path rewrite implemented by `module-fs-path`.
+3.  **Are they supporting this use case?
+    ** GitHub Actions supports checkout,
+    process cwd,
+    and temporary repositories,
+    all of which worked under real Git.
+4.  **Would the repo welcome our contribution?
+    ** Not evaluated as an upstream contribution because constraint one fails.
+5.  **Will they likely fix it?
+    ** Not applicable because there is no upstream defect to fix.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** Yes at the consumer boundary.
+    Commit `ac70fa47c` removes the unsupported transform and adds a regression fixture.
 
 No matching `.out-of-scope/` entry names GitHub runner path identity or `module-fs-path`.
 No upstream duplicate search was performed because the evidence eliminated upstream behavior as the defect,

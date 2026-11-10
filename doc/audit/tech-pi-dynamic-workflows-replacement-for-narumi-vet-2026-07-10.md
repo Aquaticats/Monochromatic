@@ -839,7 +839,7 @@ no taxonomy query because the single expansion round was already frozen.
 
 ### Discovery status
 
-**Reopened after independent review.**
+Reopened after independent review.
  The initial run treated GitHub's documented `1,000`-result search cap as a terminal
 block.
  An independent review pointed out that the frozen queries were too broad (`pi dynamic workflows` matched `23,764`
@@ -946,7 +946,7 @@ Candidate source explicitly acknowledges the boundary failure at `src/workflow.t
 
 ```ts
 Using the vm realm's own Math/Date/Reflect (not host objects) means this adds
-no host-`Function` escape. Note: vm is not a security sandbox — an injected
+no host-`Function` escape. Note: vm is not a security sandbox; an injected
 bridge function's `.constructor` is still the host Function, so a determined
 script could bypass this. The guard is best-effort against ACCIDENTAL
 nondeterminism from trusted (user / guided-LLM) scripts, not a security wall.
@@ -1552,13 +1552,13 @@ Cons:
 
 ### Ranking
 
-1. `@narumitw/pi-subagents` `0.13.0` (incumbent) beats
-   `@quintinshaw/pi-dynamic-workflows` `2.12.1` because the candidate
-   fails six hard gates that the incumbent's subprocess model does not fail in the same way.
-    The incumbent actually
-   kills children on timeout and routes tool policy through the real `pi` runtime.
-2. `@quintinshaw/pi-dynamic-workflows` `2.12.1` is excluded.
-    Its feature breadth is irrelevant once hard gates fail.
+1.  `@narumitw/pi-subagents` `0.13.0` (incumbent) beats
+    `@quintinshaw/pi-dynamic-workflows` `2.12.1` because the candidate
+    fails six hard gates that the incumbent's subprocess model does not fail in the same way.
+     The incumbent actually
+    kills children on timeout and routes tool policy through the real `pi` runtime.
+2.  `@quintinshaw/pi-dynamic-workflows` `2.12.1` is excluded.
+     Its feature breadth is irrelevant once hard gates fail.
 
 This ranking is conditional and incomplete.
  It compares only the incumbent and the single user-named candidate.

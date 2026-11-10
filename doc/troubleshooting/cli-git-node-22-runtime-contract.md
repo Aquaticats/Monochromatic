@@ -354,28 +354,28 @@ but requires an unbuilt cross-package compatibility change.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   No.
-   Node 22 rejects features that Node's release notes identify with Node 24,
-   while cli-git advertises Node 22 and targets newer output.
-2. **Can upstream fix it?**
-   No external fix is required.
-   The repository owns its engine declaration,
-   build target,
-   and compatibility choices.
-3. **Are they supporting this use case?**
-   Not applicable.
-   Node 24 supports the used features;
-   Node 22 is the package's own claimed floor.
-4. **Would the repository welcome our contribution?**
-   Not applicable because the relevant repository is this project.
-5. **Will they likely fix it?**
-   Not applicable to Node or CAC.
-6. **Have we prototyped a minimal compatible fix?**
-   The minimal metadata alignment is verified by the Node 22 failure,
-   Node 24.18.0 built consumers,
-   and Node 26.7.0 import and command probes.
-   A true Node 22 compatibility implementation has not been prototyped.
+1.  **Is it really upstream's fault?**
+    No.
+    Node 22 rejects features that Node's release notes identify with Node 24,
+    while cli-git advertises Node 22 and targets newer output.
+2.  **Can upstream fix it?**
+    No external fix is required.
+    The repository owns its engine declaration,
+    build target,
+    and compatibility choices.
+3.  **Are they supporting this use case?**
+    Not applicable.
+    Node 24 supports the used features;
+    Node 22 is the package's own claimed floor.
+4.  **Would the repository welcome our contribution?**
+    Not applicable because the relevant repository is this project.
+5.  **Will they likely fix it?**
+    Not applicable to Node or CAC.
+6.  **Have we prototyped a minimal compatible fix?**
+    The minimal metadata alignment is verified by the Node 22 failure,
+    Node 24.18.0 built consumers,
+    and Node 26.7.0 import and command probes.
+    A true Node 22 compatibility implementation has not been prototyped.
 
 Do not file an issue against Node or CAC.
 Track any engine-floor or downleveling decision in this repository.

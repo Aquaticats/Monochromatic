@@ -1268,35 +1268,35 @@ showed in both sessions that were read with it the same three lines,
 151 and 152 (numbering from 0),
 each with two rows in the map and one row at the real width:
 
-1. The window starts with a narrow layout (a view of 173 px,
-   18 lines in the tile) and gets its real size (646 px by 1,848 px) some 0.1 to 1 s later.
-   Under a one-core limit the worker's first pass over the whole text,
-   at the narrow width,
-   can be taken by the 20 ms poll before the real size arrives
-   (`applied a measurement count=256 changed=true`),
-   so the table of measured rows holds two rows for every line that wraps at 171 px.
-   With CPU to spare the real size comes first and the narrow output is dropped as `another text or width`.
-2. The real width asks for a tile of 99 lines,
-   taken from that table.
-   `measure_requested` (`src/native/render/measure.rs`) measured the lines of the tile asked for at the real width in three rounds,
-   and after each round the map followed the corrected heights,
-   so the tile asked for reached further down the text:
-   the stale region of the table retreated from line 100 to 136 to 150 while the tile grew to 155 lines.
-   After the third round the lines the last tile asked for (here 150 to 154) were measured only for their cost:
-   the answer of `spending.measure(...)` was discarded,
-   so lines 150 to 152 kept two rows
-   (lines 153 and 154,
-   the note and the blank line,
-   never wrap).
-3. The window thread builds the tile of 155 lines,
-   which is painted with one row for each line,
-   and the map disagrees with it below line 150.
-   `apply_pass` (`src/native/tile/pass.rs`) never applies the lines of the displayed tile,
-   so the pass that finishes some milliseconds later does not correct them either
-   (the probe:
-   `held_differs=[(150, 2, 1), (151, 2, 1), (152, 2, 1)]` on the outputs of the pass,
-   then `done=true`).
-   The map ends 3 rows taller than the text.
+1.  The window starts with a narrow layout (a view of 173 px,
+    18 lines in the tile) and gets its real size (646 px by 1,848 px) some 0.1 to 1 s later.
+    Under a one-core limit the worker's first pass over the whole text,
+    at the narrow width,
+    can be taken by the 20 ms poll before the real size arrives
+    (`applied a measurement count=256 changed=true`),
+    so the table of measured rows holds two rows for every line that wraps at 171 px.
+    With CPU to spare the real size comes first and the narrow output is dropped as `another text or width`.
+2.  The real width asks for a tile of 99 lines,
+    taken from that table.
+    `measure_requested` (`src/native/render/measure.rs`) measured the lines of the tile asked for at the real width in three rounds,
+    and after each round the map followed the corrected heights,
+    so the tile asked for reached further down the text:
+    the stale region of the table retreated from line 100 to 136 to 150 while the tile grew to 155 lines.
+    After the third round the lines the last tile asked for (here 150 to 154) were measured only for their cost:
+    the answer of `spending.measure(...)` was discarded,
+    so lines 150 to 152 kept two rows
+    (lines 153 and 154,
+    the note and the blank line,
+    never wrap).
+3.  The window thread builds the tile of 155 lines,
+    which is painted with one row for each line,
+    and the map disagrees with it below line 150.
+    `apply_pass` (`src/native/tile/pass.rs`) never applies the lines of the displayed tile,
+    so the pass that finishes some milliseconds later does not correct them either
+    (the probe:
+    `held_differs=[(150, 2, 1), (151, 2, 1), (152, 2, 1)]` on the outputs of the pass,
+    then `done=true`).
+    The map ends 3 rows taller than the text.
 
 The earlier account,
 that measurement passes at the narrow width "end late",

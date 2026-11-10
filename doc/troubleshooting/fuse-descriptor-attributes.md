@@ -35,7 +35,7 @@ and a second run of the same probe for 71 minutes;
 the connection was aborted from outside in both cases.
 
 The same hazard reaches a program that never touches the stalled mount:
-a scan that identifies a *lock* by the device
+a scan that identifies a **lock** by the device
 and inode it has,
 and resolves every descriptor whose record names that inode number,
 asks each descriptor's file
@@ -103,7 +103,7 @@ and NFS ([fs/nfs/inode.c:986](https://github.com/torvalds/linux/blob/7475ea8b586
 ```
 
 with `generic_fillattr` at [fs/nfs/inode.c:1052](https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/fs/nfs/inode.c#L1052-L1058) and FUSE's equivalent on the same `sync = false` path.
-That is why a *descriptor* read answers and a *path* read does not:
+That is why a **descriptor** read answers and a **path** read does not:
 the path reaches the same `getattr` only after the
 walk has already asked the server to revalidate the entry.
 
@@ -312,7 +312,7 @@ Measured on this host:
 `/proc/1/mountinfo` and `/proc/<pid>/mountinfo` are readable as an unprivileged user,
 and a file
 in a btrfs subvolume reports an anonymous device (`0:108`),
-while a file in a *nested* subvolume reports another
+while a file in a **nested** subvolume reports another
 (`5243089`),
 so the device and inode pair still separates two subvolumes' files whose mount numbers and inode numbers
 agree.
@@ -410,32 +410,32 @@ so the count of its own descriptors of a lock is the same on every mount type.
 Nothing is filed.
 Walk of the six constraints:
 
-1. **Is it really upstream's fault?**
-   No. The `d_revalidate` in the walk is by design,
-   `statx(2)` documents `AT_STATX_DONT_SYNC` as "on a network filesystem,
-   it may not involve a round trip",
-   and the kernel offers the descriptor route that answers without a walk.
-   This is behaviour of the interface,
-   not a defect in it.
-2. **Can upstream fix it?**
-   It could add a flag that forbids dentry revalidation,
-   but nothing is broken that a fix would repair,
-   so this constraint is not reached.
-3. **Are they supporting this use case?**
-   Yes:
-   `AT_STATX_DONT_SYNC` exists for callers that must not wait,
-   and `pidfd_getfd(2)` exists for callers that need another process's open file.
-4. **Would the repo welcome our contribution?**
-   Not reached,
-   since there is nothing to contribute.
-5. **Do we have a reproduction they can run?**
-   The harness above is ours,
-   it needs a private mount namespace,
-   a `fuse-overlayfs` build and a stopped server,
-   and it reproduces a documented behaviour rather than a bug.
-6. **Is a filing in the public interest?**
-   No.
-   It would report a design as a bug.
+1.  **Is it really upstream's fault?**
+    No. The `d_revalidate` in the walk is by design,
+    `statx(2)` documents `AT_STATX_DONT_SYNC` as "on a network filesystem,
+    it may not involve a round trip",
+    and the kernel offers the descriptor route that answers without a walk.
+    This is behaviour of the interface,
+    not a defect in it.
+2.  **Can upstream fix it?**
+    It could add a flag that forbids dentry revalidation,
+    but nothing is broken that a fix would repair,
+    so this constraint is not reached.
+3.  **Are they supporting this use case?**
+    Yes:
+    `AT_STATX_DONT_SYNC` exists for callers that must not wait,
+    and `pidfd_getfd(2)` exists for callers that need another process's open file.
+4.  **Would the repo welcome our contribution?**
+    Not reached,
+    since there is nothing to contribute.
+5.  **Do we have a reproduction they can run?**
+    The harness above is ours,
+    it needs a private mount namespace,
+    a `fuse-overlayfs` build and a stopped server,
+    and it reproduces a documented behaviour rather than a bug.
+6.  **Is a filing in the public interest?**
+    No.
+    It would report a design as a bug.
 
 The durable lesson is ours:
 never read a descriptor's file through the path of its `/proc` link,

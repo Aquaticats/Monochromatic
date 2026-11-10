@@ -136,7 +136,7 @@ Add `/etc/fstab` entries:
 
 ## What does not work
 
-- **Git worktrees**:
+- Git worktrees:
    each worktree has its own checkout,
    so changes
   in one do not propagate live to the other.
@@ -152,21 +152,21 @@ Add `/etc/fstab` entries:
   and gets treated as the same workspace.
    Mount binds are not
   canonicalised away.
-- **Code-server / VS Code in browser**:
+- Code-server / VS Code in browser:
    works in a different process
   altogether so collisions are avoided,
    but the workflow is
   browser-based and tooling integrations (extensions,
    debugger
   protocols) differ from the desktop VS Code.
-- **A Windows-native second window of the WSL folder via `\\wsl$\…`**:
+- A Windows-native second window of the WSL folder via `\\wsl$\…`:
   loses Remote-WSL integration;
    editing files is fine but extensions
   expecting the WSL connection (test runners,
    debuggers,
    language
   servers configured for WSL paths) misbehave.
-- **Virtual machines**:
+- Virtual machines:
    resource heavy,
    slow boot,
    file synchronisation
@@ -174,30 +174,30 @@ Add `/etc/fstab` entries:
 
 ## Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    The
-   single-window-per-workspace identification is an explicit product
-   choice;
-    many users prefer it.
-    The Remote-WSL extension's lack of
-   an override is the actual friction point.
-2. **Can upstream fix it?
-   ** Yes,
-    by exposing a setting such as
-   `remote.WSL.allowMultipleWindows` that disables the path-based
-   dedup for WSL workspaces.
-    The change is local to the extension.
-3. **Are they supporting this use case?
-   ** Not directly;
-    the docs
-   recommend reorganising work to fit a single window.
-4. **Will they likely fix it?
-   ** Unknown.
-    The bind-mount workaround is
-   well known on the GitHub tracker.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     The
+    single-window-per-workspace identification is an explicit product
+    choice;
+     many users prefer it.
+     The Remote-WSL extension's lack of
+    an override is the actual friction point.
+2.  **Can upstream fix it?
+    ** Yes,
+     by exposing a setting such as
+    `remote.WSL.allowMultipleWindows` that disables the path-based
+    dedup for WSL workspaces.
+     The change is local to the extension.
+3.  **Are they supporting this use case?
+    ** Not directly;
+     the docs
+    recommend reorganising work to fit a single window.
+4.  **Will they likely fix it?
+    ** Unknown.
+     The bind-mount workaround is
+    well known on the GitHub tracker.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.

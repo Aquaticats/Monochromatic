@@ -254,11 +254,11 @@ or kebab-case boolean metadata.
 
 Scan only the owned option region before CAC:
 
-1. Capture exact separated and joined `--policy` values.
-2. Replace each captured value with a non-dash,
-   nonnumeric placeholder.
-3. Let CAC route and validate the command.
-4. Restore captured strings in the application result.
+1.  Capture exact separated and joined `--policy` values.
+2.  Replace each captured value with a non-dash,
+    nonnumeric placeholder.
+3.  Let CAC route and validate the command.
+4.  Restore captured strings in the application result.
 
 The cli-git management prototype matched the incumbent on all 44 catalog cases.
 The catalog included `001`,
@@ -323,35 +323,35 @@ It does not solve cli-git's other CAC parity failures.
 argv-parser,
 or CLI-parser exemption.
 
-1. **Is it really upstream's fault?**
-   Yes.
-   CAC declares `<value>` options but omits MRI string metadata,
-   so its inlined parser changes exact argv before returning it.
-2. **Can upstream fix it?**
-   Yes.
-   The prototype adds one MRI option category and focused tests without changing CAC's architecture.
-3. **Are they supporting this use case?**
-   Yes.
-   CAC documents required option values and `{ type: [String] }` transforms.
-   Issue `#165` is an upstream report for this exact surface.
-4. **Would the repository welcome our contribution?**
-   Yes.
-   `README.md` gives a pull-request workflow,
-   `.github/ISSUE_TEMPLATE.md` requests reproductions and possible solutions,
-   and recent external PRs have merged.
-   No `CONTRIBUTING.md`,
-   pull-request template,
-   security policy,
-   or AI-assisted contribution ban was found.
-5. **Will they likely fix it?**
-   Soft yes under the filing rule.
-   No maintainer has rejected the behavior or declared numeric coercion a non-goal.
-   Issue `#165` and PR `#163` remain open and unassigned,
-   so response timing is unknown.
-6. **Have we prototyped a minimal compatible fix?**
-   Yes.
-   The linked patch fails the assertion harness before the change and passes after it.
-   It also adds upstream-style regression cases.
+1.  **Is it really upstream's fault?**
+    Yes.
+    CAC declares `<value>` options but omits MRI string metadata,
+    so its inlined parser changes exact argv before returning it.
+2.  **Can upstream fix it?**
+    Yes.
+    The prototype adds one MRI option category and focused tests without changing CAC's architecture.
+3.  **Are they supporting this use case?**
+    Yes.
+    CAC documents required option values and `{ type: [String] }` transforms.
+    Issue `#165` is an upstream report for this exact surface.
+4.  **Would the repository welcome our contribution?**
+    Yes.
+    `README.md` gives a pull-request workflow,
+    `.github/ISSUE_TEMPLATE.md` requests reproductions and possible solutions,
+    and recent external PRs have merged.
+    No `CONTRIBUTING.md`,
+    pull-request template,
+    security policy,
+    or AI-assisted contribution ban was found.
+5.  **Will they likely fix it?**
+    Soft yes under the filing rule.
+    No maintainer has rejected the behavior or declared numeric coercion a non-goal.
+    Issue `#165` and PR `#163` remain open and unassigned,
+    so response timing is unknown.
+6.  **Have we prototyped a minimal compatible fix?**
+    Yes.
+    The linked patch fails the assertion harness before the change and passes after it.
+    It also adds upstream-style regression cases.
 
 The duplicate search covered open and closed issues and pull requests using numeric coercion,
 string option,

@@ -438,34 +438,34 @@ so a claim is never visible half written.
 
 The reclaimer that judged the lock stale takes a claim like this:
 
-1. Try to place its claim at slot zero.
-   If the name is free,
-   the claim is placed.
-   If it exists,
-   read it:
-   a claimer that is
-   gone (or a file that holds no whole marker,
-   which only a power loss or a stranger can leave,
-   since placed claims are whole)
-   is passed over and the next slot is tried;
-   a claimer that runs or cannot be judged makes this reclaimer back off (`Busy`).
-2. After placing at slot n,
-   read every slot below n again.
-   All must exist and name a gone claimer;
-   otherwise remove the own
-   claim and back off.
-   This is the step that makes a reclaimer's earlier reading (which may be arbitrarily old) harmless.
-3. Holding the claim,
-   run the ordinary steps:
-   check that the name still refers to the stale file (device and inode),
-   unlink.
-4. When the name no longer refers to the stale file (removed by this reclaimer,
-   or by someone else),
-   remove every claim from
-   zero to the own slot,
-   and nothing else.
-   When the unlink failed,
-   remove only the own claim.
+1.  Try to place its claim at slot zero.
+    If the name is free,
+    the claim is placed.
+    If it exists,
+    read it:
+    a claimer that is
+    gone (or a file that holds no whole marker,
+    which only a power loss or a stranger can leave,
+    since placed claims are whole)
+    is passed over and the next slot is tried;
+    a claimer that runs or cannot be judged makes this reclaimer back off (`Busy`).
+2.  After placing at slot n,
+    read every slot below n again.
+    All must exist and name a gone claimer;
+    otherwise remove the own
+    claim and back off.
+    This is the step that makes a reclaimer's earlier reading (which may be arbitrarily old) harmless.
+3.  Holding the claim,
+    run the ordinary steps:
+    check that the name still refers to the stale file (device and inode),
+    unlink.
+4.  When the name no longer refers to the stale file (removed by this reclaimer,
+    or by someone else),
+    remove every claim from
+    zero to the own slot,
+    and nothing else.
+    When the unlink failed,
+    remove only the own claim.
 
 Why one claimer at a time holds while the stale file is at its name:
 a dead claim is never removed by anyone but a claimer that has seen the stale file leave its name;

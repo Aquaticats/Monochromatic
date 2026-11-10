@@ -262,16 +262,16 @@ All edits are user-level;
  the `/usr` files are read-only on rpm-ostree and are shadowed,
  not modified.
 
-1. `~/.local/share/applications/com.mitchellh.ghostty.desktop` (shadows `/usr`):
-   - Both `Exec=` lines (main entry and the `new-window` action):
-      `/usr/bin/ghostty --gtk-single-instance=false`.
-   - `DBusActivatable=false`.
-   - Leave `TryExec=/usr/bin/ghostty` a bare path.
-      Do not append flags to `TryExec`.
-2. `~/.config/kdeglobals`:
-    `TerminalApplication=/usr/bin/ghostty --gtk-single-instance=false`.
-3. Refresh caches:
-    `update-desktop-database ~/.local/share/applications && kbuildsycoca6 --noincremental`.
+1.  `~/.local/share/applications/com.mitchellh.ghostty.desktop` (shadows `/usr`):
+    - Both `Exec=` lines (main entry and the `new-window` action):
+       `/usr/bin/ghostty --gtk-single-instance=false`.
+    - `DBusActivatable=false`.
+    - Leave `TryExec=/usr/bin/ghostty` a bare path.
+       Do not append flags to `TryExec`.
+2.  `~/.config/kdeglobals`:
+     `TerminalApplication=/usr/bin/ghostty --gtk-single-instance=false`.
+3.  Refresh caches:
+     `update-desktop-database ~/.local/share/applications && kbuildsycoca6 --noincremental`.
 
 No systemd mask and no user D-Bus service shadow are needed;
  both are counterproductive (see What does
@@ -361,45 +361,45 @@ bypassing D-Bus activation,
 incomplete search does not block it.
  Default policy is do not file.
 
-1. Is it really upstream's fault?
-    No. CLI flags overriding the config file is standard and deliberate,
-   and the single-instance server started via systemd/D-Bus activation is a feature.
-    The
-   `--gtk-single-instance=true` flag lives in Fedora's packaging (`ghostty-1.3.1-1.fc44`),
-    a
-   distribution choice,
-    not the ghostty source.
-    KIO's activate-vs-`Exec` decision
-   (`dbusactivationrunner.cpp:19`) is correct and honors `DBusActivatable`.
-    The user-facing surprise is
-   a config key being ineffective for the GUI path,
-    a consequence of documented precedence plus
-   packaging,
-    not a defect.
-2. Can upstream fix it?
-    Not applicable;
-    no upstream defect.
-    The nearest change is a Fedora packaging
-   request to not hardcode the flag,
-    a preference about a working feature.
-3. Are they supporting this use case?
-    Yes;
-    both single-instance and non-single-instance are documented
-   via `gtk-single-instance`,
-    and the fix uses the supported `=false` mode.
-4. Would the repo welcome our contribution?
-    Not evaluated to completion;
-    moot because constraint 1
-   fails.
-5. Will they likely fix it?
-    Not applicable;
-    nothing to fix.
-6. Prototyped a minimal fix?
-    Not applicable;
-    constraints 1 and 2 fail,
-    so the auto-prototype trigger is
-   not met.
-    The user-side fix (a valid `DBusActivatable=false` entry) is recorded above.
+1.  Is it really upstream's fault?
+     No. CLI flags overriding the config file is standard and deliberate,
+    and the single-instance server started via systemd/D-Bus activation is a feature.
+     The
+    `--gtk-single-instance=true` flag lives in Fedora's packaging (`ghostty-1.3.1-1.fc44`),
+     a
+    distribution choice,
+     not the ghostty source.
+     KIO's activate-vs-`Exec` decision
+    (`dbusactivationrunner.cpp:19`) is correct and honors `DBusActivatable`.
+     The user-facing surprise is
+    a config key being ineffective for the GUI path,
+     a consequence of documented precedence plus
+    packaging,
+     not a defect.
+2.  Can upstream fix it?
+     Not applicable;
+     no upstream defect.
+     The nearest change is a Fedora packaging
+    request to not hardcode the flag,
+     a preference about a working feature.
+3.  Are they supporting this use case?
+     Yes;
+     both single-instance and non-single-instance are documented
+    via `gtk-single-instance`,
+     and the fix uses the supported `=false` mode.
+4.  Would the repo welcome our contribution?
+     Not evaluated to completion;
+     moot because constraint 1
+    fails.
+5.  Will they likely fix it?
+     Not applicable;
+     nothing to fix.
+6.  Prototyped a minimal fix?
+     Not applicable;
+     constraints 1 and 2 fail,
+     so the auto-prototype trigger is
+    not met.
+     The user-side fix (a valid `DBusActivatable=false` entry) is recorded above.
 
 Decision:
  do not file.

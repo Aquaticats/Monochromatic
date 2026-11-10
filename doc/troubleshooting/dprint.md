@@ -96,38 +96,38 @@ install path consumers would have to depend on.
   cannot be invoked through corepack.
 - Configuring pnpm to skip postinstall scripts for dprint:
    the slow
-  part is the Node wrapper at *invocation* time,
+  part is the Node wrapper at **invocation** time,
    not at install time.
   Postinstall behaviour is irrelevant.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Partly.
-    The Node wrapper exists
-   so dprint can be installed via npm;
-    it is by design.
-    The slowness
-   is a consequence of the design,
-    not a defect.
-2. **Can upstream fix it?
-   ** Not without removing npm installation,
-   which is a major distribution change.
-3. **Are they supporting this use case?
-   ** Yes;
-    the wrapper is
-   documented and works correctly,
-    just slowly.
-4. **Will they likely fix it?
-   ** No movement in that direction in
-   recent dprint releases.
-    The shape is stable.
-5. **Have we prototyped a minimal fix?
-   ** Our fix is to bypass the
-   wrapper entirely (use the native binary through mise).
-    That is a
-   downstream choice,
-    not a fix dprint can ship.
+1.  **Is it really upstream's fault?
+    ** Partly.
+     The Node wrapper exists
+    so dprint can be installed via npm;
+     it is by design.
+     The slowness
+    is a consequence of the design,
+     not a defect.
+2.  **Can upstream fix it?
+    ** Not without removing npm installation,
+    which is a major distribution change.
+3.  **Are they supporting this use case?
+    ** Yes;
+     the wrapper is
+    documented and works correctly,
+     just slowly.
+4.  **Will they likely fix it?
+    ** No movement in that direction in
+    recent dprint releases.
+     The shape is stable.
+5.  **Have we prototyped a minimal fix?
+    ** Our fix is to bypass the
+    wrapper entirely (use the native binary through mise).
+     That is a
+    downstream choice,
+     not a fix dprint can ship.
 
 Decision:
  no upstream report.
@@ -243,28 +243,28 @@ multiple projects on the same machine need different setups.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    The extension has a
-   `dprint.path` setting precisely because PATH-resolution can fail in
-   workspace-managed setups;
-    that is upstream acknowledgement that the
-   failure mode is expected.
-2. **Can upstream fix it?
-   ** They could auto-detect
-   `node_modules/.bin/dprint` when present.
-    Probably worth a feature
-   request,
-    not a bug report.
-3. **Are they supporting this use case?
-   ** Documented escape hatch
-   exists;
-    the use case is supported.
-4. **Will they likely fix it?
-   ** Unknown;
-    not a critical defect.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     The extension has a
+    `dprint.path` setting precisely because PATH-resolution can fail in
+    workspace-managed setups;
+     that is upstream acknowledgement that the
+    failure mode is expected.
+2.  **Can upstream fix it?
+    ** They could auto-detect
+    `node_modules/.bin/dprint` when present.
+     Probably worth a feature
+    request,
+     not a bug report.
+3.  **Are they supporting this use case?
+    ** Documented escape hatch
+    exists;
+     the use case is supported.
+4.  **Will they likely fix it?
+    ** Unknown;
+     not a critical defect.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report.
@@ -337,18 +337,18 @@ Suppressing it would silently mask real misconfigurations;
  dprint's
 diagnostic is appropriate.
 
-1. **Is it really upstream's fault?
-   ** No.
-2. **Can upstream fix it?
-   ** Nothing to fix.
-3. **Are they supporting this use case?
-   ** Yes;
-    the warning explicitly
-   names the missing setting.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No.
+2.  **Can upstream fix it?
+    ** Nothing to fix.
+3.  **Are they supporting this use case?
+    ** Yes;
+     the warning explicitly
+    names the missing setting.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.
@@ -621,17 +621,17 @@ The other 4 pages need correction regardless of the formatting decision.
 Do not exempt any affected page from dprint.
 After owner acceptance:
 
-1. Land opt-in prose-preserving markup behavior with the default disabled.
-2. Route CSS host requests to the repository-owned formatter.
-3. Add the package-local exact stylesheet and line-budget checks.
-4. Change the affected colors and `NOTES.md` to preferred `none` channels.
-5. Add the missing color-scheme meta element to the other 4 pages.
-6. Use a transitional Stylelint override that converges with the owned output.
-7. Run the remaining Stylelint responsibilities in shadow while owned fixtures and editor clients land.
-8. Remove Stylelint only after responsibility,
-   suppression,
-   CLI,
-   and editor parity gates pass.
+1.  Land opt-in prose-preserving markup behavior with the default disabled.
+2.  Route CSS host requests to the repository-owned formatter.
+3.  Add the package-local exact stylesheet and line-budget checks.
+4.  Change the affected colors and `NOTES.md` to preferred `none` channels.
+5.  Add the missing color-scheme meta element to the other 4 pages.
+6.  Use a transitional Stylelint override that converges with the owned output.
+7.  Run the remaining Stylelint responsibilities in shadow while owned fixtures and editor clients land.
+8.  Remove Stylelint only after responsibility,
+    suppression,
+    CLI,
+    and editor parity gates pass.
 
 The full option analysis,
 82-rule ledger,
@@ -675,23 +675,23 @@ and
 [g-plane/markup_fmt#242](https://github.com/g-plane/markup_fmt/issues/242),
 but no existing preserve-authored-text-lines request.
 
-1. **Is it really upstream's fault?**
-   No established defect exists.
-   The formatter performs width-based wrapping as designed.
-2. **Can upstream fix it?**
-   Upstream could accept an opt-in preservation feature,
-   but cannot choose this package's policy.
-3. **Are they supporting this use case?**
-   They support canonical formatting and ignore controls,
-   not grammatical prose wrapping.
-4. **Would the repository welcome our contribution?**
-   Unknown until a proposal is discussed.
-5. **Will they likely fix it?**
-   Unknown;
-   no issue has been filed.
-6. **Have we prototyped a compatible minimal fix?**
-   Yes.
-   The default-off patch passed the library tests and dprint integration probe.
+1.  **Is it really upstream's fault?**
+    No established defect exists.
+    The formatter performs width-based wrapping as designed.
+2.  **Can upstream fix it?**
+    Upstream could accept an opt-in preservation feature,
+    but cannot choose this package's policy.
+3.  **Are they supporting this use case?**
+    They support canonical formatting and ignore controls,
+    not grammatical prose wrapping.
+4.  **Would the repository welcome our contribution?**
+    Unknown until a proposal is discussed.
+5.  **Will they likely fix it?**
+    Unknown;
+    no issue has been filed.
+6.  **Have we prototyped a compatible minimal fix?**
+    Yes.
+    The default-off patch passed the library tests and dprint integration probe.
 
 Decision:
 do not file a defect.
@@ -904,22 +904,22 @@ Nothing filed and nothing drafted.
 and no other file in `.out-of-scope/` matches dprint,
 `markup_fmt` or `malva`.
 
-1. **Is it really upstream's fault?**
-   No for the two HTML groups and the fixture:
-   the templates carry the defect and the fixture records the incumbent's output.
-   Possibly for `dprint-plugin-json` rejecting a valid surrogate pair,
-   unverified against its source.
-2. **Can upstream fix it?**
-   Not assessed;
-   no source trace was made of the plugin parsers.
-3. **Are they supporting this use case?**
-   Not assessed.
-4. **Would the repository welcome our contribution?**
-   Not assessed.
-5. **Will they likely fix it?**
-   Not assessed.
-6. **Have we prototyped a compatible minimal fix?**
-   No.
+1.  **Is it really upstream's fault?**
+    No for the two HTML groups and the fixture:
+    the templates carry the defect and the fixture records the incumbent's output.
+    Possibly for `dprint-plugin-json` rejecting a valid surrogate pair,
+    unverified against its source.
+2.  **Can upstream fix it?**
+    Not assessed;
+    no source trace was made of the plugin parsers.
+3.  **Are they supporting this use case?**
+    Not assessed.
+4.  **Would the repository welcome our contribution?**
+    Not assessed.
+5.  **Will they likely fix it?**
+    Not assessed.
+6.  **Have we prototyped a compatible minimal fix?**
+    No.
 
 Constraints 1 and 6 do not hold,
 so no filing is recommended.

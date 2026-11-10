@@ -143,42 +143,42 @@ interacting with typescript-go's contextual typing for
 
 ### Call path
 
-1. The rule calls `getUncastType(node)` to get the
-   expression's type **without** the assertion.
-2. `getUncastType` calls
-   `ctx.TypeChecker.GetTypeAtLocation(expression)` on the
-   inner call expression.
-3. `GetTypeAtLocation` -> `getTypeOfNode` ->
-   `getRegularTypeOfExpression` -> `getTypeOfExpression` ->
-   `checkExpressionEx`.
-4. `checkExpressionEx` -> `checkCallExpression` ->
-   `getResolvedSignature`,
-    which resolves generic type
-   parameters.
-5. During resolution,
-    TypeScript calls `getContextualType` on
-   the call expression.
-6. `getContextualType` for the child of an `AsExpression`
-   returns the **asserted type**
-   (`internal/checker/checker.go:28318-28322`):
+1.  The rule calls `getUncastType(node)` to get the
+    expression's type **without** the assertion.
+2.  `getUncastType` calls
+    `ctx.TypeChecker.GetTypeAtLocation(expression)` on the
+    inner call expression.
+3.  `GetTypeAtLocation` -> `getTypeOfNode` ->
+    `getRegularTypeOfExpression` -> `getTypeOfExpression` ->
+    `checkExpressionEx`.
+4.  `checkExpressionEx` -> `checkCallExpression` ->
+    `getResolvedSignature`,
+     which resolves generic type
+    parameters.
+5.  During resolution,
+     TypeScript calls `getContextualType` on
+    the call expression.
+6.  `getContextualType` for the child of an `AsExpression`
+    returns the **asserted type**
+    (`internal/checker/checker.go:28318-28322`):
 
-   ```go
-   case ast.KindTypeAssertionExpression, ast.KindAsExpression:
-       return c.getTypeFromTypeNode(parent.Type())
-   ```
+    ```go
+    case ast.KindTypeAssertionExpression, ast.KindAsExpression:
+        return c.getTypeFromTypeNode(parent.Type())
+    ```
 
-7. This contextual type (`HTMLFormElement`) feeds into
-   generic inference for `T`.
-8. With parameter type `T | null | undefined` and argument
-   `Element | null`,
-    the contextual return type
-   `HTMLFormElement` causes `T` to resolve as `HTMLFormElement`
-   instead of `Element`.
-9. The resolved signature is cached
-   (`signatureLinks.resolvedSignature`,
-   `internal/checker/checker.go:8162-8164`),
-    so subsequent
-   queries return the same `HTMLFormElement` result.
+7.  This contextual type (`HTMLFormElement`) feeds into
+    generic inference for `T`.
+8.  With parameter type `T | null | undefined` and argument
+    `Element | null`,
+     the contextual return type
+    `HTMLFormElement` causes `T` to resolve as `HTMLFormElement`
+    instead of `Element`.
+9.  The resolved signature is cached
+    (`signatureLinks.resolvedSignature`,
+    `internal/checker/checker.go:8162-8164`),
+     so subsequent
+    queries return the same `HTMLFormElement` result.
 10. The rule sees `uncastType == castType` and flags the
     assertion as unnecessary.
 
@@ -208,7 +208,7 @@ appear unnecessary.
 
 ### Source locations
 
-- **tsgolint rule**:
+- tsgolint rule:
   `internal/rules/no_unnecessary_type_assertion/no_unnecessary_type_assertion.go`
   - `getUncastType` (line 232-249):
      uses
@@ -217,12 +217,12 @@ appear unnecessary.
   - The IIFE special case (line 235-246) already works around
     a similar issue by using `getResolvedSignature` +
     `GetReturnTypeOfSignature` instead.
-- **typescript-go contextual type**:
+- typescript-go contextual type:
   `internal/checker/checker.go:28318-28322`:
    returns the
   asserted type as contextual type for children of
   `AsExpression`.
-- **typescript-go signature caching**:
+- typescript-go signature caching:
   `internal/checker/checker.go:8162-8164`:
   `getResolvedSignature` caches the resolved signature,
   preserving the contextually-influenced inference.
@@ -306,34 +306,34 @@ The 5-constraint check below is preserved for audit purposes.
 already shipped upstream;
  do not file.
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    `getUncastType`'s
-   use of `GetTypeAtLocation` was the defect.
-2. **Can upstream fix it?
-   ** Yes;
-    the change ended up as a tightly-scoped
-   conditional in `getUncastType` (single-hunk in PR #824,
-    refined by one
-   hunk in PR #826).
-3. **Are they supporting this use case?
-   ** Yes;
-    the rule is
-   shipped and the case is in scope.
-4. **Will they likely fix it?
-   ** Already fixed:
-    PR #824 (commit `599e150`,
-   first tagged in v0.17.2) introduced the context-free type path for
-   call-like expressions;
-    PR #826 (commit `f8a6ae2`,
-    first tagged in v0.17.3)
-   extended it to await-wrapped calls.
-5. **Have we prototyped a minimal fix?
-   ** Verified upstream patch via
-   approach 3 (see below).
-    No local PR needed;
-    the change was already merged
-   and released by the time the prototype step ran.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     `getUncastType`'s
+    use of `GetTypeAtLocation` was the defect.
+2.  **Can upstream fix it?
+    ** Yes;
+     the change ended up as a tightly-scoped
+    conditional in `getUncastType` (single-hunk in PR #824,
+     refined by one
+    hunk in PR #826).
+3.  **Are they supporting this use case?
+    ** Yes;
+     the rule is
+    shipped and the case is in scope.
+4.  **Will they likely fix it?
+    ** Already fixed:
+     PR #824 (commit `599e150`,
+    first tagged in v0.17.2) introduced the context-free type path for
+    call-like expressions;
+     PR #826 (commit `f8a6ae2`,
+     first tagged in v0.17.3)
+    extended it to await-wrapped calls.
+5.  **Have we prototyped a minimal fix?
+    ** Verified upstream patch via
+    approach 3 (see below).
+     No local PR needed;
+     the change was already merged
+    and released by the time the prototype step ran.
 
 Decision:
  do **not** file.
@@ -348,39 +348,39 @@ type **without** contextual typing from the parent
  Three approaches were considered when the doc was first
 written:
 
-1. **Extend the IIFE pattern to all generic calls**:
-    use
-   `getResolvedSignature` + `GetReturnTypeOfSignature` for any
-   call expression,
-    not just IIFEs.
-    Avoids `GetTypeAtLocation`
-   entirely for calls.
+1.  **Extend the IIFE pattern to all generic calls**:
+     use
+    `getResolvedSignature` + `GetReturnTypeOfSignature` for any
+    call expression,
+     not just IIFEs.
+     Avoids `GetTypeAtLocation`
+    entirely for calls.
+     Not pursued upstream.
+2.  **Check for generic function calls**:
+     if the callee has
+    generic type parameters,
+     skip the rule (the same approach
+    typescript-eslint acknowledged in
+    [typescript-eslint#528](https://github.com/typescript-eslint/typescript-eslint/issues/528)).
     Not pursued upstream.
-2. **Check for generic function calls**:
-    if the callee has
-   generic type parameters,
-    skip the rule (the same approach
-   typescript-eslint acknowledged in
-   [typescript-eslint#528](https://github.com/typescript-eslint/typescript-eslint/issues/528)).
-   Not pursued upstream.
-3. **Strip contextual type**:
-    temporarily remove the
-   `AsExpression` parent before calling `GetTypeAtLocation`,
-   or use a checker API that excludes contextual typing.
-    **Verified
-   upstream choice.
-   ** PR #824 introduced a call-like branch that consults
-   `Checker_getContextFreeTypeOfExpression` before falling back to
-   `GetTypeAtLocation`;
-    PR #826 widened the branch to cover `await`-wrapped
-   calls.
-    The upstream PR titles framed the fix against
-   [oxc-project/oxc#20656](https://github.com/oxc-project/oxc/issues/20656)
-   (`querySelector` with a defaulted type parameter),
-    not against this doc's
-   union-with-null shape,
-    but the same `getContextFreeTypeOfExpression` code
-   path resolves both classes of false positive.
+3.  **Strip contextual type**:
+     temporarily remove the
+    `AsExpression` parent before calling `GetTypeAtLocation`,
+    or use a checker API that excludes contextual typing.
+     **Verified
+    upstream choice.
+    ** PR #824 introduced a call-like branch that consults
+    `Checker_getContextFreeTypeOfExpression` before falling back to
+    `GetTypeAtLocation`;
+     PR #826 widened the branch to cover `await`-wrapped
+    calls.
+     The upstream PR titles framed the fix against
+    [oxc-project/oxc#20656](https://github.com/oxc-project/oxc/issues/20656)
+    (`querySelector` with a defaulted type parameter),
+     not against this doc's
+    union-with-null shape,
+     but the same `getContextFreeTypeOfExpression` code
+    path resolves both classes of false positive.
 
 Combined upstream diff (PR #824 + PR #826) on
 `internal/rules/no_unnecessary_type_assertion/no_unnecessary_type_assertion.go`:

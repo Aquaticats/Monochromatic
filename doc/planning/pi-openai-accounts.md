@@ -480,14 +480,14 @@ When the chain reaches a slot whose
 stored token is expired,
 the extension:
 
-1. Acquires `proper-lockfile` on `auth.json` with the same options pi uses (`realpath: false`,
-   `stale: 30_000`),
-   so the write serializes against pi's own read-modify-write in every process.
-2. Reads the current entry inside the lock and re-checks expiry,
-   because another process may have refreshed it.
-3. Calls the token endpoint with the stored issued `client_id` and `refresh_token`.
-4. Writes the rotated pair back atomically at mode `0600`,
-   preserving every other field of that entry.
+1.  Acquires `proper-lockfile` on `auth.json` with the same options pi uses (`realpath: false`,
+    `stale: 30_000`),
+    so the write serializes against pi's own read-modify-write in every process.
+2.  Reads the current entry inside the lock and re-checks expiry,
+    because another process may have refreshed it.
+3.  Calls the token endpoint with the stored issued `client_id` and `refresh_token`.
+4.  Writes the rotated pair back atomically at mode `0600`,
+    preserving every other field of that entry.
 
 A terminal refresh code marks the account dead for the process and moves the chain on.
 Transient network
@@ -883,36 +883,36 @@ Probes and checks:
 Each step is committed before the next begins,
 with its own scope.
 
-1. `docs(planning)`:
-   this document.
-2. `feat(pi-plugin-openai-accounts)`:
-   package skeleton,
-   `mise.toml` mirroring sibling packages,
-   README,
-   state
-   file schema and atomic write,
-   logger tagging.
-3. `feat(pi-plugin-openai-accounts)`:
-   SIWC login and reauthorization with JWKS validation,
-   refresh under pi's
-   lock protocol,
-   logout with revocation.
-4. `feat(pi-plugin-openai-accounts)`:
-   provider registration for the eight slots with cloned native catalog.
-5. `feat(pi-plugin-openai-accounts)`:
-   failover chain in `streamSimple`,
-   classification,
-   soft leases,
-   warn
-   announcements,
-   `/accounts`.
-6. `fix(pi-plugin-openai-fast)`:
-   enumerate account providers instead of the two constants.
-7. Verification:
-   stub suite,
-   live suite,
-   probes,
-   guard proofs,
-   then the README completeness pass.
+1.  `docs(planning)`:
+    this document.
+2.  `feat(pi-plugin-openai-accounts)`:
+    package skeleton,
+    `mise.toml` mirroring sibling packages,
+    README,
+    state
+    file schema and atomic write,
+    logger tagging.
+3.  `feat(pi-plugin-openai-accounts)`:
+    SIWC login and reauthorization with JWKS validation,
+    refresh under pi's
+    lock protocol,
+    logout with revocation.
+4.  `feat(pi-plugin-openai-accounts)`:
+    provider registration for the eight slots with cloned native catalog.
+5.  `feat(pi-plugin-openai-accounts)`:
+    failover chain in `streamSimple`,
+    classification,
+    soft leases,
+    warn
+    announcements,
+    `/accounts`.
+6.  `fix(pi-plugin-openai-fast)`:
+    enumerate account providers instead of the two constants.
+7.  Verification:
+    stub suite,
+    live suite,
+    probes,
+    guard proofs,
+    then the README completeness pass.
 
 [errors-and-recovery]: https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery

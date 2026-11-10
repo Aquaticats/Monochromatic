@@ -356,25 +356,25 @@ independently compilable,
 
 ## Rollout sequence
 
- 1. Publish-readiness sweep on `forbidden-regex`:
-    fix the 367 clippy implicit-return errors,
-    fill `authors` and `documentation` metadata.
- 2. Add the public buffer-plus-line-starts batch API
-    returning per-line rule indices.
- 3. Publish `forbidden-regex` 0.1.0 (workflow extension first).
- 4. Port rule files with the bench-sidecar script;
-    review the semantic diff (quantifier bounds,
-     rule 172,
-    `/m` drops).
- 5. Rewrite loader and scan path against the batch API;
-    delete resharp machinery;
-    add the sentinel redaction test;
-    retarget scanner fuzz targets.
- 6. Differential validation run,
-     old binary against new.
- 7. Re-measure `PERF.md`.
- 8. Lockstep update of the git-policy scanner-output parser.
- 9. Atomic cutover commit;
-    execute the runbook for the CI secret and contributor local files.
+ 1.  Publish-readiness sweep on `forbidden-regex`:
+     fix the 367 clippy implicit-return errors,
+     fill `authors` and `documentation` metadata.
+ 2.  Add the public buffer-plus-line-starts batch API
+     returning per-line rule indices.
+ 3.  Publish `forbidden-regex` 0.1.0 (workflow extension first).
+ 4.  Port rule files with the bench-sidecar script;
+     review the semantic diff (quantifier bounds,
+      rule 172,
+     `/m` drops).
+ 5.  Rewrite loader and scan path against the batch API;
+     delete resharp machinery;
+     add the sentinel redaction test;
+     retarget scanner fuzz targets.
+ 6.  Differential validation run,
+      old binary against new.
+ 7.  Re-measure `PERF.md`.
+ 8.  Lockstep update of the git-policy scanner-output parser.
+ 9.  Atomic cutover commit;
+     execute the runbook for the CI secret and contributor local files.
 10. Close and annotate issues;
     update the 1.0 checklist and the em-dash planning doc.

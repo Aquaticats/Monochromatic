@@ -69,102 +69,102 @@ surfaces.
 The chain,
 each step a source citation:
 
-1. Playwright Test's `context` fixture calls `browser.newContext()`.
-   On webkit that is
-   [`WKBrowser.doCreateNewContext`](https://github.com/microsoft/playwright/blob/a1f35e1955976e84411f9c10358228a80b763ebe/packages/playwright-core/src/server/webkit/wkBrowser.ts#L82-L92),
-   which sends `Playwright.createContext` with no data store:
-   `const { browserContextId } = await this._browserSession.send('Playwright.createContext', createOptions);`.
-   Only `launchPersistentContext` reaches the branch above it that keeps a context on disk
-   (`if (options.persistent) { browser._defaultContext = new WKBrowserContext(browser, undefined, options.persistent); }`,
-   same file,
-   lines 52 to 55).
-2. A non-persistent data store is created without any directory.
-   The configuration constructor runs `initializePaths()`
-   only for a persistent store:
-   [`WebsiteDataStoreConfiguration.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/UIProcess/WebsiteData/WebsiteDataStoreConfiguration.cpp#L53-L58)
+1.  Playwright Test's `context` fixture calls `browser.newContext()`.
+    On webkit that is
+    [`WKBrowser.doCreateNewContext`](https://github.com/microsoft/playwright/blob/a1f35e1955976e84411f9c10358228a80b763ebe/packages/playwright-core/src/server/webkit/wkBrowser.ts#L82-L92),
+    which sends `Playwright.createContext` with no data store:
+    `const { browserContextId } = await this._browserSession.send('Playwright.createContext', createOptions);`.
+    Only `launchPersistentContext` reaches the branch above it that keeps a context on disk
+    (`if (options.persistent) { browser._defaultContext = new WKBrowserContext(browser, undefined, options.persistent); }`,
+    same file,
+    lines 52 to 55).
+2.  A non-persistent data store is created without any directory.
+    The configuration constructor runs `initializePaths()`
+    only for a persistent store:
+    [`WebsiteDataStoreConfiguration.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/UIProcess/WebsiteData/WebsiteDataStoreConfiguration.cpp#L53-L58)
 
-   ```cpp
-   if (isPersistent == IsPersistent::Yes && shouldInitializePaths == ShouldInitializePaths::Yes) {
-   ```
+    ```cpp
+    if (isPersistent == IsPersistent::Yes && shouldInitializePaths == ShouldInitializePaths::Yes) {
+    ```
 
-   so `generalStorageDirectory` keeps its empty default.
-   The same file sets it only in the persistent path
-   (`setGeneralStorageDirectory(WebsiteDataStore::defaultGeneralStorageDirectory(m_baseDataDirectory));`),
-   and
-   [`WebsiteDataStore.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/UIProcess/WebsiteData/WebsiteDataStore.cpp#L189-L190)
-   guards its use on persistence:
-   `if (auto directory = m_configuration->generalStorageDirectory(); isPersistent() && !directory.isEmpty())`.
-   WebKitGTK's public documentation states the same contract for its ephemeral manager:
-   [`WebKitWebsiteDataManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/UIProcess/API/glib/WebKitWebsiteDataManager.cpp#L60-L62),
-   "A WebKitWebsiteDataManager can be ephemeral,
-   in which case all the directory configuration is not needed because
-   website data will never persist".
-3. The network process keeps that empty string as its storage root and derives every origin directory from it,
-   returning
-   an empty path for an empty root:
-   [`NetworkStorageManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/NetworkStorageManager.cpp#L124-L127)
+    so `generalStorageDirectory` keeps its empty default.
+    The same file sets it only in the persistent path
+    (`setGeneralStorageDirectory(WebsiteDataStore::defaultGeneralStorageDirectory(m_baseDataDirectory));`),
+    and
+    [`WebsiteDataStore.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/UIProcess/WebsiteData/WebsiteDataStore.cpp#L189-L190)
+    guards its use on persistence:
+    `if (auto directory = m_configuration->generalStorageDirectory(); isPersistent() && !directory.isEmpty())`.
+    WebKitGTK's public documentation states the same contract for its ephemeral manager:
+    [`WebKitWebsiteDataManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/UIProcess/API/glib/WebKitWebsiteDataManager.cpp#L60-L62),
+    "A WebKitWebsiteDataManager can be ephemeral,
+    in which case all the directory configuration is not needed because
+    website data will never persist".
+3.  The network process keeps that empty string as its storage root and derives every origin directory from it,
+    returning
+    an empty path for an empty root:
+    [`NetworkStorageManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/NetworkStorageManager.cpp#L124-L127)
 
-   ```cpp
-   static String originDirectoryPath(const String& rootPath, const WebCore::ClientOrigin& origin, FileSystem::Salt salt)
-   {
-       if (rootPath.isEmpty())
-           return emptyString();
-   ```
+    ```cpp
+    static String originDirectoryPath(const String& rootPath, const WebCore::ClientOrigin& origin, FileSystem::Salt salt)
+    {
+        if (rootPath.isEmpty())
+            return emptyString();
+    ```
 
-4. The per-origin storage bucket therefore has an empty root,
-   and the file system path built from it is empty too:
-   [`OriginStorageManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/OriginStorageManager.cpp#L208-L222)
+4.  The per-origin storage bucket therefore has an empty root,
+    and the file system path built from it is empty too:
+    [`OriginStorageManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/OriginStorageManager.cpp#L208-L222)
 
-   ```cpp
-   String OriginStorageManager::StorageBucket::typeStoragePath(StorageType type) const
-   {
-       auto storageIdentifier = toStorageIdentifier(type);
-       if (m_rootPath.isEmpty() || storageIdentifier.isEmpty())
-           return emptyString();
-       return FileSystem::pathByAppendingComponent(m_rootPath, storageIdentifier);
-   }
-   ...
-       m_fileSystemStorageManager = FileSystemStorageManager::create(typeStoragePath(StorageType::FileSystem), registry, origin, WTF::move(quotaCheckFunction));
-   ```
+    ```cpp
+    String OriginStorageManager::StorageBucket::typeStoragePath(StorageType type) const
+    {
+        auto storageIdentifier = toStorageIdentifier(type);
+        if (m_rootPath.isEmpty() || storageIdentifier.isEmpty())
+            return emptyString();
+        return FileSystem::pathByAppendingComponent(m_rootPath, storageIdentifier);
+    }
+    ...
+        m_fileSystemStorageManager = FileSystemStorageManager::create(typeStoragePath(StorageType::FileSystem), registry, origin, WTF::move(quotaCheckFunction));
+    ```
 
-5. `getDirectory` hands that empty path to `createHandle`,
-   which rejects an empty path outright:
-   [`FileSystemStorageManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/FileSystemStorageManager.cpp#L169-L173)
+5.  `getDirectory` hands that empty path to `createHandle`,
+    which rejects an empty path outright:
+    [`FileSystemStorageManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/FileSystemStorageManager.cpp#L169-L173)
 
-   ```cpp
-   std::expected<...> FileSystemStorageManager::getDirectory(IPC::Connection::UniqueID connection)
-   {
-       ASSERT(!RunLoop::isMain());
-       return createHandle(connection, FileSystemStorageHandle::Type::Directory, String { m_path }, { }, true);
-   }
-   ```
+    ```cpp
+    std::expected<...> FileSystemStorageManager::getDirectory(IPC::Connection::UniqueID connection)
+    {
+        ASSERT(!RunLoop::isMain());
+        return createHandle(connection, FileSystemStorageHandle::Type::Directory, String { m_path }, { }, true);
+    }
+    ```
 
-   and,
-   in the same file,
-   [`FileSystemStorageManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/FileSystemStorageManager.cpp#L82-L83)
+    and,
+    in the same file,
+    [`FileSystemStorageManager.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/FileSystemStorageManager.cpp#L82-L83)
 
-   ```cpp
-       if (path.isEmpty())
-           return makeUnexpected(FileSystemStorageError::Unknown);
-   ```
+    ```cpp
+        if (path.isEmpty())
+            return makeUnexpected(FileSystemStorageError::Unknown);
+    ```
 
-6. `FileSystemStorageError::Unknown` becomes `ExceptionCode::UnknownError`,
-   whose message is the one the page sees:
-   [`FileSystemStorageError.h`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/FileSystemStorageError.h#L69-L77)
+6.  `FileSystemStorageError::Unknown` becomes `ExceptionCode::UnknownError`,
+    whose message is the one the page sees:
+    [`FileSystemStorageError.h`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebKit/NetworkProcess/storage/FileSystemStorageError.h#L69-L77)
 
-   ```cpp
-       case FileSystemStorageError::Unknown:
-           break;
-       }
-       return WebCore::Exception { WebCore::ExceptionCode::UnknownError };
-   ```
+    ```cpp
+        case FileSystemStorageError::Unknown:
+            break;
+        }
+        return WebCore::Exception { WebCore::ExceptionCode::UnknownError };
+    ```
 
-   and
-   [`DOMException.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebCore/dom/DOMException.cpp#L63)
+    and
+    [`DOMException.cpp`](https://github.com/WebKit/WebKit/blob/3a2cd4ea9ef8700615250a918d28e5166a707876/Source/WebCore/dom/DOMException.cpp#L63)
 
-   ```cpp
-   DOMException::Description { "UnknownError"_s, "The operation failed for an unknown transient reason (e.g. out of memory)."_s, 0 },
-   ```
+    ```cpp
+    DOMException::Description { "UnknownError"_s, "The operation failed for an unknown transient reason (e.g. out of memory)."_s, 0 },
+    ```
 
 The words "unknown transient reason (e.g. out of memory)" are a generic `UnknownError` message,
 not a report about this
@@ -376,39 +376,39 @@ already reported:
 
 The six-constraint check:
 
-1. **Upstream's fault?**
-   It is WebKit's architectural restriction for ephemeral data stores,
-   surfaced through
-   Playwright's ephemeral-by-default test contexts.
-   Neither is a wording problem,
-   and both are documented.
-2. **Can upstream fix it?**
-   A fix would mean an in-memory OPFS backend inside WebKit,
-   which is a design change to
-   WebKit's storage layer,
-   not a bug fix.
-   Playwright cannot fix it from `launchPersistentContext` alone because its
-   test runner has no persistent context fixture.
-3. **Are they supporting the use case?**
-   Playwright runs a persistent-context OPFS test upstream,
-   and documents the
-   limitation;
-   the combination we need,
-   "assert OPFS through the test runner",
-   is a supported library call.
-4. **Would the repo welcome a contribution?**
-   Not reached:
-   there is nothing additive to report.
-   Its `CONTRIBUTING.md`
-   and issue templates were not audited for this decision because no filing is proposed.
-5. **Will they likely fix it?**
-   The docs note is the opposite signal,
-   a documented limitation.
-6. **Prototyped minimal fix?**
-   Not applicable upstream.
-   The consumer-side fix (a persistent context in our fixture) is
-   prototyped,
-   measured and committed in this repository.
+1.  **Upstream's fault?**
+    It is WebKit's architectural restriction for ephemeral data stores,
+    surfaced through
+    Playwright's ephemeral-by-default test contexts.
+    Neither is a wording problem,
+    and both are documented.
+2.  **Can upstream fix it?**
+    A fix would mean an in-memory OPFS backend inside WebKit,
+    which is a design change to
+    WebKit's storage layer,
+    not a bug fix.
+    Playwright cannot fix it from `launchPersistentContext` alone because its
+    test runner has no persistent context fixture.
+3.  **Are they supporting the use case?**
+    Playwright runs a persistent-context OPFS test upstream,
+    and documents the
+    limitation;
+    the combination we need,
+    "assert OPFS through the test runner",
+    is a supported library call.
+4.  **Would the repo welcome a contribution?**
+    Not reached:
+    there is nothing additive to report.
+    Its `CONTRIBUTING.md`
+    and issue templates were not audited for this decision because no filing is proposed.
+5.  **Will they likely fix it?**
+    The docs note is the opposite signal,
+    a documented limitation.
+6.  **Prototyped minimal fix?**
+    Not applicable upstream.
+    The consumer-side fix (a persistent context in our fixture) is
+    prototyped,
+    measured and committed in this repository.
 
 `microsoft/playwright` runs a trust system on issue authors;
 that risk is recorded here for completeness only,

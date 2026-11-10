@@ -356,6 +356,7 @@ The parent also owns the current-source mvm guest lifecycle,
 physical Depot Tests sharding,
 and the immutable BuildKit service-image consumers.
 The BuildKit researcher retains the service image until those consumers finish.
+
 ## Reopened current-source execution, 2026-10-18
 
 The real PR campaign is retained in

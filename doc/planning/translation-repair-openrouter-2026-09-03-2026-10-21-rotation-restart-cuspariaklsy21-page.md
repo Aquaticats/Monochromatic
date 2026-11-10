@@ -512,49 +512,49 @@ repair issues 12,
 The three that shift meaning most,
 ranked by the read:
 
-1. Line 37:
-   "Her circle name,
-   “Ling Shui Yu Yu Zi,”
-   was given to her while she was feeding fish."
-   adds a giver to 起的.
-   The correction was proposed and lost on a 2 to 2 gate.
-2. Line 17:
-   "She often told me she couldn’t get a proper meal."
-   keeps the softening of 吃不上饭 that the repair panel accepted 4 to 0 as an error,
-   and the slice contest lost the repair lane's fix.
-3. Line 44:
-   "She had been observing for a while,
-   and after encountering ACG (Animation,
-   Comics,
-   and Games),
-   ... her ideas were further sparked ..."
-   loses 一直,
-   观望 and 二次元 and strings three clauses;
-   three of four naturalness voices called it unacceptable.
+1.  Line 37:
+    "Her circle name,
+    “Ling Shui Yu Yu Zi,”
+    was given to her while she was feeding fish."
+    adds a giver to 起的.
+    The correction was proposed and lost on a 2 to 2 gate.
+2.  Line 17:
+    "She often told me she couldn’t get a proper meal."
+    keeps the softening of 吃不上饭 that the repair panel accepted 4 to 0 as an error,
+    and the slice contest lost the repair lane's fix.
+3.  Line 44:
+    "She had been observing for a while,
+    and after encountering ACG (Animation,
+    Comics,
+    and Games),
+    ... her ideas were further sparked ..."
+    loses 一直,
+    观望 and 二次元 and strings three clauses;
+    three of four naturalness voices called it unacceptable.
 
 The full list in page order,
 each checked against the lane records:
 
-1. Line 11:
-   "loved" for 喜欢 and "felt" added.
-2. Line 17:
-   "a proper meal" for 吃不上饭.
-3. Line 19:
-   很少 flattened to "many".
-4. Line 29:
-   "things" added to 让其他人好.
-5. Line 37:
-   "was given to her" for 起的,
-   and "circle name" for 圈名.
-6. Line 42:
-   one sentence joined for two clauses.
-7. Line 44:
-   the run-on with 一直,
-   观望 and 二次元 lost.
-8. Line 46:
-   the ambiguous ending and the plural.
-9. Line 48:
-   "Family problems and school problems" and "lacked the ability".
+1.  Line 11:
+    "loved" for 喜欢 and "felt" added.
+2.  Line 17:
+    "a proper meal" for 吃不上饭.
+3.  Line 19:
+    很少 flattened to "many".
+4.  Line 29:
+    "things" added to 让其他人好.
+5.  Line 37:
+    "was given to her" for 起的,
+    and "circle name" for 圈名.
+6.  Line 42:
+    one sentence joined for two clauses.
+7.  Line 44:
+    the run-on with 一直,
+    观望 and 二次元 lost.
+8.  Line 46:
+    the ambiguous ending and the plural.
+9.  Line 48:
+    "Family problems and school problems" and "lacked the ability".
 10. Line 50:
     已经 not rendered.
 11. Line 50:

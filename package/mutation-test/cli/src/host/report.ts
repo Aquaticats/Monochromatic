@@ -16,6 +16,8 @@ import type {
 import type { MutantStatus, } from '../engine/types.ts';
 import type { RunOutcome, } from './orchestrate.ts';
 
+//region Report shape
+
 /**
  Current run-report schema version.
  */
@@ -63,6 +65,10 @@ export type RunReport = {
   readonly infraErrors: readonly string[];
   readonly shardCount: number;
 };
+
+//endregion Report shape
+
+//region Report building
 
 /**
  Builds the native JSON run report from an orchestration outcome.
@@ -152,6 +158,10 @@ export function buildRunReport(options: {
   };
 }
 
+//endregion Report building
+
+//region Terminal summary
+
 /**
  Formats terminal output: totals plus survivor and timeout findings.
  
@@ -206,3 +216,5 @@ export function formatTerminalSummary(report: RunReport,): string {
   ]
     .join('\n',);
 }
+
+//endregion Terminal summary

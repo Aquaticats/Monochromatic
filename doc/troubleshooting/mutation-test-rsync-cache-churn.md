@@ -172,7 +172,7 @@ No upstream report is warranted:
 
 ## Upstream filing artifact
 
-**Do not file as-is.**
+Do not file as-is.
 The following draft records why the incident belongs in this repository:
 
 ~~~md

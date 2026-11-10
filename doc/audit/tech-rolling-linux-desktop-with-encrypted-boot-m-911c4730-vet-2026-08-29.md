@@ -1,32 +1,32 @@
 # Rolling Linux desktop with encrypted boot-menu rollback vet report
 
-- **Status**:
+- Status:
   Blocked on consumer-boundary validation;
   intended adoption authorized and gated by the migration runbook
-- **Lifecycle phase**:
+- Lifecycle phase:
   Hard-gate screening and source validation complete;
   consumer-boundary validation required before formal lifecycle advancement
-- **Subject**:
+- Subject:
   Rolling Linux desktop with encrypted boot-menu rollback
-- **Scope**:
+- Scope:
   Choose a rolling Linux installation architecture for this user’s x86-64 UWSM plus labwc gaming desktop,
   using the dedicated 2 TB NVMe,
   encrypted root,
   and rollback targets selectable directly from the firmware-launched boot menu.
-- **Started**:
+- Started:
   2026-08-29
-- **Last updated**:
+- Last updated:
   2026-08-29
-- **Governing skill commit**:
+- Governing skill commit:
   `a05818ad70a40e5769a36de669697ba109891b31`
-- **Governing skill SHA-256**:
+- Governing skill SHA-256:
   `393eb68c5b2b2f7b16c8f7f90c100fb8be43eefa4501511360cd0572e4ae8087`
-- **Compatibility fingerprint**:
+- Compatibility fingerprint:
   `911c473022b23ef4a3fb839b75f9a348613ecd9cccf70e0dd2e25ff613dc08b0`
-- **Active audit owner**:
+- Active audit owner:
   None;
   last active owner was Pi session `01a04220-8e59-7772-ad8a-2c5eb2dedb7b`
-- **Prior compatible report**:
+- Prior compatible report:
   None found.
   `doc/audit/tech-rolling-linux-desktop-with-encrypted-boot-m-vet-2026-08-29.md` has the incompatible
   fingerprint `636923994432fe5afbe3a13086afb7ffdc004479de4fb2c68842ea6022eff9ce` because it requires Windows
@@ -269,68 +269,68 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### CachyOS with encrypted Btrfs plus Limine
 
-- **Discovery sources**:
+- Discovery sources:
   CachyOS official documentation,
   current installer source,
   package sources,
   and `limine-snapper-sync` upstream source.
-- **Base category**:
+- Base category:
   Inspectable open-source local technology.
-- **Overlays**:
+- Overlays:
   Replacement,
   native/prebuilt,
   sensitive-data,
   and high-trust boot overlays.
-- **Screening result**:
+- Screening result:
   Hard-gate confirmed;
   finalist validation pending.
-- **Why it survives**:
+- Why it survives:
   The installer creates a LUKS2 root behind an unencrypted FAT32 `/boot`;
   Limine presents Snapper snapshots directly;
   current helper source preserves and restores content-addressed matching kernel artifacts.
 
 ### openSUSE Tumbleweed with encrypted Btrfs plus Snapper and BLS
 
-- **Discovery sources**:
+- Discovery sources:
   openSUSE installer,
   full-disk-encryption,
   Snapper,
   BLS,
   `sdbootutil`,
   and package documentation.
-- **Base category**:
+- Base category:
   Inspectable open-source local technology.
-- **Overlays**:
+- Overlays:
   Replacement,
   native/prebuilt,
   sensitive-data,
   and high-trust boot overlays.
-- **Screening result**:
+- Screening result:
   Hard-gate confirmed;
   finalist validation pending.
-- **Why it survives**:
+- Why it survives:
   Current YaST installs support LUKS2 FDE with systemd-boot or GRUB2-BLS;
   `sdbootutil` creates a direct boot entry for every retained bootable snapshot and associates it with matching,
   content-addressed kernel and initramfs artifacts on FAT32 boot storage.
 
 ### Garuda with encrypted Btrfs plus Snapper and GRUB
 
-- **Discovery sources**:
+- Discovery sources:
   Garuda release announcement,
   installer generator,
   package sources,
   and snapshot-support sources.
-- **Base category**:
+- Base category:
   Inspectable open-source local technology.
-- **Overlays**:
+- Overlays:
   Replacement,
   native/prebuilt,
   sensitive-data,
   and high-trust boot overlays.
-- **Screening result**:
+- Screening result:
   Hard-gate confirmed;
   finalist validation pending.
-- **Why it survives**:
+- Why it survives:
   Garuda Temeraire uses LUKS2 plus Argon2 with GRUB 2.14,
   retains `/boot` inside the Btrfs root snapshot,
   generates GRUB snapshot entries,
@@ -338,23 +338,23 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### Shanios blue/green Arch deployments
 
-- **Discovery sources**:
+- Discovery sources:
   official project site,
   installer source,
   deployment source,
   image builder,
   and package sources.
-- **Base category**:
+- Base category:
   Inspectable open-source local technology.
-- **Overlays**:
+- Overlays:
   Replacement,
   native/prebuilt,
   sensitive-data,
   and high-trust boot overlays.
-- **Screening result**:
+- Screening result:
   Hard-gate confirmed for encryption and rollback;
   finalist validation and session portability pending.
-- **Why it survives**:
+- Why it survives:
   Its installer creates a LUKS root with Argon2id,
   two read-only Btrfs roots,
   and one UKI plus direct systemd-boot entry per slot.
@@ -363,21 +363,21 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### CachyOS with encrypted ZFS root plus ZFSBootMenu
 
-- **Discovery sources**:
+- Discovery sources:
   ZFSBootMenu and OpenZFS official documentation,
   CachyOS package sources,
   and `fnichol/cachyos-zfs-installer` 0.5.1.
-- **Base category**:
+- Base category:
   Inspectable open-source local technology assembled from distribution and upstream components.
-- **Overlays**:
+- Overlays:
   Replacement,
   native/prebuilt,
   sensitive-data,
   and high-trust boot overlays.
-- **Screening result**:
+- Screening result:
   Hard-gate confirmed at the source-architecture level;
   third-party installer runtime validation pending.
-- **Why it survives**:
+- Why it survives:
   ZFSBootMenu unlocks natively encrypted datasets,
   discovers matching kernel and initramfs pairs inside each boot environment,
   and directly clones,
@@ -388,106 +388,106 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### siduction with encrypted Btrfs plus Snapper and GRUB
 
-- **Discovery sources**:
+- Discovery sources:
   siduction installation and Btrfs manuals plus `siduction-btrfs` source.
-- **Screening result**:
+- Screening result:
   Hard-gate failure.
-- **Reason**:
+- Reason:
   siduction directly boots Snapper snapshots and deliberately leaves qgroups disabled,
   but its encrypted-install procedure requires an unencrypted separate `/boot`.
   Its own Btrfs manual warns that a separate `/boot` is excluded from root snapshots and can make rollback inconsistent.
   That fails the matching-kernel-artifact requirement.
-- **Primary sources**:
+- Primary sources:
   <https://manual.siduction.org/hd-install_en.html>
   and <https://manual.siduction.org/sys-admin-btrfs-snapper_en.html>,
   accessed 2026-08-29.
 
 ### openSUSE Kalpa
 
-- **Discovery sources**:
+- Discovery sources:
   official Kalpa site and openSUSE community documentation.
-- **Screening result**:
+- Screening result:
   Category-fit hard-gate failure for this deployment.
-- **Reason**:
+- Reason:
   Kalpa remains Alpha,
   says custom partitioning produces a broken unsupported system,
   and reserves host RPM mutation for strictly required host functionality.
   Replacing its supported Plasma session with the complete UWSM plus labwc host stack would create an unsupported
   custom base rather than a ready-to-use candidate.
-- **Primary sources**:
+- Primary sources:
   <https://kalpadesktop.org/documentation/>
   and <https://en.opensuse.org/Portal:Kalpa>,
   accessed 2026-08-29.
 
 ### NixOS unstable
 
-- **Discovery sources**:
+- Discovery sources:
   official NixOS generation and encryption documentation.
-- **Screening result**:
+- Screening result:
   Excluded by explicit user constraint concerning project community and governance.
   Technical capabilities are not scored.
 
 ### AerynOS
 
-- **Discovery sources**:
+- Discovery sources:
   official installation,
   filesystem,
   rollback,
   and lacking-features documentation.
-- **Screening result**:
+- Screening result:
   Encryption hard-gate failure.
-- **Reason**:
+- Reason:
   AerynOS offers boot-time state rollback,
   but its official missing-features page states that disk encryption is not yet supported.
-- **Primary source**:
+- Primary source:
   <https://aerynos.dev/faq/lacking-features/>,
   accessed 2026-08-29.
 
 ### ObsidianOS
 
-- **Discovery sources**:
+- Discovery sources:
   official GitHub organization,
   installer source,
   and `obsidianctl` source.
-- **Screening result**:
+- Screening result:
   Encryption hard-gate failure.
-- **Reason**:
+- Reason:
   `modules/install.py:264-297` creates two FAT ESPs and five plain ext4 or F2FS partitions with `mkfs`;
   the installer has no LUKS or other root-encryption operation.
-- **Clone**:
+- Clone:
   `/var/home/user/temp/agent/obsidianos-obsidianctl-20260829` at
   `d5e62067a610e94bc4f2ff9eef9f7e2e45bf6e8a`.
-- **Primary source**:
+- Primary source:
   <https://github.com/Obsidian-OS/obsidianctl>,
   accessed 2026-08-29.
 
 ### Nebula Linux
 
-- **Discovery sources**:
+- Discovery sources:
   official site and source repository.
-- **Screening result**:
+- Screening result:
   Kernel-artifact hard-gate failure.
-- **Reason**:
+- Reason:
   `profile/airootfs/etc/calamares/modules/partition.conf:16-28` deliberately places `/boot` on a separate ext4
   partition outside the snapshotted root.
   A root rollback can therefore pair old `/usr/lib/modules` with a current kernel and initramfs.
   The project also labels the release Beta while its site still warns that it is Alpha.
-- **Clone**:
+- Clone:
   `/var/home/user/temp/agent/nebula-linux-20260829` at
   `68eca22c54d30a96beb625b1bab0beac17ee6b45`.
-- **Primary source**:
+- Primary source:
   <https://github.com/nebula-linux-os/Nebula-Linux>,
   accessed 2026-08-29.
 
 ### KDE Linux
 
-- **Discovery sources**:
+- Discovery sources:
   official installation,
   rollback,
   and recovery documentation plus source repository.
-- **Screening result**:
+- Screening result:
   Category-fit hard-gate failure for this deployment.
-- **Reason**:
+- Reason:
   KDE Linux has direct boot selection of prior OS generations and an encrypted-install path,
   but the only current edition is explicitly Testing and the supported host image is Plasma-specific.
   Supplying UWSM,
@@ -495,7 +495,7 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
   sfwbar,
   and xwayland-satellite would require a custom system extension or image;
   ready-to-use surviving distributions make that custom implementation ineligible.
-- **Primary sources**:
+- Primary sources:
   <https://linux.kde.org/docs/install/>
   and <https://linux.kde.org/docs/boot-failure-recovery/>,
   accessed 2026-08-29.
@@ -504,10 +504,10 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### CachyOS boot-history behavior
 
-- **Candidate revision**:
+- Candidate revision:
   `limine-snapper-sync` 1.31.0 source at commit
   `26caede1286b4f6bc85321f9ffba9fbabed21711`.
-- **Claim and relevance**:
+- Claim and relevance:
   `SnapshotManager.historyAddSnapshot()` archives kernel,
   initramfs,
   and UKI files under content-addressed names.
@@ -515,22 +515,22 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
   removes non-target boot files,
   and copies the archived target set back.
   A kernel update therefore does not inherently make a snapshot unusable.
-- **Gate**:
+- Gate:
   Rollback correctness and kernel-artifact hard gate.
-- **Status**:
+- Status:
   Pass in inspected helper source;
   end-to-end installer validation remains pending.
-- **Source paths**:
+- Source paths:
   `src/main/java/org/limine/snapper/processes/SnapshotManager.java:211-254`
   and `:648-697`.
-- **Primary source**:
+- Primary source:
   <https://gitlab.com/Zesko/limine-snapper-sync>,
   accessed 2026-08-29.
-- **Counterevidence**:
+- Counterevidence:
   CachyOS documentation still states that snapshots involving kernel updates cannot be rolled back at
   <https://wiki.cachyos.org/configuration/btrfs_snapshots/>.
   That statement conflicts with current helper source and the helper author’s explanation.
-- **Remaining limits**:
+- Remaining limits:
   Snapshots predating the helper,
   missing or pruned history,
   corrupt artifacts,
@@ -538,29 +538,29 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### CachyOS automatic Limine partition sizing
 
-- **Candidate revision**:
+- Candidate revision:
   CachyOS Calamares commit `f1c20a500e14448e36991f1b9d3ebae153827761`.
-- **Claim and relevance**:
+- Claim and relevance:
   Current automatic whole-disk partitioning creates a 4,096 MiB FAT32 partition mounted at `/boot` when Limine is
   selected.
-- **Gate**:
+- Gate:
   Installer integration and restore capacity.
-- **Status**:
+- Status:
   Pass in current source;
   ISO UI validation remains pending.
-- **Source paths and excerpts**:
+- Source paths and excerpts:
   `src/modules/partition/partition.conf:75-80` sets `efiSystemPartition: "/boot"` and
   `efiSystemPartitionSize: 4096M`;
   `src/libcalamares/partition/PartitionSize.cpp:30` maps `M` to `MiB`;
   `src/modules/partition/core/PartitionActions.cpp:175-198` creates a FAT32 ESP using that configured size.
-- **Primary source**:
+- Primary source:
   <https://github.com/CachyOS/cachyos-calamares>,
   accessed 2026-08-29.
-- **Documentation discrepancy**:
+- Documentation discrepancy:
   The 26.01 changelog says 4,192 MB at
   <https://wiki.cachyos.org/cachyos_basic/changelogs/gui_installer/>.
   Current source is decisive for the present proposal and does not contain that number.
-- **Historical counterevidence**:
+- Historical counterevidence:
   ISO 260124 could alternate between 2 GB and 4 GB after navigating backward at
   <https://discuss.cachyos.org/t/inconsistent-calamares-behavior-when-selecting-limine-260124/22236>.
   The current source has one Limine override,
@@ -568,48 +568,48 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### CachyOS snapshot-pressure defaults
 
-- **Candidate revision**:
+- Candidate revision:
   `CachyOS/CachyOS-PKGBUILDS` commit
   `74d4d55e0ddda0daa8823908c4d1ceccaa2ab158`.
-- **Claim and relevance**:
+- Claim and relevance:
   The shipped root Snapper template sets `QGROUP=""` and `TIMELINE_CREATE="no"`.
   Package operations still create pre/post snapshots,
   and number cleanup remains enabled.
-- **Gate**:
+- Gate:
   Storage-pressure exposure and background-maintenance control.
-- **Status**:
+- Status:
   Pass for avoiding the incumbent qgroup configuration;
   ordinary Btrfs transaction pressure remains possible.
-- **Source path**:
+- Source path:
   `cachyos-snapper-support/snapper-template-root-cachyos`.
-- **Primary source**:
+- Primary source:
   <https://github.com/CachyOS/CachyOS-PKGBUILDS/blob/master/cachyos-snapper-support/snapper-template-root-cachyos>,
   accessed 2026-08-29.
 
 ### openSUSE BLS snapshot-to-kernel association
 
-- **Candidate revision**:
+- Candidate revision:
   `openSUSE/sdbootutil` commit `786f9a84027ac6aa351eb303206c34123bb23059`.
-- **Claim and relevance**:
+- Claim and relevance:
   The Snapper plugin runs `sdbootutil add-all-kernels` for each Tumbleweed snapshot.
   The tool reads kernels from the selected snapshot,
   generates or reuses its initramfs,
   stores content-addressed artifacts on FAT32 boot storage,
   and writes a BLS entry with that snapshot’s `rootflags`.
-- **Gate**:
+- Gate:
   Direct rollback and matching-kernel-artifact hard gates.
-- **Status**:
+- Status:
   Pass in current source;
   end-to-end installer validation remains pending.
-- **Source paths**:
+- Source paths:
   `10-sdbootutil.snapper:107-126`,
   `sdbootutil:1734-1957`,
   and `ARCHITECTURE.md` under “Introducing snapshots”.
-- **Primary sources**:
+- Primary sources:
   <https://github.com/openSUSE/sdbootutil>
   and <https://news.opensuse.org/2025/11/13/tw-grub2-bls>,
   accessed 2026-08-29.
-- **Capacity behavior**:
+- Capacity behavior:
   `sdbootutil:1437-1602` protects active and default snapshots,
   then prunes other boot entries from oldest to newest until a new kernel fits.
   A retained Snapper snapshot can therefore lose its boot entry before Snapper deletes the snapshot.
@@ -618,83 +618,83 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### openSUSE encryption and Snapper defaults
 
-- **Claim and relevance**:
+- Claim and relevance:
   Current BLS installs support LUKS2 with password,
   TPM2,
   or FIDO2 unlock.
   The root Snapper configuration shown by openSUSE uses `QGROUP=1/0`,
   while timeline creation is disabled on ordinary roots larger than 16 GiB;
   package-manager pre/post snapshots and cleanup remain enabled.
-- **Gate**:
+- Gate:
   Encryption and storage-pressure scoring.
-- **Status**:
+- Status:
   Pass for encryption;
   scored concern for reintroducing qgroup accounting on the same NVMe.
-- **Primary sources**:
+- Primary sources:
   <https://news.opensuse.org/2025/11/13/tw-grub2-bls>
   and <https://doc.opensuse.org/documentation/tumbleweed/snapper/>,
   accessed 2026-08-29.
-- **Evidence limit**:
+- Evidence limit:
   Upstream Snapper’s `data/default-config` leaves `QGROUP` empty;
   the `1/0` value is openSUSE’s installed policy rather than an invariant of Snapper itself.
 
 ### Garuda encrypted snapshot boot path
 
-- **Candidate revisions**:
+- Candidate revisions:
   `garuda-linux/pkgbuilds` commit `18ebb7a6fe801e1b2163e2ba6e1581799ec9e644`,
   `garuda-linux/tools/iso-profiles` commit `760f824c1c8b1971112eeb6268762190eaa8e07c`,
   and `garuda-linux/tools/garuda-tools` commit `5c45ad31dda34e409d44e2959af4501dd01a54d1`.
-- **Claim and relevance**:
+- Claim and relevance:
   The ISO uses GRUB;
   `/boot/efi` is separate but `/boot` remains in the snapshotted root;
   `snapper-support` generates GRUB entries and uses no qgroup;
   `garuda-dracut-support` overlays a writable tmpfs over a read-only snapshot boot.
-- **Gate**:
+- Gate:
   Encryption,
   direct rollback,
   matching-kernel-artifact,
   and storage-pressure gates.
-- **Status**:
+- Status:
   Pass in source;
   end-to-end encrypted install validation remains pending.
-- **Source paths**:
+- Source paths:
   `garuda-tools/lib/util-yaml.sh:278-326`,
   `iso-profiles/shared/Packages-Root`,
   `pkgbuilds/snapper-support/snapper-template-garuda`,
   and `pkgbuilds/garuda-dracut-support/snapshot-overlay.sh:1-22`.
-- **Primary source**:
+- Primary source:
   <https://forum.garudalinux.org/t/garuda-linux-temeraire-260819/48606>,
   accessed 2026-08-29.
-- **Version boundary**:
+- Version boundary:
   Temeraire introduced LUKS2 plus Argon2 and ships GRUB 2.14,
   whose release added Argon2 KDF support.
   Reports about earlier LUKS1 installs do not describe the current ISO.
 
 ### Shanios blue/green behavior
 
-- **Candidate revisions**:
+- Candidate revisions:
   `shani8dev/os-installer-config` commit `a76296a84183e0efdd6a2dedb3cded1d72da6693`
   and `shani8dev/shani-deploy` commit `5ea6945fd1bfd7387290ca808371d89a9612582b`.
-- **Claim and relevance**:
+- Claim and relevance:
   The installer encrypts the root with LUKS plus Argon2id,
   creates `@blue` and `@green`,
   builds one signed UKI per slot,
   and writes direct systemd-boot entries.
   Deployment writes the new image only to the inactive slot and uses a boot counter for automatic fallback.
-- **Gate**:
+- Gate:
   Encryption and direct rollback hard gates.
-- **Status**:
+- Status:
   Pass in source;
   end-to-end installer validation remains pending.
-- **Source paths**:
+- Source paths:
   `scripts/install.sh:289-304`,
   `scripts/configure.sh` functions `generate_uki_entry()` and `generate_loader_conf()`,
   and `shani-deploy/README.md` under “The blue-green model”.
-- **Primary sources**:
+- Primary sources:
   <https://github.com/shani8dev/os-installer-config>
   and <https://github.com/shani8dev/shani-deploy>,
   accessed 2026-08-29.
-- **Material limits**:
+- Material limits:
   only one previous slot is directly bootable;
   `/etc` and selected `/var` state are shared overlays and do not roll back with a slot;
   continuous `beesd` deduplication is enabled;
@@ -702,11 +702,11 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
 
 ### ZFSBootMenu and CachyOS ZFS assembly
 
-- **Candidate revisions**:
+- Candidate revisions:
   ZFSBootMenu commit `e15503228f40b3c95ded551fab86e91f3e3d230f`,
   `cachyos-zfs-installer` 0.5.1 at `9d587de2d34a35ea33094735002d8599afed7eac`,
   and CachyOS package source `74d4d55e0ddda0daa8823908c4d1ceccaa2ab158`.
-- **Claim and relevance**:
+- Claim and relevance:
   ZFSBootMenu prompts for a native-encryption passphrase,
   finds kernel and initramfs pairs inside each boot environment,
   and exposes snapshot clone,
@@ -719,26 +719,26 @@ and Nebula exit during targeted screening for the candidate-specific reasons rec
   while ZFSBootMenu documents that value as hiding a `mountpoint=/` environment.
   The adoption runbook explicitly sets the baseline to `on` and creates a post-migration `known-good` environment;
   neither remediation has received consumer-boundary validation yet.
-- **Gate**:
+- Gate:
   Encryption,
   direct rollback,
   matching-kernel-artifact,
   and personal-data separation hard gates.
-- **Status**:
+- Status:
   Pass in architecture and source;
   complete installer execution remains pending.
-- **Primary sources**:
+- Primary sources:
   <https://docs.zfsbootmenu.org/en/latest/general/native-encryption.html>,
   <https://docs.zfsbootmenu.org/en/latest/general/bootenvs-and-you.html>,
   <https://docs.zfsbootmenu.org/en/latest/online/snapshot-management.html>,
   and <https://github.com/fnichol/cachyos-zfs-installer>,
   accessed 2026-08-29.
-- **Kernel pairing**:
+- Kernel pairing:
   CachyOS packages a `linux-cachyos-zfs` module with an exact dependency such as `linux-cachyos=7.1.8-1` and
   `Provides: ZFS-MODULE` at <https://packages.cachyos.org/package/cachyos/x86_64/linux-cachyos-zfs>.
   This avoids an unbounded DKMS/kernel mismatch for supported CachyOS kernels,
   but OpenZFS remains an out-of-tree module and real-time kernels remain unsupported.
-- **Maintenance limit**:
+- Maintenance limit:
   the installer is 97.1 percent single-author by GitHub contribution count and is not an official CachyOS component.
 
 ### Source tests and maintenance signals
@@ -923,27 +923,27 @@ That is a scored rollback-scope disadvantage rather than an encryption or direct
 
 ### Read-only source syntax validation
 
-- **Candidates and revisions**:
+- Candidates and revisions:
   the pinned revisions listed in the evidence records.
-- **Commands**:
+- Commands:
   `bash --noprofile --norc -n` over relevant shell sources and Python `ast.parse()` over relevant Python sources.
-- **Reachable commands**:
+- Reachable commands:
   Bash and Python parse only;
   candidate code is not sourced or executed.
-- **Expected reads**:
+- Expected reads:
   cloned source files under `/var/home/user/temp/agent`.
-- **Expected writes and network**:
+- Expected writes and network:
   none.
-- **Environment**:
+- Environment:
   incumbent Fedora 44 x86-64 host;
   no credentials passed;
   at most two concurrent parser processes.
-- **Success condition**:
+- Success condition:
   every parsed file exits zero.
-- **Failure condition**:
+- Failure condition:
   first syntax error is recorded against the candidate;
   no retry with relaxed parsing.
-- **Evidence limit**:
+- Evidence limit:
   syntax validation does not validate installer behavior,
   bootability,
   or recovery correctness.
@@ -1098,7 +1098,7 @@ not observed installation or runtime behavior.
    2.5.
   Mutable Btrfs can host selected rollback-coupled configuration,
   but the actual host procedure is untested.
-- **Estimate**:
+- Estimate:
   31/40,
   or 77.5 percent.
 
@@ -1115,10 +1115,10 @@ not observed installation or runtime behavior.
   2.5,
   2.5,
   and 2.5.
-- **Estimate**:
+- Estimate:
   29/40,
   or 72.5 percent.
-- **Evidence basis**:
+- Evidence basis:
   kernels remain inside the encrypted snapshotted root;
   current GRUB 2.14 supports LUKS2 plus Argon2;
   qgroups are disabled;
@@ -1141,10 +1141,10 @@ not observed installation or runtime behavior.
   2.5,
   2.5,
   and 2.5.
-- **Estimate**:
+- Estimate:
   28.5/40,
   or 71.3 percent.
-- **Evidence basis**:
+- Evidence basis:
   current source pairs snapshots with archived kernel artifacts,
   reserves 4,096 MiB of FAT boot storage,
   and disables qgroups and timeline snapshots by default.
@@ -1167,10 +1167,10 @@ not observed installation or runtime behavior.
   2,
   2.5,
   and 2.
-- **Estimate**:
+- Estimate:
   25.5/40,
   or 63.8 percent.
-- **Evidence basis**:
+- Evidence basis:
   ZFSBootMenu has the strongest native boot-environment UI in the finalist set,
   but rollback remains rated 3 because the complete CachyOS path depends on an unexecuted unofficial integration.
   OpenZFS’s ARC can eliminate physical reads on cache hits;
@@ -1256,10 +1256,10 @@ This conditional result is not a benchmark result or a formal rubric revision.
   1.5,
   2,
   and 1.
-- **Estimate**:
+- Estimate:
   18.5/40,
   or 46.3 percent.
-- **Evidence basis**:
+- Evidence basis:
   LUKS2,
   per-slot UKIs,
   and boot fallback are structurally attractive,
