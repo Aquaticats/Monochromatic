@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unsafe-type-assertion -- nano-spawn error type is untyped
 /**
  WOFF2 conversion utility for the Aquaticat font build.
  Uses fonttools via uv to convert OTF to WOFF2 format.
@@ -9,7 +8,39 @@
 import { stat, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
-import spawn from 'nano-spawn';
+import spawn, { SubprocessError, } from 'nano-spawn';
+
+/**
+ Renders the diagnostic a failed conversion carries.
+ 
+ @param error - value the conversion rejected with
+ 
+ @returns the subprocess message and its stderr, the innermost cause message when
+   nothing was captured, or the value's own text
+ 
+ @example
+ ```ts
+ conversionFailureText({ error });
+ ```
+ */
+function conversionFailureText({ error, }: { readonly error: unknown; },): string {
+  if (!(error instanceof SubprocessError))
+    return String(error,);
+  if (error.stderr !== '')
+    return `${error.message}\n${error.stderr}`;
+  /**
+   A child that never started has no captured output; its innermost cause names
+   the failed executable and its code, which is what a reader can act on
+   (doc/troubleshooting/nano-spawn-failure-shapes.md).
+   */
+  /**
+   Innermost failure nano-spawn wrapped, when it recorded one.
+   */
+  const { cause, } = error;
+  if (Error.isError(cause,))
+    return cause.message;
+  return error.message;
+}
 
 /**
  Converts an OTF font file to WOFF2 format using Python fonttools.
@@ -17,6 +48,8 @@ import spawn from 'nano-spawn';
  @param otfPath - absolute path to source OTF file
  
  @param distDir - output directory for the WOFF2 file
+ 
+ @throws When the conversion fails, carrying the caught value as its cause
  
  @example
  ```ts
@@ -67,9 +100,9 @@ export async function convertToWoff2({
     console.log(`Wrote ${woff2Path} (${size} bytes)`,);
   }
   catch (error: unknown) {
-    console.error(
-      'WOFF2 conversion failed:',
-      (error as { stderr: string; }).stderr,
+    throw new Error(
+      `WOFF2 conversion failed for ${otfPath}: ${conversionFailureText({ error, },)}`,
+      { cause: error, },
     );
   }
 }

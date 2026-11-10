@@ -9,7 +9,8 @@
 //! ```
 
 /// Import the actual parser and native argument/process types.
-use super::{GlobalLayout, GlobalOutcome, command_tokens, global_layout, without_pathspec_mode_options};
+use super::{GlobalLayout, GlobalOutcome, command_tokens, global_layout};
+use crate::global_arguments_pathspec_modes::without_pathspec_mode_options;
 use std::ffi::OsString;
 use std::process::Command;
 

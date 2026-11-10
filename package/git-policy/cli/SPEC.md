@@ -4882,6 +4882,22 @@ on the commit path:
   The record is written without a flush,
   so a power loss
   rather than a kill can lose it and leave the reference where it was.
+- The branch write carries the reflog message native Git writes for the commit it moves the branch to,
+  as one argument of `git update-ref -m`:
+  the commit's kind in Git's own words (`commit`,
+  `commit (initial)`,
+  `commit (amend)`,
+  `commit (merge)`,
+  `commit (cherry-pick)`,
+  `commit (revert)`) and the first line of the commit's message after it
+  (`src/native/landing/service_land_reflog.rs`).
+  The first line is the message's own bytes,
+  so a body line,
+  a carriage return or a byte that is not UTF-8 cannot reach the row,
+  and the message never enters the transaction Git reads on standard input,
+  so no byte of it can change that grammar.
+  The row names the commit the batch landed last,
+  which is the value the branch now holds.
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").
@@ -10828,9 +10844,36 @@ For injected commit-only semantics:
     and a file it cannot read is left to Git alone).
     Native Git tracks these paths through the real index and takes their worktree content without asking an ignore rule,
     so the private index must track them too (issue 1807).
-3.  Add exact selected worktree paths to that index using Git pathspec semantics.
-    A selected path that an ignore rule matches and that no index stages is refused,
-    and the message says to stage it with `git add --force` first.
+3.  Add selected worktree paths to that index using Git pathspec semantics,
+    and only the paths native Git takes for the same pathspecs.
+    A selected element that names one file of the worktree is an exact path:
+    it carries no pathspec magic,
+    no pattern character of the mode in effect (`*`,
+    `?` and `[`;
+    they are ordinary in a literal or a noglob mode),
+    and a file or a link is at the pathname it gives.
+    It is staged with `git add -- <element>`,
+    so `git commit -- <file>` records a file nothing staged,
+    where native Git refuses the pathspec,
+    and a path that an ignore rule matches and that no index stages is refused with the message that says
+    to stage it with `git add --force` first.
+    A backslash is Git's escape and not a pattern character:
+    `a\b.txt` names the file whose pathname spells it when one is there.
+    Every other element is a directory,
+    a pattern or pathspec magic,
+    and it stages the tracked paths the private index holds and the carried additions,
+    never a file nothing staged,
+    with `git add --update -- <element>`:
+    native Git commits the tracked and staged paths a directory or a pattern matches,
+    so a commit of `.`,
+    `*` or a directory leaves every untracked file untracked.
+    A pathspec whose elements match no entry of the private index fails as native Git fails it.
+    An empty pathspec file stages nothing,
+    as native Git commits nothing for one.
+    A pathspec file with more bytes than one command line may carry is passed as a file with
+    `git add --update`,
+    so the commit still takes the tracked paths it matches and only a file nothing staged stays out;
+    a pathspec file this wrapper cannot read is left to Git alone.
 4.  Apply policy patches to the commit index.
 5.  Remove pathspecs and internal `--only` before invoking native Git
     because the private index is the complete intended tree.

@@ -11,18 +11,15 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { fingerprint32, } from 'farmhashjs';
 
-import type { SafeHtml, } from '../lib/jsx-to-html.ts';
-
 import {
   QuestionCheckbox,
-  css as checkboxCss,
-  type QuestionOption as CheckboxOption,
-} from './question-checkbox.ts';
-import {
   QuestionRadio,
-  css as radioCss,
-  type QuestionOption as RadioOption,
-} from './question-radio.ts';
+  type QuestionCheckboxOption as CheckboxOption,
+  type QuestionRadioOption as RadioOption,
+  type SafeHtml,
+  questionCheckboxStyles,
+  questionRadioStyles,
+} from '../../dist/final/node/index.mjs';
 
 //region Hash fixtures
 
@@ -419,14 +416,52 @@ await describe({
         /**
          Radio component CSS.
          */
-        const radioStyles = radioCss();
+        const radioStyles = questionRadioStyles();
         /**
          Checkbox component CSS.
          */
-        const checkboxStyles = checkboxCss();
+        const checkboxStyles = questionCheckboxStyles();
 
         expect(radioStyles,).toContain('question-radio',);
         expect(checkboxStyles,).toContain('question-checkbox',);
+      },
+    },),
+    it({
+      name: 'names each question fieldset after its scenario',
+      fn: async function namesFieldsetAfterScenario(): Promise<void> {
+        /**
+         Expected radio question ID, reused for the scenario label target.
+         */
+        const radioId = expectedQuestionId({
+          scenario: RADIO_SCENARIO,
+          options: RADIO_OPTIONS,
+        },);
+        /**
+         Expected checkbox question ID, reused for the scenario label target.
+         */
+        const checkboxId = expectedQuestionId({
+          scenario: CHECKBOX_SCENARIO,
+          options: CHECKBOX_OPTIONS,
+        },);
+        /**
+         Rendered radio question HTML.
+         */
+        const { html: radioHtml, } = QuestionRadio({
+          scenario: RADIO_SCENARIO,
+          options: RADIO_OPTIONS,
+        },);
+        /**
+         Rendered checkbox question HTML.
+         */
+        const { html: checkboxHtml, } = QuestionCheckbox({
+          scenario: CHECKBOX_SCENARIO,
+          options: CHECKBOX_OPTIONS,
+        },);
+
+        expect(radioHtml,).toContain(`<p class="scenario" id="q-${radioId}-scenario">`,);
+        expect(radioHtml,).toContain(`<fieldset aria-labelledby="q-${radioId}-scenario">`,);
+        expect(checkboxHtml,).toContain(`<p class="scenario" id="q-${checkboxId}-scenario">`,);
+        expect(checkboxHtml,).toContain(`<fieldset aria-labelledby="q-${checkboxId}-scenario">`,);
       },
     },),
   ],
