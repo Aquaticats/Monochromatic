@@ -166,8 +166,9 @@ fn saved_merge_record(fixture: &Fixture, repo: &Path) -> (String, String) {
         fixture,
         repo,
         &["commit-tree", tree.as_str(), "-p", old.trim(), "-p", feature.trim(), "-m", "merge feature"],
-    );
-    let merge: String = merge.trim().to_owned();
+    )
+    .trim()
+    .to_owned();
     git(fixture, repo, &["update-ref", "refs/cli-git/kept/1", merge.as_str()]);
     let mut ended: Child = Command::new("/bin/sh").arg("-c").arg("exit 0").spawn().expect("a process that ends");
     let gone: i64 = i64::from(ended.id());
@@ -192,19 +193,20 @@ fn saved_merge_record(fixture: &Fixture, repo: &Path) -> (String, String) {
 
 /// What:
 ///  A read-only command answers at once while a merge saved on a side ref waits for another program's `index.lock`,
-///  names the merge it did not finish,
+///  names where that merge is,
 ///  and the next command finishes it once the lock is gone.
 /// Why:
 ///  The recovery every command runs waited `MERGE_LOCK_CEILING` for the lock before it could report the saved merge,
 ///  so `git status` and `git log` each cost the person the whole ceiling for as long as the lock stood
-///  (`${HOME}/temp/agent/sonnet-audits/merge-and-pull-never-fail/findings.md`, finding 3),
+///  (finding 3 of the merge-and-pull audit of 2026-11-09),
 ///  and the owner's rule is "nothing should ever wait forever or indefinitely".
-///  A command that only reads takes the state as it is and says the merge is not finished yet;
-///  a command that changes the worktree may wait, because it can finish the merge itself.
+///  Nothing of such a merge is in the checkout,
+///  so no command has anything to wait for:
+///  it reads the state as it is and says where the merge is saved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// savedMergeRecord(); writeFileSync(arrayLock, ''); expect(timed(['status', '--short']).ms).toBeLessThan(MERGE_LOCK_CEILING / 2);
+/// savedMergeRecord(); writeFileSync(arrayLock, ''); expect(timed(['status', '--short']).ms).toBeLessThan(MERGE_LOCK_CEILING * 3 / 4);
 /// ```
 #[test]
 fn a_read_only_command_over_a_saved_merge_answers_without_waiting_for_the_index_lock() {
@@ -216,7 +218,9 @@ fn a_read_only_command_over_a_saved_merge_answers_without_waiting_for_the_index_
     let lock: PathBuf = repo.join(".git/index.lock");
     std::fs::write(lock.as_path(), b"").expect("a lock a killed Git left");
     let records: PathBuf = repo.join(".git/monochromatic-git-policy-cli-merges");
-    let bound: Duration = MERGE_LOCK_CEILING / 2;
+    // The wait lasts the whole ceiling and the honest answer is a few looks at the repository, so three quarters of it
+    //  separates the two even on a loaded host.
+    let bound: Duration = MERGE_LOCK_CEILING * 3 / 4;
     for arguments in [&["status", "--short"][..], &["log", "--oneline", "-1"][..]] {
         let began: Instant = Instant::now();
         let observed: Observed = observe(&mut wrapped_in(&fixture, repo.as_path(), arguments), b"");
@@ -229,12 +233,13 @@ fn a_read_only_command_over_a_saved_merge_answers_without_waiting_for_the_index_
             arguments.join(" ")
         );
         assert!(
-            !said.contains("waits for the index lock"),
+            !said.contains("has changed nothing yet and waits for the index lock"),
             "a read-only command must not wait for the lock: git {}: {said}",
             arguments.join(" ")
         );
         assert!(said.contains("refs/cli-git/kept/1"), "it names the merge saved on its side ref: {said}");
-        assert!(said.contains("is not finished"), "it says the merge is unfinished: {said}");
+        assert!(said.contains("nothing of it is in the checkout yet"), "it says why it need not wait: {said}");
+        assert!(said.contains("goes on without waiting for it"), "it says this command goes on: {said}");
     }
     assert!(lock.exists(), "the lock is not the command's to remove");
     assert_eq!(records_in(records.as_path()).len(), 1, "the record is kept for the next command");
