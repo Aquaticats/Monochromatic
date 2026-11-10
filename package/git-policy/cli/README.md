@@ -3789,11 +3789,16 @@ mise run //package/git-policy/cli:native:test:container
   when a control printed `BTRFS CONTROL NOT RUN` for any reason but needing a filesystem that is not btrfs,
   when the deadline stopped the run,
   or when the run holds no passing status line for a control the gate requires by name
-  (the ioctls, the migration, and one binary-level control).
-  The refusal names what refused and what a person does on a host that has no btrfs filesystem to run the controls on.
-  `--dry-run` skips the controls and says so, because a dry run runs nothing their evidence would cover.
-  A control that needs a filesystem that is not btrfs does print that line on this host, which is the one such line a
-  green release run holds (`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
+  (the ioctls,
+  the migration,
+  and one binary-level control).
+  The refusal names what refused
+  and what a person does on a host that has no btrfs filesystem to run the controls on.
+  `--dry-run` skips the controls and says so,
+  because a dry run runs nothing their evidence would cover.
+  A control that needs a filesystem that is not btrfs does print that line on this host,
+  which is the one such line a green release run holds
+  (`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Before it copies or builds anything it runs `lint:sidecar-locks`,
