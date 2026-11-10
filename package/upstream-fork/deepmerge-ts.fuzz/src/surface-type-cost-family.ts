@@ -95,6 +95,9 @@ export function seriesOf(series: Series,): readonly number[] {
    Sizes collected so far.
    */
   const sizes: number[] = [];
+  // The sweep is a numeric progression, not a collection: the counter is the
+  // size being swept, and each step is arithmetic on it (a ratio for the
+  // geometric kind), so a `for...of` has no sequence to walk.
   for (let size = series.first; size <= series.last; size = (series.kind === 'linear') ? size + series.step : size * series.ratio)
     sizes.push(size,);
   return sizes;

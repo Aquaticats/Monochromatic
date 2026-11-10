@@ -614,10 +614,15 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
 /// each entry in it is removed
 ///  only when it is the object that was moved there,
 /// and anything else in the trash stays with a reason.
-/// The callers of this face run on a thread with no runtime of its own (the service's handler of a trash
-/// work item),
+/// The callers of this face run on a thread with no runtime of its own (a command that hands the trash
+/// over,
+/// and the synchronous handler face),
 ///  so it does the lookups here and the entries through the one removal face that enters the runtime.
-/// A caller that is itself a task of the runtime awaits `delete_trash_awaiting` instead.
+/// A caller that is itself a task of the runtime awaits `delete_trash_awaiting` instead:
+/// the drain of a
+///  round asks `empty_trash_awaiting`
+/// (`worktree_trash_dispose_awaiting.rs`),
+/// because the synchronous face is refused from inside the runtime.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -689,6 +694,13 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
 /// the trash has the
 ///  recorded identity,
 /// and each entry removed is the recorded object.
+///
+/// A caller that is itself a task of the runtime,
+/// which the drain of a round is,
+/// asks `empty_trash_awaiting`
+/// (`worktree_trash_dispose_awaiting.rs`) instead:
+/// this face enters the runtime for the entry removals and is refused from
+/// inside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
