@@ -67,7 +67,16 @@ await describe({
     it({
       name: 'rejects a supplementary plane digit look-alike in a version component',
       fn: async () => {
-        expect(refusalOf('gh version 2.97.\u{1D7D8}',),).toBeInstanceOf(GitHubCliVersionError,);
+        /**
+         Refusal raised for the component holding the look-alike digit.
+         */
+        const refusal = refusalOf('gh version 2.97.\u{1D7D8}',);
+        expect(refusal,).toBeInstanceOf(GitHubCliVersionError,);
+        /**
+         No astral look-alike has a numeric value, so the version floor refuses
+         it too; the grammar must be what refuses it here.
+         */
+        expect(String(refusal,),).toContain('cannot parse',);
       },
     },),
     it({
