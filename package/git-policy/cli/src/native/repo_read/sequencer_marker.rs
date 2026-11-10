@@ -77,7 +77,7 @@ fn lookup_paths(layout: &RefFilesLayout<'_>, name: &str) -> Vec<PathBuf> {
 /// ```ts
 /// await lstat(path).then(() => true, (error) => error.code !== 'ENOENT')
 /// ```
-fn something_is_at(path: &Path) -> bool {
+pub(super) fn something_is_at(path: &Path) -> bool {
     return match std::fs::symlink_metadata(path) {
         Ok(_) => true,
         Err(error) => error.kind() != std::io::ErrorKind::NotFound,

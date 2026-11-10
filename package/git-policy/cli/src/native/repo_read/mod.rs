@@ -29,6 +29,10 @@ pub mod repository_location;
 ///  with the real-Git provider.
 pub mod repository_facts;
 
+/// What one `git add` selects,
+///  counted from real Git's own listings.
+pub mod repository_facts_staged_selection;
+
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;
 
