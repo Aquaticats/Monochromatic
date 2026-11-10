@@ -99,8 +99,7 @@ This stays within hosted-runner limits if the workflows follow three rules:
   so total run count scales with files changed per push,
    not with workflow count.
 - **Run mutation testing on `schedule:` cron (nightly or weekly),
-   not per-push.
-  **
+   not per-push.**
   Mutation runs execute the test suite once per surviving mutant,
    so they are structurally long,
   and long jobs colliding with per-commit auto-push is the one path to saturating

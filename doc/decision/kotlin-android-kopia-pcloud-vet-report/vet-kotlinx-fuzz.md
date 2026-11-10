@@ -247,8 +247,7 @@ Multi-module Gradle build.
    opened 2026-03-24) has sat open and unmerged.
    State:
    **active during 2025 H1,
-  effectively dormant since ~2025 H2.
-  **
+  effectively dormant since ~2025 H2.**
 - The tool did genuinely find real bugs when live (`doc/Trophy list.md`:
    multiple
   kotlinx.

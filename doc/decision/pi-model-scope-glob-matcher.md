@@ -48,8 +48,7 @@ before matching.
 ## Alternatives
 
 1. **Zeptomatch,
-    chosen.
-   **
+    chosen.**
 
    - Pros:
       direct string matcher,
@@ -61,8 +60,7 @@ before matching.
       so callers must normalize case explicitly;
       no extglobs or POSIX classes.
 
-2. **Picomatch.
-   **
+2. **Picomatch.**
 
    - Pros:
       broad minimatch-like glob syntax and a `nocase` option.
@@ -70,8 +68,7 @@ before matching.
       no bundled TypeScript declarations in the installed v4 package,
       so this repo would need another ambient shim.
 
-3. **In-repo matcher.
-   **
+3. **In-repo matcher.**
 
    - Pros:
       no external runtime dependency.
@@ -81,8 +78,7 @@ before matching.
       character classes,
       and future edge-case tests.
 
-4. **tiny-readdir-glob.
-   **
+4. **tiny-readdir-glob.**
 
    - Pros:
       already catalogued and useful for filesystem glob expansion.

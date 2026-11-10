@@ -400,8 +400,7 @@ Two rankings,
 - By developer ergonomics / repo-fit (cargo + mise,
    one language,
    no second runtime):
-  **Slint > Tauri v2 > Compose.
-  **
+  **Slint > Tauri v2 > Compose.**
 - By "does it actually run on the user's GrapheneOS Pixel 6 today" (§5):
    **Tauri v2 ≈ Compose >
   Slint.

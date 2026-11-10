@@ -447,8 +447,7 @@ Specific behavior differences between `node:stream@22.x` and the ported `readabl
 our consumer paths.
 Listed in declining order of likelihood:
 
-1. **Default `autoDestroy` and `emitClose` semantics.
-   **
+1. **Default `autoDestroy` and `emitClose` semantics.**
    `readable-stream@3.6.2` defaulted `autoDestroy: false` for several years;
    `readable-stream@4.x` and `node:stream@16+` default it to `true`.
    Winston's transports rely on `'finish'` and `'close'` ordering to flush log buffers.
@@ -458,21 +457,18 @@ Listed in declining order of likelihood:
    Inspect `winston/lib/winston/transports/file.js` flush behavior under load in the verification step.
    Symptom to watch for:
     missing trailing log lines on process exit.
-2. **`construct()` / `_construct()` lifecycle hook.
-   **
+2. **`construct()` / `_construct()` lifecycle hook.**
    Added to `node:stream` in Node 15;
     `readable-stream@3.6.2` does not ship it.
    Any winston or winston-transport subclass that defines `_construct` was previously a no-op under v3 and now runs.
    Quick grep of the consumer source rules this out for the current code paths,
     but a future winston update could expose it.
-3. **`Readable.from` iterable handling for sync iterators.
-   **
+3. **`Readable.from` iterable handling for sync iterators.**
    `node:stream`'s `Readable.from` is slightly stricter about `Symbol.iterator` vs `Symbol.asyncIterator` than v3's
    port.
    Not used by the reachable consumers (winston builds streams via class construction;
     iso-git builds `PassThrough` directly).
-4. **`pipeline` argument shape.
-   **
+4. **`pipeline` argument shape.**
    `node:stream.pipeline` supports `AbortSignal` in the options object (added Node 15+).
    v3's port supports the same surface in 3.6.
    x.
@@ -484,8 +480,7 @@ Listed in declining order of likelihood:
     `duplexify.js`,
     and `operators.js` become unreachable once the shim replaces v4 entirely,
     which closes a separate concern.
-5. **iso-git pack streaming `highWaterMark`.
-   **
+5. **iso-git pack streaming `highWaterMark`.**
    isomorphic-git's `http/node/index.js` constructs `new PassThrough()` with default options.
    `node:stream.PassThrough` defaults `highWaterMark` to 16 KiB;
     v4's port also defaults to 16 KiB.
@@ -495,8 +490,7 @@ Listed in declining order of likelihood:
     the workspace does not call `setDefaultHighWaterMark`,
     and iso-git does not call it on its imported `PassThrough`,
     so this is informational only.
-6. **`instanceof` identity flip.
-   **
+6. **`instanceof` identity flip.**
    Pre-shim,
     winston creates streams via its imported `readable-stream` classes;
     if some downstream code did `obj instanceof require('stream').Readable` against a winston-produced stream,
@@ -508,8 +502,7 @@ Listed in declining order of likelihood:
     it changes shape.
    No instance of this pattern was found in the reachable consumers;
     calling it out for the audit record.
-7. **TypeScript namespace import shape.
-   **
+7. **TypeScript namespace import shape.**
    `index.d.cts` re-exports the `node:stream` namespace via `import Stream = require('node:stream'); export = Stream;`.
    Most TypeScript users of `readable-stream` consume types from `@types/readable-stream`,
     which itself re-exports `node:stream`'s types.

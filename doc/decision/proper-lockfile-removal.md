@@ -105,8 +105,7 @@ Editing the silent stub to add the carve-out for one consumer weakens the stub c
 
 ## Ranked decision
 
-1. **API-compatible shim (recommended).
-   **
+1. **API-compatible shim (recommended).**
    Real implementation of `lockSync(path, options)`
    and `lock(path, options)` via `node:fs.mkdirSync({ recursive: false })` on a sibling `.<basename>.lock` directory.
    Returns a release function (sync from `lockSync`,
@@ -127,8 +126,7 @@ Editing the silent stub to add the carve-out for one consumer weakens the stub c
       no retry-with-jitter),
       so it does not protect against crashed pi processes leaving stale lock dirs.
 
-2. **Silent stub.
-   **
+2. **Silent stub.**
    Add `proper-lockfile` to `.pnpmfile.mjs` `POLICY` with `action: 'silent'`.
    Works for the sync path but hangs the async path under `await release` and under `await lockfile.lock(...)`
    because the workspace stub's Proxy treats every property access (including `.then`) as a self-return.
@@ -213,26 +211,22 @@ Upstream uses this pattern and we follow it for maximum compatibility.
 
 ## Simplifications versus upstream
 
-- **No `fs.realpath`.
-  **
+- **No `fs.realpath`.**
   Both pi-coding-agent callsites always pass `{ realpath: false }`
   (verified at `auth-storage.js:38` and `settings-manager.js:44`);
    the shim treats every target as already-resolved through `path.resolve`.
-- **No stale-lock detection.
-  **
+- **No stale-lock detection.**
   Upstream rewrites a sentinel file inside the lock dir on a `stale` interval
   and removes the lock if no holder is alive.
   The shim has no equivalent.
   If pi crashes while holding the lock,
    the next pi invocation throws ELOCKED until the user removes `<agentDir>/.auth.json.lock`
    or `<agentDir>/.settings.json.lock` manually.
-- **No `onCompromised` callback.
-  **
+- **No `onCompromised` callback.**
   The option is accepted but never invoked;
    pi-coding-agent's `auth-storage.js` reads the callback's effect via a `lockCompromised` flag that stays false,
    so its `throwIfCompromised()` checks are no-ops.
-- **No `retries.randomize`.
-  **
+- **No `retries.randomize`.**
   Backoff is strictly exponential.
   The workspace does not run concurrent pi instances,
    so deterministic backoff is acceptable.
@@ -273,43 +267,36 @@ After wiring (`pnpm-workspace.yaml` override added,
  shim package created,
  `pnpm install` run outside sandbox per project convention):
 
-1. **Install reshapes the graph.
-   **
+1. **Install reshapes the graph.**
    `mise run prepare:pnpm:install` outside sandbox.
    `pnpm why proper-lockfile` should show resolution through `link:package/pnpm-override/shim-proper-lockfile`,
     not `proper-lockfile@4.1.2`.
    The `node_modules/.pnpm/proper-lockfile@*` directory should no longer exist.
-2. **Shim loads and exports the right shape.
-   **
+2. **Shim loads and exports the right shape.**
    `node -e "const l = require('@monochromatic-dev/pnpm-override-shim-proper-lockfile'); console.log(typeof l.lockSync, typeof l.lock);"` -> `function function`.
-3. **Sync lock works and `release()` cleans up.
-   **
+3. **Sync lock works and `release()` cleans up.**
    Probe:
     write a target file,
     call `lockSync(p)`,
     check the `.<basename>.lock` directory exists,
     call `release()`,
     check the directory is gone.
-4. **Async lock works under `await release()`.
-   **
+4. **Async lock works under `await release()`.**
    Probe:
     write a target file,
     `release = await lock(p, { retries: 0 })`,
     `await release()`.
    Expect `typeof release === 'function'` and clean release.
-5. **ELOCKED is thrown when the lock is held.
-   **
+5. **ELOCKED is thrown when the lock is held.**
    Probe:
     call `lockSync(p)` twice;
     second call should throw with `err.code === 'ELOCKED'`.
-6. **pi-coding-agent loads end-to-end.
-   **
+6. **pi-coding-agent loads end-to-end.**
    `node -e "import('@earendil-works/pi-coding-agent').then(m => console.log('AuthStorage:', typeof m.AuthStorage, 'SettingsManager:', typeof m.SettingsManager));"`.
    Expect `AuthStorage: function SettingsManager: function`.
    This proves the shim's resolution unblocks pi-coding-agent's module load,
     but does not exercise `withLockAsync`.
-7. **End-to-end via the pi CLI.
-   **
+7. **End-to-end via the pi CLI.**
    `pi --help` should print help text and exit 0.
    A hang indicates the async lock path is still failing.
 
@@ -322,14 +309,12 @@ To force the lock path on a fresh machine:
 
 ## Risk callouts
 
-1. **Crashed pi leaves stale lock dir.
-   **
+1. **Crashed pi leaves stale lock dir.**
    Without stale detection,
     the next pi invocation throws ELOCKED until the user `rmdir`s the lock directory.
    Manual recovery is acceptable in single-instance workflows;
     document in the README so the operator knows where to look.
-2. **Concurrent pi instances are not supported.
-   **
+2. **Concurrent pi instances are not supported.**
    Upstream's locking provides cross-process safety with retry+jitter;
     the shim provides only the EEXIST atomic primitive.
    Multiple concurrent pi instances would serialise correctly (mkdirSync is atomic),
@@ -337,8 +322,7 @@ To force the lock path on a fresh machine:
    The workspace does not run multiple concurrent pi instances;
     if that changes,
     revisit the shim.
-3. **NFS-mounted home directories.
-   **
+3. **NFS-mounted home directories.**
    The upstream's `realpath` option exists partly to normalize symlinks before locking on NFS.
    The shim never calls `realpath`,
     so on an NFS mount where `~/.pi` is a symlink,
@@ -347,8 +331,7 @@ To force the lock path on a fresh machine:
     which is what pi-coding-agent always passes.
    Informational;
     no action required.
-4. **Future pi-coding-agent versions may use `unlock`/`unlockSync`/`check`/`checkSync`.
-   **
+4. **Future pi-coding-agent versions may use `unlock`/`unlockSync`/`check`/`checkSync`.**
    The shim does not export these.
    If a future version adds calls to them,
     module-load succeeds (since `import lockfile from "proper-lockfile"` only fails if the package is missing,
