@@ -2623,7 +2623,7 @@ fn a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_i
             output: String::new(),
         });
     };
-    let refused = RefusedMergePushThreads::here();
+    let refused = crate::scoped_start::RefusedStarts::here();
     let integrated = integrate(&s, &landed, false, &mut push_merge);
     drop(refused);
     let Integrated::NotDivergent(attempt) = integrated else {

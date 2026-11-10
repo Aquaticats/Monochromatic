@@ -80,6 +80,12 @@ pub use crate::auto_push_reconcile_basics_and_limits::{
 /// and the box it travels in.
 use std::future::Future;
 use std::pin::Pin;
+/// The scope the bridge runs in,
+/// and the handle of the thread it starts.
+use std::thread::{Scope, ScopedJoinHandle};
+/// The one place that makes the callable `std::thread::scope` accepts,
+/// and the body it runs.
+use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
 
 /// What:
 ///  What publishes one merge commit to a destination.
@@ -224,47 +230,88 @@ fn push_what_the_loop_asks(asked: std::sync::mpsc::Receiver<MergePushAsked>, pus
     }
 }
 
-#[cfg(test)]
-thread_local! {
-    /// A control refuses the thread the merge push runs on,
-    /// as a system with no thread to give does.
-    static MERGE_PUSH_THREAD_REFUSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-/// While it lives,
-/// every reconcile started from the thread that made it finds no thread for its merge push.
-#[cfg(test)]
-pub(crate) struct RefusedMergePushThreads;
-
-#[cfg(test)]
-impl RefusedMergePushThreads {
-    /// Refuse the merge-push threads of the current thread until the value is dropped.
-    pub(crate) fn here() -> Self {
-        MERGE_PUSH_THREAD_REFUSED.with(|flag| { flag.set(true); });
-        return Self;
-    }
-}
-
-/// Clears the control's refusal.
-#[cfg(test)]
-impl Drop for RefusedMergePushThreads {
-    fn drop(&mut self) {
-        MERGE_PUSH_THREAD_REFUSED.with(|flag| { flag.set(false); });
-    }
-}
-
-/// Whether a control refused the merge-push threads of this thread;
-/// nothing outside the controls refuses one.
+/// Whether a control refused the threads of this thread,
+/// as a system with no thread to give does.
 #[cfg(test)]
 fn a_control_refuses_the_merge_push_thread() -> bool {
-    return MERGE_PUSH_THREAD_REFUSED.with(|flag| { return flag.get(); });
+    return crate::scoped_start::STARTS_FAIL_ON_THIS_THREAD.with(std::cell::Cell::get);
 }
 
-/// Whether a control refused the merge-push threads of this thread;
+/// Whether a control refused the merge-push thread;
 /// nothing outside the controls refuses one.
 #[cfg(not(test))]
 fn a_control_refuses_the_merge_push_thread() -> bool {
     return false;
+}
+
+/// What:
+///  The work of `integrate_and_push` inside one thread scope:
+/// it starts the thread that carries the caller's merge push,
+/// runs the one reconcile loop on the runtime,
+/// and answers how the run ended.
+/// Why:
+///   The scope is what lets a plain thread borrow the caller's pusher,
+/// the plan and the rejected attempt;
+/// `side_by_side_threads` is the one place that makes the callable
+/// `std::thread::scope` accepts,
+/// so no closure of this file carries them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class BridgedReconcile implements ScopeBody<Result<Integrated, SingleFlightError>> { run(scope) { ... } }
+/// ```
+struct BridgedReconcile<'run> {
+    /// The coordinator's Git.
+    git: &'run PushGit,
+    /// What the run integrates.
+    plan: &'run Reconcile<'run>,
+    /// The rejected attempt the run starts from.
+    rejected: PushAttempt,
+    /// The merge push of the command that asked for the run.
+    push_merge: &'run mut dyn MergePusher,
+}
+
+impl<'env> ScopeBody<'env> for BridgedReconcile<'env> {
+    type Output = Result<Integrated, SingleFlightError>;
+
+    /// Start the merge push's thread,
+    /// then run the loop on the runtime and wait for it.
+    fn run<'scope>(self, scope: &'scope Scope<'scope, 'env>) -> Self::Output {
+        let BridgedReconcile { git, plan, rejected, push_merge } = self;
+        let (asks, asked) = std::sync::mpsc::channel::<MergePushAsked>();
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "`Builder::spawn_scoped` accepts only a callable, and it must carry the channel and the pusher of the caller; see package/git-policy/cli/doc/closure-lint-suppressions.md"
+            )
+        )]
+        let started: std::io::Result<ScopedJoinHandle<'scope, ()>> = if a_control_refuses_the_merge_push_thread() {
+            Err(std::io::Error::from_raw_os_error(libc::EAGAIN))
+        } else {
+            std::thread::Builder::new()
+                .name(String::from("git-policy-merge-push"))
+                .spawn_scoped(scope, move || push_what_the_loop_asks(asked, push_merge))
+        };
+        if let Err(refused) = started {
+            debug(
+                TAG,
+                &format!(
+                    "{}; nothing was pushed or changed, and the push's own report stands",
+                    crate::scoped_start::refused_thread_sentence("push the merge of a reconcile", &refused)
+                ),
+            );
+            return Ok(Integrated::NotDivergent(rejected));
+        }
+        let mut awaited: MergePushedByAPlainThread = MergePushedByAPlainThread { asks };
+        let answered = crate::lazy_runtime::run_on_runtime(integrate_and_push_awaiting(git, plan, rejected, &mut awaited));
+        // The thread ends as soon as this side's end of the channel goes, and the scope waits for it here.
+        drop(awaited);
+        return match answered {
+            Ok(integrated) => integrated,
+            Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+        };
+    }
 }
 
 /// What:
@@ -296,31 +343,7 @@ pub fn integrate_and_push(
     rejected: PushAttempt,
     push_merge: &mut dyn MergePusher,
 ) -> Result<Integrated, SingleFlightError> {
-    return std::thread::scope(|scope| {
-        let (asks, asked) = std::sync::mpsc::channel::<MergePushAsked>();
-        let started = if a_control_refuses_the_merge_push_thread() {
-            Err(std::io::Error::other("a control refused the thread"))
-        } else {
-            std::thread::Builder::new()
-                .name(String::from("git-policy-merge-push"))
-                .spawn_scoped(scope, move || push_what_the_loop_asks(asked, push_merge))
-        };
-        if let Err(refused) = started {
-            debug(
-                TAG,
-                &format!("no thread could run the merge push of this reconcile: {refused}; nothing was pushed or changed"),
-            );
-            return Ok(Integrated::NotDivergent(rejected));
-        }
-        let mut awaited: MergePushedByAPlainThread = MergePushedByAPlainThread { asks };
-        let answered = crate::lazy_runtime::run_on_runtime(integrate_and_push_awaiting(git, plan, rejected, &mut awaited));
-        // The thread ends as soon as this side's end of the channel goes, and the scope waits for it here.
-        drop(awaited);
-        return match answered {
-            Ok(integrated) => integrated,
-            Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
-        };
-    });
+    return in_thread_scope(BridgedReconcile { git, plan, rejected, push_merge });
 }
 
 /// What:
