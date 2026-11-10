@@ -147,14 +147,24 @@ fn invalid_name<T>(_refused: T) -> std::io::Error {
 ///   Every call below names one component of that directory,
 /// so a path a rename swapped between two calls cannot send the
 ///  bytes somewhere else.
+/// The open asks for a directory,
+/// so a name that is no directory by now (a named pipe a dev server
+///  left in the destination's place)
+/// is refused at once instead of waiting for a writer that may never come
+///  ("nothing should ever wait forever or indefinitely").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const directory = await open(parent, O_DIRECTORY);
+/// const directory = await open(parent, O_DIRECTORY | O_CLOEXEC);
 /// ```
 fn open_directory(path: &Path) -> Result<std::fs::File, WorktreeCopyError> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let opened: std::io::Result<std::fs::File> = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_CLOEXEC)
+        .open(path);
     // `match` on the open names the directory the caller could not use.
-    return match std::fs::File::open(path) {
+    return match opened {
         Ok(directory) => Ok(directory),
         Err(error) => Err(failure_with_cause(
             format!(
