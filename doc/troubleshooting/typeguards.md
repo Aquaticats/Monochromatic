@@ -250,24 +250,24 @@ Refactor all typeguards in the workspace to the
 generic-extends pattern,
  in this order:
 
-1. Basic guards:
-    `string`,
-    `number`,
-    `boolean`,
-    `error`.
-2. Collections:
-    `array`,
-    `map`,
-    `set`,
-    `promise`.
-3. Complex objects:
-    `schema`,
-    `jsonl`.
-4. Update tests and callers;
-    in particular,
-    replace `as
-   unknown` casts at call sites with the explicit
-   trust-boundary form.
+1.  Basic guards:
+     `string`,
+     `number`,
+     `boolean`,
+     `error`.
+2.  Collections:
+     `array`,
+     `map`,
+     `set`,
+     `promise`.
+3.  Complex objects:
+     `schema`,
+     `jsonl`.
+4.  Update tests and callers;
+     in particular,
+     replace `as
+    unknown` casts at call sites with the explicit
+    trust-boundary form.
 
 Evidence:
  84 test scenarios in
@@ -278,24 +278,24 @@ Evidence:
 The behaviour is correct per the TypeScript specification.
 Walking the 5 constraints:
 
-1. **Is it really upstream's fault?
-   ** No;
-    the narrowing rule
-   is documented and consistent.
-2. **Can upstream fix it?
-   ** Changing the narrowing rule to
-   "intersect with the original input type" would break
-   existing valid code and undermine the safety contract
-   `unknown` provides.
-3. **Are they supporting this use case?
-   ** Yes;
-    both the
-   `unknown` pattern and the generic-extends pattern are
-   documented.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No;
+     the narrowing rule
+    is documented and consistent.
+2.  **Can upstream fix it?
+    ** Changing the narrowing rule to
+    "intersect with the original input type" would break
+    existing valid code and undermine the safety contract
+    `unknown` provides.
+3.  **Are they supporting this use case?
+    ** Yes;
+     both the
+    `unknown` pattern and the generic-extends pattern are
+    documented.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.

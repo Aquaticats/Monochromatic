@@ -517,7 +517,8 @@ All scoped to "meow 0.x" (user,
 ### Hashing
 
 - DECIDED 2026-09-17:
-  "Accept twox-hash" -- cache keys and content hashes use XXH3-128 via `twox-hash` 2.1.4
+  "Accept twox-hash";
+  cache keys and content hashes use XXH3-128 via `twox-hash` 2.1.4
   (`doc/decision/monorepo-manager-cache-key-hash.md:1-50`).
   Rejected `gxhash` after collisions.
   Scope is meow's

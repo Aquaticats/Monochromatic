@@ -116,7 +116,7 @@ Read alone,
  because the steady state was zero findings and it is now 1,661.
 It is not.
  The gate predates the catalog-free work by eight days.
-It certified the *replacement rule migration*,
+It certified the **replacement rule migration**,
  before the external-effect catalogs were retired
 (`e2cda4e35`,
  2026-07-22) and before demand analysis began failing closed (`4bdbc0478`,
@@ -402,7 +402,7 @@ no duplicate search was run.
 ## Related defect fixed during this investigation
 
 Separate from the intrinsic question,
- and worth distinguishing because it *suppressed* findings rather than
+ and worth distinguishing because it **suppressed** findings rather than
 creating them.
 
 `nearestOwnedCallable` walked parent pointers to find a call's enclosing callable,

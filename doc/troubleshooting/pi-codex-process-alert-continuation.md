@@ -253,33 +253,33 @@ cached-WebSocket continuation miss that produced duplicate item identifiers.
 
 The filing gate is not met:
 
-1. **Is it really upstream's fault?**
-    No conclusion yet.
-    The evidence narrows the fault to the Pi and Codex
-   protocol boundary,
-    but does not show the raw WebSocket request and response needed to attribute fault.
-2. **Can upstream fix it?**
-    Probably.
-    Pi can bypass cached continuation for extension-originated messages,
-   and the backend can accept a valid continuation.
-    The correct boundary is not established.
-3. **Are they supporting this use case?**
-    Yes.
-    Pi documents extensions and custom `sendMessage` turns,
-    and
-   ships the `openai-codex` provider.
-4. **Would the repository welcome this contribution?**
-    No. Pi's `CONTRIBUTING.md` requires issue text in a
-   human voice and states that automated or agent-generated reports can cause a permanent block.
-5. **Will they likely fix it?**
-    Unknown.
-    No direct duplicate was found,
-    and the related continuation fix
-   shows the maintainers have addressed this provider area.
-6. **Have we prototyped a minimal compatible fix?**
-    No. The live probe did not reach a response,
-    and a
-   source-only change would not establish the Codex protocol contract.
+1.  **Is it really upstream's fault?**
+     No conclusion yet.
+     The evidence narrows the fault to the Pi and Codex
+    protocol boundary,
+     but does not show the raw WebSocket request and response needed to attribute fault.
+2.  **Can upstream fix it?**
+     Probably.
+     Pi can bypass cached continuation for extension-originated messages,
+    and the backend can accept a valid continuation.
+     The correct boundary is not established.
+3.  **Are they supporting this use case?**
+     Yes.
+     Pi documents extensions and custom `sendMessage` turns,
+     and
+    ships the `openai-codex` provider.
+4.  **Would the repository welcome this contribution?**
+     No. Pi's `CONTRIBUTING.md` requires issue text in a
+    human voice and states that automated or agent-generated reports can cause a permanent block.
+5.  **Will they likely fix it?**
+     Unknown.
+     No direct duplicate was found,
+     and the related continuation fix
+    shows the maintainers have addressed this provider area.
+6.  **Have we prototyped a minimal compatible fix?**
+     No. The live probe did not reach a response,
+     and a
+    source-only change would not establish the Codex protocol contract.
 
 No issue or comment should be filed from this investigation.
  A future human filing needs a sanitized raw

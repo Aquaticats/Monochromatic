@@ -249,19 +249,19 @@ and inspect that pid with `ps -o pid,stat,etime,cmd -p <pid>`.
 
 Nothing is filed.
 
-1. Is it upstream's fault?
-   No.
-   `cargo-binstall` documents its defaults and the override,
-   and `mise` documents `cargo.binstall_only`.
-   The one softness is cosmetic:
-   `mise` shows an `ERROR` line for a case it handles by compiling,
-   and the compile prints no progress beyond a timer.
-   That is a wording preference,
-   not a defect.
-2. to 6.
-   Not reached,
-   because constraint 1 fails.
-   No prototype was made.
+1.  Is it upstream's fault?
+    No.
+    `cargo-binstall` documents its defaults and the override,
+    and `mise` documents `cargo.binstall_only`.
+    The one softness is cosmetic:
+    `mise` shows an `ERROR` line for a case it handles by compiling,
+    and the compile prints no progress beyond a timer.
+    That is a wording preference,
+    not a defect.
+2.  to 6.
+    Not reached,
+    because constraint 1 fails.
+    No prototype was made.
 
 `.out-of-scope/` has no entry for `mise` or `cargo-binstall`.
 

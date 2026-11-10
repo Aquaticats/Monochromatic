@@ -260,16 +260,16 @@ Tradeoffs:
 `.out-of-scope/` has no Slint exemption (the directory lists no `slint` entry).
 Continuing to the 6-constraint check:
 
-1. Is it really upstream's fault?
-   No.
-   Slint's documented way to virtualize is a model whose changes are delivered
-   incrementally through `ModelNotify`;
-   `ListView` and `Repeater` are built around that.
-   Replacing the whole model on every scroll event is a misuse,
-    and Slint's own
-   `Flickable` source already documents and defends against viewport instability
-   from inner scrollables.
-   The framework behaves as designed.
+1.  Is it really upstream's fault?
+    No.
+    Slint's documented way to virtualize is a model whose changes are delivered
+    incrementally through `ModelNotify`;
+    `ListView` and `Repeater` are built around that.
+    Replacing the whole model on every scroll event is a misuse,
+     and Slint's own
+    `Flickable` source already documents and defends against viewport instability
+    from inner scrollables.
+    The framework behaves as designed.
 
 Constraint 1 fails,
  so the remaining constraints are not evaluated and nothing is

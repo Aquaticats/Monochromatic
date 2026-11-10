@@ -28,26 +28,26 @@ Step by step,
 for a deferred that rejects before the `async` function
 returns:
 
-1. `return deferred.promise` inside an `async` function hands the promise to
-   the async return path.
-   The function's own promise adopts it through the
-   thenable job queue,
-   exactly as `return new Promise(executor)` does,
-   so the
-   caller observes the rejection one microtask after the deferred rejects.
-2. `return await deferred.promise` awaits the already-settled deferred
-   first.
-   The await reaction runs one microtask after the rejection,
-   then the
-   function returns the resolved value,
-   so the caller observes the rejection
-   one microtask earlier than the adoption path.
-3. The port under review (`package/upstream-fork/p-map/src/p-map.ts`) had
-   rewritten upstream `p-map`'s `return new Promise(executor)` shape into a
-   `Promise.withResolvers` deferred plus `return await settlement.promise`,
-   because repository lint's `require-await` rejects an `async` function with
-   no `await`.
-   That lint-driven rewrite changed the observable settle tick.
+1.  `return deferred.promise` inside an `async` function hands the promise to
+    the async return path.
+    The function's own promise adopts it through the
+    thenable job queue,
+    exactly as `return new Promise(executor)` does,
+    so the
+    caller observes the rejection one microtask after the deferred rejects.
+2.  `return await deferred.promise` awaits the already-settled deferred
+    first.
+    The await reaction runs one microtask after the rejection,
+    then the
+    function returns the resolved value,
+    so the caller observes the rejection
+    one microtask earlier than the adoption path.
+3.  The port under review (`package/upstream-fork/p-map/src/p-map.ts`) had
+    rewritten upstream `p-map`'s `return new Promise(executor)` shape into a
+    `Promise.withResolvers` deferred plus `return await settlement.promise`,
+    because repository lint's `require-await` rejects an `async` function with
+    no `await`.
+    That lint-driven rewrite changed the observable settle tick.
 
 The fix keeps upstream's adoption shape and suppresses the lint rule at the
 declaration with the reason recorded:

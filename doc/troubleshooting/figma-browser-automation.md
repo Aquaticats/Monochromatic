@@ -161,15 +161,15 @@ Clunky,
 
 ### For design audits
 
-1. Use Figma MCP for structured node data and static frame
-   screenshots.
-2. Have the human manually screenshot specific screens,
-    prototype
-   flows,
-    and comment threads.
-3. Have the human paste comment text directly into the
-   conversation.
-4. Combine both data sources in the agent's analysis.
+1.  Use Figma MCP for structured node data and static frame
+    screenshots.
+2.  Have the human manually screenshot specific screens,
+     prototype
+    flows,
+     and comment threads.
+3.  Have the human paste comment text directly into the
+    conversation.
+4.  Combine both data sources in the agent's analysis.
 
 Tradeoff:
  depends on human availability.
@@ -221,35 +221,35 @@ The behaviour is by design and serves Figma's primary use case
 (fast vector rendering).
  The 5 constraints:
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    The WebGL
-   architecture is correct for Figma's audience.
-    The "fault" is
-   that the API surface is narrower than design-review automation
-   wants.
-2. **Can upstream fix it?
-   ** Yes,
-    by exposing comments,
-    prototype
-   flows,
-    and dev-mode annotations through the REST/MCP API.
-   Architecturally feasible;
-    it expands the API contract.
-3. **Are they supporting this use case?
-   ** Partially:
-    REST/MCP
-   covers node geometry and rendering.
-    Prototype interaction and
-   comments are not covered.
-4. **Will they likely fix it?
-   ** Unknown.
-    Demand from
-   automation-first users is growing but Figma's roadmap has not
-   committed.
-5. **Have we prototyped a minimal fix?
-   ** N/A;
-    closed source.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     The WebGL
+    architecture is correct for Figma's audience.
+     The "fault" is
+    that the API surface is narrower than design-review automation
+    wants.
+2.  **Can upstream fix it?
+    ** Yes,
+     by exposing comments,
+     prototype
+    flows,
+     and dev-mode annotations through the REST/MCP API.
+    Architecturally feasible;
+     it expands the API contract.
+3.  **Are they supporting this use case?
+    ** Partially:
+     REST/MCP
+    covers node geometry and rendering.
+     Prototype interaction and
+    comments are not covered.
+4.  **Will they likely fix it?
+    ** Unknown.
+     Demand from
+    automation-first users is growing but Figma's roadmap has not
+    committed.
+5.  **Have we prototyped a minimal fix?
+    ** N/A;
+     closed source.
 
 Decision:
  no upstream report from us.

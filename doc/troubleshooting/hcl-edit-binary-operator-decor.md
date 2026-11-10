@@ -319,43 +319,43 @@ the meow configuration draft written for this research hits it on two of its exp
 
 ### Upstream filing decision
 
-1. Is it really upstream's fault?
-    Yes.
-   The crate's stated purpose is "Parse and modify HCL while preserving comments and whitespace"
-    (`hcl-edit` README,
-   first line),
-    and the maintainer states the crate follows the HCL specifications
-    (`martinohmann/hcl-rs` issue #304,
-   comment of 2024-04-09).
-   Losing comments on an unedited round trip contradicts that purpose.
-2. Can upstream fix it?
-    Yes.
-   The fix is one call in `BinaryOp::despan`;
-    the same call already exists in sibling node types.
-3. Are they supporting this use case?
-    Yes.
-   `crates/hcl-edit/src/parser/tests.rs` contains `roundtrip_expr` and `roundtrip_body` tests
-    whose whole purpose is byte-for-byte round trips,
-    including comment cases such as `"{ foo = 1 /*comment*/ }"`.
-4. Would the repo welcome our contribution?
-    Yes.
-   `CONTRIBUTING.md` invites pull requests,
-    asks for an issue first for features and breaking changes,
-    asks for regression tests with bug fixes,
-    and says nothing about AI assistance;
-    `.github` holds no issue or pull request template.
-   External bug-fix pull requests were merged recently
-    (#549 on 2026-08-09 and #562 on 2026-08-20).
-5. Will they likely fix it?
-    Likely.
-   No documented non-goal exists,
-    the maintainer merged comparable parser fixes within days,
-    and there is no won't-fix statement.
-   The open issue #566 from 2026-09-04 has no maintainer reply yet,
-    which is silence rather than a decline.
-6. Have we prototyped a minimal fix compatible with their architecture?
-    Yes,
-   see the diff and its verification.
+1.  Is it really upstream's fault?
+     Yes.
+    The crate's stated purpose is "Parse and modify HCL while preserving comments and whitespace"
+     (`hcl-edit` README,
+    first line),
+     and the maintainer states the crate follows the HCL specifications
+     (`martinohmann/hcl-rs` issue #304,
+    comment of 2024-04-09).
+    Losing comments on an unedited round trip contradicts that purpose.
+2.  Can upstream fix it?
+     Yes.
+    The fix is one call in `BinaryOp::despan`;
+     the same call already exists in sibling node types.
+3.  Are they supporting this use case?
+     Yes.
+    `crates/hcl-edit/src/parser/tests.rs` contains `roundtrip_expr` and `roundtrip_body` tests
+     whose whole purpose is byte-for-byte round trips,
+     including comment cases such as `"{ foo = 1 /*comment*/ }"`.
+4.  Would the repo welcome our contribution?
+     Yes.
+    `CONTRIBUTING.md` invites pull requests,
+     asks for an issue first for features and breaking changes,
+     asks for regression tests with bug fixes,
+     and says nothing about AI assistance;
+     `.github` holds no issue or pull request template.
+    External bug-fix pull requests were merged recently
+     (#549 on 2026-08-09 and #562 on 2026-08-20).
+5.  Will they likely fix it?
+     Likely.
+    No documented non-goal exists,
+     the maintainer merged comparable parser fixes within days,
+     and there is no won't-fix statement.
+    The open issue #566 from 2026-09-04 has no maintainer reply yet,
+     which is silence rather than a decline.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+     Yes,
+    see the diff and its verification.
 
 ### Duplicate search
 

@@ -810,38 +810,38 @@ and its one unbounded wait is the Git child whose status it reads.
 Ordered by the sequence in `src/native/policy/policy_checks.rs:337` and
 `src/native/conflict/conflict_side_guard.rs:225`:
 
-1. Before the decision:
-   nothing is written.
-   A kill here leaves the command unrun and the worktree untouched.
-2. During a carve-out copy:
-   `discarded/<stamp>/` may hold some of the paths and not others,
-   and the file being copied may be short.
-   Git has not started,
-   so nothing was replaced.
-   The leftover directory is never referenced by anything and is removed by the age limit,
-   which is a cost of disk and not of data.
-3. After the copies are synced,
-   before the notice:
-   the copies are durable and Git has not started.
-   A kill here keeps the copies and leaves the command unrun.
-4. After the audit line,
-   before Git:
-   the record exists,
-   the command did not run.
-   A kill can leave a torn line only between the `write` and its page-cache flush,
-   and the next append starts a fresh line
-   (`src/native/conflict/discard_audit.rs:344`).
-5. While Git runs:
-   Git owns whatever state it is in,
-   and the copies and the audit line are already on disk.
-   This is the one kill point the design handles better than the alternatives,
-   because the copy is made before the process is replaced and not after.
-6. During the prune that follows a save:
-   some older saves are gone,
-   the save just written is out of reach by construction,
-   and another pass finishes the work by name.
-7. After the command:
-   nothing of the route's remains except the audit line and whatever save it names.
+1.  Before the decision:
+    nothing is written.
+    A kill here leaves the command unrun and the worktree untouched.
+2.  During a carve-out copy:
+    `discarded/<stamp>/` may hold some of the paths and not others,
+    and the file being copied may be short.
+    Git has not started,
+    so nothing was replaced.
+    The leftover directory is never referenced by anything and is removed by the age limit,
+    which is a cost of disk and not of data.
+3.  After the copies are synced,
+    before the notice:
+    the copies are durable and Git has not started.
+    A kill here keeps the copies and leaves the command unrun.
+4.  After the audit line,
+    before Git:
+    the record exists,
+    the command did not run.
+    A kill can leave a torn line only between the `write` and its page-cache flush,
+    and the next append starts a fresh line
+    (`src/native/conflict/discard_audit.rs:344`).
+5.  While Git runs:
+    Git owns whatever state it is in,
+    and the copies and the audit line are already on disk.
+    This is the one kill point the design handles better than the alternatives,
+    because the copy is made before the process is replaced and not after.
+6.  During the prune that follows a save:
+    some older saves are gone,
+    the save just written is out of reach by construction,
+    and another pass finishes the work by name.
+7.  After the command:
+    nothing of the route's remains except the audit line and whatever save it names.
 
 No kill point in the route can hide work or apply it in the wrong place:
 nothing is moved,

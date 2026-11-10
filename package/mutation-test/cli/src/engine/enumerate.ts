@@ -38,6 +38,8 @@ import type {
   Replacement,
 } from './types.ts';
 
+//region Enumeration shapes
+
 /**
  Mutant excluded by a suppression comment, kept for report honesty.
  */
@@ -52,6 +54,10 @@ export type EnumerationResult = {
   readonly mutants: readonly Mutant[];
   readonly ignored: readonly IgnoredMutant[];
 };
+
+//endregion Enumeration shapes
+
+//region Mutant construction
 
 /**
  Builds a full mutant from one replacement.
@@ -115,6 +121,10 @@ function toMutant(options: {
   };
 }
 
+//endregion Mutant construction
+
+//region Type-erased subtrees
+
 /**
  Returns whether a node roots a TypeScript type-only subtree.
  
@@ -142,6 +152,10 @@ function isTypeErasedRoot(node: Readonly<Node>,): boolean {
     || is.TSTypeParameterDeclaration(node,)
     || is.TSTypeParameterInstantiation(node,);
 }
+
+//endregion Type-erased subtrees
+
+//region Enumeration
 
 /**
  Enumerates every mutant in one source file.
@@ -309,3 +323,5 @@ export function enumerateMutants(options: {
     ignored,
   };
 }
+
+//endregion Enumeration

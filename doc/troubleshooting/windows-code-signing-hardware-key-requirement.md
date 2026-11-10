@@ -156,14 +156,14 @@ What fails:
 Nothing to file.
  This walks the 6-constraint check only to record why:
 
-1. Is it upstream's fault?
-    No. The hardware-key mandate is a CA/Browser Forum industry policy,
-    not a defect in any
-   tool we use (`osslsigncode` already supports the PKCS#11 path the policy requires,
-    as shown above).
-    The
-   name-exposure point is intrinsic to how Authenticode works,
-    also not a tool defect.
+1.  Is it upstream's fault?
+     No. The hardware-key mandate is a CA/Browser Forum industry policy,
+     not a defect in any
+    tool we use (`osslsigncode` already supports the PKCS#11 path the policy requires,
+     as shown above).
+     The
+    name-exposure point is intrinsic to how Authenticode works,
+     also not a tool defect.
 
 Because constraint 1 fails,
  the remaining constraints do not apply and there is no tool tracker to file against.

@@ -132,11 +132,11 @@ $ gh api repos/Aquaticat/Monochromatic/code-scanning/default-setup
 
 The resulting chain is:
 
-1. Classic branch-protection pattern `*` matches `translation-repair-rebased`.
-2. A commit is auto-pushed to that protected branch.
-3. CodeQL default setup creates one workflow run because the push target is protected.
-4. The run fans out into the detected language jobs.
-5. Another pushed commit starts another run without canceling the prior run.
+1.  Classic branch-protection pattern `*` matches `translation-repair-rebased`.
+2.  A commit is auto-pushed to that protected branch.
+3.  CodeQL default setup creates one workflow run because the push target is protected.
+4.  The run fans out into the detected language jobs.
+5.  Another pushed commit starts another run without canceling the prior run.
 
 The earlier reading that Copilot review ruleset `9126851` made the branch protected was unsupported.
 The classic `*` branch-protection rule is direct evidence and independently explains the protected status.

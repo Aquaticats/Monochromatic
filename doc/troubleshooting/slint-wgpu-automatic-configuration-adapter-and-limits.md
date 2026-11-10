@@ -646,46 +646,46 @@ because they have different answers.
 
 #### The CPU adapter in the `Automatic` selection
 
-1. **Is it really upstream's fault?**
-   Not wgpu's:
-   `PowerPreference::None` is documented as not sorting,
-   and `force_fallback_adapter` as keeping only
-   fallback adapters.
-   Slint's,
-   softly yes:
-   Slint's start-up check and `SLINT_WGPU_CPU` treat CPU adapters as opt-in,
-   and its linuxkms backend enforces that at selection time (pull request 14023),
-   while the winit path in `wgpu_30.rs` does not.
-   Soft because the helper's own comment says it decides the software-renderer fallback,
-   and because the only way I made Slint take llvmpipe was to tell Mesa to list it first;
-   I found no unforced configuration on this host.
-2. **Can upstream fix it?**
-   Yes:
-   the prototype is one helper and two call sites.
-3. **Are they supporting this use case?**
-   Yes for `Automatic` (the documented configuration,
-   used by Slint's examples),
-   and the linuxkms guard shows that CPU
-   exclusion is wanted.
-4. **Would the repo welcome our contribution?**
-   Yes.
-   `CONTRIBUTING.md` welcomes issues and pull requests,
-   points AI assistants to `AGENTS.md`,
-   asks that public API
-   changes be discussed first,
-   and asks contributors to make sure they wrote the contribution themselves;
-   there are bug-report and feature-request issue templates;
-   no AI ban or disclosure rule was found.
-5. **Will they likely fix it?**
-   Plausibly:
-   the same maintainers added the guard for linuxkms on 2026-10-13,
-   and nothing in the tracker declines it.
-   Trunk's `wgpu_30.rs` selection code is unchanged from 1.18.1 (diffed;
-   only a surfaceless descriptor helper and a
-   `poll_once` visibility change differ).
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes,
-   see the prototype.
+1.  **Is it really upstream's fault?**
+    Not wgpu's:
+    `PowerPreference::None` is documented as not sorting,
+    and `force_fallback_adapter` as keeping only
+    fallback adapters.
+    Slint's,
+    softly yes:
+    Slint's start-up check and `SLINT_WGPU_CPU` treat CPU adapters as opt-in,
+    and its linuxkms backend enforces that at selection time (pull request 14023),
+    while the winit path in `wgpu_30.rs` does not.
+    Soft because the helper's own comment says it decides the software-renderer fallback,
+    and because the only way I made Slint take llvmpipe was to tell Mesa to list it first;
+    I found no unforced configuration on this host.
+2.  **Can upstream fix it?**
+    Yes:
+    the prototype is one helper and two call sites.
+3.  **Are they supporting this use case?**
+    Yes for `Automatic` (the documented configuration,
+    used by Slint's examples),
+    and the linuxkms guard shows that CPU
+    exclusion is wanted.
+4.  **Would the repo welcome our contribution?**
+    Yes.
+    `CONTRIBUTING.md` welcomes issues and pull requests,
+    points AI assistants to `AGENTS.md`,
+    asks that public API
+    changes be discussed first,
+    and asks contributors to make sure they wrote the contribution themselves;
+    there are bug-report and feature-request issue templates;
+    no AI ban or disclosure rule was found.
+5.  **Will they likely fix it?**
+    Plausibly:
+    the same maintainers added the guard for linuxkms on 2026-10-13,
+    and nothing in the tracker declines it.
+    Trunk's `wgpu_30.rs` selection code is unchanged from 1.18.1 (diffed;
+    only a surfaceless descriptor helper and a
+    `poll_once` visibility change differ).
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes,
+    see the prototype.
 
 Result:
 all six hold,

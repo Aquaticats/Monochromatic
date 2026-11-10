@@ -167,22 +167,22 @@ than GitHub.
 
 The six constraints do not justify filing:
 
-1. **Upstream fault**:
-   No.
-   Git behaves as documented and supplies the required provenance mechanism.
-2. **Upstream can fix**:
-   Not applicable because no upstream defect remains.
-3. **Supported use case**:
-   Yes.
-   `Documentation/git.adoc` explicitly supports scripted porcelain reflog actions.
-4. **Contribution welcome**:
-   Yes through Git's mailing-list process,
-   but there is no defect to contribute.
-5. **Likely fix**:
-   Not applicable because no change is requested.
-6. **Minimal prototype**:
-   The consumer-side nonce and recovery validation are implemented in cli-git;
-   an upstream patch would be unrelated to the diagnosed need.
+1.  **Upstream fault**:
+    No.
+    Git behaves as documented and supplies the required provenance mechanism.
+2.  **Upstream can fix**:
+    Not applicable because no upstream defect remains.
+3.  **Supported use case**:
+    Yes.
+    `Documentation/git.adoc` explicitly supports scripted porcelain reflog actions.
+4.  **Contribution welcome**:
+    Yes through Git's mailing-list process,
+    but there is no defect to contribute.
+5.  **Likely fix**:
+    Not applicable because no change is requested.
+6.  **Minimal prototype**:
+    The consumer-side nonce and recovery validation are implemented in cli-git;
+    an upstream patch would be unrelated to the diagnosed need.
 
 Nothing should be filed upstream.
 A new-issue draft would misrepresent documented behavior as a Git defect,

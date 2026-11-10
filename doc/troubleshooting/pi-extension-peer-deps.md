@@ -533,29 +533,29 @@ and exercises the changed extensions.
 
 ### Five-constraint upstream-filing check
 
-1. **Is it really upstream's fault?
-   ** Yes.
-    The failing constraints are exact peer ranges in the published
-   `@aliou/pi-linkup@0.11.0` and `@aliou/pi-synthetic@0.17.2` manifests.
-2. **Can upstream fix it?
-   ** Yes.
-    The minimal fix is a package metadata change in each package's `peerDependencies`.
-3. **Are they supporting this use case?
-   ** Yes.
-    These packages are Pi extensions,
-    declare Pi host packages as peers,
-   and ship `pi.extensions` entries in `package.json`.
-4. **Will they likely fix it?
-   ** Yes.
-    Recent merged release PRs show active maintenance:
-   `aliou/pi-linkup#30` released `0.11.0` on 2026-05-08,
-    and `aliou/pi-synthetic#56` released `0.17.2` on
-   2026-05-20.
-    The sibling `@aliou/pi-processes@0.9.1` has already moved to `^0.75.3` peers.
-5. **Have we prototyped a minimal fix compatible with their architecture?
-   ** Yes.
-    The prototype changed only
-   `package.json` peer ranges in fresh clones and verified npm resolution with `--ignore-scripts`.
+1.  **Is it really upstream's fault?
+    ** Yes.
+     The failing constraints are exact peer ranges in the published
+    `@aliou/pi-linkup@0.11.0` and `@aliou/pi-synthetic@0.17.2` manifests.
+2.  **Can upstream fix it?
+    ** Yes.
+     The minimal fix is a package metadata change in each package's `peerDependencies`.
+3.  **Are they supporting this use case?
+    ** Yes.
+     These packages are Pi extensions,
+     declare Pi host packages as peers,
+    and ship `pi.extensions` entries in `package.json`.
+4.  **Will they likely fix it?
+    ** Yes.
+     Recent merged release PRs show active maintenance:
+    `aliou/pi-linkup#30` released `0.11.0` on 2026-05-08,
+     and `aliou/pi-synthetic#56` released `0.17.2` on
+    2026-05-20.
+     The sibling `@aliou/pi-processes@0.9.1` has already moved to `^0.75.3` peers.
+5.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** Yes.
+     The prototype changed only
+    `package.json` peer ranges in fresh clones and verified npm resolution with `--ignore-scripts`.
 
 Prototype clone details:
 

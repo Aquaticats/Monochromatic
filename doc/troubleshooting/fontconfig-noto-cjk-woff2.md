@@ -276,37 +276,37 @@ Neither thread contains this FreeType call chain or these Noto CJK files.
 
 The filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   No for the capability behavior.
-   FreeType intentionally applies a documented suggested output maximum as a decoder safety boundary.
-   Fontconfig correctly delegates parsing and cannot create patterns after `FT_New_Face` fails.
-   The misleading `broken table` fallback is a diagnostic-quality issue,
-   but it does not cause the rejection.
-2. **Can upstream fix it?**
-   Yes.
-   FreeType could reconcile the 30 MiB write cap with its later 64 MiB allocation-bomb cap,
-   make the boundary configurable,
-   or preserve `Array_Too_Large` through the reconstruction failure path.
-3. **Are they supporting this use case?**
-   Partly.
-   FreeType documents WOFF2 as a supported compressed SFNT format,
-   and its source parses WOFF2 collection directories.
-   The fixed cap explicitly excludes larger expanded output.
-4. **Would the repository welcome a contribution?**
-   Yes.
-   FreeType's `README` directs detailed bug reports to its GitLab tracker and larger patches to merge requests.
-   `README`,
-   `README.git`,
-   the repository policy files,
-   and the current developer page contain no ban on external or AI-assisted contributions.
-5. **Will they likely fix it?**
-   No positive signal was found.
-   The 30 MiB cap has remained unchanged from its 2019 introduction through current `origin/master`.
-   The comparable Google WOFF2 collection issue has remained open since 2021.
-6. **Have we prototyped a minimal upstream fix compatible with their architecture?**
-   No.
-   The auto-prototype condition does not apply because constraints 1 and 5 fail.
-   Raising a decoder safety limit without a memory-risk review would not be a verified fix.
+1.  **Is it really upstream's fault?**
+    No for the capability behavior.
+    FreeType intentionally applies a documented suggested output maximum as a decoder safety boundary.
+    Fontconfig correctly delegates parsing and cannot create patterns after `FT_New_Face` fails.
+    The misleading `broken table` fallback is a diagnostic-quality issue,
+    but it does not cause the rejection.
+2.  **Can upstream fix it?**
+    Yes.
+    FreeType could reconcile the 30 MiB write cap with its later 64 MiB allocation-bomb cap,
+    make the boundary configurable,
+    or preserve `Array_Too_Large` through the reconstruction failure path.
+3.  **Are they supporting this use case?**
+    Partly.
+    FreeType documents WOFF2 as a supported compressed SFNT format,
+    and its source parses WOFF2 collection directories.
+    The fixed cap explicitly excludes larger expanded output.
+4.  **Would the repository welcome a contribution?**
+    Yes.
+    FreeType's `README` directs detailed bug reports to its GitLab tracker and larger patches to merge requests.
+    `README`,
+    `README.git`,
+    the repository policy files,
+    and the current developer page contain no ban on external or AI-assisted contributions.
+5.  **Will they likely fix it?**
+    No positive signal was found.
+    The 30 MiB cap has remained unchanged from its 2019 introduction through current `origin/master`.
+    The comparable Google WOFF2 collection issue has remained open since 2021.
+6.  **Have we prototyped a minimal upstream fix compatible with their architecture?**
+    No.
+    The auto-prototype condition does not apply because constraints 1 and 5 fail.
+    Raising a decoder safety limit without a memory-risk review would not be a verified fix.
 
 The decision is to file nothing upstream.
 The paired TTC files solve the desktop installation at the consumer boundary.

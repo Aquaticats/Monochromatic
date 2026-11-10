@@ -57,21 +57,21 @@ intersection cannot drop a span that both operands contain.
 Two independent resharp-internal proofs,
  neither using the denotational model:
 
-1. **Membership.
-   ** `(0,1) in L(.)` and `(0,1) in L(a(?:$|b))` are both witnessed by
-   resharp's own `find_all` on each operand.
-    `L(A & B)` is `L(A) cap L(B)` by
-   definition,
-    so `(0,1)` must be in `L(.&a(?:$|b))`.
-    resharp returns `[]`.
-2. **Monotonicity.
-   ** `L(a$) subset of L(a(?:$|b))` (the second adds an alternative
-   branch),
-    hence `L(.&a$) subset of L(.&a(?:$|b))`.
-    resharp gives `.&a$` ->
-   `[(0,1)]` but the superset `.&a(?:$|b)` -> `[]`:
-    a superset returning fewer
-   matches.
+1.  **Membership.
+    ** `(0,1) in L(.)` and `(0,1) in L(a(?:$|b))` are both witnessed by
+    resharp's own `find_all` on each operand.
+     `L(A & B)` is `L(A) cap L(B)` by
+    definition,
+     so `(0,1)` must be in `L(.&a(?:$|b))`.
+     resharp returns `[]`.
+2.  **Monotonicity.
+    ** `L(a$) subset of L(a(?:$|b))` (the second adds an alternative
+    branch),
+     hence `L(.&a$) subset of L(.&a(?:$|b))`.
+     resharp gives `.&a$` ->
+    `[(0,1)]` but the superset `.&a(?:$|b)` -> `[]`:
+     a superset returning fewer
+    matches.
 
 The `$` matches at the interior position 1 (multiline default,
  before the `\n`),

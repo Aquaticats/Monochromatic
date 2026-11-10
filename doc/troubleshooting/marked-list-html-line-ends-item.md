@@ -196,25 +196,25 @@ for (const [name, source] of [
 
 ## Verified workarounds
 
-1. Keep every code span on one source line,
-   so no closing backtick can be orphaned by a block split (the `MD8` rule in `AGENTS.md`).
-   Two wraps of this class were repaired in `doc/handover/cli-git-rust-implementation.md`
-   (the `git diff --name-only <local> <merge_oid>` span and the `doc/runbook/publish-npm-package-first-time.md:57`
-   path token,
-   which was rendering with a spurious space after `first-`).
-   Tradeoffs:
-   historical line wrapping changes although the rendered text is preserved,
-   and the repair must be repeated wherever else a span is hard-wrapped.
-2. Re-indent a lazy continuation line to the list item's content indent so it is not lazy,
-   or reword it to avoid a leading `<word` token.
-   Tradeoffs:
-   re-indenting changes how the nesting reads in raw source,
-   and rewording changes historical record text.
-3. Upgrade marked to 18.0.13 or newer in consumers that parse Markdown with it.
-   Tradeoffs:
-   the dependency move belongs to the consumer packages,
-   and nothing changes for documents read through GitHub's renderer,
-   which never showed the failure.
+1.  Keep every code span on one source line,
+    so no closing backtick can be orphaned by a block split (the `MD8` rule in `AGENTS.md`).
+    Two wraps of this class were repaired in `doc/handover/cli-git-rust-implementation.md`
+    (the `git diff --name-only <local> <merge_oid>` span and the `doc/runbook/publish-npm-package-first-time.md:57`
+    path token,
+    which was rendering with a spurious space after `first-`).
+    Tradeoffs:
+    historical line wrapping changes although the rendered text is preserved,
+    and the repair must be repeated wherever else a span is hard-wrapped.
+2.  Re-indent a lazy continuation line to the list item's content indent so it is not lazy,
+    or reword it to avoid a leading `<word` token.
+    Tradeoffs:
+    re-indenting changes how the nesting reads in raw source,
+    and rewording changes historical record text.
+3.  Upgrade marked to 18.0.13 or newer in consumers that parse Markdown with it.
+    Tradeoffs:
+    the dependency move belongs to the consumer packages,
+    and nothing changes for documents read through GitHub's renderer,
+    which never showed the failure.
 
 ## What does not work
 
@@ -268,41 +268,41 @@ Duplicate search before any filing:
  commit `c2facac8d455c87034f82639c900242de288aca0`).
  Its body cites the earlier issues 3437 and 3444 for the two halves of the same start-condition test.
 
-1. **Is it really upstream's fault?**
-   Yes for marked 18.0.12 and older.
-   The list-item end test deviated from CommonMark 0.31.2's type 7 limitation,
-   which micromark 4.0.3 and cmark-gfm both implement (measured).
-   Our own authoring debt contributed the hard-wrapped code span that turns the split into an inversion.
-2. **Can upstream fix it?**
-   Yes.
-   The minimal change is one regex,
-   recorded inline below.
-3. **Are they supporting this use case?**
-   Yes.
-   CommonMark conformance is marked's stated goal,
-   and the fix added spec files `html_closing_tag_following_list`,
-   `html_inline_tag_in_list`,
-   and `html_multiline_tag_following_list` under `test/specs/new`.
-4. **Would the repo welcome our contribution?**
-   Moot for a filing,
-   and checked anyway:
-   `.github/ISSUE_TEMPLATE/Bug_report.md`,
-   `.github/ISSUE_TEMPLATE/Feature_request.md`,
-   `.github/ISSUE_TEMPLATE/Proposal.md`,
-   `.github/PULL_REQUEST_TEMPLATE/badges.md`,
-   and `README.md` contain no ban on AI-assisted reports,
-   and PR 4072 merged through the ordinary pull request flow.
-5. **Will they likely fix it?**
-   Fixed already,
-   released in 18.0.13 on 2026-09-12,
-   and present in 18.1.1 (both verified with the harness).
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No separate prototype is kept,
-   because the minimal fix already exists upstream and ships in the current release.
-   Re-deriving it would duplicate merged code.
-   The pre-fix and post-fix sides of the fix are measured here instead:
-   18.0.11 and 18.0.12 fail the harness,
-   18.0.13 and 18.1.1 pass it.
+1.  **Is it really upstream's fault?**
+    Yes for marked 18.0.12 and older.
+    The list-item end test deviated from CommonMark 0.31.2's type 7 limitation,
+    which micromark 4.0.3 and cmark-gfm both implement (measured).
+    Our own authoring debt contributed the hard-wrapped code span that turns the split into an inversion.
+2.  **Can upstream fix it?**
+    Yes.
+    The minimal change is one regex,
+    recorded inline below.
+3.  **Are they supporting this use case?**
+    Yes.
+    CommonMark conformance is marked's stated goal,
+    and the fix added spec files `html_closing_tag_following_list`,
+    `html_inline_tag_in_list`,
+    and `html_multiline_tag_following_list` under `test/specs/new`.
+4.  **Would the repo welcome our contribution?**
+    Moot for a filing,
+    and checked anyway:
+    `.github/ISSUE_TEMPLATE/Bug_report.md`,
+    `.github/ISSUE_TEMPLATE/Feature_request.md`,
+    `.github/ISSUE_TEMPLATE/Proposal.md`,
+    `.github/PULL_REQUEST_TEMPLATE/badges.md`,
+    and `README.md` contain no ban on AI-assisted reports,
+    and PR 4072 merged through the ordinary pull request flow.
+5.  **Will they likely fix it?**
+    Fixed already,
+    released in 18.0.13 on 2026-09-12,
+    and present in 18.1.1 (both verified with the harness).
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No separate prototype is kept,
+    because the minimal fix already exists upstream and ships in the current release.
+    Re-deriving it would duplicate merged code.
+    The pre-fix and post-fix sides of the fix are measured here instead:
+    18.0.11 and 18.0.12 fail the harness,
+    18.0.13 and 18.1.1 pass it.
 
 The minimal fix,
  from `git show c2facac -- src/rules.ts`:

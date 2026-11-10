@@ -159,27 +159,27 @@ forked version.
 
 All 5 constraints hold:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    the redundant
-   check is the source.
-2. **Can upstream fix it?
-   ** Yes;
-    one-line removal in
-   `pathSignals`.
-3. **Are they supporting this use case?
-   ** Implicit yes;
-   pi-safeguard's promise is to block destructive actions,
-   not to break on Fedora.
-4. **Will they likely fix it?
-   ** Plausible;
-    a small,
-    targeted
-   bug.
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    the patched
-   dist runs cleanly on this workspace.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     the redundant
+    check is the source.
+2.  **Can upstream fix it?
+    ** Yes;
+     one-line removal in
+    `pathSignals`.
+3.  **Are they supporting this use case?
+    ** Implicit yes;
+    pi-safeguard's promise is to block destructive actions,
+    not to break on Fedora.
+4.  **Will they likely fix it?
+    ** Plausible;
+     a small,
+     targeted
+    bug.
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     the patched
+    dist runs cleanly on this workspace.
 
 Decision:
  worth filing.
@@ -308,33 +308,33 @@ suitable.
 
 ### Why we would file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    The
-   default is documented;
-    users can override.
-    But
-   "latest-only" is an unfriendly default when the active
-   model is already latest.
-2. **Can upstream fix it?
-   ** Yes;
-    default could be 0
-   (consider all majors),
-    or 2 (latest plus one back),
-    or
-   bias toward "latest with cheaper fallback".
-3. **Are they supporting this use case?
-   ** Yes;
-    the option
-   exists.
-4. **Will they likely fix it?
-   ** Possibly;
-    depends on default
-   philosophy.
-5. **Have we prototyped a minimal fix?
-   ** No;
-    just the
-   user-side override.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     The
+    default is documented;
+     users can override.
+     But
+    "latest-only" is an unfriendly default when the active
+    model is already latest.
+2.  **Can upstream fix it?
+    ** Yes;
+     default could be 0
+    (consider all majors),
+     or 2 (latest plus one back),
+     or
+    bias toward "latest with cheaper fallback".
+3.  **Are they supporting this use case?
+    ** Yes;
+     the option
+    exists.
+4.  **Will they likely fix it?
+    ** Possibly;
+     depends on default
+    philosophy.
+5.  **Have we prototyped a minimal fix?
+    ** No;
+     just the
+    user-side override.
 
 Decision:
  worth raising as a defaults-discussion issue.
@@ -549,31 +549,31 @@ runs.
 
 All 5 constraints hold:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    pi-budget-model
-   1.0.1 was published against an older pi-coding-agent
-   ModelRegistry shape and was not updated when the method
-   was renamed.
-2. **Can upstream fix it?
-   ** Yes;
-    replace four call sites
-   with `getApiKeyAndHeaders`,
-    or add a `getApiKey`
-   compatibility method to `ModelRegistry`.
-3. **Are they supporting this use case?
-   ** Yes;
-    pi-budget-model
-   is a documented pi-safeguard companion.
-4. **Will they likely fix it?
-   ** Plausible;
-    the fix is small
-   and the failure mode is total (every flagged action
-   broken).
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    both Option A
-   and Option B run cleanly on this workspace.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     pi-budget-model
+    1.0.1 was published against an older pi-coding-agent
+    ModelRegistry shape and was not updated when the method
+    was renamed.
+2.  **Can upstream fix it?
+    ** Yes;
+     replace four call sites
+    with `getApiKeyAndHeaders`,
+     or add a `getApiKey`
+    compatibility method to `ModelRegistry`.
+3.  **Are they supporting this use case?
+    ** Yes;
+     pi-budget-model
+    is a documented pi-safeguard companion.
+4.  **Will they likely fix it?
+    ** Plausible;
+     the fix is small
+    and the failure mode is total (every flagged action
+    broken).
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     both Option A
+    and Option B run cleanly on this workspace.
 
 Decision:
  worth filing.

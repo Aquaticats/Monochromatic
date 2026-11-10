@@ -78,19 +78,20 @@ of panicking.
 The developer may consider this "by design" since the release fallback is
 correct,
  but:
-1. The `reentrant-assert` feature is a **default feature**,
-    so debug builds
-   (which every developer and test suite uses) will panic on user input.
-2. The panic message says "this is a bug",
-    confirming the developer's own
-   assessment that this is a bug,
-    not intended behaviour.
+1.  The `reentrant-assert` feature is a **default feature**,
+     so debug builds
+    (which every developer and test suite uses) will panic on user input.
+2.  The panic message says "this is a bug",
+     confirming the developer's own
+    assessment that this is a bug,
+     not intended behaviour.
 
 ## Relationship to 06-04 campaign
 
 This is the exact same BUG-1 from the 2026-06-04 campaign.
  The developer
-claimed it was fixed but it was not — no commit between v0.6.9 and v0.6.12
+claimed it was fixed but it was not;
+no commit between v0.6.9 and v0.6.12
 touches the `attempt_rw_union_2` re-entrancy guard.
 
 ## Artifact

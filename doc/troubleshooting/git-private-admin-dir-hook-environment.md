@@ -495,61 +495,61 @@ so the archive search went through indexing mirrors (`ratatoskr.run`,
 
 #### Behavior B
 
-1. **Is it really upstream's fault?**
-   No.
-   The rewrite to `.` is deliberate (`0ed748134748`),
-   correct at the directory where Git starts the hook,
-   and `Documentation/githooks.adoc:24-35` defines that starting directory.
-   The breakage needs the hook to change directory while keeping a relative variable.
-2. **Can upstream fix it?**
-   Yes:
-   `setup.c:511-512` could export the absolute work tree instead of `.`.
-3. **Are they supporting this use case?**
-   Partly.
-   Explicit `--git-dir`/`--work-tree` is supported (`t/t1501-work-tree.sh`),
-   but no doc or test covers a hook changing directory under it.
-4. **Would the repo welcome our contribution?**
-   Conditionally:
-   `Documentation/SubmittingPatches:499-525` rejects content that "looks AI generated"
-   or that senders "don't understand or cannot explain",
-   so any report must be written and explained by the human sender.
-5. **Will they likely fix it?**
-   Unclear;
-   the 2010 commit chose `.` over an absolute path on purpose and gave no reason against the absolute form.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No.
-   The auto-prototype step is not triggered because constraint 1 fails.
+1.  **Is it really upstream's fault?**
+    No.
+    The rewrite to `.` is deliberate (`0ed748134748`),
+    correct at the directory where Git starts the hook,
+    and `Documentation/githooks.adoc:24-35` defines that starting directory.
+    The breakage needs the hook to change directory while keeping a relative variable.
+2.  **Can upstream fix it?**
+    Yes:
+    `setup.c:511-512` could export the absolute work tree instead of `.`.
+3.  **Are they supporting this use case?**
+    Partly.
+    Explicit `--git-dir`/`--work-tree` is supported (`t/t1501-work-tree.sh`),
+    but no doc or test covers a hook changing directory under it.
+4.  **Would the repo welcome our contribution?**
+    Conditionally:
+    `Documentation/SubmittingPatches:499-525` rejects content that "looks AI generated"
+    or that senders "don't understand or cannot explain",
+    so any report must be written and explained by the human sender.
+5.  **Will they likely fix it?**
+    Unclear;
+    the 2010 commit chose `.` over an absolute path on purpose and gave no reason against the absolute form.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No.
+    The auto-prototype step is not triggered because constraint 1 fails.
 
 Decision:
 do not file.
 
 #### Behavior C
 
-1. **Is it really upstream's fault?**
-   No for the behavior:
-   work tree discovery and repository format extensions have to come from the repository's own files,
-   and the linked-worktree rules are documented in `Documentation/git-worktree.adoc:326-359`.
-   The only upstream-side gap is wording:
-   neither `Documentation/git.adoc:77-81` nor `Documentation/config/core.adoc:327-339`
-   says command-line config cannot set `core.worktree`.
-2. **Can upstream fix it?**
-   The wording,
-    yes;
-   honouring `-c core.worktree` would need discovery to parse command-line config earlier,
-   which is a design change.
-3. **Are they supporting this use case?**
-   No:
-   a hand-built admin dir with a `commondir` file is an internal layout,
-   not a documented interface.
-4. **Would the repo welcome our contribution?**
-   Conditionally,
-    as for Behavior B.
-5. **Will they likely fix it?**
-   A one-sentence doc note is plausible,
-   but it does not change anything for us.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No;
-   not triggered because constraint 1 fails for the behavior and constraint 3 fails for the layout.
+1.  **Is it really upstream's fault?**
+    No for the behavior:
+    work tree discovery and repository format extensions have to come from the repository's own files,
+    and the linked-worktree rules are documented in `Documentation/git-worktree.adoc:326-359`.
+    The only upstream-side gap is wording:
+    neither `Documentation/git.adoc:77-81` nor `Documentation/config/core.adoc:327-339`
+    says command-line config cannot set `core.worktree`.
+2.  **Can upstream fix it?**
+    The wording,
+     yes;
+    honouring `-c core.worktree` would need discovery to parse command-line config earlier,
+    which is a design change.
+3.  **Are they supporting this use case?**
+    No:
+    a hand-built admin dir with a `commondir` file is an internal layout,
+    not a documented interface.
+4.  **Would the repo welcome our contribution?**
+    Conditionally,
+     as for Behavior B.
+5.  **Will they likely fix it?**
+    A one-sentence doc note is plausible,
+    but it does not change anything for us.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No;
+    not triggered because constraint 1 fails for the behavior and constraint 3 fails for the layout.
 
 Decision:
 do not file.

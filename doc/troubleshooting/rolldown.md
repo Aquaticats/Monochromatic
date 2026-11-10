@@ -146,23 +146,23 @@ same module type.
 Already represented by rolldown/rolldown#2758.
  5 constraints:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    the scanner stops
-   short of applying the parsed `type` attribute.
-2. **Can upstream fix it?
-   ** Yes;
-    thread the attribute through
-   to `asserted_module_type`.
-3. **Are they supporting this use case?
-   ** Documented goal.
-4. **Will they likely fix it?
-   ** The 2026 Q3 roadmap names import attributes as a Vite 8 migration blocker;
-    `@shulaoda` is assigned,
-    but the documented searches did not find a complete implementation PR.
-5. **Have we prototyped a minimal fix?
-   ** External plugin is
-   the prototype.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     the scanner stops
+    short of applying the parsed `type` attribute.
+2.  **Can upstream fix it?
+    ** Yes;
+     thread the attribute through
+    to `asserted_module_type`.
+3.  **Are they supporting this use case?
+    ** Documented goal.
+4.  **Will they likely fix it?
+    ** The 2026 Q3 roadmap names import attributes as a Vite 8 migration blocker;
+     `@shulaoda` is assigned,
+     but the documented searches did not find a complete implementation PR.
+5.  **Have we prototyped a minimal fix?
+    ** External plugin is
+    the prototype.
 
 Decision:
  no new upstream report;
@@ -393,24 +393,24 @@ tsdown:
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline;
-    the
-   neutral default is documented but the silent
-   externalisation is a UX wart.
-2. **Can upstream fix it?
-   ** Yes;
-    emit a stronger warning,
-   or default `mainFields` to a sensible value.
-3. **Are they supporting this use case?
-   ** Yes;
-    `neutral` is
-   documented.
-4. **Will they likely fix it?
-   ** Worth proposing as a UX
-   improvement.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline;
+     the
+    neutral default is documented but the silent
+    externalisation is a UX wart.
+2.  **Can upstream fix it?
+    ** Yes;
+     emit a stronger warning,
+    or default `mainFields` to a sensible value.
+3.  **Are they supporting this use case?
+    ** Yes;
+     `neutral` is
+    documented.
+4.  **Will they likely fix it?
+    ** Worth proposing as a UX
+    improvement.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  no upstream report from us yet.
@@ -738,7 +738,7 @@ patch updated 9 existing snapshots in the same run:
    These are the same bug surface,
    just hit by
   bare names rather than `node:`-prefixed ones.
-- **1 genuine regression**:
+- 1 genuine regression:
   `package_json_browser_map_native_module_disabled`.
    The
   fixture's `node_modules/demo-pkg/package.json` carries
@@ -913,28 +913,28 @@ and the naive flip emits a runtime `__require("fs")` instead of the disabled stu
 
 Two minimal alternatives keep bare-name handling unchanged:
 
-1. **Rolldown-side `node:` interception** (no oxc-resolver release needed).
-   In `crates/rolldown_plugin/src/utils/resolve_id_with_plugins.rs:122-131`,
-   right after the http/data-url auto-external block, add:
+1.  **Rolldown-side `node:` interception** (no oxc-resolver release needed).
+    In `crates/rolldown_plugin/src/utils/resolve_id_with_plugins.rs:122-131`,
+    right after the http/data-url auto-external block, add:
 
-   ```rust
-   if specifier.starts_with("node:") && is_nodejs_builtin_module(specifier) {
-     return Ok(Ok(ResolvedId {
-       is_external_without_side_effects: true,
-       id: ModuleId::new(specifier),
-       external: true.into(),
-       ..Default::default()
-     }));
-   }
-   ```
+    ```rust
+    if specifier.starts_with("node:") && is_nodejs_builtin_module(specifier) {
+      return Ok(Ok(ResolvedId {
+        is_external_without_side_effects: true,
+        id: ModuleId::new(specifier),
+        external: true.into(),
+        ..Default::default()
+      }));
+    }
+    ```
 
-   `is_nodejs_builtin_module` is already imported at the top of the file.
+    `is_nodejs_builtin_module` is already imported at the top of the file.
 
-2. **Distinct flag in oxc-resolver**. Split `builtin_modules` into
-   `builtin_modules_bare_names` (the existing semantic) and
-   `builtin_modules_node_prefix` (always on when honoured), then update
-   `crates/rolldown_resolver/src/resolver_config.rs` to set the prefix flag
-   unconditionally and keep the bare-name flag gated on `Platform::Node`.
+2.  **Distinct flag in oxc-resolver**. Split `builtin_modules` into
+    `builtin_modules_bare_names` (the existing semantic) and
+    `builtin_modules_node_prefix` (always on when honoured), then update
+    `crates/rolldown_resolver/src/resolver_config.rs` to set the prefix flag
+    unconditionally and keep the bare-name flag gated on `Platform::Node`.
 
 Option (1) is preferred for being entirely a rolldown change. Either fix passes
 the reproduction fixture above and leaves

@@ -18,10 +18,10 @@ screen-reader announcement or traversal order.
 
 The working composition is:
 
-1. Start Android Emulator 37.1.11 with its loopback gRPC controller.
-2. Enable installed TalkBack 17.0.0.889642762 and its `Display speech output` setting.
-3. Inject physical swipe gestures through `EmulatorController.sendTouch`.
-4. Capture the opaque panel while TalkBack shows both its focus rectangle and spoken text.
+1.  Start Android Emulator 37.1.11 with its loopback gRPC controller.
+2.  Enable installed TalkBack 17.0.0.889642762 and its `Display speech output` setting.
+3.  Inject physical swipe gestures through `EmulatorController.sendTouch`.
+4.  Capture the opaque panel while TalkBack shows both its focus rectangle and spoken text.
 
 ## Root cause
 
@@ -247,28 +247,28 @@ neither alone proves the other layer.
 
 ## Upstream filing decision
 
-1. **Is it really upstream's fault?**
-    No.
-   The emulator gRPC controller and TalkBack speech
-   overlay both work as documented.
-   Guest input,
-   UI Automator,
-   and logcat answer different
-   questions.
-2. **Can upstream fix it?**
-    Not applicable because no upstream defect is established.
-3. **Are they supporting this use case?**
-    The emulator explicitly supports host touch injection,
-   and TalkBack explicitly supports visible speech output.
-4. **Would the repositories welcome our contribution?**
-    Not evaluated because no defect or
-   missing source behavior remains.
-5. **Will they likely fix it?**
-    Not applicable.
-6. **Have we prototyped a minimal fix?**
-    No upstream fix is needed;
-   the verified composition is
-   entirely at the consumer boundary.
+1.  **Is it really upstream's fault?**
+     No.
+    The emulator gRPC controller and TalkBack speech
+    overlay both work as documented.
+    Guest input,
+    UI Automator,
+    and logcat answer different
+    questions.
+2.  **Can upstream fix it?**
+     Not applicable because no upstream defect is established.
+3.  **Are they supporting this use case?**
+     The emulator explicitly supports host touch injection,
+    and TalkBack explicitly supports visible speech output.
+4.  **Would the repositories welcome our contribution?**
+     Not evaluated because no defect or
+    missing source behavior remains.
+5.  **Will they likely fix it?**
+     Not applicable.
+6.  **Have we prototyped a minimal fix?**
+     No upstream fix is needed;
+    the verified composition is
+    entirely at the consumer boundary.
 
 No matching exemption exists under `.out-of-scope/`.
  Searches did not identify an issue

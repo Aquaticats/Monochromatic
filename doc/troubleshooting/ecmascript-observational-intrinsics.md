@@ -382,22 +382,22 @@ Its contract must name `JSON.stringify` and every parameter whose reachable hook
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** No. The observed behavior is required ECMAScript semantics.
-2. **Can upstream fix it?
-   ** No applicable defect exists;
-    removing hook dispatch would change JavaScript behavior.
-3. **Are they supporting this use case?
-   ** The specification supports the runtime operations,
-    not static effect analysis.
-4. **Would the repo welcome our contribution?
-   ** Not applicable because no specification defect was found.
-5. **Will they likely fix it?
-   ** Not applicable because the algorithms are behaving as specified.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No upstream fix is appropriate.
-    The
-   consumer-side exact intrinsic catalog is the verified remedy.
+1.  **Is it really upstream's fault?
+    ** No. The observed behavior is required ECMAScript semantics.
+2.  **Can upstream fix it?
+    ** No applicable defect exists;
+     removing hook dispatch would change JavaScript behavior.
+3.  **Are they supporting this use case?
+    ** The specification supports the runtime operations,
+     not static effect analysis.
+4.  **Would the repo welcome our contribution?
+    ** Not applicable because no specification defect was found.
+5.  **Will they likely fix it?
+    ** Not applicable because the algorithms are behaving as specified.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No upstream fix is appropriate.
+     The
+    consumer-side exact intrinsic catalog is the verified remedy.
 
 Nothing should be filed upstream.
 

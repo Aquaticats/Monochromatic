@@ -129,12 +129,12 @@ clones,
 or selects `zroot/data/var/lib` with the root environment.
 Consequently:
 
-1. The pre-transaction root snapshot captures package files such as `/usr/bin/tree`.
-2. Pacman installs package files into the running root dataset.
-3. Pacman records the installation under persistent `/var/lib/pacman`.
-4. ZFSBootMenu later selects the pre-transaction root clone.
-5. The selected root lacks the newly installed files,
-   while persistent pacman state still reports the package as installed.
+1.  The pre-transaction root snapshot captures package files such as `/usr/bin/tree`.
+2.  Pacman installs package files into the running root dataset.
+3.  Pacman records the installation under persistent `/var/lib/pacman`.
+4.  ZFSBootMenu later selects the pre-transaction root clone.
+5.  The selected root lacks the newly installed files,
+    while persistent pacman state still reports the package as installed.
 
 This is a dataset-boundary mismatch,
 not a ZFSBootMenu selection failure and not pool damage.

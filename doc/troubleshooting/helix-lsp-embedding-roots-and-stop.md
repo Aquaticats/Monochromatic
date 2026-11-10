@@ -219,26 +219,26 @@ a different symptom.
 A positive control for the search:
 the `lsp-stop` query did return results.
 
-1. Is it really upstream's fault?
-   No.
-   The tombstone is documented intent for `:lsp-stop` (`helix-lsp/src/lib.rs:692` to `:696`),
-   and the `PWD` preference is documented `pwd -L` intent (`helix-stdx/src/env.rs:22` to `:23`).
-   Inside Helix both are consistent,
-    because Helix never mixes resolved and link-spelled paths.
-   The mismatch comes from this embedder.
-2. Can upstream fix it?
-   Not applicable after constraint 1.
-3. Are they supporting this use case?
-   No evidence of support for embedding `helix-lsp` outside Helix was found;
-   the crate's interfaces mirror the editor's needs.
-4. Would the repo welcome our contribution?
-   Not evaluated,
-    because constraint 1 fails.
-5. Will they likely fix it?
-   Not evaluated.
-6. Prototype:
-   none,
-    because there is no upstream defect to fix.
+1.  Is it really upstream's fault?
+    No.
+    The tombstone is documented intent for `:lsp-stop` (`helix-lsp/src/lib.rs:692` to `:696`),
+    and the `PWD` preference is documented `pwd -L` intent (`helix-stdx/src/env.rs:22` to `:23`).
+    Inside Helix both are consistent,
+     because Helix never mixes resolved and link-spelled paths.
+    The mismatch comes from this embedder.
+2.  Can upstream fix it?
+    Not applicable after constraint 1.
+3.  Are they supporting this use case?
+    No evidence of support for embedding `helix-lsp` outside Helix was found;
+    the crate's interfaces mirror the editor's needs.
+4.  Would the repo welcome our contribution?
+    Not evaluated,
+     because constraint 1 fails.
+5.  Will they likely fix it?
+    Not evaluated.
+6.  Prototype:
+    none,
+     because there is no upstream defect to fix.
 
 Decision:
 do not file.

@@ -9,13 +9,33 @@ import {
   join,
   dirname,
 } from 'node:path';
+import { fileURLToPath, } from 'node:url';
+import { homedir, } from 'node:os';
 import {
   rebuttalFor,
   SAFETY_ONLY_FALLBACK,
 } from './rebuttals.mjs';
 
-const ROOT = '/var/home/user/Monochromatic';
-const AUDIT = '/home/user/temp/agent/regex-audit';
+/**
+ Repository root, derived from this file's committed location rather than a
+ hardcoded path, so the harness runs from any clone.
+ */
+const ROOT = fileURLToPath(new URL(
+  '../../../..',
+  import.meta.url
+))
+  .replace(
+  /\/$/,
+  ''
+  );
+
+/**
+ Scratch working directory. The harness writes mirrors and ledgers here, never
+ into the repository. Override with REGEX_AUDIT_WORK.
+ */
+const AUDIT = process.env
+  .REGEX_AUDIT_WORK
+  ?? `${homedir()}/temp/agent/regex-audit`;
 const OUT = join(
   AUDIT,
   'issues'
