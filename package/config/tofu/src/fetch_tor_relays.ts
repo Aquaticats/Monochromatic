@@ -7,6 +7,8 @@ import {
 import { join, } from 'node:path';
 import { json, } from 'node:stream/consumers';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 /**
  Minimal Onionoo relay record consumed by this script.
  
@@ -40,6 +42,14 @@ type OnionooResponse = {
  ```
  */
 type UnknownRecord = Record<PropertyKey, unknown>;
+
+/**
+ Logger root for this script's diagnostics, tagged with the script's own name.
+ OpenTofu reads this script's stdout as external-data JSON, so records stay at
+ `warn` or above: that is the only level the console sink routes to stderr while
+ keeping the record visible by default.
+ */
+const moduleLogger = tagged({ tag: 'fetch_tor_relays', },);
 
 /**
  Sentinel returned when Onionoo address is not ORPort 443.
@@ -393,8 +403,14 @@ async function fetchCidrsWithCacheFallback(): Promise<string> {
   }
   catch (error) {
     // Log why the live fetch failed before deciding whether a stale cache can cover it.
-    process.stderr
-      .write(`fetch_tor_relays: live fetch failed, attempting cache fallback: ${String(error,)}\n`,);
+    tagged({
+      l: moduleLogger,
+      tag: fetchCidrsWithCacheFallback.name,
+    },)
+      .warn(`live fetch failed, attempting cache fallback: ${String(error,)}`,);
+    // Drain the record here: the no-cache branch below throws, and a record still
+    // buffered during sink verification would never reach stderr.
+    await moduleLogger.flush();
 
     // Fallback to expired cache if download fails.
     /**

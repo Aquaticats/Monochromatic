@@ -49,7 +49,6 @@ const PACKAGE_NODE_MODULES = join(
  Relay cache file name, relative to the script's own directory.
  */
 const TOR_RELAY_CACHE_FILE_NAME = 'cache_tor_relays.txt';
-
 /**
  Cache age that still counts as fresh for the relay script's one-hour window.
  */
@@ -83,6 +82,43 @@ const EXPECTED_FRESH_CIDRS = '192.0.2.1/32,2001:db8::1/128';
  Cached CIDR text the stale-cache fallback must replay unchanged.
  */
 const STALE_CACHE_CIDRS = '198.51.100.1/32,2001:db8::2/128';
+
+/**
+ Fetch replacement that rejects, standing in for an Onionoo outage.
+ */
+const REJECTING_FETCH_SOURCE = 'async () => { throw new Error("offline fixture"); }';
+
+/**
+ Fetch replacement that throws when it is called at all, so a cache-hit case
+ proves the script never reached the network.
+ */
+const NEVER_CALLED_FETCH_SOURCE =
+  'async () => { throw new Error("fetch reached despite a fresh cache"); }';
+
+/**
+ DNS address families both resolver scripts query for every hostname.
+ */
+const ADDRESS_FAMILIES = [
+  'A',
+  'AAAA',
+] as const;
+
+/**
+ DNS's 63-octet label limit.
+ */
+const DNS_LABEL_LIMIT = 63;
+
+/**
+ Hostname c-ares rejects locally as malformed, so the lookup fails without a
+ query and the case needs no resolver and no network.
+ */
+const UNRESOLVABLE_HOSTNAME = `${'a'.repeat(DNS_LABEL_LIMIT + 1,)}.example.com`;
+
+/**
+ Same local rejection, carrying the Storage Box suffix that script requires.
+ */
+const UNRESOLVABLE_STORAGEBOX_HOSTNAME =
+  `${'a'.repeat(DNS_LABEL_LIMIT + 1,)}.your-storagebox.de`;
 
 //endregion Constants
 
@@ -243,11 +279,11 @@ async function stageScript(scriptFileName: string,): Promise<StagedScript & Asyn
 /**
  Builds the `--import` URL that replaces `globalThis.fetch` before the script runs,
  so a case pins whether the script reached the network without leaving the machine.
-
+ 
  @param implementation - JavaScript function expression assigned to `globalThis.fetch`.
-
+ 
  @returns Data URL module Node evaluates before the script.
-
+ 
  @example
  ```ts
  const importUrl = fetchStubImportUrl('async () => { throw new Error("unused"); }',);
@@ -257,6 +293,56 @@ function fetchStubImportUrl(implementation: string,): string {
   return `data:text/javascript,${
     encodeURIComponent(`globalThis.fetch = ${implementation};`,)
   }`;
+}
+
+/**
+ Collects the stderr lines that report a DNS lookup failure.
+ 
+ @param stderr - Captured standard error text of one run.
+ 
+ @returns One entry per logged lookup failure, in emission order.
+ 
+ @example
+ ```ts
+ lookupDiagnosticLines('resolve_hosts: A lookup for x failed: EBADNAME\n');
+ ```
+ */
+function lookupDiagnosticLines(stderr: string,): readonly string[] {
+  return stderr
+    .split('\n',)
+    .filter(function isLookupLine(line,): boolean {
+      return line.includes('lookup for',);
+    },);
+}
+
+/**
+ Asserts one stderr line is a level-warn record carrying the module tag and the
+ emitting function's tag, as the tagged logger writes it.
+ 
+ @param line - One captured standard error line.
+ 
+ @param moduleTag - Tag naming the script that emitted the record.
+ 
+ @param functionTag - Tag naming the function that emitted the record.
+ 
+ @example
+ ```ts
+ expectTaggedWarning({ line, moduleTag: 'resolve_hosts', functionTag: 'resolveAddressFamily' });
+ ```
+ */
+function expectTaggedWarning(
+  {
+    line,
+    moduleTag,
+    functionTag,
+  }: {
+    readonly line: string;
+    readonly moduleTag: string;
+    readonly functionTag: string;
+  },
+): void {
+  expect(line.startsWith('[warn] ['),).toBe(true,);
+  expect(line.includes(`] [${moduleTag}] [${functionTag}] `),).toBe(true,);
 }
 
 /**
@@ -352,9 +438,7 @@ await describe({
          Run with a fetch that fails loudly if the fresh cache did not short-circuit it.
          */
         const run = await staged.run({
-          importUrl: fetchStubImportUrl(
-            'async () => { throw new Error("fetch reached despite a fresh cache"); }',
-          ),
+          importUrl: fetchStubImportUrl(NEVER_CALLED_FETCH_SOURCE,),
         },);
 
         expect(run.exitCode,).toBe(0,);
@@ -405,13 +489,52 @@ await describe({
          Run against a fetch that always fails, so only the fallback can answer.
          */
         const run = await staged.run({
-          importUrl: fetchStubImportUrl(
-            'async () => { throw new Error("offline fixture"); }',
-          ),
+          importUrl: fetchStubImportUrl(REJECTING_FETCH_SOURCE,),
         },);
 
         expect(run.exitCode,).toBe(0,);
         expect(JSON.parse(run.stdout,),).toEqual({ ips: STALE_CACHE_CIDRS, },);
+      },
+    },),
+
+    it({
+      name: 'reports a failed fetch as a tagged warn line and keeps stdout JSON',
+      fn: async () => {
+        await using staged = await stageScript('fetch_tor_relays.ts',);
+        await writeRelayCache({
+          directory: staged.directory,
+          text: STALE_CACHE_CIDRS,
+          ageMs: STALE_CACHE_AGE_MS,
+        },);
+
+        /**
+         Failed-fetch run that must still answer with the stale cache.
+         */
+        const run = await staged.run({
+          importUrl: fetchStubImportUrl(REJECTING_FETCH_SOURCE,),
+        },);
+
+        expect(run.exitCode,).toBe(0,);
+        expect(JSON.parse(run.stdout,),).toEqual({ ips: STALE_CACHE_CIDRS, },);
+        expect(run.stderr.includes('fetch_tor_relays: '),).toBe(false,);
+
+        /**
+         Warn lines explaining the failed fetch.
+         */
+        const diagnostics = run.stderr
+          .split('\n',)
+          .filter(function isFallbackLine(line,): boolean {
+            return line.includes('attempting cache fallback',);
+          },);
+        expect(diagnostics,).toHaveLength(1,);
+        for (const line of diagnostics) {
+          expectTaggedWarning({
+            functionTag: 'fetchCidrsWithCacheFallback',
+            line,
+            moduleTag: 'fetch_tor_relays',
+          },);
+          expect(line.includes('] live fetch failed, attempting cache fallback: '),).toBe(true,);
+        }
       },
     },),
 
@@ -424,9 +547,7 @@ await describe({
          Run against a fetch that always fails with no cache file to fall back to.
          */
         const run = await staged.run({
-          importUrl: fetchStubImportUrl(
-            'async () => { throw new Error("offline fixture"); }',
-          ),
+          importUrl: fetchStubImportUrl(REJECTING_FETCH_SOURCE,),
         },);
 
         expect(run.exitCode,).toBe(1,);
@@ -439,3 +560,93 @@ await describe({
 },);
 
 //endregion fetch_tor_relays.ts
+
+//region resolve_hosts.ts
+
+await describe({
+  name: 'resolve_hosts.ts',
+  children: [
+    it({
+      name: 'writes one tagged warn line per address family, with no name prefix',
+      fn: async () => {
+        await using staged = await stageScript('resolve_hosts.ts',);
+
+        /**
+         Run for a hostname whose every lookup fails locally.
+         */
+        const run = await staged.run({
+          stdin: JSON.stringify({ hostnames: UNRESOLVABLE_HOSTNAME, },),
+        },);
+
+        expect(run.exitCode,).toBe(1,);
+        expect(run.stdout,).toBe('',);
+        expect(run.stderr.includes('resolve_hosts: '),).toBe(false,);
+
+        /**
+         Warn lines reporting the per-family lookup failures.
+         */
+        const diagnostics = lookupDiagnosticLines(run.stderr,);
+        expect(diagnostics,).toHaveLength(ADDRESS_FAMILIES.length,);
+        for (const line of diagnostics) {
+          expectTaggedWarning({
+            functionTag: 'resolveAddressFamily',
+            line,
+            moduleTag: 'resolve_hosts',
+          },);
+        }
+        for (const family of ADDRESS_FAMILIES) {
+          expect(diagnostics.some(function isFamilyLine(line,): boolean {
+            return line.includes(`] ${family} lookup for `,);
+          },),).toBe(true,);
+        }
+      },
+    },),
+  ],
+},);
+
+//endregion resolve_hosts.ts
+
+//region resolve_storagebox_hosts.ts
+
+await describe({
+  name: 'resolve_storagebox_hosts.ts',
+  children: [
+    it({
+      name: 'writes one tagged warn line per address family, with no name prefix',
+      fn: async () => {
+        await using staged = await stageScript('resolve_storagebox_hosts.ts',);
+
+        /**
+         Run for a Storage Box hostname whose every lookup fails locally.
+         */
+        const run = await staged.run({
+          stdin: JSON.stringify({ hostnames: UNRESOLVABLE_STORAGEBOX_HOSTNAME, },),
+        },);
+
+        expect(run.exitCode,).toBe(1,);
+        expect(run.stdout,).toBe('',);
+        expect(run.stderr.includes('resolve_storagebox_hosts: '),).toBe(false,);
+
+        /**
+         Warn lines reporting the per-family lookup failures.
+         */
+        const diagnostics = lookupDiagnosticLines(run.stderr,);
+        expect(diagnostics,).toHaveLength(ADDRESS_FAMILIES.length,);
+        for (const line of diagnostics) {
+          expectTaggedWarning({
+            functionTag: 'resolveAddressFamily',
+            line,
+            moduleTag: 'resolve_storagebox_hosts',
+          },);
+        }
+        for (const family of ADDRESS_FAMILIES) {
+          expect(diagnostics.some(function isFamilyLine(line,): boolean {
+            return line.includes(`] ${family} lookup for `,);
+          },),).toBe(true,);
+        }
+      },
+    },),
+  ],
+},);
+
+//endregion resolve_storagebox_hosts.ts

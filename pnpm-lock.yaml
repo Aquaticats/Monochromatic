@@ -1391,6 +1391,9 @@ importers:
 
   package/config/tofu:
     dependencies:
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
       '@monochromatic-dev/wg-core-allowedips':
         specifier: workspace:*
         version: link:../../wg/core-allowedips
