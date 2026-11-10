@@ -50,7 +50,7 @@ export async function discoverTestFiles(cwd: string,): Promise<readonly string[]
    Filtered, sorted absolute paths; built as a chain to keep each step inspectable.
    */
   const files = entries
-    .filter(function isMatrixTest(entry: Readonly<Dirent>,) {
+    .filter(function isMatrixTest(entry: Readonly<Dirent>,): boolean {
       if (!entry.isFile())
         return false;
       if (!entry.name
@@ -66,7 +66,7 @@ export async function discoverTestFiles(cwd: string,): Promise<readonly string[]
         return false;
       return true;
     },)
-    .map(function toAbsolutePath(entry: Readonly<Dirent>,) {
+    .map(function toAbsolutePath(entry: Readonly<Dirent>,): string {
       return resolve(
         entry.parentPath,
         entry.name,

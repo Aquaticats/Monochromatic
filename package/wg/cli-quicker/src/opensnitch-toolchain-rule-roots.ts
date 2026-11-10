@@ -4,7 +4,10 @@ import {
   join,
 } from 'node:path';
 
-import { OpenSnitchConfigError, } from './errors.ts';
+import {
+  isErrnoException,
+  OpenSnitchConfigError,
+} from './errors.ts';
 import {
   type PathAliasPair,
   pathSpellings,
@@ -15,6 +18,14 @@ import {
  Sentinel for a path that does not exist.
  */
 const PATH_ABSENT: unique symbol = Symbol('path does not exist',);
+
+/**
+ Codes a missing path reports, whether the path itself or a segment of it is absent.
+ */
+const PATH_ABSENT_CODES: ReadonlySet<string> = new Set([
+  'ENOENT',
+  'ENOTDIR',
+],);
 
 /**
  Sentinel for a start directory with no checkout above it.
@@ -54,10 +65,7 @@ async function realpathOrAbsent(
     return await realpath(path,);
   }
   catch (error) {
-    if (Error.isError(error,) && [
-      'ENOENT',
-      'ENOTDIR',
-    ].includes((error as NodeJS.ErrnoException).code ?? '',))
+    if (isErrnoException(error,) && PATH_ABSENT_CODES.has(error.code ?? '',))
       return PATH_ABSENT;
     throw new OpenSnitchConfigError(
       `Cannot resolve ${path}`,

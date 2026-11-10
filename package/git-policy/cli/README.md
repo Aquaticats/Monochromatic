@@ -3653,6 +3653,24 @@ so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
 Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
 
+Each file the copy installs reaches its destination name only when it holds the source's bytes and permission bits.
+It is filled in a file the filesystem has given no name,
+or in a `.monochromatic-git-policy-cli-partial-*` file of its own where the filesystem has none,
+and that name is one the next run removes,
+so a credential is never readable at a wider mode than its source,
+not even while the copy runs,
+and a copy killed at any moment leaves nothing at a file's real name for the next command to refuse.
+
+A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
+with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
+The add's own record is written before real Git runs and is handed to the copy rather than dropped once the checkout is
+done,
+so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.
+The copy writes its own record before its first entry and removes it when it completes,
+so a copy killed at any moment is resumed by the next command and a copy that truly cannot finish leaves the worktree
+named instead of forgetting what is missing there.
+The line goes when the worktree is removed or is replaced by another one at the same path.
+
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
  common Git directory.
 Every command that runs the recovery before it prints one line on standard error about that worktree,

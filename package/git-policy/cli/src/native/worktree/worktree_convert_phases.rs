@@ -28,6 +28,7 @@ use crate::subvolume_platform::Platform;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use crate::subvolume_sync_pass_state_and_checks::SAMPLE_SIZE;
 use crate::worktree_convert_inspection::{Candidate, GIT_FILE_LIMIT, converting_path};
+use crate::worktree_convert_unrecorded_stage::owns_unrecorded_stage;
 use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object};
 use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::path::{Path, PathBuf};
@@ -131,6 +132,15 @@ pub fn stage_identity_of(path: &Path) -> Result<Option<ObjectId>, MigrateError> 
 /// await ensureStage(platform, job); // throws when the name holds anything the journal did not record creating
 /// ```
 pub fn ensure_stage(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt) -> Result<(), MigrateError> {
+    // An empty stage this conversion created and did not record is its own: the kill landed between the creation and the
+    // line that names it, so the identity is taken now rather than leaving the worktree blocked by its own leftover.
+    if owns_unrecorded_stage(&job.journal, job.candidate.path.as_path())? {
+        let Some(made) = job.stage_identity()? else {
+            return Err(MigrateError::Journal(format!("{} was not there after it was created", job.converting.display())));
+        };
+        job.journal.new_identity = Some(made);
+        return job.journal.save(job.candidate.admin.as_path());
+    }
     match (job.stage_identity()?, job.journal.new_identity) {
         (Some(found), Some(recorded)) if found == recorded => return Ok(()),
         (Some(_), _) => {
