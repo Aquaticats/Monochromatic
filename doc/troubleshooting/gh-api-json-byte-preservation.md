@@ -163,19 +163,19 @@ No new upstream defect is established:
 the deciding transport source and tests intentionally sanitize JSON controls,
 and the repository's exact-byte consumer has an exercised API-envelope workaround.
 
-1.   Fault attribution:
+1.  Fault attribution:
      the observed digest mismatch belongs to choosing a display-sanitizing JSON transport for exact-byte evidence.
-2.   Fixability:
+2.  Fixability:
      object-response decoding resolves the repository consumer boundary without changing GitHub CLI.
-3.   Supported scope:
+3.  Supported scope:
      the Contents API documents and returned the base64 file content used by the control.
-4.   Contribution policy:
+4.  Contribution policy:
      no upstream patch is proposed,
      so submission eligibility was not established.
-5.   Maintainer direction:
+5.  Maintainer direction:
      the explicit transport implementation and tests establish the current behavior;
      they do not establish willingness to change it.
-6.   Prototype:
+6.  Prototype:
      actual authenticated retrieval and digest rejection controls exercise the consumer workaround.
 
 There is nothing to add upstream from this investigation.

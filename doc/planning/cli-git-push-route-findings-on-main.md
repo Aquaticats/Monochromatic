@@ -438,7 +438,7 @@ and the caller reports the query as stopped and retries the push).
 `advance_local_branch` checks that the worktree holds the branch that was pushed,
 at the tip that was pushed,
 and then runs `git merge --ff-only <merge>`,
-which moves the branch `HEAD` names *at that moment*:
+which moves the branch `HEAD` names **at that moment**:
 
 ```rust
 //! Quoted from src/native/push/auto_push_reconcile_branch_advance.rs:72.

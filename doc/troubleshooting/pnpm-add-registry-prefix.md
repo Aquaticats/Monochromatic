@@ -80,7 +80,7 @@ Source:
  the Rust CLI under `pnpm/crates`,
  unless a step names `main`.
 
-1.   `resolve_added_dependency` splits the argument with `parse_wanted_dependency`,
+1.  `resolve_added_dependency` splits the argument with `parse_wanted_dependency`,
      asks the alias-less resolvers only when no alias came back,
      and otherwise falls back to `split_name_spec`
      (`pnpm/crates/package-manager/src/add.rs:882`):
@@ -99,7 +99,7 @@ Source:
      };
      ```
 
-2.   `parse_wanted_dependency` takes the text before the first `@` after index 0 as an alias candidate
+2.  `parse_wanted_dependency` takes the text before the first `@` after index 0 as an alias candidate
      and keeps it only when it is a valid old-style npm name
      (`pnpm/crates/resolving-parse-wanted-dependency/src/lib.rs:32`):
 
@@ -136,7 +136,7 @@ Source:
      So the argument comes back alias-less,
      which is the correct reading.
 
-3.   The alias-less resolvers claim only git specifiers,
+3.  The alias-less resolvers claim only git specifiers,
      `http:`/`https:` tarballs,
      and local paths,
      so a named-registry argument falls through with `Ok(None)`
@@ -152,7 +152,7 @@ Source:
      resolve_aliasless_local(specifier, manifest).await
      ```
 
-4.   `split_name_spec` then reads everything before the first `@` after index 0 as the package name
+4.  `split_name_spec` then reads everything before the first `@` after index 0 as the package name
      (`pnpm/crates/package-manager/src/add.rs:1522`):
 
      ```rust
@@ -168,7 +168,7 @@ Source:
      for `mirror:is-number@^7.0.0` it is `mirror:is-number`;
      for `mirror:is-number` (no `@`) it is the whole argument.
 
-5.   An unscoped name then goes to `resolve_explicit_registry_spec` or the `latest` picker,
+5.  An unscoped name then goes to `resolve_explicit_registry_spec` or the `latest` picker,
      which route by scope through `pick_registry_for_package`,
      so the default registry is asked for `mirror:is-number`
      (`pnpm/crates/package-manager/src/add.rs:1338`):
@@ -615,23 +615,23 @@ Closest hits:
 No issue or open PR covers `pnpm add <prefix>:<package>`,
  so the artifact is a new-issue draft.
 
-1.   Is it really upstream's fault?
+1.  Is it really upstream's fault?
      Yes.
      The `12.x` docs show the failing command,
      pnpm `11.25.0` runs it,
      and the Rust add path drops the named-registry dispatch the TypeScript CLI has
      (root-cause steps 1 to 5).
-2.   Can upstream fix it?
+2.  Can upstream fix it?
      Yes:
      the parser and resolver exist,
      and the prototype wires them into the add selector.
-3.   Are they supporting this use case?
+3.  Are they supporting this use case?
      Yes:
      the `registries` `prefix` setting,
      the built-in `gh:` and `npmjs:` aliases,
      and the `pnpm add work:@corp/lib@^2.0.0` example are documented for `12.x`,
      and `pnpm/crates/cli/tests/suite/named_registry_install.rs` tests manifest-written named-registry installs.
-4.   Would the repo welcome our contribution?
+4.  Would the repo welcome our contribution?
      Yes,
      with disclosure.
      `CONTRIBUTING.md` "AI-assisted contributions" (read in the `v12.3.4` tree) welcomes agent-made contributions,
@@ -646,10 +646,10 @@ No issue or open PR covers `pnpm add <prefix>:<package>`,
      which the prototype matches.
      The bug is a regression,
      so the `.github/ISSUE_TEMPLATE/regression-report.yaml` fields apply.
-5.   Will they likely fix it?
+5.  Will they likely fix it?
      Likely:
      #14590 was fixed and closed the day it was reported by the same class of change.
-6.   Have we prototyped a minimal fix compatible with their architecture?
+6.  Have we prototyped a minimal fix compatible with their architecture?
      Yes:
      see "Upstream prototype".
      The new unit test fails without the fix and passes with it,

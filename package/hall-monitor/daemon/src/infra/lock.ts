@@ -8,11 +8,32 @@ import {
   type Server,
 } from 'node:net';
 
-import { log, } from './syslog.ts';
+import {
+  tagged,
+  type Logger,
+} from '@monochromatic-dev/logger-core/ts';
+
+import {
+  log,
+  reportExpectedFailure,
+} from './syslog.ts';
+
+/**
+ Module logger: the journal identity this package files every record under, then this module's
+ subsystem tag.
+ */
+const l = tagged({
+  l: log,
+  tag: 'lock',
+},);
+
+//region Lock configuration
+// The socket name, the `/proc` field the scan reads, and the takeover retry bounds.
 
 /**
  Abstract Unix socket name used for single-instance enforcement.
  */
+
 const SOCKET_NAME = '\0hall-monitor';
 
 /**
@@ -40,8 +61,14 @@ const SIGKILL_RETRIES = 7;
  */
 const state: { lockServer?: Server; } = {};
 
+//endregion Lock configuration
+
+//region Single-instance lock
+// The abstract socket the daemon listens on, and the state that holds its handle.
+
 /**
  Closes the held lock socket, if any.
+
  Used during shutdown; a no-op when no lock is currently held.
  
  @example
@@ -72,6 +99,14 @@ export function closeLock(): void {
  ```
  */
 export function acquireLock(): Promise<boolean> {
+  /**
+   Lock-acquisition logger, tagged with this function's name under the module's subsystem tag.
+   */
+  const fnLog = tagged({
+    l,
+    tag: acquireLock.name,
+  },);
+
   // oxlint-disable-next-line promise/avoid-new -- wrapping Node.js callback-based Server API
   return new Promise(function tryListen(resolve,) {
     /**
@@ -86,7 +121,7 @@ export function acquireLock(): Promise<boolean> {
           === 'EADDRINUSE')
           resolve(false,);
         else {
-          log.error(`[lock] Socket error: ${err.message}`,);
+          fnLog.error(`Socket error: ${err.message}`,);
           resolve(false,);
         }
       },
@@ -100,8 +135,14 @@ export function acquireLock(): Promise<boolean> {
   },);
 }
 
+//endregion Single-instance lock
+
+//region Text helpers
+// Two linear scanners the `/proc` walk needs, exported so their behavior is testable on its own.
+
 /**
  Returns true when every character in `s` is an ASCII digit `0`-`9`.
+
  Empty string returns false so PID-shape gates do not accept it.
  
  @param s - candidate string
@@ -184,8 +225,14 @@ export function splitOnWhitespace(s: string,): string[] {
   })();
 }
 
+//endregion Text helpers
+
+//region Owner lookup
+// Cross-referencing `/proc/net/unix` with every process's descriptors to name the socket's owner.
+
 /**
  Finds the PID of the process holding the hall-monitor abstract socket
+
  by cross-referencing `/proc/net/unix` inodes with `/proc/{pid}/fd` symlinks.
  
  @returns PID of the socket owner
@@ -204,8 +251,8 @@ async function findSocketOwnerPid(): Promise<number> {
    First `/proc/net/unix` row whose path matches the hall-monitor abstract socket.
    */
   const line = unix.split('\n',)
-    .find(function matchHallMonitor(l,) {
-      return l.includes('@hall-monitor',);
+    .find(function matchHallMonitor(socketLine,) {
+      return socketLine.includes('@hall-monitor',);
     },);
   if (line === undefined)
     throw new Error('Socket in use but could not find owner PID.',);
@@ -238,14 +285,71 @@ async function findSocketOwnerPid(): Promise<number> {
         }
       }
     }
-    catch (error) {
-      if (!(Error.isError(error,)))
-        throw error;
-
-      // permission denied or process exited between readdir and readlink
+    catch (error: unknown) {
+      reportExpectedFailure({
+        error,
+        l,
+        operation: `scan of the descriptors of process ${pid}`,
+      },);
     }
   }
   throw new Error('Socket in use but could not find owner PID.',);
+}
+
+//endregion Owner lookup
+
+//region Takeover
+// Signalling the owner found above, and retrying the lock until it is free.
+
+/**
+ Sends `signal` to `pid`, reporting a target that has already exited.
+
+
+ The owner is looked up by walking every `/proc/<pid>/fd`, so it can exit
+ between that walk and this call. `process.kill` throws `ESRCH` for a PID no
+ process holds, and an uncaught `ESRCH` would abort the takeover even though the
+ lock socket is free, so the failure is reported and the caller falls through to
+ the lock retry loop.
+
+ @param pid - process to signal
+
+ @param signal - signal to send, as a name or as the number `kill(2)` takes
+
+ @param logger - logger a failure is reported through
+
+ @returns whether the signal was delivered
+
+ @example
+ ```ts
+ if (signalProcess({ pid, signal: 'SIGTERM', logger: fnLog })) {
+   log.debug('asked the existing instance to stop');
+ }
+ ```
+ */
+export function signalProcess({
+  pid,
+  signal,
+  logger,
+}: Readonly<{
+  pid: number;
+  signal: NodeJS.Signals | number;
+  logger: Logger;
+}>): boolean {
+  try {
+    process.kill(
+      pid,
+      signal,
+    );
+    return true;
+  }
+  catch (error: unknown) {
+    reportExpectedFailure({
+      error,
+      l: logger,
+      operation: `${signal} to process ${pid}`,
+    },);
+    return false;
+  }
 }
 
 /**
@@ -264,15 +368,23 @@ async function findSocketOwnerPid(): Promise<number> {
  */
 export async function killExisting(): Promise<void> {
   /**
+   Takeover logger, tagged with this function's name under the module's subsystem tag.
+   */
+  const fnLog = tagged({
+    l,
+    tag: killExisting.name,
+  },);
+  /**
    PID of the existing hall-monitor instance that must be terminated before the lock is free.
    */
   const pid = await findSocketOwnerPid();
 
-  log.debug(`[lock] Sending SIGTERM to existing instance (PID ${pid})...`,);
-  process.kill(
+  fnLog.debug(`Sending SIGTERM to existing instance (PID ${pid})...`,);
+  signalProcess({
+    logger: fnLog,
     pid,
-    'SIGTERM',
-  );
+    signal: 'SIGTERM',
+  },);
 
   for (let loopIndex = 0; loopIndex < SIGTERM_RETRIES; loopIndex++) {
     // oxlint-disable-next-line no-await-in-loop, promise/avoid-new -- sequential retry loop with delay
@@ -287,19 +399,12 @@ export async function killExisting(): Promise<void> {
       return;
   }
 
-  log.debug(`[lock] Sending SIGKILL to PID ${pid}...`,);
-  try {
-    process.kill(
-      pid,
-      'SIGKILL',
-    );
-  }
-  catch (error) {
-    if (!(Error.isError(error,)))
-      throw error;
-
-    // process may already be gone
-  }
+  fnLog.debug(`Sending SIGKILL to PID ${pid}...`,);
+  signalProcess({
+    logger: fnLog,
+    pid,
+    signal: 'SIGKILL',
+  },);
 
   for (let loopIndex = 0; loopIndex < SIGKILL_RETRIES; loopIndex++) {
     // oxlint-disable-next-line no-await-in-loop, promise/avoid-new -- sequential retry loop with delay
@@ -316,3 +421,5 @@ export async function killExisting(): Promise<void> {
 
   throw new Error('Failed to take over lock after killing existing instance.',);
 }
+
+//endregion Takeover
