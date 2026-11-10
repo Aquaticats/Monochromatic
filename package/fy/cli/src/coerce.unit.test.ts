@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { coerceArg, } from './coerce.ts';
+import { coerceArg, } from '../dist/final/node/testing.mjs';
 
 await describe({
   name: coerceArg.name,

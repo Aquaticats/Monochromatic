@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { resolveSpecifier, } from './resolve.ts';
+import { resolveSpecifier, } from '../dist/final/node/testing.mjs';
 
 await describe({
   name: resolveSpecifier.name,
