@@ -1361,8 +1361,8 @@ function processItem(
 
 #### No `main()` wrapper
 
-The lint rule `no-restricted-syntax/no-main-wrapper` reports this shape, so a
-reviewer meets it as a failing lint run rather than a warning here.
+The lint rule `no-restricted-syntax/no-main-wrapper` reports this shape,
+so a reviewer meets it as a failing lint run rather than a warning here.
 
 ```ts
 // Bad -- flag as WARNING
