@@ -23,6 +23,8 @@ import {
   type InvalidValue,
 } from './rate-limit-parse-helpers.ts';
 
+//region Header naming constants
+
 /**
  Codex header prefix used for the default ChatGPT subscription limit family.
  */
@@ -68,6 +70,10 @@ const CODEX_WEEK_MINUTES = 10_080;
  */
 const CODEX_MONTH_MINUTES = 43_200;
 
+//endregion Header naming constants
+
+//region Window kinds and snapshots
+
 /**
  Codex window kinds parsed for each limit prefix.
  */
@@ -98,6 +104,10 @@ type CodexWindow = {
    */
   readonly resetAtMs: number;
 };
+
+//endregion Window kinds and snapshots
+
+//region Window derivation
 
 /**
  Detects approximate duration match.
@@ -240,6 +250,10 @@ function codexSnapshotLabel({
   return `${limitName} ${durationLabel}${secondaryLabel}`;
 }
 
+//endregion Window derivation
+
+//region Prefix discovery and limit naming
+
 /**
  Discovers Codex header prefixes from known window suffixes.
  
@@ -321,6 +335,10 @@ function codexLimitName({
     ' ',
     );
 }
+
+//endregion Prefix discovery and limit naming
+
+//region Window parsing
 
 /**
  Parses one Codex window from a header prefix.
@@ -430,6 +448,10 @@ function codexWindowSnapshot({
   },);
 }
 
+//endregion Window parsing
+
+//region Snapshot collection parsing
+
 /**
  Parses all Codex subscription usage windows from response headers.
  
@@ -447,10 +469,10 @@ function codexWindowSnapshot({
 function parseCodexRateLimitSnapshots({
   headers,
   nowMs,
-}: {
-  readonly headers: Readonly<Record<string, string>>;
-  readonly nowMs: number;
-},): readonly RateLimitSnapshot[] {
+}: Readonly<{
+  headers: Readonly<Record<string, string>>;
+  nowMs: number;
+}>,): readonly RateLimitSnapshot[] {
   /**
    Mutable Codex snapshots collected from all discovered prefixes.
    */
@@ -496,6 +518,8 @@ function parseCodexRateLimitSnapshots({
 
   return snapshots;
 }
+
+//endregion Snapshot collection parsing
 
 export {
   CODEX_DEFAULT_PREFIX,
