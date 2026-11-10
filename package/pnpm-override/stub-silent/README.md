@@ -11,7 +11,11 @@ in the policy table at the repo root's `.pnpmfile.policies.json`
 The stub exports a callable Proxy whose every property access,
  function call,
  and `new` invocation returns the Proxy itself,
- and whose `in` checks return `false`.
+ and whose `in` checks return `false`,
+ except for `'prototype' in stub`,
+ which answers `true`.
+JavaScript forbids a Proxy from reporting a non-configurable own property of its target as absent,
+ and the wrapped function's `prototype` is the only such property.
 This lets shape-probing code (`typeof X === 'function'`,
  `X.someMethod`,
  `new X()`,

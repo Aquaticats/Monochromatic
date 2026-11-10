@@ -60,5 +60,39 @@ await describe({
       ],
     },),
     //endregion Declaration
+
+    //region Has checks
+
+    describe({
+      name: 'has checks',
+      children: [
+        it({
+          name: 'answers true for prototype instead of throwing the proxy invariant TypeError',
+          fn: async () => {
+            expect('prototype' in stub,).toBe(true,);
+          },
+        },),
+        it({
+          name: 'answers true for every non-configurable own key of the wrapped function and false for the others',
+          fn: async () => {
+            for (const key of Reflect.ownKeys(stub,)) {
+              const descriptor = Reflect.getOwnPropertyDescriptor(stub, key,);
+              if (descriptor === undefined)
+                throw new Error(`The function the stub wraps reports no descriptor for ${String(key,)}, an own key.`,);
+              expect(key in stub,).toBe(descriptor.configurable === false,);
+            }
+          },
+        },),
+        it({
+          name: 'answers false for ordinary property names and for the configurable own keys of the function',
+          fn: async () => {
+            expect('someMethod' in stub,).toBe(false,);
+            expect('length' in stub,).toBe(false,);
+            expect('name' in stub,).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    //endregion Has checks
   ],
 },);
