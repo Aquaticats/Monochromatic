@@ -34,6 +34,8 @@ import {
   type Strip,
 } from './strip.js';
 
+//region Session shape
+
 /**
  Tolerance in pixels when checking whether the root pane is pinned to the
  scroller's top edge.
@@ -58,6 +60,10 @@ export type RendererSession = {
   strip: Strip;
   readonly stripElement: HTMLElement;
 };
+
+//endregion Session shape
+
+//region Pinned root and pane measurement
 
 /**
  Counts pane pairs whose rendered boxes intersect; sticky flow must keep
@@ -200,6 +206,10 @@ function isRootPinned(
     <= PIN_EPSILON_PX;
 }
 
+//endregion Pinned root and pane measurement
+
+//region Observable state reporting
+
 /**
  Computes the shallow observable state snapshot for boundary tests.
  
@@ -282,6 +292,10 @@ export function renderAndReport({ session, }: { readonly session: RendererSessio
 
   reportState({ session, },);
 }
+
+//endregion Observable state reporting
+
+//region Opening entries
 
 /**
  Opens one listing entry: descend into a directory (fetching its listing
@@ -400,6 +414,10 @@ export function openEntryFromEvent(
   })();
 }
 
+//endregion Opening entries
+
+//region Pane event handlers
+
 /**
  Builds the pane event handlers bound to one session.
  
@@ -438,3 +456,5 @@ export function sessionHandlers(
     },
   };
 }
+
+//endregion Pane event handlers
