@@ -1,4 +1,5 @@
 import {
+  mkdir,
   mkdtemp,
   rm,
   writeFile,
@@ -13,6 +14,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
+  isJsonRecord,
   MiseTomlParseError,
   MissingCiBuildTaskError,
   planPackageBuild,
@@ -78,6 +80,8 @@ type DisposablePackage = {
 
  @param files - File contents by file name; an absent name means the file does not exist.
 
+ @param directories - Names to create as directories above the files of the same name.
+
  @returns Handle to use with `await using`.
 
  @example
@@ -86,16 +90,27 @@ type DisposablePackage = {
  ```
  */
 async function makePackage(
-  { files, }: { readonly files: Readonly<Record<string, string>>; },
+  {
+    files,
+    directories = [],
+  }: {
+    readonly files: Readonly<Record<string, string>>;
+    readonly directories?: readonly string[];
+  },
 ): Promise<DisposablePackage> {
   /**
    Disposable package directory.
    */
   const packageDirectory = await mkdtemp(join(scratchRoot(), 'pnpr-build-plan-',),);
-  await Promise.all(Object.entries(files,)
-    .map(async function writeOne([name, text,],) {
-      await writeFile(join(packageDirectory, name,), text, 'utf8',);
-    },),);
+  await Promise.all([
+    ...Object.entries(files,)
+      .map(async function writeOne([name, text,],) {
+        await writeFile(join(packageDirectory, name,), text, 'utf8',);
+      },),
+    ...directories.map(async function makeOne(name,) {
+      await mkdir(join(packageDirectory, name,), { recursive: true, },);
+    },),
+  ],);
   return {
     packageDirectory,
     async [Symbol.asyncDispose](): Promise<void> {
@@ -112,6 +127,8 @@ async function makePackage(
 
  @param files - File contents by file name; an absent name means the file does not exist.
 
+ @param directories - Names to create as directories above the files of the same name.
+
  @param body - Receives the absolute package directory.
 
  @example
@@ -122,13 +139,18 @@ async function makePackage(
 async function withPackage(
   {
     files,
+    directories = [],
     body,
   }: {
     readonly files: Readonly<Record<string, string>>;
+    readonly directories?: readonly string[];
     readonly body: (packageDirectory: string,) => Promise<void>;
   },
 ): Promise<void> {
-  await using fixture = await makePackage({ files, },);
+  await using fixture = await makePackage({
+    files,
+    directories,
+  },);
   await body(fixture.packageDirectory,);
 }
 
@@ -297,6 +319,25 @@ await describe({
             if (!(caught instanceof MiseTomlParseError))
               throw new Error('rejection was not a MiseTomlParseError',);
             expect(caught.message,).toContain(`${DIRECTORY}/mise.toml is not valid TOML`,);
+          },
+        },);
+      },
+    },),
+    it({
+      name: 'surfaces a filesystem failure instead of calling it a parse error',
+      fn: async () => {
+        await withPackage({
+          files: {},
+          directories: ['mise.toml'],
+          body: async (packageDirectory,) => {
+            const caught = await caughtBy(async () => {
+              await planPackageBuild({
+                packageDirectory,
+                directory: DIRECTORY,
+              },);
+            },);
+            expect(caught instanceof MiseTomlParseError,).toBe(false,);
+            expect(isJsonRecord(caught,) && caught.code,).toBe('EISDIR',);
           },
         },);
       },
