@@ -25,7 +25,8 @@
 /// Imports the path type that a chosen folder and the chooser program are.
 use std::path::PathBuf;
 
-/// Imports the path type that the chooser program is run from, which only the Linux half does.
+/// Imports the path type that the chooser program is run from,
+/// which only the Linux half does.
 #[cfg(target_os = "linux")]
 use std::path::Path;
 
@@ -120,22 +121,32 @@ pub enum ChooserAdvice {
 }
 
 /// What:
-/// `failure_message` is the text shown in the window when the chooser failed.
+/// `failure_message` is the text shown in the window when the chooser answered with no folder.
 /// Why:
-/// A user whose `Open folder` did nothing needs the program's own explanation,
-/// stated with the two ways forward,
-/// and never the folder that was on screen when it failed.
+/// The user who pressed `Open folder` needs the program's own explanation and the two ways forward,
+/// never the folder
+/// that was on screen,
+/// and the sentence must not claim more than the program said:
+/// `zenity` exits 1 both when the
+/// user cancels and when it cannot open a window,
+/// and it writes GTK warnings to standard error on runs that work,
+/// so the
+/// window states what happened and lets the program speak for itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const failureMessage = (failure: ChooserFailure) => `The folder chooser failed and no folder was opened: ${detail(failure)}. ${NO_DIALOG_REMEDY}`;
+/// const failureMessage = (failure) => [`The folder chooser closed without a folder.`, `${failure.cause}.`, failure.standardError && `It said: ${failure.standardError}.`, NO_DIALOG_REMEDY].filter(Boolean).join(' ');
 /// ```
 pub fn failure_message(failure: &ChooserFailure) -> String {
-    let mut detail: String = failure.cause.clone();
+    let mut sentences: Vec<String> = vec![
+        "The folder chooser closed without a folder.".to_string(),
+        format!("{}.", failure.cause),
+    ];
     if !failure.standard_error.is_empty() {
-        detail = format!("{}: {}", failure.cause, failure.standard_error);
+        sentences.push(format!("It said: {}.", failure.standard_error));
     }
-    return format!("The folder chooser failed and no folder was opened: {detail}. {NO_DIALOG_REMEDY}");
+    sentences.push(NO_DIALOG_REMEDY.to_string());
+    return sentences.join(" ");
 }
 
 /// What:
@@ -327,16 +338,27 @@ pub fn run_chooser_program(program: &Path) -> ChooserOutcome {
 /// What:
 /// `classify_run` reads one run of a chooser program as an outcome.
 /// Why:
-/// This split is the part worth proving:
-/// zenity exits 1 both when the user cancels and when it cannot open a window,
-/// so only the standard error tells them apart.
-/// Measured on zenity 4.2.2 with no display,
-/// `zenity --no-markup --file-selection --directory` exited 1 and wrote `Failed to open display`;
-/// a cancel exits 1 and writes nothing.
+/// This split is the part worth proving.
+/// `zenity` uses exit 1 for a cancel AND for a window it could not open,
+/// and it writes GTK warnings to standard
+/// error on runs that do work,
+/// so the exit status alone decides nothing and the standard error only says what the program
+/// thought:
+/// a run that printed a folder answered,
+/// a run that never exited cannot have been cancelled (a cancel is exit 1),
+/// a
+/// clean exit with no folder chose nothing,
+/// and anything else is a failure whose explanation is kept.
+/// Measured on zenity 4.2.2:
+/// with no display it exited 1 and wrote `Failed to open display`;
+/// inside a headless
+/// compositor it wrote `Failed to measure available space` and never exited;
+/// with `--timeout=2` it exited 5 with
+/// nothing on either stream.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function classifyRun(program: string, output: Result<Output>): ChooserOutcome { if (output.isErr()) return failed(`${program} could not be started: ${output.error}`); const folder = trimNewline(output.stdout); if (folder) return chosen(folder); const reported = firstLine(output.stderr); return output.status === 0 || !reported ? cancelled() : failed(exitCause(program, output.status), reported); }
+/// function classifyRun(program: string, output: Result<Output>): ChooserOutcome { if (output.isErr()) return failed(`${program} could not be started: ${output.error}`); const folder = trimNewline(output.stdout); if (folder) return chosen(folder); const reported = firstLine(output.stderr); if (output.status.code === undefined) return failed(exitCause(program, output.status), reported); return output.status.code === 0 || !reported ? cancelled() : failed(exitCause(program, output.status), reported); }
 /// ```
 #[cfg(target_os = "linux")]
 fn classify_run(program: &Path, output: &std::io::Result<std::process::Output>) -> ChooserOutcome {
@@ -356,6 +378,16 @@ fn classify_run(program: &Path, output: &std::io::Result<std::process::Output>) 
         return ChooserOutcome::Chosen { folder };
     }
     let reported: String = first_reported_line(&finished.stderr);
+    // What: a run that never exited has no status code, and a cancel is exit 1, so this is a failure.
+    // Why: a chooser killed with nothing on standard error would otherwise read as a cancel.
+    if finished.status.code().is_none() {
+        return ChooserOutcome::Failed {
+            failure: ChooserFailure {
+                cause: exit_cause(program, finished.status),
+                standard_error: reported,
+            },
+        };
+    }
     if finished.status.success() || reported.is_empty() {
         return ChooserOutcome::Cancelled;
     }

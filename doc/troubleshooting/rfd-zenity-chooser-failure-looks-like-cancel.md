@@ -220,7 +220,7 @@ log[WARN] rfd::backend::xdg_desktop_portal: Using zenity fallback
 pick_folder() = Some("/a/chosen/folder")
 ```
 
-A cancel exits 1 and prints nothing on either stream,
+A cancel is exit 1,
 and reads exactly like the failing case above:
 
 ```text
@@ -228,6 +228,40 @@ $ PATH=/probe/fake-bin ./rfd-chooser-probe        # stub: exit 1
 log[WARN] rfd::backend::xdg_desktop_portal: Using zenity fallback
 pick_folder() = None
 ```
+
+### A real zenity writes to standard error on runs that are not failures
+
+Three runs of zenity 4.2.2 on this host,
+each in its own headless nested compositor,
+so nothing appears on any desktop:
+
+```bash
+monochromatic-nested-wayland-session --headless -- zenity --no-markup --file-selection --directory
+monochromatic-nested-wayland-session --headless -- zenity --no-markup --file-selection --directory --timeout=2
+env -u DISPLAY -u WAYLAND_DISPLAY zenity --no-markup --file-selection --directory
+```
+
+- With `--timeout=2` it exited 5 with nothing on either stream.
+- In the compositor it wrote
+  `(zenity:3093362): Gtk-WARNING **: 01:19:13.484: Failed to measure available space: The specified location is not
+  supported`
+  and never exited;
+  the compositor's screenshot of that moment is a black frame,
+  so no dialog was mapped.
+- With no display at all it exited 1 and wrote `Failed to open display`.
+
+So the standard error carries GLib notices that say nothing about the run's outcome,
+ and the exit code is 1 for both
+a cancel and a failed window.
+ A reader cannot combine "exit 1" with "stderr non-empty" into "it failed",
+ which is why
+the application's own message states what happened (`The folder chooser closed without a folder.`),
+ quotes the
+program after `It said:`,
+ and does not call the run a failure.
+ A real cancel was not measured,
+ because the dialog
+could not be mapped in the headless compositor to press Cancel in it.
 
 ## Verified workarounds
 
@@ -239,12 +273,21 @@ Both are in `package/music-player/desktop-app` and both are covered by unit test
 `--no-markup --file-selection --directory`,
 keeping both streams.
  A folder on standard output is a choice;
- an exit failure with a non-blank standard error is a failure whose text is shown to the user;
- an exit failure with an empty standard error is a cancel.
- Tradeoff:
- a cancel that also writes something to standard error (a GTK warning,
-for instance) is reported as a failure,
-which is the direction that keeps the explanation rather than hiding it.
+ a run with no exit status is a failure (a cancel is exit
+1);
+ a clean exit with no folder,
+ or an exit failure with nothing on standard error,
+ is a cancel;
+ anything else is
+reported with the exit status and the first line of standard error.
+ The window's sentence says the chooser closed without
+a folder and quotes the program,
+ so a cancel that happened to write a GTK warning is not presented as a failure.
+ Tradeoffs:
+ the window cannot say whether the user cancelled;
+ and a run that never exits stays invisible,
+ because this
+call blocks in `Command::output` exactly as the library's did (see the next section).
 
 ### Bridge the `log` facade and silence the ICU targets
 
@@ -272,6 +315,16 @@ and an operator has to name an ICU target in `RUST_LOG` to hear it again.
   `zenity` is on
   the search path in the failing case,
   so the probe passes and the dialog still never appears.
+- Bounding the run.
+  Nothing here stops a `zenity` that starts and never exits,
+  which is what one headless-compositor run did:
+  a
+  watchdog or a timeout would have to decide what a slow dialog means,
+  and that is a behaviour choice this note does not
+  make.
+  The retained log of run 38832349057 ends sixteen seconds after the key press,
+  which is consistent with exactly
+  this shape.
 
 ## Upstream filing decision
 

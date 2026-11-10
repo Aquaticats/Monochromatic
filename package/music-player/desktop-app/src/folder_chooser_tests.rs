@@ -164,9 +164,34 @@ fn the_failure_message_names_the_program_its_status_and_what_it_said() {
     };
     let message: String = failure_message(&failure);
     assert!(message.contains("zenity exited with status 1"), "got {message:?}");
-    assert!(message.contains("Failed to open display"), "got {message:?}");
+    assert!(message.contains("It said: Failed to open display."), "the program speaks for itself; got {message:?}");
     assert!(message.contains(crate::dialog_backend::NO_DIALOG_REMEDY), "the ways forward are stated; got {message:?}");
     assert!(!message.contains('—') && !message.contains('–'), "no dashes; got {message:?}");
+    // What: `zenity` exits 1 both for a cancel and for a window it could not open, so the window's own sentences
+    //       must not claim a failure the program did not report (its quoted words may say what they say).
+    // Why: a wrong claim turns a cancel into an error message.
+    let own_words: &str = message.split_once("It said:").map_or(message.as_str(), |halves| halves.0);
+    assert!(
+        !own_words.to_lowercase().contains("failed"),
+        "the window does not claim more than the program said; got {own_words:?}",
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn a_program_killed_before_it_exited_is_a_failure_even_with_nothing_on_standard_error() {
+    // A cancel is exit 1, so a run with no exit status cannot have been cancelled.
+    let program: PathBuf = stub("killed", "kill -TERM $$\n");
+    let outcome: ChooserOutcome = run_chooser_program(&program);
+    assert_eq!(
+        outcome,
+        ChooserOutcome::Failed {
+            failure: ChooserFailure {
+                cause: "zenity was ended before it exited".to_string(),
+                standard_error: String::new(),
+            },
+        },
+    );
 }
 
 #[test]
@@ -177,7 +202,7 @@ fn a_failure_without_a_reported_line_still_reads_whole() {
     };
     let message: String = failure_message(&failure);
     assert!(message.ends_with(crate::dialog_backend::NO_DIALOG_REMEDY), "got {message:?}");
-    assert!(!message.contains(": ."), "no empty detail; got {message:?}");
+    assert!(!message.contains("It said:"), "no empty quotation; got {message:?}");
 }
 
 #[test]
