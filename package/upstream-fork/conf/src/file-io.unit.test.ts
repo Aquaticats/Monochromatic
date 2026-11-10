@@ -477,7 +477,7 @@ await describe({
         /**
          Absolute path whose state the case compares.
          */
-        const filePath = path.join(
+        const filePath = join(
           directory,
           'config.json',
         );

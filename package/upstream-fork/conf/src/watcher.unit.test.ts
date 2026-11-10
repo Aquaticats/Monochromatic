@@ -231,7 +231,7 @@ await describe({
         /**
          Path the watcher is told to watch and read.
          */
-        const filePath = path.join(
+        const filePath = join(
           directory,
           'config.json',
         );
@@ -274,7 +274,7 @@ await describe({
         /**
          Path the injected reader answers for.
          */
-        const filePath = path.join(
+        const filePath = join(
           directory,
           'config.json',
         );
