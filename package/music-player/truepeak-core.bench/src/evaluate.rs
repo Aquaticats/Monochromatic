@@ -226,3 +226,14 @@ pub fn evaluate(tracks: &[Track], candidate: Candidate) -> Report {
         worst_too_quiet_db: worst_too_quiet,
     }
 }
+
+/// What:
+///  `#[cfg(test)] #[path = "evaluate_tests.rs"] mod tests;`.
+///  Test-only submodule in the sibling file,
+///  gated to test builds.
+/// Why:
+///  keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
+#[cfg(test)]
+#[path = "evaluate_tests.rs"]
+mod tests;

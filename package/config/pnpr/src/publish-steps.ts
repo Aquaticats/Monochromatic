@@ -204,7 +204,8 @@ export async function packForPnpr({ entry, }: { readonly entry: WorkspaceEntry; 
 
  @returns Registry token.
 
- @throws Error outside Actions when no override is set, or when GitHub returns no token.
+ @throws Error outside Actions when no override is set, when GitHub answers with a non-success
+ status, or when its body carries no string `value`.
 
  @example
  ```ts
@@ -237,6 +238,9 @@ export async function requestPublishToken({ audience, }: { readonly audience: st
       headers: { authorization: `bearer ${requestToken}`, },
     },
   );
+  // A refusal can carry an HTML proxy page rather than JSON, so the status is reported before the body is parsed.
+  if (!response.ok)
+    throw new Error(`GitHub ID token request failed with HTTP ${response.status}`,);
   /**
    Token value from GitHub, untrusted until narrowed.
    */
@@ -244,8 +248,8 @@ export async function requestPublishToken({ audience, }: { readonly audience: st
     value: await response.json(),
     key: 'value',
   },);
-  if ((!response.ok) || ((typeof value) !== 'string'))
-    throw new Error(`GitHub ID token request failed with HTTP ${response.status}`,);
+  if ((typeof value) !== 'string')
+    throw new Error('GitHub ID token response carries no string value',);
   // Mask before any later log line could echo the credential.
   console.log(`::add-mask::${value}`,);
   return `pnpr_workload_${value}`;

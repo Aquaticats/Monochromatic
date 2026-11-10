@@ -1,6 +1,7 @@
 //! Tests that the feasible model scores against the policy's own too-loud bound.
 
 use super::*;
+use crate::test_fixtures::{flat_bins, levels_match, track};
 use truepeak_core::peak_dbtp;
 
 /// The test density:
@@ -87,4 +88,59 @@ fn the_shipped_policy_gives_the_margin_the_half_decibel_bound_gave() {
     let policy = default_policy();
     let feasible = evaluate_density(&policy, &tracks, CANDIDATE, 1.0e9, -100.0);
     assert!((feasible.margin_db - (under_read_db() - policy.max_too_loud_db)).abs() < 1.0e-9);
+}
+
+/// Seconds in every fixture track of the density tests,
+///  past the two-second threshold so each one is probed.
+const LONG_SECS: u64 = 100;
+
+/// The peak of a flat fixture track,
+///  below the ceiling so its under-read is zero.
+const FLAT_PEAK: f32 = 0.5;
+
+/// What:
+///  a density charges a short track its whole length and a long track one probe.
+#[test]
+fn the_density_charges_shorts_in_full_and_longs_one_probe() {
+    let short_secs = CANDIDATE.window_count as u64;
+    let short = track("short.flac", short_secs, FLAT_PEAK, flat_bins(short_secs as usize, FLAT_PEAK));
+    let long = track("long.flac", LONG_SECS, FLAT_PEAK, flat_bins(LONG_SECS as usize, FLAT_PEAK));
+    let feasible = evaluate_density(&default_policy(), &[short, long], CANDIDATE, 1.0e9, -100.0);
+    let threshold = CANDIDATE.window_count as f64 * CANDIDATE.window_seconds;
+    let expected = short_secs as f64 + threshold;
+    assert!(levels_match(feasible.probe_decoded_secs, expected), "decoded {}", feasible.probe_decoded_secs);
+    assert!(levels_match(feasible.margin_db, 0.0), "a flat quiet corpus needs no margin");
+    assert!(feasible.feasible, "zero margin inside a wide bound and budget is feasible");
+}
+
+/// What:
+///  a density is infeasible when its margin leaves the quiet bound,
+///  and when its probe cost overruns the budget.
+#[test]
+fn a_density_outside_the_bound_or_the_budget_is_infeasible() {
+    let gap = gap_track("gap.flac");
+    let policy = default_policy();
+    let over_bound = evaluate_density(&policy, &[gap], CANDIDATE, 1.0e9, -1.0);
+    assert!(!over_bound.feasible, "a {:.3} dB margin breaks a -1 dB bound", over_bound.margin_db);
+    assert!(over_bound.worst_quiet_db < -1.0);
+
+    let flat = track("flat.flac", LONG_SECS, FLAT_PEAK, flat_bins(LONG_SECS as usize, FLAT_PEAK));
+    let over_budget = evaluate_density(&policy, &[flat], CANDIDATE, 0.0, -100.0);
+    assert!(!over_budget.feasible, "a zero target cannot afford even one probe");
+    assert!(over_budget.probe_decoded_secs > 0.0);
+}
+
+/// What:
+///  the density search puts feasible points first,
+///  then the smallest margin,
+///  then the smallest probe cost.
+#[test]
+fn the_density_search_orders_by_margin_then_cost() {
+    let flat = track("flat.flac", LONG_SECS, FLAT_PEAK, flat_bins(LONG_SECS as usize, FLAT_PEAK));
+    let thresholds = [CANDIDATE.window_count as f64 * CANDIDATE.window_seconds, 4.0];
+    let results = best_feasible(&[flat], &[CANDIDATE.window_count], &thresholds, 1.0e9, -100.0);
+    assert_eq!(results.len(), thresholds.len());
+    assert!(results.iter().all(|point| return point.feasible), "a flat corpus is feasible everywhere");
+    let costs: Vec<f64> = results.iter().map(|point| return point.probe_decoded_secs).collect();
+    assert_eq!(costs, vec![thresholds[0], thresholds[1]], "the cheaper probe ranks first");
 }

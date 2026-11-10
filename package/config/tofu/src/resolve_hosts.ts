@@ -9,6 +9,8 @@ import {
 import { join, } from 'node:path';
 import { json, } from 'node:stream/consumers';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 /**
  OpenTofu `data.external` query carrying comma-separated service hostnames.
  
@@ -86,6 +88,14 @@ type ResultEntry = readonly [
   string,
   string,
 ];
+
+/**
+ Logger root for this script's diagnostics, tagged with the script's own name.
+ OpenTofu reads this script's stdout as external-data JSON, so records stay at
+ `warn` or above: that is the only level the console sink routes to stderr while
+ keeping the record visible by default.
+ */
+const moduleLogger = tagged({ tag: 'resolve_hosts', },);
 
 /**
  Checks whether unknown value is object-like enough for property guards.
@@ -311,8 +321,15 @@ async function resolveAddressFamily({
   catch (error) {
     // A host with only A records throws on the AAAA lookup (and vice versa); that
     // absence is expected, so log the cause to stderr and treat the family as empty.
-    process.stderr
-      .write(`resolve_hosts: ${family} lookup for ${hostname} failed: ${String(error,)}\n`,);
+    tagged({
+      l: moduleLogger,
+      tag: resolveAddressFamily.name,
+    },)
+      .warn(`${family} lookup for ${hostname} failed: ${String(error,)}`,);
+    // Drain the record here: a cold total-resolution failure throws straight after
+    // this helper returns, and a record still buffered during sink verification
+    // would never reach stderr.
+    await moduleLogger.flush();
     return [];
   }
 }

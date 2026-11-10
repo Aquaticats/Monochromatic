@@ -2005,7 +2005,10 @@ Each alternative is run through the built executable by `src/native/binary/binar
    `git diff <commit>` compares,
    `git worktree add <path> <commit>` gives a clean copy.
 - `git reset` in the default or `--mixed` mode:
-   `git commit --message <message> -- <paths>` commits only the named paths and ignores other staged entries,
+   `git commit --message <message> -- <paths>` commits only the named paths and ignores other staged entries;
+   a directory or a wildcard takes the tracked paths and staged additions it matches,
+  as native Git does,
+   while a path that names one file takes that file even when nothing staged it,
    `git diff --cached --name-only` lists what is staged.
 - `git restore --staged` (unstaging):
    the same two commands as `git reset`.
@@ -2121,7 +2124,8 @@ The branch reflog reads `merge <branch>: Fast-forward`.
 #### Carrying the person's own work
 
 The owner's answer for a merge over unsaved edits is "Carry edits forward (Recommended)"
-(`SPEC.md`, "Merges and commits never fail"),
+(`SPEC.md`,
+"Merges and commits never fail"),
 and the rules behind it are "Manual merge should never fail too."
 and "never discard user data".
 Native Git refuses such a merge
@@ -2131,20 +2135,24 @@ and so did the wrapper.
 Now the merge runs and the person's work is carried across it:
 
 - Every path the merge changes that holds the person's own work in the worktree or the index has its bytes
-  written as objects, and kept on `refs/cli-git/carried/<n>`,
+  written as objects,
+  and kept on `refs/cli-git/carried/<n>`,
   before the first byte of the checkout changes;
   the merge's record names them.
   A `SIGKILL` at any instant leaves them where the next command finds them.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
-- After the branch moved, each of the person's two layers is merged with the merge on its own:
+- After the branch moved,
+  each of the person's two layers is merged with the merge on its own:
   a staged edit stays staged and an unsaved edit stays unsaved.
   A layer the merge does not reach is written back byte for byte.
   A text both sides changed goes through the word-level second pass;
   a region it cannot resolve keeps both sides between conflict markers,
   the file is named on standard error,
   and the command still exits 0.
-- A binary file, a symbolic link, a mode the pass cannot take,
+- A binary file,
+  a symbolic link,
+  a mode the pass cannot take,
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
   A path written again while the merge ran is left alone and named.
@@ -2454,7 +2462,9 @@ none is waited out or retried on the moved head yet:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
    `BranchKeepsChanging`,
-  and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
+  and a commit built on a moved branch is built again for as long as the time since its first build is under
+  `MOVED_BRANCH_REBUILD_CEILING` (20 minutes,
+  `service/wait_ceilings.rs`).
 - A commit that concludes a merge,
   an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute;
@@ -3642,6 +3652,24 @@ The wrapper records that directory's name in the common Git directory before it 
 so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
 Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
+
+Each file the copy installs reaches its destination name only when it holds the source's bytes and permission bits.
+It is filled in a file the filesystem has given no name,
+or in a `.monochromatic-git-policy-cli-partial-*` file of its own where the filesystem has none,
+and that name is one the next run removes,
+so a credential is never readable at a wider mode than its source,
+not even while the copy runs,
+and a copy killed at any moment leaves nothing at a file's real name for the next command to refuse.
+
+A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
+with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
+The add's own record is written before real Git runs and is handed to the copy rather than dropped once the checkout is
+done,
+so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.
+The copy writes its own record before its first entry and removes it when it completes,
+so a copy killed at any moment is resumed by the next command and a copy that truly cannot finish leaves the worktree
+named instead of forgetting what is missing there.
+The line goes when the worktree is removed or is replaced by another one at the same path.
 
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
  common Git directory.
@@ -5031,7 +5059,12 @@ all durations in whole milliseconds taken from the monotonic clock:
   `ended` or `stopped`) and `exitCode` say which
   commit it was.
 - `totalMs` is the whole command.
-  It is the sum of `prepareMs` (policies,
+  It is the sum of `routeMs` (finding the worktree's route to a service,
+  this commit's identity,
+  the standard input a pathspec file is read from,
+  and the client's settings,
+  none of which a phase covered before),
+  `prepareMs` (policies,
   hooks,
   the private index,
   the tree and the objects;
@@ -5134,6 +5167,32 @@ all durations in whole milliseconds taken from the monotonic clock:
   a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
   and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
   It is what lets a reading name the in-process work a slow `prepareMs` holds.
+- `buildParts` is the same shape for the build phase:
+  `{"branch": {"ms": 1, "calls": 1}, "shadow skeleton": {"ms": 3, "calls": 1}, ...}`,
+  with a name for every stretch that held no Git child.
+  The shadow repository's creation is the one this was added for:
+  it is in-process filesystem work,
+  so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure
+  (`doc/planning/cli-git-commit-latency-under-many-agents.md`
+  holds that reading under what the build phase waits on).
+  Its names are `branch`,
+  `message` (the identity and the message),
+  `amend tree`,
+  `fitting request`,
+  `request`,
+  `shadow` (what the shadow must carry),
+  `shadow skeleton`,
+  `shadow config`,
+  `shadow links`,
+  `shadow conclusion`,
+  `shadow refs`,
+  `client build` (the scratch `git commit`,
+  whose own figure is in `steps`),
+  `commit read back` and `amend fields`,
+  and `buildPartsDropped` counts the stretches beyond the sixty-four the record lists.
+  A build that stops inside itself still states its time,
+  because the phase is closed where the command stops and in the record's own writer,
+  so no build is ever reported as time that no phase covers.
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:

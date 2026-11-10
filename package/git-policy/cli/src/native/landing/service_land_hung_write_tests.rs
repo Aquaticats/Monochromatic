@@ -58,7 +58,7 @@ fn git_that_holds_the_branch_write(world: &World) -> (PathBuf, PathBuf, PathBuf)
     let release: PathBuf = world.root.join("write-release");
     let program: PathBuf = world.root.join("holding-update-ref-git");
     let script: String = format!(
-        "#!/bin/sh\ncase \" $* \" in\n  *\" update-ref --stdin \"*)\n    : > '{entered}'\n    while [ ! -e '{release}' ] && {alive}; do sleep 0.05; done\n    exec '{real}' \"$@\";;\n  *) exec '{real}' \"$@\";;\nesac\n",
+        "#!/bin/sh\ncase \" $* \" in\n  *\" update-ref -m \"*)\n    : > '{entered}'\n    while [ ! -e '{release}' ] && {alive}; do sleep 0.05; done\n    exec '{real}' \"$@\";;\n  *) exec '{real}' \"$@\";;\nesac\n",
         entered = entered.display(),
         release = release.display(),
         alive = while_test_lives(world.root.as_path()),

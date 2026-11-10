@@ -52,8 +52,12 @@ The full derivation and the behavioral differences against the original are reco
 [`mise.toml`](mise.toml) defines this package's tasks.
 Run one with `mise run //package/file-manager/variant-electron:<task>`.
 
-The unit tests cover the model,
-band-geometry and sort behavior against the built artifacts.
+The unit tests run against the built artifacts:
+the pane model,
+band-geometry and sort order from `dist/app`,
+the strip keyboard dispatch,
+the DOM reconciliation and the stylesheet minima,
+and the main-process listing confinement from `dist/main`.
 
 ## Pure Wayland verification
 
@@ -63,7 +67,9 @@ The boundary test builds a throwaway fixture directory tree,
  drives it purely with
 compositor keyboard input,
  and polls the state file the main process mirrors renderer
-state into (`MONOCHROMATIC_FILE_MANAGER_ELECTRON_STATE_PATH`).
+state into (`MONOCHROMATIC_FILE_MANAGER_ELECTRON_STATE_PATH`),
+which the main process writes through the shared `writeJsonFileAtomically` of
+`@monochromatic-dev/electron-infra-core` that its bundle inlines.
 The decisive assertions are `rootPinned: true` while `scrolledDown: true` (sticky is
 actually sticking) and `overlapCount: 0` (flow actually prevents overlap).
 A screenshot with the rail debug tint (`MONOCHROMATIC_FILE_MANAGER_ELECTRON_DEBUG_TINT`)

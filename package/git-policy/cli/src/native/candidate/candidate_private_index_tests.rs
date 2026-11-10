@@ -43,6 +43,31 @@ fn entries(directory: &Path) -> Vec<String> {
     return names;
 }
 
+/// How long the creating thread is given to answer,
+///  so that a wait which never answers fails the control instead of hanging it.
+/// Why:
+///   The wait is a bet on the host,
+///  and the only figure this repository has measured for such a bet is how long a test process of this crate went
+///  without showing any work:
+/// 8.0 s,
+///  on this host,
+///  which is why the watchdog's window is fifteen times it
+///  (`QUIET_WINDOW` in `testing/test_support.rs`).
+///  The ten seconds this control bet before was 1.25 times that figure,
+///  which is inside the spread it describes.
+///  The owner's own "3x worst case" is what `ANNOUNCEMENT_HOLD` allows a holder that is only slow,
+///  and it is still a fifth of the watchdog's window,
+///  so a product that does wait on the pipe is reported by the control and not by the watchdog.
+const COPY_ANSWER_MEASURED_QUIET_STRETCH: Duration = Duration::from_secs(8);
+
+/// The multiple of the measured quiet stretch the control allows,
+///  the owner's "3x worst case".
+const COPY_ANSWER_SLACK: u32 = 3;
+
+/// The longest the creating thread may take,
+/// in all.
+const THE_COPY_ANSWERS_WITHIN: Duration = COPY_ANSWER_MEASURED_QUIET_STRETCH.saturating_mul(COPY_ANSWER_SLACK);
+
 /// The failure `create` returned,
 ///  which the control requires.
 fn creation_failure(real_index: &Path) -> CandidateError {
@@ -331,7 +356,7 @@ fn an_owner_record_that_is_a_fifo_does_not_hold_up_a_new_copy() {
     let made_on_a_thread: std::thread::JoinHandle<()> = std::thread::spawn(move || {
         let _told = told.send(PrivateIndex::create(for_the_copy.as_path()).is_ok());
     });
-    let answered: Option<bool> = heard.recv_timeout(Duration::from_secs(10)).ok();
+    let answered: Option<bool> = heard.recv_timeout(THE_COPY_ANSWERS_WITHIN).ok();
     assert_eq!(
         answered,
         Some(true),

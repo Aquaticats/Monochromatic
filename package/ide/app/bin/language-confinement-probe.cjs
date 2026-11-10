@@ -196,8 +196,14 @@ async function runProbe(who) {
 
 module.exports = { runProbe };
 
+// What the probe prints when this file is the entry point: the document it read, as one JSON line.
+async function main() {
+  const document = await runProbe(process.argv[2] ?? 'direct');
+  process.stdout.write(`${JSON.stringify(document)}\n`);
+}
+
 if (require.main === module) {
-  runProbe(process.argv[2] ?? 'direct').then((document) => {
-    process.stdout.write(`${JSON.stringify(document)}\n`);
-  });
+  // A CommonJS entry has no top-level await, so the probe runs in an async function; a failure rejects it and node
+  // reports it, which is what the chain this replaces did with no rejection handler.
+  void main();
 }

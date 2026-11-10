@@ -17,6 +17,10 @@ type LockOptions = {
   readonly realpath?: boolean;
 };
 
+/**
+ Release callback. Removes the lock directory; tolerates that directory already being gone, rethrows any other
+ removal failure, and remains retryable after such a failure.
+ */
 type Release = () => void;
 
 declare function lock(

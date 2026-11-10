@@ -6,6 +6,11 @@
  No prerequisite installation, no user creation.
  */
 
+import {
+  logger as defaultLogger,
+  tagged,
+  type Logger,
+} from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 import type {
   Combination,
@@ -70,8 +75,12 @@ function runtimeArgs({
  The runtime must be pre-installed and available on PATH.
  The `user` axis is included in the combination for labeling
  but does not affect execution; the process runs as the current user.
+ A run that exits successfully forwards its stderr to `l` as a warning, so the caller decides where it goes and
+ whether it is shown at all; the return value carries its stdout.
  
  @param combination - Fully resolved combination to execute
+ 
+ @param l - Logger; defaults to the shared logger
  
  @returns stdout from the execution
  
@@ -91,9 +100,18 @@ function runtimeArgs({
  */
 export async function runHost({
   combination,
+  l: parentLogger = defaultLogger,
 }: {
   readonly combination: Combination;
+  readonly l?: Logger;
 },): Promise<string> {
+  /**
+   Logger tagged with this function, so a forwarded stderr line names the backend that ran.
+   */
+  const l: Logger = tagged({
+    tag: runHost.name,
+    l: parentLogger,
+  },);
   /**
    Resolved binary name on PATH; the host backend assumes a pre-installed runtime.
    */
@@ -116,7 +134,7 @@ export async function runHost({
 
   if (result.stderr
     !== '')
-    console.error(result.stderr,);
+    l.warn(result.stderr,);
 
   return result.stdout;
 }

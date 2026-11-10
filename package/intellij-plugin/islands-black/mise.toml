@@ -2,6 +2,12 @@
 description = "Build islands-black.jar for installing the plugin from disk."
 run = "node src/build.ts"
 
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
 [tasks.lint]
 extends = "lint"
 
@@ -12,3 +18,14 @@ extends = "lint:types"
 extends = "lint:oxlint"
 [tasks."format:oxlint"]
 extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.test]
+description = "Build the bundle the unit tests import, then run the whole unit suite"
+run = ["mise run build:js", "mise run test:unit"]
+
+[tasks.buildAndTest]
+description = "Alias of test, under the name packages here use for a build-then-test run"
+run = ["mise run test"]

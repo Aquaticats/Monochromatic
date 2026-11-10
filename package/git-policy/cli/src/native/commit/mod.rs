@@ -71,6 +71,11 @@ pub mod commit_timing;
 /// for the timing record.
 pub mod commit_prepare_part_durations;
 
+/// How long each stretch of a commit's build phase held no Git child,
+/// by name,
+/// for the timing record.
+pub mod commit_build_part_durations;
+
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
 
@@ -99,6 +104,10 @@ pub mod commit_args;
 /// selection modes,
 /// pathspec files and listings.
 pub mod commit_index;
+
+/// The worktree paths an explicit-path commit stages,
+/// and the two `git add` starts that stage them.
+pub mod commit_selection_staging;
 
 /// The one read of the real index that every private copy of a commit is written from.
 pub mod commit_index_bytes;

@@ -54,6 +54,9 @@ mod other {
         pub git: GitStatus,
         /// The destination that received the source's ignored state with the snapshot.
         pub carried: Option<PathBuf>,
+        /// The object that destination names now,
+        /// when a rung put its own there.
+        pub placed: Option<crate::fs_beneath::ObjectId>,
     }
 
     /// Prepare nothing.
@@ -81,7 +84,7 @@ mod other {
 
         /// Settle nothing.
         pub fn finish(self, git: GitStatus, __run_git: &mut dyn GitRunner, _context: &GitContext, _out: &mut dyn Write) -> LadderResult {
-            return LadderResult { git, carried: None };
+            return LadderResult { git, carried: None, placed: None, claim: None };
         }
     }
 }

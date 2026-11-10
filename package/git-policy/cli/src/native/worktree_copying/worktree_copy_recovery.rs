@@ -340,7 +340,7 @@ fn recover_transaction(
             return Ok((
                 false,
                 Some(format!(
-                    "monochromatic-git-policy-cli: ended an interrupted ignored-state copy into {destination} without finishing it. {}",
+                    "monochromatic-git-policy-cli: ended an interrupted ignored-state copy into {destination} without finishing it. {} That worktree stays named as one whose ignored files are missing, by every command in this repository, until it is removed or replaced.",
                     failure.0
                 )),
             ));
@@ -392,6 +392,9 @@ pub fn recover_worktree_copy_transactions(
         }
     }
     notices.extend(reap_judged_stages(common_dir, &stages)?);
+    // A worktree a copy gave up on stays named until it is gone or replaced, so every command says what is missing
+    // there and what settles it; a copy still running wrote its record first and is left without a word.
+    notices.extend(crate::worktree_copy_unfilled_record::report_unfilled_records(common_dir)?);
     return Ok(RecoveryReport { recovered, notices });
 }
 
@@ -447,7 +450,10 @@ pub fn recover_pending_worktree_copies(
     common_dir: &Path,
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
-    if read_pending_journals(common_dir)?.is_empty() && !stage_claims_exist(common_dir)? {
+    if read_pending_journals(common_dir)?.is_empty()
+        && !stage_claims_exist(common_dir)?
+        && !crate::worktree_copy_unfilled_record::unfilled_records_exist(common_dir)?
+    {
         return Ok(());
     }
     return report_recovered(&recover_worktree_copy_transactions(common_dir)?, stderr);

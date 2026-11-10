@@ -22,6 +22,26 @@ For each entry in the default `catalog:` block:
 Handles `npm:` aliased packages (e.g. `'npm:@jsr/zod__zod@>=4.1.8'`)
 and prerelease versions.
 
+## How versions compare
+
+Ordering is semver precedence,
+ through the same helpers the Rust catalog uses
+(`@monochromatic-dev/dependency-catalog-core-rust`):
+
+- numeric core first,
+   then dot-separated prerelease identifiers one by one;
+- numeric identifiers compare by value and rank below alphanumeric ones,
+   so `1.0.0-rc.9` is lower than `1.0.0-rc.29`;
+- a release outranks any prerelease of the same core;
+- build metadata never takes part;
+- an absent core segment counts as zero,
+   so a `4.0` floor reads as `4.0.0`.
+
+A floor or installed version that is not a version at all leaves the entry as
+written:
+ precedence cannot be established,
+ so nothing is rewritten.
+
 ## How it reads
 
 The catalog is parsed with the `yaml` library,
@@ -128,6 +148,13 @@ Every catalog entry is logged with a status prefix:
 A catalog key that is not a valid npm package name is logged and skipped,
  so a
 crafted key cannot become a result-map entry.
+
+A scan that cannot answer stops the run instead of degrading to a wrong label:
+ an unreadable `package/` directory,
+ an importer `package.json` that is not valid JSON,
+ and an unreadable importer manifest are all reported as errors,
+ because each of them would otherwise classify every entry as `MISS`,
+ or accuse a declared package of being `UNDCL`.
 
 ## Cargo catalog
 

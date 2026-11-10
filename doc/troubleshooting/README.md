@@ -46,6 +46,7 @@ Package management and dependency resolution problems:
 - Dependency resolution conflicts
 - [PNPM offline verifier metadata mirrors](pnpm-offline-verifier-metadata-mirrors.md)
 - [A `catalog:` specifier inside a `file:` dependency cannot be installed](pnpm-file-dependency-catalog-spec.md)
+- [A store link for a `link:` override can dangle, and `pnpm install` will not repair it](pnpm-store-link-dangling-override.md)
 - [Pi update allowScripts warnings](pi-update-allow-scripts.md)
 
 ### [Performance Optimization](performance.md)
@@ -118,7 +119,7 @@ Retired `@narumitw/pi-goal` behavior and migration:
 
 - paused or interrupted goals block unrelated built-in and custom tools
 - cached package files are not active configuration
-- migrate globally to repository-owned `@monochromatic-dev/pi-goal`
+- migrate globally to repository-owned `@monochromatic-dev/pi-plugin-goal`
 
 ### [OpenAI OAuth requests hit Cloudflare 520](openai-api-oauth-cloudflare-520.md)
 

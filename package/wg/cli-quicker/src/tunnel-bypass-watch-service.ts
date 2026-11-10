@@ -6,7 +6,10 @@ import {
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
-import { BypassRouteError, } from './errors.ts';
+import {
+  BypassRouteError,
+  isErrnoException,
+} from './errors.ts';
 import {
   PROCESS_ABSENT,
   processArgumentsMatch,
@@ -47,24 +50,6 @@ const PROCESS_WAIT_ATTEMPTS = 100;
  Delay between bounded process identity probes.
  */
 const PROCESS_WAIT_DELAY_MS = 10;
-
-/**
- Narrows caught value to Node filesystem or process error.
- 
- @param error - Caught value.
- 
- @returns Whether value carries error code.
- 
- @example
- ```ts
- isErrnoException({ code: 'ENOENT' }); // true
- ```
- */
-function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error);
-}
 
 /**
  Checks live process has exact watcher script and state arguments.

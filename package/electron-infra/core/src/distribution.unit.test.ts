@@ -28,6 +28,16 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
+ Argument token that no distribution option recognises.
+ */
+const unknownDistributionArgument = '--no-such-option';
+
+/**
+ Target key absent from the distribution matrix.
+ */
+const unknownTargetKey = 'linux-arm';
+
+/**
  Expected default target keys.
  */
 const expectedTargetKeys = [
@@ -154,6 +164,14 @@ await describe({
             },).toThrow('--target requires a target key.',);
           },
         },),
+        it({
+          name: 'throws naming the token of an unrecognised argument',
+          fn: async () => {
+            expect(function parseUnknownOption(): void {
+              parseElectronDistributionArgs({ argv: [unknownDistributionArgument,], },);
+            },).toThrow(`Unknown distribution argument: ${unknownDistributionArgument}`,);
+          },
+        },),
       ],
     },),
     describe({
@@ -164,6 +182,14 @@ await describe({
           fn: async () => {
             expect(selectDistributionTargets({ selectedTargetKeys: ['linux-arm64',], },),)
               .toEqual([{ platform: 'linux', arch: 'arm64', },],);
+          },
+        },),
+        it({
+          name: 'throws naming the key of an unknown target',
+          fn: async () => {
+            expect(function selectUnknownTarget(): void {
+              selectDistributionTargets({ selectedTargetKeys: [unknownTargetKey,], },);
+            },).toThrow(`Unknown distribution target(s): ${unknownTargetKey}`,);
           },
         },),
       ],

@@ -93,6 +93,10 @@ pub mod service_land_settings;
 /// journaled and moved onto a branch.
 pub mod service_land_batch_body;
 
+/// The reflog message the branch move writes:
+/// the commit's kind in Git's own words and the first line of its message.
+pub mod service_land_reflog;
+
 pub mod service_land_outcomes;
 
 pub mod service_land_take_index_lock;
@@ -226,6 +230,9 @@ pub mod service_commit_args;
 
 /// Whether a `commit` command line opens an editor.
 pub mod service_commit_args_editor_opening;
+
+/// The command line a commit is built again with once its editor has run and the branch moved.
+pub mod service_commit_line_reissued;
 
 /// The one summary line a landed commit prints,
 /// with the abbreviated name Git would print.

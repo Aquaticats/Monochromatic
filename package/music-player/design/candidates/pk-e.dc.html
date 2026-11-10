@@ -76,7 +76,7 @@ class Component extends DCLogic {
         const sel = n === s.selected;
         return { name: n, bg: sel ? "#4A4458" : "transparent", fg: sel ? "#E8DEF8" : "#E6E0E9", weight: sel ? 500 : 400, pick: () => this.setState({ selected: n }) };
       }),
-      caption: "PK-E — plain text, three columns, 48dp rows, no chips and no sub-letter segmentation. Three across is what keeps the extent down: the biggest letter here is about a screen and a half instead of four (the counter above the names is live — click through the rail). The cost is truncation at ~118dp per column, so the selected name is spelled out in full along the bottom edge."
+      caption: "PK-E: plain text, three columns, 48dp rows, no chips and no sub-letter segmentation. Three across is what keeps the extent down: the biggest letter here is about a screen and a half instead of four (the counter above the names is live, click through the rail). The cost is truncation at ~118dp per column, so the selected name is spelled out in full along the bottom edge."
     };
   }
 }

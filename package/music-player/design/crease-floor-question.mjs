@@ -19,6 +19,20 @@ const output = join(
   'crease-floor-review.html'
 );
 const installedApkSha256 = 'd301bebdd35d053ee63cbd9a8500949fb97b8be5dc26c9bb971be1493a3462b5';
+/** The crease floors this round compares, each captured in every target state. */
+const floors = [
+  '7p5',
+  '14',
+  '20'
+];
+/** The player states every floor was captured in. */
+const states = [
+  'player',
+  'empty',
+  'results'
+];
+/** The cohort size every message reports, so no message counts a cohort of its own. */
+const captureCount = floors.length * states.length;
 /** Check each public capture's physical panel and remove any metadata-bearing source. */
 function captureData({
   floor,
@@ -66,17 +80,9 @@ function captureData({
 }
 /** Build one map of independent APK-captured states without an external image request. */
 function expectedHtml() {
-  const captures = Object.fromEntries([
-    '7p5',
-    '14',
-    '20'
-  ].map(floor => [
+  const captures = Object.fromEntries(floors.map(floor => [
     floor,
-    Object.fromEntries([
-      'player',
-      'empty',
-      'results'
-    ].map(state => [
+    Object.fromEntries(states.map(state => [
       state,
       captureData({
         floor,
@@ -111,13 +117,13 @@ if (action === 'build') {
     output,
     expectedHtml()
   );
-  console.log(`Built nine native player/Search E2 states in ${output}`);
+  console.log(`Built ${captureCount} native player/Search E2 states in ${output}`);
 } else if (action === 'validate') {
   const actual = readFileSync(
     output,
     'utf8'
   );
-  if (actual !== expectedHtml()) throw new Error('E2 review differs from its six sanitized native captures.');
+  if (actual !== expectedHtml()) throw new Error(`E2 review differs from its ${captureCount} sanitized native captures.`);
   for (const marker of [
     'P7.5 &gt; P14 &gt; P20',
     'Search closed',
@@ -136,7 +142,7 @@ if (action === 'build') {
   if (actual.includes('<script src=') || actual.includes('<link rel="stylesheet"')) {
     throw new Error('E2 review must be self-contained.');
   }
-  console.log('Validated nine independent physical-panel player/Search screenshots and the E2 form.');
+  console.log(`Validated ${captureCount} independent physical-panel player/Search screenshots and the E2 form.`);
 } else {
   throw new Error('Expected build or validate.');
 }

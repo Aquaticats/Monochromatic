@@ -18,7 +18,10 @@
  *   `src/wire/writeRefsAdResponse.js` for the analogous client/server shapes
  */
 
-import { decodePktLines, } from './pkt-line.ts';
+import {
+  decodePktLines,
+  parsePktLenPrefix,
+} from './pkt-line.ts';
 
 export {
   multiplexSideband,
@@ -32,11 +35,6 @@ export {
  * Pkt-line header is 4 hex digits (length-as-hex).
  */
 const PKT_HEADER_BYTES = 4;
-
-/**
- * Hex radix shared by all pkt-len conversions.
- */
-const PKT_HEX_RADIX = 16;
 
 /**
  * Minimum number of whitespace-separated tokens in a receive-pack triplet (`old new ref`).
@@ -170,10 +168,7 @@ export function parseReceivePackBody(body: Uint8Array,): ReceivePackRequest {
       /**
        * Decoded total pkt-line length including header.
        */
-      const length = Number.parseInt(
-        lengthHex,
-        PKT_HEX_RADIX,
-      );
+      const length = parsePktLenPrefix(lengthHex,);
       if (length === 0) {
         sawFlush = true;
         offset += PKT_HEADER_BYTES;

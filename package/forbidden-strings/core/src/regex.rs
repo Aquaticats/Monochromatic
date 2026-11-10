@@ -696,13 +696,17 @@ impl RuleSink {
     ///
     /// What:
     ///  groups the truly-seedless nodes into union DFAs,
+    ///  hands each union the state
+    /// cap rejects back to its rules' own engines,
     ///  builds the oracle
     /// counting union over the original-seedless nodes,
     ///  stores everything,
     ///  then builds
     /// the gate.
     ///  Why:
-    ///  the one place that wires the matching structures together.
+    ///  the one place that wires the matching structures together,
+    ///  and the
+    /// place holding both the seedless nodes and the per-rule engines that cover them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -712,13 +716,28 @@ impl RuleSink {
     /// ```
     fn assemble(self) -> RegexSet {
         let seedless_union = build_seedless_union(&self.reference_nodes);
+        // What:    The per-rule engine of every seedless rule, in the order its node was recorded.
+        // Why:     A union group the state cap rejects falls back to these engines, so the
+        //          boolean fast path keeps covering exactly the rules `matches` reports instead
+        //          of dropping the group.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const seedlessEngines = [];
+        // for (const id of seedlessIds) { seedlessEngines.push(rules[id]); }
+        // ```
+        let mut seedless_engines: Vec<&Engine> = Vec::with_capacity(self.seedless_ids.len());
+        for &id in &self.seedless_ids {
+            seedless_engines.push(&self.rules[id]);
+        }
+        let seedless_groups = group_seedless(&self.seedless_nodes, &seedless_engines);
         let mut set = RegexSet {
             rules: self.rules,
             anchored: self.anchored,
             line_start: self.line_start,
             line_start_ids: self.line_start_ids,
             seedless_ids: self.seedless_ids,
-            seedless_groups: group_seedless(self.seedless_nodes),
+            seedless_groups,
             seedless_union,
             gate: SetGate::default(),
             line_start_first: ByteSet::empty(),
@@ -1201,11 +1220,15 @@ impl RegexSet {
     /// Returns how many union DFAs the seedless rules collapsed into.
     ///
     /// What:
-    ///  the group count.
+    ///  the group count,
+    ///  counting a rule whose union exceeded the group state cap as its own
+    /// engine.
     ///  Why:
     ///  a diagnostic for how well the literal-free rules
     /// combine;
-    ///  zero means every literal-free rule folded into the one gate pass.
+    ///  zero means every literal-free rule folded into the one gate pass,
+    ///  and
+    ///  a count that grew by the over-cap rules shows the cap costing passes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

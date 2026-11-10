@@ -7,6 +7,7 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { applyKey, } from './desktop-entry-apply.ts';
@@ -75,6 +76,7 @@ export async function parseDesktopEntry(
     if (!(Error.isError(error,)))
       throw error;
 
+    l.debug(`desktop entry '${path}' cannot be read: ${caughtValueText(error,)}`,);
     return DESKTOP_ENTRY_UNREADABLE;
   }
 
