@@ -295,7 +295,11 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let format: ObjectFormat = around.layout.object_format;
     let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 { sha1_bytes } else { sha256_bytes };
     let bytes: Vec<u8> = write_full_index(&index, &hash)?;
-    return publish(built, bytes.as_slice(), around.settings.shared_repository).ok().map(|()| { return names; });
+    // A copy that could not be published is a decline, and Git's own reset then runs.
+    if publish(built, bytes.as_slice(), around.settings.shared_repository).is_err() {
+        return None;
+    }
+    return Some(names);
 }
 
 /// The update of `reset_file`,
