@@ -170,7 +170,10 @@ fn the_failure_message_names_the_program_its_status_and_what_it_said() {
     // What: `zenity` exits 1 both for a cancel and for a window it could not open, so the window's own sentences
     //       must not claim a failure the program did not report (its quoted words may say what they say).
     // Why: a wrong claim turns a cancel into an error message.
-    let own_words: &str = message.split_once("It said:").map_or(message.as_str(), |halves| halves.0);
+    let own_words: &str = match message.split_once("It said:") {
+        Some((before_the_quote, _quoted)) => before_the_quote,
+        None => message.as_str(),
+    };
     assert!(
         !own_words.to_lowercase().contains("failed"),
         "the window does not claim more than the program said; got {own_words:?}",
