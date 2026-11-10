@@ -19,7 +19,6 @@ import {
 
 import readdir from 'tiny-readdir-glob';
 import * as v from 'valibot';
-import { parse as parseYaml, } from 'yaml';
 
 import {
   isLocale,
@@ -28,161 +27,14 @@ import {
 
 import { sha256, } from './cache-hash.ts';
 import {
+  parseFrontmatter,
+  type ParsedFrontmatter,
+} from './frontmatter.ts';
+import {
   readAuthoredDates,
   type AuthoredDateFields,
 } from './frontmatter-dates.ts';
 
-//region Frontmatter
-
-/**
- Opening delimiter for YAML frontmatter blocks.
- */
-const FRONTMATTER_OPEN = '---';
-
-/**
- Unicode Byte Order Mark code point, stripped from file content before parsing.
- */
-const BOM = 0xFE_FF;
-
-/**
- Parses YAML frontmatter delimited by `---` from a raw string.
- 
- Splits at the first two `---` lines to extract the YAML block and body.
- Returns empty data when no valid frontmatter is found.
- 
- Exporting this parser lets tests drive the fence scanner directly, including
- the inputs no MDX file in the tree happens to carry.
- 
- @param raw - full file content including frontmatter
- 
- @returns parsed YAML data and remaining body content
- 
- @example
- ```ts
- const { data, content } = parseFrontmatter('---\ntitle: Hello\n---\nbody');
- // data = { title: 'Hello' }, content = 'body'
- ```
- */
-export function parseFrontmatter(raw: string,): ParsedFrontmatter {
-  /* Strip optional leading BOM. */
-  /**
-   BOM-trimmed input used for every subsequent index computation.
-   */
-  const str = raw.codePointAt(0,)
-    === BOM ? raw.slice(1,) : raw;
-
-  if (!str.startsWith(FRONTMATTER_OPEN,)) {
-    return {
-      data: {},
-      content: str,
-    };
-  }
-
-  /**
-   Character right after the opening fence; the fence is valid only when the
-   line ends there, matching the closing-fence rule below. Without this guard a
-   document starting with a longer thematic break such as `----` opened a
-   frontmatter block and had its body swallowed as YAML.
-   */
-  const charAfterOpen = str.charAt(FRONTMATTER_OPEN.length,);
-  if ((charAfterOpen !== '\n') && (charAfterOpen !== '\r') && (charAfterOpen !== '')) {
-    return {
-      data: {},
-      content: str,
-    };
-  }
-
-  /* Skip past the opening `---` and its trailing newline. */
-  /**
-   Index of the first newline after the opening fence, or `-1` when malformed.
-   */
-  const afterOpen = str.indexOf(
-    '\n',
-    FRONTMATTER_OPEN.length,
-  );
-  if (afterOpen === (-1)) {
-    return {
-      data: {},
-      content: str,
-    };
-  }
-
-  /**
-   Scan for the closing `---` that sits at the start of a line.
-   Start searching from the character right after the first newline.
-   */
-  /**
-   Starting offset for the closing-fence scan; first character after the opening newline.
-   */
-  const searchFrom = afterOpen + 1;
-  /**
-   Cursor advanced through the loop while hunting for a column-zero closing fence.
-   */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- parser cursor advanced across multiple loop iterations
-  let closeStart = searchFrom;
-
-  for (;;) {
-    const idx = str.indexOf(
-      FRONTMATTER_OPEN,
-      closeStart,
-    );
-    if (idx === (-1)) {
-      return {
-        data: {},
-        content: str,
-      };
-    }
-
-    /* The delimiter must be at column 0 or immediately after a newline. */
-    if ((idx === 0) || (str[idx - 1]
-      === '\n')) {
-      /**
-       Offset just past the closing fence; the next char must be newline or EOF for a valid close.
-       */
-      const afterDelim = idx + FRONTMATTER_OPEN
-        .length;
-
-      /* Next char must be a newline or EOF for a valid closing fence. */
-      if (
-        (afterDelim === str
-          .length)
-          || (str[afterDelim]
-            === '\n')
-          || (str[afterDelim]
-            === '\r')
-      ) {
-        /**
-         YAML body between the opening and closing fences fed to {@link parseYaml}.
-         */
-        const yamlBlock = str.slice(
-          searchFrom,
-          idx,
-        );
-        /**
-         Body start cursor advanced past CR/LF so the post body excludes the closing fence.
-         */
-        let bodyStart = afterDelim;
-        if (str[bodyStart]
-          === '\r')
-          bodyStart += 1;
-        if (str[bodyStart]
-          === '\n')
-          bodyStart += 1;
-
-        return {
-          // oxlint-disable-next-line no-unsafe-type-assertion -- `yaml`'s `parse` returns `any` for untyped frontmatter; the assertion narrows to the documented record contract, re-validated downstream by `postFileFrontmatterSchema` in `loadContent`.
-          data: (parseYaml(yamlBlock,)
-            ?? {}) as Record<string, unknown>,
-          content: str.slice(bodyStart,),
-        };
-      }
-    }
-
-    closeStart = idx + 1;
-  }
-}
-
-//endregion Frontmatter
 
 //region Schema
 
@@ -257,14 +109,6 @@ export const postFrontmatterSchema: v.GenericSchema<
 //region Diagnostics
 
 /**
- Raw frontmatter parse result: YAML data plus the remaining body.
- */
-type ParsedFrontmatter = {
-  readonly data: Record<string, unknown>;
-  readonly content: string;
-};
-
-/**
  Names the field and the problem of one validation issue.
  
  @param issue - valibot issue to describe
@@ -282,11 +126,35 @@ function describeIssue(issue: v.BaseIssue<unknown>,): string {
    Dotted field path of the issue, or a generic name for an issue at the root.
    */
   const path = (issue.path ?? [])
-    .map(function keyOf(item: v.IssuePathItem, index: number,) {
+    .map(function keyOf(
+      item: v.IssuePathItem,
+      index: number,
+    ) {
       return 'key' in item ? String(item.key,) : String(index,);
     },)
     .join('.',);
   return `${path === '' ? 'frontmatter' : path}: ${issue.message}`;
+}
+
+/**
+ Describes a frontmatter failure with the MDX file it came from.
+ 
+ @param detail - what went wrong, in the failing library's own words
+ 
+ @param filePath - MDX file the frontmatter came from
+ 
+ @returns diagnostic naming the file and what to change
+ */
+function frontmatterMessage(
+  {
+    detail,
+    filePath,
+  }: {
+    readonly detail: string;
+    readonly filePath: string;
+  },
+): string {
+  return `Frontmatter of ${filePath} could not be read: ${detail}. Fix that file's frontmatter block; git history remains the source of truth for rendered dates.`;
 }
 
 /**
@@ -315,17 +183,33 @@ function frontmatterError(
     readonly filePath: string;
   },
 ): Error {
-  /**
-   Every failing field and its message, or the raw failure text for a parser error.
-   */
-  const detail = v.isValiError(error,)
-    ? error.issues
-      .map(describeIssue,)
-      .join('; ',)
-    : ((error instanceof Error) ? error.message : String(error,));
+  if (v.isValiError(error,)) {
+    return new Error(
+      frontmatterMessage({
+        detail: error.issues
+          .map(describeIssue,)
+          .join('; ',),
+        filePath,
+      },),
+      { cause: error, },
+    );
+  }
+
+  if (Error.isError(error,)) {
+    return new Error(
+      frontmatterMessage({
+        detail: error.message,
+        filePath,
+      },),
+      { cause: error, },
+    );
+  }
 
   return new Error(
-    `Frontmatter of ${filePath} could not be read: ${detail}. Fix that file's frontmatter block; git history remains the source of truth for rendered dates.`,
+    frontmatterMessage({
+      detail: 'an unrecognized value was thrown',
+      filePath,
+    },),
     { cause: error, },
   );
 }

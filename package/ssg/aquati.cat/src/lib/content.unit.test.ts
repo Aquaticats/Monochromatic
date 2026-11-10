@@ -22,9 +22,9 @@ import {
   attachDates,
   loadContent,
   type LoadedPost,
-  parseFrontmatter,
   type ResolvedDates,
 } from './content.ts';
+import { parseFrontmatter, } from './frontmatter.ts';
 
 //region Frontmatter fixtures
 
@@ -138,43 +138,106 @@ const INVALID_FRONTMATTER = '---\ntitle: 42\ndescription: broken\ntags: []\n---\
 const UNPARSABLE_YAML = '---\ntitle: [unclosed\n---\nbody';
 
 /**
- Creates an MDX file under a fresh content directory.
+ Content directory fixture that removes itself when the enclosing scope ends.
  
- @param content - raw MDX content to write
+ The directory has to sit inside the working directory because `loadContent`
+ hands a cwd-relative glob to `tiny-readdir-glob`.
+ */
+type ContentFixture = {
+  /**
+   Absolute path of the fixture's content directory.
+   */
+  readonly path: string;
+  /**
+   Absolute path of the single post the fixture holds.
+   */
+  readonly postPath: string;
+  /**
+   Removes the fixture directory.
+   */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Creates a content directory holding one locale directory and one post.
  
- @returns absolute path of the content directory, which the caller removes
+ @param content - raw MDX content to write as the single post
+ 
+ @returns fixture whose disposal removes the directory
  
  @example
  ```ts
- const dir = await createContentDir(INVALID_FRONTMATTER);
+ await using fixture = await createContentFixture(INVALID_FRONTMATTER);
  ```
  */
-async function createContentDir(content: string,): Promise<string> {
+async function createContentFixture(content: string,): Promise<ContentFixture> {
   await mkdir(
     FIXTURE_ROOT,
     { recursive: true, },
   );
   /**
-   Fresh content directory holding exactly one locale directory and one post.
+   Directory name minted for this fixture alone.
    */
-  const contentDir = await mkdtemp(join(
+  const path = await mkdtemp(join(
     FIXTURE_ROOT,
     'load-content-',
   ),);
+  /**
+   Absolute path of the single post written into the fixture.
+   */
+  const postPath = join(
+    path,
+    'en',
+    'broken.mdx',
+  );
   await mkdir(join(
-    contentDir,
+    path,
     'en',
   ),);
   await writeFile(
-    join(
-      contentDir,
-      'en',
-      'broken.mdx',
-    ),
+    postPath,
     content,
     'utf8',
   );
-  return contentDir;
+
+  return {
+    path,
+    postPath,
+    async [Symbol.asyncDispose](): Promise<void> {
+      await rm(
+        path,
+        { force: true, recursive: true, },
+      );
+    },
+  };
+}
+
+/**
+ Loads a content directory, capturing the failure instead of letting it escape.
+ 
+ @param contentDir - content directory to load
+ 
+ @returns the error the loader raised
+ 
+ @throws when the loader resolves instead of failing
+ */
+async function captureLoadError(contentDir: string,): Promise<unknown> {
+  /**
+   Value returned by the loader, or the error it raised.
+   */
+  const caught = await (async function catchLoadError() {
+    try {
+      return await loadContent(contentDir,);
+    }
+    catch (error) {
+      return error;
+    }
+  })();
+
+  if (Error.isError(caught,))
+    return caught;
+
+  throw new Error('Expected loadContent to reject for broken frontmatter.',);
 }
 
 //endregion Content directory fixtures
@@ -297,19 +360,22 @@ await describe({
             /**
              Error thrown for a post missing from the date map.
              */
-            let caught: unknown;
-            try {
-              attachDates({
-                loadedPosts: [LOADED_POST,],
-                datesByFilePath: new Map(),
-              },);
-            }
-            catch (error) {
-              caught = error;
-            }
+            const caught = (function catchMissingDates(): unknown {
+              try {
+                return attachDates({
+                  loadedPosts: [LOADED_POST,],
+                  datesByFilePath: new Map(),
+                },);
+              }
+              catch (error) {
+                return error;
+              }
+            })();
 
             expect(caught,).toBeInstanceOf(Error,);
-            expect((caught as Error).message,).toContain(FIXTURE_FILE_PATH,);
+            if (!Error.isError(caught,))
+              throw new Error('Expected attachDates to reject a post with no dates.',);
+            expect(caught.message,).toContain(FIXTURE_FILE_PATH,);
           },
         },),
         it({
@@ -353,82 +419,38 @@ await describe({
         it({
           name: 'names the MDX file whose frontmatter fails validation',
           fn: async function namesFailingFrontmatterFile(): Promise<void> {
+            await using fixture = await createContentFixture(INVALID_FRONTMATTER,);
             /**
-             Fresh content directory holding the invalid post.
+             Error the loader raised for the invalid frontmatter.
              */
-            const contentDir = await createContentDir(INVALID_FRONTMATTER,);
-            /**
-             Absolute path of the file the loader must name.
-             */
-            const filePath = join(
-              contentDir,
-              'en',
-              'broken.mdx',
-            );
-
-            /**
-             Error thrown for the invalid frontmatter, or undefined when none was.
-             */
-            let caught: unknown;
-            try {
-              await loadContent(relative(
-                process.cwd(),
-                contentDir,
-              ),);
-            }
-            catch (error) {
-              caught = error;
-            }
-            finally {
-              await rm(
-                contentDir,
-                { force: true, recursive: true, },
-              );
-            }
+            const caught = await captureLoadError(relative(
+              process.cwd(),
+              fixture.path,
+            ),);
 
             expect(caught,).toBeInstanceOf(Error,);
-            expect((caught as Error).message,).toContain(filePath,);
-            expect((caught as Error).message,).toContain('title',);
+            if (!Error.isError(caught,))
+              throw new Error('Expected loadContent to reject for broken frontmatter.',);
+            expect(caught.message,).toContain(fixture.postPath,);
+            expect(caught.message,).toContain('title',);
           },
         },),
         it({
           name: 'names the MDX file whose YAML cannot be parsed',
           fn: async function namesUnparsableYamlFile(): Promise<void> {
+            await using fixture = await createContentFixture(UNPARSABLE_YAML,);
             /**
-             Fresh content directory holding the unparsable post.
+             Error the loader raised for the unparsable YAML.
              */
-            const contentDir = await createContentDir(UNPARSABLE_YAML,);
-            /**
-             Absolute path of the file the loader must name.
-             */
-            const filePath = join(
-              contentDir,
-              'en',
-              'broken.mdx',
-            );
-
-            /**
-             Error thrown for the unparsable YAML, or undefined when none was.
-             */
-            let caught: unknown;
-            try {
-              await loadContent(relative(
-                process.cwd(),
-                contentDir,
-              ),);
-            }
-            catch (error) {
-              caught = error;
-            }
-            finally {
-              await rm(
-                contentDir,
-                { force: true, recursive: true, },
-              );
-            }
+            const caught = await captureLoadError(relative(
+              process.cwd(),
+              fixture.path,
+            ),);
 
             expect(caught,).toBeInstanceOf(Error,);
-            expect((caught as Error).message,).toContain(filePath,);
+            if (!Error.isError(caught,))
+              throw new Error('Expected loadContent to reject for unparsable YAML.',);
+            expect(caught.message,).toContain(fixture.postPath,);
           },
         },),
       ],
