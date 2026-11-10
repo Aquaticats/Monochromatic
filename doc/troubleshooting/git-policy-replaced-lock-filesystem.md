@@ -235,3 +235,61 @@ All-state repository searches for `"replaced lock"` and `"inode"` and the full i
 - No production source fix was prototyped in this research-only campaign.
 
 Nothing is filed upstream and no duplicate firstparty issue is opened.
+
+## Where the boundary stands on main (2026-11-10T14:57:44-05:00)
+
+The modules the three reports name are gone.
+`package/git-policy/cli/src/native/real_index_lock.rs` (639 lines) and
+`package/git-policy/cli/src/native/real_index_lock_tests.rs` (385 lines) were deleted in
+`72e0534cca` (2026-11-01T20:58:11-05:00),
+with the landing,
+recovery,
+registry,
+replay,
+gate and index-writer coordination that released and installed through a real index lock
+(`git show --stat 72e0534cca`).
+
+The wrapper now releases no index lock without first opening it and judging it through that descriptor.
+What replaces the frozen `RealIndexLock` release is
+`package/git-policy/cli/src/native/landing/service_index_unheld_removal.rs`,
+which opens the lock at `:243`,
+judges it through that descriptor at `:248`,
+and compares the name against the open file just before the unlink at `:302`.
+That comparison is `same_file`,
+at
+`package/git-policy/cli/src/native/landing/service_index_reclaim.rs:250` to `:255`:
+device and inode of the name against device and inode of the open file,
+so a replacement whose inode number the file system reused cannot pass while the descriptor keeps the judged
+inode alive.
+Its control is
+`package/git-policy/cli/src/native/landing/service_index_unheld_removal_tests.rs:198`,
+`a_lock_replaced_between_the_scan_and_the_unlink_is_never_removed`,
+which replaces the lock between the scan and the unlink,
+expects `Unheld::Changed`,
+and reads the other program's lock back.
+
+The removal left under `package/git-policy/cli/src/native/lock/` takes a stale reference lock apart at
+`package/git-policy/cli/src/native/lock/stale_ref_lock_retire.rs:84` to `:108`:
+the file is moved aside with `RENAME_NOREPLACE` and only then compared,
+and `package/git-policy/cli/src/native/lock/stale_ref_lock_identity.rs:29` to `:42` defines that comparison
+over device,
+inode,
+size,
+birth time and modification time.
+A freed inode number handed to a live Git's new lock therefore no longer passes as the judged file,
+which was the deciding comparison of the frozen failures above.
+
+Two controls pin that behavior in a disposable repository:
+`lock::stale_ref_locks::tests::a_lock_that_kept_the_judged_device_and_inode_is_not_taken` rewrites the judged lock
+in place so that its device and inode stay the judged ones,
+and expects the removal to refuse it,
+and `lock::stale_ref_locks::tests::a_lock_taken_again_after_the_judgement_is_put_back` puts a recreated lock back
+whole.
+The reference-lock control fails when both identity comparisons of `stale_ref_lock_retire.rs` are narrowed to device
+and inode,
+which is the comparison the frozen source made.
+
+Both areas run together on 2026-11-10:
+`mise run //package/git-policy/cli:native:test:host -- -E 'test(/stale_ref_lock|service_index_unheld_removal/)'`
+ran 73 tests with 73 passed,
+6133 skipped.
