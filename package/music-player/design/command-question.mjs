@@ -6,6 +6,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
+import { usesClipboardApi } from './command-question.markup-scan.mjs';
 
 const root = process.cwd();
 // This round is archived: its template and page live in `questions/archive`, and
@@ -207,7 +208,7 @@ function validate() {
     'utf8'
   );
   if (slots.some((slot) => html.includes(`__${slot}_CARDS__`)) || html.includes('__MD3_REFERENCE__')) throw new Error('Command questionnaire retains a capture placeholder.');
-  if (/<script\s+[^>]*src=|<link\s+[^>]*href=/i.test(html) || /navigator\.clipboard|clipboardData|execCommand\(\s*['"]copy/.test(html)) {
+  if (/<script\s+[^>]*src=|<link\s+[^>]*href=/i.test(html) || usesClipboardApi(html)) {
     throw new Error('Command questionnaire depends on an external resource or clipboard API.');
   }
   const scenes = Object.values(groups)
