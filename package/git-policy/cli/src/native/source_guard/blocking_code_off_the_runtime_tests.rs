@@ -6,7 +6,8 @@
 //!  or does blocking storage work or a blocking wait inside a task the runtime polls.
 //! Why:
 //!  The owner's move to tokio is "Full on tokio.
-//! Multi-thread." (`doc/planning/git-policy-cli-full-tokio.md`),
+//! Multi-thread."
+//! (`doc/planning/git-policy-cli-full-tokio.md`),
 //! and the owner's rules that
 //!  bind it are "nothing should ever wait forever or indefinitely" and "Commits should never fail."
 //!  A worker that blocks stops the tasks that would end its wait,
@@ -144,7 +145,8 @@ enum Scanner {
     Text,
     /// A `'c'` character literal.
     Character,
-    /// An `r"..."`, `r#"..."#` or `br#"..."#` raw string,
+    /// An `r"..."`,
+    /// `r#"..."#` or `br#"..."#` raw string,
     /// with how many `#` it opened with.
     Raw(usize),
 }
@@ -385,12 +387,11 @@ fn functions_in(text: &str) -> Result<Vec<Function>, String> {
     for (index, (opened, closed)) in counts.iter().enumerate() {
         let number: usize = index + 1;
         let line: &str = lines.get(index).copied().unwrap_or("");
-        if building.is_none() {
-            if let Some((name, is_async)) = signature_of(line) {
-                building = Some((name, is_async, depth, false, number));
-            }
+        let signature: Option<(String, bool)> = if building.is_none() { signature_of(line) } else { None };
+        if let Some((name, is_async)) = signature {
+            building = Some((name, is_async, depth, false, number));
         }
-        depth = depth + opened;
+        depth += opened;
         depth = depth.saturating_sub(*closed);
         let Some((_name, _is_async, starts_at, opened_body, _first_line)) = building.as_mut() else {
             continue;
@@ -445,7 +446,7 @@ fn function_of(name: String, is_async: bool, inside: BodyLines) -> Result<Functi
     for (index, (number, line, joined)) in inside.iter().enumerate() {
         let (opened, closed) = counts.get(index).copied().unwrap_or((0, 0));
         let trimmed: &str = line.trim_start();
-        depth = depth + opened;
+        depth += opened;
         depth = depth.saturating_sub(closed);
         let already: bool = pool_from.is_some();
         if !already && opens_a_pool_body(trimmed) {
@@ -453,11 +454,13 @@ fn function_of(name: String, is_async: bool, inside: BodyLines) -> Result<Functi
             continue;
         }
         if already {
-            if let Some(pool_depth) = pool_from {
-                if depth < pool_depth {
-                    pool_from = None;
-                    task_lines.push((*number, line.clone(), joined.clone()));
-                }
+            // The pool's closure closed on this line, so the task's own work starts again here.
+            let left_the_pool: bool = pool_from.is_some_and(|pool_depth| {
+                return depth < pool_depth;
+            });
+            if left_the_pool {
+                pool_from = None;
+                task_lines.push((*number, line.clone(), joined.clone()));
             }
             continue;
         }
@@ -587,10 +590,11 @@ fn every_listed_exception_still_matches_code() {
 /// so a rule that stopped matching would fail here.
 #[test]
 fn each_rule_fires_on_its_own_forbidden_text() {
-    let samples: [(&str, &str); 7] = [
+    let samples: [(&str, &str); 8] = [
         ("thread-start", "let started = std::thread::Builder::new().spawn(move || work());"),
         ("blocking-sleep", "std::thread::sleep(POLL_PAUSE);"),
         ("unretried-start", "let output = command.output();"),
+        ("unretried-built-start", "let output = git_command(real_git, arguments, overlay).output();"),
         ("storage-read-on-a-task", "let head = std::fs::read_to_string(git_dir.join(\"HEAD\"));"),
         ("blocking-wait-on-a-task", "let answered = replies.recv_timeout(ceiling);"),
         ("plain-tokio-fs", "let metadata = tokio::fs::metadata(path).await;"),

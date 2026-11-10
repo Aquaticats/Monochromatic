@@ -118,6 +118,18 @@ pub(super) const RULES: &[Rule] = &[
         },
     },
     Rule {
+        id: "unretried-built-start",
+        reason: "starts the command a builder made (`git_command`) without the retried start, so a start the system \
+                 refuses for lack of processes fails what the next attempt would have landed",
+        place: Place::Everywhere,
+        matches: |_line, joined| {
+            if !joined.contains("git_command(") || joined.contains("_retrying(") {
+                return false;
+            }
+            return holds_any(joined, &[".spawn()", ".output()", ".status()", ".wait_with_output()"]);
+        },
+    },
+    Rule {
         id: "storage-read-on-a-task",
         reason: "reads or changes a file on a worker, where a slow disk, a lock or a mount holds the tasks that would \
                  end the wait; a job of the blocking pool carries it instead",

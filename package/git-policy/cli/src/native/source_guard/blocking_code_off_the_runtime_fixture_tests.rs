@@ -143,6 +143,27 @@ fn a_string_that_continues_over_a_line_break_keeps_the_file_readable() {
     assert_eq!(found, vec![(String::from("message.rs"), "thread-start", planted)]);
 }
 
+/// A start chained onto the command builder is found even where the function never names `Command` itself,
+/// and the retried
+///  start on the same builder is not.
+#[test]
+fn a_start_chained_onto_the_command_builder_is_found() {
+    let found: Vec<Finding> = scan(
+        "blocking-scan-built-start",
+        &[
+            ("lib.rs", "mod query;\n"),
+            (
+                "query.rs",
+                "struct Ask;\n\nimpl Ask {\n    fn ask(&mut self) -> std::io::Result<()> {\n        let _kept = \
+                 git_command(self.git, arguments, overlay).output_retrying()?;\n        let _done = \
+                 git_command(self.git, arguments, overlay).output()?;\n        return Ok(());\n    }\n}\n",
+            ),
+        ],
+    )
+    .expect("a resolvable layout");
+    assert_eq!(found, vec![(String::from("query.rs"), "unretried-built-start", 6)]);
+}
+
 /// An `async fn` whose parameters run over several lines is still read as a task,
 /// so a signature the splitter misreads cannot
 /// hide blocking work.
