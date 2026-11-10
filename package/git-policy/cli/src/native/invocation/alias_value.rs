@@ -27,10 +27,41 @@
 /// type ConfigVariable = { name: string; value?: string };
 /// ```
 pub struct ConfigVariable<'a> {
-    /// The variable name as Git wrote it, `section.subsection.key` or `section.key`.
+    /// The variable name as Git wrote it,
+    /// `section.subsection.key` or `section.key`.
     pub name: &'a [u8],
-    /// The value, or nothing for a variable that stands alone (`alias.x` with no `=`).
+    /// The value,
+    /// or nothing for a variable that stands alone (`alias.x` with no `=`).
     pub value: Option<&'a [u8]>,
+}
+
+/// What:
+///  Whether a byte is the terminator `git config --null` writes after a variable.
+/// Why:
+///  Splitting the listing on it is what turns one buffer into variables.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte) => byte === 0
+/// ```
+fn is_variable_end(byte: &u8) -> bool {
+    return *byte == b'\0';
+}
+
+/// What:
+///  Whether a byte starts a variable's value in `git config --null --list`.
+/// Why:
+///  Git writes the name,
+///  this byte,
+///  then the value,
+///  so the first one is where the name ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte) => byte === '\n'
+/// ```
+fn is_value_start(byte: &u8) -> bool {
+    return *byte == b'\n';
 }
 
 /// What:
@@ -50,12 +81,12 @@ pub struct ConfigVariable<'a> {
 /// ```
 pub fn config_variables(output: &[u8]) -> Vec<ConfigVariable<'_>> {
     let mut variables: Vec<ConfigVariable<'_>> = Vec::new();
-    for record in output.split(|byte| return *byte == 0) {
+    for record in output.split(is_variable_end) {
         // The terminator after the last variable leaves one empty record.
         if record.is_empty() {
             continue;
         }
-        match record.iter().position(|byte| return *byte == b'\n') {
+        match record.iter().position(is_value_start) {
             Some(separator) => variables.push(ConfigVariable {
                 name: &record[..separator],
                 value: Some(&record[separator + 1..]),
@@ -74,7 +105,8 @@ pub fn config_variables(output: &[u8]) -> Vec<ConfigVariable<'_>> {
 ///  `GIT_SPACE` is space,
 ///  TAB,
 ///  LF and CR,
-///  and nothing else: a vertical tab and a form feed are `GIT_CNTRL` in the same table.
+///  and nothing else:
+///  a vertical tab and a form feed are `GIT_CNTRL` in the same table.
 /// Why:
 ///  `split_cmdline` separates words on `isspace`,
 ///  which `git-compat-util.h` maps to `sane_isspace` over the `sane_ctype` table
@@ -148,6 +180,20 @@ pub fn split_alias_command(value: &[u8]) -> Option<Vec<Vec<u8>>> {
 }
 
 /// What:
+///  Whether a byte is the dot `parse_config_key` splits a variable name at.
+/// Why:
+///  Git finds the last one,
+///  because a subsection may hold dots of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte) => byte === '.'
+/// ```
+fn is_subsection_dot(byte: &u8) -> bool {
+    return *byte == b'.';
+}
+
+/// What:
 ///  Whether an alias name is the alias a config variable defines,
 ///  by Git's own matching rules.
 /// Why:
@@ -167,7 +213,7 @@ pub fn alias_variable_matches(name: &[u8], variable: &[u8]) -> bool {
         return false;
     };
     // `rposition` is `strrchr`: the subsection may hold dots of its own.
-    if let Some(last) = rest.iter().rposition(|byte| return *byte == b'.') {
+    if let Some(last) = rest.iter().rposition(is_subsection_dot) {
         let subsection: &[u8] = &rest[..last];
         let key: &[u8] = &rest[last + 1..];
         // `[alias ""]` is the plain `[alias]` section (`config_alias_cb`).
