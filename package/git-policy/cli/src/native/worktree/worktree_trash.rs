@@ -173,6 +173,62 @@ impl Trash {
     }
 
     /// What:
+    ///  The folder `name` this trash holds,
+    /// when the identity `moved` proves it is the entry that was set aside there;
+    ///  nothing when it is not there any more.
+    /// Why:
+    ///   A folder that is taken whole is checked before the rename that puts it here,
+    /// so the copy that arrived is
+    ///  looked at again before the service is told to delete it;
+    /// a directory somebody made between the check and the rename goes
+    ///  with no stand-in,
+    /// and only the entry that was set aside is ever looked at.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const held = trash.heldEntry({ name: 'd3', moved: id }); // throws when the entry is another object
+    /// ```
+    pub(crate) fn held_entry(&self, name: &str, moved: ObjectId) -> Result<Option<File>, String> {
+        let looked: ObjectId = match identity_at(&self.dir, OsStr::new(name)) {
+            Ok(found) => found,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(format!("{name} cannot be examined in the trash ({error})")),
+        };
+        if looked != moved {
+            return Err(format!("{name} in the trash is not the entry that was set aside there ({} instead of {})", looked.encode(), moved.encode()));
+        }
+        return match open_directory_at(&self.dir, OsStr::new(name)) {
+            Ok(found) => Ok(Some(found)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(format!("{name} in the trash is not a plain directory ({error})")),
+        };
+    }
+
+    /// What:
+    ///  Move the entry `name` this trash holds back to `to` below `from`,
+    ///  and prove that what arrived is the entry that was taken.
+    /// Why:
+    ///   A folder whose entries changed after the check is not deleted with them;
+    /// it goes back where it was,
+    /// and the
+    ///  identity is compared across the rename,
+    /// so only the folder that was looked at is put back.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// trash.putBack({ name: 'd3', from: parent, to: 'worktrees' }); // throws the reason
+    /// ```
+    pub(crate) fn put_back(&self, name: &str, from: &File, to: &OsStr, shown: &Path) -> Result<(), String> {
+        let looked: ObjectId = path_failure(identity_at(&self.dir, OsStr::new(name)), shown, "cannot be examined in the trash")?;
+        path_failure(rename_at(&self.dir, OsStr::new(name), from, to, false), shown, "cannot be put back where it was")?;
+        let arrived: ObjectId = path_failure(identity_at(from, to), shown, "cannot be examined")?;
+        if arrived != looked {
+            return Err(format!("{} changed while it was put back ({} instead of {})", shown.display(), arrived.encode(), looked.encode()));
+        }
+        return Ok(());
+    }
+
+    /// What:
     ///  Remove the trash directory itself when nothing was moved into it,
     /// so no empty trash is left in the new worktree.
     /// Why:

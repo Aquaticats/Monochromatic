@@ -113,6 +113,10 @@ pub mod worktree_removal_interrupted_destroy;
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;
 
+/// The removal of the shadow pool a removed worktree's commits were served from,
+/// taken after the removal proved the worktree is gone.
+pub mod worktree_removal_clears_the_pool;
+
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
 pub mod worktree_path_failure_message;

@@ -232,8 +232,7 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
 /// Why:
 ///   A pool left behind holds up to `POOL_LIMIT` finished trees and the links of each,
 /// and a repository that makes and removes worktrees
-///  accumulates them without bound
-///  (`review of 373e8adfe2 and cd9b8132f8`).
+///  accumulates them without bound.
 #[cfg(unix)]
 #[test]
 fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
