@@ -145,6 +145,31 @@ fn lines_of(log: &Path, word: &str) -> Vec<String> {
     return text.lines().filter(|line| { return line.starts_with(prefix.as_str()); }).map(str::to_string).collect();
 }
 
+/// What:
+///  Waits until the service's log holds a line that begins with `prefix`,
+///  and answers the log as it then stood.
+/// Why:
+///  A fixture's socket answers a connection once the service binds it,
+///  and the service writes `ready` after that,
+///  so a control that read the log the moment the socket answered asserted on a file the service had not finished writing:
+///  on a loaded host it saw `started` alone and failed with the line it expected missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = await waitForLine(log, '<6>monochromatic-git-policy-cli-service: ready');
+/// ```
+fn log_until(log: &Path, prefix: &str) -> String {
+    let began: Instant = Instant::now();
+    loop {
+        let text: String = std::fs::read_to_string(log).unwrap_or_default();
+        if text.lines().any(|line| { return line.starts_with(prefix); }) {
+            return text;
+        }
+        assert!(began.elapsed() < PATIENCE, "the service never wrote a line beginning {prefix}: {text}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 /// The whole milliseconds a `key=<digits>` word of a line states.
 fn ms_of(line: &str, key: &str) -> u64 {
     let marker: String = format!(" {key}=");
@@ -1199,8 +1224,10 @@ fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority
     environment.retain(|(variable, _)| { return *variable != git_policy_cli::journald_native::TEST_SOCKET_VARIABLE; });
     environment.push((git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@cli-git-test-journal-nobody-{}", std::process::id())));
     let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
-    let text: String = std::fs::read_to_string(&places.log).expect("log");
-    assert!(text.lines().any(|line| { return line.starts_with("<6>monochromatic-git-policy-cli-service: ready"); }), "{text}");
+    // The socket answers once the service binds, and `ready` follows it, so the control waits for the line it asserts on.
+    let ready: &str = "<6>monochromatic-git-policy-cli-service: ready";
+    let text: String = log_until(&places.log, ready);
+    assert!(text.lines().any(|line| { return line.starts_with(ready); }), "{text}");
     assert!(text.lines().all(|line| { return line.starts_with("<6>") && line.contains(" at_ms="); }), "{text}");
     remove_settled(&fixture);
 }
