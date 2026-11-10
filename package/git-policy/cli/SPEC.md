@@ -14376,6 +14376,13 @@ which runs the command as before:
 directly after `remote`,
 the only position a command without a ported table reads it,
 or in option position of `git config`.
+A run under the hatch leaves one `hatch` line in the audit file whose `form` is `SharedRemote`,
+with the working directory and the arguments,
+so the change is attributable;
+a rejection leaves no audit line,
+because nothing was written.
+The refusal is the guard's decision on the command Git will run,
+so a shell alias (`git -c 'alias.su=!git remote set-url' su origin <url>`) is refused as the command is.
 
 `src/native/binary/binary_shared_remote_tests.rs` runs every refused form in a linked worktree made inside and
 one made outside the repository folder,

@@ -241,7 +241,7 @@ fn global_options_and_aliases_reach_the_same_refusal() {
     //  `-C` moves a command started in the main checkout,
     //  and an
     // alias runs where it is written.
-    let forms: [(PathBuf, Vec<&str>); 4] = [
+    let forms: [(PathBuf, Vec<&str>); 6] = [
         (
             repo.clone(),
             vec!["-C", linked_text.as_str(), "remote", "set-url", "origin", OTHER_URL],
@@ -257,6 +257,15 @@ fn global_options_and_aliases_reach_the_same_refusal() {
         (
             linked.clone(),
             vec!["-c", "alias.setconfig=config", "setconfig", "remote.origin.url", OTHER_URL],
+        ),
+        // A shell alias reaches the command the shell runs, so it is refused like the command itself.
+        (
+            linked.clone(),
+            vec!["-c", "alias.shellsu=!git remote set-url", "shellsu", "origin", OTHER_URL],
+        ),
+        (
+            linked.clone(),
+            vec!["-c", "alias.shellcfg=!git config", "shellcfg", "remote.origin.url", OTHER_URL],
         ),
     ];
     for (directory, form) in forms {
@@ -330,6 +339,14 @@ fn the_hatch_runs_the_shared_remote_write() {
     let after: String = String::from_utf8_lossy(&config_bytes(repo.as_path())).into_owned();
     assert_ne!(config_bytes(repo.as_path()), before, "the hatch ran nothing that changed the configuration");
     assert!(after.contains(OTHER_URL), "the hatch ran the command but stored nothing: {after}");
+    // A change made under the hatch is still attributable: one `hatch` line names this form and these arguments.
+    let audit: PathBuf = repo
+        .join(".git")
+        .join("monochromatic-git-policy-cli-audit.jsonl");
+    let lines: String = std::fs::read_to_string(audit.as_path()).expect("audit file after the hatch");
+    assert!(lines.contains("\"form\":\"SharedRemote\""), "{lines}");
+    assert!(lines.contains("\"outcome\":\"hatch\""), "{lines}");
+    assert!(lines.contains(OTHER_URL), "{lines}");
     remove(&fixture);
 }
 

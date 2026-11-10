@@ -2243,6 +2243,16 @@ git remote --no-enforce-worktree set-url origin <url>
 git config --no-enforce-worktree remote.origin.url <value>
 ```
 
+A hatch run is not silent about the change it makes:
+the decision leaves one `hatch` line in `monochromatic-git-policy-cli-audit.jsonl`,
+with `form` `SharedRemote` and the working directory and arguments every audit line carries,
+so a later reader can attribute the change to the command that made it.
+A rejection leaves no audit line,
+because nothing was written and the JSONL finding on standard error is the record.
+A linked worktree is also one whose remote settings a shell alias would change:
+the guard reads the `git` command a `!` alias runs,
+and `git -c 'alias.su=!git remote set-url' su origin <url>` is refused like `git remote set-url`.
+
 `src/native/binary/binary_shared_remote_tests.rs` runs every refused form in a linked worktree made inside and
  outside the repository folder,
 every allowed form,

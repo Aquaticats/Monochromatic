@@ -288,3 +288,36 @@ fn the_readme_documents_what_the_refusal_recommends() {
         assert!(readme.contains(phrase), "the README lacks {phrase}");
     }
 }
+
+/// The guard decides the shared-remote write on the command Git will run,
+///  so the refusal is one decision and a shell alias reaches it too.
+#[test]
+fn the_guard_decides_the_shared_remote_write() {
+    use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
+    let cases: [(&[&str], Option<SharedRemoteWrite>); 6] = [
+        (
+            &["remote", "set-url", "origin", "https://example.invalid/two.git"],
+            remote("set-url"),
+        ),
+        (
+            &["config", "--add", "remote.origin.url", "https://example.invalid/two.git"],
+            key("remote.origin.url"),
+        ),
+        (
+            &["config", "--remove-section", "remote.origin"],
+            section("remote.origin"),
+        ),
+        // The subcommand's own options are not the guard's, and a read is no write.
+        (&["remote", "-v"], None),
+        (&["remote", "add", "-t", "main", "beta", "https://example.invalid/beta.git"], remote("add")),
+        (&["status"], None),
+    ];
+    for (values, expected) in cases {
+        let decided: LinkedWorktreeDecision = decide_linked_worktree(os_arguments(values).as_slice());
+        let found: Option<SharedRemoteWrite> = match decided {
+            LinkedWorktreeDecision::SharedRemote(write) => Some(write),
+            _ => None,
+        };
+        assert_eq!(found, expected, "{values:?}");
+    }
+}
