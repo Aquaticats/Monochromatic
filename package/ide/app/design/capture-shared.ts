@@ -108,11 +108,20 @@ export function controlTo(socket: string): (line: string) => Promise<string> {
 
  @param control - the control-socket request of this session
  @param deadline - the instant after which the session is declared unstarted
- @throws {Error} when the compositor has not answered `ok` by `deadline`
+ @throws {Error} when the compositor has not answered `ok` by `deadline`, naming the last transport failure
  */
 export async function waitForCompositor(control: (line: string) => Promise<string>, deadline = Date.now() + READY_DEADLINE_MS): Promise<void> {
-  while (!(await control('ping').then(reply => reply.startsWith('ok'), () => false))) {
-    if (Date.now() > deadline) throw new Error('compositor did not answer');
+  let failure = 'the control socket has not answered yet';
+  while (true) {
+    try {
+      if ((await control('ping')).startsWith('ok')) return;
+      failure = 'the compositor answered its ping without ok';
+    } catch (error) {
+      // A compositor killed while it starts closes its socket instead of answering, and that is not a slow compositor:
+      // keep the transport failure so the deadline report names what went wrong.
+      failure = error instanceof Error ? error.message : String(error);
+    }
+    if (Date.now() > deadline) throw new Error('the compositor did not answer: ' + failure);
     await wait(READY_INTERVAL_MS);
   }
 }

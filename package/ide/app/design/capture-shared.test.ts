@@ -8,7 +8,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { deflateSync } from 'node:zlib';
-import { SETTLE_DRAWN_ATTEMPTS, flat, settleScreenshot } from './capture-shared.ts';
+import { READY_DEADLINE_MS, SETTLE_DRAWN_ATTEMPTS, flat, settleScreenshot, waitForCompositor } from './capture-shared.ts';
 
 // A CRC32 of the chunk bytes, so the fixture is a PNG a decoder accepts rather than only the bytes `flat` reads.
 const crcTable: number[] = [];
@@ -57,6 +57,34 @@ const scratch = (): string => {
   mkdirSync(root, { recursive: true });
   return mkdtempSync(join(root, 'ide-capture-shared-'));
 };
+
+test(
+  'the readiness wait returns once the compositor answers ok',
+  async () => {
+    let asked = 0;
+    await waitForCompositor(
+      async () => {
+        asked += 1;
+        return asked < 2 ? 'busy' : 'ok';
+      },
+      Date.now() + READY_DEADLINE_MS
+    );
+    assert.equal(asked, 2, 'a compositor that is not up yet is asked again');
+  }
+);
+
+test(
+  'a compositor that died at startup is reported with its socket error',
+  async () => {
+    // A compositor killed while it starts closes its socket instead of answering, which is not a slow compositor.
+    await assert.rejects(
+      waitForCompositor(async () => {
+        throw new Error('connect ENOENT /captures/control.sock');
+      }, Date.now()),
+      { message: /connect ENOENT \/captures\/control.sock/ }
+    );
+  }
+);
 
 test(
   'an undrawn window is one flat color',
