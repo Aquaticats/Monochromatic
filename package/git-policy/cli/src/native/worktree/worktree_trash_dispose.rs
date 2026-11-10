@@ -203,7 +203,7 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
             accounted.push(item.oid.clone());
         }
     }
-    name_trash_nothing_will_empty(worktree, &accounted, notices);
+    settle_unrecorded_trash(git_dir, worktree, &accounted, notices);
 }
 
 /// What:
@@ -228,16 +228,30 @@ fn waited_longer_than_a_claim(record: &Path) -> bool {
     return written.elapsed().is_ok_and(|age: std::time::Duration| return age > crate::service_work::CLAIM_LEASE);
 }
 
-/// Say what sits in the trash parent of `worktree` that nothing will empty.
-/// A directory nothing recorded cannot be proven to be one the leave-out moved,
-/// so it is only named.
-/// Only a directory named the way the wrapper names a trash is a trash:
-/// the parent is kept out of every
-///  commit,
-/// so a person may keep their own directories there,
-/// and a line that called one of those a trash nothing
-///  will empty would send them to delete their own files.
-fn name_trash_nothing_will_empty(worktree: &Path, accounted: &[String], notices: &mut dyn Write) {
+/// What:
+///  Record every trash in the trash parent of `worktree` that a record does not account for and that says what it is,
+///  so the commit service empties it,
+///  and name every trash-shaped directory that cannot say it,
+/// which is left where it is.
+/// Why:
+///   A command killed between publishing the snapshot and writing its record leaves a trash nothing names,
+/// and the
+///  manifest inside the trash is the proof the wrapper made it:
+/// the next command in this worktree turns that proof into
+///  the record the service drains,
+/// so the trash is emptied without a person having to find it.
+/// What cannot show a manifest is the
+///  person's own directory or a trash of a release before that manifest,
+/// and removing it would be a guess,
+/// so it is only named,
+///  with the advice to look at it.
+/// Only a directory named the way the wrapper names a trash is looked at at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settleUnrecordedTrash = ({ gitDir, worktree, accounted }) => { for (const name of readdir(join(worktree, TRASH_PARENT))) { if (accounted.includes(name) || !isTrashName(name)) continue; const manifest = readTrashManifest(worktree, name); if (manifest) recordTheTrash({ destination: worktree, commonDir: gitDir, manifest }); else nameItForThePerson(join(worktree, TRASH_PARENT, name)); } };
+/// ```
+fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String], notices: &mut dyn Write) {
     let parent: PathBuf = worktree.join(TRASH_PARENT);
     let Ok(listing) = std::fs::read_dir(&parent) else { return };
     for entry in listing.flatten() {
@@ -245,12 +259,35 @@ fn name_trash_nothing_will_empty(worktree: &Path, accounted: &[String], notices:
         if accounted.contains(&name) || !is_trash_name(name.as_str()) {
             continue;
         }
-        let _told = writeln!(
-            notices,
-            "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the commit service gave up on the record, or there is none), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
-            entry.path().display()
-        );
+        let Some(manifest) = crate::worktree_trash_own_manifest::read(worktree, name.as_str()) else {
+            let _told = writeln!(
+                notices,
+                "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the commit service gave up on the record, or there is none, and the trash cannot say what it is), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
+                entry.path().display()
+            );
+            continue;
+        };
+        let pending: PendingTrash = PendingTrash { destination: worktree.to_path_buf(), common_dir: git_dir.to_path_buf(), manifest, taken_over: 0, quiet: true };
+        let _told = match crate::worktree_trash::record_the_trash(&pending) {
+            Ok(()) => writeln!(
+                notices,
+                "monochromatic-git-policy-cli: {} holds directories a snapshot left out that no record named, and the trash says what it is, so it is recorded now and the commit service empties it, one trash at a time for this repository.",
+                entry.path().display()
+            ),
+            Err(reason) => writeln!(
+                notices,
+                "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the record of the trash cannot be written: {reason}), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
+                entry.path().display()
+            ),
+        };
     }
+}
+
+/// The trash's own name,
+/// the last component of its path,
+/// for the manifest inside it.
+fn trash_name_of(inside: &Path) -> String {
+    return inside.file_name().map(|name: &std::ffi::OsStr| return name.to_string_lossy().into_owned()).unwrap_or_default();
 }
 
 /// Whether an error says a directory is not empty.
@@ -506,12 +543,25 @@ fn entry_removal_of(TheRemovalOfTrashEntries { inside, trash, manifest }: TheRem
 /// ```
 fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let HeldTrash { holders, trash, inside, shown, names } = held;
+    let own: bool = crate::worktree_trash_own_manifest::is_its_own(&trash, trash_name_of(inside.as_path()).as_str());
     let mut strangers: Vec<String> = Vec::new();
     for entry in path_failure(std::fs::read_dir(handle_path(&trash)), inside.as_path(), "cannot be listed").map_err(TrashLeft::kept)?.flatten() {
-        strangers.push(entry.file_name().to_string_lossy().into_owned());
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        // The manifest the wrapper wrote inside its own trash goes with it; a file of that name that is not that manifest keeps the
+        //  whole directory, as every other thing the snapshot did not put there does.
+        if own && name == crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME {
+            continue;
+        }
+        strangers.push(name);
     }
     if !strangers.is_empty() {
         return Err(TrashLeft::kept(format!("{} also holds {}, which the snapshot did not put there, so the trash directory is left alone", inside.display(), strangers.join(", "))));
+    }
+    if own
+        && let Err(error) = std::fs::remove_file(handle_path(&trash).join(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME))
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        return Err(TrashLeft::kept(format!("the manifest inside {} cannot be removed ({error}), so the trash directory is left alone", inside.display())));
     }
     drop(trash);
     let Some(parent) = holders.last() else { return Ok(()) };

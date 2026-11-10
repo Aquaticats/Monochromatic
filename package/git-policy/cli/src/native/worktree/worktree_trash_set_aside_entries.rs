@@ -191,10 +191,19 @@ fn is_dir_kind(kind: std::fs::FileType) -> bool {
 /// The parent is reached through the held handle of the snapshot and listed once,
 /// so a name
 ///  that is not text is carried by its bytes.
+///   A trash is recognised by the name the wrapper gives one,
+/// and what this add takes over is identified again at the move,
+/// so the
+///  emptying deletes only the directory it moved;
+/// the manifest inside a trash is what lets a record-less one be emptied
+///  outside a copy (`worktree_trash_own_manifest.rs`),
+/// and a copy re-creates the identities it names,
+/// so it decides
+///  nothing here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readdir(join(stage, TRASH_PARENT)).filter((name) => isTrashName(name) && name !== trash?.name).map((name) => join(TRASH_PARENT, name));
+/// readdir(join(stage, TRASH_PARENT)).filter((name) => isTrashName(name) && name !== trash?.name && provesTheWrapperMadeIt(stage, name)).map((name) => join(TRASH_PARENT, name));
 /// ```
 pub(super) fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec<PathBuf>, String> {
     let parent: PathBuf = stage.join(TRASH_PARENT);

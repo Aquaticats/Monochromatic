@@ -116,7 +116,7 @@ fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// put(repo, `${TRASH_PARENT}/${earlier}/d0/payload`, 'token'); put(repo, `.claude/${earlier}/keep`, 'mine');
+/// plantTrash(repo, earlier); writeTrashManifest(repo, earlier); put(repo, `.claude/${earlier}/keep`, 'mine');
 /// const { manifest } = await snapshotOf(repo); await emptyTrash(itemOf(stage, commonDir, manifest));
 /// expect(existsSync(join(stage, TRASH_PARENT, earlier))).toBe(false); expect(existsSync(join(stage, '.claude', earlier, 'keep'))).toBe(true);
 /// ```
@@ -125,7 +125,8 @@ fn btrfs_an_earlier_adds_trash_is_emptied_with_this_adds() {
     let Some(root) = btrfs_fixture("trash-carried") else { return };
     let repo: PathBuf = main_with_state(root.as_path());
     let earlier: String = "a".repeat(40);
-    put(repo.as_path(), format!("{TRASH_PARENT}/{earlier}/d0/payload/credentials").as_str(), b"another worktree's token\n");
+    let earlier_manifest: TrashManifest = plant_trash(repo.as_path(), earlier.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(repo.as_path(), &earlier_manifest).expect("the earlier trash says what it is");
     put(repo.as_path(), format!(".claude/{earlier}/keep").as_str(), b"a directory the leave-out never made\n");
     let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
     let manifest: TrashManifest = trash.expect("the leave-out made a trash");
