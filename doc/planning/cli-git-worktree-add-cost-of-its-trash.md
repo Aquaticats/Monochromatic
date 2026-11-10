@@ -1,5 +1,8 @@
 # What a worktree add pays for the directories its snapshot leaves out
 
+What the add's own btrfs calls cost, and the transaction commits they force,
+is measured in `doc/planning/git-policy-cli-btrfs-transaction-waits.md`.
+
 Status:
 the coordinator picked the route below under the owner's "Please make any non-destructive options
 (when they are the ones I would likely have picked) yourself from now on for this session.",
