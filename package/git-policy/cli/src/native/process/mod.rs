@@ -114,3 +114,8 @@ pub mod child_awaited_until_it_exits_or_the_service_is_stopped;
 /// or ended and reaped here when its step's ceiling comes,
 /// because a number is safe only while the child is this process's own unreaped child.
 pub mod child_awaited_until_it_exits_the_stop_or_the_ceiling;
+
+/// The wait for a step a ceiling stopped and the kernel has not released:
+/// the reap of that step,
+/// and the line that says it for as long as the wait lasts.
+pub mod wait_after_the_stop_saying_the_kernel_holds_it;

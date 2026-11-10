@@ -250,9 +250,14 @@ pub fn run_native_commit_within(
     let began: std::time::Instant = std::time::Instant::now();
     // Two enforcers of one ceiling: the notice's thread, which prints the lines and ends the step through the descriptor
     //  taken at its start, and the wait that owns the child, which needs no thread and no number a reuse can reach.
+    // The wait also says why it still lasts when the kernel has not released the step, through the notice's writer thread:
+    //  a notice thread the system refused says nothing at all, and the wait is the one that keeps waiting.
     let duty: crate::signal_relay::CeilingDuty<'_> = crate::signal_relay::CeilingDuty {
         told: notice.step_number(),
         bound: notice.ceiling_that_applies(),
+        while_held: notice
+            .lines_for_the_wait()
+            .map(|lines| { return crate::wait_after_the_stop_saying_the_kernel_holds_it::HeldStepWords { lines, again_every: cadence.interval }; }),
     };
     let finished = run_guarded_child(&mut command, duty);
     // The step's own figure is the child alone. The notice's own end is reported beside it in `scratchSteps`, and the time
