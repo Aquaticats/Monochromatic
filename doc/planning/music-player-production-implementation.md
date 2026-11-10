@@ -120,35 +120,35 @@ Each is independently verifiable.
 Packages 1 and 2 are pure logic with an existing reference;
 the rest need the screen they belong to.
 
-1. Track template engine (D89 to D99):
-   port `design/template-reference.mjs` to `core/TrackTemplate.kt`
-   with a test file that mirrors its 94 cases.
-2. Keyboard map classifier (D102):
-   port the classifier inside `design/questions/keyboard-map.prototype.html`
-   to `core/KeyboardMap.kt` with a test that mirrors `design/keyboard-map-test.mjs`.
-3. Player screen to the design:
-   remove the in-app volume row (D43),
-   fold and cover layouts (D41 to D45),
-   deck content height (D44).
-4. Folder picker:
-   letter rail (D17,
-   D28),
-   folder names (D31),
-   the cover picker with an upward caret while open (D46,
-4. D104).
-5. Search page (D47 to D74).
-6. Feedback overlays and Undo (D83,
-   D29).
-7. Scan indicator (D26,
-   D84).
-8. First-run states (D95,
-   D100,
-   D101);
-   needs a source-status outcome the production list API does not give yet.
-9. Settings page,
-   empty (D87),
-   and the template editor (D89 to D99),
-   on top of package 1.
+1.  Track template engine (D89 to D99):
+    port `design/template-reference.mjs` to `core/TrackTemplate.kt`
+    with a test file that mirrors its 94 cases.
+2.  Keyboard map classifier (D102):
+    port the classifier inside `design/questions/keyboard-map.prototype.html`
+    to `core/KeyboardMap.kt` with a test that mirrors `design/keyboard-map-test.mjs`.
+3.  Player screen to the design:
+    remove the in-app volume row (D43),
+    fold and cover layouts (D41 to D45),
+    deck content height (D44).
+4.  Folder picker:
+    letter rail (D17,
+    D28),
+    folder names (D31),
+    the cover picker with an upward caret while open (D46,
+4.  D104).
+5.  Search page (D47 to D74).
+6.  Feedback overlays and Undo (D83,
+    D29).
+7.  Scan indicator (D26,
+    D84).
+8.  First-run states (D95,
+    D100,
+    D101);
+    needs a source-status outcome the production list API does not give yet.
+9.  Settings page,
+    empty (D87),
+    and the template editor (D89 to D99),
+    on top of package 1.
 10. Track context menu.
 11. Keyboard wiring on top of package 2.
 12. Desktop app inheriting the Fold visual choices.

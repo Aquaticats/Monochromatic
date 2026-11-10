@@ -332,39 +332,39 @@ with an owner.
 The six constraints,
 walked:
 
-1. **Is it really upstream's fault?**
-   Partly.
-   The absence of build-artifact GC is a known
-   upstream gap that the Cargo Book itself documents and links to [cargo#13136][cargo-13136].
-   The 438 GiB accumulation also required a local choice to enable `build-dir` with
-   `{workspace-path-hash}` on a workflow that creates many short-lived workspace paths.
-2. **Can upstream fix it?**
-   Yes,
-   and they intend to.
-   The maintainer comment above states the
-   plan to track and clean up `build-dir`.
-3. **Are they supporting this use case?**
-   Yes.
-   `build.build-dir` is a documented,
-   supported
-   configuration key with documented template variables.
-4. **Would the repo welcome our contribution?**
-   Unevaluated.
-   No filing is proposed,
-   so no
-   `CONTRIBUTING.md` or policy check was run.
-5. **Will they likely fix it?**
-   Yes.
-   The issue is open,
-   a maintainer has stated intent,
-   and a
-   member has volunteered to implement.
-6. **Have we prototyped a minimal fix?**
-   No. A duplicate with an owner exists,
-   so the
-   auto-prototype step does not apply.
-   Prototyping a GC for Cargo's own cache would also belong
-   in the upstream thread rather than here.
+1.  **Is it really upstream's fault?**
+    Partly.
+    The absence of build-artifact GC is a known
+    upstream gap that the Cargo Book itself documents and links to [cargo#13136][cargo-13136].
+    The 438 GiB accumulation also required a local choice to enable `build-dir` with
+    `{workspace-path-hash}` on a workflow that creates many short-lived workspace paths.
+2.  **Can upstream fix it?**
+    Yes,
+    and they intend to.
+    The maintainer comment above states the
+    plan to track and clean up `build-dir`.
+3.  **Are they supporting this use case?**
+    Yes.
+    `build.build-dir` is a documented,
+    supported
+    configuration key with documented template variables.
+4.  **Would the repo welcome our contribution?**
+    Unevaluated.
+    No filing is proposed,
+    so no
+    `CONTRIBUTING.md` or policy check was run.
+5.  **Will they likely fix it?**
+    Yes.
+    The issue is open,
+    a maintainer has stated intent,
+    and a
+    member has volunteered to implement.
+6.  **Have we prototyped a minimal fix?**
+    No. A duplicate with an owner exists,
+    so the
+    auto-prototype step does not apply.
+    Prototyping a GC for Cargo's own cache would also belong
+    in the upstream thread rather than here.
 
 Decision:
 do not file.

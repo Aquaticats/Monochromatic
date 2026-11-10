@@ -1,8 +1,8 @@
 # Fastly CLI 16.1.0 `profile list` prints every stored API token unmasked, and its own deprecation notice names a replacement that does not
 
-**Date**:
+Date:
  2026-10-09.
-**Subject**:
+Subject:
  `fastly profile list` writes the stored API token for every profile to
 standard output in cleartext,
 with no masking and no confirmation,

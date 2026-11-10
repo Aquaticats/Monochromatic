@@ -308,29 +308,29 @@ gh search prs --repo niri-wm/niri 'cargo install niri' --state closed
 
 No matching issues or pull requests were returned.
 
-1. Is it really upstream's fault?
-    No. Upstream intentionally publishes the crates.
-   io sentinel and explicitly directs
-   users to distro packages.
-2. Can upstream fix it?
-    Not applicable after constraint 1 fails.
-    They could publish a real cargo-installable binary,
-   but that would contradict the documented packaging model and native dependency set.
-3. Are they supporting this use case?
-    No. The supported user-facing install path is distribution packaging;
-   source builds are documented for builders with development packages.
-4. Would the repo welcome our contribution?
-    The repo accepts issues and contributions,
-    and `CONTRIBUTING.md` says LLM
-   assistance must be checked and cleaned up.
-    This does not overcome constraint 1.
-5. Will they likely fix it?
-    No signal points that way.
-    The docs and sentinel both point away from cargo install.
-6. Have we prototyped a minimal fix compatible with their architecture?
-    No,
-    because constraints 1 to 3 fail.
-   The auto-prototype trigger does not fire.
+1.  Is it really upstream's fault?
+     No. Upstream intentionally publishes the crates.
+    io sentinel and explicitly directs
+    users to distro packages.
+2.  Can upstream fix it?
+     Not applicable after constraint 1 fails.
+     They could publish a real cargo-installable binary,
+    but that would contradict the documented packaging model and native dependency set.
+3.  Are they supporting this use case?
+     No. The supported user-facing install path is distribution packaging;
+    source builds are documented for builders with development packages.
+4.  Would the repo welcome our contribution?
+     The repo accepts issues and contributions,
+     and `CONTRIBUTING.md` says LLM
+    assistance must be checked and cleaned up.
+     This does not overcome constraint 1.
+5.  Will they likely fix it?
+     No signal points that way.
+     The docs and sentinel both point away from cargo install.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+     No,
+     because constraints 1 to 3 fail.
+    The auto-prototype trigger does not fire.
 
 Do not file as-is:
 

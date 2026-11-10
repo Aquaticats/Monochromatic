@@ -1309,10 +1309,11 @@ fn a_record_whose_named_git_still_runs_is_kept_while_its_destination_is_absent()
     let (root, common, destination) = scene("claim-child-running");
     assert!(!destination.exists(), "the destination Git has not made yet");
     let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
-    // The Git of a real `git worktree add` that has made nothing yet: `cat-file --batch` reads its requests and stays up.
+    // The Git of a real `git worktree add` that has made nothing yet: `hash-object --stdin` needs no repository, which
+    // the gate's container does not have around the test, and stays up until its input ends.
     let mut git: std::process::Child = Command::new(crate::test_support::REAL_GIT)
-        .arg("cat-file")
-        .arg("--batch")
+        .arg("hash-object")
+        .arg("--stdin")
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

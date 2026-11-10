@@ -107,7 +107,7 @@ The syntax-error check runs **before** the token walk,
  This is a consumer-side acceptance gate,
  not an upstream parser configuration.
 
-**Tradeoff:**
+Tradeoff:
  This gate runs after Biome has allocated the parsed syntax tree.
  It establishes the editor's accepted/rejected boundary at the tested depths,
  but is not an early resource limit for arbitrary adversarial nesting.

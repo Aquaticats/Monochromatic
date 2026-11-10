@@ -407,41 +407,41 @@ Checked for `ccdf827304` (2026-11-07T06:30:01-05:00).
 Nothing is drafted,
 because the first constraint fails.
 
-1. Is it upstream's fault?
-   No.
-   The order is Git's documented behavior.
-   The `gitcredentials` manual ([gitcredentials][git-doc-credentials]) says,
-   read for `ccdf827304` (2026-11-07T06:30:01-05:00):
-   "If the GIT_ASKPASS environment variable is set,
-   the program specified by the variable is invoked.",
-   then "Otherwise,
-   if the core.askPass configuration variable is set",
-   then "Otherwise,
-   if the SSH_ASKPASS environment variable is set",
-   and only then "Otherwise,
-   the user is prompted on the terminal."
-   The `git` manual ([git][git-doc-terminal-prompt]) says of `GIT_TERMINAL_PROMPT`:
-   "If this Boolean environment variable is set to false,
-   git will not prompt on the terminal
-   (e.g.,
-   when asking for HTTP authentication)."
-   git-lfs follows the same order.
-2. Can upstream fix it?
-   They could change the order,
-   but that would break every user who relies on a desktop prompt with terminal prompts off.
-3. Are they supporting this use case?
-   Yes:
-   a desktop prompt program is a supported way to log in.
-4. Would the repo welcome a contribution?
-   Not checked,
-   since the first constraint fails.
-5. Will they likely fix it?
-   Not checked,
-   for the same reason.
-6. Prototype?
-   None:
-   there is no defect to fix upstream;
-   the fix belongs in how we start Git.
+1.  Is it upstream's fault?
+    No.
+    The order is Git's documented behavior.
+    The `gitcredentials` manual ([gitcredentials][git-doc-credentials]) says,
+    read for `ccdf827304` (2026-11-07T06:30:01-05:00):
+    "If the GIT_ASKPASS environment variable is set,
+    the program specified by the variable is invoked.",
+    then "Otherwise,
+    if the core.askPass configuration variable is set",
+    then "Otherwise,
+    if the SSH_ASKPASS environment variable is set",
+    and only then "Otherwise,
+    the user is prompted on the terminal."
+    The `git` manual ([git][git-doc-terminal-prompt]) says of `GIT_TERMINAL_PROMPT`:
+    "If this Boolean environment variable is set to false,
+    git will not prompt on the terminal
+    (e.g.,
+    when asking for HTTP authentication)."
+    git-lfs follows the same order.
+2.  Can upstream fix it?
+    They could change the order,
+    but that would break every user who relies on a desktop prompt with terminal prompts off.
+3.  Are they supporting this use case?
+    Yes:
+    a desktop prompt program is a supported way to log in.
+4.  Would the repo welcome a contribution?
+    Not checked,
+    since the first constraint fails.
+5.  Will they likely fix it?
+    Not checked,
+    for the same reason.
+6.  Prototype?
+    None:
+    there is no defect to fix upstream;
+    the fix belongs in how we start Git.
 
 [git-prompt]: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/prompt.c#L46-L77
 [lfs-creds-order]: https://github.com/git-lfs/git-lfs/blob/a662a6dbfedf706cfa9fc7a5b7bcc7ba2e2c8a65/creds/creds.go#L104-L121

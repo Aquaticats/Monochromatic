@@ -48,14 +48,14 @@ flag-bundle configuration (option byte 0x5d,
  config index 5),
  the pattern
 may either:
-1. Bypass the parser's check and reach the compile phase,
-    where the large
-   minterm set from `\w+` combined with `\b` causes super-linear construction,
-    or
-2. The rejection path itself is somehow bypassed under the flag-bundle
-   configuration (e.g.,
-    `ignore_whitespace` or `case_insensitive` changes
-   how `\b*` is parsed).
+1.  Bypass the parser's check and reach the compile phase,
+     where the large
+    minterm set from `\w+` combined with `\b` causes super-linear construction,
+     or
+2.  The rejection path itself is somehow bypassed under the flag-bundle
+    configuration (e.g.,
+     `ignore_whitespace` or `case_insensitive` changes
+    how `\b*` is parsed).
 
 This is another case where the v0.6.12 parser's "reject instead of fix"
 approach fails to cover all configurations:

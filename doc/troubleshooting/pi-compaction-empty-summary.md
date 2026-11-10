@@ -244,29 +244,29 @@ small to compact.
 
 All 5 constraints hold:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    both
-   `prepareCompaction` and `compact()` should reject empty
-   message lists.
-2. **Can upstream fix it?
-   ** Yes;
-    two small patches sketched
-   below;
-    either alone would resolve the symptom.
-3. **Are they supporting this use case?
-   ** Yes;
-    small
-   sessions are explicitly in scope for compaction.
-4. **Will they likely fix it?
-   ** Plausible;
-    pi is actively
-   maintained.
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    both patches
-   below are minimal and exercise the same code paths the
-   workaround in Morph Compact already validates.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     both
+    `prepareCompaction` and `compact()` should reject empty
+    message lists.
+2.  **Can upstream fix it?
+    ** Yes;
+     two small patches sketched
+    below;
+     either alone would resolve the symptom.
+3.  **Are they supporting this use case?
+    ** Yes;
+     small
+    sessions are explicitly in scope for compaction.
+4.  **Will they likely fix it?
+    ** Plausible;
+     pi is actively
+    maintained.
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     both patches
+    below are minimal and exercise the same code paths the
+    workaround in Morph Compact already validates.
 
 Decision:
  worth filing.

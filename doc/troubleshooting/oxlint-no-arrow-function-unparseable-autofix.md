@@ -95,24 +95,24 @@ else if (ch === ')') {
 That scan has three failure modes,
 one per input shape:
 
-1. **Bare parameters.**
-   For `label => repliesOf(label)` there is no opening paren
-   at the parameter list,
-   so the first balanced group is the body's call.
-   The
-   slice returns `label => repliesOf(label)` and the template glues it directly
-   after the name,
-   producing `function hoverTextlabel => repliesOf(label) { ... }`.
-   This is the shape that shipped into 20 `.mjs` files in `3da31bdc3a`.
-2. **Comment parens.**
-   The scanner tracks string literals but not comments
-   (`arrow-function-params.ts:151-164` at `5544041a52^` handles only quotes and
-   backticks),
-   so for `(value /* ) */)` the group ends at the comment's `)` and
-   the slice truncates inside the comment.
-3. **Glued `async`.**
-   `indexAfterAsyncPrefix` returns zero when `async` is not
-   followed by whitespace:
+1.  **Bare parameters.**
+    For `label => repliesOf(label)` there is no opening paren
+    at the parameter list,
+    so the first balanced group is the body's call.
+    The
+    slice returns `label => repliesOf(label)` and the template glues it directly
+    after the name,
+    producing `function hoverTextlabel => repliesOf(label) { ... }`.
+    This is the shape that shipped into 20 `.mjs` files in `3da31bdc3a`.
+2.  **Comment parens.**
+    The scanner tracks string literals but not comments
+    (`arrow-function-params.ts:151-164` at `5544041a52^` handles only quotes and
+    backticks),
+    so for `(value /* ) */)` the group ends at the comment's `)` and
+    the slice truncates inside the comment.
+3.  **Glued `async`.**
+    `indexAfterAsyncPrefix` returns zero when `async` is not
+    followed by whitespace:
 
 ```ts
 // package/oxlint-plugin/no-restricted-syntax/src/rule/arrow-function-params.ts:44-45 at 5544041a52^
@@ -228,35 +228,35 @@ by parse-error variant:
 
 ## Verified workarounds
 
-1. **Restore each corrupted file from `68415aeb53` when it has no later legitimate
-   edits.**
-   The indent sweep and every earlier revision parse.
-   Tradeoff:
-   any
-   formatting intended after that revision is discarded and must be re-applied;
-   under concurrent worktree changes the restore must be per-file with explicit
-   bases,
-   never a whole-file `git restore` against a moving tree.
-2. **Re-apply formatting through the fixed fixer and gate the result.**
-   `mise run //package/monorepo-task/core-exec:format:oxlint -- <paths>` followed by
-   `mise run //package/monorepo-task/core-exec:lint:parse -- <paths>`.
-   Tradeoff:
-   all-rules fix runs over a whole tree have historically needed several passes to
-   settle (the catch-up sweep recorded 9 passes over 190 files),
-   while a scoped
-   set can converge in one (the 20-file re-apply did,
-   checksum-identical on the
-   second pass).
-   The gate proves parse state only,
-   not semantic drift.
-3. **Run `lint:parse` at the formatting-commit step.**
-   `node --check` covers
-   `.js`/`.mjs`/`.cjs` and `typescript/sync`'s `transpileModule` covers TypeScript
-   and JSX.
-   Tradeoff:
-   it is a parse gate;
-   the glued-async renaming variant and
-   other semantically wrong but parseable output need rule-level tests instead.
+1.  **Restore each corrupted file from `68415aeb53` when it has no later legitimate
+    edits.**
+    The indent sweep and every earlier revision parse.
+    Tradeoff:
+    any
+    formatting intended after that revision is discarded and must be re-applied;
+    under concurrent worktree changes the restore must be per-file with explicit
+    bases,
+    never a whole-file `git restore` against a moving tree.
+2.  **Re-apply formatting through the fixed fixer and gate the result.**
+    `mise run //package/monorepo-task/core-exec:format:oxlint -- <paths>` followed by
+    `mise run //package/monorepo-task/core-exec:lint:parse -- <paths>`.
+    Tradeoff:
+    all-rules fix runs over a whole tree have historically needed several passes to
+    settle (the catch-up sweep recorded 9 passes over 190 files),
+    while a scoped
+    set can converge in one (the 20-file re-apply did,
+    checksum-identical on the
+    second pass).
+    The gate proves parse state only,
+    not semantic drift.
+3.  **Run `lint:parse` at the formatting-commit step.**
+    `node --check` covers
+    `.js`/`.mjs`/`.cjs` and `typescript/sync`'s `transpileModule` covers TypeScript
+    and JSX.
+    Tradeoff:
+    it is a parse gate;
+    the glued-async renaming variant and
+    other semantically wrong but parseable output need rule-level tests instead.
 
 ## What does not work
 
@@ -311,26 +311,26 @@ The
 6-constraint check,
 walked explicitly:
 
-1. **Is it really upstream's fault?**
-   No. The faulty scan is ours
-   (`arrow-function-params.ts` before `5544041a52`).
-2. **Can upstream fix it?**
-   Not applicable;
-   the fix belongs to this repository and
-   landed in `5544041a52`.
-3. **Are they supporting this use case?**
-   Not applicable.
-4. **Would the repo welcome our contribution?**
-   Not applicable;
-   we own the code.
-5. **Will they likely fix it?**
-   Not applicable.
-6. **Have we prototyped a minimal fix?**
-   Yes,
-   in this repository:
-   `5544041a52`
-   with 9 fix-output cases,
-   red-first.
+1.  **Is it really upstream's fault?**
+    No. The faulty scan is ours
+    (`arrow-function-params.ts` before `5544041a52`).
+2.  **Can upstream fix it?**
+    Not applicable;
+    the fix belongs to this repository and
+    landed in `5544041a52`.
+3.  **Are they supporting this use case?**
+    Not applicable.
+4.  **Would the repo welcome our contribution?**
+    Not applicable;
+    we own the code.
+5.  **Will they likely fix it?**
+    Not applicable.
+6.  **Have we prototyped a minimal fix?**
+    Yes,
+    in this repository:
+    `5544041a52`
+    with 9 fix-output cases,
+    red-first.
 
 `.out-of-scope/` was read;
 no entry covers this tool,

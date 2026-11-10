@@ -474,39 +474,39 @@ run 2026-10-29:
 - The maintainer named both fix paths on the closed pull request,
   so the plan is theirs and in motion.
 
-1. Is it really upstream's fault?
-   No.
-   Ghostty 1.4.0 declares and enforces a Zig 0.17.0 build floor,
-   Terra correctly serves its currently published `1.3.1-3.fc44`,
-   and rpm-ostree correctly installs the newest package available
-   from that repository.
-   This is toolchain availability and publication lag rather than a defect.
-2. Can upstream fix it?
-   Terra can:
-   package Zig 0.17 as its own `zig0.17` build dependency,
-   matching the existing `zig0.15` approach,
-   then point `BuildRequires` at it.
-3. Are they supporting this use case?
-   Yes.
-   Terra packages Ghostty for Fedora 44 and Bazzite,
-   and its tracker has a dedicated `Failing` issue type that this fills.
-4. Would the repository welcome our contribution?
-   The `failing.yml` issue template requires an LLM disclosure field
-   and instructs agents to write
-   `I did use an LLM to write this issue`.
-   AI-assisted filings are accepted with truthful disclosure,
-   so constraint 4 holds only for a draft that discloses assistance
-   and names which checks a human verified.
-5. Will they likely fix it?
-   Yes.
-   Issue 19566 is open and assigned,
-   and the maintainer comment names both concrete fix paths.
-6. Have we prototyped a minimal fix compatible with their architecture?
-   No.
-   The minimal fix is a new Zig 0.17 package plus a `BuildRequires` bump,
-   and constraint 1 fails because this is publication timing
-   rather than a defect,
-   so no prototype was required or built.
+1.  Is it really upstream's fault?
+    No.
+    Ghostty 1.4.0 declares and enforces a Zig 0.17.0 build floor,
+    Terra correctly serves its currently published `1.3.1-3.fc44`,
+    and rpm-ostree correctly installs the newest package available
+    from that repository.
+    This is toolchain availability and publication lag rather than a defect.
+2.  Can upstream fix it?
+    Terra can:
+    package Zig 0.17 as its own `zig0.17` build dependency,
+    matching the existing `zig0.15` approach,
+    then point `BuildRequires` at it.
+3.  Are they supporting this use case?
+    Yes.
+    Terra packages Ghostty for Fedora 44 and Bazzite,
+    and its tracker has a dedicated `Failing` issue type that this fills.
+4.  Would the repository welcome our contribution?
+    The `failing.yml` issue template requires an LLM disclosure field
+    and instructs agents to write
+    `I did use an LLM to write this issue`.
+    AI-assisted filings are accepted with truthful disclosure,
+    so constraint 4 holds only for a draft that discloses assistance
+    and names which checks a human verified.
+5.  Will they likely fix it?
+    Yes.
+    Issue 19566 is open and assigned,
+    and the maintainer comment names both concrete fix paths.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+    No.
+    The minimal fix is a new Zig 0.17 package plus a `BuildRequires` bump,
+    and constraint 1 fails because this is publication timing
+    rather than a defect,
+    so no prototype was required or built.
 
 One additive detail is absent from the thread and sharpens its plan:
 `requireZig` matches major and minor exactly,

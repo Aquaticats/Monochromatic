@@ -64,7 +64,7 @@ fresh fetch.
 
 ### Verified workaround (the design itself)
 
-- **Port 443 only**:
+- Port 443 only:
    keeps the per-IP-per-port effective-rule
   count predictable (one rule per IP regardless of how many
   ports a relay advertises) and consolidates with the existing
@@ -78,7 +78,7 @@ fresh fetch.
   bootstrap,
    raise `limit=` (see remediation).
 
-- **Dynamic top-N (not pinned EntryNodes)**:
+- Dynamic top-N (not pinned EntryNodes):
    tracks consensus
   changes hourly and lets Tor pick its own three guards from the
   available set.
@@ -902,38 +902,38 @@ consumer firewall CIDRs drifting after the repository moved.
 `syncthing/apt-web#31` concerned an upstream Kubernetes outage and is not a
 duplicate.
 
-1. **Is it really upstream's fault?**
-    No.
-   Syncthing publishes a stable hostname,
-   and Hetzner accepts the IP/CIDR rules it documents.
-   This repository incorrectly modeled a movable host as static Oracle
-   provider ranges.
-2. **Can upstream fix it?**
-    No upstream change is needed.
-   The consumer must refresh hostname destinations before sending CIDRs to
-   hcloud.
-3. **Are they supporting this use case?**
-    Syncthing supports its APT
-   hostname,
-   and hcloud supports IP/CIDR firewall destinations,
-   but neither promises that Syncthing will remain in one provider's
-   ranges.
-4. **Would the repo welcome our contribution?**
-    `syncthing/apt-web` has no
-   contribution policy or issue template prohibiting outside or
-   AI-assisted reports,
-   but that does not make a consumer configuration bug upstream.
-5. **Will they likely fix it?**
-    Not applicable because no upstream defect
-   was found.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes,
-   at the consumer boundary.
-   Commit `7fab53e54` captured the prototype,
-   and commit `1f507bb7d` landed the requested APT-host subset on main after
-   the OpenTofu plan and package gates verified it.
+1.  **Is it really upstream's fault?**
+     No.
+    Syncthing publishes a stable hostname,
+    and Hetzner accepts the IP/CIDR rules it documents.
+    This repository incorrectly modeled a movable host as static Oracle
+    provider ranges.
+2.  **Can upstream fix it?**
+     No upstream change is needed.
+    The consumer must refresh hostname destinations before sending CIDRs to
+    hcloud.
+3.  **Are they supporting this use case?**
+     Syncthing supports its APT
+    hostname,
+    and hcloud supports IP/CIDR firewall destinations,
+    but neither promises that Syncthing will remain in one provider's
+    ranges.
+4.  **Would the repo welcome our contribution?**
+     `syncthing/apt-web` has no
+    contribution policy or issue template prohibiting outside or
+    AI-assisted reports,
+    but that does not make a consumer configuration bug upstream.
+5.  **Will they likely fix it?**
+     Not applicable because no upstream defect
+    was found.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes,
+    at the consumer boundary.
+    Commit `7fab53e54` captured the prototype,
+    and commit `1f507bb7d` landed the requested APT-host subset on main after
+    the OpenTofu plan and package gates verified it.
 
-**Nothing to file upstream.**
+Nothing to file upstream.
 There is no additive issue or comment draft because the fault and fix are
 entirely in `package/config/tofu`.
 

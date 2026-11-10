@@ -43,94 +43,94 @@ The primary agent measured SHA-256 on the clone and the downloaded published 3.2
 This pins the unsafe call chain to the published source,
  not just a branch with the same manifest version.
 
-1. `rust/src/readers.rs:79-113` validates the escape's next four characters as
-   ASCII hexadecimal digits,
-    but does not reject the surrogate range:
+1.  `rust/src/readers.rs:79-113` validates the escape's next four characters as
+    ASCII hexadecimal digits,
+     but does not reject the surrogate range:
 
-   ```rust
-   Some('u') => {
-       len += 1;
-       it.next();
-       // next four digits must be hexadecimals
-       for _i in 0..4 {
-           match it.next() {
-               Some(nc) if nc.is_ascii_hexdigit() => len += 1,
-               Some(nc) => {
-                   let new_cursor = cursor.advance(len);
-                   return Err(MomoaError::UnexpectedCharacter {
-                       c: nc,
-                       line: new_cursor.line,
-                       column: new_cursor.column,
-                   });
-               }
-   ```
+    ```rust
+    Some('u') => {
+        len += 1;
+        it.next();
+        // next four digits must be hexadecimals
+        for _i in 0..4 {
+            match it.next() {
+                Some(nc) if nc.is_ascii_hexdigit() => len += 1,
+                Some(nc) => {
+                    let new_cursor = cursor.advance(len);
+                    return Err(MomoaError::UnexpectedCharacter {
+                        c: nc,
+                        line: new_cursor.line,
+                        column: new_cursor.column,
+                    });
+                }
+    ```
 
-2. `rust/src/tokens.rs:119-140` delegates quoted strings to that reader and
-   returns a string token when it succeeds:
+2.  `rust/src/tokens.rs:119-140` delegates quoted strings to that reader and
+    returns a string token when it succeeds:
 
-   ```rust
-   '"' => {
-       let read_result = read_string(it, &cursor);
-       if read_result.is_err() {
-           return Some(Err(read_result.err().unwrap()));
-       }
-       let new_cursor = read_result.unwrap();
-       self.cursor = new_cursor;
-       return Some(Ok(Token {
-           kind: TokenKind::String,
-   ```
+    ```rust
+    '"' => {
+        let read_result = read_string(it, &cursor);
+        if read_result.is_err() {
+            return Some(Err(read_result.err().unwrap()));
+        }
+        let new_cursor = read_result.unwrap();
+        self.cursor = new_cursor;
+        return Some(Ok(Token {
+            kind: TokenKind::String,
+    ```
 
-3. `rust/src/parse.rs:295-365` processes a `String` token,
-    reads four digits,
-   converts them to `u32`,
-    and invokes unchecked scalar construction.
-    Hexadecimal
-   syntax alone does not establish that the integer is a Unicode scalar:
+3.  `rust/src/parse.rs:295-365` processes a `String` token,
+     reads four digits,
+    converts them to `u32`,
+     and invokes unchecked scalar construction.
+     Hexadecimal
+    syntax alone does not establish that the integer is a Unicode scalar:
 
-   ```rust
-   'u' => {
-       let mut hex_sequence = String::with_capacity(4);
-       for _ in 0..4 {
-           match &it.next() {
-               Some(hex_digit) => hex_sequence.push(*hex_digit),
-               _ => panic!("Should never reach here."),
-           }
-       }
-       let char_code =
-           u32::from_str_radix(hex_sequence.as_str(), 16).unwrap();
-       // actually safe because we can't have an invalid hex sequence at this point
-       let unicode_char = unsafe { char::from_u32_unchecked(char_code) };
-       value.push_str(format!("{}", unicode_char).as_str());
-   }
-   ```
+    ```rust
+    'u' => {
+        let mut hex_sequence = String::with_capacity(4);
+        for _ in 0..4 {
+            match &it.next() {
+                Some(hex_digit) => hex_sequence.push(*hex_digit),
+                _ => panic!("Should never reach here."),
+            }
+        }
+        let char_code =
+            u32::from_str_radix(hex_sequence.as_str(), 16).unwrap();
+        // actually safe because we can't have an invalid hex sequence at this point
+        let unicode_char = unsafe { char::from_u32_unchecked(char_code) };
+        value.push_str(format!("{}", unicode_char).as_str());
+    }
+    ```
 
-   The source comment equates valid hex with a valid scalar;
-    the safe standard
-   library constructor returns `None` for surrogates.
-    The parser does not
-   combine a high and low escape before this conversion.
+    The source comment equates valid hex with a valid scalar;
+     the safe standard
+    library constructor returns `None` for surrogates.
+     The parser does not
+    combine a high and low escape before this conversion.
 
-4. `rust/src/parse.rs:498-500` constructs and runs this parser;
-    the public JSONC
-   wrapper in `rust/src/lib.rs:33-44` passes `Mode::Jsonc` to it:
+4.  `rust/src/parse.rs:498-500` constructs and runs this parser;
+     the public JSONC
+    wrapper in `rust/src/lib.rs:33-44` passes `Mode::Jsonc` to it:
 
-   ```rust
-   pub fn parse(text: &str, mode: Mode, options: Option<ParserOptions>) -> Result<Node, MomoaError> {
-       let mut parser = Parser::new(text, mode, options);
-       parser.parse()
-   }
-   ```
+    ```rust
+    pub fn parse(text: &str, mode: Mode, options: Option<ParserOptions>) -> Result<Node, MomoaError> {
+        let mut parser = Parser::new(text, mode, options);
+        parser.parse()
+    }
+    ```
 
-   ```rust
-   pub fn parse(text: &str) -> Result<ast::Node, MomoaError> {
-       parse::parse(text, Mode::Jsonc, None)
-   }
-   ```
+    ```rust
+    pub fn parse(text: &str) -> Result<ast::Node, MomoaError> {
+        parse::parse(text, Mode::Jsonc, None)
+    }
+    ```
 
-   The analogous `json::parse` wrapper at `rust/src/lib.rs:22-24` uses the
-   same `parse::parse` function with `Mode::Json`,
-    so the boundary is not
-   exclusive to JSONC.
+    The analogous `json::parse` wrapper at `rust/src/lib.rs:22-24` uses the
+    same `parse::parse` function with `Mode::Json`,
+     so the boundary is not
+    exclusive to JSONC.
 
 [Rust's `char` documentation][rust-char] and [the Rust Reference][rust-reference-char]
 exclude surrogates `0xD800..=0xDFFF` from valid `char` values;
@@ -573,74 +573,74 @@ not this unchecked surrogate construction.
 No duplicate was found in the inspected queries;
  source and tracker state can change.
 
-1. **Upstream fault:
-    yes.**
-   The unchecked conversion follows source-level
-   acceptance of surrogate hex digits,
-    not a caller's unsafe block;
-   see `rust/src/readers.rs:79-113` and `rust/src/parse.rs:326-351` excerpts.
-2. **Upstream can fix it:
-    yes.**
-   The `parse_string` boundary in
-   `rust/src/parse.rs:295-365` can replace unchecked construction and
-   handle pairs and errors;
-    no architectural impossibility was found.
-3. **Supported use case:
-    yes.**
-   `rust/README.md` at the reported commit
-   documents `jsonc::parse` and JSONC comment handling;
-    `rust/src/lib.rs:33-44`
-   exposes that API.
-    The README gives a `jsonc::parse(code)` example.
-4. **External contributions welcome:
-    soft yes.**
-   The root README invites
-   development;
-    `.github/ISSUE_TEMPLATE/BUG_REPORT.md` requests a
-   reproduction and expects `bug, needs repro` labels.
-    No root
-   `CONTRIBUTING.md` was found at this commit and `.github/` listed
-   `ISSUE_TEMPLATE/` and `workflows/`,
-   with no PR template in that
-   listing.
-    [PR #204][pr-offsets] includes a substantive maintainer
-   response to an external contributor.
-    No AI-assisted filing ban was
-   found in the checked materials;
-    that is not proof no other policy exists.
-5. **Likely fix:
-    soft yes.**
-   No comparable won't-fix signal was found.
-   [Parser history][parse-history] and [reader history][reader-history]
-   show work in these paths;
-    `gh` tracker queries found no matching report.
-   The [3.2.6 release notes][release-326] name provenance publication only;
-   the [3.2.5 notes][release-325] name dependency and whitespace fixes.
-   Neither states a refusal to fix surrogate handling.
-6. **Minimal architecture-compatible prototype:
-    yes,
-    isolated.**
-   A fresh
-   private clone of commit `8dfb563` was origin-checked and had its push URL
-   disabled.
-    The [checked pre-fix patch](momoa-rust-unpaired-surrogate.prepatch.patch)
-   and [final prototype patch](momoa-rust-unpaired-surrogate.patch)
-   separately apply to clean source.
-    The final patch replaces unchecked
-   scalar construction,
-    decodes valid surrogate pairs,
-   and errors on isolated halves.
-    `git apply --check` succeeded against the
-   clean 3.2.6 clone.
-    A safe checked pre-fix instrument failed the valid-pair
-   assertion (exit 101);
-    the patched public-entry example passed in the
-   bounded offline container (exit 0),
-    including the decoded `😀` value.
-   The bounded upstream Rust suite also passed.
-    The original unsafe branch
-   was not executed on the suspect input,
-    even in the container.
+1.  **Upstream fault:
+     yes.**
+    The unchecked conversion follows source-level
+    acceptance of surrogate hex digits,
+     not a caller's unsafe block;
+    see `rust/src/readers.rs:79-113` and `rust/src/parse.rs:326-351` excerpts.
+2.  **Upstream can fix it:
+     yes.**
+    The `parse_string` boundary in
+    `rust/src/parse.rs:295-365` can replace unchecked construction and
+    handle pairs and errors;
+     no architectural impossibility was found.
+3.  **Supported use case:
+     yes.**
+    `rust/README.md` at the reported commit
+    documents `jsonc::parse` and JSONC comment handling;
+     `rust/src/lib.rs:33-44`
+    exposes that API.
+     The README gives a `jsonc::parse(code)` example.
+4.  **External contributions welcome:
+     soft yes.**
+    The root README invites
+    development;
+     `.github/ISSUE_TEMPLATE/BUG_REPORT.md` requests a
+    reproduction and expects `bug, needs repro` labels.
+     No root
+    `CONTRIBUTING.md` was found at this commit and `.github/` listed
+    `ISSUE_TEMPLATE/` and `workflows/`,
+    with no PR template in that
+    listing.
+     [PR #204][pr-offsets] includes a substantive maintainer
+    response to an external contributor.
+     No AI-assisted filing ban was
+    found in the checked materials;
+     that is not proof no other policy exists.
+5.  **Likely fix:
+     soft yes.**
+    No comparable won't-fix signal was found.
+    [Parser history][parse-history] and [reader history][reader-history]
+    show work in these paths;
+     `gh` tracker queries found no matching report.
+    The [3.2.6 release notes][release-326] name provenance publication only;
+    the [3.2.5 notes][release-325] name dependency and whitespace fixes.
+    Neither states a refusal to fix surrogate handling.
+6.  **Minimal architecture-compatible prototype:
+     yes,
+     isolated.**
+    A fresh
+    private clone of commit `8dfb563` was origin-checked and had its push URL
+    disabled.
+     The [checked pre-fix patch](momoa-rust-unpaired-surrogate.prepatch.patch)
+    and [final prototype patch](momoa-rust-unpaired-surrogate.patch)
+    separately apply to clean source.
+     The final patch replaces unchecked
+    scalar construction,
+     decodes valid surrogate pairs,
+    and errors on isolated halves.
+     `git apply --check` succeeded against the
+    clean 3.2.6 clone.
+     A safe checked pre-fix instrument failed the valid-pair
+    assertion (exit 101);
+     the patched public-entry example passed in the
+    bounded offline container (exit 0),
+     including the decoded `😀` value.
+    The bounded upstream Rust suite also passed.
+     The original unsafe branch
+    was not executed on the suspect input,
+     even in the container.
 
 All filing constraints have supporting evidence,
  with the stated limitation

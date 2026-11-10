@@ -140,27 +140,27 @@ Two earlier theories were investigated and disproved before the binding-break ca
  Recording them so the
 next investigator does not re-derive them:
 
-1. "The `changed(value) => root.seek(value)` handler feeds engine position updates back into a seek,
-    looping."
-   Disproved by reading `SliderBase`:
-    `changed` is emitted only from `set-value()`,
-    which runs only on user input.
-   A programmatic write through the `value: root.position` binding does not call `set-value`,
-    so engine-driven
-   position writes never fire `changed` and never trigger a seek.
-    No feedback loop exists.
-2. "The progress debouncer in `src/progress.rs` suppresses position updates."
-    Disproved:
-    its window is 250 ms
-   (`PROGRESS_UPDATE_DEBOUNCE_INTERVAL`),
-    engine position emits arrive about every 100 ms
-   (`POSITION_EMIT_INTERVAL_SECS = 0.1` in `src/controller_audio.rs`),
-    and the engine emits no periodic `Immediate`
-   update to keep resetting the debounce baseline (`Playing` is sent only on real state changes;
-    the run loop in
-   `src/engine.rs` just pumps audio).
-    The debounce self-corrects within 250 ms and cannot freeze the bar for
-   minutes.
+1.  "The `changed(value) => root.seek(value)` handler feeds engine position updates back into a seek,
+     looping."
+    Disproved by reading `SliderBase`:
+     `changed` is emitted only from `set-value()`,
+     which runs only on user input.
+    A programmatic write through the `value: root.position` binding does not call `set-value`,
+     so engine-driven
+    position writes never fire `changed` and never trigger a seek.
+     No feedback loop exists.
+2.  "The progress debouncer in `src/progress.rs` suppresses position updates."
+     Disproved:
+     its window is 250 ms
+    (`PROGRESS_UPDATE_DEBOUNCE_INTERVAL`),
+     engine position emits arrive about every 100 ms
+    (`POSITION_EMIT_INTERVAL_SECS = 0.1` in `src/controller_audio.rs`),
+     and the engine emits no periodic `Immediate`
+    update to keep resetting the debounce baseline (`Playing` is sent only on real state changes;
+     the run loop in
+    `src/engine.rs` just pumps audio).
+     The debounce self-corrects within 250 ms and cannot freeze the bar for
+    minutes.
 
 ## Verification
 
@@ -310,33 +310,33 @@ affected versions bracketing ours.
 
 Six-constraint check (for the audit trail):
 
-1. Really upstream's fault?
-    No. It is intended reactivity semantics (imperative assignment replaces a binding),
-   documented in the Slint reactivity guide and restated by a maintainer on #8102.
-2. Can upstream fix it?
-    Not applicable as a bug;
-    there is nothing to fix.
-    The behavior is the design,
-    and the
-   supported path (two-way binding) already exists.
-3. Supporting this use case?
-    Yes.
-    Two-way bindings are the documented,
-    first-class mechanism for exactly this
-   bidirectional widget-value case.
-4. Would the repo welcome our contribution?
-    Not reached;
-    there is no defect to contribute.
-5. Will they likely fix it?
-    No,
-    and deliberately:
-    they closed #8102 as working-as-intended with a workaround.
-6. Minimal fix prototyped compatible with their architecture?
-    Not applicable;
-    the fix is entirely consumer-side
-   (`<=>` in our `app.slint`),
-    already applied and verified above.
-    No upstream patch is warranted.
+1.  Really upstream's fault?
+     No. It is intended reactivity semantics (imperative assignment replaces a binding),
+    documented in the Slint reactivity guide and restated by a maintainer on #8102.
+2.  Can upstream fix it?
+     Not applicable as a bug;
+     there is nothing to fix.
+     The behavior is the design,
+     and the
+    supported path (two-way binding) already exists.
+3.  Supporting this use case?
+     Yes.
+     Two-way bindings are the documented,
+     first-class mechanism for exactly this
+    bidirectional widget-value case.
+4.  Would the repo welcome our contribution?
+     Not reached;
+     there is no defect to contribute.
+5.  Will they likely fix it?
+     No,
+     and deliberately:
+     they closed #8102 as working-as-intended with a workaround.
+6.  Minimal fix prototyped compatible with their architecture?
+     Not applicable;
+     the fix is entirely consumer-side
+    (`<=>` in our `app.slint`),
+     already applied and verified above.
+     No upstream patch is warranted.
 
 Constraints 1,
  2,

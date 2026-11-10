@@ -350,7 +350,7 @@ SUBSET (hb-subset-wasm defaults):
 
 Two catalogs fall out of the output:
 
-- **Resolves cleanly**:
+- Resolves cleanly:
    every `fvar`-reachable name ID survives the
   subset (256 through 275:
    axis names and named-instance subfamily
@@ -360,7 +360,7 @@ Two catalogs fall out of the output:
   happen to coincide with `fvar`'s (257,
    258,
    260 … 274) also resolve.
-- **Dangles**:
+- Dangles:
    every name ID only `STAT` references:
    298 and 301
   (axis records),
@@ -438,13 +438,13 @@ reads them;
 
 ## What does not work
 
-- **Doing nothing**:
+- Doing nothing:
    the font renders fine,
    but every Firefox page
   load logs two console errors,
    which poisons any "no console errors"
   verification gate and hides real failures in the noise.
-- **Retaining the needed IDs through the wrapper**:
+- Retaining the needed IDs through the wrapper:
    `hb-subset-wasm`
   0.4.0 exposes no name-ID control.
    Its `SubsetOptions` are `text`,
@@ -461,7 +461,7 @@ reads them;
   name-ID set (`hb_subset_input_set(…, HB_SUBSET_SETS_NAME_ID)`,
    the
   CLI's `--name-IDs=*`) is not reachable through it.
-- **`passthroughTables: ['STAT']`**:
+- `passthroughTables: ['STAT']`:
    passing `STAT` through changes
   nothing;
    the table already survives byte-identically by default.
@@ -510,91 +510,91 @@ duplicate;
 distinct:
  harfbuzz PR #5623 (merged,
  first in 12.2.0) stops
-*collecting* STAT name IDs when STAT is dropped,
+**collecting** STAT name IDs when STAT is dropped,
  the inverse concern.
 
 ### Candidate 1: hb-subset-wasm (primary owner)
 
-1. **Really upstream's fault?**
-    Yes.
-    The wrapper's own build script
-   adds `-DHB_NO_STYLE` (`scripts/build-wasm.sh:85`),
-    which silently
-   turns correct HarfBuzz 10.4.0 behavior into invalid output for any
-   STAT-bearing font.
-    Not wording,
-    not architecture:
-    a flag choice.
-2. **Can upstream fix it?**
-    Yes:
-    delete one line and republish.
-   Verified by the prototype below.
-3. **Are they supporting this use case?**
-    Yes:
-    the package's stated
-   purpose is font subsetting,
-    its README documents variable-axes
-   support,
-    and the build deliberately leaves `HB_NO_VAR` off so
-   variable fonts work.
-4. **Would the repo welcome our contribution?**
-    No `CONTRIBUTING.md`,
-   no issue templates,
-    no policy on AI-assisted contributions was
-   found (files and tracker checked 2026-07-02);
-    the repo itself
-   commits a `CLAUDE.md` and is visibly AI-assisted.
-    No ban found;
-   absence of policy is not a fail.
-5. **Will they likely fix it?**
-    Unknown:
-    single maintainer,
-    zero
-   issues ever filed,
-    last push 2026-04-21.
-    No signal either way,
-    and
-   absence of signal is not a fail.
-6. **Prototyped a minimal fix?**
-    Yes.
-    In a disposable clone of
-   `kyosuke/hb-subset-wasm@82fe83f` (origin and HEAD verified,
-    with
-   the `deps/harfbuzz` submodule at 3ef8709/10.4.0),
-    the fix is:
+1.  **Really upstream's fault?**
+     Yes.
+     The wrapper's own build script
+    adds `-DHB_NO_STYLE` (`scripts/build-wasm.sh:85`),
+     which silently
+    turns correct HarfBuzz 10.4.0 behavior into invalid output for any
+    STAT-bearing font.
+     Not wording,
+     not architecture:
+     a flag choice.
+2.  **Can upstream fix it?**
+     Yes:
+     delete one line and republish.
+    Verified by the prototype below.
+3.  **Are they supporting this use case?**
+     Yes:
+     the package's stated
+    purpose is font subsetting,
+     its README documents variable-axes
+    support,
+     and the build deliberately leaves `HB_NO_VAR` off so
+    variable fonts work.
+4.  **Would the repo welcome our contribution?**
+     No `CONTRIBUTING.md`,
+    no issue templates,
+     no policy on AI-assisted contributions was
+    found (files and tracker checked 2026-07-02);
+     the repo itself
+    commits a `CLAUDE.md` and is visibly AI-assisted.
+     No ban found;
+    absence of policy is not a fail.
+5.  **Will they likely fix it?**
+     Unknown:
+     single maintainer,
+     zero
+    issues ever filed,
+     last push 2026-04-21.
+     No signal either way,
+     and
+    absence of signal is not a fail.
+6.  **Prototyped a minimal fix?**
+     Yes.
+     In a disposable clone of
+    `kyosuke/hb-subset-wasm@82fe83f` (origin and HEAD verified,
+     with
+    the `deps/harfbuzz` submodule at 3ef8709/10.4.0),
+     the fix is:
 
-   ```diff
-   --- a/scripts/build-wasm.sh
-   +++ b/scripts/build-wasm.sh
-   @@ -82,7 +82,6 @@ CFLAGS=(
-      -DHB_NO_LEGACY
-      -DHB_NO_DRAW
-      -DHB_NO_PAINT
-   -  -DHB_NO_STYLE
-      -DHB_NO_MATH
-      -DHB_NO_META
-      -DHB_NO_HINTING
-   ```
+    ```diff
+    --- a/scripts/build-wasm.sh
+    +++ b/scripts/build-wasm.sh
+    @@ -82,7 +82,6 @@ CFLAGS=(
+       -DHB_NO_LEGACY
+       -DHB_NO_DRAW
+       -DHB_NO_PAINT
+    -  -DHB_NO_STYLE
+       -DHB_NO_MATH
+       -DHB_NO_META
+       -DHB_NO_HINTING
+    ```
 
-   Built with `bash scripts/build-wasm.sh` inside a bounded
-   `emscripten/emsdk:latest` podman container (no host credentials,
-   only the clone mounted).
-    Verification:
-    the harness above,
-    run
-   against the rebuilt `dist/hb-subset.wasm` on the pinned Inter,
-   prints
+    Built with `bash scripts/build-wasm.sh` inside a bounded
+    `emscripten/emsdk:latest` podman container (no host credentials,
+    only the clone mounted).
+     Verification:
+     the harness above,
+     run
+    against the rebuilt `dist/hb-subset.wasm` on the pinned Inter,
+    prints
 
-   ```txt
-   PATCHED WASM: STAT kept; name IDs kept: [0 1 2 3 4 5 6 256 … 275 298 299 300 301 302]; dangling STAT refs: []
-   ```
+    ```txt
+    PATCHED WASM: STAT kept; name IDs kept: [0 1 2 3 4 5 6 256 … 275 298 299 300 301 302]; dangling STAT refs: []
+    ```
 
-   i.e. exactly the five previously dangling IDs are now retained.
-   Size cost,
-    same toolchain,
-    same everything but the flag:
-   590,665 bytes with `HB_NO_STYLE` vs 591,933 bytes without,
-   +1,268 bytes (+0.21%).
+    i.e. exactly the five previously dangling IDs are now retained.
+    Size cost,
+     same toolchain,
+     same everything but the flag:
+    590,665 bytes with `HB_NO_STYLE` vs 591,933 bytes without,
+    +1,268 bytes (+0.21%).
 
 All six constraints hold;
  the draft below is fileable as-is.
@@ -647,101 +647,101 @@ run end-to-end as described above).
 
 ### Candidate 2: HarfBuzz (latent config inconsistency)
 
-1. **Really upstream's fault?**
-    Yes,
-    narrowly:
-    `HB_NO_STYLE` is an
-   official config knob (their `HB_LEAN` profile sets it,
-   `src/hb-config.hh:57,85`),
-    and under it hb-subset silently emits
-   output that fails sanitizers.
-    A config that cannot maintain a
-   table's integrity should not emit that table by default.
-2. **Can upstream fix it?**
-    Yes;
-    the guard below is small and verified.
-3. **Are they supporting this use case?**
-    Yes:
-    subsetting is a core
-   product,
-    and the `HB_NO_*` config system is documented and
-   maintained.
-4. **Would the repo welcome our contribution?**
-    Yes,
-    with disclosure:
-   `CODE_OF_AI_CONDUCT.md` (present at HEAD) accepts AI-assisted
-   contributions,
-    requires contributors to remain fully responsible,
-   requires an `Assisted-by:` trailer on commits,
-    and bans fabricated
-   reproductions (ours is real and recorded here).
-    README invites
-   issues and pull requests.
-5. **Will they likely fix it?**
-    Plausible:
-    the sibling default-build
-   bug (#4162) was fixed within a day,
-    and the project actively
-   maintains config-gated correctness.
-    No won't-fix signal found.
-6. **Prototyped a minimal fix?**
-    Yes.
-    In a disposable clone of
-   `harfbuzz/harfbuzz@4509695c7` (origin and HEAD verified),
-    the
-   `hb-subset` CLI was built with `-Dcpp_args=-DHB_NO_STYLE` (meson,
-   Fedora 42 container;
-    `hb-info` fails to link under this define
-   because it uses the style API directly,
-    so only the `util/hb-subset`
-   target was built).
-    Pre-patch,
-    on the pinned Inter:
+1.  **Really upstream's fault?**
+     Yes,
+     narrowly:
+     `HB_NO_STYLE` is an
+    official config knob (their `HB_LEAN` profile sets it,
+    `src/hb-config.hh:57,85`),
+     and under it hb-subset silently emits
+    output that fails sanitizers.
+     A config that cannot maintain a
+    table's integrity should not emit that table by default.
+2.  **Can upstream fix it?**
+     Yes;
+     the guard below is small and verified.
+3.  **Are they supporting this use case?**
+     Yes:
+     subsetting is a core
+    product,
+     and the `HB_NO_*` config system is documented and
+    maintained.
+4.  **Would the repo welcome our contribution?**
+     Yes,
+     with disclosure:
+    `CODE_OF_AI_CONDUCT.md` (present at HEAD) accepts AI-assisted
+    contributions,
+     requires contributors to remain fully responsible,
+    requires an `Assisted-by:` trailer on commits,
+     and bans fabricated
+    reproductions (ours is real and recorded here).
+     README invites
+    issues and pull requests.
+5.  **Will they likely fix it?**
+     Plausible:
+     the sibling default-build
+    bug (#4162) was fixed within a day,
+     and the project actively
+    maintains config-gated correctness.
+     No won't-fix signal found.
+6.  **Prototyped a minimal fix?**
+     Yes.
+     In a disposable clone of
+    `harfbuzz/harfbuzz@4509695c7` (origin and HEAD verified),
+     the
+    `hb-subset` CLI was built with `-Dcpp_args=-DHB_NO_STYLE` (meson,
+    Fedora 42 container;
+     `hb-info` fails to link under this define
+    because it uses the style API directly,
+     so only the `util/hb-subset`
+    target was built).
+     Pre-patch,
+     on the pinned Inter:
 
-   ```txt
-   PREPATCH (HB_NO_STYLE, HEAD 4509695c7): STAT kept; dangling STAT refs: [298 299 300 301 302]
-   ```
+    ```txt
+    PREPATCH (HB_NO_STYLE, HEAD 4509695c7): STAT kept; dangling STAT refs: [298 299 300 301 302]
+    ```
 
-   Patch:
+    Patch:
 
-   ```diff
-   --- a/src/hb-subset.cc
-   +++ b/src/hb-subset.cc
-   @@ -280,8 +280,18 @@ _subset_table (hb_subset_plan_t *plan,
-        return _hb_subset_table<const OT::head> (plan, buf);
-    
-      case HB_TAG('S','T','A','T'):
-   +#ifndef HB_NO_STYLE
-        if (!plan->user_axes_location.is_empty ()) return _hb_subset_table<const OT::STAT> (plan, buf);
-        else return _hb_subset_table_passthrough (plan, tag);
-   +#else
-   +    /* With HB_NO_STYLE the STAT accelerator, and with it the STAT branch
-   +     * of _nameid_closure, is compiled out; emitting STAT would leave its
-   +     * axis and axis-value nameIDs dangling after name subsetting (OTS
-   +     * then rejects the table).  Drop it: a missing STAT is valid output,
-   +     * dangling references are not.  An explicit passthrough request via
-   +     * no_subset_tables is honored above. */
-   +    return true;
-   +#endif
-    
-      case HB_TAG('c','v','t',' '):
-    #ifndef HB_NO_VAR
-   ```
+    ```diff
+    --- a/src/hb-subset.cc
+    +++ b/src/hb-subset.cc
+    @@ -280,8 +280,18 @@ _subset_table (hb_subset_plan_t *plan,
+         return _hb_subset_table<const OT::head> (plan, buf);
+     
+       case HB_TAG('S','T','A','T'):
+    +#ifndef HB_NO_STYLE
+         if (!plan->user_axes_location.is_empty ()) return _hb_subset_table<const OT::STAT> (plan, buf);
+         else return _hb_subset_table_passthrough (plan, tag);
+    +#else
+    +    /* With HB_NO_STYLE the STAT accelerator, and with it the STAT branch
+    +     * of _nameid_closure, is compiled out; emitting STAT would leave its
+    +     * axis and axis-value nameIDs dangling after name subsetting (OTS
+    +     * then rejects the table).  Drop it: a missing STAT is valid output,
+    +     * dangling references are not.  An explicit passthrough request via
+    +     * no_subset_tables is honored above. */
+    +    return true;
+    +#endif
+     
+       case HB_TAG('c','v','t',' '):
+     #ifndef HB_NO_VAR
+    ```
 
-   Post-patch,
-    same command
-   (`hb-subset --text="Hello wc 0123456789" --layout-features="*"`):
+    Post-patch,
+     same command
+    (`hb-subset --text="Hello wc 0123456789" --layout-features="*"`):
 
-   ```txt
-   POSTPATCH tables: GDEF GPOS GSUB HVAR MVAR OS/2 avar cmap fvar glyf gvar head hhea hmtx loca maxp name post
-   STAT present: false
-   ```
+    ```txt
+    POSTPATCH tables: GDEF GPOS GSUB HVAR MVAR OS/2 avar cmap fvar glyf gvar head hhea hmtx loca maxp name post
+    STAT present: false
+    ```
 
-   The `#ifndef` branch is the untouched original,
-    so default builds
-   are unaffected;
-    explicit `no_subset_tables` passthrough still wins
-   (it is checked before the switch).
+    The `#ifndef` branch is the untouched original,
+     so default builds
+    are unaffected;
+     explicit `no_subset_tables` passthrough still wins
+    (it is checked before the switch).
 
 All six constraints hold;
  the draft below is fileable as-is.

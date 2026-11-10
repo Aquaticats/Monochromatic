@@ -207,18 +207,18 @@ No glob,
 
 Three options for handling these self-matches:
 
-1. Extend `is_skipped_file` with package paths or test-fixture basenames.
-   Trade-off:
-    those files become exempt from every rule,
-   including the betterleaks-ported credential rules.
-   Whether that gap is acceptable on those specific files is a policy call.
-2. Add per-rule path-prefix exclusion to the rule grammar.
-   Real scanner change touching `rule.rs` and the per-file scan loop.
-3. Relocate test-fixture em-dashes into a `data/` file outside scan scope
-   and rewrite docs to reference `U+2014` instead of literal characters.
-   Costly across roughly 40 sites;
-    partially defeats the purpose
-   of testing the literal character.
+1.  Extend `is_skipped_file` with package paths or test-fixture basenames.
+    Trade-off:
+     those files become exempt from every rule,
+    including the betterleaks-ported credential rules.
+    Whether that gap is acceptable on those specific files is a policy call.
+2.  Add per-rule path-prefix exclusion to the rule grammar.
+    Real scanner change touching `rule.rs` and the per-file scan loop.
+3.  Relocate test-fixture em-dashes into a `data/` file outside scan scope
+    and rewrite docs to reference `U+2014` instead of literal characters.
+    Costly across roughly 40 sites;
+     partially defeats the purpose
+    of testing the literal character.
 
 ## Improvement potentials
 
@@ -238,30 +238,30 @@ which makes detection more permissive,
 
 Three viable paths:
 
-1. Use the literal-space workaround for the toolchain exclusion list.
-   `~(.* (npm|bun|pnpm|yarn|deno|node|mise|hk|gh|cargo|git|jq|...) .*)`
-   compiles cleanly at sizes well beyond the 35-element original list
-   (no measured ceiling up to 500 alternatives).
-   Tradeoff:
-    misses tokens at start or end of line;
-    revisit on a
-   sampled corpus to confirm the lost coverage is small.
-2. Pre-process the corpus before scanning:
-   strip fenced code blocks,
-    strip markdown URL anchors,
-   strip inline backtick spans.
-   Requires scanner code changes
-   (a pre-pass between file read and rule application).
-3. Hand-pick a smaller,
-    high-impact exclusion set per rule.
-   Iterate against the corpus,
-    classify each false positive,
-   keep only the exclusions that retire the most false positives.
-   Still useful even with path 1 available,
-    because some false-positive
-   classes (markdown anchors,
-    inline backticks) are not toolchain names
-   and need their own exclusion shape.
+1.  Use the literal-space workaround for the toolchain exclusion list.
+    `~(.* (npm|bun|pnpm|yarn|deno|node|mise|hk|gh|cargo|git|jq|...) .*)`
+    compiles cleanly at sizes well beyond the 35-element original list
+    (no measured ceiling up to 500 alternatives).
+    Tradeoff:
+     misses tokens at start or end of line;
+     revisit on a
+    sampled corpus to confirm the lost coverage is small.
+2.  Pre-process the corpus before scanning:
+    strip fenced code blocks,
+     strip markdown URL anchors,
+    strip inline backtick spans.
+    Requires scanner code changes
+    (a pre-pass between file read and rule application).
+3.  Hand-pick a smaller,
+     high-impact exclusion set per rule.
+    Iterate against the corpus,
+     classify each false positive,
+    keep only the exclusions that retire the most false positives.
+    Still useful even with path 1 available,
+     because some false-positive
+    classes (markdown anchors,
+     inline backticks) are not toolchain names
+    and need their own exclusion shape.
 
 Categories of false positive observed in the empirical scan:
 

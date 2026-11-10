@@ -98,20 +98,20 @@ This avoids `EPIPE` at the cost of one disposable file.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** The abort originates in bpaf's use of `println!`,
-   but the observed incident also contained an incorrect `rg` pipeline.
-2. **Can upstream fix it?
-   ** Yes.
-   bpaf or Oxlint could handle `BrokenPipe` as successful early consumer termination.
-3. **Are they supporting this use case?
-   ** No explicit bpaf or Oxlint guarantee for graceful early pipe closure was found.
-4. **Would the repo welcome our contribution?
-   ** Not evaluated because the supported-use-case gate failed.
-5. **Will they likely fix it?
-   ** No maintainer signal was collected for this incidental misuse-triggered report.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No.
-   The auto-prototype gate did not apply because constraint 3 failed.
+1.  **Is it really upstream's fault?
+    ** The abort originates in bpaf's use of `println!`,
+    but the observed incident also contained an incorrect `rg` pipeline.
+2.  **Can upstream fix it?
+    ** Yes.
+    bpaf or Oxlint could handle `BrokenPipe` as successful early consumer termination.
+3.  **Are they supporting this use case?
+    ** No explicit bpaf or Oxlint guarantee for graceful early pipe closure was found.
+4.  **Would the repo welcome our contribution?
+    ** Not evaluated because the supported-use-case gate failed.
+5.  **Will they likely fix it?
+    ** No maintainer signal was collected for this incidental misuse-triggered report.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No.
+    The auto-prototype gate did not apply because constraint 3 failed.
 
 Nothing should be filed upstream.

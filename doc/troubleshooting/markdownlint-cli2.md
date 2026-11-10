@@ -492,51 +492,51 @@ Tradeoffs:
 
 Walking the five constraints:
 
-1. **Is it really upstream's fault?
-   ** Partly.
-    The
-   `globPatterns.length === 1` guard is intentional;
-    the `--help` output
-   documents it.
-    The recursive symlink traversal is a composition of
-   markdownlint-cli2 not exposing globby's `followSymbolicLinks`,
-    fast-glob's
-   default,
-    globby's correctness-preserving handling of negated gitignore
-   patterns,
-    and this repo's symlinked workspace layout.
-2. **Can upstream fix it?
-   ** Only by changing documented or default behaviour.
-   The dot remap could fire whenever `.` appears in positional patterns,
-    but
-   that changes `markdownlint-cli2 . <file>` semantics.
-    markdownlint-cli2 could
-   expose a `followSymbolicLinks` option or default it to false,
-    but that changes
-   recursive glob coverage for users who intentionally lint symlink targets.
-3. **Are they supporting this use case?
-   ** No for the dot-plus-arg wrapper shape.
-   The `--help` text explicitly warns that `.` means every file unless the
-   special one-argument remap fires.
-    The recursive config glob is supported,
-    but
-   this repo's symlink cycle is a consumer workspace concern.
-4. **Will they likely fix it?
-   ** Not from current signals.
-    The maintainer already
-   chose to document the dot-only behaviour rather than broaden the remap,
-    and
-   globby's negation handling is a correctness guard rather than a missed
-   optimization.
-5. **Have we prototyped a minimal fix compatible with their architecture?
-   ** No.
-   For the dot case,
-    the minimal patch is easy but semantically breaking.
-    For
-   the symlink case,
-    a compatible fix needs new markdownlint-cli2 option surface
-   or a globby default change,
-    both broader than this repo's immediate failure.
+1.  **Is it really upstream's fault?
+    ** Partly.
+     The
+    `globPatterns.length === 1` guard is intentional;
+     the `--help` output
+    documents it.
+     The recursive symlink traversal is a composition of
+    markdownlint-cli2 not exposing globby's `followSymbolicLinks`,
+     fast-glob's
+    default,
+     globby's correctness-preserving handling of negated gitignore
+    patterns,
+     and this repo's symlinked workspace layout.
+2.  **Can upstream fix it?
+    ** Only by changing documented or default behaviour.
+    The dot remap could fire whenever `.` appears in positional patterns,
+     but
+    that changes `markdownlint-cli2 . <file>` semantics.
+     markdownlint-cli2 could
+    expose a `followSymbolicLinks` option or default it to false,
+     but that changes
+    recursive glob coverage for users who intentionally lint symlink targets.
+3.  **Are they supporting this use case?
+    ** No for the dot-plus-arg wrapper shape.
+    The `--help` text explicitly warns that `.` means every file unless the
+    special one-argument remap fires.
+     The recursive config glob is supported,
+     but
+    this repo's symlink cycle is a consumer workspace concern.
+4.  **Will they likely fix it?
+    ** Not from current signals.
+     The maintainer already
+    chose to document the dot-only behaviour rather than broaden the remap,
+     and
+    globby's negation handling is a correctness guard rather than a missed
+    optimization.
+5.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** No.
+    For the dot case,
+     the minimal patch is easy but semantically breaking.
+     For
+    the symlink case,
+     a compatible fix needs new markdownlint-cli2 option surface
+    or a globby default change,
+     both broader than this repo's immediate failure.
 
 All five do not hold.
  The workaround belongs at this repo's boundary and is

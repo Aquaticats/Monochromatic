@@ -489,15 +489,15 @@ inferred].
 - Time to stop on this repository:
   unmeasured [U].
 - `watchd` cancel ladder:
-  1. send one SIGINT to the client (never three);
-  2. after a configurable deadline,
-     `cgroup.kill` on `<D>/bazel`,
-     which is the same outcome as Bazel's own third-Ctrl-C server kill
-     [V:
-     `blaze_util_posix.cc:151-163`],
-     documented as costly because the analysis cache is lost
-     [V:
-     `iteration-speed.mdx:77-86`].
+  1.  send one SIGINT to the client (never three);
+  2.  after a configurable deadline,
+      `cgroup.kill` on `<D>/bazel`,
+      which is the same outcome as Bazel's own third-Ctrl-C server kill
+      [V:
+      `blaze_util_posix.cc:151-163`],
+      documented as costly because the analysis cache is lost
+      [V:
+      `iteration-speed.mdx:77-86`].
 
 ## 4. Watching
 

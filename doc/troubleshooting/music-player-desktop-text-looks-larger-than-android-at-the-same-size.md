@@ -1350,24 +1350,24 @@ and judged by a subagent that had not seen the key or the hypothesis.
 Nothing is filed and no draft is kept:
 the audit fails the first constraint.
 
-1. Is it really upstream's fault?
-   No. Slint drew 16 px as 16 px at scale factor 3,
-   the same width as Chromium,
-   and the same default `opsz` instance.
-   The difference is in unit conventions,
-   faces and our choice of size.
-2. Can upstream fix it?
-   Not applicable;
-   there is nothing to fix.
-3. Are they supporting this use case?
-   Not applicable.
-4. Would the repo welcome our contribution?
-   Not checked,
-   because the first constraint already fails.
-5. Will they fix it?
-   Not applicable.
-6. Have we prototyped a minimal fix?
-   The fix is on our side (commit `9783adb90d`).
+1.  Is it really upstream's fault?
+    No. Slint drew 16 px as 16 px at scale factor 3,
+    the same width as Chromium,
+    and the same default `opsz` instance.
+    The difference is in unit conventions,
+    faces and our choice of size.
+2.  Can upstream fix it?
+    Not applicable;
+    there is nothing to fix.
+3.  Are they supporting this use case?
+    Not applicable.
+4.  Would the repo welcome our contribution?
+    Not checked,
+    because the first constraint already fails.
+5.  Will they fix it?
+    Not applicable.
+6.  Have we prototyped a minimal fix?
+    The fix is on our side (commit `9783adb90d`).
 
 `.out-of-scope/` was read (`bun-install.md`,
 `cargo-workspace.md`,

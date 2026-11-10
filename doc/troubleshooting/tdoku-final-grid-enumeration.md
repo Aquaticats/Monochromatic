@@ -238,39 +238,39 @@ Searches across open and closed T-Doku issues and pull requests for
  `EnumerateGrids segfault`,
  and related container-crash terms found no duplicate.
 
-1. **Is it really upstream's fault?
-   ** Yes.
-   `EnumerateGrids` reads `grid.counts[current_pattern_idx + 1]` after its callback has reduced
-   `remaining` to zero.
-2. **Can upstream fix it?
-   ** Yes.
-   The verified guard prevents the read without changing range semantics.
-3. **Are they supporting this use case?
-   ** Yes.
-   `src/grid_tools.cc:154-159` states that the generated tables map any numbered reduced grid to a
-   configuration and solution offset,
-   and the command accepts an arbitrary first grid ID and limit.
-4. **Would the repo welcome our contribution?
-   ** Yes.
-   The repository has no `CONTRIBUTING.md`,
-    issue template,
-    pull-request template,
-   or AI-assistance policy.
-   External pull requests
-   [#1](https://github.com/t-dillon/tdoku/pull/1) and
-   [#8](https://github.com/t-dillon/tdoku/pull/8) were merged.
-5. **Will they likely fix it?
-   ** Yes,
-    with no contrary upstream signal.
-   The tracker has no rejection of terminal range support.
-   The relevant path has not changed since commit
-   `cc773883024762971a44dabf7c9eaab16e92b422`,
-   but policy treats silence as neutral rather than a failure.
-6. **Have we prototyped a minimal compatible fix?
-   ** Yes.
-   The one-line guard was applied in a fresh clone of exact commit `af426180`,
-   rebuilt in the Fedora 44 container,
-   and verified against both the first index and the final two-grid range.
+1.  **Is it really upstream's fault?
+    ** Yes.
+    `EnumerateGrids` reads `grid.counts[current_pattern_idx + 1]` after its callback has reduced
+    `remaining` to zero.
+2.  **Can upstream fix it?
+    ** Yes.
+    The verified guard prevents the read without changing range semantics.
+3.  **Are they supporting this use case?
+    ** Yes.
+    `src/grid_tools.cc:154-159` states that the generated tables map any numbered reduced grid to a
+    configuration and solution offset,
+    and the command accepts an arbitrary first grid ID and limit.
+4.  **Would the repo welcome our contribution?
+    ** Yes.
+    The repository has no `CONTRIBUTING.md`,
+     issue template,
+     pull-request template,
+    or AI-assistance policy.
+    External pull requests
+    [#1](https://github.com/t-dillon/tdoku/pull/1) and
+    [#8](https://github.com/t-dillon/tdoku/pull/8) were merged.
+5.  **Will they likely fix it?
+    ** Yes,
+     with no contrary upstream signal.
+    The tracker has no rejection of terminal range support.
+    The relevant path has not changed since commit
+    `cc773883024762971a44dabf7c9eaab16e92b422`,
+    but policy treats silence as neutral rather than a failure.
+6.  **Have we prototyped a minimal compatible fix?
+    ** Yes.
+    The one-line guard was applied in a fresh clone of exact commit `af426180`,
+    rebuilt in the Fedora 44 container,
+    and verified against both the first index and the final two-grid range.
 
 All filing constraints pass.
 The draft is fileable after a human chooses to make the external communication.

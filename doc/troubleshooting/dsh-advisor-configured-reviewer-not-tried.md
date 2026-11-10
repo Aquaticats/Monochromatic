@@ -198,16 +198,16 @@ Ids repeat across unrelated models,
 
 ## Verification
 
-1. Explicit `advisor` request for `opencode-go/mimo-v2.6-pro` with a trivial question
-   reproduces the 400 `MissingSessionID` failure above,
-   so the historical `#1 failed` line has this cause and not a credential fault
-   (the request reached the endpoint and was routed far enough to return 400).
-1. Explicit `advisor` request for `opencode-go/kimi-k3` fails before dispatch with
-   `model slug "opencode-go/kimi-k3" was not found in scoped models`
-   and lists the 44 allowed slugs,
-   proving the route list gates the configured reviewer.
-1. The session store `session.v4.jsonl.zstd` of the matrix session
-   holds the three operations with identical attempt signatures.
+1.  Explicit `advisor` request for `opencode-go/mimo-v2.6-pro` with a trivial question
+    reproduces the 400 `MissingSessionID` failure above,
+    so the historical `#1 failed` line has this cause and not a credential fault
+    (the request reached the endpoint and was routed far enough to return 400).
+1.  Explicit `advisor` request for `opencode-go/kimi-k3` fails before dispatch with
+    `model slug "opencode-go/kimi-k3" was not found in scoped models`
+    and lists the 44 allowed slugs,
+    proving the route list gates the configured reviewer.
+1.  The session store `session.v4.jsonl.zstd` of the matrix session
+    holds the three operations with identical attempt signatures.
 
 ## Evidence limits
 
@@ -231,12 +231,12 @@ Ids repeat across unrelated models,
 
 ## Verified workarounds
 
-1. Point `defaultReviewerModel` at a scoped kimi seat,
-   `neuralwatt/kimi-k3` or `synthetic/hf:moonshotai/Kimi-K3`.
-2. Pass `model` explicitly on each `advisor` call;
-   scoped slugs outside `opencode-go` dispatch normally.
-3. Narrow the `question` to reduce the thinking draw under the shared pool;
-   the focused follow-up completed within the same budget.
+1.  Point `defaultReviewerModel` at a scoped kimi seat,
+    `neuralwatt/kimi-k3` or `synthetic/hf:moonshotai/Kimi-K3`.
+2.  Pass `model` explicitly on each `advisor` call;
+    scoped slugs outside `opencode-go` dispatch normally.
+3.  Narrow the `question` to reduce the thinking draw under the shared pool;
+    the focused follow-up completed within the same budget.
 
 ## What does not work at incident time
 

@@ -36,37 +36,37 @@ or auto-mode.
 
 The v0.9.6 source trace is:
 
-1. `package/pi-fff/src/index.ts:633-645` calls `f.grep(...)` for Pi's
-   `ffgrep` tool:
+1.  `package/pi-fff/src/index.ts:633-645` calls `f.grep(...)` for Pi's
+    `ffgrep` tool:
 
-   ```ts
-   const grepResult = f.grep(query, {
-     mode,
-     smartCase,
-     maxMatchesPerFile: Math.min(effectiveLimit, 50),
-   });
-   ```
+    ```ts
+    const grepResult = f.grep(query, {
+      mode,
+      smartCase,
+      maxMatchesPerFile: Math.min(effectiveLimit, 50),
+    });
+    ```
 
-2. `package/fff-node/src/ffi.ts:1352-1397` maps that call to native
-   `fff_live_grep` through `ffi-rs`:
+2.  `package/fff-node/src/ffi.ts:1352-1397` maps that call to native
+    `fff_live_grep` through `ffi-rs`:
 
-   ```ts
-   const rawPtr = load({
-     library: LIBRARY_KEY,
-     funcName: "fff_live_grep",
-   });
-   ```
+    ```ts
+    const rawPtr = load({
+      library: LIBRARY_KEY,
+      funcName: "fff_live_grep",
+    });
+    ```
 
-3. `crates/fff-core/src/file_picker.rs:1199-1220` runs grep inside FFF's native
-   search thread pool:
+3.  `crates/fff-core/src/file_picker.rs:1199-1220` runs grep inside FFF's native
+    search thread pool:
 
-   ```rust
-   SEARCH_THREAD_POOL.install(|| {
-       grep_search(
-           self.get_files(),
-           query,
-           options,
-   ```
+    ```rust
+    SEARCH_THREAD_POOL.install(|| {
+        grep_search(
+            self.get_files(),
+            query,
+            options,
+    ```
 
 A direct `notify-send` probe on the affected host exited with status `0` and
 wrote nothing to stdout or stderr.
@@ -199,31 +199,31 @@ new defect,
 
 The six-constraint check is:
 
-1. **Upstream fault:**
-    yes,
-    the coredump enters FFF's native library.
-2. **Upstream can fix it:**
-    yes,
-    FFF has landed fixes for related native crashes.
-3. **Supported use case:**
-    yes,
-    FFF explicitly provides Pi's `ffgrep` tool.
-4. **Contribution welcome:**
-    no `CONTRIBUTING.md` was present in the checked FFF
-   tag,
-    and no prohibition on external reports was found in its README.
-5. **Likely to fix it:**
-    yes,
-    the related issues were triaged and closed with
-   fixes.
-6. **Minimal fix prototyped:**
-    no applicable fix for this coredump.
-    The issue 618
-   fix was verified only as a differential check,
-    and FFF 0.9.6 already contains
-   it.
-    The reported crash still needs its query and fixture before selecting a
-   patch.
+1.  **Upstream fault:**
+     yes,
+     the coredump enters FFF's native library.
+2.  **Upstream can fix it:**
+     yes,
+     FFF has landed fixes for related native crashes.
+3.  **Supported use case:**
+     yes,
+     FFF explicitly provides Pi's `ffgrep` tool.
+4.  **Contribution welcome:**
+     no `CONTRIBUTING.md` was present in the checked FFF
+    tag,
+     and no prohibition on external reports was found in its README.
+5.  **Likely to fix it:**
+     yes,
+     the related issues were triaged and closed with
+    fixes.
+6.  **Minimal fix prototyped:**
+     no applicable fix for this coredump.
+     The issue 618
+    fix was verified only as a differential check,
+     and FFF 0.9.6 already contains
+    it.
+     The reported crash still needs its query and fixture before selecting a
+    patch.
 
 [fff-422]: https://github.com/dmtrKovalenko/fff/issues/422
 [fff-476]: https://github.com/dmtrKovalenko/fff/issues/476

@@ -25,63 +25,63 @@ run from this repository.
 The chain,
 from the server's refusal to the surfaced warning:
 
-1. This server implements MCP revision `2026-07-28` exclusively
-   and answers the legacy `initialize` handshake with JSON-RPC `-32601`
-   (`package/mcp/stdio/src/server-response.ts:188`,
-   the same diagnostic recorded for Codex in
-   `doc/troubleshooting/codex-search-fetch-mcp.md`):
+1.  This server implements MCP revision `2026-07-28` exclusively
+    and answers the legacy `initialize` handshake with JSON-RPC `-32601`
+    (`package/mcp/stdio/src/server-response.ts:188`,
+    the same diagnostic recorded for Codex in
+    `doc/troubleshooting/codex-search-fetch-mcp.md`):
 
-   ```text
-   Method not found: initialize. This server implements MCP revision 2026-07-28,
-   which removed the initialize handshake: call server/discover and declare the
-   revision in each request's params._meta instead
-   ```
+    ```text
+    Method not found: initialize. This server implements MCP revision 2026-07-28,
+    which removed the initialize handshake: call server/discover and declare the
+    revision in each request's params._meta instead
+    ```
 
-2. Vibe's Unified Harness stdio path opens a raw SDK `ClientSession`
-   and calls the handshake method directly
-   (`_StdioConnection.open`,
-   installed with the `mistralai_vibe_local_harness` package of the
-   `mistral-vibe` 3.0.4 uv tool,
-   and upstream at
-   <https://github.com/mistralai/mistral-vibe/blob/338ad4bf0f73c4dd879d667cf7ab011555ae1751/harness/runtimes/python/python/mistralai_vibe_local_harness/vibe/_mcp_transport.py#L275-L284>,
-   line numbers confirmed against that commit):
+2.  Vibe's Unified Harness stdio path opens a raw SDK `ClientSession`
+    and calls the handshake method directly
+    (`_StdioConnection.open`,
+    installed with the `mistralai_vibe_local_harness` package of the
+    `mistral-vibe` 3.0.4 uv tool,
+    and upstream at
+    <https://github.com/mistralai/mistral-vibe/blob/338ad4bf0f73c4dd879d667cf7ab011555ae1751/harness/runtimes/python/python/mistralai_vibe_local_harness/vibe/_mcp_transport.py#L275-L284>,
+    line numbers confirmed against that commit):
 
-   ```python
-   # mistralai_vibe_local_harness/vibe/_mcp_transport.py
-               session = await stack.enter_async_context(
-                   ClientSession(
-                       read,
-                       write,
-                       read_timeout_seconds=server.startup_timeout_s,
-                       sampling_callback=cast(Any, sampling_callback),
-                   )
-               )
-               await session.initialize()
-   ```
+    ```python
+    # mistralai_vibe_local_harness/vibe/_mcp_transport.py
+                session = await stack.enter_async_context(
+                    ClientSession(
+                        read,
+                        write,
+                        read_timeout_seconds=server.startup_timeout_s,
+                        sampling_callback=cast(Any, sampling_callback),
+                    )
+                )
+                await session.initialize()
+    ```
 
-   Vibe's non-harness loop does the same
-   (`vibe/core/tools/mcp/tools.py:236`),
-   so both Vibe surfaces are handshake-era.
+    Vibe's non-harness loop does the same
+    (`vibe/core/tools/mcp/tools.py:236`),
+    so both Vibe surfaces are handshake-era.
 
-3. `ClientSession.initialize()` in the vendored `mcp` 2.3.0 SDK
-   sends only the legacy handshake
-   (`mcp/client/session.py:651`,
-   `LATEST_HANDSHAKE_VERSION` inside the installed uv tool's site-packages),
-   so the server's `-32601` raises out of the call.
+3.  `ClientSession.initialize()` in the vendored `mcp` 2.3.0 SDK
+    sends only the legacy handshake
+    (`mcp/client/session.py:651`,
+    `LATEST_HANDSHAKE_VERSION` inside the installed uv tool's site-packages),
+    so the server's `-32601` raises out of the call.
 
-4. The vendored SDK does ship modern-era negotiation:
-   `mcp/client/_probe.py` `negotiate_auto` probes `server/discover`
-   and falls back to `initialize` for legacy servers.
-   But only the higher-level `connect()` helper calls it
-   (`mcp/client/client.py:465`);
-   the harness uses the raw `ClientSession`,
-   so the probe never runs.
+4.  The vendored SDK does ship modern-era negotiation:
+    `mcp/client/_probe.py` `negotiate_auto` probes `server/discover`
+    and falls back to `initialize` for legacy servers.
+    But only the higher-level `connect()` helper calls it
+    (`mcp/client/client.py:465`);
+    the harness uses the raw `ClientSession`,
+    so the probe never runs.
 
-5. The raised `-32601` is translated by `_translate_failure`
-   into `MCPRuntimeFailure("mcp_transport_failed", ...)`
-   (`_mcp_transport.py:475`),
-   which the app server projects as the warning quoted in the Symptom
-   (`vibe/app_server/_unified_harness_backend_adapter.py:5585`).
+5.  The raised `-32601` is translated by `_translate_failure`
+    into `MCPRuntimeFailure("mcp_transport_failed", ...)`
+    (`_mcp_transport.py:475`),
+    which the app server projects as the warning quoted in the Symptom
+    (`vibe/app_server/_unified_harness_backend_adapter.py:5585`).
 
 ## Verification
 
@@ -214,43 +214,43 @@ no entry covers Mistral Vibe or MCP host support.
 
 The six constraints:
 
-1. Upstream's fault:
-   yes,
-   a capability gap.
-   The current MCP revision is `2026-07-28`
-   (recorded with its versioning evidence in
-   `doc/handover/mcp-stdio-2026-07-28.md`),
-   and Vibe's client speaks handshake revisions only.
-2. Upstream can fix it:
-   yes.
-   The minimal fix is to call the vendored SDK's `negotiate_auto`
-   (or probe `server/discover` then fall back)
-   instead of `session.initialize()` at
-   `_mcp_transport.py:275` and `vibe/core/tools/mcp/tools.py:236`;
-   the SDK they already vendor ships the helper.
-3. Supporting the use case:
-   yes,
-   MCP servers are a documented Vibe feature
-   (`/mcp`,
-   `vibe mcp add`,
-   the `[[mcp_servers]]` config schema).
-4. Contributions welcome:
-   not run.
-   The upstream contribution policy was not read yet.
-5. Likely to fix:
-   not run.
-   The upstream tracker was not searched yet.
-6. Minimal prototype:
-   not run.
-   This repository already decided,
-   with the price known,
-   to keep the server modern-only and to decline both a legacy
-   fallback and patching clients
-   (`doc/handover/mcp-stdio-2026-07-28.md`,
-   scope decision re-affirmed once the cost was known).
-   An upstream filing asks Mistral to modernize their client,
-   which is adjacent to the declined patching path,
-   so it waits for an explicit user decision.
+1.  Upstream's fault:
+    yes,
+    a capability gap.
+    The current MCP revision is `2026-07-28`
+    (recorded with its versioning evidence in
+    `doc/handover/mcp-stdio-2026-07-28.md`),
+    and Vibe's client speaks handshake revisions only.
+2.  Upstream can fix it:
+    yes.
+    The minimal fix is to call the vendored SDK's `negotiate_auto`
+    (or probe `server/discover` then fall back)
+    instead of `session.initialize()` at
+    `_mcp_transport.py:275` and `vibe/core/tools/mcp/tools.py:236`;
+    the SDK they already vendor ships the helper.
+3.  Supporting the use case:
+    yes,
+    MCP servers are a documented Vibe feature
+    (`/mcp`,
+    `vibe mcp add`,
+    the `[[mcp_servers]]` config schema).
+4.  Contributions welcome:
+    not run.
+    The upstream contribution policy was not read yet.
+5.  Likely to fix:
+    not run.
+    The upstream tracker was not searched yet.
+6.  Minimal prototype:
+    not run.
+    This repository already decided,
+    with the price known,
+    to keep the server modern-only and to decline both a legacy
+    fallback and patching clients
+    (`doc/handover/mcp-stdio-2026-07-28.md`,
+    scope decision re-affirmed once the cost was known).
+    An upstream filing asks Mistral to modernize their client,
+    which is adjacent to the declined patching path,
+    so it waits for an explicit user decision.
 
 Draft,
 kept for a future session that closes constraints 4 through 6.

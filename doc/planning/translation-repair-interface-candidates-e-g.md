@@ -315,6 +315,7 @@ Candidate E1 triple-prime correction requires:
 
 No defect wording from this run may enter new prompts.
 Retained output remains negative calibration evidence only.
+
 ### Rejected E1 triple-prime under active Hyper roster
 
 E1 triple-prime comparative-floor correction is implemented and tested:

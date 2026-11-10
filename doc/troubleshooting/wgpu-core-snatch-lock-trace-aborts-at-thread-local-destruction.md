@@ -425,36 +425,36 @@ released.
 
 The six constraints:
 
-1. **Is it really upstream's fault?**
-   Yes,
-   as wgpu's maintainers decided it:
-   they treated an abort in an instrumentation-only path as a bug and merged a
-   fix.
-   The destruction order is the embedder's to some degree (issue 8259's answer),
-   but debug instrumentation that turns a legal drop into an abort is wgpu-core's to harden.
-2. **Can upstream fix it?**
-   Yes,
-   and did:
-   a `try_with` in `enter` and `exit`.
-3. **Are they supporting this use case?**
-   Yes:
-   the merged change names Slint as the motivating embedder.
-4. **Would the repo welcome our contribution?**
-   Not applicable now (nothing to contribute).
-   For the record:
-   `CONTRIBUTING.md` section "LLMs (AI)" says "Using LLMs and AIs to generate code that is part of a
-   contribution is allowed" and asks that "Issue and PR descriptions and large explanatory comment blocks" be written
-   by the author;
-   `.github/ISSUE_TEMPLATE/` has bug,
-   feature and other templates;
-   no ban was found.
-   Any filing here would need a human-written description.
-5. **Will they likely fix it?**
-   Already fixed on trunk;
-   the release carrying it is not out.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes,
-   by applying upstream's own `snatch.rs` hunk to a fresh clone and running the program against it.
+1.  **Is it really upstream's fault?**
+    Yes,
+    as wgpu's maintainers decided it:
+    they treated an abort in an instrumentation-only path as a bug and merged a
+    fix.
+    The destruction order is the embedder's to some degree (issue 8259's answer),
+    but debug instrumentation that turns a legal drop into an abort is wgpu-core's to harden.
+2.  **Can upstream fix it?**
+    Yes,
+    and did:
+    a `try_with` in `enter` and `exit`.
+3.  **Are they supporting this use case?**
+    Yes:
+    the merged change names Slint as the motivating embedder.
+4.  **Would the repo welcome our contribution?**
+    Not applicable now (nothing to contribute).
+    For the record:
+    `CONTRIBUTING.md` section "LLMs (AI)" says "Using LLMs and AIs to generate code that is part of a
+    contribution is allowed" and asks that "Issue and PR descriptions and large explanatory comment blocks" be written
+    by the author;
+    `.github/ISSUE_TEMPLATE/` has bug,
+    feature and other templates;
+    no ban was found.
+    Any filing here would need a human-written description.
+5.  **Will they likely fix it?**
+    Already fixed on trunk;
+    the release carrying it is not out.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes,
+    by applying upstream's own `snatch.rs` hunk to a fresh clone and running the program against it.
 
 ### Prototype
 

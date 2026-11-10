@@ -28,7 +28,7 @@ same `+crt-static`) passed the same check.
 
 ## Root cause
 
-**Not established.**
+Not established.
 What the runs show is a correlation with the linker,
 and nothing more.
 
