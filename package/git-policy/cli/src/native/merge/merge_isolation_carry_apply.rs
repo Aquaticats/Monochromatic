@@ -35,6 +35,9 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_carry_plans::{Note, plan_index_awaiting, plan_worktree_awaiting};
 /// What one carried path adds to the report.
 use crate::merge_isolation_carry_notice::Report;
+/// The kept path's line,
+/// and what stands at it.
+use crate::merge_isolation_carry_kept_path::kept_path;
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};
 /// The Git reads of one path,
@@ -365,11 +368,18 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
             report.changed.push(entry.path.clone());
             continue;
         }
+        // What the index holds once this step's records are written, which the line about a path the merge deletes names:
+        //  `git rm` needs an entry and `rm` must not be given one.
+        let in_the_index: bool = match (&index, index_is_ours) {
+            (IndexWrite::Entry(_, _), true) => true,
+            (IndexWrite::Remove, true) => false,
+            _ => current.is_some(),
+        };
         if worktree_is_ours {
             match note {
                 Note::Merged => report.merged.push(entry.path.clone()),
                 Note::Conflict => report.conflicts.push(entry.path.clone()),
-                Note::Kept(why) => report.kept.push((entry.path.clone(), why)),
+                Note::Kept(why) => report.kept.push(kept_path(entry, change, why, in_the_index)),
                 Note::None => {}
             }
         } else {
