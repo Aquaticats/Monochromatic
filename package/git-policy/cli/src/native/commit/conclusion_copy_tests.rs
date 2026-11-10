@@ -221,6 +221,64 @@ fn a_worktree_with_nothing_to_conclude_gets_no_copies_directory() {
 }
 
 /// What:
+///  A merge in progress copies its entries into the shadow and into the transaction,
+///  and flushes neither copy.
+/// Why:
+///  A merge leaves `MERGE_HEAD`, `MERGE_MSG` and `MERGE_MODE` behind,
+///  so a copy that flushed every publish would wait for the disk six times per merge commit
+///  where a plain commit of the same paths waits none,
+///  and the records put that wait at up to 47.9 s for one merge commit
+///  (`doc/planning/cli-git-merge-commit-landing-in-a-busy-checkout.md`).
+///  Every copy here is read inside this commit's own transaction,
+///  which a power loss ends without a verdict (`doc/planning/cli-git-spawn-and-sync-reduction.md`, the tearing
+///  table),
+///  so nothing is left that a flush would have made findable.
+#[test]
+fn a_merge_in_progress_copies_its_entries_and_flushes_neither_copy() {
+    let root: PathBuf = fixture("conclusion-copy-merge-no-flush");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(git_dir.join("MERGE_HEAD"), format!("{head}\n")).expect("merge head");
+    std::fs::write(git_dir.join("MERGE_MSG"), "Merge branch 'feature'\n").expect("merge message");
+    std::fs::write(git_dir.join("MERGE_MODE"), "").expect("merge mode");
+    let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    // The positive control: the recorder sees the flush of a file this process publishes durably, so a copy that
+    // records none is a copy that made none.
+    let control: PathBuf = root.join("control");
+    let _earlier = crate::private_storage::take_file_syncs();
+    crate::private_storage::write_private_file(control.as_path(), b"control\n").expect("control");
+    let control_syncs: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert_eq!(control_syncs, vec![control], "the durable writer flushes what it publishes");
+    copy_conclusion_state(
+        &git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        shadow.as_path(),
+        transaction.as_path(),
+        RefFormat::Files,
+    )
+    .expect("copy");
+    let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert!(synced.is_empty(), "a merge's copies are published without a flush: {synced:?}");
+    for name in ["MERGE_HEAD", "MERGE_MSG", "MERGE_MODE"] {
+        assert_eq!(
+            std::fs::read_to_string(shadow.join(name)).expect("shadow copy"),
+            std::fs::read_to_string(git_dir.join(name)).expect("the worktree's entry"),
+            "the shadow holds {name} as the worktree does"
+        );
+        assert_eq!(
+            std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join(name)).expect("comparison copy"),
+            std::fs::read_to_string(git_dir.join(name)).expect("the worktree's entry"),
+            "the transaction holds {name} as the worktree does"
+        );
+    }
+    remove(root.as_path());
+}
+
+/// What:
 ///  A worktree whose only conclusion state is the sequencer's gets the copies directory,
 ///  and the directory a commit that does conclude gets holds its entries.
 /// Why:
