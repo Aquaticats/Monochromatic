@@ -1,4 +1,5 @@
 {
+  "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/search-fetch-mcp",
   "description": "MCP server exposing the shared search and fetch tools with truncated responses as resources.",
   "type": "module",
