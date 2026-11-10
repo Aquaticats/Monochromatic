@@ -59,6 +59,26 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A server refusal that cleared by itself (2026-11-09T23:32:48-05:00)
+
+The push of `29bae9bb87` to `main` was refused at 23:30:11 with `GH006: Protected branch update failed` and an empty reason,
+in the same minute that GitHub answered another push with `Internal Server Error` and a third with `GH009`.
+The commit is signed and `main` requires signatures.
+A plain `git push origin main` of the same commit,
+with nothing changed,
+then succeeded.
+GitHub's status API listed Git Operations as operational,
+so the cause on GitHub's side is not known.
+
+The wrapper's text in `plain_words` (`push/push_retry.rs:221`) says "Trying again would be refused the same way",
+which that push disproved.
+The behaviour stays,
+because it is the owner's decision ("auth and server hook declines stop until your next commit."),
+and `SPEC.md:3338-3349` also allows it.
+Only the sentence is wrong.
+Correcting it touches a path the release depends on,
+so it lands after the `0.6.1-alpha.6` bump commit is on main.
+
 ### Next alpha, gate on `cfce0bc84e` (2026-11-09T22:18:01-05:00)
 
 `0.6.1-alpha.6` is not published,
@@ -6842,7 +6862,8 @@ so a command killed in that handover left a whole tracked checkout with no ignor
 (`kill-copy-mkdir-3: the worktree has no ignored rules file, no stage is left, and no recovery pass named it: ""`).
 The rung now hands its claim to the copy and no rung writes the completion marker,
 so the record of an add that owes a copy lives from before real Git until the copy's journal.
-Measured after: the seven copy kill sweeps (`mkdir`,
+Measured after:
+the seven copy kill sweeps (`mkdir`,
 `rename`,
 `renameat2`,
 `write`,
@@ -6852,7 +6873,11 @@ Measured after: the seven copy kill sweeps (`mkdir`,
 about `250` kills with no failure,
 where `5` of `8` runs of the selection that contains them failed one or two sweeps each;
 the selection passed `6` of `8` runs afterwards,
-`63` of `63` each (`19`, `22`, `25`, `35.9`, `102` and `122` seconds);
+`63` of `63` each (`19`,
+`22`,
+`25`,
+`35.9`,
+`102` and `122` seconds);
 one of the two others ran under load average `132` to `160` and failed `12` of `63` with no copy sweep among them,
 and the other ran at load `98` to `118` and failed `7` fault sweeps on the harness's own bound,
 `the wrapper was still running after 120 seconds and its group was ended`,
