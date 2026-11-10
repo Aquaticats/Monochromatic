@@ -6,7 +6,7 @@ import {
 
 import type { Comment, } from '@oxlint/plugins';
 
-import { parseTsdocComment, } from './tsdoc-comments.ts';
+import { parseTsdocComment, } from '../dist/final/node/index.mjs';
 
 /** Builds host-shaped block comment for cache tests. */
 function commentWithValue(value: string,): Comment {
