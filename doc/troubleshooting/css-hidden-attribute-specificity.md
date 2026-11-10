@@ -188,27 +188,27 @@ The behaviour is a documented feature of the CSS cascade,
 browser defect.
  Walking the 5 constraints:
 
-1. **Is it really upstream's fault?
-   ** No. CSS Cascade Level 5
-   specifies source-order tie-breaking;
-    every engine implements it
-   identically.
-2. **Can upstream fix it?
-   ** No. The specifier behaviour is part of the
-   spec;
-    changing it would break every existing site.
-3. **Are they supporting this use case?
-   ** Yes.
-    `[hidden]` is a
-   standard attribute and the UA rule is correctly applied;
-    user
-   stylesheets override it by spec.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
-    The fix is at our
-   boundary (source order in `styles.ts`).
+1.  **Is it really upstream's fault?
+    ** No. CSS Cascade Level 5
+    specifies source-order tie-breaking;
+     every engine implements it
+    identically.
+2.  **Can upstream fix it?
+    ** No. The specifier behaviour is part of the
+    spec;
+     changing it would break every existing site.
+3.  **Are they supporting this use case?
+    ** Yes.
+     `[hidden]` is a
+    standard attribute and the UA rule is correctly applied;
+     user
+    stylesheets override it by spec.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
+     The fix is at our
+    boundary (source order in `styles.ts`).
 
 Decision:
  no upstream report.

@@ -191,27 +191,27 @@ Searches of Pale Moon and UXP issues and pull requests for
 and `Use dark colors` found no matching defect.
 The [existing forum thread][forum-explanation] already documents the intended control and exact GUI path.
 
-1. **Is it really upstream's fault?**
-    No.
-   The source,
-    GUI,
-    and runtime result agree.
-2. **Can upstream fix it?**
-    Not applicable because there is no defect.
-3. **Are they supporting this use case?**
-    Yes.
-   The Colors dialog exposes the required choice.
-4. **Would the repo welcome our contribution?**
-    Yes in general.
-   `docs/CONTRIBUTING.md` in UXP requests focused issues and associated pull requests,
-   and no AI-assistance prohibition was found.
-5. **Will they likely fix it?**
-    No fix is needed.
-   Changing the default would reverse an explicit privacy and user-choice decision.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    No.
-   Constraints 1 and 5 fail,
-   so the prototype requirement does not apply.
+1.  **Is it really upstream's fault?**
+     No.
+    The source,
+     GUI,
+     and runtime result agree.
+2.  **Can upstream fix it?**
+     Not applicable because there is no defect.
+3.  **Are they supporting this use case?**
+     Yes.
+    The Colors dialog exposes the required choice.
+4.  **Would the repo welcome our contribution?**
+     Yes in general.
+    `docs/CONTRIBUTING.md` in UXP requests focused issues and associated pull requests,
+    and no AI-assistance prohibition was found.
+5.  **Will they likely fix it?**
+     No fix is needed.
+    Changing the default would reverse an explicit privacy and user-choice decision.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     No.
+    Constraints 1 and 5 fail,
+    so the prototype requirement does not apply.
 
 Nothing should be filed upstream.
 There is no missing behavior or additive evidence for the existing forum explanation.

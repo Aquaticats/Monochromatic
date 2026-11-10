@@ -35,7 +35,7 @@ The mutation is explicit and tracked rather than silent.
 
 ### Considered and rejected
 
-**Bazzite**:
+Bazzite:
  gaming-focused desktop (Steam,
  MangoHud,
  gamescope,
@@ -44,7 +44,7 @@ Several GB of irrelevant packages in every image.
 Starting from a desktop image and removing things is harder than starting
 from a server image and adding things.
 
-**Fedora Kinoite**:
+Fedora Kinoite:
  the obvious immutable KDE choice,
  but poor documentation,
 no dedicated GitHub repo,
@@ -55,7 +55,7 @@ fyralabs.
 com/terra) lagged behind a Fedora release,
 blocking work for hours at billable rates.
 
-**openSUSE Kalpa**:
+openSUSE Kalpa:
  immutable KDE on Tumbleweed (rolling),
  which sounds ideal.
 In practice:
@@ -68,7 +68,7 @@ pushing everything to Flatpak,
  which conflicts with installing
 system-level dev tools as packages.
 
-**Alpine Linux**:
+Alpine Linux:
  musl libc as a forcing function for portable choices is appealing.
 Smallest base image,
  fastest package manager,
@@ -79,14 +79,14 @@ Disqualified by the lack of transactional package management:
  or atomic application.
 No mechanism equivalent to `rpm-ostree install` (stage for next boot).
 
-**openSUSE MicroOS (server)**:
+openSUSE MicroOS (server):
  mature,
  immutable,
  transactional-update with btrfs snapshots.
 Viable as a base but would need the same KDE layering as ucore-hci,
 without ucore's pre-built HCI stack.
 
-**NixOS**:
+NixOS:
  the most declaratively pure option.
 Entire OS defined in a single Nix expression.
 Rejected due to concerns about security posture
@@ -108,25 +108,25 @@ libvirt,
 
 Advantages over the alternatives:
 
-- **Well-documented**:
+- Well-documented:
    dedicated [GitHub repo][ucore-repo] with issues,
    releases,
    examples
-- **HCI stack pre-integrated**:
+- HCI stack pre-integrated:
    libvirt/KVM for nested virtualization,
   podman for containers,
    ZFS for storage,
    cockpit for web management
-- **Fedora CoreOS base**:
+- Fedora CoreOS base:
    immutable,
    rpm-ostree,
    automatic staged updates,
   Ignition/Butane for declarative first-boot provisioning
-- **Minimal**:
+- Minimal:
    server image with no desktop,
    no gaming stack,
    no bloat
-- **Additive**:
+- Additive:
    KDE Plasma is layered on top via the Containerfile,
   adding only the packages we choose
 
@@ -154,7 +154,7 @@ where every installed package was an explicit choice.
 Baking everything into one container image was the initial approach.
 It fails for several reasons:
 
-- **Cargo builds are slow**:
+- Cargo builds are slow:
    `cargo:coreutils` (with unix features),
   `cargo:fd-find`,
    `cargo:fastmod`,
@@ -162,17 +162,17 @@ It fails for several reasons:
   each compiles from source in the Containerfile.
   First build takes 30-60 minutes.
   Any change to the mise config layer invalidates the cache and rebuilds everything.
-- **Image size explodes**:
+- Image size explodes:
    system packages + Rust toolchain + Node + Bun + Deno +
   llama.
   cpp + all cargo-installed tools = 15-20+ GB image before conversion.
-- **Iteration is painful**:
+- Iteration is painful:
    change one dotfile,
    rebuild the container,
   re-run bootc-image-builder (rootful podman,
    slow).
   10+ minute feedback loop for a config tweak.
-- **Wrong abstraction boundary**:
+- Wrong abstraction boundary:
    Containerfiles are good for OS composition
   (swap packages,
    enable services).
@@ -184,30 +184,29 @@ It fails for several reasons:
 
 The two-layer split:
 
-<table>
-<thead>
-<tr>
-<th>Layer</th>
-<th>What</th>
-<th>Changes</th>
-<th>Rebuild cost</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Container image</td>
-<td>OS, KDE, system packages, mise binary, user account</td>
-<td>Rarely</td>
-<td>~10 min build + convert</td>
-</tr>
-<tr>
-<td>First-login provisioner</td>
-<td>mise toolchains, dotfiles, ghostty, librewolf</td>
-<td>Often</td>
-<td>~5 min run</td>
-</tr>
-</tbody>
-</table>
+- Layer:
+  Container image;
+  What:
+  OS,
+  KDE,
+  system packages,
+  mise binary,
+  user account;
+  Changes:
+  Rarely;
+  Rebuild cost:
+  ~10 min build + convert
+- Layer:
+  First-login provisioner;
+  What:
+  mise toolchains,
+  dotfiles,
+  ghostty,
+  librewolf;
+  Changes:
+  Often;
+  Rebuild cost:
+  ~5 min run
 
 User-level changes never trigger an image rebuild.
 Image changes never require re-provisioning user tools.
@@ -218,36 +217,28 @@ The monorepo already has [file-enforcer](../../package/file-enforcer):
 a declarative tool for syncing derived files.
 Its primitives map directly to provisioner needs:
 
-<table>
-<thead>
-<tr>
-<th>file-enforcer primitive</th>
-<th>Provisioner use</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>`exec()`</td>
-<td>Clone repos, run `mise install`, install flatpaks</td>
-</tr>
-<tr>
-<td>`overwrite()` / `overwriteEach()`</td>
-<td>Place dotfiles into `~/.config/`</td>
-</tr>
-<tr>
-<td>`cat()`</td>
-<td>Read dotfile sources</td>
-</tr>
-<tr>
-<td>Content-based write skipping</td>
-<td>Idempotent re-runs for free</td>
-</tr>
-<tr>
-<td>Platform-aware `exec()` dispatch</td>
-<td>Cross-platform if needed later</td>
-</tr>
-</tbody>
-</table>
+- file-enforcer primitive:
+  `exec()`;
+  Provisioner use:
+  Clone repos,
+  run `mise install`,
+  install flatpaks
+- file-enforcer primitive:
+  `overwrite()` / `overwriteEach()`;
+  Provisioner use:
+  Place dotfiles into `~/.config/`
+- file-enforcer primitive:
+  `cat()`;
+  Provisioner use:
+  Read dotfile sources
+- file-enforcer primitive:
+  Content-based write skipping;
+  Provisioner use:
+  Idempotent re-runs for free
+- file-enforcer primitive:
+  Platform-aware `exec()` dispatch;
+  Provisioner use:
+  Cross-platform if needed later
 
 Writing the provisioner as a file-enforcer config
 reuses existing infrastructure instead of inventing a new tool.
@@ -294,20 +285,20 @@ The original plan was to install ghostty as an AppImage in the first-login provi
 The scottames/ghostty COPR provides an official RPM for Fedora,
  which is a better fit:
 
-- **Immutable OS alignment**:
+- Immutable OS alignment:
    an RPM baked into the container image is managed by rpm-ostree
   and updated atomically;
    an AppImage in `~/Applications/` is invisible to the OS and
   requires a separate update mechanism (`appimaged`,
    AM/AppMan,
    or a manual download script)
-- **No AppImage runtime dependency**:
+- No AppImage runtime dependency:
    AppImages require FUSE or `--appimage-extract-and-run`;
   neither is guaranteed in a fresh ucore-hci image
-- **Simpler provisioner**:
+- Simpler provisioner:
    ghostty moves from Phase 2 (first-login) to Phase 1 (image),
   removing three provisioner tasks and one open question
-- **COPR risk is acceptable**:
+- COPR risk is acceptable:
    scottames/ghostty is a single-package COPR maintained by the
   same person consistently;
    unlike Terra (which repackages upstream software),
@@ -409,14 +400,14 @@ Copying an SSH key from a USB stick takes another 30 seconds.
 
 Every alternative adds complexity without proportional benefit:
 
-- **Encrypted vaults (age/sops)**:
+- Encrypted vaults (age/sops):
    tooling complexity,
   a master password to remember,
    vault file to keep synced
-- **Virtiofs injection from host**:
+- Virtiofs injection from host:
    couples the provisioner to a specific hypervisor,
   kills portability
-- **Automated auth flows**:
+- Automated auth flows:
    fragile,
    break when APIs change,
   still need initial credentials bootstrapped somehow
@@ -431,18 +422,18 @@ GitHub Actions for building the container image was considered
 (the [image-template][image-template] repo includes workflows for this).
 Rejected because:
 
-- **Slow**:
+- Slow:
    building a desktop image with KDE + dev tools on CI runners
   is slow and resource-constrained
-- **Storage risk**:
+- Storage risk:
    large container images and disk artifacts
   stored on GitHub consume quota and risk account restrictions
-- **Testing impossible**:
+- Testing impossible:
    verifying KDE starts,
    SDDM works,
   podman runs inside the image requires a hypervisor,
    not a CI runner
-- **Unnecessary**:
+- Unnecessary:
    this is a private dev environment for one person,
   not a distribution.
    Local builds with `podman build` + `bootc-image-builder` suffice.

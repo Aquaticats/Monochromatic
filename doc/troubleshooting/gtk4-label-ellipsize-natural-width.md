@@ -257,31 +257,31 @@ Fails:
 `.out-of-scope/` was checked:
  no GTK exemption exists.
 
-1. Really upstream's fault?
-    No. The behavior is documented at
-   <https://docs.gtk.org/gtk4/property.Label.max-width-chars.html> and in the width-chars docs
-   ("the label claims the width of the entire content as its natural width");
-    the failure was
-   ours (not knowing the documented interaction),
-    plus GTK's general silence about
-   over-allocation.
-2. Can upstream fix it?
-    Changing the default would break every layout relying on
-   documented natural-width behavior;
-    a diagnostic for "allocation exceeded width-request"
-   would be a feature request,
-    not a fix.
-3. Supported use case?
-    Yes,
-    and documented with the exact remedy we needed.
-4. Would the repo welcome the contribution?
-    Not evaluated further;
-    constraint 1 already fails.
-5. Will they likely fix it?
-    Nothing to fix.
-6. Prototyped minimal fix?
-    Not applicable;
-    the "fix" is using the documented property.
+1.  Really upstream's fault?
+     No. The behavior is documented at
+    <https://docs.gtk.org/gtk4/property.Label.max-width-chars.html> and in the width-chars docs
+    ("the label claims the width of the entire content as its natural width");
+     the failure was
+    ours (not knowing the documented interaction),
+     plus GTK's general silence about
+    over-allocation.
+2.  Can upstream fix it?
+     Changing the default would break every layout relying on
+    documented natural-width behavior;
+     a diagnostic for "allocation exceeded width-request"
+    would be a feature request,
+     not a fix.
+3.  Supported use case?
+     Yes,
+     and documented with the exact remedy we needed.
+4.  Would the repo welcome the contribution?
+     Not evaluated further;
+     constraint 1 already fails.
+5.  Will they likely fix it?
+     Nothing to fix.
+6.  Prototyped minimal fix?
+     Not applicable;
+     the "fix" is using the documented property.
 
 Decision:
  nothing to file.

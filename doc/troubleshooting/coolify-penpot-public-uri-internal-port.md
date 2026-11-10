@@ -344,26 +344,26 @@ No duplicate issue should be filed.
 
 The filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   Yes.
-   Coolify v4 deliberately adds one service-wide environment file to every Compose component.
-2. **Can upstream fix it?**
-   Yes in a new architecture.
-   The maintainer plans per-container files in Coolify v5.
-3. **Are they supporting this use case?**
-   Yes.
-   Coolify ships a Penpot service template and supports multi-component Compose services.
-4. **Would the repo welcome our contribution?**
-   Not for a v4 implementation from this investigation.
-   The maintainer explicitly rejected a proper v4 fix as incompatible with the maintenance and migration plan,
-   and characterized issue-thread AI patch attempts as unwanted.
-5. **Will they likely fix it?**
-   Not in v4.
-   The maintainer explicitly deferred the architectural correction to v5.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No upstream patch was created because constraints 4 and 5 fail for v4,
-   while the v5 architecture referenced by the maintainer is not the current source under investigation.
-   The consumer-side Penpot override was implemented and verified instead.
+1.  **Is it really upstream's fault?**
+    Yes.
+    Coolify v4 deliberately adds one service-wide environment file to every Compose component.
+2.  **Can upstream fix it?**
+    Yes in a new architecture.
+    The maintainer plans per-container files in Coolify v5.
+3.  **Are they supporting this use case?**
+    Yes.
+    Coolify ships a Penpot service template and supports multi-component Compose services.
+4.  **Would the repo welcome our contribution?**
+    Not for a v4 implementation from this investigation.
+    The maintainer explicitly rejected a proper v4 fix as incompatible with the maintenance and migration plan,
+    and characterized issue-thread AI patch attempts as unwanted.
+5.  **Will they likely fix it?**
+    Not in v4.
+    The maintainer explicitly deferred the architectural correction to v5.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No upstream patch was created because constraints 4 and 5 fail for v4,
+    while the v5 architecture referenced by the maintainer is not the current source under investigation.
+    The consumer-side Penpot override was implemented and verified instead.
 
 The existing issue already establishes the mechanism and intended upstream direction.
 The additional Penpot example does not justify posting after the maintainer's explicit guidance,

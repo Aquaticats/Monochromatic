@@ -36,14 +36,14 @@ The rules below are read from `setup.c` in `git/git` at tag `v2.56.0`
 From the working directory upward,
 per directory:
 
-1. A `.git` **file**:
-   read it and stop if it names a valid Git directory.
-2. A `.git` **directory**:
-   use it when it is a Git directory,
-   else keep
-   walking upward.
-3. A directory that is itself a bare Git directory:
-   Git stops there too.
+1.  A `.git` **file**:
+    read it and stop if it names a valid Git directory.
+2.  A `.git` **directory**:
+    use it when it is a Git directory,
+    else keep
+    walking upward.
+3.  A directory that is itself a bare Git directory:
+    Git stops there too.
 
 ### Reading a `.git` file
 
@@ -69,7 +69,7 @@ Measured consequences:
   and with
   three newlines all resolve,
   while trailing spaces and tabs stay in the path and make it invalid.
-- A newline *inside* the path survives,
+- A newline **inside** the path survives,
   because only trailing line breaks are terminators.
 - `gitdir:` without the following space is `invalid gitfile format`.
 - Exactly `1 MiB` is attempted;
@@ -175,5 +175,5 @@ and `core.worktree` name a different working tree
 Honouring those needs Git's configuration and ownership machinery,
  which the scanner does not link,
  so the scanned directory stays the working tree root.
-`GIT_INDEX_FILE` *is* honoured,
+`GIT_INDEX_FILE` **is** honoured,
  because it names the very file the reader opens.

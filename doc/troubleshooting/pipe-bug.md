@@ -34,35 +34,35 @@ on the eval command.
 
 ### What happens step by step
 
-1. The outer eval receives arguments:
-    `source $SNAPSHOT && ... && eval "$USER_CMD"`,
-    `<`,
-    `/dev/null`,
-    `&&`,
-    `pwd -P`,
-    `>|`,
-    `/tmp/cwd-XXX`
-2. The `<` and `/dev/null` are literal string arguments,
-    not a redirect on the outer eval
-3. The inner `eval` builtin receives three arguments:
-    `$USER_CMD`,
-    `<`,
-    `/dev/null`
-4. `eval` joins its arguments with spaces:
-    `$USER_CMD < /dev/null`
-5. When `$USER_CMD` is `echo hello | cat`,
-    this becomes:
-    `echo hello | cat < /dev/null`
-6. `< /dev/null` is parsed as a redirect on `cat` (the last simple command in the pipeline)
+1.  The outer eval receives arguments:
+     `source $SNAPSHOT && ... && eval "$USER_CMD"`,
+     `<`,
+     `/dev/null`,
+     `&&`,
+     `pwd -P`,
+     `>|`,
+     `/tmp/cwd-XXX`
+2.  The `<` and `/dev/null` are literal string arguments,
+     not a redirect on the outer eval
+3.  The inner `eval` builtin receives three arguments:
+     `$USER_CMD`,
+     `<`,
+     `/dev/null`
+4.  `eval` joins its arguments with spaces:
+     `$USER_CMD < /dev/null`
+5.  When `$USER_CMD` is `echo hello | cat`,
+     this becomes:
+     `echo hello | cat < /dev/null`
+6.  `< /dev/null` is parsed as a redirect on `cat` (the last simple command in the pipeline)
 
 In `execute_disk_command()` (execute_cmd.
 c:
 5770),
  the child process for `cat`:
 
-1. `do_piping()` at line 5870 correctly sets fd 0 to the pipe read end via `dup2(pipe_in, 0)`
-2. `do_redirections()` at line 5884 applies the `< /dev/null` redirect,
-    overwriting fd 0 with `/dev/null`
+1.  `do_piping()` at line 5870 correctly sets fd 0 to the pipe read end via `dup2(pipe_in, 0)`
+2.  `do_redirections()` at line 5884 applies the `< /dev/null` redirect,
+     overwriting fd 0 with `/dev/null`
 
 The pipe data from `echo hello` arrives at the pipe write end,
  but `cat` reads from `/dev/null` and gets EOF immediately.
@@ -238,19 +238,19 @@ a redirect on `cat` (the rightmost simple command in the pipeline).
 
 Two bugs to fix:
 
-1. **`oAD` shell-quotes `<` as a literal argument** instead of emitting it as
-   a redirect operator.
-    The heredoc/multiline branch already does this correctly
-   (`${L} < /dev/null` with unquoted `<`).
-    The normal branch should do the same:
-   `return ID([H]) + " < /dev/null"` (like `odH` does).
+1.  **`oAD` shell-quotes `<` as a literal argument** instead of emitting it as
+    a redirect operator.
+     The heredoc/multiline branch already does this correctly
+    (`${L} < /dev/null` with unquoted `<`).
+     The normal branch should do the same:
+    `return ID([H]) + " < /dev/null"` (like `odH` does).
 
-2. **`HLD` is gated on `!q.useSandbox`**,
-    so the pipe-aware redirect insertion
-   never runs inside the sandbox.
-    Remove the `!q.useSandbox` condition,
-    or fix
-   `oAD` so that the redirect doesn't interfere with pipes regardless.
+2.  **`HLD` is gated on `!q.useSandbox`**,
+     so the pipe-aware redirect insertion
+    never runs inside the sandbox.
+     Remove the `!q.useSandbox` condition,
+     or fix
+    `oAD` so that the redirect doesn't interfere with pipes regardless.
 
 The purpose of `< /dev/null` is to prevent user commands from reading Claude Code's
 IPC socket (which is the shell's stdin).
@@ -263,9 +263,9 @@ The same `\<` bug causes a different symptom when the user command contains `&&`
 but **no pipes**.
  Tools like `rg` and `fd` auto-detect whether stdin is a TTY:
 
-- **TTY stdin**:
+- TTY stdin:
    search current directory (normal interactive behavior)
-- **Non-TTY stdin**:
+- Non-TTY stdin:
    read input from stdin (filter mode)
 
 Claude Code's stdin is a non-TTY socket that never sends EOF.
@@ -317,14 +317,14 @@ rg -l 'pattern' --type ts . && echo done
 
 These were investigated but turned out to be irrelevant:
 
-- **`async_redirect_stdin()`**:
+- `async_redirect_stdin()`:
    Opens `/dev/null` and dup2's to fd 0 for async commands.
   The strace pattern matched,
    but the actual cause was `do_redirections()` applying the
   command-level `< /dev/null` redirect,
    not async stdin handling.
 
-- **Redirect propagation from eval builtin**:
+- Redirect propagation from eval builtin:
    Hypothesized that eval's redirects leak
   into pipeline children.
    In reality,
@@ -332,7 +332,7 @@ These were investigated but turned out to be irrelevant:
   (from eval joining its arguments),
    not propagated from eval's redirect list.
 
-- **ONESHOT fork optimization**:
+- ONESHOT fork optimization:
    `should_suppress_fork()` / `can_optimize_connection()`
   in evalstring.
   c.
@@ -342,26 +342,26 @@ These were investigated but turned out to be irrelevant:
   only handles `&&`/`||`/`;`,
    not `|`.
 
-- **`set -m` (job control)**:
+- `set -m` (job control):
    Investigated extensively.
    Not the cause.
 
-- **`set -t` (onecmd)**:
+- `set -t` (onecmd):
    Investigated extensively.
    Not the cause.
 
-- **`setsid` / `--new-session`**:
+- `setsid` / `--new-session`:
    Red herring.
    `setsid` without `-w` breaks all output.
 
-- **Socket as stdin**:
+- Socket as stdin:
    Thought this was the missing reproduction ingredient.
   Actually,
    the missing ingredient was the `\<` escaping,
    which reproduction
   attempts outside the sandbox did not use.
 
-- **bwrap flags**:
+- bwrap flags:
    `--unshare-pid`,
    `--unshare-net`,
    `--new-session` are all irrelevant.

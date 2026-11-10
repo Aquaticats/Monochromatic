@@ -127,7 +127,7 @@ worth keeping,
 
 Caveat discovered while cleaning up:
  the local merged branches delete fine,
- but every *remote* delete is
+ but every **remote** delete is
 rejected with `GH006 Cannot delete this branch`.
  The cause is a classic branch-protection rule on the
 wildcard pattern `*` with `allowsDeletions: false` (a second rule pins `main` the same way).
@@ -318,14 +318,14 @@ pure overhead.
 
 ## Do these four things
 
-1. Push `main` at end of session.
-    Stop carrying 71-deep unpushed backlogs.
-2. Prune the branch graveyard;
-    delete or tag-then-delete everything 500-plus behind,
-    and kill
-   `refactor(vitest)`.
-3. Pass real newlines to commit bodies;
-    find and fix the agent recipe that emitted literal `\n`.
-4. Keep treating caches and generated blobs as un-committable (already true);
-    only reach for
-   `filter-repo` if 82 MB starts to hurt.
+1.  Push `main` at end of session.
+     Stop carrying 71-deep unpushed backlogs.
+2.  Prune the branch graveyard;
+     delete or tag-then-delete everything 500-plus behind,
+     and kill
+    `refactor(vitest)`.
+3.  Pass real newlines to commit bodies;
+     find and fix the agent recipe that emitted literal `\n`.
+4.  Keep treating caches and generated blobs as un-committable (already true);
+     only reach for
+    `filter-repo` if 82 MB starts to hurt.

@@ -14,18 +14,18 @@ validation) completes in milliseconds when isolated.
 
 Three compounding factors:
 
-1. WSL filesystem overhead when executing binaries from
-   `/mnt/c/`.
-    Each invocation crosses the WSL-Windows interop
-   layer,
-    adding hundreds of milliseconds per call.
-2. `pnpm exec` commands take ~27 seconds each in WSL because
-   pnpm scans the entire workspace to construct the runner
-   environment before the underlying command starts.
-3. Unnecessary command executions when simple file checks
-   would suffice (e.g. "is X installed?
-   " runs the binary
-   instead of checking for its presence).
+1.  WSL filesystem overhead when executing binaries from
+    `/mnt/c/`.
+     Each invocation crosses the WSL-Windows interop
+    layer,
+     adding hundreds of milliseconds per call.
+2.  `pnpm exec` commands take ~27 seconds each in WSL because
+    pnpm scans the entire workspace to construct the runner
+    environment before the underlying command starts.
+3.  Unnecessary command executions when simple file checks
+    would suffice (e.g. "is X installed?
+    " runs the binary
+    instead of checking for its presence).
 
 In WSL environments,
  the cost of process creation plus
@@ -113,25 +113,25 @@ costs and pnpm's resolution model,
  Walking
 the 5 constraints:
 
-1. **Is it really upstream's fault?
-   ** Not exactly.
-    WSL
-   crossings are inherent to the platform;
-    pnpm's resolution
-   is necessarily slow to be correct.
-2. **Can upstream fix it?
-   ** WSL improvements have shipped
-   over the years but the boundary cost will remain
-   significant.
-    pnpm could expose finer caching but has not.
-3. **Are they supporting this use case?
-   ** Yes (WSL is
-   supported;
-    pnpm runs in WSL).
-4. **Will they likely fix it?
-   ** No targeted fix expected.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** Not exactly.
+     WSL
+    crossings are inherent to the platform;
+     pnpm's resolution
+    is necessarily slow to be correct.
+2.  **Can upstream fix it?
+    ** WSL improvements have shipped
+    over the years but the boundary cost will remain
+    significant.
+     pnpm could expose finer caching but has not.
+3.  **Are they supporting this use case?
+    ** Yes (WSL is
+    supported;
+     pnpm runs in WSL).
+4.  **Will they likely fix it?
+    ** No targeted fix expected.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.

@@ -103,7 +103,9 @@ export type CloseBaseLineOfParams = {
  The search takes the innermost open frame whose close text matches, so a
  closer follows its own bracket even while outer frames stay open.
  
- @param params - pre-line open frames and closer text
+ @param openFrames - bracket frames still open before the checked line
+ 
+ @param closeValue - close bracket text the checked line starts with
  
  @returns base line index, or `-1` when no open frame matches the closer
  
@@ -121,6 +123,9 @@ export function closeBaseLineOf({
     frameIndex >= 0;
     frameIndex -= 1
   ) {
+    /**
+     Frame at the probed index; the walk starts at the innermost open frame.
+     */
     const frame = at({
       arr: openFrames,
       index: frameIndex,
@@ -172,7 +177,23 @@ export type LineIndentAssignment = {
  statement line. Every other token anchors at the nearest earlier-line AST
  ancestor's line plus two columns, or zero columns at source root.
  
- @param params - line-leading token and model tables built so far
+ @param token - line-leading token whose route is being resolved
+ 
+ @param width - leading-whitespace width the line currently carries
+ 
+ @param lineIndex - zero-based index of the checked line
+ 
+ @param lineStarts - ascending offset where each source line begins
+ 
+ @param records - pre-order AST records the anchors are searched in
+ 
+ @param ownerRecordIndexes - owning record index per token, `-1` when none
+ 
+ @param firstTokenIndex - index in `tokens` of the line's leading token
+ 
+ @param resolvedWidths - model widths already settled for earlier lines
+ 
+ @param openFrames - bracket frames still open before this line's tokens
  
  @returns expected width and route for the line
  
@@ -193,6 +214,9 @@ export function assignLineExpectation({
   openFrames,
 }: AssignLineExpectationParams,): LineIndentAssignment {
   if (isCloseBracketToken(token,)) {
+    /**
+     Base line this closer restores, or `-1` when no open frame matches it.
+     */
     const baseLine = closeBaseLineOf({
       openFrames,
       closeValue: token.value,
@@ -211,10 +235,17 @@ export function assignLineExpectation({
       route: 'closer',
     };
   }
+  /**
+   Record owning the line-leading token, `-1` when no record contains it.
+   */
   const ownerRecordIndex = at({
     arr: ownerRecordIndexes,
     index: firstTokenIndex,
   },);
+  /**
+   Node kind of the owning record; empty when the token has no owner, so
+   suffix keywords never match a record-less token.
+   */
   const ownerType = (ownerRecordIndex >= 0)
     ? at({
       arr: records,
@@ -223,12 +254,18 @@ export function assignLineExpectation({
       .node
       .type
     : '';
+  /**
+   Anchor line for the token, or `-1` for content rooted at the source top.
+   */
   const anchorLine = anchorLineIndexOf({
     records,
     recordIndex: ownerRecordIndex,
     lineIndex,
     lineStarts,
   },);
+  /**
+   Model width of the anchor line; source-rooted content anchors at zero.
+   */
   const anchorWidth = (anchorLine === (-1))
     ? 0
     : at({
@@ -263,7 +300,13 @@ export function assignLineExpectation({
  zero columns. Expected widths build on earlier lines' expected widths, so one
  autofix pass moves the whole file to the model's fixed point.
  
- @param params - source text, AST root, tokens, and visitor keys
+ @param sourceText - full file text the line table is built from
+ 
+ @param root - AST root whose records the routes search
+ 
+ @param tokens - every token of the file, in source order
+ 
+ @param visitorKeys - visitor-key map naming each node kind's child properties
  
  @returns one entry per checked line, in line order
  
@@ -283,25 +326,43 @@ export function computeIndentExpectations({
   tokens,
   visitorKeys,
 }: ComputeIndentExpectationsParams,): readonly LineIndentExpectation[] {
+  /**
+   Pre-order AST records; every route walks this table instead of the tree.
+   */
   const records = collectIndentNodeRecords({
     root,
     visitorKeys,
   },);
+  /**
+   Source spans of template literals, whose interior lines stay exempt.
+   */
   const templateSpans = collectTemplateSpans(records,);
+  /**
+   Owning record index per token, with declaration body wrappers collapsed.
+   */
   const ownerRecordIndexes = tokenOwnerRecordIndexes({
     records,
     tokens,
   },);
+  /**
+   Per-line leading-whitespace facts, aligned by line index.
+   */
   const {
     lineStarts,
     widths,
     contentStarts,
     blank,
   } = lineTableOf(sourceText,);
+  /**
+   Per-line flags marking lines whose content starts inside a template.
+   */
   const templateLines = inTemplateFlagsOf({
     templateSpans,
     contentStarts,
   },);
+  /**
+   Expectation per checked line, appended in line order.
+   */
   const expectations: LineIndentExpectation[] = [];
   /**
    Model width resolved per earlier line; checked lines contribute their
@@ -313,16 +374,27 @@ export function computeIndentExpectations({
    the bracket-effect pass below extends them.
    */
   const openFrames: BracketFrame[] = [];
+  /**
+   First token index not yet assigned to a line; the loop advances it past
+   every token starting on the line it just placed.
+   */
   let lineTokenStart = 0;
   for (
     let lineIndex = 0;
     lineIndex < lineStarts.length;
     lineIndex += 1
   ) {
+    /**
+     Offset where this line begins.
+     */
     const lineStart = at({
       arr: lineStarts,
       index: lineIndex,
     },);
+    /**
+     Offset where this line ends: the next line's start, or the file length
+     for the last line.
+     */
     const lineEnd = ((lineIndex + 1) < lineStarts.length)
       ? at({
         arr: lineStarts,
@@ -344,10 +416,16 @@ export function computeIndentExpectations({
     ) {
       lineTokenEnd += 1;
     }
+    /**
+     Leading-whitespace width found on this line.
+     */
     const width = at({
       arr: widths,
       index: lineIndex,
     },);
+    /**
+     Offset where this line's content begins, past its leading whitespace.
+     */
     const contentStart = at({
       arr: contentStarts,
       index: lineIndex,
@@ -376,6 +454,9 @@ export function computeIndentExpectations({
     ) {
       resolvedWidths.push(width,);
     } else {
+      /**
+       Line-leading token this line's expectation is resolved for.
+       */
       const token = at({
         arr: tokens,
         index: lineTokenStart,
@@ -409,6 +490,9 @@ export function computeIndentExpectations({
       tokenIndex < lineTokenEnd;
       tokenIndex += 1
     ) {
+      /**
+       Token whose bracket effect extends or unwinds the open-frame stack.
+       */
       const token = at({
         arr: tokens,
         index: tokenIndex,

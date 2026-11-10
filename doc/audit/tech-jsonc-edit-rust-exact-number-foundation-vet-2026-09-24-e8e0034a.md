@@ -12,7 +12,7 @@
    discovery saturated for the frozen schedule,
    the single survivor validated and scored with sensitivity,
    and a recommendation recorded.
-   **Not adopted**:
+   Not adopted:
    adoption is a separate user decision,
    and no dependency,
    product code,

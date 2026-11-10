@@ -265,24 +265,24 @@ and nothing reminds the user.
 
 `.out-of-scope/` has no Git entry.
 
-1. Is it really upstream's fault?
-   No.
-   Plumbing commands do not run automatic maintenance by design;
-   porcelain callers opt in through `run_auto_maintenance`,
-   and a tool that replaces porcelain with plumbing must do the same.
-2. Can upstream fix it?
-   Not applicable after constraint 1.
-3. Are they supporting this use case?
-   Yes,
-    through `git maintenance run --auto`,
-    which the fix uses.
-4. Would the repo welcome our contribution?
-   Not evaluated,
-    since there is nothing to contribute.
-5. Will they likely fix it?
-   Not applicable.
-6. Prototype?
-   Not applicable.
+1.  Is it really upstream's fault?
+    No.
+    Plumbing commands do not run automatic maintenance by design;
+    porcelain callers opt in through `run_auto_maintenance`,
+    and a tool that replaces porcelain with plumbing must do the same.
+2.  Can upstream fix it?
+    Not applicable after constraint 1.
+3.  Are they supporting this use case?
+    Yes,
+     through `git maintenance run --auto`,
+     which the fix uses.
+4.  Would the repo welcome our contribution?
+    Not evaluated,
+     since there is nothing to contribute.
+5.  Will they likely fix it?
+    Not applicable.
+6.  Prototype?
+    Not applicable.
 
 Decision:
  nothing to file.

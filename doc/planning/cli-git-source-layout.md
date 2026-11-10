@@ -199,26 +199,26 @@ test files (`*_tests.rs`) are left out because nothing in production uses them.
 
 ## Method
 
-1. Put each module in a target group by what it does.
-2. Give the groups an intended order from the bottom (basic tools first,
-   the command-line entry last).
-3. For every reference from a lower group to a higher one,
-   decide:
-   MOVE when the used module depends only on things below its users (it is simply in the wrong folder),
-   KNOT when it also depends on something at or above its users (code must change:
-   move a type or constant down,
-   pass a value in,
-   or split a module).
-4. Repeat until no reference points up and no two groups loop;
-   then the same inside each group,
-   file by file.
-5. Name every folder and file for someone who knows only `git commit` and `git push`,
-   write each folder's top doc,
-   and list in each folder's `uses/` the folders its code uses.
-6. Show the owner the whole tree (old name,
-   new name,
-   one-line explanation,
-   what it uses) before any file moves.
+1.  Put each module in a target group by what it does.
+2.  Give the groups an intended order from the bottom (basic tools first,
+    the command-line entry last).
+3.  For every reference from a lower group to a higher one,
+    decide:
+    MOVE when the used module depends only on things below its users (it is simply in the wrong folder),
+    KNOT when it also depends on something at or above its users (code must change:
+    move a type or constant down,
+    pass a value in,
+    or split a module).
+4.  Repeat until no reference points up and no two groups loop;
+    then the same inside each group,
+    file by file.
+5.  Name every folder and file for someone who knows only `git commit` and `git push`,
+    write each folder's top doc,
+    and list in each folder's `uses/` the folders its code uses.
+6.  Show the owner the whole tree (old name,
+    new name,
+    one-line explanation,
+    what it uses) before any file moves.
 
 ## Group order found, from the bottom (working names, not the final names)
 
@@ -246,71 +246,71 @@ Under this map the groups use each other in one direction only:
 no reference points from a lower group to a higher one.
 From the bottom:
 
-1. `basic_tools`:
-   files,
-   processes,
-   time,
-   logging,
-   parallel work,
-   watching a child for progress
-   (today `foundation/`,
-   `process/`,
-   plus `child_watch`,
-   `wait_progress`,
-   `push_progress`,
-   `add_timing`,
-   `subvolume_sha`,
-   `lfs_output_mask`,
-   `shell_quote`,
-   `client_journal`,
-   `service_fault`,
-   `service_durable`).
-2. `git_files`:
-   reading Git's own files without starting Git.
-3. `typed_command`:
-   reading the command the person typed,
-   including the list of policy names (`policy_registry`).
-4. `start_git`:
-   finding and starting the real Git,
-   the readers that may start it,
-   `forwarded_command`,
-   `worktree_identity`,
-   `landing_location`.
-5. `locks`:
-   Git's lock files,
-   including the service's hold on `index.lock` (`service_index_*`).
-6. `push_runner`:
-   running `git push` with a deadline and one push at a time
-   (`bounded_push`,
-   `bounded_query`,
-   `auto_push_single_flight`,
-   `push_lock_clearing`,
-   `push_deadline_advice`).
-7. `settings`:
-   the wrapper's own configuration,
-   including the discarded-copies section (`config_discarded`).
-8. `checks`:
-   the policies and the files they read,
-   the rule modules from `command/` and `commit/`,
-   `diagnostics`,
-   the hook warnings,
-   the standards review key.
-9. `service_talk`:
-   what a command needs to talk to the background commit service
-   (protocol,
-   instance,
-   messages,
-   provisioning,
-   client,
-   route,
-   work records,
-   claim time,
-   timing,
-   handoff,
-   landed summary,
-   commit timing,
-   pruned content,
-   `inner_git_words`).
+1.  `basic_tools`:
+    files,
+    processes,
+    time,
+    logging,
+    parallel work,
+    watching a child for progress
+    (today `foundation/`,
+    `process/`,
+    plus `child_watch`,
+    `wait_progress`,
+    `push_progress`,
+    `add_timing`,
+    `subvolume_sha`,
+    `lfs_output_mask`,
+    `shell_quote`,
+    `client_journal`,
+    `service_fault`,
+    `service_durable`).
+2.  `git_files`:
+    reading Git's own files without starting Git.
+3.  `typed_command`:
+    reading the command the person typed,
+    including the list of policy names (`policy_registry`).
+4.  `start_git`:
+    finding and starting the real Git,
+    the readers that may start it,
+    `forwarded_command`,
+    `worktree_identity`,
+    `landing_location`.
+5.  `locks`:
+    Git's lock files,
+    including the service's hold on `index.lock` (`service_index_*`).
+6.  `push_runner`:
+    running `git push` with a deadline and one push at a time
+    (`bounded_push`,
+    `bounded_query`,
+    `auto_push_single_flight`,
+    `push_lock_clearing`,
+    `push_deadline_advice`).
+7.  `settings`:
+    the wrapper's own configuration,
+    including the discarded-copies section (`config_discarded`).
+8.  `checks`:
+    the policies and the files they read,
+    the rule modules from `command/` and `commit/`,
+    `diagnostics`,
+    the hook warnings,
+    the standards review key.
+9.  `service_talk`:
+    what a command needs to talk to the background commit service
+    (protocol,
+    instance,
+    messages,
+    provisioning,
+    client,
+    route,
+    work records,
+    claim time,
+    timing,
+    handoff,
+    landed summary,
+    commit timing,
+    pruned content,
+    `inner_git_words`).
 10. `merge_engine`:
     the merge machinery that push and shadow reuse (second pass,
     isolation journal and recovery).
@@ -443,82 +443,82 @@ Each folder's top doc explains its words further,
 and its `uses/` folder holds one link per folder its code uses.
 Listed from the folder that uses nothing to the folder that uses everything.
 
-1. `saving_files_starting_programs_and_keeping_time`:
-   saving files safely,
-   starting other programs and watching that they still make progress,
-   clocks,
-   log lines.
-   Uses nothing.
-2. `reading_what_git_saved_on_disk`:
-   Git keeps your commits and settings as files in the hidden `.git` folder;
-   this reads them directly,
-   which is faster than starting Git.
-   Uses:
-   `saving_files_starting_programs_and_keeping_time`.
-3. `understanding_the_git_command_you_typed`:
-   reads the words after `git` the way Git does,
-   and the words meant for this wrapper.
-   Uses:
-   `saving_files_starting_programs_and_keeping_time`.
-4. `running_the_real_git_program`:
-   this wrapper only pretends to be `git`;
-   this finds the real `git` on the computer,
-   starts it,
-   and answers some of its questions without starting it.
-   Uses:
-   1 to 3 by name:
-   `saving_files_starting_programs_and_keeping_time`,
-   `reading_what_git_saved_on_disk`,
-   `understanding_the_git_command_you_typed`.
-5. `waiting_your_turn_to_change_git_files`:
-   Git puts a "lock" file beside a file it is changing so that nothing else changes it at the same time;
-   this waits for those,
-   takes them,
-   and removes the ones a crashed program left behind.
-   Uses:
-   `saving_files_starting_programs_and_keeping_time`,
-   `reading_what_git_saved_on_disk`,
-   `running_the_real_git_program`.
-6. `running_git_push_with_a_time_limit`:
-   runs `git push`,
-   stops it when it stops making progress,
-   and runs one push at a time.
-   Uses:
-   `saving_files_starting_programs_and_keeping_time`,
-   `reading_what_git_saved_on_disk`,
-   `running_the_real_git_program`,
-   `waiting_your_turn_to_change_git_files`.
-7. `your_settings_for_this_wrapper`:
-   reads `cli-git.config.jsonc`,
-   where checks are turned on and off,
-   and Git's own settings.
-   Uses:
-   `saving_files_starting_programs_and_keeping_time`,
-   `understanding_the_git_command_you_typed`,
-   `running_the_real_git_program`.
-8. `checking_your_changes_before_they_are_saved`:
-   the checks a commit or a push must pass (no secrets in files,
-   every file ends with a newline,
-   package versions raised,
-   and so on),
-   and the files each check reads.
-   Uses:
-   `saving_files_starting_programs_and_keeping_time`,
-   `reading_what_git_saved_on_disk`,
-   `understanding_the_git_command_you_typed`,
-   `running_the_real_git_program`,
-   `your_settings_for_this_wrapper`.
-9. `talking_to_the_background_commit_helper`:
-   commits are saved by a helper program that keeps running in the background,
-   so that many commits go through quickly one after another;
-   this is how a command asks it to save a commit and hears back.
-   Uses:
-   `saving_files_starting_programs_and_keeping_time`,
-   `reading_what_git_saved_on_disk`,
-   `running_the_real_git_program`,
-   `waiting_your_turn_to_change_git_files`,
-   `your_settings_for_this_wrapper`,
-   `checking_your_changes_before_they_are_saved`.
+1.  `saving_files_starting_programs_and_keeping_time`:
+    saving files safely,
+    starting other programs and watching that they still make progress,
+    clocks,
+    log lines.
+    Uses nothing.
+2.  `reading_what_git_saved_on_disk`:
+    Git keeps your commits and settings as files in the hidden `.git` folder;
+    this reads them directly,
+    which is faster than starting Git.
+    Uses:
+    `saving_files_starting_programs_and_keeping_time`.
+3.  `understanding_the_git_command_you_typed`:
+    reads the words after `git` the way Git does,
+    and the words meant for this wrapper.
+    Uses:
+    `saving_files_starting_programs_and_keeping_time`.
+4.  `running_the_real_git_program`:
+    this wrapper only pretends to be `git`;
+    this finds the real `git` on the computer,
+    starts it,
+    and answers some of its questions without starting it.
+    Uses:
+    1 to 3 by name:
+    `saving_files_starting_programs_and_keeping_time`,
+    `reading_what_git_saved_on_disk`,
+    `understanding_the_git_command_you_typed`.
+5.  `waiting_your_turn_to_change_git_files`:
+    Git puts a "lock" file beside a file it is changing so that nothing else changes it at the same time;
+    this waits for those,
+    takes them,
+    and removes the ones a crashed program left behind.
+    Uses:
+    `saving_files_starting_programs_and_keeping_time`,
+    `reading_what_git_saved_on_disk`,
+    `running_the_real_git_program`.
+6.  `running_git_push_with_a_time_limit`:
+    runs `git push`,
+    stops it when it stops making progress,
+    and runs one push at a time.
+    Uses:
+    `saving_files_starting_programs_and_keeping_time`,
+    `reading_what_git_saved_on_disk`,
+    `running_the_real_git_program`,
+    `waiting_your_turn_to_change_git_files`.
+7.  `your_settings_for_this_wrapper`:
+    reads `cli-git.config.jsonc`,
+    where checks are turned on and off,
+    and Git's own settings.
+    Uses:
+    `saving_files_starting_programs_and_keeping_time`,
+    `understanding_the_git_command_you_typed`,
+    `running_the_real_git_program`.
+8.  `checking_your_changes_before_they_are_saved`:
+    the checks a commit or a push must pass (no secrets in files,
+    every file ends with a newline,
+    package versions raised,
+    and so on),
+    and the files each check reads.
+    Uses:
+    `saving_files_starting_programs_and_keeping_time`,
+    `reading_what_git_saved_on_disk`,
+    `understanding_the_git_command_you_typed`,
+    `running_the_real_git_program`,
+    `your_settings_for_this_wrapper`.
+9.  `talking_to_the_background_commit_helper`:
+    commits are saved by a helper program that keeps running in the background,
+    so that many commits go through quickly one after another;
+    this is how a command asks it to save a commit and hears back.
+    Uses:
+    `saving_files_starting_programs_and_keeping_time`,
+    `reading_what_git_saved_on_disk`,
+    `running_the_real_git_program`,
+    `waiting_your_turn_to_change_git_files`,
+    `your_settings_for_this_wrapper`,
+    `checking_your_changes_before_they_are_saved`.
 10. `combining_two_versions_of_the_same_file`:
     when two people changed the same file,
     Git combines the two;

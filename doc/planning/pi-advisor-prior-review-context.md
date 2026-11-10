@@ -137,24 +137,24 @@ No model-quality experiment was performed.
 
 ## Alternatives and ranking
 
-1. Keep the default and withdraw the automatic-flip proposal.
-    Benefit:
-    retains evidence for follow-up reviews without adding another interface.
-    Cost:
-    direct exposure to earlier conclusions remains,
-    so anchoring is still a plausible risk.
-2. Design an explicit call-level fresh-assessment facility if actual usage establishes that need.
-    Benefit:
-    distinguishes fresh judgment from critique or continuation of an earlier review.
-    Cost:
-    requires an evidence-selection contract,
-    including treatment of paraphrases and summaries;
-    merely relabelling the existing filter as independent would overpromise.
-3. Flip the configuration default as #407 proposes.
-    Benefit:
-    removes direct exposure to original Advisor outputs unless configured otherwise.
-    Cost:
-    discards relevant evidence for follow-ups while retaining other channels for earlier conclusions.
+1.  Keep the default and withdraw the automatic-flip proposal.
+     Benefit:
+     retains evidence for follow-up reviews without adding another interface.
+     Cost:
+     direct exposure to earlier conclusions remains,
+     so anchoring is still a plausible risk.
+2.  Design an explicit call-level fresh-assessment facility if actual usage establishes that need.
+     Benefit:
+     distinguishes fresh judgment from critique or continuation of an earlier review.
+     Cost:
+     requires an evidence-selection contract,
+     including treatment of paraphrases and summaries;
+     merely relabelling the existing filter as independent would overpromise.
+3.  Flip the configuration default as #407 proposes.
+     Benefit:
+     removes direct exposure to original Advisor outputs unless configured otherwise.
+     Cost:
+     discards relevant evidence for follow-ups while retaining other channels for earlier conclusions.
 
 Ranking:
 retaining the default precedes a new facility because this review has not established a need for another interface.

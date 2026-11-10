@@ -460,7 +460,7 @@ fill listed first.
    Firefox
   `fill=rgb(0,100,180) track=transparent topEdge=rgb(143,143,157)`,
   Chromium `fill=rgb(0,128,0) track=rgb(128,128,128)`.
-- **`accent-color: #ffffff` on a themed Chromium progress**:
+- `accent-color: #ffffff` on a themed Chromium progress:
    the fill
   IS honored (white),
    but Chromium flips the rest of the control to
@@ -479,7 +479,7 @@ fill listed first.
    The pseudos only style the fallback boxes,
   so they require the element to be author-styled (or
   `appearance: none`) before they do anything.
-- **`::-moz-progress-bar` alone on a pristine Firefox progress**:
+- `::-moz-progress-bar` alone on a pristine Firefox progress:
    no
   effect either;
    the devolution check reads only the element's own
@@ -489,7 +489,7 @@ fill listed first.
    Verified
   empirically against the same Firefox 151 binary with a lime fill
   that stayed `#0060df`.
-- **`appearance: none` plus webkit pseudos in Firefox**:
+- `appearance: none` plus webkit pseudos in Firefox:
    fill stays
   the fallback blue;
    Gecko has no `::-webkit-progress-*`.
@@ -629,55 +629,55 @@ UAs.
 The six constraints,
  walked:
 
-1. **Really upstream's fault?**
-    No. Every observed behavior is an
-   intentional implementation of spec text:
-    devolution on
-   author-origin border/background is CSS-UI-4 §7.2.1 verbatim
-   (`background-color` and the border longhands are in the listed
-   property set),
-    and Chromium's scheme flip is the "may … make color
-   substitutions in other parts of the control" sentence of §7.1.
-   This is a documented-behavior gap on our side,
-    not an upstream
-   defect.
-    The audit fails here;
-    the remaining constraints are walked
-   for the record.
-2. **Can upstream fix it?**
-    Technically yes:
-    e.g. Gecko's UA sheet
-   could paint the devolved fill from the element's accent instead of
-   the literal `#0064b4`.
-    Nothing architectural forbids it.
-3. **Are they supporting this use case?**
-    No. `accent-color` is
-   spec-scoped to parts "that would have otherwise been styled with an
-   accent color",
-    which a devolved widget no longer has;
-    the supported
-   path for author-styled progress is exactly the vendor pseudos this
-   doc's workaround uses.
-4. **Would the repos welcome a contribution?**
-    Both engines accept
-   bug reports,
-    but this report would relitigate a WG-resolved design
-   question with no new information.
-5. **Will they likely fix it?**
-    Leaning no,
-    with direct evidence:
-    the
-   WG resolution on [csswg-drafts#6159][wg6159],
-    the merged and
-   deliberate [CL 2907972][cl2907972],
-    and spec text sanctioning both
-   behaviors.
-6. **Prototyped a minimal fix?**
-    Not applicable:
-    the auto-prototype
-   rule fires only when constraints 1 through 5 hold,
-    and 1 and 5 do
-   not.
+1.  **Really upstream's fault?**
+     No. Every observed behavior is an
+    intentional implementation of spec text:
+     devolution on
+    author-origin border/background is CSS-UI-4 §7.2.1 verbatim
+    (`background-color` and the border longhands are in the listed
+    property set),
+     and Chromium's scheme flip is the "may … make color
+    substitutions in other parts of the control" sentence of §7.1.
+    This is a documented-behavior gap on our side,
+     not an upstream
+    defect.
+     The audit fails here;
+     the remaining constraints are walked
+    for the record.
+2.  **Can upstream fix it?**
+     Technically yes:
+     e.g. Gecko's UA sheet
+    could paint the devolved fill from the element's accent instead of
+    the literal `#0064b4`.
+     Nothing architectural forbids it.
+3.  **Are they supporting this use case?**
+     No. `accent-color` is
+    spec-scoped to parts "that would have otherwise been styled with an
+    accent color",
+     which a devolved widget no longer has;
+     the supported
+    path for author-styled progress is exactly the vendor pseudos this
+    doc's workaround uses.
+4.  **Would the repos welcome a contribution?**
+     Both engines accept
+    bug reports,
+     but this report would relitigate a WG-resolved design
+    question with no new information.
+5.  **Will they likely fix it?**
+     Leaning no,
+     with direct evidence:
+     the
+    WG resolution on [csswg-drafts#6159][wg6159],
+     the merged and
+    deliberate [CL 2907972][cl2907972],
+     and spec text sanctioning both
+    behaviors.
+6.  **Prototyped a minimal fix?**
+     Not applicable:
+     the auto-prototype
+    rule fires only when constraints 1 through 5 hold,
+     and 1 and 5 do
+    not.
 
 Decision:
  file nothing,

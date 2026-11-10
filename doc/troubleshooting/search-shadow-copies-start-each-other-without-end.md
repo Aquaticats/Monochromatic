@@ -177,26 +177,26 @@ none of which looks at a path or a version
 a byte-identical copy in each of the four crates;
 `package/search-shadow/cli/tests/shadow_identity_copies.rs` fails when they differ):
 
-1. Identity.
-   Every shadow program carries `MONOCHROMATIC-SHADOW-IDENTITY/1 <crate> <version>` in the ELF section `.monochromatic_shadow_identity`.
-   A lookup skips a candidate that carries it,
-   and follows a launcher's `.launch` record (at most eight hops) and judges the program it names.
-   A launcher is a copy of `mpm-shadow`,
-   which carries the text,
-   so a launcher with a record is never judged by its own bytes.
-2. The start.
-   The chosen program is opened once,
-   checked while open and,
-   when compiled and not a launcher,
-   started through the open file (the way `cargo-shadow` vets its real cargo).
-3. Arrival.
-   Every start of the real tool that a shadow's shim makes sets `MONOCHROMATIC_SHADOW_STARTED_BY` (mode,
-   process number,
-   birth identity,
-   starter),
-   and a shadow that finds it left for its own process or its direct parent stops at once with one line and exit status 2.
-   This catches what no check of a file sees (a script that runs a shadow).
-   A script that the real tool runs is further down and passes.
+1.  Identity.
+    Every shadow program carries `MONOCHROMATIC-SHADOW-IDENTITY/1 <crate> <version>` in the ELF section `.monochromatic_shadow_identity`.
+    A lookup skips a candidate that carries it,
+    and follows a launcher's `.launch` record (at most eight hops) and judges the program it names.
+    A launcher is a copy of `mpm-shadow`,
+    which carries the text,
+    so a launcher with a record is never judged by its own bytes.
+2.  The start.
+    The chosen program is opened once,
+    checked while open and,
+    when compiled and not a launcher,
+    started through the open file (the way `cargo-shadow` vets its real cargo).
+3.  Arrival.
+    Every start of the real tool that a shadow's shim makes sets `MONOCHROMATIC_SHADOW_STARTED_BY` (mode,
+    process number,
+    birth identity,
+    starter),
+    and a shadow that finds it left for its own process or its direct parent stops at once with one line and exit status 2.
+    This catches what no check of a file sees (a script that runs a shadow).
+    A script that the real tool runs is further down and passes.
 
 `mpm-shadow`'s launcher additionally refuses a record chain that leads back to the launcher,
 in a circle,

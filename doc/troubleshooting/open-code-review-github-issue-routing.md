@@ -213,27 +213,27 @@ Use a separate command,
 not an alias that shadows `ocr`.
 The adapter owns this pipeline:
 
-1. Run pinned OpenCodeReview with `--format json --audience agent`.
-2. Parse the complete JSON result before making any GitHub mutation.
-3. Accept only explicit categories `bug`,
-   `performance`,
-   `maintainability`,
-   `test`,
-   `style`,
-   or `documentation`.
-4. Quarantine `security`,
-   `other`,
-   missing metadata,
-   `critical` findings,
-   and findings whose content or code contains a security or secret signal.
-5. Default to a dry run.
-6. After human confirmation,
-   upsert accepted findings through `gh` with an explicit `--repo` value.
-7. Label every generated issue `needs-triage` and retain a dedicated automation label.
-   Do not mark model output `ready-for-agent` before human triage.
-8. Never publish `thinking`.
-   Avoid publishing `existing_code` or `suggestion_code` unless a reviewer confirms that they contain no secret
-   or exploit detail.
+1.  Run pinned OpenCodeReview with `--format json --audience agent`.
+2.  Parse the complete JSON result before making any GitHub mutation.
+3.  Accept only explicit categories `bug`,
+    `performance`,
+    `maintainability`,
+    `test`,
+    `style`,
+    or `documentation`.
+4.  Quarantine `security`,
+    `other`,
+    missing metadata,
+    `critical` findings,
+    and findings whose content or code contains a security or secret signal.
+5.  Default to a dry run.
+6.  After human confirmation,
+    upsert accepted findings through `gh` with an explicit `--repo` value.
+7.  Label every generated issue `needs-triage` and retain a dedicated automation label.
+    Do not mark model output `ready-for-agent` before human triage.
+8.  Never publish `thinking`.
+    Avoid publishing `existing_code` or `suggestion_code` unless a reviewer confirms that they contain no secret
+    or exploit detail.
 
 A disposable Node prototype verified the classification boundary against a synthetic OCR result.
 It sent a medium bug to `public-issue-candidate` and sent these cases to `private-triage`:
@@ -390,33 +390,33 @@ between inline comments and the pull request summary.
 
 The filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   No.
-   OCR emits structured JSON and provides pull request publication.
-   Project-specific conversion into long-lived tracker issues is a consumer workflow.
-2. **Can upstream fix it?**
-   Yes in principle,
-   but a generic issue creator would need product-specific lifecycle,
-   labeling,
-   deduplication,
-   and disclosure policy.
-3. **Are they supporting this use case?**
-   No evidence was found.
-   Current documentation supports pull request comments,
-   GitLab merge request comments,
-   and Code Scanning output.
-4. **Would the repository welcome a contribution?**
-   Probably.
-   `CONTRIBUTING.md` welcomes feature requests and external contributions,
-   and no AI-assistance ban was found.
-   This does not overcome constraints 1 and 3.
-5. **Will they likely fix it?**
-   Unknown.
-   No duplicate or maintainer commitment was found.
-6. **Was a minimal upstream fix prototyped?**
-   No.
-   Constraints 1 and 3 fail,
-   and the safe solution belongs at this repository's consumer boundary.
+1.  **Is it really upstream's fault?**
+    No.
+    OCR emits structured JSON and provides pull request publication.
+    Project-specific conversion into long-lived tracker issues is a consumer workflow.
+2.  **Can upstream fix it?**
+    Yes in principle,
+    but a generic issue creator would need product-specific lifecycle,
+    labeling,
+    deduplication,
+    and disclosure policy.
+3.  **Are they supporting this use case?**
+    No evidence was found.
+    Current documentation supports pull request comments,
+    GitLab merge request comments,
+    and Code Scanning output.
+4.  **Would the repository welcome a contribution?**
+    Probably.
+    `CONTRIBUTING.md` welcomes feature requests and external contributions,
+    and no AI-assistance ban was found.
+    This does not overcome constraints 1 and 3.
+5.  **Will they likely fix it?**
+    Unknown.
+    No duplicate or maintainer commitment was found.
+6.  **Was a minimal upstream fix prototyped?**
+    No.
+    Constraints 1 and 3 fail,
+    and the safe solution belongs at this repository's consumer boundary.
 
 ### Upstream filing artifact
 

@@ -50,30 +50,30 @@ spawn-point for any branching task that diverges from the main line.
 
 Mechanism:
 
-1. New CLI tool,
-    "context compressor",
-    likely under
-   `package/dev-script/context-compressor/`.
-    Reads the active transcript
-   from `~/.claude/projects/.../sessions/<id>.jsonl`,
-    hands it to a
-   compressor model,
-    prints a compressed brief on stdout.
-2. Claude invokes `compressor <session-path> | spawn-claude --prompt -`
-   (exact stdin contract TBD;
-    the existing `spawn-claude` accepts a prompt
-   string,
-    so piping may need a small wrapper or a new flag).
-3. `spawn-claude` launches a fresh Claude Code child in its own terminal
-   window with the compressed brief as initial context.
-    That child becomes
-   the active session.
-4. The parent's run ends its current turn and does no further task work.
-   It remains open in its terminal window solely for:
-    (a) the user reading
-   back the original conversation,
-    (b) spawning additional children for
-   branching tasks that share the same setup.
+1.  New CLI tool,
+     "context compressor",
+     likely under
+    `package/dev-script/context-compressor/`.
+     Reads the active transcript
+    from `~/.claude/projects/.../sessions/<id>.jsonl`,
+     hands it to a
+    compressor model,
+     prints a compressed brief on stdout.
+2.  Claude invokes `compressor <session-path> | spawn-claude --prompt -`
+    (exact stdin contract TBD;
+     the existing `spawn-claude` accepts a prompt
+    string,
+     so piping may need a small wrapper or a new flag).
+3.  `spawn-claude` launches a fresh Claude Code child in its own terminal
+    window with the compressed brief as initial context.
+     That child becomes
+    the active session.
+4.  The parent's run ends its current turn and does no further task work.
+    It remains open in its terminal window solely for:
+     (a) the user reading
+    back the original conversation,
+     (b) spawning additional children for
+    branching tasks that share the same setup.
 
 Strengths:
 

@@ -783,38 +783,38 @@ Keep these adapter-owned:
 
 #### Migration sketch
 
-1. Create `package/music-player/native-core/Cargo.toml` and `src/lib.rs`.
-2. Move one pure module first,
-   probably `truepeak.rs`,
-   because it is pure DSP and has clear tests.
-3. Add path dependencies:
+1.  Create `package/music-player/native-core/Cargo.toml` and `src/lib.rs`.
+2.  Move one pure module first,
+    probably `truepeak.rs`,
+    because it is pure DSP and has clear tests.
+3.  Add path dependencies:
 
-   ```toml
-   # package/music-player/desktop-app/Cargo.toml
-   music-player-native-core = { path = "../native-core" }
-   ```
+    ```toml
+    # package/music-player/desktop-app/Cargo.toml
+    music-player-native-core = { path = "../native-core" }
+    ```
 
-   ```toml
-   # package/music-player/android-app/rust/Cargo.toml
-   music-player-native-core = { path = "../../native-core" }
-   ```
+    ```toml
+    # package/music-player/android-app/rust/Cargo.toml
+    music-player-native-core = { path = "../../native-core" }
+    ```
 
-4. Port one consumer at a time.
-5. Keep old module wrappers temporarily if it reduces churn:
+4.  Port one consumer at a time.
+5.  Keep old module wrappers temporarily if it reduces churn:
 
-   ```rust
-   //! The temporary wrapper that keeps the old true-peak module path working after the move to the native core.
+    ```rust
+    //! The temporary wrapper that keeps the old true-peak module path working after the move to the native core.
 
-   /// Re-exports the whole true-peak module of the native core,
-   /// so existing imports keep resolving.
-   pub use music_player_native_core::truepeak::*;
-   ```
+    /// Re-exports the whole true-peak module of the native core,
+    /// so existing imports keep resolving.
+    pub use music_player_native_core::truepeak::*;
+    ```
 
-6. Move tests with the module,
-   then keep adapter-specific tests beside adapters.
-7. Repeat for `opus`,
-    `decode`,
-    and shared error surfaces only after `truepeak` is stable.
+6.  Move tests with the module,
+    then keep adapter-specific tests beside adapters.
+7.  Repeat for `opus`,
+     `decode`,
+     and shared error surfaces only after `truepeak` is stable.
 
 #### Verification
 
@@ -1042,19 +1042,19 @@ step 2 moves the paths.
 Step 1:
  extract a core.
 
-1. Extract backend logic into internal source modules inside the existing `package/cli/mvm` package first,
-   not a new third-level project.
-2. Make `cli/mvm` a thin adapter over those core modules.
-3. Make `mcp/mvm` import the core modules rather than CLI internals,
-   removing the `@monochromatic-dev/cli-mvm/ts` adapter-to-adapter import.
-4. Add core-level contract tests against a mocked or disposable backend before moving any destructive behavior.
+1.  Extract backend logic into internal source modules inside the existing `package/cli/mvm` package first,
+    not a new third-level project.
+2.  Make `cli/mvm` a thin adapter over those core modules.
+3.  Make `mcp/mvm` import the core modules rather than CLI internals,
+    removing the `@monochromatic-dev/cli-mvm/ts` adapter-to-adapter import.
+4.  Add core-level contract tests against a mocked or disposable backend before moving any destructive behavior.
 
 Step 2:
  move the paths.
 
-1. Create `package/mvm/{cli,mcp,core}` and `git mv` each project once the dependency direction is clean.
-2. Make `core` its own package consumed by both adapters.
-3. Update docs and task names.
+1.  Create `package/mvm/{cli,mcp,core}` and `git mv` each project once the dependency direction is clean.
+2.  Make `core` its own package consumed by both adapters.
+3.  Update docs and task names.
 
 #### Verification
 
@@ -1146,14 +1146,14 @@ otherwise fold it into the owning plugin as package-local test data.
 
 #### Migration sketch
 
-1. Move `config/oxlint` only after plugin import paths are stable.
-2. Move one plugin and its fixture first,
-   probably `tsdoc`,
-   because it has a clear config-to-plugin-to-fixture chain.
-3. Update config package dependencies and sidecar entry imports.
-4. Update README related-package sections.
-5. Update tests that reference fixture paths.
-6. Run oxlint package builds before moving the next plugin.
+1.  Move `config/oxlint` only after plugin import paths are stable.
+2.  Move one plugin and its fixture first,
+    probably `tsdoc`,
+    because it has a clear config-to-plugin-to-fixture chain.
+3.  Update config package dependencies and sidecar entry imports.
+4.  Update README related-package sections.
+5.  Update tests that reference fixture paths.
+6.  Run oxlint package builds before moving the next plugin.
 
 #### Verification
 
@@ -1236,12 +1236,12 @@ Those stay in `build-tool`,
 
 #### Migration sketch
 
-1. Move the canonical app to `package/done/app`.
-2. Move `done-postcss` to `package/done/variant-postcss`.
-3. Update README cross-links from `../done` to `../app`.
-4. Update deployment and root convenience tasks that mention the old path.
-5. Leave the other `webapp-productivity` apps where they are;
-   only `done` and `done-postcss` move.
+1.  Move the canonical app to `package/done/app`.
+2.  Move `done-postcss` to `package/done/variant-postcss`.
+3.  Update README cross-links from `../done` to `../app`.
+4.  Update deployment and root convenience tasks that mention the old path.
+5.  Leave the other `webapp-productivity` apps where they are;
+    only `done` and `done-postcss` move.
 
 ### Forbidden-strings
 
@@ -1465,17 +1465,17 @@ so future agents see the rule before creating packages.
 
 Handle low-risk cleanup first:
 
-1. Remove or explain empty `package/android-app/`.
-2. Decide the status of non-package Claude Code plugin dirs:
-   `research-agent`,
-    `statusline`,
-    `verbose-tool-output`.
-3. Decide whether every active `package/*/*` directory must have one of:
-   `package.json`,
-    `Cargo.toml`,
-    Gradle settings,
-    or `mise.toml`.
-4. Document accepted npm-name exceptions.
+1.  Remove or explain empty `package/android-app/`.
+2.  Decide the status of non-package Claude Code plugin dirs:
+    `research-agent`,
+     `statusline`,
+     `verbose-tool-output`.
+3.  Decide whether every active `package/*/*` directory must have one of:
+    `package.json`,
+     `Cargo.toml`,
+     Gradle settings,
+     or `mise.toml`.
+4.  Document accepted npm-name exceptions.
 
 This phase should not rename packages or move large source trees.
 It makes the inventory trustworthy before bigger moves.
@@ -1488,12 +1488,12 @@ unless one of them becomes independently urgent.
 
 Recommended order:
 
-1. Create `package/music-player/native-core` as a standalone path-dependency crate.
-2. Extract `truepeak` first.
-3. Prove both desktop and Android consume it.
-4. Extract `opus` only after the first shared crate lands cleanly.
-5. Extract `decode` after the error and audio-spec types are stable.
-6. Revisit engine sharing last.
+1.  Create `package/music-player/native-core` as a standalone path-dependency crate.
+2.  Extract `truepeak` first.
+3.  Prove both desktop and Android consume it.
+4.  Extract `opus` only after the first shared crate lands cleanly.
+5.  Extract `decode` after the error and audio-spec types are stable.
+6.  Revisit engine sharing last.
 
 Honor the preconditions:
 no platform or UI dependencies in the core,
@@ -1580,12 +1580,12 @@ Use this procedure for each path move.
 
 ### Before moving
 
-1. Read the package README and nearby decision docs.
-2. Identify direct workspace dependents from `package.json`.
-3. Search for path references with `rg`.
-4. Decide whether package name changes now or later.
-5. Identify generated files and file-enforcer outputs.
-6. Identify package-specific verification tasks from its `mise.toml`.
+1.  Read the package README and nearby decision docs.
+2.  Identify direct workspace dependents from `package.json`.
+3.  Search for path references with `rg`.
+4.  Decide whether package name changes now or later.
+5.  Identify generated files and file-enforcer outputs.
+6.  Identify package-specific verification tasks from its `mise.toml`.
 
 ### Move
 
@@ -1714,28 +1714,28 @@ Neutral utilities stay neutral.
 When adding a package,
 answer these in order:
 
-1. Is this part of an existing product,
-    plugin host,
-    or subsystem?
-   If yes,
-   put it under that category.
-2. Is this a shared core for adapters in that category?
-   If yes,
-   keep it beside the adapters.
-3. Is this an independent reusable utility?
-   If yes,
-   use `module`,
-    `config`,
-    `dev-script`,
-    `shim`,
-    or `stub` as appropriate.
-4. Is this a fixture for one owner?
-   If yes,
-   keep it near the owner unless it needs a workspace boundary.
-5. Is this paused or deprecated?
-   If yes,
-   use `package-paused/` or `package-deprecated/`,
-    not a category name under `package/`.
-6. Would the package path need three segments below `package/`?
-   If yes,
-   rename the second segment instead of adding depth.
+1.  Is this part of an existing product,
+     plugin host,
+     or subsystem?
+    If yes,
+    put it under that category.
+2.  Is this a shared core for adapters in that category?
+    If yes,
+    keep it beside the adapters.
+3.  Is this an independent reusable utility?
+    If yes,
+    use `module`,
+     `config`,
+     `dev-script`,
+     `shim`,
+     or `stub` as appropriate.
+4.  Is this a fixture for one owner?
+    If yes,
+    keep it near the owner unless it needs a workspace boundary.
+5.  Is this paused or deprecated?
+    If yes,
+    use `package-paused/` or `package-deprecated/`,
+     not a category name under `package/`.
+6.  Would the package path need three segments below `package/`?
+    If yes,
+    rename the second segment instead of adding depth.

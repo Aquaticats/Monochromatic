@@ -147,62 +147,62 @@ from the brief and from the handover:
 in a repository whose worktree directory is a btrfs subvolume,
 on a mount with `user_subvol_rm_allowed`:
 
-1. Before anything else,
-   every wrapped command settles and takes removal snapshots
-   (`invocation/wrapped_command_notices_snapshots_and_manual_push.rs:118`,
-   `:203`).
-   A snapshot copies the unshown push-failure notices and the unfinished push
-   records of every linked worktree that has any into
-   `<common>/monochromatic-git-policy-cli/removal-snapshots/<instance>`
-   (`worktree_removal_rescue.rs:58`,
-   `:343`),
-   and records the taking process in an `attempts` file
-   (`:218`).
-2. The plan accepts only the plain form
-   (`worktree_remove_plan.rs:53`,
-   `parse_remove_plan`);
-   `--force` and every other form go to real Git.
-3. `remove_with` (`worktree_remove.rs:492`)
-   reads the registration of the repository the command runs in
-   (`worktree_remove_registry.rs:150`,
-   `registration_of`),
-   refuses a locked worktree,
-   a non-subvolume,
-   a mount without the option,
-   and a worktree it cannot open without following a link,
-   then proves the tracked files clean in process plus one `git ls-files`
-   (`:527`),
-   looks at the lock and at the identities of the directory,
-   its parent and the registration once more
-   (`:531`,
-   `confirm`),
-   and destroys the subvolume by id,
-   or by name below the held parent
-   (`:535`).
-4. `finish` (`:436`)
-   empties the administrative directory through the held descriptor
-   (`:452`),
-   removes its name from `worktrees`
-   (`:458`),
-   and removes `worktrees` itself when it is empty.
-5. `ForwardedRun::Ran(0)` from the served path prints the destroy notice
-   (`worktree_copy_forward.rs:332-341`)
-   and stops the removed worktree's commit service units
-   (`worktree_removal_stops_units.rs:110`).
-6. On the next command,
-   `settle_removals`
-   (`worktree_removal_rescue.rs:515`)
-   decides each snapshot:
-   the Git directory is gone,
-   so the removal happened,
-   and the records are promoted to the orphan directory;
+1.  Before anything else,
+    every wrapped command settles and takes removal snapshots
+    (`invocation/wrapped_command_notices_snapshots_and_manual_push.rs:118`,
+    `:203`).
+    A snapshot copies the unshown push-failure notices and the unfinished push
+    records of every linked worktree that has any into
+    `<common>/monochromatic-git-policy-cli/removal-snapshots/<instance>`
+    (`worktree_removal_rescue.rs:58`,
+    `:343`),
+    and records the taking process in an `attempts` file
+    (`:218`).
+2.  The plan accepts only the plain form
+    (`worktree_remove_plan.rs:53`,
+    `parse_remove_plan`);
+    `--force` and every other form go to real Git.
+3.  `remove_with` (`worktree_remove.rs:492`)
+    reads the registration of the repository the command runs in
+    (`worktree_remove_registry.rs:150`,
+    `registration_of`),
+    refuses a locked worktree,
+    a non-subvolume,
+    a mount without the option,
+    and a worktree it cannot open without following a link,
+    then proves the tracked files clean in process plus one `git ls-files`
+    (`:527`),
+    looks at the lock and at the identities of the directory,
+    its parent and the registration once more
+    (`:531`,
+    `confirm`),
+    and destroys the subvolume by id,
+    or by name below the held parent
+    (`:535`).
+4.  `finish` (`:436`)
+    empties the administrative directory through the held descriptor
+    (`:452`),
+    removes its name from `worktrees`
+    (`:458`),
+    and removes `worktrees` itself when it is empty.
+5.  `ForwardedRun::Ran(0)` from the served path prints the destroy notice
+    (`worktree_copy_forward.rs:332-341`)
+    and stops the removed worktree's commit service units
+    (`worktree_removal_stops_units.rs:110`).
+6.  On the next command,
+    `settle_removals`
+    (`worktree_removal_rescue.rs:515`)
+    decides each snapshot:
+    the Git directory is gone,
+    so the removal happened,
+    and the records are promoted to the orphan directory;
 
-   the Git directory is there and the taker has ended and the checkout is
-   there,
-   so the removal was refused,
-   and the snapshot is discarded;
+    the Git directory is there and the taker has ended and the checkout is
+    there,
+    so the removal was refused,
+    and the snapshot is discarded;
 
-   anything else is undecided and the snapshot is kept.
+    anything else is undecided and the snapshot is kept.
 
 `git worktree prune` is not served at all:
 it takes the snapshots in step 1 and then real Git runs,
@@ -213,42 +213,42 @@ is gone.
 (`worktree_convert.rs:147`,
 `convert_worktree`):
 
-1. `inspect` reads the `.git` file,
-   the administrative directory and the
-   back-pointer (`worktree_convert_inspection.rs:83`).
-2. A lock-free numbered claim gives one command the worktree
-   (`single_owner_claim.rs:348`,
-   `take_claim`),
-   and a probe retires the flock file an older release left
-   (`worktree_convert_journal.rs:541`,
-   `legacy_lock_is_held`).
-3. The journal is created exclusively
-   (`worktree_convert.rs:255`,
-   `create_new`).
-4. `copy_phase` creates the sibling `<path>.cli-git-converting` as a subvolume,
-   records its identity in the journal,
-   copies with clones,
-   then takes Git's `index.lock` with its token
-   (`worktree_convert_phases.rs:227`)
-   and copies a second time with deletions to prove the copy equal
-   (`:229`).
-5. `swap_phase` exchanges the two directories with `RENAME_EXCHANGE`
-   (`:319`),
-   so the original tree is at the converting name from then on.
-6. `verify_swap` checks the installed identity and the `.git` bytes.
-7. `index_phase` rewrites the index stat fields under the held lock and then
-   releases it (`:394`).
-8. `removal_phase` scans for processes inside the original tree
-   (`:423`),
-   compares the original tree against the installed one
-   (`worktree_convert_compare.rs:40-70`,
-   `first_difference`,
-   which compares type,
-   size and modification time,
-   and a link's target),
-   and deletes the original only when nothing differs.
-9. `finish` removes the journal
-   (`worktree_convert_phases.rs:453`).
+1.  `inspect` reads the `.git` file,
+    the administrative directory and the
+    back-pointer (`worktree_convert_inspection.rs:83`).
+2.  A lock-free numbered claim gives one command the worktree
+    (`single_owner_claim.rs:348`,
+    `take_claim`),
+    and a probe retires the flock file an older release left
+    (`worktree_convert_journal.rs:541`,
+    `legacy_lock_is_held`).
+3.  The journal is created exclusively
+    (`worktree_convert.rs:255`,
+    `create_new`).
+4.  `copy_phase` creates the sibling `<path>.cli-git-converting` as a subvolume,
+    records its identity in the journal,
+    copies with clones,
+    then takes Git's `index.lock` with its token
+    (`worktree_convert_phases.rs:227`)
+    and copies a second time with deletions to prove the copy equal
+    (`:229`).
+5.  `swap_phase` exchanges the two directories with `RENAME_EXCHANGE`
+    (`:319`),
+    so the original tree is at the converting name from then on.
+6.  `verify_swap` checks the installed identity and the `.git` bytes.
+7.  `index_phase` rewrites the index stat fields under the held lock and then
+    releases it (`:394`).
+8.  `removal_phase` scans for processes inside the original tree
+    (`:423`),
+    compares the original tree against the installed one
+    (`worktree_convert_compare.rs:40-70`,
+    `first_difference`,
+    which compares type,
+    size and modification time,
+    and a link's target),
+    and deletes the original only when nothing differs.
+9.  `finish` removes the journal
+    (`worktree_convert_phases.rs:453`).
 
 `git monochromatic-git-policy-cli migrate-to-subvolume` and its
 `--rollback`,
@@ -337,28 +337,28 @@ the first block under "Reproductions".
 
 Sequence:
 
-1. `git monochromatic-git-policy-cli migrate-to-subvolume` finishes.
-   The checkout is a subvolume and the original tree is kept at
-   `<root>.before-subvolume`
-   (`subvolume_migrate.rs:320`,
-   `closing`).
-2. The person puts a file back into the old tree,
-   for example by unpacking an archive or a `cp --preserve=timestamps` of a
-   backup.
-   The file's modification time is older than the migration's catch-up.
-3. `git monochromatic-git-policy-cli migrate-to-subvolume --remove-old` runs.
-4. `carry_late_writes` copies the old tree into the checkout in one
-   update-only pass whose rule is
-   `missing from the checkout and older than the catch-up, so leave it out`
-   (`subvolume_run.rs:169`,
-   `created_since: Some(since)`;
-   `subvolume_sync.rs:145-152`,
-   `self.stats.left_out += 1`).
-5. `remove_old_tree` deletes the whole old tree
-   (`subvolume_rollback.rs:324`,
-   `remove_tree(&old_path)`),
-   and the command exits 0
-   (`subvolume_command.rs:198-203`).
+1.  `git monochromatic-git-policy-cli migrate-to-subvolume` finishes.
+    The checkout is a subvolume and the original tree is kept at
+    `<root>.before-subvolume`
+    (`subvolume_migrate.rs:320`,
+    `closing`).
+2.  The person puts a file back into the old tree,
+    for example by unpacking an archive or a `cp --preserve=timestamps` of a
+    backup.
+    The file's modification time is older than the migration's catch-up.
+3.  `git monochromatic-git-policy-cli migrate-to-subvolume --remove-old` runs.
+4.  `carry_late_writes` copies the old tree into the checkout in one
+    update-only pass whose rule is
+    `missing from the checkout and older than the catch-up, so leave it out`
+    (`subvolume_run.rs:169`,
+    `created_since: Some(since)`;
+    `subvolume_sync.rs:145-152`,
+    `self.stats.left_out += 1`).
+5.  `remove_old_tree` deletes the whole old tree
+    (`subvolume_rollback.rs:324`,
+    `remove_tree(&old_path)`),
+    and the command exits 0
+    (`subvolume_command.rs:198-203`).
 
 The person sees one line with a count and no name,
 printed between the pass and the deletion:
@@ -410,27 +410,27 @@ with both decided states run as controls.
 
 Sequence:
 
-1. A linked worktree W has an unshown push-failure notice or an unfinished push
-   record in its Git directory.
-2. W's checkout directory is gone while its registration remains.
-   Two ordinary ways to reach that:
-   `git worktree remove W` was killed after the destroy and before the
-   registration went (finding 4),
-   or the person deleted the directory by hand,
-   which is the state `git worktree prune` exists for.
-3. Any wrapped command runs `git worktree remove` or `git worktree prune`,
-   so `snapshot_linked_worktrees` copies W's records
-   (`worktree_removal_rescue.rs:343`).
-4. The taker ends without removing W.
-5. Every later command's `settle_removals` decides W as follows:
-   the Git directory is present,
-   no taker runs,
-   and `checkout_present` is false because the registration's `gitdir` file
-   names a directory that is not there
-   (`:282`,
-   `:308-317`),
-   so `removal_of` answers `Undecided` and `settle_removals` skips it
-   (`:526`).
+1.  A linked worktree W has an unshown push-failure notice or an unfinished push
+    record in its Git directory.
+2.  W's checkout directory is gone while its registration remains.
+    Two ordinary ways to reach that:
+    `git worktree remove W` was killed after the destroy and before the
+    registration went (finding 4),
+    or the person deleted the directory by hand,
+    which is the state `git worktree prune` exists for.
+3.  Any wrapped command runs `git worktree remove` or `git worktree prune`,
+    so `snapshot_linked_worktrees` copies W's records
+    (`worktree_removal_rescue.rs:343`).
+4.  The taker ends without removing W.
+5.  Every later command's `settle_removals` decides W as follows:
+    the Git directory is present,
+    no taker runs,
+    and `checkout_present` is false because the registration's `gitdir` file
+    names a directory that is not there
+    (`:282`,
+    `:308-317`),
+    so `removal_of` answers `Undecided` and `settle_removals` skips it
+    (`:526`).
 
 The snapshot stays in
 `<common>/monochromatic-git-policy-cli/removal-snapshots/<instance>` for good,
@@ -475,32 +475,32 @@ Read from the code.
 
 Sequence:
 
-1. `convert-worktree-to-subvolume W` is killed between the exchange and the end,
-   or fails in the index phase,
-   which keeps the original tree at `W.cli-git-converting` on purpose
-   (`worktree_convert_phases.rs:361`,
-   `:394`,
-   `:434-446`).
-   So after every interruption past the swap,
-   `W` is the new subvolume and the original tree sits at the converting name.
-2. The person then removes W,
-   with `git worktree remove W` or with `git worktree remove --force W`.
-3. The removal route removes W's directory and W's registration.
-   Nothing consults the conversion:
-   `worktree_remove.rs` reads no claim,
-   and `rg 'live_owner_of'` over the removal modules finds none.
-   When the conversion's lock is still held the removal is refused
-   (`check_clean` at `:527` sees `index.lock`),
-   and when the lock is released (after the index rewrite,
-   `worktree_convert_phases.rs:394`) it is served and destroys W.
-4. The conversion's journal lived in the registration that step 3 deleted,
-   so no `--abandon` can act:
-   `inspect` refuses first,
-   because `W` has no `.git` entry
-   (`worktree_convert_inspection.rs:87`),
-   and the fallback message about the converting name
-   (`:276`)
-   is only reached for a worktree that still exists.
+1.  `convert-worktree-to-subvolume W` is killed between the exchange and the end,
+    or fails in the index phase,
+    which keeps the original tree at `W.cli-git-converting` on purpose
+    (`worktree_convert_phases.rs:361`,
+    `:394`,
+    `:434-446`).
+    So after every interruption past the swap,
+    `W` is the new subvolume and the original tree sits at the converting name.
+2.  The person then removes W,
+    with `git worktree remove W` or with `git worktree remove --force W`.
+3.  The removal route removes W's directory and W's registration.
+    Nothing consults the conversion:
+    `worktree_remove.rs` reads no claim,
+    and `rg 'live_owner_of'` over the removal modules finds none.
+    When the conversion's lock is still held the removal is refused
+    (`check_clean` at `:527` sees `index.lock`),
+    and when the lock is released (after the index rewrite,
+    `worktree_convert_phases.rs:394`) it is served and destroys W.
+4.  The conversion's journal lived in the registration that step 3 deleted,
+    so no `--abandon` can act:
+    `inspect` refuses first,
+    because `W` has no `.git` entry
+    (`worktree_convert_inspection.rs:87`),
+    and the fallback message about the converting name
+    (`:276`)
+    is only reached for a worktree that still exists.
 
 What is left:
 `W.cli-git-converting`,
@@ -543,16 +543,16 @@ the fourth block under "Reproductions".
 
 Sequence:
 
-1. `git worktree remove W` is served,
-   and the destroy succeeds
-   (`worktree_remove.rs:535`).
-2. The process is killed before `finish` removes the registration
-   (`:436-461`),
-   or `finish` fails and reports `Incomplete`
-   (`:397`,
-   `incomplete_report`).
-3. W's files are gone and `<common>/worktrees/<id>` remains with its `gitdir`
-   file naming W.
+1.  `git worktree remove W` is served,
+    and the destroy succeeds
+    (`worktree_remove.rs:535`).
+2.  The process is killed before `finish` removes the registration
+    (`:436-461`),
+    or `finish` fails and reports `Incomplete`
+    (`:397`,
+    `incomplete_report`).
+3.  W's files are gone and `<common>/worktrees/<id>` remains with its `gitdir`
+    file naming W.
 
 What notices it later:
 `git worktree list` marks the entry prunable,
@@ -597,20 +597,20 @@ Read from the code.
 
 Sequence:
 
-1. A snapshot rung leaves a directory out of a new worktree,
-   for example a cache that itself holds a btrfs subvolume or a mount,
-   and moves it into `.claude/cli-git-trash/<40 hex digits>`.
-2. The disposal compares every directory's device with the trash's
-   (`worktree_trash_remove.rs:152-158`),
-   so that one entry is refused with
-   `is on another device, so it is left alone`,
-   and `delete_trash` returns the reason
-   (`worktree_trash_dispose.rs:301`).
-3. The commit service's handler gets `Verdict::Failed`,
-   writes one line to the service's own standard error,
-   and settles the work item as failed
-   (`service_work_drain_pending_claims.rs:191-197`),
-   so it is never tried again.
+1.  A snapshot rung leaves a directory out of a new worktree,
+    for example a cache that itself holds a btrfs subvolume or a mount,
+    and moves it into `.claude/cli-git-trash/<40 hex digits>`.
+2.  The disposal compares every directory's device with the trash's
+    (`worktree_trash_remove.rs:152-158`),
+    so that one entry is refused with
+    `is on another device, so it is left alone`,
+    and `delete_trash` returns the reason
+    (`worktree_trash_dispose.rs:301`).
+3.  The commit service's handler gets `Verdict::Failed`,
+    writes one line to the service's own standard error,
+    and settles the work item as failed
+    (`service_work_drain_pending_claims.rs:191-197`),
+    so it is never tried again.
 
 The inline path promises the opposite in words:
 `the work item ... stays, so the commit service empties it when it next runs`
@@ -655,21 +655,21 @@ and the least likely to happen.
 
 Sequence:
 
-1. A migration finishes and keeps the old tree.
-2. The checkout at `root` is replaced by hand,
-   for example `mv root root.kept` then `mv another root`,
-   while the journal and `<root>.before-subvolume` stay where they are.
-3. `--remove-old` runs.
-   `remove_old_refusals` asks only that the journal records `verify` and that
-   `<root>.before-subvolume` exists
-   (`subvolume_preflight.rs:414-429`),
-   and nothing compares the directory at `root` with the identity the migration
-   installed.
-4. `carry_late_writes` copies files that are newer in the old tree into
-   whatever is at `root` now
-   (`subvolume_rollback.rs:276`),
-   and `remove_tree` deletes the old tree
-   (`:324`).
+1.  A migration finishes and keeps the old tree.
+2.  The checkout at `root` is replaced by hand,
+    for example `mv root root.kept` then `mv another root`,
+    while the journal and `<root>.before-subvolume` stay where they are.
+3.  `--remove-old` runs.
+    `remove_old_refusals` asks only that the journal records `verify` and that
+    `<root>.before-subvolume` exists
+    (`subvolume_preflight.rs:414-429`),
+    and nothing compares the directory at `root` with the identity the migration
+    installed.
+4.  `carry_late_writes` copies files that are newer in the old tree into
+    whatever is at `root` now
+    (`subvolume_rollback.rs:276`),
+    and `remove_tree` deletes the old tree
+    (`:324`).
 
 What it risks:
 files written into a directory the migration never recorded,
@@ -693,14 +693,14 @@ Read from the code.
 
 Sequence:
 
-1. A conversion is interrupted before its swap,
-   so `<path>.cli-git-converting` holds a full copy and the journal records its
-   identity.
-2. A person or a tool opens a shell or an editor inside that copy,
-   which is a directory with the worktree's own name plus a suffix.
-3. `convert-worktree-to-subvolume --abandon` runs and destroys the subvolume
-   (`worktree_convert.rs:121`),
-   with no scan of the process table.
+1.  A conversion is interrupted before its swap,
+    so `<path>.cli-git-converting` holds a full copy and the journal records its
+    identity.
+2.  A person or a tool opens a shell or an editor inside that copy,
+    which is a directory with the worktree's own name plus a suffix.
+3.  `convert-worktree-to-subvolume --abandon` runs and destroys the subvolume
+    (`worktree_convert.rs:121`),
+    with no scan of the process table.
 
 The removal phase of the same conversion refuses in the same position
 (`worktree_convert_phases.rs:423`,
@@ -857,37 +857,37 @@ and the migration's are walked by
 The removal,
 served by the destroy:
 
-1. Before the registration is proven:
-   nothing changed;
-   real Git decides.
-2. After the proof and before the destroy:
-   nothing changed;
-   a rerun redoes the proof.
-   The guard tests move a directory,
-   a registration and a parent link into this
-   window and each stops the removal
-   (`worktree_remove_guard_tests.rs:186`,
-   `:205`,
-   `:291`,
-   `:328`).
-3. After the destroy and before the registration is emptied:
-   the subvolume is gone,
-   the registration remains,
-   which is finding 4.
-4. After the administrative directory is emptied and before its name goes:
-   the same shape,
-   with an empty registration.
-5. After the name is removed and before `worktrees` is removed:
-   a stray empty `worktrees` directory,
-   which Git recreates and which no command needs removed.
-6. After the removal:
-   nothing left,
-   and the units are stopped
-   (`worktree_removal_stops_units.rs:110`).
-   A kill between the destroy and the stop leaves units listening for a
-   worktree whose files are gone;
-   `service stop-units-of-removed-worktrees` sweeps them
-   (`:20`).
+1.  Before the registration is proven:
+    nothing changed;
+    real Git decides.
+2.  After the proof and before the destroy:
+    nothing changed;
+    a rerun redoes the proof.
+    The guard tests move a directory,
+    a registration and a parent link into this
+    window and each stops the removal
+    (`worktree_remove_guard_tests.rs:186`,
+    `:205`,
+    `:291`,
+    `:328`).
+3.  After the destroy and before the registration is emptied:
+    the subvolume is gone,
+    the registration remains,
+    which is finding 4.
+4.  After the administrative directory is emptied and before its name goes:
+    the same shape,
+    with an empty registration.
+5.  After the name is removed and before `worktrees` is removed:
+    a stray empty `worktrees` directory,
+    which Git recreates and which no command needs removed.
+6.  After the removal:
+    nothing left,
+    and the units are stopped
+    (`worktree_removal_stops_units.rs:110`).
+    A kill between the destroy and the stop leaves units listening for a
+    worktree whose files are gone;
+    `service stop-units-of-removed-worktrees` sweeps them
+    (`:20`).
 
 The removal,
 forwarded to real Git:
@@ -897,96 +897,96 @@ so every kill point is Git's.
 The rescue snapshot,
 either way:
 
-1. After the snapshot directory is made and before its `attempts` file:
-   a directory with no `gitdir` file,
-   which every settle skips
-   (`worktree_removal_rescue.rs:520-524`);
-   disk only.
-2. After the `attempts` file and before the `gitdir` file:
-   the same,
-   and the snapshot is never decided.
-3. After the `gitdir` file:
-   decidable,
-   which is the state findings 2 and 4 are about.
+1.  After the snapshot directory is made and before its `attempts` file:
+    a directory with no `gitdir` file,
+    which every settle skips
+    (`worktree_removal_rescue.rs:520-524`);
+    disk only.
+2.  After the `attempts` file and before the `gitdir` file:
+    the same,
+    and the snapshot is never decided.
+3.  After the `gitdir` file:
+    decidable,
+    which is the state findings 2 and 4 are about.
 
 The conversion:
 
-1. After the claim and before the journal:
-   nothing on disk;
-   a rerun takes the next generation of the claim.
-2. After the journal's exclusive create and before the stage's subvolume:
-   `ensure_stage` creates it on the rerun
-   (`worktree_convert_phases.rs:130`).
-3. After the subvolume is created and before its identity is recorded:
-   the name holds a directory the journal cannot prove,
-   and every later run refuses with the message that says so and asks for
-   `--abandon`
-   (`:131-145`,
-   `worktree_convert_inspection.rs:276`).
-   Nothing is lost (the stage is empty at that point) and a person is asked
-   once.
-4. During the first copy,
-   before `index.lock`:
-   a rerun copies again from the start
-   (`:215`,
-   `copy_phase` runs on every resume before the swap).
-   A Git writer may act in this window,
-   which is why the proving pass follows.
-5. After the proving pass and before the exchange:
-   the journal says `Synced`,
-   and a rerun proves the copy again before it
-   swaps,
-   so a write made in this window is carried or refused.
-   A kill here leaves the stage and the journal,
-   and a later run finishes.
-6. Between the exchange and its journal line:
-   the journal is one phase behind and the identity in it says where the old
-   tree is
-   (`worktree_convert.rs:190-206`,
-   `old_tree_is_at`),
-   so a rerun neither exchanges back nor loses the tree.
-   The existing controls stop a run at exactly these points
-   (`worktree_convert_safety_tests.rs:131`,
-   `:374`).
-7. After the exchange,
-   before the index rewrite:
-   the checkout holds the copy with an index that describes the old inodes,
-   and the old tree is at the converting name.
-   A rerun finishes the index and then deletes the old tree.
-8. Between the index rewrite and the removal of the old tree:
-   the lock is released,
-   so a removal of the same worktree by another command is served from here
-   (finding 3).
-9. After the old tree is deleted and before the journal goes:
-   a rerun finds the name empty,
-   counts it absent,
-   and removes the journal
-   (`worktree_convert_remove.rs:87`).
+1.  After the claim and before the journal:
+    nothing on disk;
+    a rerun takes the next generation of the claim.
+2.  After the journal's exclusive create and before the stage's subvolume:
+    `ensure_stage` creates it on the rerun
+    (`worktree_convert_phases.rs:130`).
+3.  After the subvolume is created and before its identity is recorded:
+    the name holds a directory the journal cannot prove,
+    and every later run refuses with the message that says so and asks for
+    `--abandon`
+    (`:131-145`,
+    `worktree_convert_inspection.rs:276`).
+    Nothing is lost (the stage is empty at that point) and a person is asked
+    once.
+4.  During the first copy,
+    before `index.lock`:
+    a rerun copies again from the start
+    (`:215`,
+    `copy_phase` runs on every resume before the swap).
+    A Git writer may act in this window,
+    which is why the proving pass follows.
+5.  After the proving pass and before the exchange:
+    the journal says `Synced`,
+    and a rerun proves the copy again before it
+    swaps,
+    so a write made in this window is carried or refused.
+    A kill here leaves the stage and the journal,
+    and a later run finishes.
+6.  Between the exchange and its journal line:
+    the journal is one phase behind and the identity in it says where the old
+    tree is
+    (`worktree_convert.rs:190-206`,
+    `old_tree_is_at`),
+    so a rerun neither exchanges back nor loses the tree.
+    The existing controls stop a run at exactly these points
+    (`worktree_convert_safety_tests.rs:131`,
+    `:374`).
+7.  After the exchange,
+    before the index rewrite:
+    the checkout holds the copy with an index that describes the old inodes,
+    and the old tree is at the converting name.
+    A rerun finishes the index and then deletes the old tree.
+8.  Between the index rewrite and the removal of the old tree:
+    the lock is released,
+    so a removal of the same worktree by another command is served from here
+    (finding 3).
+9.  After the old tree is deleted and before the journal goes:
+    a rerun finds the name empty,
+    counts it absent,
+    and removes the journal
+    (`worktree_convert_remove.rs:87`).
 
 The migration:
 
-1. Before the journal:
-   nothing.
-2. After the journal and before the new subvolume:
-   `create` recorded as started;
-   a rerun skips creating what exists.
-3. During any copy pass:
-   every pass is idempotent and a rerun repeats the unfinished one.
-4. After `index.lock` is created and before the exchange:
-   a rerun accepts its own locks
-   (`subvolume_lock.rs:146`),
-   and a person's Git commands are blocked until the rerun or the rollback;
-   the error names the journal and both commands
-   (`subvolume_command.rs:148-160`).
-5. Between the exchange and the rename:
-   `exchange` recorded as started with the checkout a subvolume is finished by
-   a rerun that renames and records
-   (`subvolume_migrate.rs:196-205`).
-6. After the rename and before the index rewrite:
-   the old tree exists at its final name and the catch-up and index steps run
-   again.
-7. After `verify`:
-   the migration is complete and the old tree stays until asked.
+1.  Before the journal:
+    nothing.
+2.  After the journal and before the new subvolume:
+    `create` recorded as started;
+    a rerun skips creating what exists.
+3.  During any copy pass:
+    every pass is idempotent and a rerun repeats the unfinished one.
+4.  After `index.lock` is created and before the exchange:
+    a rerun accepts its own locks
+    (`subvolume_lock.rs:146`),
+    and a person's Git commands are blocked until the rerun or the rollback;
+    the error names the journal and both commands
+    (`subvolume_command.rs:148-160`).
+5.  Between the exchange and the rename:
+    `exchange` recorded as started with the checkout a subvolume is finished by
+    a rerun that renames and records
+    (`subvolume_migrate.rs:196-205`).
+6.  After the rename and before the index rewrite:
+    the old tree exists at its final name and the catch-up and index steps run
+    again.
+7.  After `verify`:
+    the migration is complete and the old tree stays until asked.
 
 The `--remove-old` deletion itself:
 a kill part way through leaves a partly deleted old tree,
@@ -997,26 +997,26 @@ which is why finding 1 is the only loss in that step.
 
 The trash:
 
-1. After the trash directory is made and before an entry is moved into it:
-   an empty trash directory inside the new worktree,
-   which `prune_snapshot` removes again when nothing was moved
-   (`worktree_trash.rs:403-410`).
-2. During the moves:
-   the manifest lives in the command's memory until the hand-over,
-   so a kill here leaves moved directories in a trash whose manifest is gone.
-   They are copies of directories the source still holds,
-   so nothing unique is lost,
-   and no sweep can name them (finding 5's second half).
-3. After the work item is written and before the emptying:
-   the service empties it later,
-   which is what the record is for.
-4. During the emptying,
-   with or without a work item:
-   the manifest that names the entries is in the record
-   (`worktree_trash_dispose.rs:200-215`,
-   `parent: manifest.encode()`),
-   so a rerun removes the rest,
-   and the strangers check refuses a trash that gained anything.
+1.  After the trash directory is made and before an entry is moved into it:
+    an empty trash directory inside the new worktree,
+    which `prune_snapshot` removes again when nothing was moved
+    (`worktree_trash.rs:403-410`).
+2.  During the moves:
+    the manifest lives in the command's memory until the hand-over,
+    so a kill here leaves moved directories in a trash whose manifest is gone.
+    They are copies of directories the source still holds,
+    so nothing unique is lost,
+    and no sweep can name them (finding 5's second half).
+3.  After the work item is written and before the emptying:
+    the service empties it later,
+    which is what the record is for.
+4.  During the emptying,
+    with or without a work item:
+    the manifest that names the entries is in the record
+    (`worktree_trash_dispose.rs:200-215`,
+    `parent: manifest.encode()`),
+    so a rerun removes the rest,
+    and the strangers check refuses a trash that gained anything.
 
 ## Races between two concurrent commands
 
@@ -1439,18 +1439,18 @@ So that nobody repeats it:
 Inspect,
 in this order:
 
-1. finding 1 against `subvolume_rollback.rs:273-326` and
-   `subvolume_sync.rs:145-152`,
-   with the first block's output above;
-2. finding 2 against `worktree_removal_rescue.rs:282-320` and `:515-534`,
-   with the rescue block's three rounds;
-3. findings 3,
-   4,
-   5 and 6,
-   each of which is a sequence and a `path:line`
-   rather than a measurement;
-4. the kill-point walk and the races section,
-   for the states they call sound.
+1.  finding 1 against `subvolume_rollback.rs:273-326` and
+    `subvolume_sync.rs:145-152`,
+    with the first block's output above;
+2.  finding 2 against `worktree_removal_rescue.rs:282-320` and `:515-534`,
+    with the rescue block's three rounds;
+3.  findings 3,
+    4,
+    5 and 6,
+    each of which is a sequence and a `path:line`
+    rather than a measurement;
+4.  the kill-point walk and the races section,
+    for the states they call sound.
 
 Respond with a decision on which findings to fix,
 in which order,

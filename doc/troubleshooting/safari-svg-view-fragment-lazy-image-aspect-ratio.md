@@ -390,35 +390,35 @@ none the same:
 
 The six constraints:
 
-1. Is it upstream's fault?
-   Partly.
-   A `#view` fragment on an `<img>` SVG is specified (SVG 2 linking) and Chromium 149 follows it in layout.
-   Whether the spec requires the intrinsic ratio to follow the view was not read for this document,
-   so that part is unverified.
-2. Can upstream fix it?
-   Probably,
-   nothing architectural is evident:
-   `SVGSVGElement::naturalDimensions()` reads the authored `viewBox()` where `currentViewBoxRect()` exists,
-   but whether changing that fixes the failing path is untested.
-3. Do they support the use case?
-   The fragment path in `SVGImage` and the related reports listed here show a stated interest in fragments on SVG images.
-4. Would the repo welcome the contribution?
-   `webkit.org/reporting-bugs/` asks for the latest build,
-   a Bugzilla account,
-   a duplicate search,
-   and sends Safari-only bugs to Feedback Assistant.
-   Neither it nor `webkit.org/contributing-code/` mentions AI-assisted reports (fetched 2026-10-20),
-   so no ban was found.
-5. Will they likely fix it?
-   No signal against.
-   Bugs 322167 and 326931 were filed in August and October 2026,
-   so fragment handling is being worked on.
-6. Prototyped a minimal fix?
-   No.
-   The eager and lazy split is unexplained,
-   so a change to `naturalDimensions()` alone might not touch the failing path.
-   The root cause is not established and Technology Preview 252 was not matched to a source revision,
-   so the audit is incomplete rather than failed.
+1.  Is it upstream's fault?
+    Partly.
+    A `#view` fragment on an `<img>` SVG is specified (SVG 2 linking) and Chromium 149 follows it in layout.
+    Whether the spec requires the intrinsic ratio to follow the view was not read for this document,
+    so that part is unverified.
+2.  Can upstream fix it?
+    Probably,
+    nothing architectural is evident:
+    `SVGSVGElement::naturalDimensions()` reads the authored `viewBox()` where `currentViewBoxRect()` exists,
+    but whether changing that fixes the failing path is untested.
+3.  Do they support the use case?
+    The fragment path in `SVGImage` and the related reports listed here show a stated interest in fragments on SVG images.
+4.  Would the repo welcome the contribution?
+    `webkit.org/reporting-bugs/` asks for the latest build,
+    a Bugzilla account,
+    a duplicate search,
+    and sends Safari-only bugs to Feedback Assistant.
+    Neither it nor `webkit.org/contributing-code/` mentions AI-assisted reports (fetched 2026-10-20),
+    so no ban was found.
+5.  Will they likely fix it?
+    No signal against.
+    Bugs 322167 and 326931 were filed in August and October 2026,
+    so fragment handling is being worked on.
+6.  Prototyped a minimal fix?
+    No.
+    The eager and lazy split is unexplained,
+    so a change to `naturalDimensions()` alone might not touch the failing path.
+    The root cause is not established and Technology Preview 252 was not matched to a source revision,
+    so the audit is incomplete rather than failed.
 
 Decision:
 do not file.

@@ -141,23 +141,23 @@ The semantic replacement handles the existing API directly.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-    The native behavior followed its documented deep-readonly model and a deliberately
-   top-level branded-literal exemption.
-2. **Can upstream fix it?**
-    A recursive branded exemption would change the old rule's semantic core and intersection
-   handling.
-3. **Are they supporting this use case?**
-    The native rule did not document recursive branded-primitive treatment.
-4. **Would the repo welcome our contribution?**
-    Maintainer discussion on typescript-eslint issue `#1790` declined the
-   general recursive intersection case while accepting a narrower common-case implementation.
-5. **Will they likely fix it?**
-    The top-level-only tests and later alias-preservation work did not extend the exemption
-   to nested property values.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    The repository-owned semantic classifier is
-   the implemented and verified replacement.
+1.  **Is it really upstream's fault?**
+     The native behavior followed its documented deep-readonly model and a deliberately
+    top-level branded-literal exemption.
+2.  **Can upstream fix it?**
+     A recursive branded exemption would change the old rule's semantic core and intersection
+    handling.
+3.  **Are they supporting this use case?**
+     The native rule did not document recursive branded-primitive treatment.
+4.  **Would the repo welcome our contribution?**
+     Maintainer discussion on typescript-eslint issue `#1790` declined the
+    general recursive intersection case while accepting a narrower common-case implementation.
+5.  **Will they likely fix it?**
+     The top-level-only tests and later alias-preservation work did not extend the exemption
+    to nested property values.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     The repository-owned semantic classifier is
+    the implemented and verified replacement.
 
 Nothing should be filed upstream.
 The repository no longer consumes the native rule behavior,

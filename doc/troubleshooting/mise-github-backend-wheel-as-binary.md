@@ -399,55 +399,55 @@ Tradeoffs:
  or packaging exemption,
  so no exemption applies.
 
-1. **Is it really upstream's fault?**
-   Yes for the wheel-as-binary gap.
-   `is_non_executable_asset` states its job is to keep assets that "cannot become
-   a runnable tool" out of automatic selection,
-   and `ExtractionFormat::detect` already recognizes zip magic,
-   yet `install_artifact` calls the name-only `from_file_name` and then
-   `make_executable` on the result.
-   The musl-vs-gnu preference itself is documented scoring with a documented
-   remedy (`matching`/`asset_pattern`),
-   so it is not part of the complaint.
-2. **Can upstream fix it?**
-   Yes.
-   Adding `whl` and `gem` to the extension list in `is_non_executable_asset`
-   keeps wheels out of auto-selection while preserving explicit
-   `asset_pattern`,
-   matching the function's stated purpose.
-3. **Are they supporting this use case?**
-   Yes.
-   The `matching`,
-   `asset_pattern`,
-   and `bin` tool options are documented for multi-asset releases,
-   and `is_non_executable_asset` exists to guard automatic selection.
-4. **Would the repo welcome our contribution?**
-   No.
-   `CONTRIBUTING.md:4-10` restricts AI replies to Discussions and Issues to
-   authors of the thread or accounts with a merged contribution,
-   and calls violation "an instant ban across all of jdx's projects",
-   covering "lightly edited,
-   reviewed,
-   or disclosed model output".
-   `gh search prs --repo jdx/mise --author '@me' 'is:merged'` returns nothing,
-   and PR `#13886` ("docs(contributing):
-   make the restricted AI reply policy and
-   instant ban unmissable") shows the policy is actively reinforced.
-5. **Will they likely fix it?**
-   Not assessed.
-   Moot while constraint 4 fails.
-   For the record:
-   no tracker hit describes this gap
-   (see the duplicate search),
-   so no maintainer "won't fix" signal exists.
-6. **Have we prototyped a minimal fix?**
-   No,
-   and deliberately so.
-   The auto-prototype trigger requires constraints 1 through 5 to hold;
-   constraint 4 fails hard and no filing can result,
-   so a prototype would have no consumer.
-   Recorded here so a future session does not read the missing prototype as an
-   oversight.
+1.  **Is it really upstream's fault?**
+    Yes for the wheel-as-binary gap.
+    `is_non_executable_asset` states its job is to keep assets that "cannot become
+    a runnable tool" out of automatic selection,
+    and `ExtractionFormat::detect` already recognizes zip magic,
+    yet `install_artifact` calls the name-only `from_file_name` and then
+    `make_executable` on the result.
+    The musl-vs-gnu preference itself is documented scoring with a documented
+    remedy (`matching`/`asset_pattern`),
+    so it is not part of the complaint.
+2.  **Can upstream fix it?**
+    Yes.
+    Adding `whl` and `gem` to the extension list in `is_non_executable_asset`
+    keeps wheels out of auto-selection while preserving explicit
+    `asset_pattern`,
+    matching the function's stated purpose.
+3.  **Are they supporting this use case?**
+    Yes.
+    The `matching`,
+    `asset_pattern`,
+    and `bin` tool options are documented for multi-asset releases,
+    and `is_non_executable_asset` exists to guard automatic selection.
+4.  **Would the repo welcome our contribution?**
+    No.
+    `CONTRIBUTING.md:4-10` restricts AI replies to Discussions and Issues to
+    authors of the thread or accounts with a merged contribution,
+    and calls violation "an instant ban across all of jdx's projects",
+    covering "lightly edited,
+    reviewed,
+    or disclosed model output".
+    `gh search prs --repo jdx/mise --author '@me' 'is:merged'` returns nothing,
+    and PR `#13886` ("docs(contributing):
+    make the restricted AI reply policy and
+    instant ban unmissable") shows the policy is actively reinforced.
+5.  **Will they likely fix it?**
+    Not assessed.
+    Moot while constraint 4 fails.
+    For the record:
+    no tracker hit describes this gap
+    (see the duplicate search),
+    so no maintainer "won't fix" signal exists.
+6.  **Have we prototyped a minimal fix?**
+    No,
+    and deliberately so.
+    The auto-prototype trigger requires constraints 1 through 5 to hold;
+    constraint 4 fails hard and no filing can result,
+    so a prototype would have no consumer.
+    Recorded here so a future session does not read the missing prototype as an
+    oversight.
 
 Decision:
  do not file.

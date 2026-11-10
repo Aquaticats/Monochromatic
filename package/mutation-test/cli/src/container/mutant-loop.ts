@@ -35,6 +35,8 @@ import type {
  */
 const l = tagged({ tag: 'mutation-test-container', },);
 
+//region Loop shape
+
 /**
  Loop output: per-mutant results plus the taint-abandoned remainder.
  */
@@ -55,6 +57,10 @@ const TAINTING_STATUSES: ReadonlySet<MutantStatus> = new Set([
   'timeout',
   'runtimeError',
 ],);
+
+//endregion Loop shape
+
+//region Timeout policy
 
 /**
  Computes the effective per-mutant test timeout.
@@ -79,6 +85,10 @@ export function effectiveTimeoutMs(options: {
     Math.ceil(options.factor * options.baselineMs,),
   );
 }
+
+//endregion Timeout policy
+
+//region Loop execution
 
 /**
  Runs every mutant in the shard sequentially.
@@ -274,3 +284,5 @@ export async function runMutantLoop(options: {
     anomaly: '',
   };
 }
+
+//endregion Loop execution
