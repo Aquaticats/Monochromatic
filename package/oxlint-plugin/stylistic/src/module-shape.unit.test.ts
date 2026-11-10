@@ -5,13 +5,17 @@
  name outside a math formula, and `id-length` is set to `allow` in
  `package/config/oxlint/src/rule/style.ts`, so a helper taking `s: string` passes
  every configured rule. Each product module's text is read here and its function
- parameter lists checked directly. Comment content is dropped first, because the
- TSDoc `@example` blocks in this package legitimately show `(a, b)` pairs.
+ parameter names checked directly. Comments and string literals are dropped
+ first, because the TSDoc `@example` blocks in this package legitimately show
+ `(a, b)` pairs.
 
- The scan covers `function` declarations and function expressions; a parameter
- list of an arrow function is not read. It has no math exemption either, because
- no text tells a formula variable from an abbreviation, so a helper that really
- computes with one takes a deliberate change to this guard, never a silent pass.
+ The scan reads `function` declarations and function expressions, including a
+ destructured parameter's bindings. A parameter list of an arrow function or of
+ a method shorthand is not read: telling `createOnce(context) {` from a call
+ statement needs a parser, and a text scan that guessed would report innocent
+ lines. There is no math exemption either, because no text tells a formula
+ variable from an abbreviation, so a helper that really computes with one takes
+ a deliberate change to this guard, never a silent pass.
 
  @module
  */
@@ -47,17 +51,25 @@ type SingleCharacterParameter = {
 };
 
 /**
- Accumulated comment-free lines and whether a block comment is still open.
+ A bracket pair to match, opened at a column of a module text.
  */
-type StripState = {
+type BracketSearch = {
   /**
-   Lines collected so far, with comment content removed.
+   Module text being scanned.
    */
-  readonly lines: readonly string[];
+  readonly text: string;
   /**
-   Whether the previous line left a block comment open.
+   Column the opening bracket sits at.
    */
-  readonly insideBlockComment: boolean;
+  readonly from: number;
+  /**
+   Opening bracket character.
+   */
+  readonly open: string;
+  /**
+   Closing bracket character.
+   */
+  readonly close: string;
 };
 
 //endregion Types
@@ -110,6 +122,11 @@ const BLOCK_COMMENT_CLOSER = '*/';
 const LINE_COMMENT_OPENER = '//';
 
 /**
+ Character ending a line, and ending a line comment with it.
+ */
+const NEWLINE_CHARACTER = '\n';
+
+/**
  Opening bracket of a parameter list.
  */
 const PARAMETER_LIST_OPENER = '(';
@@ -140,9 +157,29 @@ const TYPE_PARAMETER_LIST_CLOSER = '>';
 const ARROW_EQUALS = '=';
 
 /**
- Prefix marking a rest parameter.
+ Prefix marking a rest parameter or a rest binding.
  */
 const SPREAD_PREFIX = '...';
+
+/**
+ Opening bracket of a destructured parameter.
+ */
+const OBJECT_PATTERN_OPENER = '{';
+
+/**
+ Closing bracket of a destructured parameter.
+ */
+const OBJECT_PATTERN_CLOSER = '}';
+
+/**
+ Separator between a destructured property's key and the name it binds.
+ */
+const PATTERN_KEY_SEPARATOR = ':';
+
+/**
+ Separator between a destructured binding and its default value.
+ */
+const DEFAULT_SEPARATOR = '=';
 
 /**
  Quote characters opening a string, a template, or a quoted literal.
@@ -164,7 +201,7 @@ const ESCAPE_CHARACTER = '\\';
 const NESTED_BRACKETS: ReadonlyMap<string, string> = new Map([
   [PARAMETER_LIST_OPENER, PARAMETER_LIST_CLOSER,],
   ['[', ']',],
-  ['{', '}',],
+  [OBJECT_PATTERN_OPENER, OBJECT_PATTERN_CLOSER,],
   [TYPE_PARAMETER_LIST_OPENER, TYPE_PARAMETER_LIST_CLOSER,],
 ],);
 
@@ -174,15 +211,16 @@ const NESTED_BRACKETS: ReadonlyMap<string, string> = new Map([
 const MEANINGLESS_NAME_LENGTH = 1;
 
 /**
- Column no scan reaches, reported when a bracket pair never closes, a search
- finds nothing, or a text ends first.
+ Column no scan reaches, reported when a bracket pair never closes or a search
+ finds nothing.
  */
 const NOT_FOUND_COLUMN = -1;
 
 /**
- Module text holding a single-character parameter, a comment that mentions one,
- a generic function, and a literal that reads like a parameter list, so the scan
- is shown to tell them apart.
+ Module text holding every shape the scan has to tell apart: two declarations
+ that name a parameter with one character, one behind a destructured pattern;
+ declarations that name them for their role, including a generic one; and prose
+ and literals that read like a broken declaration, one of them trailing code.
  */
 const SCANNER_FIXTURE = [
   '/**',
@@ -198,24 +236,20 @@ const SCANNER_FIXTURE = [
   '  return s;',
   '}',
   '',
+  'export function untag({ s, }: LineParts,): string {',
+  '  return s;',
+  '}',
+  '',
   'export function generic<Value,>(value: Value,): Value {',
   '  return value;',
   '}',
   '',
   '// function commented(s: string,) {}',
+  'const marker = \'/*\';',
   'const message = \'function quoted(s: string,)\';',
+  'const width = leadingWhitespace(piece,); // mirrors function trim(s)',
   '',
 ].join('\n',);
-
-/**
- Line the fixture's single-character parameter is declared on, found in the
- fixture text so the assertion follows the fixture rather than a count.
- */
-const SCANNER_FIXTURE_OFFENDER_LINE = SCANNER_FIXTURE
-  .split('\n',)
-  .findIndex(function declaresOffender(line,) {
-    return line.startsWith(`export ${FUNCTION_KEYWORD} broken(`,);
-  },) + 1;
 
 //endregion Fixtures
 
@@ -289,6 +323,109 @@ function skipStringLiteral(text: string, from: number,): number {
 }
 
 /**
+ Skip a block comment opened at a column.
+
+ @param text - module text being scanned
+
+ @param from - column of the opening `/*`
+
+ @returns column just past the closing `*\/`, or `text.length` when unclosed
+ */
+function skipBlockComment(text: string, from: number,): number {
+  /**
+   Column of the closing `*\/`, or -1 when the comment never closes.
+   */
+  const closer = text.indexOf(BLOCK_COMMENT_CLOSER, from + BLOCK_COMMENT_OPENER.length,);
+  return (closer === NOT_FOUND_COLUMN) ? text.length : closer + BLOCK_COMMENT_CLOSER.length;
+}
+
+/**
+ Skip a line comment opened at a column.
+
+ @param text - module text being scanned
+
+ @param from - column of the opening `//`
+
+ @returns column of the newline ending the comment, or `text.length`
+ */
+function skipLineComment(text: string, from: number,): number {
+  /**
+   Column of the newline ending the comment, or -1 when the text ends first.
+   */
+  const end = text.indexOf(NEWLINE_CHARACTER, from + LINE_COMMENT_OPENER.length,);
+  return (end === NOT_FOUND_COLUMN) ? text.length : end;
+}
+
+/**
+ Drop every comment from a module text, keeping every line so a reported line
+ matches the file a reader opens.
+
+ A quote is read before a comment marker, so `'/*'` and a URL inside a literal
+ stay code; a newline inside a dropped comment is kept, so the line count holds.
+
+ @param text - module text as written
+
+ @returns module text with comment content removed
+
+ @example
+ ```ts
+ withoutComments('const untagged = 1; // not a declaration');
+ ```
+ */
+function withoutComments(text: string,): string {
+  /**
+   Code characters kept so far, one entry per character or comment newline run.
+   */
+  const kept: string[] = [];
+  /**
+   Column walked forward through the text.
+   */
+  let cursor = 0;
+  while (cursor < text.length) {
+    /**
+     Character at the cursor.
+     */
+    const character = text[cursor] ?? '';
+    if (STRING_QUOTES.has(character,)) {
+      /**
+       Column just past the literal opened here.
+       */
+      const literalEnd = skipStringLiteral(text, cursor,);
+      kept.push(text.slice(cursor, literalEnd,),);
+      cursor = literalEnd;
+      continue;
+    }
+    if (text.startsWith(BLOCK_COMMENT_OPENER, cursor,)) {
+      /**
+       Column just past the block comment opened here.
+       */
+      const commentEnd = skipBlockComment(text, cursor,);
+      /**
+       Newlines the dropped comment held, which keep every later line where it was.
+       */
+      const commentNewlines = text
+        .slice(cursor, commentEnd,)
+        .split(NEWLINE_CHARACTER,)
+        .length - 1;
+      kept.push(NEWLINE_CHARACTER.repeat(commentNewlines,),);
+      cursor = commentEnd;
+      continue;
+    }
+    if (text.startsWith(LINE_COMMENT_OPENER, cursor,)) {
+      cursor = skipLineComment(text, cursor,);
+      continue;
+    }
+    kept.push(character,);
+    cursor += 1;
+  }
+  /**
+   Code and comment newlines collected above, in source order.
+   */
+  const withoutCommentsText = kept.join('',);
+  return withoutCommentsText;
+}
+
+/**
  Split a parameter list into its top-level parts, ignoring separators nested in
  a bracket pair or written inside a literal.
 
@@ -307,7 +444,7 @@ function splitParameters(text: string,): readonly string[] {
    */
   const parameters: string[] = [];
   /**
-   Columns of brackets still open, innermost last.
+   Brackets still open, innermost last.
    */
   const openBrackets: string[] = [];
   /**
@@ -357,47 +494,20 @@ function splitParameters(text: string,): readonly string[] {
 }
 
 /**
- Column of the parenthesis closing the one opened at a column.
-
- @param text - module text being scanned
-
- @param from - column of the opening parenthesis
-
- @returns column of the matching closing parenthesis, or `NOT_FOUND_COLUMN`
- */
-function matchingParenthesisColumn(text: string, from: number,): number {
-  for (let cursor = from, depth = 0; cursor < text.length; cursor += 1) {
-    /**
-     Character at the cursor.
-     */
-    const character = text[cursor] ?? '';
-    if (STRING_QUOTES.has(character,)) {
-      cursor = skipStringLiteral(text, cursor,) - 1;
-      continue;
-    }
-    if (character === PARAMETER_LIST_OPENER)
-      depth += 1;
-    if (character === PARAMETER_LIST_CLOSER) {
-      depth -= 1;
-      if (depth === 0)
-        return cursor;
-    }
-  }
-  return NOT_FOUND_COLUMN;
-}
-
-/**
- Column of the angle bracket closing the type parameter list opened at a column.
+ Column of the bracket closing the one opened at a column.
 
  An arrow's `=>` closes nothing, so a `>` that follows `=` is skipped.
 
- @param text - module text being scanned
+ @param search - module text, opening column, and the bracket pair to match
 
- @param from - column of the opening angle bracket
-
- @returns column of the matching closing angle bracket, or `NOT_FOUND_COLUMN`
+ @returns column of the matching closing bracket, or `NOT_FOUND_COLUMN`
  */
-function matchingAngleColumn(text: string, from: number,): number {
+function matchingBracketColumn({
+  text,
+  from,
+  open,
+  close,
+}: BracketSearch,): number {
   for (let cursor = from, depth = 0; cursor < text.length; cursor += 1) {
     /**
      Character at the cursor.
@@ -407,9 +517,9 @@ function matchingAngleColumn(text: string, from: number,): number {
       cursor = skipStringLiteral(text, cursor,) - 1;
       continue;
     }
-    if (character === TYPE_PARAMETER_LIST_OPENER)
+    if (character === open)
       depth += 1;
-    if ((character === TYPE_PARAMETER_LIST_CLOSER) && (text[cursor - 1] !== ARROW_EQUALS)) {
+    if ((character === close) && (text[cursor - 1] !== ARROW_EQUALS)) {
       depth -= 1;
       if (depth === 0)
         return cursor;
@@ -433,31 +543,99 @@ function columnAfterTypeParameters(text: string, from: number,): number {
   /**
    Column of the closing angle bracket, or `NOT_FOUND_COLUMN`.
    */
-  const closeAngle = matchingAngleColumn(text, from,);
+  const closeAngle = matchingBracketColumn({
+    text,
+    from,
+    open: TYPE_PARAMETER_LIST_OPENER,
+    close: TYPE_PARAMETER_LIST_CLOSER,
+  },);
   return (closeAngle === NOT_FOUND_COLUMN) ? NOT_FOUND_COLUMN : closeAngle + 1;
 }
 
 /**
- Name a parameter declares, with any rest prefix removed.
+ Name one destructured property binds.
+
+ @param property - one property text as written, between two separators
+
+ @returns bound identifier, empty for a nested pattern or a computed key
+
+ @example
+ ```ts
+ patternBindingName('line: text = \\'\\'');
+ ```
+ */
+function patternBindingName(property: string,): string {
+  /**
+   Property text without its rest prefix.
+   */
+  const withoutRest = property.startsWith(SPREAD_PREFIX,)
+    ? property.slice(SPREAD_PREFIX.length,)
+    : property;
+  /**
+   Column separating the key from the binding, or -1 for a shorthand property.
+   */
+  const keySeparator = withoutRest.indexOf(PATTERN_KEY_SEPARATOR,);
+  /**
+   Text holding the binding, which a shorthand property already is.
+   */
+  const binding = (keySeparator === NOT_FOUND_COLUMN)
+    ? withoutRest
+    : withoutRest.slice(keySeparator + 1,);
+  /**
+   Column separating the binding from its default, or -1 when it has none.
+   */
+  const defaultValue = binding.indexOf(DEFAULT_SEPARATOR,);
+  /**
+   Binding text without its default value.
+   */
+  const name = (defaultValue === NOT_FOUND_COLUMN) ? binding : binding.slice(0, defaultValue,);
+  return identifierPrefix(name.trim(),);
+}
+
+/**
+ Names one parameter declares: its own name, or every binding of its pattern.
 
  @param parameter - one parameter text as written
 
- @returns declared identifier, empty for a destructured parameter
+ @returns declared identifiers, empty for a parameter that declares none
+
+ @example
+ ```ts
+ parameterNames('{ line, offset }: LineParts');
+ ```
  */
-function parameterName(parameter: string,): string {
+function parameterNames(parameter: string,): readonly string[] {
   /**
-   Parameter text without its rest prefix.
+   Parameter text without its rest prefix, which a rest parameter or binding carries.
    */
-  const rest = parameter.startsWith(SPREAD_PREFIX,)
+  const withoutRest = parameter.startsWith(SPREAD_PREFIX,)
     ? parameter.slice(SPREAD_PREFIX.length,)
     : parameter;
-  return identifierPrefix(rest.trimStart(),);
+  /**
+   Parameter text without leading whitespace.
+   */
+  const trimmed = withoutRest.trimStart();
+  if (!(trimmed.startsWith(OBJECT_PATTERN_OPENER,)))
+    return [identifierPrefix(trimmed,),];
+  /**
+   Column the pattern closes at, or `NOT_FOUND_COLUMN`.
+   */
+  const patternCloser = matchingBracketColumn({
+    text: trimmed,
+    from: 0,
+    open: OBJECT_PATTERN_OPENER,
+    close: OBJECT_PATTERN_CLOSER,
+  },);
+  if (patternCloser === NOT_FOUND_COLUMN)
+    return [];
+  return splitParameters(trimmed.slice(1, patternCloser,),)
+    .map(patternBindingName,);
 }
 
 /**
  Whether a parameter name says nothing about what the parameter carries.
 
- @param name - name as declared, empty for a destructured parameter
+ @param name - name as declared, empty for a parameter that declares none
 
  @returns true when the name is one character long
  */
@@ -509,11 +687,16 @@ function meaninglessParameterNamesAfter(text: string, from: number,): readonly s
   /**
    Column the parameter list closes at, or `NOT_FOUND_COLUMN`.
    */
-  const listCloser = matchingParenthesisColumn(text, listOpener,);
+  const listCloser = matchingBracketColumn({
+    text,
+    from: listOpener,
+    open: PARAMETER_LIST_OPENER,
+    close: PARAMETER_LIST_CLOSER,
+  },);
   if (listCloser === NOT_FOUND_COLUMN)
     return [];
   return splitParameters(text.slice(listOpener + 1, listCloser,),)
-    .map(parameterName,)
+    .flatMap(parameterNames,)
     .filter(isMeaninglessName,);
 }
 
@@ -559,75 +742,13 @@ function singleCharacterParameterNames(text: string,): readonly SingleCharacterP
       for (const name of meaninglessParameterNamesAfter(text, cursor + word.length,)) {
         offenders.push({
           name,
-          line: text.slice(0, cursor,).split('\n',).length,
+          line: text.slice(0, cursor,).split(NEWLINE_CHARACTER,).length,
         },);
       }
     }
     cursor += word.length;
   }
   return offenders;
-}
-
-/**
- Append one line to the comment-free accumulator.
-
- @param state - lines collected so far and whether a block comment is open
-
- @param line - next line of module text as written
-
- @returns the accumulator with this line appended
-
- @example
- ```ts
- lines.reduce(stripComments, { lines: [], insideBlockComment: false });
- ```
- */
-function stripComments(state: StripState, line: string,): StripState {
-  if (state.insideBlockComment) {
-    return {
-      lines: [...state.lines, '',],
-      insideBlockComment: !(line.includes(BLOCK_COMMENT_CLOSER,)),
-    };
-  }
-  /**
-   Column where a block comment opens on this line, or -1.
-   */
-  const blockOpener = line.indexOf(BLOCK_COMMENT_OPENER,);
-  if (blockOpener === NOT_FOUND_COLUMN) {
-    return {
-      lines: [...state.lines, line.trimStart().startsWith(LINE_COMMENT_OPENER,) ? '' : line,],
-      insideBlockComment: false,
-    };
-  }
-  return {
-    lines: [...state.lines, line.slice(0, blockOpener,),],
-    insideBlockComment: !(line.includes(BLOCK_COMMENT_CLOSER, blockOpener,)),
-  };
-}
-
-/**
- Drop every comment from a module text, keeping every line so a reported line
- matches the file a reader opens.
-
- @param text - module text as written
-
- @returns module text with comment content removed
-
- @example
- ```ts
- withoutComments('/** takes no tag *\/ const untagged = 1;');
- ```
- */
-function withoutComments(text: string,): string {
-  return text
-    .split('\n',)
-    .reduce<StripState>(
-    function step(state, line,) {
-      return stripComments(state, line,);
-    },
-    { lines: [], insideBlockComment: false, },
-    ).lines
-    .join('\n',);
 }
 
 /**
@@ -716,6 +837,38 @@ async function productModules(directory: string,): Promise<readonly string[]> {
 
 //endregion Helpers
 
+//region Fixture expectations
+
+/**
+ Line of the fixture a declaration starts on, 1-based.
+
+ @param declarationStart - text the declaring line starts with
+
+ @returns line number, found in the fixture so an edit to it cannot silently pass
+
+ @example
+ ```ts
+ fixtureLine('export function broken(');
+ ```
+ */
+function fixtureLine(declarationStart: string,): number {
+  return SCANNER_FIXTURE
+    .split(NEWLINE_CHARACTER,)
+    .findIndex(function starts(line,) {
+      return line.startsWith(declarationStart,);
+    },) + 1;
+}
+
+/**
+ Offending parameters the fixture declares, in source order.
+ */
+const SCANNER_FIXTURE_OFFENDERS: readonly SingleCharacterParameter[] = [
+  { name: 's', line: fixtureLine(`export ${FUNCTION_KEYWORD} broken(`,), },
+  { name: 's', line: fixtureLine(`export ${FUNCTION_KEYWORD} untag(`,), },
+];
+
+//endregion Fixture expectations
+
 await describe({
   name: '',
   children: [
@@ -725,13 +878,11 @@ await describe({
       name: singleCharacterParameterNames.name,
       children: [
         it({
-          name: 'reports a declared single-character parameter and ignores comment prose',
+          name: 'reports declared single-character parameters and ignores prose and literals',
           fn: async () => {
             expect(
               singleCharacterParameterNames(withoutComments(SCANNER_FIXTURE,),),
-            ).toStrictEqual([
-              { name: 's', line: SCANNER_FIXTURE_OFFENDER_LINE, },
-            ],);
+            ).toStrictEqual(SCANNER_FIXTURE_OFFENDERS,);
           },
         },),
         it({
@@ -741,10 +892,10 @@ await describe({
              Module text whose every parameter is named for its role.
              */
             const text = [
-              'export function untagged(line: string,): string {',
-              '  return line;',
+              'export function untagged({ line, offset }: LineParts,): string {',
+              '  return line.slice(offset,);',
               '}',
-            ].join('\n',);
+            ].join(NEWLINE_CHARACTER,);
             /**
              Offending names the scan finds in that module.
              */
