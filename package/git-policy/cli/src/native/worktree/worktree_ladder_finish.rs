@@ -50,7 +50,7 @@ use crate::worktree_ladder_target::{Target, apply_difference, checkout_environme
 use crate::worktree_slow_route::{SlowRoute, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
 use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
-use crate::worktree_subvolume::settle_subvolume_destination;
+use crate::worktree_subvolume::settle_created_destination;
 use crate::worktree_trash::{PendingTrash, TrashManifest};
 use std::ffi::OsString;
 use std::io::Write;
@@ -505,20 +505,20 @@ impl Ladder {
             (Rung::Clone(source, subvolume, claim), Some(plan)) => {
                 let result: LadderResult = finish_clones(&source, plan, git, claim, run_git, context, out, &mut slow);
                 if let Some(created) = subvolume.as_ref() {
-                    settle_subvolume_destination(created);
+                    settle_created_destination(created);
                 }
                 result
             }
             (Rung::Clone(_, subvolume, claim), None) => {
                 if let Some(created) = subvolume.as_ref() {
-                    settle_subvolume_destination(created);
+                    settle_created_destination(created);
                 }
                 release_claim(claim, false);
                 LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }
             (Rung::Git(subvolume), _) => {
                 if let Some(created) = subvolume.as_ref() {
-                    settle_subvolume_destination(created);
+                    settle_created_destination(created);
                 }
                 LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }
