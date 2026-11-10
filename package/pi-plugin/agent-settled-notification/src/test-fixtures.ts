@@ -14,6 +14,7 @@ import type {
   ExtensionContext,
   ExtensionHandler,
 } from '@earendil-works/pi-coding-agent';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 //region Types
 
@@ -35,6 +36,36 @@ type FakePiHarness = {
    Handlers grouped by lifecycle event name.
    */
   readonly handlersByEvent: ReadonlyMap<string, readonly AgentSettledHandler[]>;
+};
+
+/**
+ Messages a recording logger captured, in call order.
+ */
+type RecordedLogCalls = {
+  /**
+   Messages logged at debug level.
+   */
+  readonly debug: readonly string[];
+
+  /**
+   Messages logged at warn level.
+   */
+  readonly warn: readonly string[];
+};
+
+/**
+ Logger that records its messages and the record it keeps appending to.
+ */
+type RecordingLoggerHarness = {
+  /**
+   Logger handed to the code under test.
+   */
+  readonly logger: Logger;
+
+  /**
+   Live view of the messages recorded so far.
+   */
+  readonly calls: RecordedLogCalls;
 };
 
 //endregion Types
@@ -170,16 +201,95 @@ function createExtensionContext(): ExtensionContext {
   return {} as unknown as ExtensionContext;
 }
 
+/**
+ Discards a level this package's delivery decision never branches on.
+
+ @param message - message the recording logger deliberately leaves unobserved
+
+ @example
+ ```ts
+ discardMessage('ignored');
+ ```
+ */
+function discardMessage(message: string,): void {
+  void message;
+}
+
+/**
+ Reports an immediately completed flush, because a recording logger buffers nothing.
+
+ @example
+ ```ts
+ await flushNothing();
+ ```
+ */
+function flushNothing(): Promise<void> {
+  return Promise.resolve();
+}
+
+/**
+ Creates a logger that records warn and debug messages instead of writing them.
+
+ Delivery outcomes are the only levels this package decides on, so the fixture
+ keeps them and discards the rest, which keeps a suite off the desktop sinks.
+
+ @returns logger handed to the code under test plus the record it appends to
+
+ @example
+ ```ts
+ const { logger, calls } = createRecordingLogger();
+ ```
+ */
+function createRecordingLogger(): RecordingLoggerHarness {
+  /**
+   Messages logged at debug level, appended in call order.
+   */
+  const debug: string[] = [];
+
+  /**
+   Messages logged at warn level, appended in call order.
+   */
+  const warn: string[] = [];
+
+  /**
+   Logger whose recorded levels stay inspectable after the call returns.
+   */
+  const logger: Logger = {
+    debug: function recordDebug(message: string,): void {
+      debug.push(message,);
+    },
+    error: discardMessage,
+    fatal: discardMessage,
+    flush: flushNothing,
+    info: discardMessage,
+    trace: discardMessage,
+    warn: function recordWarn(message: string,): void {
+      warn.push(message,);
+    },
+  };
+
+  return {
+    logger,
+    calls: {
+      debug,
+      warn,
+    },
+  };
+}
+
 //endregion Harness construction
 
 export {
   createAgentSettledEvent,
   createExtensionContext,
   createFakePiHarness,
+  createRecordingLogger,
   getOnlyHandler,
 };
 
 export type {
   AgentSettledHandler,
   FakePiHarness,
+  RecordedLogCalls,
+  RecordingLoggerHarness,
 };

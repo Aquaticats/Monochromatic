@@ -23,6 +23,7 @@ import {
   createAgentSettledEvent,
   createExtensionContext,
   createFakePiHarness,
+  createRecordingLogger,
   getOnlyHandler,
 } from './test-fixtures.ts';
 
@@ -97,6 +98,78 @@ await describe({
                 args: NOTIFICATION_ARGUMENTS,
               },
             ],);
+          },
+        },),
+
+        it({
+          name: 'logs delivered settlements at debug without warning',
+          fn: async () => {
+            /** Fake Pi registration harness. */
+            const harness = createFakePiHarness();
+            /** Recording logger standing in for the module root logger. */
+            const recording = createRecordingLogger();
+
+            registerAgentSettledNotification({
+              pi: harness.api,
+              l: recording.logger,
+              invoke: function acceptNotification(): Promise<void> {
+                return Promise.resolve();
+              },
+            },);
+
+            /** Settled-event callback registered by the extension. */
+            const handler = getOnlyHandler({
+              handlersByEvent: harness.handlersByEvent,
+              event: 'agent_settled',
+            },);
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+
+            expect(recording.calls.warn,).toEqual([],);
+            expect(recording.calls.debug,).toHaveLength(1,);
+            expect(recording.calls.debug[0],).toContain('sent settled-agent desktop notification',);
+          },
+        },),
+
+        it({
+          name: 'warns once about unavailable delivery and logs repeats at debug',
+          fn: async () => {
+            /** Fake Pi registration harness. */
+            const harness = createFakePiHarness();
+            /** Recording logger standing in for the module root logger. */
+            const recording = createRecordingLogger();
+            /** Delivery failure returned by an unavailable desktop-notification executable. */
+            const unavailable = new Error('notify-send unavailable',);
+
+            registerAgentSettledNotification({
+              pi: harness.api,
+              l: recording.logger,
+              invoke: async function rejectNotification(): Promise<void> {
+                throw unavailable;
+              },
+            },);
+
+            /** Settled-event callback registered by the extension. */
+            const handler = getOnlyHandler({
+              handlersByEvent: harness.handlersByEvent,
+              event: 'agent_settled',
+            },);
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+            await handler(
+              createAgentSettledEvent({ aborted: false, },),
+              createExtensionContext(),
+            );
+
+            expect(recording.calls.warn,).toHaveLength(1,);
+            expect(recording.calls.warn[0],).toContain('settled-agent desktop notification unavailable',);
+            expect(recording.calls.warn[0],).toContain(unavailable.message,);
+            expect(recording.calls.debug,).toHaveLength(1,);
+            expect(recording.calls.debug[0],).toContain('settled-agent desktop notification remains unavailable',);
           },
         },),
       ],
