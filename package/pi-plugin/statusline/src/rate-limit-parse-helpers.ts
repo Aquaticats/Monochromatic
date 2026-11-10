@@ -10,6 +10,8 @@ import {
   type RateLimitSnapshot,
 } from './rate-limit-types.ts';
 
+//region Invalid-value sentinels
+
 /**
  Sentinel returned when a header or object property is missing or invalid.
  */
@@ -34,6 +36,10 @@ type InvalidRateLimitSnapshot = typeof INVALID_RATE_LIMIT_SNAPSHOT;
  Unknown object record used while parsing provider JSON.
  */
 type UnknownRecord = Readonly<Record<string, unknown>>;
+
+//endregion Invalid-value sentinels
+
+//region Header readers
 
 /**
  Normalizes provider headers to lowercase names.
@@ -220,6 +226,10 @@ function parseEpochSecondsHeader({
   return seconds * MILLISECONDS_PER_SECOND;
 }
 
+//endregion Header readers
+
+//region Numeric clamping
+
 /**
  Clamps numeric value into inclusive range.
  
@@ -253,6 +263,10 @@ function clampNumber({
     ),
   );
 }
+
+//endregion Numeric clamping
+
+//region Record property readers
 
 /**
  Detects object records while parsing JSON.
@@ -334,6 +348,10 @@ function readNumberProperty({
   return value;
 }
 
+//endregion Record property readers
+
+//region Text shaping
+
 /**
  ASCII digit characters, each standing for one digit in a text's shape.
  */
@@ -383,6 +401,10 @@ function shapeOfText(text: string,): string {
 
   return shapedCharacters.join('',);
 }
+
+//endregion Text shaping
+
+//region Calendar and zone validation
 
 /**
  Days in a month of thirty-one days.
@@ -572,6 +594,10 @@ function hasRealFields({
     && isRealZone(zone,);
 }
 
+//endregion Calendar and zone validation
+
+//region ISO instant validation
+
 /**
  Tells whether text is an ISO-8601 instant with a zone: date, `T`, time with an optional fraction, then `Z` or a
  colon-separated offset.
@@ -644,6 +670,10 @@ function isIsoInstantWithZone(text: string,): boolean {
   },);
 }
 
+//endregion ISO instant validation
+
+//region Reset property reading
+
 /**
  Parses reset property from an unknown record.
  
@@ -685,6 +715,10 @@ function readResetProperty({
 
   return resetAtMs;
 }
+
+//endregion Reset property reading
+
+//region Snapshot construction and validation
 
 /**
  Computes bounded percentage from used and limit values.
@@ -804,6 +838,8 @@ function isRateLimitSnapshot(
 ): snapshot is RateLimitSnapshot {
   return snapshot !== INVALID_RATE_LIMIT_SNAPSHOT;
 }
+
+//endregion Snapshot construction and validation
 
 export {
   INVALID_RATE_LIMIT_SNAPSHOT,

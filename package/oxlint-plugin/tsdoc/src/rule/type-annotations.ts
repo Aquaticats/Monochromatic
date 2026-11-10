@@ -72,15 +72,15 @@ function isInlineTagOpener(params: {
 
 /**
  Collects every JSDoc-style `{Type}` body that follows a `@word` and at
- least one whitespace char in `s`. Matches the legacy `/@\w+\s+\{([^}]+)\}/g`
+ least one whitespace char in `line`. Matches the legacy `/@\w+\s+\{([^}]+)\}/g`
  shape except for TSDoc inline tags such as `{@link Target}`, detected via
  {@link isInlineTagOpener}.
  
  Strictly linear: each `@` candidate is found by `indexOf`, surrounding
  checks are constant-time, and the cursor advances past every consumed
- span so the total work is bounded by the length of `s`.
+ span so the total work is bounded by the length of `line`.
  
- @param s - line content (already stripped of comment markers and trim)
+ @param line - line content (already stripped of comment markers and trim)
  
  @returns ordered list of captured type bodies (without the braces)
  
@@ -90,21 +90,21 @@ function isInlineTagOpener(params: {
  findTypeAnnotations('@param ' + '{string}'); // ['string']
  ```
  */
-export function findTypeAnnotations(s: string,): readonly string[] {
+export function findTypeAnnotations(line: string,): readonly string[] {
   /**
    Captured type bodies in source order; each omits the surrounding braces.
    */
   const out: string[] = [];
   // Linear walk: each `@` is located by `indexOf`; the tag run, whitespace gap,
   // and `{...}` body are each measured once and the cursor jumps past every
-  // consumed span, so total work is bounded by the length of `s` and the stack
+  // consumed span, so total work is bounded by the length of `line` and the stack
   // stays flat. An unterminated `{` halts the scan, matching the prior recursion.
-  for (let from = 0; from < s
+  for (let from = 0; from < line
     .length;) {
     /**
      Position of the next at-sign; -1 ends the scan.
      */
-    const atIdx = s.indexOf(
+    const atIdx = line.indexOf(
       '@',
       from,
     );
@@ -114,7 +114,7 @@ export function findTypeAnnotations(s: string,): readonly string[] {
      Exclusive end of the tag-name run; cursor starts at `atIdx + 1` to skip the at-sign.
      */
     const tagEnd = wordRunEnd({
-      text: s,
+      text: line,
       start: atIdx + 1,
     },);
     if (tagEnd === (atIdx + 1)) {
@@ -125,10 +125,10 @@ export function findTypeAnnotations(s: string,): readonly string[] {
      First index past the inter-token whitespace; `{` must live here for a match.
      */
     const afterWs = whitespaceRunEnd({
-      text: s,
+      text: line,
       start: tagEnd,
     },);
-    if ((afterWs === tagEnd) || (s.charAt(afterWs,)
+    if ((afterWs === tagEnd) || (line.charAt(afterWs,)
       !== '{')) {
       from = tagEnd;
       continue;
@@ -136,14 +136,14 @@ export function findTypeAnnotations(s: string,): readonly string[] {
     /**
      Position of the matching `}`; -1 means the type body is unterminated.
      */
-    const closeIdx = s.indexOf(
+    const closeIdx = line.indexOf(
       '}',
       afterWs + 1,
     );
     if (closeIdx === (-1))
       break;
     if (isInlineTagOpener({
-      text: s,
+      text: line,
       braceIndex: afterWs,
     },)) {
       from = closeIdx + 1;
@@ -152,7 +152,7 @@ export function findTypeAnnotations(s: string,): readonly string[] {
     /**
      Captured body between `{` and `}` exclusive; must be non-empty per `[^}]+`.
      */
-    const body = s.slice(
+    const body = line.slice(
       afterWs + 1,
       closeIdx,
     );

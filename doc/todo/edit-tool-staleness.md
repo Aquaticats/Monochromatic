@@ -13,20 +13,20 @@ The file was **not** modified.
 
 ## Reproduction timeline
 
-1. `Read` on `package/file-enforcer/core/src/package/manager-defs.ts` (harness records staleness marker)
-2. `Write` creates a **sibling** file `manager-defs.unit.test.ts` in the same directory
-3. `dprint fmt` runs:
-    scans workspace,
-    reformats the test file (1 file changed),
-    `stat()`s other `.ts` files
-4. `bun test` runs:
-    imports `manager-defs.ts` at runtime (read-only)
-5. `mise run lint` runs `task-tsgo --build`,
-    writes `tsconfig.tsbuildinfo` in the dist tree
-6. `Edit` on `manager-defs.ts`:
-    **rejected as stale**
-7. `Read` on `manager-defs.ts`:
-    content is byte-identical to step 1
+1.  `Read` on `package/file-enforcer/core/src/package/manager-defs.ts` (harness records staleness marker)
+2.  `Write` creates a **sibling** file `manager-defs.unit.test.ts` in the same directory
+3.  `dprint fmt` runs:
+     scans workspace,
+     reformats the test file (1 file changed),
+     `stat()`s other `.ts` files
+4.  `bun test` runs:
+     imports `manager-defs.ts` at runtime (read-only)
+5.  `mise run lint` runs `task-tsgo --build`,
+     writes `tsconfig.tsbuildinfo` in the dist tree
+6.  `Edit` on `manager-defs.ts`:
+     **rejected as stale**
+7.  `Read` on `manager-defs.ts`:
+     content is byte-identical to step 1
 
 No PostToolUse hooks are configured that modify `.ts` files
 (confirmed by checking `.claude/settings.json` and user-level settings).
@@ -60,18 +60,18 @@ instead of mtime/inode for staleness detection.
 
 ## Investigation steps for the next session
 
-1. Check if Claude Code's Edit tool source is accessible (it ships with the CLI:
-    look in the npm package or GitHub repo)
-2. Identify the exact staleness mechanism (mtime,
-    inode,
-    content hash,
-    ETag,
-    or combination)
-3. Prototype an MCP server exposing `read_file` and `edit_file` tools with content-hash-based staleness
-4. Test whether Claude Code allows MCP tools to shadow built-in tool names,
-    or if the MCP tools need distinct names
-5. If shadowing is not possible,
-    explore the `--disable-tool` CLI flag to suppress the built-in Edit and alias the MCP replacement
+1.  Check if Claude Code's Edit tool source is accessible (it ships with the CLI:
+     look in the npm package or GitHub repo)
+2.  Identify the exact staleness mechanism (mtime,
+     inode,
+     content hash,
+     ETag,
+     or combination)
+3.  Prototype an MCP server exposing `read_file` and `edit_file` tools with content-hash-based staleness
+4.  Test whether Claude Code allows MCP tools to shadow built-in tool names,
+     or if the MCP tools need distinct names
+5.  If shadowing is not possible,
+     explore the `--disable-tool` CLI flag to suppress the built-in Edit and alias the MCP replacement
 
 ## Related context
 

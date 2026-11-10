@@ -106,17 +106,17 @@ curl -s http://127.0.0.1:9315/mcp \
 
 Tool workflow and argument-name traps (verified):
 
-1. `list_windows` -> a `windowHandle` object `{generation, index}` (nested as JSON in `content[0].text`).
-2. `find_elements_by_id` needs `{windowHandle, elementsId}` (the field is `elementsId`,
-    not `id`);
-    returns
-   `elementHandles`.
-3. `get_element_properties` / `set_element_value` / `click_element` take `{elementHandle, ...}` (element handle,
-    not
-   window handle);
-    `set_element_value` takes `value` as a string.
-4. `take_screenshot` takes `{windowHandle, imageMimeType}` and returns an inline base64 PNG in an `image` content
-   item.
+1.  `list_windows` -> a `windowHandle` object `{generation, index}` (nested as JSON in `content[0].text`).
+2.  `find_elements_by_id` needs `{windowHandle, elementsId}` (the field is `elementsId`,
+     not `id`);
+     returns
+    `elementHandles`.
+3.  `get_element_properties` / `set_element_value` / `click_element` take `{elementHandle, ...}` (element handle,
+     not
+    window handle);
+     `set_element_value` takes `value` as a string.
+4.  `take_screenshot` takes `{windowHandle, imageMimeType}` and returns an inline base64 PNG in an `image` content
+    item.
 
 Default backend is `SLINT_BACKEND=headless` (real frames off-screen,
  software renderer).
@@ -159,42 +159,42 @@ compositor.
  Details and the source trace live in `doc/troubleshooting/niri-mise-cargo-install.md`.
 Issue #272 tracks replacing this dependency with a repo-owned minimal nested Wayland session tailored to GUI tests.
 
-1. Launch niri nested from the live Wayland session:
+1.  Launch niri nested from the live Wayland session:
 
-   ```bash
-   mkdir --parents target/niri-gpu-test/xdg-config target/niri-gpu-test/xdg-cache target/niri-gpu-test/xdg-data
-   : > target/niri-gpu-test/empty.kdl
-   XDG_CONFIG_HOME="$PWD/target/niri-gpu-test/xdg-config" \
-     XDG_CACHE_HOME="$PWD/target/niri-gpu-test/xdg-cache" \
-     XDG_DATA_HOME="$PWD/target/niri-gpu-test/xdg-data" \
-     NIRI_CONFIG="$PWD/target/niri-gpu-test/empty.kdl" \
-     niri
-   ```
+    ```bash
+    mkdir --parents target/niri-gpu-test/xdg-config target/niri-gpu-test/xdg-cache target/niri-gpu-test/xdg-data
+    : > target/niri-gpu-test/empty.kdl
+    XDG_CONFIG_HOME="$PWD/target/niri-gpu-test/xdg-config" \
+      XDG_CACHE_HOME="$PWD/target/niri-gpu-test/xdg-cache" \
+      XDG_DATA_HOME="$PWD/target/niri-gpu-test/xdg-data" \
+      NIRI_CONFIG="$PWD/target/niri-gpu-test/empty.kdl" \
+      niri
+    ```
 
-2. In a second shell,
-    run the app as a nested Wayland client with the GPU backend.
-    Use the `WAYLAND_DISPLAY` and
-   `NIRI_SOCKET` values printed by niri:
+2.  In a second shell,
+     run the app as a nested Wayland client with the GPU backend.
+     Use the `WAYLAND_DISPLAY` and
+    `NIRI_SOCKET` values printed by niri:
 
-   ```bash
-   WAYLAND_DISPLAY=wayland-1 \
-     NIRI_SOCKET=/run/user/1000/niri.wayland-1.<pid>.sock \
-     SLINT_BACKEND= SLINT_MCP_PORT=9315 \
-     mise run //package/music-player/desktop-app:mcp -- fixtures
-   ```
+    ```bash
+    WAYLAND_DISPLAY=wayland-1 \
+      NIRI_SOCKET=/run/user/1000/niri.wayland-1.<pid>.sock \
+      SLINT_BACKEND= SLINT_MCP_PORT=9315 \
+      mise run //package/music-player/desktop-app:mcp -- fixtures
+    ```
 
-3. Capture the nested compositor output with niri IPC:
+3.  Capture the nested compositor output with niri IPC:
 
-   ```bash
-   NIRI_SOCKET=/run/user/1000/niri.wayland-1.<pid>.sock \
-     niri msg action screenshot-screen --show-pointer false --path "$PWD/target/niri-gpu-test/niri-screen.png"
-   ```
+    ```bash
+    NIRI_SOCKET=/run/user/1000/niri.wayland-1.<pid>.sock \
+      niri msg action screenshot-screen --show-pointer false --path "$PWD/target/niri-gpu-test/niri-screen.png"
+    ```
 
-4. Drive and capture app internals through Slint MCP as usual.
-    Empty `SLINT_BACKEND` lets Slint pick the winit backend,
-   while `SLINT_MCP_PORT` still starts the embedded MCP server for `take_screenshot`,
-    property reads,
-    and input.
+4.  Drive and capture app internals through Slint MCP as usual.
+     Empty `SLINT_BACKEND` lets Slint pick the winit backend,
+    while `SLINT_MCP_PORT` still starts the embedded MCP server for `take_screenshot`,
+     property reads,
+     and input.
 
 Installed fallback:
  `cage` (a single-app nested wlroots compositor) can host the app similarly
