@@ -334,7 +334,7 @@ patch) and the auto-prototype audit in
    in a fresh `mktemp -d` directory created at investigation time,
    `git remote -v` confirmed pointing at `https://github.com/ifiokjr/oh-pi.git`
 
-### Harness — failing scenario (no `@mariozechner/pi-tui` present)
+### Harness: failing scenario (no `@mariozechner/pi-tui` present)
 
 ```bash
 VERIFY=$(mktemp -d -t pi-tui-loader-verify-XXXXXX)
@@ -365,7 +365,7 @@ dependency and Bun global fallbacks:
 
 This exactly matches the production crash message.
 
-### Harness — passing scenarios
+### Harness: passing scenarios
 
 Workaround #1 (consumer-side symlink) and #2 (loader patch) both
 verified through the same harness shape.
@@ -374,7 +374,7 @@ section for the exact harness invocation and output.
 
 ## Verified workarounds
 
-### #1 (recommended) — symlink the new package under the old name
+### #1 (recommended): symlink the new package under the old name
 
 Create a single symlink inside the agent's npm tree so the loader's
 existing hardcoded require resolves to the renamed package without
@@ -453,7 +453,7 @@ Tradeoffs:
   `Cannot find module '@mariozechner/...'` failures on
   subagent activation.
 
-### #2 — uninstall `@ifi/pi-plan`
+### #2: uninstall `@ifi/pi-plan`
 
 If plan mode is not required:
 
@@ -474,7 +474,7 @@ files,
  Acceptable for sessions that do
 not use plan mode.
 
-### #3 — apply the upstream loader patch locally
+### #3: apply the upstream loader patch locally
 
 Copy the patched loader from the prototype clone into the agent
 tree:
@@ -491,7 +491,9 @@ release should ship,
  so it is the most upstream-shaped local fix.
 
 Verification:
- see "Harness — passing scenarios" — the patched
+ see "Harness:
+passing scenarios";
+the patched
 loader returns both `truncateToWidth` and `wrapTextWithAnsi` and
 produces correct output for the two functions `@ifi/pi-plan`
 exercises.
@@ -549,7 +551,7 @@ Tradeoffs:
    The workspace pin does not
   influence loader resolution inside `~/.pi/agent/npm/...`.
 
-## Why we file this upstream — 5-constraint audit
+## Why we file this upstream: 5-constraint audit
 
 1.  **Is it really upstream's fault?
     ** Yes.
@@ -572,7 +574,8 @@ Tradeoffs:
     ** Yes for the loader (one file in
     `package/shared-qna/`);
      sorta-yes for the full migration
-    (~16 package manifests + ~15 direct imports — mechanical
+    (~16 package manifests + ~15 direct imports;
+    mechanical
     rename,
      no semantic changes since the new package's API
     surface is a superset).
@@ -598,12 +601,14 @@ Tradeoffs:
     ** Plausible.
      The upstream repo is
     actively committing (head at `1979b3a9`,
-     2026-05-17 — three
+     2026-05-17,
+    three
     days ago).
      The repo's recent commits show ongoing maintenance
     on `extensions`,
      `subagents`,
-     and `live-view` — the same areas
+     and `live-view`,
+    the same areas
     that contain the stale imports.
      No open issue currently tracks
     the rename (verified via
@@ -615,7 +620,8 @@ Tradeoffs:
     plausible within days of the report landing.
 5.  **Have we prototyped a minimal fix compatible with their
     architecture?
-    ** Yes — see the loader patch at
+    ** Yes;
+    see the loader patch at
     [`pi-extensions-pi-tui-rename.patch`](pi-extensions-pi-tui-rename.patch).
     The patch:
     - Touches one file (`package/shared-qna/pi-tui-loader.ts`).
@@ -633,12 +639,13 @@ Tradeoffs:
       the failing scenario:
        returns both `truncateToWidth` and
       `wrapTextWithAnsi` and produces correct output (see "Harness
-      — passing scenarios").
+      :
+      passing scenarios").
 
     The patch leaves the wider direct-import migration in
     `subagents/`,
      `providers/`,
-     and `spec/` for follow-up commits —
+     and `spec/` for follow-up commits;
     it would be unidiomatic for a single PR to rewrite ~25 files
     across unrelated package surfaces,
      and the shared-qna loader
