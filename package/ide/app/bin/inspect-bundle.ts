@@ -11,6 +11,7 @@ import { inflateSync } from 'node:zlib';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
+import { withoutUsedByPrefix } from './crate-license-listing.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
@@ -515,7 +516,7 @@ checks['crate-licenses'] = async () => {
     if (found === undefined) throw new Error('crate license section ' + index + ' was not printed');
     const [whole = '', name, id, count, usedBy = ''] = found;
     demand({ condition: name === license.name && id === license.id, message: 'crate license section ' + index + ' names ' + name + ' (' + id + '), the list ' + license.name + ' (' + license.id + ')' });
-    const tokens = usedBy.replace(/^Used by: /, '').replaceAll(',', ' ').split(/\s+/).filter(Boolean);
+    const tokens = withoutUsedByPrefix(usedBy).replaceAll(',', ' ').split(/\s+/).filter(Boolean);
     const crates: string[] = [];
     for (let at = 0; at + 1 < tokens.length; at += 2) crates.push(tokens[at] + ' ' + tokens[at + 1]);
     const expected = license.crates.map(item => item.name + ' ' + item.version);
