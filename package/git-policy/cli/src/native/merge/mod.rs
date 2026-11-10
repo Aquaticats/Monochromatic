@@ -129,6 +129,22 @@ pub mod merge_isolation_carry;
 /// and the restore of a merge that did not land.
 pub mod merge_isolation_carry_apply;
 
+/// What a carry reads from the repository:
+/// the file form and the stored bytes of one object,
+/// one path's index entry,
+/// and the raw changes between two commits.
+pub mod merge_isolation_carry_reads;
+
+/// What a carry writes:
+/// the index records of a batch,
+/// one file through a private name and a rename,
+/// and the bounded wait for `index.lock`.
+pub mod merge_isolation_carry_writes;
+
+/// What one captured path's writes are,
+/// once the merge's change is known.
+pub mod merge_isolation_carry_plans;
+
 /// What one layer of one path ends as once the person's work is merged with the merge.
 pub mod merge_isolation_carry_layers;
 
@@ -139,6 +155,9 @@ pub mod merge_isolation_carry_notice;
 /// The writing half of an isolated merge:
 /// the commit and the two-way update.
 pub mod merge_isolation_apply;
+
+/// The words an isolated merge prints when it could not be finished now.
+pub mod merge_isolation_apply_findings;
 
 /// The merge tree of an isolated merge,
 /// computed from objects,

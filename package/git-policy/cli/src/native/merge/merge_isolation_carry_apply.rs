@@ -1,5 +1,7 @@
 //! What:
-//!  The writing half of carrying a person's own work across a merge:
+//!  What decides,
+//! path by path,
+//! how a merge carries a person's own work:
 //! putting the merge's paths back to the branch before
 //!  Git updates them,
 //! merging each of the person's two layers with the merge afterwards,
@@ -16,231 +18,58 @@
 //! A path that holds bytes neither the capture
 //!  nor the change explains belongs to someone else and is never written:
 //! it is named and left alone.
-//!  The worktree of one path is written under a private name in its own directory and renamed into place,
-//! and every
-//!  index entry of one step goes in one `git update-index` call,
-//! so a kill leaves either what was there or the whole
-//!  result.
+//!  The reads it judges are `merge_isolation_carry_reads.rs`
+//! and the writes it plans are `merge_isolation_carry_writes.rs`,
+//! so this file holds the judgements alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await clear({ context, root, changes, capture }); await carry({ context, root, changes, capture });
 //! ```
 
-use crate::merge_isolation_carry::git_cwd;
-use crate::merge_isolation_carry_layers::{Decision, Layer, Outcome, Side, decide, write_layer_bytes};
-use crate::merge_isolation_carry_notice::Report;
-use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, Capture};
-use crate::merge_isolation_changes::{Change, WorktreeState, worktree_path, worktree_state};
-use crate::merge_second_pass::{ContextRunner, GitRunner};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-
-/// The mode an `update-index --index-info` record gives a path it removes.
-const REMOVAL_MODE: &str = "0";
-
-/// The mode a plain file is written with when neither side names one.
-const PLAIN_FILE_MODE: &str = "100644";
-
-/// The mode of a symbolic link.
-const SYMBOLIC_LINK_MODE: &str = "120000";
-
-/// Whether one byte is the NUL that ends each field of Git's `-z` output.
-fn is_nul(byte: &u8) -> bool {
-    return *byte == 0;
-}
-
-/// What one layer of one path writes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type IndexWrite = { kind: 'leave' } | { kind: 'entry'; mode: string; oid: string } | { kind: 'remove' };
-/// ```
-enum IndexWrite {
-    /// The layer already holds it.
-    Leave,
-    /// The entry to write.
-    Entry(String, String),
-    /// Nothing stands at the path.
-    Remove,
-}
-
-/// What the worktree of one path writes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type FileWrite = { kind: 'leave' } | { kind: 'bytes'; bytes: Uint8Array; mode: string } | { kind: 'remove' };
-/// ```
-enum FileWrite {
-    /// The layer already holds it.
-    Leave,
-    /// The file form and the mode to write.
-    Bytes(Vec<u8>, String),
-    /// Nothing stands at the path.
-    Remove,
-}
-
-/// One path's writes and what the report says of it.
-struct Step {
-    path: Vec<u8>,
-    index: IndexWrite,
-    worktree: FileWrite,
-}
-
+/// The decisions a path's layers come to,
+/// and the planning of one path's writes.
+use crate::merge_isolation_carry_plans::{Note, plan_index, plan_worktree};
 /// What one carried path adds to the report.
-enum Note {
-    /// Nothing worth a line.
-    None,
-    /// The word pass merged it.
-    Merged,
-    /// Both sides stand in the file between markers.
-    Conflict,
-    /// The person's bytes stand whole,
-    /// for this reason.
-    Kept(&'static str),
-}
+use crate::merge_isolation_carry_notice::Report;
+/// The person's work as the capture recorded it.
+use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};
+/// The Git reads of one path,
+/// which this file judges and never spells for Git itself.
+use crate::merge_isolation_carry_reads::{file_form, index_entry, raw_bytes};
+/// The write plan of one path,
+/// and the one step that lands it.
+use crate::merge_isolation_carry_writes::{FileWrite, IndexWrite, Step, write_steps};
+/// The paths the merge changes,
+/// and the state a path holds now.
+use crate::merge_isolation_changes::{Change, WorktreeState, worktree_state};
+/// The runner the word-level pass is given,
+/// and the Git context every read and write names.
+use crate::merge_second_pass::ContextRunner;
+/// The Git context a read and a write take.
+use crate::transaction_git::GitContext;
+/// A path of the worktree.
+use std::path::Path;
 
-/// Which wait for the index lock a step makes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type LockWait = 'before-the-apply' | 'while-finishing';
-/// ```
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub enum LockWait {
-    /// The merge's own apply is about to run,
-    /// so the wait's words are the merge's own and a dead owner's lock is cleared.
-    BeforeTheApply,
-    /// A merge that is being finished,
-    /// where nothing is written when the lock stays held and the next command tries again.
-    WhileFinishing,
-}
+/// The paths the merge changes,
+/// read again by whoever holds a `merge_isolation_carry_reads` name.
+pub use crate::merge_isolation_carry_reads::changes_between;
+/// Why a carry stopped.
+pub use crate::merge_isolation_carry_writes::{CarryFailure, LockWait};
 
-/// Why a carry or a clear stopped.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CarryFailure = { kind: 'index-held'; detail: string } | { kind: 'failed'; detail: string } | { kind: 'foreign'; path: Uint8Array };
-/// ```
-#[derive(Debug)]
-pub enum CarryFailure {
-    /// Another program held `index.lock` until the wait's bound,
-    /// so nothing was written.
-    IndexHeld(String),
-    /// A read or a write failed;
-    /// the capture still holds the bytes.
-    Failed(String),
-    /// One path holds bytes neither the capture nor the change explains.
-    Foreign(Vec<u8>),
-}
 
-/// What:
-///  Run Git with arguments that need not be text,
-/// and bytes on standard input.
-/// Why:
-///   A path that is not text cannot be spelled in a `&str`,
-/// so every argument here is owned operating-system text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function runBytes(context, root, args: OsString[], input?: Uint8Array): Promise<GitOutput>;
-/// ```
-fn run_bytes(context: &GitContext, root: &Path, arguments: &[OsString], input: Option<Vec<u8>>) -> Result<GitOutput, String> {
-    let mut request: GitRequest = GitRequest::new::<&str>(git_cwd(context, root), &[]);
-    request.arguments = arguments.to_vec();
-    request.input = input;
-    return run_git(context, &request).map_err(|error| { return format!("git could not start: {error}"); });
-}
 
-/// One path spelled for a Git argument.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const argument = (path: Uint8Array) => worktreePath('', path);
-/// ```
-fn path_argument(path: &[u8]) -> OsString {
-    return worktree_path(Path::new(""), path).into_os_string();
-}
 
-/// What:
-///  The file form of one object: the bytes a checkout writes for it.
-/// Why:
-///  A file's bytes in the worktree are not the object's bytes when a filter applies,
-/// so a content the person reads
-///  is made the way Git makes it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function fileForm(context, root, path, oid): Promise<Uint8Array>;
-/// ```
-fn file_form(context: &GitContext, root: &Path, path: &[u8], oid: &str) -> Result<Vec<u8>, String> {
-    let mut named: OsString = OsString::from("--path=");
-    named.push(path_argument(path));
-    let arguments: Vec<OsString> = vec![OsString::from("cat-file"), OsString::from("--filters"), named, OsString::from(oid)];
-    let output: GitOutput = run_bytes(context, root, arguments.as_slice(), None)?;
-    if !output.succeeded() {
-        return Err(format!("the bytes of {} could not be read: {}", String::from_utf8_lossy(path), output.error_text()));
-    }
-    return Ok(output.stdout);
-}
 
-/// What:
-///  One object's bytes as they are stored,
-/// with no filter applied.
-/// Why:
-///   A capture keeps the person's bytes exactly,
-/// so they are put back exactly.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function rawBytes(context, root, oid): Promise<Uint8Array>;
-/// ```
-fn raw_bytes(context: &GitContext, root: &Path, oid: &str) -> Result<Vec<u8>, String> {
-    let arguments: Vec<OsString> = vec![OsString::from("cat-file"), OsString::from("blob"), OsString::from(oid)];
-    let output: GitOutput = run_bytes(context, root, arguments.as_slice(), None)?;
-    if !output.succeeded() {
-        return Err(format!("the bytes this merge carries could not be read: {}", output.error_text()));
-    }
-    return Ok(output.stdout);
-}
 
-/// What:
-///  The index entry of one path,
-/// as the index prints it.
-/// Why:
-///   Every judgement is made against the entry that is there now,
-/// and an entry the capture or the change explains is
-///  not someone else's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function indexEntry(context, root, path): Promise<{ mode, oid } | null>;
-/// ```
-fn index_entry(context: &GitContext, root: &Path, path: &[u8]) -> Result<Option<(String, String)>, String> {
-    let mut arguments: Vec<OsString> = vec![
-        OsString::from("ls-files"),
-        OsString::from("--stage"),
-        OsString::from("-z"),
-        OsString::from("--"),
-    ];
-    arguments.push(path_argument(path));
-    let output: GitOutput = run_bytes(context, root, arguments.as_slice(), None)?;
-    if !output.succeeded() {
-        return Err(format!("git ls-files failed: {}", output.error_text()));
-    }
-    for field in output.stdout.split(is_nul) {
-        let Some(split) = field.iter().position(|byte| { return *byte == b'\t'; }) else { continue };
-        let header: String = String::from_utf8_lossy(&field[..split]).into_owned();
-        let parts: Vec<&str> = header.split(' ').collect();
-        let [mode, oid, stage] = parts.as_slice() else { continue };
-        if *stage != "0" {
-            return Err(String::from("the index holds an unmerged entry for a path this merge carries"));
-        }
-        return Ok(Some((String::from(*mode), String::from(*oid))));
-    }
-    return Ok(None);
-}
+
+
+
+
+
+
+
+
 
 /// What:
 ///  Whether a worktree state is one the capture or the change explains.
@@ -271,55 +100,78 @@ fn explained(state: &WorktreeState, objects: &[Option<&str>]) -> bool {
 /// const entryExplained = (entry, allowed) => (entry === null && allowed.includes(null)) || allowed.some((a) => a !== null && a.mode === entry.mode && a.oid === entry.oid);
 /// ```
 fn entry_explained(entry: &Option<(String, String)>, allowed: &[Option<(&str, &str)>]) -> bool {
-    return match entry {
-        None => allowed.contains(&None),
-        Some((mode, oid)) => allowed.iter().any(|candidate| { return *candidate == Some((mode.as_str(), oid.as_str())); }),
-    };
+    let Some((mode, oid)) = entry else { return allowed.contains(&None) };
+    for candidate in allowed {
+        if *candidate == Some((mode.as_str(), oid.as_str())) {
+            return true;
+        }
+    }
+    return false;
 }
 
-/// The side of the change at one path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const side = (change, after) => after ? (change.existsAfter ? { mode: change.newMode, oid: change.newOid } : null) : (change.existed ? { mode: change.oldMode, oid: change.oldOid } : null);
-/// ```
-fn side(change: &Change, after: bool) -> Option<Side> {
-    if after {
-        return change.exists_after().then(|| { return Side { mode: change.new_mode.clone(), oid: change.new_oid.clone() }; });
-    }
-    return change.existed().then(|| { return Side { mode: change.old_mode.clone(), oid: change.old_oid.clone() }; });
-}
 
 /// What:
-///  The paths the merge changes,
-/// with the mode and object each side holds.
+///  The change the merge makes to one captured path.
 /// Why:
-///   The clear and the carry both read them,
-/// and they are Git's own raw difference between the two commits,
-/// so
-///  a path the merge renames is told from one it changes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function changesBetween(context, root, oldOid, newOid): Promise<Change[]>;
-/// ```
-pub fn changes_between(context: &GitContext, root: &Path, old_oid: &str, new_oid: &str) -> Result<Vec<Change>, String> {
-    let arguments: Vec<OsString> = vec![
-        OsString::from("diff-tree"),
-        OsString::from("-r"),
-        OsString::from("-z"),
-        OsString::from("--raw"),
-        OsString::from("--no-renames"),
-        OsString::from("--no-abbrev"),
-        OsString::from(old_oid),
-        OsString::from(new_oid),
-    ];
-    let output: GitOutput = run_bytes(context, root, arguments.as_slice(), None)?;
-    if !output.succeeded() {
-        return Err(format!("git diff-tree failed: {}", output.error_text()));
+///   A path the merge does not change is not the carry's to write,
+///  and every step of the carry asks this same question.
+fn change_for<'a>(changes: &'a [Change], entry: &CapturedPath) -> Option<&'a Change> {
+    for change in changes {
+        if change.path == entry.path {
+            return Some(change);
+        }
     }
-    return crate::merge_isolation_changes::parse_raw_changes(output.stdout.as_slice());
+    return None;
 }
+
+/// The object a captured worktree file holds,
+/// as the filtered bytes Git records for it.
+fn blob_of(file: &CapturedFile) -> &str {
+    return file.blob.as_str();
+}
+
+/// The object the path held before the merge,
+/// when the path existed then.
+fn old_oid_of(change: &Change) -> Option<&str> {
+    if !change.existed() {
+        return None;
+    }
+    return Some(change.old_oid.as_str());
+}
+
+/// The object the merge makes at the path,
+/// when the path exists after it.
+fn new_oid_of(change: &Change) -> Option<&str> {
+    if !change.exists_after() {
+        return None;
+    }
+    return Some(change.new_oid.as_str());
+}
+
+/// The index entry the path held before the merge,
+/// when the path existed then.
+fn old_entry_of(change: &Change) -> Option<(&str, &str)> {
+    if !change.existed() {
+        return None;
+    }
+    return Some((change.old_mode.as_str(), change.old_oid.as_str()));
+}
+
+/// The index entry the merge makes at the path,
+/// when the path exists after it.
+fn new_entry_of(change: &Change) -> Option<(&str, &str)> {
+    if !change.exists_after() {
+        return None;
+    }
+    return Some((change.new_mode.as_str(), change.new_oid.as_str()));
+}
+
+/// The mode and object of one captured index entry.
+fn index_pair(staged: &CapturedIndex) -> (&str, &str) {
+    return (staged.mode.as_str(), staged.oid.as_str());
+}
+
+
 
 /// The runner that merges one layer.
 ///
@@ -332,30 +184,6 @@ fn rooted(context: &GitContext) -> GitContext {
     return GitContext { global_prefix: Vec::new(), ..context.clone() };
 }
 
-/// What:
-///  One awaited step of the word-level pass,
-/// run to its end from this synchronous path.
-/// Why:
-///   The pass awaits every Git start it makes
-/// (`merge_second_pass_git_runner.rs`),
-/// and the merge that
-///  carries a person's work is a command's synchronous step,
-/// so this one entry of the process runtime is taken for it.
-/// Everything else the carry does is a plain start,
-/// which must stay outside the runtime.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const decision = runOnRuntime(decide(runner, path, layer));
-/// ```
-fn on_the_runtime<T>(future: impl std::future::Future<Output = Result<T, String>>) -> Result<T, CarryFailure> {
-    return match crate::lazy_runtime::run_on_runtime(future) {
-        Ok(found) => found.map_err(CarryFailure::Failed),
-        Err(error) => Err(CarryFailure::Failed(format!(
-            "the word-level pass over a path this merge carries could not run: {error}"
-        ))),
-    };
-}
 
 /// The runner that merges one layer,
 /// from the top of the worktree.
@@ -368,219 +196,11 @@ fn runner_of<'a>(context: &'a GitContext, root: &'a Path) -> ContextRunner<'a> {
     return ContextRunner { context, cwd: root, without_prefix: true, object_directory: None, environment: Vec::new() };
 }
 
-/// What:
-///  The index records that write these entries and remove these paths.
-/// Why:
-///  One `update-index` call writes every entry,
-/// so the index moves between two states in one step and a kill cannot
-///  leave half of it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function indexRecords(steps: Step[], width: number): Uint8Array;
-/// ```
-fn index_records(steps: &[Step], width: usize) -> Vec<u8> {
-    let mut records: Vec<u8> = Vec::new();
-    for step in steps {
-        match &step.index {
-            IndexWrite::Leave => continue,
-            IndexWrite::Entry(mode, oid) => records.extend_from_slice(format!("{mode} {oid}\t").as_bytes()),
-            IndexWrite::Remove => records.extend_from_slice(format!("{REMOVAL_MODE} {}\t", "0".repeat(width)).as_bytes()),
-        }
-        records.extend_from_slice(step.path.as_slice());
-        records.push(0);
-    }
-    return records;
-}
 
-/// What:
-///  Write one path's file under a private name in its own directory and rename it into place,
-/// or make the link,
-/// or remove what stands there.
-/// Why:
-///   A rename in the same directory is one step on whatever file system the worktree is on,
-/// so a kill leaves either
-///  the file that was there or the whole new one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function writeFile(root, path, write: FileWrite): Promise<void>;
-/// ```
-fn write_file(root: &Path, path: &[u8], write: &FileWrite) -> std::io::Result<()> {
-    let location: PathBuf = worktree_path(root, path);
-    match write {
-        FileWrite::Leave => return Ok(()),
-        FileWrite::Remove => {
-            return match std::fs::remove_file(location.as_path()) {
-                Ok(()) => Ok(()),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                Err(error) => Err(error),
-            };
-        }
-        FileWrite::Bytes(bytes, mode) => {
-            if let Some(parent) = location.parent()
-                && let Err(error) = std::fs::create_dir_all(parent)
-            {
-                return Err(error);
-            }
-            if mode == SYMBOLIC_LINK_MODE {
-                return make_link(location.as_path(), bytes);
-            }
-            let aside: PathBuf = private_name(location.as_path());
-            std::fs::write(aside.as_path(), bytes)?;
-            set_mode(aside.as_path(), mode)?;
-            return std::fs::rename(aside.as_path(), location.as_path());
-        }
-    }
-}
 
-/// What:
-///  Replace whatever stands at a path with a symbolic link to `target`.
-/// Why:
-///   A link cannot be renamed into place as a file can,
-/// so the path is freed and the link made;
-/// a kill between the
-///  two leaves the path absent and the capture still holds its target text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function makeLink(location, target: Uint8Array): Promise<void>;
-/// ```
-fn make_link(location: &Path, target: &[u8]) -> std::io::Result<()> {
-    match std::fs::remove_file(location) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStrExt;
-        return std::os::unix::fs::symlink(std::ffi::OsStr::from_bytes(target), location);
-    }
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    {
-        return std::os::unix::fs::symlink(String::from_utf8_lossy(target).into_owned(), location);
-    }
-}
 
-/// The private name a file is written under before it takes its path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${dirname(location)}/.cli-git-carry-${pid}-${count}-${nanos}-${basename(location)}`
-/// ```
-fn private_name(location: &Path) -> PathBuf {
-    static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let count: u64 = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-    let name: String = location.file_name().map(|found| { return found.to_string_lossy().into_owned(); }).unwrap_or_default();
-    let process: u32 = std::process::id();
-    return location.with_file_name(format!(".cli-git-carry-{process}-{}-{count}-{nanos:x}-{name}", 0u8));
-}
 
-/// The mode a written file carries.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function setMode(file, mode: string): Promise<void>; // 0o755 for 100755, else 0o644
-/// ```
-fn set_mode(file: &Path, mode: &str) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let bits: u32 = if mode == "100755" { 0o755 } else { 0o644 };
-        return std::fs::set_permissions(file, std::fs::Permissions::from_mode(bits));
-    }
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    {
-        let _ = (file, mode);
-        return Ok(());
-    }
-}
 
-/// What:
-///  Write every planned entry and file,
-/// after a bounded wait for `index.lock`.
-/// Why:
-///   The index is the one thing two commands cannot write at once,
-/// so the wait is named and bounded,
-/// and a lock
-///  that outlasts it leaves everything as it was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function writeSteps({ context, root, gitDir, steps, out }): Promise<void>;
-/// ```
-fn write_steps(
-    context: &GitContext,
-    root: &Path,
-    git_dir: &Path,
-    steps: &[Step],
-    wait: LockWait,
-    out: &mut dyn std::io::Write,
-) -> Result<(), CarryFailure> {
-    let waited = match wait {
-        LockWait::BeforeTheApply => crate::index_holder_wait::wait_for_index_release_before_a_merge_that_clears_a_dead_lock(git_dir.join("index").as_path(), out),
-        LockWait::WhileFinishing => crate::index_holder_wait::wait_for_index_release_while_finishing_a_merge(git_dir.join("index").as_path(), out),
-    };
-    if !matches!(
-        waited,
-        crate::index_holder_wait::IndexWait::NotHeld | crate::index_holder_wait::IndexWait::Released(_)
-    ) {
-        return Err(CarryFailure::IndexHeld(git_dir.join("index.lock").display().to_string()));
-    }
-    let width: usize = steps
-        .iter()
-        .find_map(|step| {
-            return match &step.index {
-                IndexWrite::Entry(_, oid) => Some(oid.len()),
-                IndexWrite::Remove | IndexWrite::Leave => None,
-            };
-        })
-        .unwrap_or(40);
-    let records: Vec<u8> = index_records(steps, width);
-    if !records.is_empty() {
-        let arguments: Vec<OsString> = vec![OsString::from("update-index"), OsString::from("-z"), OsString::from("--index-info")];
-        let written: GitOutput = run_bytes(context, root, arguments.as_slice(), Some(records)).map_err(CarryFailure::Failed)?;
-        if !written.succeeded() {
-            let detail: String = written.error_text();
-            if detail.contains("index.lock") {
-                return Err(CarryFailure::IndexHeld(detail));
-            }
-            return Err(CarryFailure::Failed(detail));
-        }
-    }
-    let mut wrote_a_file: bool = false;
-    for step in steps {
-        if !matches!(step.worktree, FileWrite::Leave) {
-            wrote_a_file = true;
-        }
-        if let Err(error) = write_file(root, step.path.as_slice(), &step.worktree) {
-            let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
-            let _ = out.write_all(
-                format!(
-                    "monochromatic-git-policy-cli: {path} could not be written ({error}); the bytes this merge carries are kept, and the next \
-                     git command in this worktree finishes carrying them.\n"
-                )
-                .as_bytes(),
-            );
-            return Err(CarryFailure::Failed(format!("{path} could not be written: {error}")));
-        }
-    }
-    // A file this step wrote carries a new modification time and size, and Git compares those with the index's record of the
-    //  file before it updates a path (`read-tree` refuses an entry that is not up to date). The refresh re-reads the record for
-    //  every entry whose content still hashes to what the index says, so the next step reads the checkout as it is.
-    if wrote_a_file {
-        let arguments: Vec<OsString> = vec![OsString::from("update-index"), OsString::from("-q"), OsString::from("--refresh")];
-        let refreshed: GitOutput = run_bytes(context, root, arguments.as_slice(), None).map_err(CarryFailure::Failed)?;
-        if !refreshed.succeeded() && refreshed.code != Some(1) {
-            return Err(CarryFailure::Failed(refreshed.error_text()));
-        }
-    }
-    return Ok(());
-}
 
 /// What:
 ///  Put the branch's own content back at every captured path,
@@ -608,16 +228,16 @@ pub fn clear(
 ) -> Result<(), CarryFailure> {
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
-        let Some(change) = changes.iter().find(|change| { return change.path == entry.path; }) else { continue };
+        let Some(change) = change_for(changes, entry) else { continue };
         let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
-        let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
-        let old_object: Option<&str> = change.existed().then(|| { return change.old_oid.as_str(); });
+        let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
+        let old_object: Option<&str> = old_oid_of(change);
         if !explained(&state, &[captured_object, old_object]) {
             return Err(CarryFailure::Foreign(entry.path.clone()));
         }
         let current: Option<(String, String)> = index_entry(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
-        let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(|staged| { return (staged.mode.as_str(), staged.oid.as_str()); });
-        let old_entry: Option<(&str, &str)> = change.existed().then(|| { return (change.old_mode.as_str(), change.old_oid.as_str()); });
+        let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
+        let old_entry: Option<(&str, &str)> = old_entry_of(change);
         if !entry_explained(&current, &[captured_entry, old_entry]) {
             return Err(CarryFailure::Foreign(entry.path.clone()));
         }
@@ -665,10 +285,10 @@ pub fn carry(
     let mut report: Report = Report::default();
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
-        let Some(change) = changes.iter().find(|change| { return change.path == entry.path; }) else { continue };
+        let Some(change) = change_for(changes, entry) else { continue };
         let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
-        let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
-        let merged_object: Option<&str> = change.exists_after().then(|| { return change.new_oid.as_str(); });
+        let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
+        let merged_object: Option<&str> = new_oid_of(change);
         let (worktree, note, target) = plan_worktree((&runner, context, root), change, entry)?;
         // What stands there is the capture, the merge's own, or the bytes this carry writes:
         // a carry that was killed after writing a path finds its
@@ -678,9 +298,9 @@ pub fn carry(
             continue;
         }
         let current: Option<(String, String)> = index_entry(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
-        let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(|staged| { return (staged.mode.as_str(), staged.oid.as_str()); });
-        let merged_entry: Option<(&str, &str)> = change.exists_after().then(|| { return (change.new_mode.as_str(), change.new_oid.as_str()); });
-        let old_entry: Option<(&str, &str)> = change.existed().then(|| { return (change.old_mode.as_str(), change.old_oid.as_str()); });
+        let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
+        let merged_entry: Option<(&str, &str)> = new_entry_of(change);
+        let old_entry: Option<(&str, &str)> = old_entry_of(change);
         if !entry_explained(&current, &[captured_entry, merged_entry, old_entry]) {
             report.changed.push(entry.path.clone());
             continue;
@@ -698,96 +318,7 @@ pub fn carry(
     return Ok(report);
 }
 
-/// What:
-///  The worktree side of one captured path.
-/// Why:
-///  The layer's decision and what the report says of it are one answer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function planWorktree(places, change, entry, state): Promise<[FileWrite, Note]>;
-/// ```
-fn plan_worktree(
-    places: (&dyn GitRunner, &GitContext, &Path),
-    change: &Change,
-    entry: &crate::merge_isolation_carry_parts::CapturedPath,
-) -> Result<(FileWrite, Note, Option<String>), CarryFailure> {
-    let (runner, context, root) = places;
-    let layer: Layer = Layer { base: side(change, false), ours: entry.worktree.as_ref().map(side_of_file), theirs: side(change, true) };
-    let decision: Decision = on_the_runtime(decide(runner, entry.path.as_slice(), &layer))?;
-    let mode: String = decision.mode.clone().unwrap_or_else(|| { return String::from(PLAIN_FILE_MODE); });
-    return match decision.outcome {
-        Outcome::Merges => Ok((FileWrite::Leave, Note::None, None)),
-        Outcome::Ours => match &entry.worktree {
-            Some(file) => Ok((
-                FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, mode),
-                Note::None,
-                Some(file.blob.clone()),
-            )),
-            None => Ok((FileWrite::Remove, Note::None, None)),
-        },
-        Outcome::Merged { bytes, conflict, .. } => {
-            let oid: String = on_the_runtime(write_layer_bytes(runner, bytes.as_slice()))?;
-            let form: Vec<u8> = file_form(context, root, entry.path.as_slice(), oid.as_str()).map_err(CarryFailure::Failed)?;
-            return Ok((FileWrite::Bytes(form, mode), if conflict { Note::Conflict } else { Note::Merged }, Some(oid)));
-        }
-        Outcome::Kept(why) => match &entry.worktree {
-            Some(file) => Ok((
-                FileWrite::Bytes(raw_bytes(context, root, file.raw.as_str()).map_err(CarryFailure::Failed)?, mode),
-                Note::Kept(why),
-                Some(file.blob.clone()),
-            )),
-            None => Ok((FileWrite::Remove, Note::Kept(why), None)),
-        },
-        Outcome::Gone(why) => Ok((FileWrite::Remove, Note::Kept(why), None)),
-    };
-}
 
-/// What:
-///  The index side of one captured path.
-/// Why:
-///   A staged edit is a layer of its own:
-/// it stays staged over the merged file when it merges,
-/// and holds both
-///  sides when it does not.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function planIndex(runner, context, root, change, entry): Promise<IndexWrite>;
-/// ```
-fn plan_index(
-    runner: &dyn GitRunner,
-    change: &Change,
-    entry: &crate::merge_isolation_carry_parts::CapturedPath,
-) -> Result<IndexWrite, CarryFailure> {
-    let base: Option<Side> = side(change, false);
-    let ours: Option<Side> = entry.index.as_ref().map(side_of_index);
-    if let (Some(found), Some(person)) = (&base, &ours)
-        && found.oid == person.oid
-        && found.mode == person.mode
-    {
-        return Ok(IndexWrite::Leave);
-    }
-    // Nothing of the person's is in this layer, so the merge's entry is the layer's own.
-    if base.is_none() && ours.is_none() {
-        return Ok(IndexWrite::Leave);
-    }
-    let layer: Layer = Layer { base, ours: ours.clone(), theirs: side(change, true) };
-    let decision: Decision = on_the_runtime(decide(runner, entry.path.as_slice(), &layer))?;
-    let mode: String = decision.mode.clone().unwrap_or_else(|| { return String::from(PLAIN_FILE_MODE); });
-    return match decision.outcome {
-        Outcome::Merges => Ok(IndexWrite::Leave),
-        Outcome::Ours | Outcome::Kept(_) => match &entry.index {
-            Some(staged) => Ok(IndexWrite::Entry(staged.mode.clone(), staged.oid.clone())),
-            None => Ok(IndexWrite::Remove),
-        },
-        Outcome::Merged { bytes, .. } => {
-            let oid: String = on_the_runtime(write_layer_bytes(runner, bytes.as_slice()))?;
-            Ok(IndexWrite::Entry(mode, oid))
-        }
-        Outcome::Gone(_) => Ok(IndexWrite::Remove),
-    };
-}
 
 /// What:
 ///  Put the person's layers back exactly as they were,
@@ -815,18 +346,18 @@ pub fn restore(
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
-        let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
+        let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
         // The branch's own content is what a clear leaves, so it is what a restore may replace.
-        let change: Option<&Change> = changes.iter().find(|change| { return change.path == entry.path; });
-        let old_object: Option<&str> = change.and_then(|found| { return found.existed().then(|| { return found.old_oid.as_str(); }); });
-        let merged_object: Option<&str> = change.and_then(|found| { return found.exists_after().then(|| { return found.new_oid.as_str(); }); });
+        let change: Option<&Change> = change_for(changes, entry);
+        let old_object: Option<&str> = change.and_then(old_oid_of);
+        let merged_object: Option<&str> = change.and_then(new_oid_of);
         if !explained(&state, &[captured_object, old_object, merged_object]) {
             return Err(CarryFailure::Foreign(entry.path.clone()));
         }
         let current: Option<(String, String)> = index_entry(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
-        let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(|staged| { return (staged.mode.as_str(), staged.oid.as_str()); });
-        let old_entry: Option<(&str, &str)> = change.and_then(|found| { return found.existed().then(|| { return (found.old_mode.as_str(), found.old_oid.as_str()); }); });
-        let merged_entry: Option<(&str, &str)> = change.and_then(|found| { return found.exists_after().then(|| { return (found.new_mode.as_str(), found.new_oid.as_str()); }); });
+        let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
+        let old_entry: Option<(&str, &str)> = change.and_then(old_entry_of);
+        let merged_entry: Option<(&str, &str)> = change.and_then(new_entry_of);
         if !entry_explained(&current, &[captured_entry, old_entry, merged_entry]) {
             return Err(CarryFailure::Foreign(entry.path.clone()));
         }
@@ -852,10 +383,10 @@ pub fn restore(
 /// ```
 pub fn only_the_branches_content(context: &GitContext, root: &Path, changes: &[Change], capture: &Capture) -> Result<bool, String> {
     for entry in &capture.paths {
-        let Some(change) = changes.iter().find(|change| { return change.path == entry.path; }) else { continue };
+        let Some(change) = change_for(changes, entry) else { continue };
         let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice())?;
-        let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
-        let old_object: Option<&str> = change.existed().then(|| { return change.old_oid.as_str(); });
+        let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
+        let old_object: Option<&str> = old_oid_of(change);
         if !explained(&state, &[captured_object, old_object]) {
             return Ok(false);
         }
@@ -863,25 +394,7 @@ pub fn only_the_branches_content(context: &GitContext, root: &Path, changes: &[C
     return Ok(true);
 }
 
-/// The side a captured worktree file is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const sideOfFile = (file: CapturedFile): Side => ({ mode: file.mode, oid: file.blob });
-/// ```
-fn side_of_file(file: &CapturedFile) -> Side {
-    return Side { mode: file.mode.clone(), oid: file.blob.clone() };
-}
 
-/// The side a captured index entry is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const sideOfIndex = (staged: CapturedIndex): Side => ({ mode: staged.mode, oid: staged.oid });
-/// ```
-fn side_of_index(staged: &CapturedIndex) -> Side {
-    return Side { mode: staged.mode.clone(), oid: staged.oid.clone() };
-}
 
 /// The writing half of a carry,
 /// judged and written one path at a time.
