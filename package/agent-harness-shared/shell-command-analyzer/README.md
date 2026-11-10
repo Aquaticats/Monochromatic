@@ -331,7 +331,8 @@ a throwing hook would fail every Bash call.
 which this repository bans because the Bash tool runs the command inside a wrapper shell
 whose command line contains the command text,
 so `pgrep --full <pattern>` matches that wrapper and the loop never sees the process exit.
-`PROCESS_NAME_WAIT_BAN_REASON` carries the replacements, which wait on a PID under a bound.
+`PROCESS_NAME_WAIT_BAN_REASON` carries the replacements,
+which wait on a PID under a bound.
 
 ### What the ban reads
 
@@ -351,10 +352,12 @@ The reader reports the runs of words that begin where a command can begin,
 named wrapper layers are stripped,
 and any `pgrep` or `pidof` standing where a program can stand is refused,
 because the loop around that lookup could not be read at all.
-`until ! pgrep x; do`, `env pgrep -f build "unterminated` and
+`until ! pgrep x; do`,
+`env pgrep -f build "unterminated` and
 `timeout 60 bash -c 'while pgrep -f x; do sleep 1; done' "unterminated` are refused for that reason.
 So is straight-line `pgrep -af build "unterminated`,
-which the parsed path allows: an unparsable command gives the guard no way to tell a loop from a
+which the parsed path allows:
+an unparsable command gives the guard no way to tell a loop from a
 single lookup.
 Prose that never reaches a program position stays allowed,
 so `printf pgrep pidof "unterminated` and `echo "use pgrep in a while loop` are not refused.
@@ -371,7 +374,8 @@ hides everything after that quote,
 so a real loop spelled later in that command is missed.
 
 A lookup spelled through a variable (`while "$LOOKUP" -f x; do sleep 1; done`)
-is not read, in a parsed command or an unparsable one.
+is not read,
+in a parsed command or an unparsable one.
 A shell script read from standard input (`bash <<< 'until ! pgrep x; do sleep 1; done'`)
 is not followed either.
 
@@ -382,7 +386,8 @@ so a wrapper or a command string in front of the lookup is not followed there:
 `while timeout 5 pgrep -f x; do sleep 1; done`,
 `eval "while pgrep -f x; do sleep 1; done"`
 and `find . -exec pgrep -f x \;` stay allowed.
-The unparsable path does strip those wrapper layers, so the same spellings are refused
+The unparsable path does strip those wrapper layers,
+so the same spellings are refused
 after a parse error.
 
 ## Pi dependency trust
