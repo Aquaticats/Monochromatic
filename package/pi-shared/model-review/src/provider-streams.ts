@@ -92,6 +92,7 @@ const PROVIDER_STREAMS_BY_API: Readonly<Record<string, LazyProviderStreams>> = {
 const SUPPORTED_APIS: string = Object
   .keys(PROVIDER_STREAMS_BY_API,)
   .join(', ',);
+
 //endregion Dispatch table -- lazy provider modules keyed by the API each implements
 
 //region Request snapshots -- isolated caller values recorded before dispatch
