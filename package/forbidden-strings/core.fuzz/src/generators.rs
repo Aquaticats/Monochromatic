@@ -197,6 +197,31 @@ pub struct RulesetAndBuffer {
     pub starts: Vec<usize>,
 }
 
+impl RulesetAndBuffer {
+    // What:  the content of every line in `buf`, one entry per `starts` offset, empty
+    //        lines included.
+    // Why:   the scanner's line split is one contract the fuzz targets must reproduce by
+    //        hand: the slice runs to the next line's start (or the buffer's end for the
+    //        last line) minus one trailing `\n` and then one trailing `\r`. Defining it
+    //        once keeps every target and unit test asking the two `RegexSet` faces about
+    //        the same bytes; the definition stays independent of the implementation under
+    //        test, which is what makes the comparison an oracle.
+    pub fn line_contents(&self) -> Vec<&[u8]> {
+        let mut lines: Vec<&[u8]> = Vec::with_capacity(self.starts.len());
+        for (index, &start) in self.starts.iter().enumerate() {
+            let mut end = self.starts.get(index + 1).copied().unwrap_or(self.buf.len());
+            if end > start && self.buf[end - 1] == b'\n' {
+                end -= 1;
+            }
+            if end > start && self.buf[end - 1] == b'\r' {
+                end -= 1;
+            }
+            lines.push(&self.buf[start..end]);
+        }
+        return lines
+    }
+}
+
 impl<'a> Arbitrary<'a> for RulesetAndBuffer {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         let mut builder = Builder { uses_algebra: false };

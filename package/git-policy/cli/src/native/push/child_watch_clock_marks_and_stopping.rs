@@ -361,6 +361,34 @@ pub(crate) fn the_root_is_still_there(pin: &RootPin) -> bool {
 }
 
 /// What:
+///  Whether the pin of a step's root proves which process to signal.
+/// Why:
+///   A stop signals the root only through the descriptor taken when the child started,
+/// and a pin that proves nothing signals
+///  nothing:
+/// the watch then cannot end the step at its ceiling,
+/// and the wait for the step's output is what does,
+///  at the ceiling itself rather than after the watch has had its ending.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const proven = (pin) => pin.kind === 'held';
+/// ```
+#[cfg(all(unix, target_os = "linux"))]
+pub(crate) fn the_root_is_proven(pin: &RootPin) -> bool {
+    // A pin that reports the child gone names no process either, so nothing is signalled for it and the step is the wait's to end.
+    return matches!(pin, Pinned::Held(_));
+}
+
+/// Without a descriptor nothing is proven,
+/// so no watch can end the step it watches.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(all(unix, not(target_os = "linux")))]
+pub(crate) fn the_root_is_proven(_pin: &RootPin) -> bool {
+    return false;
+}
+
+/// What:
 ///  The processes below a step's root,
 /// read only while its pin proves the root is still the process it names.
 /// Why:

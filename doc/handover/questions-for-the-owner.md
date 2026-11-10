@@ -26,6 +26,74 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### May a commit take its private repository from a pool made ahead?, asked 2026-11-09T23:21:48-05:00
+
+Every commit builds a private "shadow" repository first,
+and that build is where commits fall behind native Git while agents are busy.
+Over 60 alternating commits on this host,
+17 wrapped commits took more than 5 s and no native commit did,
+against the owner's "commits vs native git should not take 5s longer."
+Of 22,657 ms of build time in those wrapped commits,
+creating the shadow's links held 11,383 ms,
+and one commit waited 9,217 ms on them alone.
+The sampled kernel functions say why:
+calls that create a directory entry wait in the volume's own transaction and space reservation
+(`wait_current_trans`,
+`handle_reserve_ticket`),
+and reads never waited there.
+The volume is 95% full.
+The measurements and the full ranking are in `doc/planning/cli-git-commit-latency-under-many-agents.md`,
+section "The ranking".
+Nothing is built yet,
+because each option changes where a commit's private tree lives or who owns it.
+No option is claimed to reach 5 s alone:
+the landing writes to the same volume,
+and it reached 33,748 ms in the records.
+The options do not exclude each other,
+so "A,
+then B" is a valid answer.
+
+#### A: a pool the resident service fills ahead
+
+Today a commit makes about 34 entries on the stalled volume.
+With a pool it renames one finished shadow into place,
+and makes them inline as today when the pool is empty.
+It adds a standing folder inside the wrapper's own scratch tree.
+Its new risk is trusting a tree made earlier,
+which a test can hold:
+a member is exactly what a creation makes,
+or it is refused.
+
+#### B: the shadow on another volume
+
+It removes the most,
+40% of the blocking calls a commit makes,
+and trusts nothing made earlier.
+It moves a commit's private state out of the repository,
+against the recorded reason for repository-local scratch,
+and the landing's writes stay on the stalled volume.
+
+#### C: one shadow per worktree, reset between commits
+
+It saves the same calls after a worktree's first commit,
+but the reset makes the same kind of call it saves.
+A kill during the reset leaves a half-reset shadow,
+which needs a proof the other options do not need under "never discard user data".
+
+#### D: change nothing in the wrapper
+
+It costs nothing and adds no risk.
+Commits keep stalling whenever the volume does.
+
+Ranking:
+A > B > C > D,
+because A keeps the commit's state where the records put it and behaves as today when empty,
+which B does not;
+B needs no new proof,
+while C's reset needs one and saves less;
+and C at least shortens the stall,
+which D does not.
+
 ### What should kv-store do with `set('')`? (issues 1408 and 1412), asked 2026-11-09T21:18:00-05:00
 
 An async `set('', value)` writes under a hash of the value,
@@ -464,6 +532,11 @@ Their docs promise a `color-mix()` derivation from the link tokens that was neve
 The agent `ssg-aquati-cat-ready-bugs` fixed the rest of that package and stopped here,
 because the answer is a design choice.
 Nothing else is waiting on it.
+A later run of that agent built option A on the branch `fix/ssg-aquati-cat-ready-bugs`,
+which is held and not on main.
+Its values are `#15803d` and `#b91c1c` on the light theme,
+and `#4ade80` and `#f87171` on the dark one.
+Answering A lands it as it stands.
 
 #### A: add success and danger colour tokens
 

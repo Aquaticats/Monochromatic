@@ -8,12 +8,14 @@
 use super::*;
 use std::os::fd::AsFd as _;
 use std::io::Write;
-use crate::child_class::CHILD_WAIT_VARIABLE;
+use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
+use crate::child_watch_step_bounds_and_errors::output_of;
+use crate::output_capture::Capture;
 use crate::wait_progress::Cadence;
 use crate::test_support::{ActionSink, SharedSink};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
-use std::process::Stdio;
+use std::process::{Child, Command, Output, Stdio};
 
 /// What:
 ///  The process number a step recorded,
@@ -759,6 +761,122 @@ fn a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling() {
         .expect_err("the ceiling ended it");
     assert!(is_ceiling(&error), "{error}");
     assert!(began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
+}
+
+/// What:
+///  A sink that holds the watch inside its first notice until the step it watches has ended.
+/// Why:
+///  The watch writes a due notice before it judges the ceiling,
+/// on a thread of the blocking pool,
+/// so the notice is one
+///  place the watch can be held back while the wait for the step's output reaches its own deadline.
+/// The hold ends with the step,
+///  which is what "the watch was too late" means:
+/// the wait for the output has ended the step by then,
+/// and the watch
+///  has nothing left to do but read the marks.
+/// A fixed hold would either end before the wait answered,
+/// and give the watch its
+///  ending after all,
+/// or keep the drop of the watch waiting for as long again.
+struct AWriteTheControlHolds {
+    /// Told once the watch is inside the write.
+    began: std::sync::mpsc::Sender<()>,
+    /// Where the step wrote its process number.
+    pid_file: PathBuf,
+}
+
+/// How often the sink above looks for the end of the step.
+///
+/// Short beside the ceiling of the control it serves,
+/// so the hold does not outlast the answer the wait gives,
+/// and never a wait without a bound.
+const HELD_POLL: Duration = Duration::from_millis(50);
+
+/// How long the sink above holds the watch at most:
+/// twice the ending a watch is given,
+/// so a fixture that never records its process holds the watch for no longer than one that does.
+const THE_WATCH_IS_HELD_FOR: Duration = crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING.saturating_mul(2);
+
+/// Whether the process the step wrote down is gone;
+/// a step that recorded none is not gone,
+/// so the hold goes on until its own bound.
+fn the_process_the_step_recorded_has_gone(pid_file: &std::path::Path) -> bool {
+    let Ok(recorded) = std::fs::read_to_string(pid_file) else {
+        return false;
+    };
+    let Ok(pid) = recorded.trim().parse::<i32>() else {
+        return false;
+    };
+    // SAFETY: signal 0 only asks whether the process exists.
+    return unsafe { libc::kill(pid, 0) } != 0;
+}
+
+impl Write for AWriteTheControlHolds {
+    /// Tell the control the watch is here,
+    /// then hold it until the step is gone.
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let _told = self.began.send(());
+        let held: Instant = Instant::now();
+        while !the_process_the_step_recorded_has_gone(self.pid_file.as_path()) && held.elapsed() < THE_WATCH_IS_HELD_FOR {
+            std::thread::sleep(HELD_POLL);
+        }
+        return Ok(bytes.len());
+    }
+
+    /// Nothing is buffered.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A step whose watch is held back is still ended at its ceiling,
+/// and the error is the ceiling's.
+/// Why:
+///   The watch and the wait for a step's output each had the step's ceiling as a deadline of their own,
+/// so a watch that was
+///  a moment late lost to its own backstop:
+/// the wait then ended the step and reported that its watch could not end it,
+///  and that reason was false,
+/// while its error was not the ceiling's (`is_ceiling`),
+/// which a caller decides a rerun by
+///  and the landing decides keeping a built commit by.
+///  The watch is held inside the write of its first notice here,
+/// so the wait certainly reaches the deadline first,
+///  and nothing else is started to make it happen.
+#[test]
+fn a_step_whose_watch_is_held_back_is_still_ended_at_its_ceiling() {
+    let directory: PathBuf = crate::test_support::fixture("child-watch-held-back");
+    let pid_file: PathBuf = directory.join("pid");
+    let (began, held): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+    let watch_terms: WatchTerms = WatchTerms {
+        limit: Duration::from_millis(200),
+        cadence: QUICK,
+        notices: Box::new(AWriteTheControlHolds { began, pid_file: pid_file.clone() }),
+    };
+    let (answer, the_end) = std::sync::mpsc::channel::<std::io::Result<Output>>();
+    let step = std::thread::Builder::new().name(String::from("child-watch-held-back-control")).spawn(move || {
+        let mut command: Command = Command::new("sh");
+        command.arg("-c").arg(format!("echo $$ > '{}'; sleep 600", pid_file.display())).stdin(Stdio::null());
+        let _sent = answer.send(output_watched_within(
+            &mut command,
+            "a step whose watch is held back",
+            "a step whose watch is held back",
+            watch_terms,
+            true,
+            StepBound::EndAt(Duration::from_millis(700)),
+        ));
+    });
+    held.recv_timeout(Duration::from_secs(30)).expect("the watch reached the write of its first notice");
+    let result: std::io::Result<Output> = the_end.recv_timeout(Duration::from_secs(120)).expect("the step ended; a wait that never ends is reported here");
+    let _joined = step.expect("the control's thread").join();
+    crate::test_support::remove(directory.as_path());
+    let error: std::io::Error = result.expect_err("a step past its ceiling is not an answer");
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
+    assert!(is_ceiling(&error), "{error}");
+    assert!(error.to_string().contains("the longest the wrapper lets one step run"), "{error}");
+    assert!(!error.to_string().contains("nothing proved which process to stop"), "nothing refused the watch its proof: {error}");
 }
 
 /// A step with no ceiling (a write in place that is not safe to run twice) is waited for as long as it lives,
