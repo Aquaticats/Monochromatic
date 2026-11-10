@@ -3,7 +3,8 @@
  detector reducer. The reducer cases capture the exact fire/no-fire rules so the
  detector cannot silently regress, one case per branch of the reducer: a clean
  single-key tap, a tap repeated inside and outside the window, a hold a
- non-shift key disturbs, and a hold the other Shift key joins.
+ non-shift key disturbs, a hold the other Shift key joins, and the passthrough
+ paths for autorepeat, non-shift releases and releases of a key never pressed.
 
  @module
  */
@@ -45,6 +46,11 @@ const KEY_PRESS = 1;
  evdev `value` for a key release.
  */
 const KEY_RELEASE = 0;
+
+/**
+ evdev `value` for an autorepeat while a key stays held.
+ */
+const KEY_AUTOREPEAT = 2;
 
 /** Timestamp of the first tap in a double-shift sequence. */
 const FIRST_TAP_MS = 1_000;
@@ -345,6 +351,75 @@ await describe({
         }),
 
         //endregion Holds that are not a tap
+
+        //region Passthroughs
+
+        it({
+          name: 'leaves state untouched on an autorepeat of a held Shift key',
+          fn: async () => {
+            /** State with the left Shift key held. */
+            const held = reduceShiftEvent({
+              state: INITIAL_SHIFT_STATE,
+              event: shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+            }).state;
+            /** Result of the autorepeat. */
+            const result = reduceShiftEvent({
+              state: held,
+              event: shift({
+                key: 'left',
+                value: KEY_AUTOREPEAT,
+                now: FIRST_TAP_MS + HOLD_STEP_MS,
+              }),
+            });
+            expect(result.state).toBe(held);
+            expect(result.doubleShift).toBe(false);
+          },
+        }),
+        it({
+          name: 'leaves state untouched on a non-shift release',
+          fn: async () => {
+            /** State with the left Shift key held. */
+            const held = reduceShiftEvent({
+              state: INITIAL_SHIFT_STATE,
+              event: shift({ key: 'left', value: KEY_PRESS, now: FIRST_TAP_MS, }),
+            }).state;
+            /** Result of the non-shift release. */
+            const result = reduceShiftEvent({ state: held, event: otherKey({ value: KEY_RELEASE, }), });
+            expect(result.state).toBe(held);
+            expect(result.doubleShift).toBe(false);
+          },
+        }),
+        it({
+          name: 'leaves state untouched on a non-shift press with no Shift held',
+          fn: async () => {
+            /** Result of the non-shift press. */
+            const result = reduceShiftEvent({
+              state: INITIAL_SHIFT_STATE,
+              event: otherKey({ value: KEY_PRESS, }),
+            });
+            expect(result.state).toBe(INITIAL_SHIFT_STATE);
+            expect(result.doubleShift).toBe(false);
+          },
+        }),
+        it({
+          name: 'completes no tap on a Shift release for a key never pressed',
+          fn: async () => {
+            /** Result of the stray release, after a clean tap opened a window. */
+            const result = reduceShiftEvent({
+              state: tapShift({
+                state: INITIAL_SHIFT_STATE,
+                releaseNow: FIRST_TAP_MS,
+                key: 'left',
+              }).state,
+              event: shift({ key: 'right', value: KEY_RELEASE, now: SECOND_TAP_FAST_MS, }),
+            });
+            expect(result.doubleShift).toBe(false);
+            expect(result.state.lastTapTime).toBe(FIRST_TAP_MS);
+            expect(result.state.rightPressed).toBe(false);
+          },
+        }),
+
+        //endregion Passthroughs
       ],
     }),
   ],
