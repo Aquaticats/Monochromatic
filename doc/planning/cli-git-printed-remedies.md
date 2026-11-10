@@ -11,7 +11,7 @@ and the text of those messages is corrected.
 Three of them have a control that runs the corrected text;
 the fourth,
 Git's own wording inside the wrapper's failed-pull report,
-has the reproduction recipe below and no control yet.
+has the reproduction recipe in "The failed pull's recovery command" and no control yet.
 
 The message texts live in
 `package/git-policy/cli/src/native/command/rule_linked_worktree_messages.rs`
@@ -53,7 +53,7 @@ This audit ran every printed command instead of trusting that one report.
    was extracted with a reader that joins Rust's escaped line breaks,
    and the literals naming a `git` command or telling the reader to run one were listed.
    The reader and its output are not committed:
-   the list below is the durable record,
+   the lists in this document are the durable record,
    and the controls in
    `package/git-policy/cli/src/native/binary/binary_printed_remedies_tests.rs`
    keep the corrected texts checked.
@@ -214,7 +214,7 @@ the report is on standard error and the printed hatch command is the one to run.
 
 ## What runs as printed
 
-Every command below was run through the built executable in the state that prints it,
+Every command in this section was run through the built executable in the state that prints it,
 and none was refused by a policy.
 The policy and message are named first,
 then the commands.
