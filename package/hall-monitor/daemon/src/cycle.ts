@@ -38,7 +38,6 @@ import { log, } from './infra/syslog.ts';
  Module-singleton mutable state for the rolling decision window; wrapped so it satisfies no-module-root-let.
  */
 const state: { decisions: DecisionWindow; } = { decisions: initialDecisionWindow(), };
-//endregion
 
 //endregion Decision tracking
 

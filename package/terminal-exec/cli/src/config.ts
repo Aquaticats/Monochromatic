@@ -9,6 +9,8 @@ import { readFile, } from 'node:fs/promises';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+//region Logger root
+
 /**
  Logger root for terminal-exec after removing the package log shim.
  
@@ -27,12 +29,20 @@ const l = tagged({
   l: parentLogger,
 },);
 
+//endregion Logger root
+
+//region Directive sentinel
+
 /**
  Sentinel returned by {@link parseDirective} for a line that is not a
  well-formed `/execarg_default:` directive. A `unique symbol`; callers narrow
  with `=== MALFORMED_DIRECTIVE`.
  */
 const MALFORMED_DIRECTIVE: unique symbol = Symbol('terminal-exec/config directive cannot be parsed',);
+
+//endregion Directive sentinel
+
+//region Parsed configuration shape
 
 /**
  Result of parsing all config files.
@@ -51,6 +61,10 @@ export type ConfigResult = {
    */
   readonly execArgDefaults: ReadonlyMap<string, string>;
 };
+
+//endregion Parsed configuration shape
+
+//region Config file parsing
 
 /**
  Reads and parses all xdg-terminals.list config files.
@@ -185,6 +199,10 @@ export async function parseConfigFiles(
   };
 }
 
+//endregion Config file parsing
+
+//region Directive parsing
+
 /**
  Parses a `/`-prefixed directive line into an execarg-default entry.
  
@@ -238,3 +256,5 @@ function parseDirective(
     defaultArg,
   ];
 }
+
+//endregion Directive parsing
