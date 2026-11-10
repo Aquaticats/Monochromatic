@@ -639,12 +639,8 @@ Read-only commands,
      other checkouts,
      caches
    and run records aside in a trash directory under `.claude/`,
-     and the add empties that trash before it returns,
-     deleting
-   only the directories the snapshot itself moved there (recorded with their identities) and never following a link.
-   Those directories are emptied side by side,
-     within the threads and memory the host allows,
-     beside the package repair.
+     and the add hands that trash to the commit service and returns
+   without waiting for it.
    A directory set aside whole is swept for those containers first,
      at any depth,
      a nested worktree and another checkout among them,
@@ -655,47 +651,73 @@ Read-only commands,
    Another command's stage container is not put in that trash at all:
      it is removed before the worktree is installed,
      so
-   nothing it holds is in the new worktree while an `git add --all` could stage it
-     (a container of 20,000 one-kilobyte
-   files takes about half a second to remove on this host,
+   those bytes never reach a worktree,
+     not even an ignored trash directory
+     (a container of 20,000 one-kilobyte files takes
+   about half a second to remove on this host,
      against a tenth of a millisecond to rename).
-   Nothing the leave-out set aside is left in the new worktree when the command ends:
-     a commit that stops ignoring
-   `.claude/cli-git-trash` would otherwise let `git add --all` stage another command's stage container,
-     credentials
-   included.
-   A trash an earlier add left in the source under `.claude/cli-git-trash` is moved into this add's trash,
-     so the
-   emptying that runs before this command returns covers it too,
-     whichever add made it:
-     a kill before that emptying otherwise
-   left another command's stage container to be carried into the next worktree,
-     where nothing would dispose of it.
+   A standing trash cannot be staged,
+     whatever the target commit ignores:
+     before the leave-out asks Git whether the
+   trash place is ignored,
+     the wrapper adds `/.claude/cli-git-trash/` to the repository's common `info/exclude`,
+     which
+   no commit writes.
+     Measured with Git 2.56.0:
+     a linked worktree reads that file and never its own worktree's,
+     `git add --all`
+   stages nothing of a trash standing there,
+     and a target commit that ignores nothing under `.claude/`,
+     or that tries to
+   re-include the trash parent,
+     does not change that.
+     A directory of that name outside the trash parent is no trash and is
+   never touched.
+     When that file cannot be read or written the question falls back to the rules the repository has,
+     and a
+   `false` answer removes the directories in the foreground instead.
+   The record the hand-over writes names the new worktree,
+     the common directory it is read from,
+     the trash and the
+   identities of everything moved into it,
+     and it sits under the common directory,
+     so one repository's service empties
+   its trashes one at a time whichever worktree holds each of them;
+     the claim the drain takes is the lease every other
+   kind of work already uses,
+     so no lock is added.
+     Each removal runs at I/O priority class `idle`,
+     the lowest Linux offers.
+   Unless `--quiet` is given the add prints one line saying how many directories were set aside,
+     which worktree
+   they were left out of,
+     and that the commit service empties them after the command returns.
+     A wake that fails is a warning
+   that names the worktree,
+     the trash and the record,
+     which still empties it when the repository's service next runs,
+     and
+   never the add's failure:
+     the worktree is whole either way.
+     A path that is not valid UTF-8 cannot be named by a record,
+   so the hand-over writes none and says so,
+     and only the person removes that trash.
+   A work item of kind `trash` that an
+   earlier release wrote is emptied by the same handler with the same checks,
+     so a repository that ran one keeps its promise,
+   and a trash an earlier add left in the source is moved into this add's trash and covered by its record.
+   A trash the service cannot empty is reported by the service with its reason and its record settles as failed;
+     every
+   later command run in that worktree,
+     unless its output is read by a program,
+     then names each directory in
+   `.claude/cli-git-trash` that no pending or claimed record accounts for,
+     with its path,
+     and deletes nothing.
    It does decline when a registered nested worktree holds a file the main checkout tracks.
-     A trash that cannot be
-   emptied is reported with its path and the reason,
-     the worktree is whole either way,
-     and the line says that nothing else will
-   empty it:
-     no work item names it,
-     only the person will remove it,
-     and it gives the `rm --recursive --force` command that does
-   when that command deletes exactly what the snapshot made.
-     It gives no removal command when the emptying kept something
-   (a directory the snapshot did not make under the recorded name,
-     an entry that changed,
-     or a file somebody put in the trash),
-     and names the path and the reason instead,
-     because removing that path recursively would delete what the emptying left alone.
-     A trash that could not be emptied stays there,
-   and the next command run in that worktree names it,
-     with its path;
-     the same command
-   names,
-     without deleting,
-     every directory in `.claude/cli-git-trash` that nothing will empty,
-     which is
-   one no record names and one only a record the service gave up on names.
+     A copy of the ignored state
+   leaves the trash parent out of its source as well,
+     so no copied worktree carries another command's trash.
      Another process that
    replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
    command:

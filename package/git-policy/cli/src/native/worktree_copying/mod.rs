@@ -181,14 +181,9 @@ pub mod worktree_copy;
 /// its package-manager repair,
 /// and the trash a snapshot
 ///  left there,
-/// emptied beside that repair.
+/// handed to the commit service.
 #[cfg(unix)]
 pub mod worktree_copy_after_lock;
-
-/// The job that empties the trash a snapshot of the main checkout left,
-/// run beside that repair or here when it has nothing to do.
-#[cfg(target_os = "linux")]
-pub mod worktree_copy_after_lock_disposal;
 
 /// Which forwarded invocations the copy applies to,
 /// and the child run that performs it.
