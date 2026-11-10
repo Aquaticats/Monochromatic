@@ -87,6 +87,16 @@ Make every non-exempt cross-package import in `package/` resolve to TypeScript s
    (decision 1),
     not from building,
     so it is NOT source-only.
+
+    Superseded 2026-11-10T03:00:00-05:00 for the repository root: the owner's
+    issue #1926 instruction sent `oxlint.config.ts` to
+    `@monochromatic-dev/config-oxlint/ts`,
+    so an in-repo lint run evaluates plugin source and never the built bundle.
+    The prebuilt `.` stays the publishing entry for consumers outside this repository.
+    Re-measured that day on `package/logger/core/src`, alternating arms over six
+    rounds: built 1.42 s to 1.56 s against source 1.56 s to 1.67 s,
+    about +0.19 s per oxlint process (+12 %),
+    with byte-identical findings.
 7. CLI/app packages lacking a build task:
     add bundled-bin builds.
 8. Shims (`shim-*`) and stubs (`stub-*`):

@@ -384,6 +384,17 @@ but each link also fails for causes other than #570.
   measured cost of `./ts` is about 0.19 s per oxlint process);
   build guard (link 2);
   wrapper signal (link 4).
+  The lint-artifact half is now answered by the owner's issue #1926 instruction:
+  since 2026-11-10T03:00:00-05:00 the root `oxlint.config.ts` imports
+  `@monochromatic-dev/config-oxlint/ts`,
+  so an in-repo lint run reads plugin source and never the `dist` sidecars,
+  and link 3 no longer reaches lint.
+  Re-measured that day on `package/logger/core/src`, alternating arms,
+  six rounds: built 1.42 s to 1.56 s against `/ts` 1.56 s to 1.67 s,
+  about +0.19 s per oxlint process,
+  and both arms produced byte-identical findings.
+  `ensureOxlintConfig` still builds the sidecars a lint run no longer reads;
+  removing that step from the `lint:oxlint` and `format:oxlint` templates is the remaining half.
 - Unrelated incidents seen during research,
   not in #570 scope:
   fresh-worktree full build failures
