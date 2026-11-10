@@ -16,7 +16,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
-import { type CommandRunner, } from '../dist/final/node/exec.mjs';
+import type { CommandRunner, } from '../dist/final/node/exec.mjs';
 import {
   copyDiskImageIntoLibvirt,
   grantFlatpakAccess,
@@ -74,16 +74,18 @@ function recordCommands(
 
  @param operation - Call expected to reject
 
- @returns The rejection reason, or `undefined` when the operation fulfilled
+ @returns The rejection reason
+
+ @throws Error when the operation fulfilled instead, because the case expected a failure
  */
-async function rejectionOf(operation: Promise<unknown>,): Promise<Error | undefined> {
+async function rejectionOf(operation: Promise<unknown>,): Promise<Error> {
   try {
     await operation;
   }
   catch (error) {
     return error as Error;
   }
-  return undefined;
+  throw new Error('expected the step to reject, and it did not',);
 }
 
 /**
@@ -169,7 +171,7 @@ await describe({
               ...FIXTURE_DISK,
               runner,
             },),);
-            expect(error?.message,).toBe('sudo refused by the recording runner',);
+            expect(error.message,).toBe('sudo refused by the recording runner',);
             expect(commands,).toHaveLength(1,);
           },
         },),
@@ -251,7 +253,7 @@ await describe({
               outputDirectory: fixture.path,
               runner,
             },),);
-            expect(error?.message,).toBe('virsh refused by the recording runner',);
+            expect(error.message,).toBe('virsh refused by the recording runner',);
           },
         },),
       ],

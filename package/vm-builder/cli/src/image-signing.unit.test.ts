@@ -12,7 +12,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { DEV_VM_IMAGE_TAG, DEV_VM_REGISTRY_IMAGE_TAG, } from '../dist/final/node/dev-vm.mjs';
-import { type StreamingCommandRunner, } from '../dist/final/node/exec.mjs';
+import type { StreamingCommandRunner, } from '../dist/final/node/exec.mjs';
 import {
   cosignKeyPath,
   pushAndSignImage,
@@ -72,16 +72,18 @@ function recordCommands(
 
  @param operation - Call expected to reject
 
- @returns The rejection reason, or `undefined` when the operation fulfilled
+ @returns The rejection reason
+
+ @throws Error when the operation fulfilled instead, because the case expected a failure
  */
-async function rejectionOf(operation: Promise<unknown>,): Promise<Error | undefined> {
+async function rejectionOf(operation: Promise<unknown>,): Promise<Error> {
   try {
     await operation;
   }
   catch (error) {
     return error as Error;
   }
-  return undefined;
+  throw new Error('expected the step to reject, and it did not',);
 }
 
 //endregion Fixtures
@@ -175,7 +177,7 @@ await describe({
               keyPath: FIXTURE_KEY_PATH,
               runner,
             },),);
-            expect(error?.message,).toBe('sudo refused by the recording runner',);
+            expect(error.message,).toBe('sudo refused by the recording runner',);
             expect(commands.some((command,) => command.args.includes('sign',),),).toBe(false,);
           },
         },),
