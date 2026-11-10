@@ -45,6 +45,34 @@ for (const panel of [
     expected.push(`comparison/${panel}/${scene}/${scheme}/${scale}/initial`);
   }
 }
+// The filename grammar the witness manifest must satisfy:
+// `^track-menu-(?:inner|cover)-[a-z-]+-(?:light|dark)-s(?:100|200)\.png$`.
+// Two anchors fix every piece's position, so the test reads the scale and theme suffixes
+// from the end and then walks the one open-ended run, instead of matching a pattern.
+const PNG_SUFFIX = '.png';
+const TRACK_MENU_PANELS = ['inner', 'cover'];
+const TRACK_MENU_THEMES = ['light', 'dark'];
+const TRACK_MENU_SCALES = ['100', '200'];
+const LOWERCASE_OR_HYPHEN = 'abcdefghijklmnopqrstuvwxyz-';
+
+function isTrackMenuImage(file) {
+  if (!file.endsWith(PNG_SUFFIX)) return false;
+  const stem = file.slice(0, -PNG_SUFFIX.length);
+  const panel = TRACK_MENU_PANELS.find(candidate => stem.startsWith(`track-menu-${candidate}-`));
+  if (panel === undefined) return false;
+  const rest = stem.slice(`track-menu-${panel}-`.length);
+  const suffix = TRACK_MENU_THEMES
+    .flatMap(theme => TRACK_MENU_SCALES.map(scale => `-${theme}-s${scale}`))
+    .find(candidate => rest.endsWith(candidate));
+  if (suffix === undefined) return false;
+  const description = rest.slice(0, rest.length - suffix.length);
+  if (description === '') return false;
+  for (const character of description) {
+    if (!LOWERCASE_OR_HYPHEN.includes(character)) return false;
+  }
+  return true;
+}
+
 const images = {};
 for (const capture of manifest.witnesses) {
   const {
@@ -54,7 +82,7 @@ for (const capture of manifest.witnesses) {
     scheme,
     fontScale
   } = capture;
-  if (!/^track-menu-(?:inner|cover)-[a-z-]+-(?:light|dark)-s(?:100|200)\.png$/.test(file)) {
+  if (!isTrackMenuImage(file)) {
     throw new Error('Track-menu image path is outside the evidence boundary.');
   }
   if (file !== `track-menu-${panel}-${scene}-${scheme}-s${fontScale * 100}.png`) {
