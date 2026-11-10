@@ -546,26 +546,46 @@ export async function createWorker(
     abort,
   );
 
-  // A stray message that no request is waiting for is dropped, which keeps
-  // the wrapped function from taking over the message channel.
   /**
    Routes one reply to its pending request by id.
+   
+   The Node.js preamble hands `postMessage` to the wrapped function, so its
+   own progress or logging messages reach this listener too. A payload that
+   is not a reply envelope is dropped rather than decoded, because a throw
+   here escapes the listener as an uncaught exception and kills the host
+   process.
+   
+   A reply that no request is waiting for, or that answers a different id,
+   is dropped as well, which keeps the wrapped function from taking over the
+   message channel.
    
    @param value - Raw value delivered to the listener.
    */
   function routeReply(value: unknown,): void {
-    /**
-     Reply envelope carried by the event.
-     */
-    const data = getMessageData({ value, },);
-
-    if ((pending.request !== undefined) && (data?.id
-      === pending.request
-        .id)) {
-      pending.request
-        .resolve(data,);
-      delete pending.request;
+    if (isNodeRuntime()) {
+      if (isWorkerReply(value,))
+        settleReply(value,);
+      return;
     }
+
+    if (isMessageEvent(value,))
+      settleReply(value.data,);
+  }
+
+  /**
+   Resolves the pending request when a reply envelope answers its id.
+   
+   @param reply - Reply envelope delivered by the worker.
+   */
+  function settleReply(reply: WorkerReply,): void {
+    if ((pending.request === undefined) || (reply.id
+      !== pending.request
+        .id))
+      return;
+
+    pending.request
+      .resolve(reply,);
+    delete pending.request;
   }
 
   if (isNodeRuntime()) {
