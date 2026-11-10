@@ -1,8 +1,10 @@
 //! What:
 //!  Pure decision of the linked-worktree-only policy:
 //!  commands that can discard uncommitted state never run in the main worktree,
-//! and run in a linked worktree
-//!      only while it is clean.
+//! and in a linked worktree
+//!      run only while it holds nothing that form would destroy,
+//!      an ignored file being nothing a clean is refused over
+//!      (`dirty_question` says when that is).
 //! Why:
 //!  `git stash` that changes state,
 //!  a deleting `git clean`,

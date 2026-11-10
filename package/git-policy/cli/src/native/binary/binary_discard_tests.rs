@@ -477,10 +477,12 @@ fn a_clean_that_deletes_ignored_files_runs_and_is_logged_in_a_linked_worktree() 
     let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
     let linked: PathBuf = fixture.root.join("linked");
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
-    for (arguments, form) in [
-        (vec!["clean", "-fdx"], "CleanIgnored"),
-        (vec!["clean", "-fdX"], "CleanIgnoredOnly"),
-        (vec!["clean", "--force", "-d", "-x"], "CleanIgnored"),
+    // `-x` is measured over tracked and untracked work; `-X` deletes ignored files only, so the line says the
+    //  policy asked no question.
+    for (arguments, form, dirty) in [
+        (vec!["clean", "-fdx"], "CleanIgnored", "\"dirty\":false"),
+        (vec!["clean", "-fdX"], "CleanIgnoredOnly", "\"dirty\":null"),
+        (vec!["clean", "--force", "-d", "-x"], "CleanIgnored", "\"dirty\":false"),
     ] {
         keep_ignored_work(linked.as_path());
         let before: usize = audit_lines_of(repo.as_path()).len();
@@ -495,6 +497,7 @@ fn a_clean_that_deletes_ignored_files_runs_and_is_logged_in_a_linked_worktree() 
             format!("\"form\":\"{form}\""),
             String::from("\"outcome\":\"allowed\""),
             String::from("\"worktree\":\"linked\""),
+            String::from(dirty),
         ] {
             assert!(last.contains(field.as_str()), "{field} missing from {last}");
         }
