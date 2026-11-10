@@ -42,6 +42,10 @@ export type ConvertContext = {
   nodeByGuid: Map<string, Record<string, unknown>>;
   childrenByParent: Map<string, string[]>;
   guidToUuidMap: Map<string, Uuid>;
+  /**
+   Root frame of each page, keyed by page id.
+   */
+  rootFrames: Map<Uuid, PenpotShape>;
   shapes: Map<Uuid, PenpotShape>;
   /**
    Composite keys of every node that becomes a Penpot page instead of a shape.

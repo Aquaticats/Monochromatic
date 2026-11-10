@@ -9,6 +9,7 @@ import {
 
 import {
   type FigmaFile as FigmaFileType,
+  extractZipEntries,
   parseFigmaFile,
 } from '@monochromatic-dev/figma-kiwi/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
@@ -557,11 +558,8 @@ await describe({
           fn: async () => {
             const figmaFile = buildTestFigmaFile();
             const doc = convertFigmaToPenpot({ figmaFile, },);
-            // Only 3 shapes should exist: root frame + frame + text
-            const nonRootShapes = [...doc.shapes.values(),].filter(s =>
-              s.id !== ZERO_UUID
-            );
-            expect(nonRootShapes.length,).toBe(2,);
+            // Only the frame and its text survive; the document node converts to nothing.
+            expect([...doc.shapes.values(),].length,).toBe(2,);
           },
         },),
       ],
@@ -658,6 +656,57 @@ await describe({
             expect(texts,).toHaveLength(2,);
             for (const text of texts)
               expect(text.parentId,).toBe(ZERO_UUID,);
+          },
+        },),
+      ],
+    },),
+    // endregion
+
+    // region page root frames
+    describe({
+      name: 'page root frames',
+      children: [
+        it({
+          name: 'keeps one root frame per page, each listing its own children',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoCanvasFixture(), },);
+            const pageIds = [...doc.pages.keys(),];
+            expect(pageIds,).toHaveLength(2,);
+            const rootFrames = pageIds.map(pageId =>
+              nonNullishOrThrow(doc.rootFrames.get(pageId,),)
+            );
+            expect(rootFrames.map(frame => frame.id,),).toEqual([ZERO_UUID, ZERO_UUID,],);
+            expect(rootFrames.map(frame => frame.pageId,),).toEqual(pageIds,);
+            const childIdsByPage = pageIds.map(pageId =>
+              [...doc.shapes.values(),]
+                .filter(shape => shape.pageId === pageId)
+                .map(shape => shape.id)
+            );
+            for (const [index, rootFrame,] of rootFrames.entries())
+              expect(nonNullishOrThrow(rootFrame.shapes,),).toEqual(childIdsByPage[index],);
+          },
+        },),
+        it({
+          name: 'writes every page root frame into the archive',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoCanvasFixture(), },);
+            const entries = await extractZipEntries(serializePenpotZip(doc,),);
+            for (const pageId of doc.pages.keys()) {
+              const rootFramePath = `files/${doc.file.id}/pages/${pageId}/${ZERO_UUID}.json`;
+              expect(entries.has(rootFramePath,),).toBe(true,);
+            }
+          },
+        },),
+        it({
+          name: 'keeps a root frame for every slide page',
+          fn: async () => {
+            const doc = convertFigmaToPenpot({ figmaFile: buildTwoSlideDeck(), },);
+            const pageIds = [...doc.pages.keys(),];
+            expect(pageIds,).toHaveLength(2,);
+            for (const pageId of pageIds) {
+              const rootFrame = nonNullishOrThrow(doc.rootFrames.get(pageId,),);
+              expect(nonNullishOrThrow(rootFrame.shapes,),).toHaveLength(1,);
+            }
           },
         },),
       ],

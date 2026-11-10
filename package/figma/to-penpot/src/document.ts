@@ -122,6 +122,7 @@ function indexNodes(
     nodeByGuid: new Map<string, Record<string, unknown>>(),
     childrenByParent: new Map<string, string[]>(),
     guidToUuidMap: new Map<string, Uuid>(),
+    rootFrames: new Map(),
     shapes: new Map(),
     pageAnchorKeys,
   };
@@ -302,9 +303,9 @@ function buildPage(
    Implicit root frame Penpot requires on every page.
    */
   const rootShape = makeRootFrame(pageId,);
-  ctx.shapes
+  ctx.rootFrames
     .set(
-    ZERO_UUID,
+    pageId,
     rootShape,
     );
   /**
@@ -448,9 +449,9 @@ export function convertFigmaToPenpot(
         index: 0,
       },
     );
-    ctx.shapes
+    ctx.rootFrames
       .set(
-      ZERO_UUID,
+      pageId,
       makeRootFrame(pageId,),
       );
   }
@@ -468,6 +469,7 @@ export function convertFigmaToPenpot(
       now,
     },),
     pages,
+    rootFrames: ctx.rootFrames,
     shapes: ctx.shapes,
     media: new Map(),
     storageObjects: new Map(),
