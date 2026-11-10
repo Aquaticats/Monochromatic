@@ -13,13 +13,17 @@ import { formatUnknownValue, } from './format-unknown-value.ts';
  - strings (`.length`)
  - arrays (`.length`)
  - `Set` and `Map` (`.size`)
- - plain objects (`Object.keys(value).length`)
+ - plain objects (`Object.keys(value).length`), meaning objects whose
+   prototype is this realm's `Object.prototype` or `null`
  
  Intentionally rejected:
  - `null` and `undefined`
  - `WeakSet` and `WeakMap` (no enumerable size)
  - bare iterables and async iterables (sizing requires consumption)
  - primitives without `.length` (numbers, booleans, symbols, bigints, functions)
+ - non-plain objects, such as `Date`, `RegExp`, boxed primitives, `Error`,
+   promises, class instances, and object literals from another realm:
+   their own keys are internal state, not elements
  
  @param value - Value to size
  
@@ -35,6 +39,8 @@ import { formatUnknownValue, } from './format-unknown-value.ts';
  getSize({ a: 1, },);        // 1
  getSize(null,);             // throws
  getSize(42,);               // throws
+ getSize(new WeakSet(),);    // throws
+ getSize(new Date(),);       // throws
  ```
  */
 export function getSize(value: unknown,): number {
@@ -46,8 +52,17 @@ export function getSize(value: unknown,): number {
     return value.length;
   if ((value instanceof Set) || (value instanceof Map))
     return value.size;
-  if ((typeof value) === 'object')
+  if ((typeof value) === 'object') {
+    /**
+     Prototype identity, so `WeakSet`, `WeakMap`, `Date`, `RegExp`, boxed
+     primitives, and class instances keep their documented rejection instead of
+     reporting their own enumerable keys as an element count.
+     */
+    const prototype: unknown = Object.getPrototypeOf(value,);
+    if ((prototype !== null) && (prototype !== Object.prototype))
+      throw new Error(`Expected sized container, got ${formatUnknownValue(value,)}`,);
     return Object.keys(value as object,)
       .length;
+  }
   throw new Error(`Expected sized container, got ${typeof value}`,);
 }
