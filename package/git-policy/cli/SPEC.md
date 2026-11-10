@@ -8268,7 +8268,10 @@ The read is bounded by `READ_CEILING` (`repo_read/git_metadata.rs`,
 and the person is never held longer.
 A spelling Git itself cannot prepare,
 such as `:(top)/*` (Git 2.56.0 fails in its own `prep_exclude`),
-gets that line and then Git's own refusal.
+gets that line and then Git's own refusal,
+unless an enabled content policy reads the command's candidates first:
+the candidate prediction runs that same `git add` on a private index and stops on its failure,
+which names Git's refusal and no line of this check.
 
 An ordinary name costs nothing;
 a spelling that is no ordinary name costs two listing reads,
