@@ -28,7 +28,7 @@ use monochromatic_lint::{
     configuration::parse_configuration,
     diagnostic::{Diagnostic, Span},
     directive_options::DirectiveOptions,
-    edits::{Edit, Fix, apply_fixes},
+    edits::{Edit, Fix, FixClass, FixScope, apply_fixes},
     markdown_rule_settings::markdown_rule_settings,
     processors::{VirtualSource, extract},
     run_file::{SourceOutcome, process_source},
@@ -224,6 +224,10 @@ const REPLACEMENTS: [&str; 10] = [
 /// Why:
 ///  The fuzz process has no repository;
 ///  the plan's paths are only names for matching and display.
+///  The plan may apply content fixes too:
+///  this target exercises the whole fix machinery,
+///  and the split between whitespace and content fixes is tested through the command line,
+/// just as `run_test_support::plan` does for the linter's own controls.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -269,6 +273,7 @@ pub fn plan(name: &str) -> FilePlan {
         config,
         root,
         directives: DirectiveOptions::default(),
+        fix_scope: FixScope::WhitespaceAndContent,
     };
 }
 
@@ -471,7 +476,13 @@ pub fn check_adversarial_edits(name: &str, source: &str, data: &[u8]) -> EditRea
             replacement: String::from(replacement),
         });
     }
-    let Ok(projected): Result<Fix, _> = input.project_fix(&Fix { edits }) else {
+    // These replacements add, remove or rewrite tokens,
+    //  so the group is a content fix;
+    //  declaring it whitespace would misdescribe what it changes.
+    let Ok(projected): Result<Fix, _> = input.project_fix(&Fix {
+        class: FixClass::Content,
+        edits,
+    }) else {
         return EditReach::Refused;
     };
     for edit in &projected.edits {
