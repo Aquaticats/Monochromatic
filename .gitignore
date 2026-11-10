@@ -238,3 +238,9 @@ mutants.out.old/
 !/package/music-player/design/candidates/support.js
 !/package/music-player/design/candidates/artists.js
 !/package/music-player/design/candidates/buckets.js
+
+# The design pages' browser builds are vendored so a page renders with no network; `vendor/README.md` records
+# each version, digest and licence. Tracked source, not build output.
+!/package/music-player/design/vendor/react-18.3.1.production.min.js
+!/package/music-player/design/vendor/react-dom-18.3.1.production.min.js
+!/package/music-player/design/vendor/babel-standalone-7.29.0.min.js
