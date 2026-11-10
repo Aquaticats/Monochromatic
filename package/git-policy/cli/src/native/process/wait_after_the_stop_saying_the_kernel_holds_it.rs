@@ -54,6 +54,10 @@ use std::time::Duration;
 ///  so it is made again rather than read as the kernel having let go,
 ///  and a line the writer could not take is said again as soon as it can be,
 ///  never a whole notice interval later.
+///  A look that found no process in uninterruptible sleep does not end the wait either:
+///  the step is still unreaped,
+///  so the kernel may still be holding it,
+///  and the wait ends when the step is reaped and never when a look says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,8 +132,14 @@ pub(crate) async fn until_reaped(owned: &mut OwnedChild, waited: Duration, words
                 seen_held = true;
                 pause = AFTER_THE_STOP;
             }
-            // The step acted on the signal, or the look could not be made: nothing is known, and the step is awaited.
-            TheLook::NotHeld | TheLook::CouldNotLook => return owned.wait().await,
+            // What: Neither a look that found nothing nor a look that could not be made ends this wait.
+            // Why:  The step is still unreaped, so the kernel may still be holding it, and a look that failed states
+            //       nothing about it: reading one as the kernel having let go took the whole explanation away from a wait
+            //       that then lasted (finding 2 of the 2026-11-10 review of the held-step notice).
+            TheLook::NotHeld | TheLook::CouldNotLook => {
+                seen_held = false;
+                pause = AFTER_THE_STOP;
+            }
         }
     }
 }
