@@ -30,6 +30,8 @@ import {
 import { reviewGoalSettlement, } from './review-runner.ts';
 import { createGoalReviewerUnavailableHandler, } from './review-unavailable.ts';
 
+//region Registration contracts
+
 /**
  Registration dependencies for private settlement review.
  */
@@ -46,6 +48,10 @@ type GoalSettlementReviewRegistration = {
  Domain sentinel before any settlement has been reviewed.
  */
 const SETTLEMENT_REVIEW_KEY_ABSENT: unique symbol = Symbol('settlement review key absent',);
+
+//endregion Registration contracts
+
+//region Settlement key
 
 /**
  Build stable duplicate-review key from captured settlement.
@@ -71,6 +77,10 @@ function settlementReviewKey(
     request.branchLeafId,
   ],);
 }
+
+//endregion Settlement key
+
+//region Registration
 
 /**
  Register private review at Pi's final settlement seam.
@@ -206,6 +216,8 @@ function registerGoalSettlementReview(
     },
   );
 }
+
+//endregion Registration
 
 export {
   registerGoalSettlementReview,

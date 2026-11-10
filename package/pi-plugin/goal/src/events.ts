@@ -7,6 +7,8 @@
 import { GOAL_STATE_ENTRY_TYPE, } from './constants.ts';
 import type { GoalEvent, } from './types.ts';
 
+//region Branch entry shape
+
 /**
  Minimal Pi custom-entry shape accepted by branch extractor.
  
@@ -29,6 +31,10 @@ type GoalBranchEntry = {
    */
   readonly data?: unknown;
 };
+
+//endregion Branch entry shape
+
+//region Value guards
 
 /**
  Narrow unknown value to property record.
@@ -93,6 +99,10 @@ function isStringArray(value: unknown,): value is string[] {
       return (typeof entry) === 'string';
     },);
 }
+
+//endregion Value guards
+
+//region Event validation and extraction
 
 /**
  Validate persisted unknown payload as one supported goal event.
@@ -286,6 +296,8 @@ function goalEventsFromBranch(entries: readonly GoalBranchEntry[],): GoalEvent[]
       return entry.data;
     },);
 }
+
+//endregion Event validation and extraction
 
 export {
   goalEventsFromBranch,

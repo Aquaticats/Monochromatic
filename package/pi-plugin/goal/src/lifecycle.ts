@@ -83,6 +83,9 @@ function registerGoalLifecycle(
    */
   let controller = createGoalController(runtimeEpoch,);
   /* oxlint-enable no-restricted-syntax/no-function-root-let */
+
+  //region Inner transitions
+
   /**
    Store next immutable controller and execute its ordered effects.
    
@@ -284,6 +287,10 @@ function registerGoalLifecycle(
     return delivered;
   }
 
+  //endregion Inner transitions
+
+  //region Pi registrations
+
   pi.registerCommand(
     'goal',
     {
@@ -362,6 +369,9 @@ function registerGoalLifecycle(
       };
     },
   );
+
+  //endregion Pi registrations
+
   return {
     currentController,
     applyTransition,

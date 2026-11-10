@@ -14,6 +14,8 @@ import {
 } from '@earendil-works/pi-tui';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Dialog contracts
+
 /**
  Explicit manual approval or rejection with optional reason.
  */
@@ -34,6 +36,10 @@ type ManualGoalReviewPrompt = (
   },
 ) => Promise<ManualGoalReviewDecision>;
 
+//endregion Dialog contracts
+
+//region Render request
+
 /**
  Request manual-review component render after local state change.
  
@@ -49,6 +55,10 @@ type ManualGoalReviewPrompt = (
 function requestManualReviewRender(tui: ForeignBorrowed<TUI>,): void {
   tui.requestRender();
 }
+
+//endregion Render request
+
+//region Prompting
 
 /**
  Show non-cancellable combined accept or reject-with-reason dialog.
@@ -260,6 +270,8 @@ async function promptManualGoalReview(
     },
     );
 }
+
+//endregion Prompting
 
 export { promptManualGoalReview, };
 export type {

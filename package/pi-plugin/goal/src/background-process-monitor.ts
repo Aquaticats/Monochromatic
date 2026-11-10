@@ -10,6 +10,8 @@ import type {
 } from '@earendil-works/pi-coding-agent';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+//region Process identity constants
+
 /**
  Public tool name registered by `@aliou/pi-processes`.
  
@@ -54,6 +56,10 @@ const LIVE_PROCESS_STATUSES = {
  */
 const PROCESS_SNAPSHOT_NOT_LIVE: unique symbol = Symbol('process snapshot does not represent live work',);
 
+//endregion Process identity constants
+
+//region Monitor contracts
+
 /**
  Immutable runtime view of live process identities.
  */
@@ -81,6 +87,10 @@ type ObservedMessageEndEvent = {
    */
   readonly message: unknown;
 };
+
+//endregion Monitor contracts
+
+//region Value guards
 
 /**
  Narrow unknown value to property record.
@@ -119,6 +129,10 @@ function isLiveProcessStatus(status: unknown,): boolean {
     status,
   );
 }
+
+//endregion Value guards
+
+//region Snapshot transitions
 
 /**
  Read live identity from one external process snapshot.
@@ -200,6 +214,10 @@ function removeLiveProcessId(
     return liveProcessIdValue !== processId;
   },);
 }
+
+//endregion Snapshot transitions
+
+//region Observers
 
 /**
  Apply finalized `process` tool details to monitor state.
@@ -339,6 +357,10 @@ function observeProcessLifecycleMessage(
   };
 }
 
+//endregion Observers
+
+//region Registration
+
 /**
  Register process observations and expose current liveness to goal settlement.
  
@@ -395,6 +417,8 @@ function registerBackgroundProcessMonitor(
     },
   };
 }
+
+//endregion Registration
 
 export { registerBackgroundProcessMonitor, };
 export type { BackgroundProcessMonitor, };
