@@ -34,6 +34,8 @@ import type { JsonValue, } from 'type-fest';
 
 import fixtures from '../fixtures/jsonc-conformance.json' with { type: 'json', };
 
+//region Local corpus: documents this file parses without the shared fixture, and the source cast they all pass through
+
 const asJsonc = (source: string,): StringJsonc => source as StringJsonc;
 
 type ValidCase = {
@@ -78,6 +80,10 @@ const invalidCases: readonly string[] = [
   '{ "a": 1, , }',
   '{ /* open comment\n"a": 1 }',
 ];
+
+//endregion Local corpus
+
+//region Shared fixture vocabulary: the shapes fixtures/jsonc-conformance.json carries, spelled as this module compares them
 
 /**
  One shared fixture case that must parse, with the shape both implementations agree on.
@@ -129,6 +135,10 @@ type SharedOwnershipCase = {
 };
 /* oxlint-enable no-restricted-syntax/no-nullish-union */
 
+//endregion Shared fixture vocabulary
+
+//region Fixture expectation helpers: decode a fixture field and an API result into one vocabulary, beside the case shapes they read
+
 /**
  What:     Decode one fixture comment field into text or the absence sentinel.
  Why:      The fixture's absence spelling is JSON null; narrowing by typeof keeps this module's
@@ -178,6 +188,10 @@ type SharedRootShapeCase = {
   readonly valueKind: string;
   readonly refused: boolean;
 };
+
+//endregion Fixture expectation helpers
+
+//region Edit helpers: walk a document for the comment bodies it carries, build a replacement value by kind, and probe a refusal
 
 /**
  What:     Collect every comment body attached anywhere in a document.
@@ -269,9 +283,15 @@ const attemptRefusal = (attempt: () => unknown,): RefusalProbe => {
   }
 };
 
+//endregion Edit helpers
+
+//region Test tree: the local corpora first, then the corpus both maintained implementations share
+
 await describe({
   name: 'JSONC conformance',
   children: [
+    //region Local corpus cases: the two case tables, each run as a loop over its own entries
+
     it({
       name: 'valid JSONC documents parse to the expected value',
       fn: async () => {
@@ -293,6 +313,11 @@ await describe({
           },).toThrow();
       },
     },),
+
+    //endregion Local corpus cases
+
+    //region Shared fixtures: every group below reads jsonc-conformance.json, which the Rust crate reads too
+
     describe({
       name: 'shared fixtures',
       children: [
@@ -443,5 +468,9 @@ await describe({
         },),
       ],
     },),
+
+    //endregion Shared fixtures
   ],
 },);
+
+//endregion Test tree
