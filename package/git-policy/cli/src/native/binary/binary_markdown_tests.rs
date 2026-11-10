@@ -21,9 +21,7 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{
-    Fixture, Observed, bounded, bounded_for, fixture, git, kept_on_purpose, observe, porcelain, remove, repository,
-};
+use super::support::{Fixture, Observed, bounded, bounded_for, fixture, git, observe, porcelain, remove, repository};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
@@ -329,18 +327,6 @@ fn a_markdown_commit_is_checked_in_process_with_no_linter_on_the_path() {
     remove(&fixture);
 }
 
-/// The entries of the repository scratch directory a finished commit still owes a removal of:
-///  every name but the pool of shadows the service fills ahead
-///  (`kept_on_purpose`),
-///  which stands there for as long as the worktree has a service and is no leftover of a commit.
-fn entries_left_in(scratch: &Path) -> Vec<OsString> {
-    return std::fs::read_dir(scratch)
-        .expect("the repository scratch directory exists")
-        .map(|entry| { return entry.expect("entry").file_name(); })
-        .filter(|name| { return !kept_on_purpose(name.as_os_str()); })
-        .collect();
-}
-
 /// A commit needs no system temporary directory either:
 /// with `TMPDIR` naming a path that does not exist the commit
 /// lands,
@@ -349,8 +335,7 @@ fn entries_left_in(scratch: &Path) -> Vec<OsString> {
 /// The tree goes when the service removes it,
 /// which is after this command was answered,
 /// so the control waits for the directory
-/// to be empty rather than reading it once;
-/// the pool the service fills ahead is kept there on purpose and is not waited for.
+/// to be empty rather than reading it once.
 #[test]
 fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
     let fixture: Fixture = fixture("commit-scratch-location");
@@ -383,10 +368,16 @@ fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
     assert_ne!(head(&fixture, repo.as_path()), base, "the commit landed");
     let scratch: PathBuf = repo.join(".git").join("monochromatic-git-policy-cli-scratch");
     let began: std::time::Instant = std::time::Instant::now();
-    let mut left: Vec<OsString> = entries_left_in(scratch.as_path());
+    let mut left: Vec<OsString> = std::fs::read_dir(&scratch)
+        .expect("the repository scratch directory exists")
+        .map(|entry| { return entry.expect("entry").file_name(); })
+        .collect();
     while !left.is_empty() && began.elapsed() < SCRATCH_SETTLE {
         std::thread::sleep(std::time::Duration::from_millis(20));
-        left = entries_left_in(scratch.as_path());
+        left = std::fs::read_dir(&scratch)
+            .expect("the repository scratch directory exists")
+            .map(|entry| { return entry.expect("entry").file_name(); })
+            .collect();
     }
     assert!(left.is_empty(), "nothing is left in {} after {SCRATCH_SETTLE:?}: {left:?}", scratch.display());
     assert!(!unusable.exists(), "nothing created the unusable temporary directory");

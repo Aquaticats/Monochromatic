@@ -611,14 +611,20 @@ fn btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named() {
     remove(root.as_path());
 }
 
-/// Finding 14:
-/// a worktree whose path is not UTF-8 cannot be named by a record,
-/// so the hand-over says so and writes none,
-/// and the
-///  emptying still works by the bytes of the path.
+/// Finding 5 of the trash hand-over review:
+/// a worktree whose path is not UTF-8 is named by a record like any other,
+/// and the emptying then works by the bytes
+///  of the path.
+/// Why:
+///   The record and the wake hold a path as its bytes beside its text (`path_bytes_in_records.rs`),
+/// so a byte that is
+///  not text is no reason to leave a trash no record names:
+/// such a trash is one the service never empties,
+/// and every later
+///  command only warns about it.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_non_utf8_worktree_is_named_by_no_record_and_emptied_by_its_path_bytes() {
+fn a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes() {
     let name: String = "9".repeat(40);
     let root: PathBuf = fixture("trash-hand-over-bytes");
     let worktree: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"topic-\xff"));
@@ -627,13 +633,15 @@ fn a_non_utf8_worktree_is_named_by_no_record_and_emptied_by_its_path_bytes() {
     std::fs::create_dir_all(&worktree).expect("worktree");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
-    let pending = PendingTrash { destination: worktree.clone(), common_dir: git_dir.clone(), manifest: manifest.clone(), quiet: false };
+    let pending = PendingTrash { destination: worktree.clone(), common_dir: git_dir.clone(), manifest: manifest.clone(), taken_over: 0, quiet: false };
     let mut notices: Vec<u8> = Vec::new();
-    let reason: String = hand_over_with(&git_context(), &pending, &mut notices, &no_service_reach()).expect_err("no record can name this path");
-    assert!(reason.contains("not valid UTF-8") && reason.contains("no record names them"), "the reason says why nothing will empty it later: {reason}");
-    assert!(!state_directory(work_directory(git_dir.as_path()).as_path(), "pending").exists(), "no record is written for a path a record cannot spell");
-    assert_eq!(empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest)), Verdict::Done, "the emptying works by the path's bytes");
-    assert!(!worktree.join(TRASH_PARENT).exists(), "so the trash is emptied all the same");
+    let reason: String = hand_over_with(&git_context(), &pending, &mut notices, &no_service_reach()).expect_err("no service is in reach");
+    assert!(reason.contains("no commit service can be started from this session") && reason.contains("when it next runs for this repository"), "the reason is the missing service, and the record still empties the trash later: {reason}");
+    let record: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
+    let item: WorkItem = WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the record the hand-over wrote for a path that is not text").as_str()).expect("a work item");
+    assert_eq!(item.repository, worktree, "the record names the worktree by the bytes of its path");
+    assert_eq!(empty_trash(&item), Verdict::Done, "so the emptying works by the path's bytes");
+    assert!(!worktree.join(TRASH_PARENT).exists(), "and the trash is emptied all the same");
     remove(root.as_path());
 }
 
@@ -784,5 +792,78 @@ fn the_handler_reports_a_trash_it_cannot_remove() {
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
     assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(&name)), "{verdict:?}");
     drop(restore);
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory below the trash parent whose name is not one the wrapper gives a trash is the person's own state,
+/// so the
+///  snapshot carries it into the new worktree and never moves it into this add's trash.
+/// Why:
+///  `info/exclude` keeps the trash parent out of every commit,
+/// and a person may keep files the repository ignores
+///  there.
+/// A snapshot that took every directory below the parent for an earlier add's trash moved those files into
+///  the trash of this add,
+/// the hand-over queued them,
+/// and the service deleted them,
+/// though no wrapper command had ever
+///  recorded them.
+/// An earlier add's trash is named with forty lowercase hexadecimal digits,
+/// which is the one thing this
+///  selection may go by,
+/// and a name of another shape is state of the source.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, `${TRASH_PARENT}/personal/important-notes.txt`, 'mine');
+/// const { stage, trash } = await snapshotOf(repo);
+/// expect(existsSync(join(stage, TRASH_PARENT, 'personal/important-notes.txt'))).toBe(true);
+/// expect(findIn(join(stage, TRASH_PARENT, trash.name), 'important-notes.txt')).toEqual([]);
+/// ```
+#[test]
+fn btrfs_a_personal_directory_below_the_trash_parent_is_carried_into_the_new_worktree() {
+    let Some(root) = btrfs_fixture("trash-personal-below-parent") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    put(repo.as_path(), format!("{TRASH_PARENT}/personal/important-notes.txt").as_str(), b"the person's own notes\n");
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    let manifest: TrashManifest = trash.expect("the leave-out made a trash");
+    assert!(stage.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "the person's directory is carried into the new worktree");
+    for index in 0..manifest.entries.len() {
+        assert!(!stage.join(TRASH_PARENT).join(&manifest.name).join(entry_name(index)).join("personal").exists(), "and it is no entry of this add's trash, so nothing will empty it");
+    }
+    assert!(repo.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "the source keeps it too");
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory below the trash parent that is not named like a trash is not named to the person as a trash nothing will
+///  empty,
+/// and nothing in it is deleted.
+/// Why:
+///   Every later command in the worktree names what it cannot account for,
+/// and the line tells the person to
+///  remove it themselves.
+/// A line about a directory the wrapper never made sends a person to delete their own files,
+/// so the
+///  scan names only names the wrapper gives a trash,
+/// which is the same shape the leave-out goes by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(worktree, `${TRASH_PARENT}/personal/important-notes.txt`, 'mine');
+/// const said = nameUnaccountedTrash(gitDir, worktree); expect(said).toContain(`${TRASH_PARENT}/${name}`); expect(said).not.toContain('personal');
+/// ```
+#[test]
+fn a_personal_directory_below_the_trash_parent_is_not_named_as_a_trash() {
+    let name: String = "e".repeat(40);
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-personal-named", name.as_str(), 1);
+    put(worktree.join(TRASH_PARENT).as_path(), "personal/important-notes.txt", b"the person's own notes\n");
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say);
+    let said: String = String::from_utf8_lossy(say.as_slice()).into_owned();
+    assert!(said.contains(worktree.join(TRASH_PARENT).join(&name).display().to_string().as_str()), "the trash the wrapper made is named: {said}");
+    assert!(!said.contains(format!("{TRASH_PARENT}/personal").as_str()), "the person's own directory is not called a trash: {said}");
+    assert!(worktree.join(TRASH_PARENT).join("personal/important-notes.txt").is_file(), "and nothing touches it");
     remove(root.as_path());
 }

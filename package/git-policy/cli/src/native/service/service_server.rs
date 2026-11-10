@@ -344,6 +344,8 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             board: Arc::clone(&board),
             release: settings.release.clone(),
             instance: settings.instance.clone(),
+            // The worktree this instance was named for, so a request naming it exactly is answered without a resolution.
+            own_git_dir: settings.own_git_dir.clone(),
         },
     );
     let _reports = settle_open_batches(context, settings.instance.as_deref());

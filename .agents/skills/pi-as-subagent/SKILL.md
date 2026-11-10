@@ -56,6 +56,11 @@ and tell it to run every command and make every edit inside it:
 one agent ran its builds in the main checkout,
 so they did not test its worktree's code,
 and the uncommitted edits it left there blocked merges of other branches.
+Tell every agent that runs plain `git` in a throwaway repository to give that run
+its own `HOME` and `XDG_RUNTIME_DIR` under its run folder:
+the installed wrapper hands a repository's pushes to the commit service of the session it runs in,
+and an agent's proof repositories under `/tmp/lfs-login-proof-ikmLJW/` reached the owner's real service,
+which kept retrying their pushes every 600 seconds for hours after the agent deleted them.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,

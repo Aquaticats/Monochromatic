@@ -9,15 +9,10 @@
 //!  and ages out under the rule the sweep and the preparation share
 //!  (`scratch_location.rs`,
 //! `service_scratch_abandonment.rs`).
-//!  The one entry of that directory a finished commit does not owe a removal of is the pool of finished shadows the
-//!  service fills ahead (`shadow_pool.rs`,
-//!  `kept_on_purpose`):
-//!  the fill is the service's work,
-//!  it stands beside the trees for as long as the worktree has a service,
-//!  and a commit that finds no member makes its own shadow.
 
 use super::commit::{remove_settled, wrapped_commit};
-use super::support::{Fixture, fixture, git, kept_on_purpose, repository};
+use super::support::{Fixture, fixture, git, repository};
+use git_policy_cli::wrapper_names_old_and_new::SHADOW_POOL_FOLDER;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -62,30 +57,25 @@ fn a_commit_leaves_no_scratch_directory_once_its_landing_is_over() {
 }
 
 /// What:
-///  Whether the repository scratch directory of `repo` is gone or holds nothing a finished commit left.
+///  Whether the repository scratch directory of `repo` is gone or holds no entry at all.
 /// Why:
 ///   The names `left_behind` waits for are the trees the wrapper removes,
 ///  and an entry its two prefixes do not name would end that wait while it is still there:
 ///  the directory has to be counted,
 ///  every entry of it,
 ///  not only the ones a leak would be named by.
-///  The pool of shadows the service fills ahead is kept there on purpose (`kept_on_purpose`),
-///  so it is the one name this count leaves out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const empty = (repo) => (await readdir(scratch(repo))).filter(keptOnPurpose).length === 0;
+/// const empty = (repo) => (await readdir(scratch(repo))).length === 0;
 /// ```
 fn the_scratch_directory_holds_nothing(repo: &Path) -> bool {
     let Some(directory) = scratch_directory(repo) else { return true };
-    let Ok(entries) = std::fs::read_dir(directory) else { return true };
-    return entries
-        .flatten()
-        .all(|entry| { return kept_on_purpose(entry.file_name().as_os_str()); });
+    return std::fs::read_dir(directory).map(|entries| { return entries.count(); }).unwrap_or(0) == 0;
 }
 
 /// The emptiness check the control above ends with is a check:
-/// an entry neither prefix names and the service does not keep on purpose still means the directory holds something,
+/// an entry neither prefix names still means the directory holds something,
 /// so a directory holding one is not reported empty.
 #[test]
 fn a_scratch_directory_that_holds_an_entry_the_prefixes_do_not_name_is_not_empty() {
@@ -103,4 +93,43 @@ fn a_scratch_directory_that_holds_an_entry_the_prefixes_do_not_name_is_not_empty
 fn scratch_directory(repo: &Path) -> Option<PathBuf> {
     let directory: PathBuf = repo.join(".git/monochromatic-git-policy-cli-scratch");
     return directory.is_dir().then_some(directory);
+}
+
+/// What:
+///  A landed commit leaves the pool of finished shadows beside the scratch directory exactly as it found it.
+/// Why:
+///  A member is standing state the owner asked for,
+///  not scratch
+///  ("Pool made ahead (Recommended),
+///  We don't need to build a shadow for every commit.
+///  Be smarter.",
+///  `doc/handover/questions-for-the-owner.md`),
+///  so the release of a commit's scratch tree,
+///  the sweep the next command runs and the emptiness check above must all leave one alone.
+///  This is that check at the user boundary:
+///  the scratch directory holds nothing,
+///  and the pool's own folder still holds what it held.
+#[test]
+fn a_landed_commit_leaves_the_pool_of_finished_shadows_alone() {
+    let fixture: Fixture = fixture("service-scratch-pool-beside");
+    let repo: PathBuf = edited_repository(&fixture);
+    let pool: PathBuf = repo.join(".git").join(SHADOW_POOL_FOLDER).join("main");
+    std::fs::create_dir_all(pool.as_path()).expect("the pool's folder");
+    let standing: PathBuf = pool.join("a-mark-of-standing-state");
+    std::fs::write(standing.as_path(), b"a member nobody has claimed yet\n").expect("standing state");
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    let output: std::process::Output = wrapped_commit(&fixture, &repo, &["commit", "--quiet", "--message=edit", "--", "a.txt"]).output().expect("the commit runs");
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    let began: Instant = Instant::now();
+    while !the_scratch_directory_holds_nothing(repo.as_path()) {
+        assert!(began.elapsed() < PATIENCE, "the scratch directory of a landed commit still holds something");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(
+        std::fs::read(standing.as_path()).expect("the pool's standing state"),
+        b"a member nobody has claimed yet\n",
+        "the pool beside the scratch directory is untouched"
+    );
+    remove_settled(&fixture);
 }
