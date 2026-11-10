@@ -4,6 +4,10 @@
  @module
  */
 
+import {
+  mkdir,
+  mkdtempDisposable,
+} from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
@@ -11,6 +15,11 @@ import {
   createEventBus,
   discoverAndLoadExtensions,
 } from '@earendil-works/pi-coding-agent';
+
+import {
+  createAgentSettledEvent,
+  createExtensionContext,
+} from './test-fixtures.ts';
 
 //region Constants
 
@@ -20,14 +29,18 @@ import {
 const BUILT_PACKAGE_PATH = '.';
 
 /**
- Empty directory under current agent scratch root that excludes unrelated global extensions.
+ Repository-wide agent scratch root holding this verifier's disposable directories.
  */
-const EMPTY_AGENT_DIRECTORY = join(
+const AGENT_SCRATCH_ROOT = join(
   homedir(),
   'temp',
   'agent',
-  'pi-agent-settled-notification-loader-check',
 );
+
+/**
+ Prefix of the Pi agent directory created fresh for a single verification run.
+ */
+const AGENT_DIRECTORY_PREFIX = 'pi-agent-settled-notification-loader-check-';
 
 /**
  Pi lifecycle event whose handler must reach the desktop-notification boundary.
@@ -41,9 +54,13 @@ const AGENT_SETTLED_EVENT = 'agent_settled';
 /**
  Discovers the built package through Pi and emits its loaded settlement handler.
  
+ Pi discovers global extensions under `<agentDir>/extensions/`, so the agent
+ directory is created fresh for this run: a reused fixed path would let leftover
+ content there change the discovery count this verifier asserts.
+ 
  @returns verification result text after the real desktop-notification handler completes
  
- @throws when Pi discovery reports an error or the handler cannot complete
+ @throws when the disposable agent directory cannot be created, Pi discovery reports an error, or the handler cannot complete
  
  @example
  ```ts
@@ -51,13 +68,25 @@ const AGENT_SETTLED_EVENT = 'agent_settled';
  ```
  */
 async function verifyPiLoader(): Promise<string> {
+  await mkdir(
+    AGENT_SCRATCH_ROOT,
+    { recursive: true, },
+  );
+  /**
+   Pi agent directory owned by this run, empty by construction and removed when this scope ends.
+   */
+  await using agentDirectory = await mkdtempDisposable(join(
+    AGENT_SCRATCH_ROOT,
+    AGENT_DIRECTORY_PREFIX,
+  ),);
+
   /**
    Pi discovery result for the built package, isolated from user-global extensions.
    */
   const result = await discoverAndLoadExtensions(
     [BUILT_PACKAGE_PATH,],
     process.cwd(),
-    EMPTY_AGENT_DIRECTORY,
+    agentDirectory.path,
     createEventBus(),
   );
   if (result.errors
@@ -97,8 +126,8 @@ async function verifyPiLoader(): Promise<string> {
     throw new Error(`missing ${AGENT_SETTLED_EVENT} handler`,);
 
   await handler(
-    { type: AGENT_SETTLED_EVENT, },
-    undefined,
+    createAgentSettledEvent({ aborted: false, },),
+    createExtensionContext(),
   );
 
   return 'agent-settled-notification Pi-loader verification passed';

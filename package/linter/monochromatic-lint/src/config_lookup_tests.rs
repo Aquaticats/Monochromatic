@@ -10,8 +10,8 @@
 
 /// Import the same adapter interface and discovery entry used by production.
 use super::{
-    CONFIG_NAME, ConfigFilesystem, NativeConfigFilesystem, discover_configuration,
-    discover_with_filesystem,
+    CONFIG_NAME, ConfigFilesystem, NativeConfigFilesystem, NearestAnswer, NearestSource,
+    discover_configuration, discover_with_filesystem, nearest_above,
 };
 use crate::config_error::ConfigError;
 use crate::test_fs::Fixture;
@@ -58,6 +58,70 @@ impl ConfigFilesystem for MemoryFilesystem {
 /// Native temporary-directory paths supply the platform's absolute-root grammar without reading files.
 fn root() -> PathBuf {
     return crate::test_scratch::scratch_root().join("monochromatic-lint-memory-config");
+}
+
+/// What:
+///  A walk source that answers for named directories and nothing else.
+/// Why:
+///  The walk's own boundary is testable without a filesystem or a configuration file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class FixedSource { answers = new Map<Path, number>(); }
+/// ```
+struct FixedSource {
+    /// The answer of each directory that has one.
+    answers: BTreeMap<PathBuf, u32>,
+}
+
+/// What:
+///  Answer from the fixed table.
+/// Why:
+///  Absence must come from a missing key,
+///  so the walk's continuation is the only behavior under test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// at(directory: Path): number | undefined;
+/// ```
+impl NearestSource for FixedSource {
+    /// The number this directory answers with.
+    type Found = u32;
+
+    /// The configured answer,
+    ///  or absence.
+    fn at(&self, directory: &Path) -> Result<Option<u32>, ConfigError> {
+        return Ok(self.answers.get(directory).copied());
+    }
+}
+
+/// What:
+///  The nearest-file walk stops at the first directory that answers and reports every directory it
+///  consulted on the way.
+/// Why:
+///  Both callers depend on that one boundary:
+///  discovery returns the answer alone,
+///  and the executable's store records the consulted directories as its memo.
+#[test]
+fn the_nearest_walk_stops_at_the_first_answer() {
+    let base: PathBuf = root();
+    let child: PathBuf = base.join("child");
+    let mut answers: BTreeMap<PathBuf, u32> = BTreeMap::<PathBuf, u32>::new();
+    answers.insert(base.clone(), 7);
+    let answered: NearestAnswer<u32> =
+        nearest_above(&child, &FixedSource { answers }).expect("walk");
+    assert_eq!(answered.found, Some(7));
+    assert_eq!(answered.consulted, [child.clone(), base]);
+    let absent: NearestAnswer<u32> = nearest_above(
+        &child,
+        &FixedSource {
+            answers: BTreeMap::new(),
+        },
+    )
+    .expect("walk");
+    assert_eq!(absent.found, None);
+    // Nothing found consults every ancestor up to the filesystem root.
+    assert_eq!(absent.consulted.len(), child.ancestors().count());
 }
 
 /// The native adapter reads only owned fixture paths and classifies real I/O failures.
