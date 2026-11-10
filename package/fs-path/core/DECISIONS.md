@@ -237,7 +237,7 @@ Measured on 2026-09-08:
    no `node:` in the neutral build,
    and no `navigator.storage` in the node build.
 
-## ensureFile's create is exclusive, and the parent is created only when a create needs it (2026-11-10)
+## ensureFile's create is exclusive, and the parent is created only when a create needs it (2026-11-09)
 
 `ensureFile` decided to create the file from a `stat` result and then opened
  it with flag `w`,
@@ -286,7 +286,7 @@ Rejected shapes:
    it repairs and stats a directory the call does not need,
    and a bare name has no parent string to pass.
 
-## One `?query` suffix policy for the ensure and empty families (2026-11-10)
+## One `?query` suffix policy for the ensure and empty families (2026-11-09)
 
 `ensurePath` parsed the path as given,
  so `dist/x.js?raw` counted `.js?raw` as its extension and `ensureFile` created
