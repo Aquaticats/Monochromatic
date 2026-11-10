@@ -6,6 +6,15 @@
  so a migrating app finds its config file at the identical path. Resolution
  happens per call (not module load) so injected homes take effect,
  which the repository's disposable-home test rule requires.
+ The root variables treat an empty value as absent,
+ as upstream's `env-paths` does with
+ `env.APPDATA || path.join(homedir, 'AppData', 'Roaming')`;
+ they are spelled as explicit empty-and-unset checks because this repository's
+ lint rules refuse a logical OR as a nullish fallback.
+ A nullish fallback would keep `''` and make the joined path relative to the
+ working directory,
+ so a caller whose unit exports `APPDATA=` or `XDG_CONFIG_HOME=` would read a
+ different file than upstream `conf` does.
  
  @module
  */
@@ -45,7 +54,8 @@ function macosConfigDirectory(name: string,): string {
 
 /**
  Windows layout: `%APPDATA%\<name>\Config`,
- falling back to `AppData\Roaming`.
+ falling back to `AppData\Roaming`,
+ including when `%APPDATA%` is set to an empty string.
  
  @param name - App name including any suffix.
  
@@ -60,13 +70,20 @@ function windowsConfigDirectory(name: string,): string {
   /**
    Roaming application-data root Windows stores per-app config under.
    */
-  const appData = process.env
-    .APPDATA
-    ?? path.join(
+  const configuredAppData = process.env
+    .APPDATA;
+  /**
+   Roaming root to join beneath;
+   an empty `%APPDATA%` counts as unset, as it does for upstream `env-paths`,
+   whose fallback is a logical OR.
+   */
+  const appData = (configuredAppData === undefined) || (configuredAppData === '')
+    ? path.join(
       homedir(),
       'AppData',
       'Roaming',
-    );
+    )
+    : configuredAppData;
   return path.join(
     appData,
     name,
@@ -76,7 +93,8 @@ function windowsConfigDirectory(name: string,): string {
 
 /**
  freedesktop.org base-directory layout: `$XDG_CONFIG_HOME/<name>`,
- falling back to `~/.config/<name>`.
+ falling back to `~/.config/<name>`,
+ including when `$XDG_CONFIG_HOME` is set to an empty string.
  
  @param name - App name including any suffix.
  
@@ -91,12 +109,19 @@ function xdgConfigDirectory(name: string,): string {
   /**
    XDG config root shared by freedesktop.org platforms.
    */
-  const configRoot = process.env
-    .XDG_CONFIG_HOME
-    ?? path.join(
+  const configuredConfigRoot = process.env
+    .XDG_CONFIG_HOME;
+  /**
+   XDG config root to join beneath;
+   an empty `$XDG_CONFIG_HOME` counts as unset, as it does for upstream
+   `env-paths`, whose fallback is a logical OR.
+   */
+  const configRoot = (configuredConfigRoot === undefined) || (configuredConfigRoot === '')
+    ? path.join(
       homedir(),
       '.config',
-    );
+    )
+    : configuredConfigRoot;
   return path.join(
     configRoot,
     name,
