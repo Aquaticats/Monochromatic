@@ -92,7 +92,8 @@ Printed before the correction:
 Run in a registered worktree whose checkout never ran,
 `git -C <path> reset --hard` was refused by `linked-worktree-only`
 (`code: linked-worktree-only/linked-worktree-required`,
-`this worktree has uncommitted changes to tracked files`, exit `1`).
+`this worktree has uncommitted changes to tracked files`,
+exit `1`).
 `git worktree remove --force <path>` runs,
 because it is audited and never refused.
 
