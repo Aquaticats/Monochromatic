@@ -27,6 +27,29 @@ impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>> 
     }
 }
 
+/// A control's move of the branch:
+/// the person's `git switch topic` first,
+/// then exactly the step that ships.
+struct SwitchThenMove {
+    /// The worktree the switch is made in.
+    local: PathBuf,
+}
+
+impl crate::auto_push_reconcile_branch_advance::BranchMove for SwitchThenMove {
+    fn move_branch<'a>(
+        &'a self,
+        git_ref: &'a PushGit,
+        branch_ref: &'a str,
+        local: &'a str,
+        merge_oid: &'a str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>> {
+        return Box::pin(async move {
+            git(&self.local, &["switch", "--quiet", "topic"]);
+            return crate::auto_push_reconcile_branch_advance::move_the_named_branch(git_ref, branch_ref, local, merge_oid).await;
+        });
+    }
+}
+
 /// A bare remote,
 /// the repository under test,
 /// and a second clone that stands for another worktree's work.
@@ -1126,7 +1149,7 @@ fn the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not
     std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
     let mut watching: PushGit = push_git(repo.as_path());
     watching.real_git = shim;
-    let _moved: () = crate::auto_push_reconcile_branch_advance::fast_forward_recorded(&watching, "refs/heads/main", old.as_str(), target.as_str(), crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)
+    let _moved: () = await_it(crate::auto_push_reconcile_branch_advance::fast_forward_recorded(&watching, "refs/heads/main", old.as_str(), target.as_str(), &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE))
         .expect("git")
         .expect("the branch and the checkout moved");
     assert_eq!(std::fs::read_to_string(seen.as_path()).expect("the stand-in looked"), "present\n", "the record is in the worktree's own Git directory");
@@ -2180,11 +2203,8 @@ fn a_switch_in_the_window_moves_only_the_branch_this_command_checked() {
     let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
     git(&s.local, &["branch", "topic"]);
     // The person's `git switch topic` finishes in the window: after the checks, before the move.
-    let interposed = |git_ref: &PushGit, branch_ref: &str, local: &str, merge_oid: &str| -> Result<Result<(), String>, SingleFlightError> {
-        git(&s.local, &["switch", "--quiet", "topic"]);
-        return (crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)(git_ref, branch_ref, local, merge_oid);
-    };
-    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &interposed).expect("git");
+    let interposed = SwitchThenMove { local: s.local.clone() };
+    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &interposed)).expect("git");
     assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
@@ -2219,7 +2239,7 @@ fn a_switch_in_the_window_to_a_branch_at_the_merge_is_not_put_back() {
     let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
         git(&switching, &["switch", "--quiet", "topic"]);
     });
-    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)).expect("git");
     drop(_played);
     assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
@@ -2255,7 +2275,7 @@ fn a_switch_in_the_window_keeps_a_staged_edit_the_merge_does_not_touch() {
         std::fs::write(switching.join("b.txt"), "base\n").expect("the reversal of b.txt");
         git(&switching, &["add", "--", "b.txt"]);
     });
-    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)).expect("git");
     drop(_played);
     assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
     assert_eq!(std::fs::read_to_string(s.local.join("b.txt")).expect("b.txt"), "base\n", "the person's staged reversal of b.txt is still there");
@@ -2284,7 +2304,7 @@ fn a_switch_in_the_window_to_another_commit_is_put_back_to_that_commit() {
     let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
         git(&switching, &["switch", "--quiet", "topic"]);
     });
-    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)).expect("git");
     drop(_played);
     assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
@@ -2360,4 +2380,82 @@ fn the_awaited_questions_of_the_reconcile_answer_what_the_synchronous_ones_answe
     let left: String = text_of(&scenario.local, &["for-each-ref", "--format=%(refname)", "refs/cli-git/auto-push/"]);
     assert_eq!(left, "");
     remove(&scenario.root);
+}
+
+/// The fast-forward of a pushed branch is a task's work:
+/// a caller that is itself a task of the runtime moves the branch and its checkout,
+/// and the synchronous face of the same move is refused there,
+/// which is why the awaited one exists.
+#[test]
+fn the_awaited_advance_of_the_branch_moves_it_from_a_task() {
+    let s = scenario("ar-ff-awaiting-task");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    // The positive control: the synchronous face inside the runtime is refused, not silently run.
+    let refused = crate::lazy_runtime::run_on_runtime(async {
+        return crate::auto_push_reconcile_branch_advance::advance_local_branch(
+            &push_git(&s.local),
+            "refs/heads/main",
+            &tip,
+            &target,
+        );
+    })
+    .expect("the runtime runs the work");
+    let refusal: String = match refused {
+        Err(error) => format!("{error}"),
+        Ok(moved) => panic!("the synchronous face cannot start Git inside the runtime, and it answered {moved:?}"),
+    };
+    assert!(refusal.contains("was asked for from inside itself"), "{refusal}");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), tip, "the refused face moved nothing");
+    let moved: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
+        &push_git(&s.local),
+        "refs/heads/main",
+        &tip,
+        &target,
+    ))
+    .expect("git");
+    assert_eq!(moved, Ok(false), "a clean worktree follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
+    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), target);
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n");
+    assert_eq!(std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    remove(&s.root);
+}
+
+/// A fast-forward that loses the race inside Git from a task leaves the checkout matching the branch,
+/// as the same race does on a plain thread:
+/// the settle of the record runs on a thread of its own,
+/// because the recovery folder's Git starts are synchronous and refused from inside the runtime.
+#[test]
+fn a_fast_forward_that_loses_the_race_in_a_task_settles_its_record_from_a_thread_of_its_own() {
+    let s = scenario("ar-ff-race-in-a-task");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let old = text_of(&s.local, &["rev-parse", "HEAD"]);
+    let marker = s.root.join("raced-in-a-task");
+    let shim = s.root.join("racing-git-in-a-task");
+    let script = format!(
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    cd '{local}' || exit 1\n    echo 'committed meanwhile' > z.txt\n    /usr/bin/git add -- z.txt\n    /usr/bin/git commit --quiet --message=meanwhile -- z.txt\n    winner=$(/usr/bin/git rev-parse HEAD)\n    echo \"fatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': is at $winner but expected {old}\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        marker = marker.display(),
+        local = s.local.display(),
+    );
+    std::fs::write(&shim, script).expect("stand-in");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let mut racing = push_git(&s.local);
+    racing.real_git = shim;
+    let result: Result<bool, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting(
+        &racing,
+        "refs/heads/main",
+        &old,
+        &target,
+    ))
+    .expect("git");
+    assert!(marker.exists(), "the race was played");
+    let Err(reason) = result else { panic!("the move lost the race, so it is not reported as done") };
+    assert!(reason.contains("Git refused the fast-forward"), "{reason}");
+    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), text_of(&s.local, &["rev-parse", "refs/heads/main"]));
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the checkout matches the branch");
+    assert_eq!(std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "the record was settled");
+    remove(&s.root);
 }
