@@ -12,12 +12,17 @@ both of them silent:
 
 ## Symptom
 
-A theme plugin written against the bundled Islands theme shows both shapes:
+A theme plugin written against the bundled Islands theme can show both shapes.
+Both examples below are the state this repository shipped when the 2026-10-17 review filed them,
+kept with the value each one carries now:
 
-- `scheme/Islands_Black.xml` writes `BLOCK_TERMINAL_BLACK` `FOREGROUND` as `value='0'`,
+- `scheme/Islands_Black.xml` wrote `BLOCK_TERMINAL_BLACK` `FOREGROUND` as `value='0'`
+  (`value='000000'` since commit `13e537602a`,
+  the same colour in the uniform shape),
   while every other colour in the same file is six digits,
-  and a review reads that as a malformed literal that either fails to load or means black;
-- `META-INF/plugin.xml` declares `since-build='233'` (2023.3),
+  and a review read that as a malformed literal that either fails to load or means black;
+- `META-INF/plugin.xml` declared `since-build='233'` (2023.3)
+  (`since-build='252'` since commit `b118c84a8c`),
   and the theme JSON says `"parentTheme": "Islands Dark"`,
   which asks an IDE older than that theme family for a parent it cannot have.
 
