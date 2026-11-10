@@ -70,6 +70,51 @@ pub use crate::merge_isolation_carry_reads::{changes_between, changes_between_aw
 pub use crate::merge_isolation_carry_writes::{CarryFailure, LockWait};
 
 /// What:
+///  What Git's own update left at each path the merge changes,
+///  as the file system names it,
+///  read at the instant the checkout moved.
+/// Why:
+///   A carry decides from a path's bytes whether the file standing there is the merge's own,
+///  and a person's save whose
+///  bytes happen to equal the merge's file answers yes;
+/// the identity of the file Git wrote answers it too,
+///  and only
+///  the identity tells the two apart
+///  (a cross-vendor review of the second round,
+/// its second finding).
+/// A path this list does not name is read by its bytes,
+///  which is all a recovery of a killed
+///  merge has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Landed = { path: Uint8Array; identity?: FileIdentity }[];
+/// ```
+pub type Landed = [(Vec<u8>, Option<FileIdentity>)];
+
+/// What:
+///  Whether the file standing at a path is still the one Git's own update wrote there.
+/// Why:
+///   The identity is the device,
+/// the inode,
+/// the size,
+/// the mode and the modification time of the entry the file system hands out,
+///  so a save from an editor is a different entry even when it accepts every line the merge brought.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theFileGitLanded = (landed, path, identity) => landed.find((left) => sameBytes(left.path, path))?.identity === identity ?? true;
+/// ```
+fn the_file_git_landed(landed: &Landed, path: &[u8], identity: Option<FileIdentity>) -> bool {
+    for (left, found) in landed {
+        if left == path {
+            return *found == identity;
+        }
+    }
+    return true;
+}
+
+/// What:
 ///  Whether a worktree state is one the capture or the change explains.
 /// Why:
 ///   Anything else was written after this command judged the path,
@@ -301,10 +346,11 @@ pub fn carry(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
+    landed: &Landed,
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<Report, CarryFailure> {
-    return match run_on_runtime(carry_awaiting(context, root, git_dir, changes, capture, wait, out)) {
+    return match run_on_runtime(carry_awaiting(context, root, git_dir, changes, capture, landed, wait, out)) {
         Ok(found) => found,
         Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
     };
@@ -329,6 +375,7 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
+    landed: &Landed,
     wait: LockWait,
     out: &mut W,
 ) -> Result<Report, CarryFailure> {
@@ -352,8 +399,11 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         // What stands at the path is the capture, the merge's own, or the bytes this carry writes:
         // a carry that was killed after writing one layer finds its
         //  own bytes there and writes the same ones again. Anything else was written by someone else since the capture, and
-        //  a layer somebody else wrote keeps their bytes while the other layer is still carried.
-        let worktree_is_ours: bool = explained(&state, &[captured_object, merged_object, target.as_deref()]);
+        //  a layer somebody else wrote keeps their bytes while the other layer is still carried. Where the identity of what
+        //  Git's own update left is known, the file must still be that one: a save whose bytes accept the whole merge is the
+        //  person's newer decision, not this carry's own write.
+        let worktree_is_ours: bool = explained(&state, &[captured_object, merged_object, target.as_deref()])
+            && the_file_git_landed(landed, entry.path.as_slice(), identity);
         let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let merged_entry: Option<(&str, &str)> = new_entry_of(change);
