@@ -263,6 +263,15 @@ The shape now:
    so a call that finds the file already there touches no parent.
    A bare name has no parent segment and skips the step entirely,
    which is the `mkdir('')` failure of issue 1410.
+   A parent whose mode denies traverse used to fail the call,
+    because the leading `stat` needed that traverse:
+    the `EACCES` retry now repairs that directory's owner bits,
+    which is the repair `ensureDir` already performs on the same directory
+    when it is named itself.
+   That widening is not part of any reported defect and is the owner's to veto:
+    refusing `EACCES` again would instead break a parent that holds traverse
+    but not write,
+    which the previous code repaired.
 - A path that `EEXIST` reported while `stat` reports no entry is a symbolic
    link whose target is absent,
    since `stat` follows links.
