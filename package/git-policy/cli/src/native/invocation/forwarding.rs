@@ -208,11 +208,48 @@ pub fn run_real_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<ChildOutcome> {
-    return run_real_git_naming(real_git, arguments, overlay, &mut |_pid: u32| {});
+    return run_real_git_naming(real_git, arguments, overlay, &mut NoChildRecorded);
 }
 
 /// What:
-///  `run_real_git`, reporting the child's process number as soon as it has one.
+///  The report a Git run makes of the child it started,
+///  its process number handed over the moment it exists.
+/// Why:
+///   A caller whose record has to name the Git it started cannot read the number before it exists,
+///  and reading it after the run returned names a process that may be gone;
+///  so the run tells the caller while the child is still this process's own unreaped child.
+///  A report is a value of the caller's rather than a callable,
+///  so a caller that keeps state hands over that state
+///  and a caller with nothing to record hands over `NoChildRecorded`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface ChildStarted { started(pid: number): void }
+/// ```
+pub trait ChildStarted {
+    /// What:
+    ///  Take the process number of the Git that just started.
+    /// Why:
+    ///   The run calls this once,
+    ///  between the start and the wait.
+    fn started(&mut self, pid: u32);
+}
+
+/// What:
+///  The report of a run whose record never names its child.
+/// Why:
+///  `run_real_git` and the ladder's own steps keep nothing about the Git they start,
+///  and a run that records nothing says so instead of handing over a callable that does nothing.
+pub struct NoChildRecorded;
+
+impl ChildStarted for NoChildRecorded {
+    /// Keep nothing: this caller has no record to name the child in.
+    fn started(&mut self, _pid: u32) {}
+}
+
+/// What:
+///  `run_real_git`,
+/// reporting the child's process number as soon as it has one.
 /// Why:
 ///   A caller whose record has to name the Git it started
 /// cannot wait for the child to end to learn its number:
@@ -230,7 +267,7 @@ pub fn run_real_git_naming(
     real_git: &Path,
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
-    on_started: &mut dyn FnMut(u32),
+    on_started: &mut dyn ChildStarted,
 ) -> std::io::Result<ChildOutcome> {
     // What: `.status()` starts the child with inherited streams and waits for it;
     //       a trailing `?` returns a start failure to our caller.
@@ -242,7 +279,7 @@ pub fn run_real_git_naming(
     // const status = await spawn(realGit, args, { stdio: 'inherit' });
     // ```
     let mut child: std::process::Child = git_command(real_git, arguments, overlay).spawn_retrying()?;
-    on_started(child.id());
+    on_started.started(child.id());
     let status: std::process::ExitStatus = child.wait()?;
     // `Ok(...)` is the success variant carrying how the child ended.
     return Ok(outcome_of(status));
