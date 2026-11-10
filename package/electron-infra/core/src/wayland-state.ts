@@ -182,7 +182,10 @@ function stateMatches(
   },
 ): boolean {
   return Object.entries(expected,)
-    .every(function expectedEntryMatches([key, value,],): boolean {
+    .every(function expectedEntryMatches([key, value,]: readonly [
+      string,
+      JsonScalar
+    ],): boolean {
       return observed[key] === value;
     },);
 }

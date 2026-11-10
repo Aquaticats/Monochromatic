@@ -25,12 +25,15 @@ export type JsonScalar = boolean | number | string;
 /**
  Shallow JSON object used for boundary-test state snapshots.
  
+ The index signature is readonly because a snapshot is only ever read back: comparison
+ and serialization both leave it untouched, so no consumer needs a writable channel.
+ 
  @example
  ```ts
  const state: JsonObject = { count: 1 };
  ```
  */
-export type JsonObject = Record<string, JsonScalar>;
+export type JsonObject = Readonly<Record<string, JsonScalar>>;
 
 /**
  Writes a JSON file through a same-directory temporary file and rename.
