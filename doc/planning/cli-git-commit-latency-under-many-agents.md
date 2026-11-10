@@ -3157,3 +3157,16 @@ Nothing was changed for it here.
   The two sampled windows differ by a factor of six in I/O pressure,
   and the records differ by
   the same before them.
+
+### Where the evidence of this reading sits
+
+Nothing of the measurement is in the repository yet.
+`${HOME}/temp/agent/pi-shadow-stall-probe` holds the sampler (`monitor.ts`),
+its two windows (`monitor-20261109T222317.json`,
+`monitor-2.json`),
+the benchmark's two reports and its traces,
+and the script that builds the shaped fixture and the one that counts a trace.
+If the owner wants this reproducible from the repository,
+the sampler belongs beside `bin/native-perf.ts`,
+with a control of its own,
+which is a change this record does not make.
