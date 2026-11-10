@@ -4,6 +4,7 @@ import {
 } from 'node:child_process';
 import { setTimeout, } from 'node:timers/promises';
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 
@@ -67,6 +68,132 @@ export const API_URL: string = `http://127.0.0.1:${PORT}/v1/chat/completions`;
  */
 const state: { server?: ChildProcess; } = {};
 
+//region Child lifecycle
+
+/**
+ Reports whether a child has already ended.
+
+ Node emits `exit` exactly once, so a listener attached after that event never
+ runs. Every wait for a child therefore checks the recorded exit state first.
+
+ @param child - child to inspect
+
+ @returns whether the child has exited or been killed
+
+ @example
+ ```ts
+ if (childHasEnded({ child })) return;
+ ```
+ */
+function childHasEnded({ child, }: Readonly<{ child: ChildProcess; }>,): boolean {
+  return (child.exitCode !== null) || (child.signalCode !== null);
+}
+
+/**
+ Forgets the stored server handle when it is still the one this child owns.
+
+ A handle whose process ended must not be mistaken for a live server by
+ {@link start}, and a newer handle must not be discarded by an older child's
+ late exit.
+
+ @param child - child whose handle is being forgotten
+ */
+function forgetServer({ child, }: Readonly<{ child: ChildProcess; }>,): void {
+  if (state.server === child)
+    delete state.server;
+}
+
+/**
+ Watches one child for the two ways it can end, so the stored handle is cleared
+ and the outcome is filed whether or not any later call is watching.
+
+ The listeners are attached at spawn time, which is the only moment they are
+ guaranteed to precede the event: `stop` waits for the process it just killed,
+ and a server that crashed on its own would otherwise leave a stale handle that
+ makes {@link start} no-op and every later {@link analyze} fail.
+
+ @param child - child to watch
+
+ @example
+ ```ts
+ watchChildEnd({ child: state.server });
+ ```
+ */
+function watchChildEnd({ child, }: Readonly<{ child: ChildProcess; }>,): void {
+  /**
+   Lifecycle logger, tagged with the watching function's name.
+   */
+  const fnLog = tagged({
+    l,
+    tag: watchChildEnd.name,
+  },);
+
+  child.on(
+    'exit',
+    function forgetExitedServer(): void {
+      fnLog.debug(
+        `llama-server exited (code ${String(child.exitCode,)}, signal ${String(child.signalCode,)})`,
+      );
+      forgetServer({ child, },);
+    },
+  );
+  child.on(
+    'error',
+    function reportSpawnFailure(error: Error,): void {
+      fnLog.error(`llama-server failed to start: ${caughtValueText(error,)}`,);
+      forgetServer({ child, },);
+    },
+  );
+}
+
+/**
+ Resolves once a child has ended, whether it exited, was killed, or never
+ started.
+
+ @param child - child to wait for
+
+ @example
+ ```ts
+ currentServer.kill();
+ await awaitChildEnd({ child: currentServer });
+ ```
+ */
+export async function awaitChildEnd({ child, }: Readonly<{ child: ChildProcess; }>,): Promise<void> {
+  if (childHasEnded({ child },))
+    return;
+
+  // oxlint-disable-next-line promise/avoid-new -- callback bridge over the child process event API
+  await new Promise<void>(
+    /**
+     Registers promise settlement with the child's end events.
+
+     @param resolve - Promise settlement callback.
+
+     @mutates resolve through child listener retention and invocation
+     */
+    function waitForEnd(resolve,): void {
+      child.once(
+        'exit',
+        function onExit(): void {
+          resolve();
+        },
+      );
+      child.once(
+        'error',
+        function onError(): void {
+          resolve();
+        },
+      );
+      // A child that ended between the check above and these listeners emits nothing more, so the
+      // recorded state is the only signal left.
+      if (childHasEnded({ child },))
+        resolve();
+    },
+  );
+}
+
+//endregion Child lifecycle
+
 /**
  Starts llama-server inside a distrobox container with AMD GPU overrides.
  No-ops if the server is already running. Blocks via {@link waitForHealth}
@@ -81,9 +208,6 @@ const state: { server?: ChildProcess; } = {};
  ```
  */
 export async function start(): Promise<void> {
-  if (state.server)
-    return;
-
   /**
    Start logger, tagged with this function's name under the module's subsystem tag.
    */
@@ -91,8 +215,24 @@ export async function start(): Promise<void> {
     l,
     tag: start.name,
   },);
+
+  /**
+   Stored handle, which may belong to a server that already ended.
+   */
+  const existingServer = state.server;
+  if (existingServer !== undefined) {
+    if (!childHasEnded({ child: existingServer },))
+      return;
+    fnLog.debug('Discarding a llama-server handle whose process already exited.',);
+    forgetServer({ child: existingServer, },);
+  }
+
   fnLog.debug('Starting llama-server via distrobox...',);
-  state.server = cpSpawn(
+  /**
+   Fresh server child, watched from the moment it exists so its handle cannot
+   outlive it.
+   */
+  const server = cpSpawn(
     'distrobox',
     [
       'enter',
@@ -122,6 +262,8 @@ export async function start(): Promise<void> {
       'ignore',
     ], },
   );
+  state.server = server;
+  watchChildEnd({ child: server, },);
 
   await waitForHealth();
   fnLog.debug('Server ready.',);
@@ -173,27 +315,15 @@ export async function stop(): Promise<void> {
   const PORT_FREE_DELAY_MS = 500;
 
   /**
-   Pinned reference to the current server handle so the exit listener still works after `state.server` is nulled below.
+   Pinned reference to the current server handle, so the wait still refers to this child after
+   `state.server` is cleared.
    */
   const currentServer = state.server;
   currentServer.kill();
-  // oxlint-disable-next-line promise/avoid-new -- wrapping Node.js event-based ChildProcess API
-  await new Promise<void>(
-    /**
-     Registers promise settlement with the child exit capability.
-     
-     @param resolve - Promise settlement callback.
-     
-     @mutates resolve through currentServer.on listener retention and invocation
-     */
-    function awaitExit(resolve,): void {
-      currentServer.on(
-        'exit',
-        resolve,
-      );
-    },
-  );
-  delete state.server;
+  // The child may have ended while `pkill` ran, and Node emits `exit` once, so this wait settles
+  // from the recorded exit state rather than from an event that already fired.
+  await awaitChildEnd({ child: currentServer, },);
+  forgetServer({ child: currentServer, },);
 
   // Wait briefly for port to free up
   await setTimeout(PORT_FREE_DELAY_MS,);
@@ -235,7 +365,12 @@ export async function forceCleanup(): Promise<void> {
       operation: 'pkill -9 of any llama-server left running',
     },);
   }
-  delete state.server;
+  /**
+   Handle of the server the forced cleanup just ended, if any.
+   */
+  const forcedServer = state.server;
+  if (forcedServer !== undefined)
+    forgetServer({ child: forcedServer, },);
 }
 
 /**
