@@ -44,6 +44,12 @@ import {
 const FOLDER_PREFIX = 'key-helper-install-';
 
 /**
+ Stand-in for one literal percentage character while the field codes around it
+ are looked for.
+ */
+const LITERAL_PERCENT_STAND_IN = '\u0000';
+
+/**
  Directory name of a checkout whose path holds every character the entry's two
  grammars reserve: a space and a single quote for the quoting rules, and `%f`,
  which the desktop-entry field-code rule reads as "a single file name" even
@@ -250,17 +256,19 @@ function execArguments({ entryText }: { readonly entryText: string; }): readonly
 /**
  Expand the field codes of one `Exec` argument, the way a launcher does before
  it runs the entry.
- 
- This entry is launched with no files and no URLs, so the specification's only
- literal form of a percentage character is the doubled one: a `%` that survives
- doubling is a field code the entry hands to whatever runs it, which this
- rejects rather than letting the case pass over it.
+
+ The specification's only literal form of a percentage character is the doubled
+ one, and the expansion runs after the quoting is undone, so a single `%` is a
+ field code wherever it appears in the value. This entry is launched with no
+ files and no URLs, so every field code it could hold expands to nothing; what
+ matters here is that none is left for a launcher to read.
  
  @param argument - One argument of the entry's command line, quoting already undone
  
  @returns The argument, with each `%%` read as one literal `%`
  
- @throws {Error} when a `%` that the specification does not allow as literal survives
+ @throws {Error} when a `%` the entry does not double survives, which a launcher
+ would expand as a field code or refuse as invalid
  
  @example
  ```ts
@@ -271,16 +279,22 @@ function withFieldCodesExpanded({ argument }: {
   readonly argument: string;
 }): string {
   /**
-   Argument with every doubled percentage character read as one.
+   Argument with each doubled percentage character read as one literal.
+
+   A NUL character stands in for the literal while the remaining ones are
+   looked for, because no filesystem path can hold a NUL of its own.
    */
-  const expanded = argument.replaceAll(
+  const collapsed = argument.replaceAll(
     '%%',
-    '%',
+    LITERAL_PERCENT_STAND_IN,
   );
-  if (expanded.includes('%')) {
+  if (collapsed.includes('%')) {
     throw new Error(`the entry hands a field code to what runs it: ${argument}`,);
   }
-  return expanded;
+  return collapsed.replaceAll(
+    LITERAL_PERCENT_STAND_IN,
+    '%',
+  );
 }
 
 /**
