@@ -37,6 +37,10 @@ use std::process::{Command, Output};
 // The stat-data refresh that keeps the scratch commit inside its ceiling (`commit_index_stat_staleness.rs`) asks for Git
 //  only when the real index no longer describes the worktree, and every repository here has an index Git has just
 //  written, so the `update-index` counts are the ones measured before that refresh existed.
+// The ignored-path refusal (`commit_named_ignored_files.rs`) asks `git check-ignore -z --stdin` once of the selection's
+//  own elements that name one file, so every scenario carries one `check-ignore` start: a path the person names that
+//  the rules ignore is refused as input (`SPEC.md`, "Explicit-path commit"). Raised on 2026-11-10, measured in
+//  these six controls, and recorded in `doc/planning/cli-git-spawn-and-sync-reduction.md`, "Budgets".
 // Measured with host Git 2.56.0 on Linux, maintenance kept in the foreground (see `prepared_repository`), over five
 //  runs of every scenario; the counts were identical in every run.
 // Variance sources: another Git than 2.56.0 may start other children (`gc`, `repack`) in the foreground maintenance
@@ -62,6 +66,7 @@ const NO_HOOKS: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 2),
+        ("check-ignore", 1),
         ("commit", 0),
         ("config", 0),
         ("diff", 0),
@@ -100,6 +105,7 @@ const CONFIGURED_HOOK: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 2),
+        ("check-ignore", 1),
         ("commit", 0),
         ("config", 0),
         ("diff", 0),
@@ -135,6 +141,7 @@ const AMEND: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 3),
+        ("check-ignore", 1),
         ("commit", 0),
         ("config", 0),
         ("diff", 0),
@@ -176,6 +183,7 @@ const WARM: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 2),
+        ("check-ignore", 1),
         ("commit", 0),
         ("config", 0),
         ("diff", 0),

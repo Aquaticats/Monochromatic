@@ -1906,6 +1906,21 @@ the reasoning and what is still to do are in
 `doc/handover/cli-git-rust-implementation.md`,
 "The refresh of a stale index asks for Git and the real index's lock only when it is stale".
 
+Raised on 2026-11-10:
+the `check-ignore` start of an explicit-path commit,
+one start in each of the six controls,
+is the ignored-path refusal
+(`src/native/commit/commit_named_ignored_files.rs`,
+`SPEC.md`,
+"Explicit-path commit").
+A commit of a selection whose own elements name one file asks
+`git check-ignore -z --stdin` under the real index whether the rules ignore that path,
+and refuses it as an input finding when they do.
+Reading the ignore rules in process instead would be a second matcher to keep equal to Git's.
+The rise is one `git check-ignore` start in every scenario,
+which the six controls' constants now name so it cannot rise again unnoticed;
+the owner's bound on a commit is 5,000 ms over native Git.
+
 ## Filesystem identity without `findmnt` (slice S2)
 
 Scope:
