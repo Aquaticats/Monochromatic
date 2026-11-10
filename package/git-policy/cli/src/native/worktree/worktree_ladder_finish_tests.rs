@@ -9,7 +9,7 @@ use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_kind::is_subvolume_root;
 use crate::private_storage::take_file_syncs;
-use crate::test_support::{REAL_GIT, git, git_context, git_text, remove, repository};
+use crate::test_support::{REAL_GIT, fixture, git, git_context, git_text, remove, repository};
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_ladder_run::begin_ladder;
@@ -276,6 +276,92 @@ fn btrfs_a_snapshot_hands_its_trash_to_the_caller_instead_of_emptying_it() {
     assert!(!pending.quiet);
     let trash: PathBuf = root.join("topic").join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
     assert!(trash.join("d0/.pnpm-store/data").is_file() || trash.join("d0/data").is_file(), "the trash is still in the worktree, for the lifecycle to empty: {}", trash.display());
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash whose record cannot be written is emptied before the rung returns,
+/// and no trash nothing names travels
+///  on to the hand-over.
+/// Why:
+///   The record is the only thing that empties a trash after the command,
+/// so a record that cannot be written leaves
+///  the trash with nothing that would ever remove it;
+/// the add pays the emptying itself in that case,
+/// which no
+///  ordinary add reaches.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(common, WORK_DIRECTORY), 'not a directory');
+/// expect(recordBeforeTheRungReturns(pending)).toBeUndefined();
+/// expect(existsSync(trashParent)).toBe(false);
+/// ```
+#[test]
+fn a_trash_whose_record_cannot_be_written_is_emptied_before_the_rung_returns() {
+    let root: PathBuf = fixture("finish-trash-unrecordable");
+    let worktree: PathBuf = root.join("topic");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.join("worktrees/topic")).expect("admin");
+    std::fs::create_dir_all(worktree.join(crate::worktree_trash::TRASH_PARENT)).expect("the trash parent");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", common.join("worktrees/topic").display())).expect(".git file");
+    let name: String = "f".repeat(40);
+    std::fs::create_dir_all(worktree.join(crate::worktree_trash::TRASH_PARENT).join(&name).join("d0/payload")).expect("an entry");
+    let held: std::fs::File = crate::fs_beneath::open_root(worktree.as_path()).expect("the worktree");
+    let names: Vec<std::ffi::OsString> = crate::fs_beneath::plain_components(Path::new(crate::worktree_trash::TRASH_PARENT)).expect("a plain parent");
+    let parent: std::fs::File = crate::fs_beneath::open_directory_beneath(&held, names.as_slice()).expect("the trash parent");
+    let trash: std::fs::File = crate::fs_beneath::open_directory_at(&parent, std::ffi::OsStr::new(&name)).expect("the trash");
+    let manifest: TrashManifest = TrashManifest {
+        name: name.clone(),
+        trash: crate::fs_beneath::identity_of(&trash).expect("the trash identity"),
+        entries: vec![crate::fs_beneath::identity_at(&trash, std::ffi::OsStr::new("d0")).expect("the entry identity")],
+    };
+    // The queue has nowhere to go: the directory the records are written in is a plain file.
+    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli")).expect("the queue's parent");
+    std::fs::write(common.join(crate::work_item::WORK_DIRECTORY), b"not a directory\n").expect("a file where the queue's directory would be");
+    let pending: PendingTrash = PendingTrash { destination: worktree.clone(), common_dir: common.clone(), manifest, taken_over: 0, quiet: false };
+    assert_eq!(record_before_the_rung_returns(pending), None, "a trash with no record travels no further");
+    assert!(!worktree.join(crate::worktree_trash::TRASH_PARENT).exists(), "and the add empties it before it returns");
+    remove(root.as_path());
+}
+
+/// What:
+///  The manifest of a snapshot's trash is a durable record by the time the rung returns,
+/// so a command killed after the
+///  worktree is published still leaves a trash the service empties.
+/// Why:
+///   The manifest is what says which directories the leave-out may delete,
+/// and the trash's name alone cannot
+///  reconstruct it.
+/// A record first written by the hand-over that runs after the copy and its repairs leaves every kill
+///  between the swap and that step with a trash nothing will ever empty,
+/// which is disk the person has to find
+///  themselves.
+/// The record is written the moment the trash stands in the published worktree,
+/// and the rung still empties
+///  nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { trash } = await ladder.finish(...); expect(pendingRecord(commonDir, trash.manifest.name)).toBeDefined(); expect(existsSync(trashPath)).toBe(true);
+/// ```
+#[test]
+fn btrfs_a_snapshot_records_its_trash_before_the_rung_returns() {
+    let Some(root) = btrfs_fixture("finish-trash-recorded") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), ".gitignore", b"ignored/\n.claude/\n.pnpm-store/\n");
+    commit_all(repo.as_path(), "ignore the trash parent");
+    std::fs::create_dir_all(repo.join(".pnpm-store")).expect("a cache");
+    std::fs::write(repo.join(".pnpm-store/data"), b"payload").expect("cache data");
+    let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
+    let pending: PendingTrash = result.trash.expect("the snapshot left a trash for the disposal");
+    let record: PathBuf = crate::work_item::state_directory(crate::service_work::work_directory(pending.common_dir.as_path()).as_path(), crate::work_item::PENDING).join(format!("trash-{}", pending.manifest.name));
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the record is written before the rung returns").as_str()).expect("a work item");
+    assert_eq!(item.repository, pending.destination, "the record names the worktree that holds the trash");
+    assert_eq!(item.git_dir, pending.common_dir, "and the common directory whose service empties it");
+    assert_eq!(item.parent, pending.manifest.encode(), "and it carries the identities the leave-out wrote");
+    let trash: PathBuf = pending.destination.join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
+    assert!(trash.is_dir(), "and the rung empties nothing of it: {}", trash.display());
     remove(root.as_path());
 }
 
