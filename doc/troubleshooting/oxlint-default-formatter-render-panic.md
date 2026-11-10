@@ -18,6 +18,18 @@ Files without diagnostics,
 and most files with diagnostics,
 are unaffected.
 
+## Reproduced on Oxlint 1.92.0 (2026-11-10T03:20:00-05:00)
+
+The whole-repository sweep still aborts on this machine's tree,
+so the version in the title is the one the defect was first read from rather than the last one it affects.
+`mise run lint:oxlint` in a worktree whose packages carry no fresh `dist` printed the same
+`[task-oxlint] failed to execute oxlint: Command was terminated with SIGABRT` line after about nine minutes,
+with no diagnostic list,
+and the wrapper forwards no captured child output on a signal,
+so the aborting file is not named in the task log.
+Lint each suspect path with `--format=unix` instead;
+a run of `oxlint.config.ts` and `playwright/global.d.ts` under the same config printed nothing and exited 0.
+
 ## Reproduction
 
 Observed on Oxlint `1.87.0` (`mise exec -- oxlint --version`) with the repository's configuration,
