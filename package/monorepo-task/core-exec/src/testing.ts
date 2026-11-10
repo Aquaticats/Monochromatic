@@ -7,6 +7,7 @@
  @module
  */
 
+export { executeWithCollapsedOutput, } from './depends-exec.ts';
 export {
   firstGlobMetaIndex,
 } from './depends-resolve-glob.ts';
