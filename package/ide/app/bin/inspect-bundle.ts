@@ -12,6 +12,7 @@ import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { whitespaceSeparatedTokens, withoutUsedByPrefix } from './crate-license-listing.ts';
+import { registryCratesNamedIn } from './registry-crate-paths.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
@@ -527,8 +528,7 @@ checks['crate-licenses'] = async () => {
   const linked = readFileSync(linkedCratesFile, 'utf8').split('\n').filter(Boolean).filter(line => !line.startsWith('ide '));
   const uncovered = linked.filter(item => !covered.has(item));
   demand({ condition: uncovered.length === 0, message: uncovered.length + ' of ' + linked.length + ' linked crates have no license text: ' + uncovered.slice(0, 12).join(', ') });
-  const named = new Set<string>();
-  for (const match of binary().toString('latin1').matchAll(/\/registry\/src\/index\.crates\.io-[0-9a-f]+\/([A-Za-z0-9_.+-]+?)-(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.+-]*)?)\//g)) named.add(match[1] + ' ' + match[2]);
+  const named = new Set(registryCratesNamedIn(binary().toString('latin1')).map(crate => crate.name + ' ' + crate.version));
   const unnamed = [...named].filter(item => !covered.has(item));
   demand({ condition: unnamed.length === 0, message: 'crates whose sources the executable names have no license text: ' + unnamed.join(', ') });
   return { texts: list.licenses.length, cratesCovered: covered.size, linkedCrates: linked.length, cratesNamedInTheExecutable: named.size };
