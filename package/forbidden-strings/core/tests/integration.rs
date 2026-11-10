@@ -612,3 +612,26 @@ fn try_combined_dfa_reports_a_real_state_count() {
     let count = forbidden_regex::try_combined_dfa(&["abc", "def", "[0-9]{3}"]).expect("builds");
     assert!(count > 2, "a three-rule combined DFA has many states, got {count}");
 }
+
+#[test]
+fn seedless_rule_above_the_group_state_cap_still_matches() {
+    // What:    A literal-free rule whose own search DFA needs more states than one union group
+    //          may hold must still be covered by the boolean fast path, so `is_match` agrees
+    //          with `matches` and both report the rule. `[0-9].{11}` has exactly that shape: a
+    //          digit followed by eleven bytes needs more DFA states than the group state cap
+    //          admits (src/group_tests.rs pins that window against the cap itself) while the
+    //          rule still builds as its own table engine.
+    // Why:     Grouping the literal-free rules into union DFAs is a throughput lever, so
+    //          exceeding its state cap may cost an extra pass but must never lose coverage: a
+    //          dropped rule is a silent false negative in a deny-rule scanner.
+    let pattern = "[0-9].{11}";
+    let line = b"id 123456789012 ok";
+    let set = RegexSet::new(&[pattern]).expect("the rule builds its own engine");
+    assert_eq!(
+        set.is_match(line),
+        set.matches(line).next().is_some(),
+        "is_match must agree with matches for every line",
+    );
+    assert!(set.is_match(line), "the boolean fast path must report the rule");
+    assert_eq!(set.matches(line).collect::<Vec<usize>>(), vec![0]);
+}
