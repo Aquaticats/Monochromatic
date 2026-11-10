@@ -2401,7 +2401,9 @@ none is waited out or retried on the moved head yet:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
    `BranchKeepsChanging`,
-  and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
+  and a commit built on a moved branch is built again for as long as the time since its first build is under
+  `MOVED_BRANCH_REBUILD_CEILING` (20 minutes,
+  `service/wait_ceilings.rs`).
 - A commit that concludes a merge,
   an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute;
