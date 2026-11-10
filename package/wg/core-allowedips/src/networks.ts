@@ -84,13 +84,35 @@ function toHostRoute(
 }
 
 /**
+ Checks whether one text is a nonempty run of decimal digits.
+ 
+ @param text - Candidate prefix or AS number text.
+ 
+ @returns Whether every character is `0` through `9`.
+ 
+ @example
+ ```ts
+ isDecimalDigits('24'); // true
+ ```
+ */
+function isDecimalDigits(text: string,): boolean {
+  if (text === '')
+    return false;
+  for (const character of text) {
+    if ((character < '0') || (character > '9'))
+      return false;
+  }
+  return true;
+}
+
+/**
  Parses and validates one CIDR entry against its original address text and family bound.
  
  @param entry - Trimmed CIDR entry from an input file.
  
  @returns Normalized CIDR emitted by `cidr-tools`.
  
- @throws {@link InputValidationError} when the original address is invalid or its prefix exceeds family bounds.
+ @throws {@link InputValidationError} when the original address is invalid, its prefix exceeds family bounds, or the dependency parser rejects the entry.
  
  @example
  ```ts
@@ -100,15 +122,11 @@ function toHostRoute(
  */
 function parseNetwork({ entry, }: { readonly entry: string; },): string {
   /**
-   Dependency parse result used for normalized CIDR and prefix metadata.
-   */
-  const parsed = parseCidr(entry,);
-  /**
    Slash separating original address text from its prefix.
    */
   const slashIndex = entry.indexOf('/',);
   /**
-   Original address text, validated before accepting dependency normalization.
+   Original address text, validated before the dependency parser normalizes the entry.
    */
   const address = entry.slice(
     0,
@@ -123,21 +141,25 @@ function parseNetwork({ entry, }: { readonly entry: string; },): string {
     throw new InputValidationError(`Invalid IP address in CIDR entry: ${entry}`,);
   }
   /**
-   Numeric prefix returned from the already syntax-validated dependency parser.
+   Prefix text after the slash, checked before the dependency parser rejects an oversized value with its own diagnostic.
    */
-  const prefix = Number(parsed.prefix,);
+  const prefixText = entry.slice(slashIndex + 1,);
   /**
    Largest prefix accepted for original address family.
    */
   const maximumPrefix = family === IPV4_FAMILY
     ? IPV4_PREFIX
     : IPV6_PREFIX;
-  if (prefix > maximumPrefix) {
+  if (isDecimalDigits(prefixText,) && (Number(prefixText,) > maximumPrefix)) {
     l.error(`prefix exceeds family bound: ${entry}`,);
     throw new InputValidationError(
       `CIDR prefix exceeds IPv${String(family,)} maximum ${String(maximumPrefix,)}: ${entry}`,
     );
   }
+  /**
+   Dependency parse result used for the normalized CIDR text.
+   */
+  const parsed = parseCidr(entry,);
   return parsed.cidr;
 }
 
@@ -164,13 +186,7 @@ function isAsnEntry(entry: string,): boolean {
    Decimal autonomous-system number text after prefix.
    */
   const numberText = normalized.slice(2,);
-  if (numberText === '')
-    return false;
-  for (const character of numberText) {
-    if ((character < '0') || (character > '9'))
-      return false;
-  }
-  return true;
+  return isDecimalDigits(numberText,);
 }
 
 /**

@@ -181,7 +181,7 @@ await matrix({
   exclude: [
     {
       os: 'host:',
-      user: function notUser(user,) {
+      user: function notUser(user,): boolean {
         return user !== 'user';
       },
     },
@@ -201,7 +201,7 @@ await matrix({
   exclude: [
     {
       os: 'host:',
-      user: function notUser(user,) {
+      user: function notUser(user,): boolean {
         return user !== 'user';
       },
     },
@@ -506,7 +506,7 @@ await matrix({
   exclude: [
     {
       os: 'host:',
-      user: function notUser(user,) {
+      user: function notUser(user,): boolean {
         return user !== 'user';
       },
     },

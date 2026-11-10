@@ -53,7 +53,7 @@ export const ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE = {
  ```
  */
 export function isLockedBuildArgumentTool(value: unknown,): value is LockedBuildArgumentTool {
-  return LOCKED_BUILD_ARGUMENT_TOOLS.some(function isValue(candidate,) {
+  return LOCKED_BUILD_ARGUMENT_TOOLS.some(function isValue(candidate: LockedBuildArgumentTool,): boolean {
     return candidate === value;
   },);
 }
