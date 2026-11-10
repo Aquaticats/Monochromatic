@@ -325,6 +325,60 @@ never resolved.
 When real-Git resolution fails the guard stays inactive and logs at debug level:
 a throwing hook would fail every Bash call.
 
+## Bun test guard
+
+`invokesBunTest` reports shell source that runs Bun's test runner,
+which this repository bans because the custom test harness runs tests as a side effect of import,
+so `bun test <file>` reports `0 pass / 0 fail` even when every test passed.
+
+### Spellings the ban reads
+
+The subcommand is read after program wrappers are stripped,
+with the same wrapper table the real-Git guard uses,
+so `env bun test`,
+`timeout 10 bun test`,
+`nohup bun test`,
+`nice bun test`,
+and `command bun test` are the same invocation as `bun test`.
+A `bun` word carrying a path (`/usr/local/bin/bun test`) is read by its last segment.
+
+Bun global options are read before the subcommand,
+and the options whose value is the next word are listed from `bun --help` of Bun 1.4.4,
+so `bun --cwd /tmp test` and `bun -c bunfig.toml test` name the test runner.
+A `test` word behind a word no listed subcommand owns still counts,
+because an option that table does not know may take that word as its value.
+`bun run test` and `bun install test` stay allowed.
+
+A wrapper that joins its own arguments into shell source runs that source,
+so `eval "bun test"` is refused as well.
+A shell's `-c` argument is that shell's script,
+so `bash -c 'bun test'` and `env sh -c 'cd x && bun test'` are refused too.
+
+### A command the parser rejects
+
+A command that does not parse is read from its raw words instead of answering "no",
+because the visible text is the only evidence such a command carries:
+`bun test "unterminated` is refused.
+That reader knows quotes,
+escapes,
+and the characters Bash reads as command separators,
+and it reads only the runs of words that begin where a command can begin,
+so prose such as `echo "bun test` stays allowed.
+
+A here-document body inside such a command is read as command text rather than skipped,
+because that reader never follows the redirect declaring the body.
+An agent writing a document that quotes the ban,
+in a command that also fails to parse for an unrelated reason,
+is therefore refused.
+
+### What stays undetected
+
+A spelling this reader never reaches is not refused:
+`$(command -v bun) test`,
+`su -c 'bun test'` and `script -c 'bun test'` (programs the wrapper table carries no entry for),
+a shell script read from standard input (`bash <<< 'bun test'`),
+and a command line assembled at run time from variables.
+
 ## Pi dependency trust
 
 PJE:

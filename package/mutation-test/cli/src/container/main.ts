@@ -56,6 +56,8 @@ import {
  */
 const l = tagged({ tag: 'mutation-test-container', },);
 
+//region Mounted file names
+
 /**
  Manifest file name inside the manifest mount.
  */
@@ -66,11 +68,19 @@ export const MANIFEST_FILE_NAME = 'shard-manifest.json';
  */
 export const REPORT_FILE_NAME = 'shard-report.json';
 
+//endregion Mounted file names
+
+//region Baseline timing
+
 /**
  Generous baseline timeout: the first unmutated run compiles caches and
  warms tsbuildinfo, so per-mutant limits do not apply to it.
  */
 const BASELINE_TIMEOUT_MS = 600_000;
+
+//endregion Baseline timing
+
+//region Manifest validation
 
 /**
  Returns whether a parsed JSON value has the shard manifest shape.
@@ -140,6 +150,10 @@ export async function readManifest(): Promise<ShardManifest> {
   return parsed;
 }
 
+//endregion Manifest validation
+
+//region Report writing
+
 /**
  Writes the shard report to the report mount.
  
@@ -174,6 +188,10 @@ async function writeReport(report: ShardReport,): Promise<void> {
     'utf8',
   );
 }
+
+//endregion Report writing
+
+//region Shard flow
 
 /**
  Executes the full container-side shard flow.
@@ -289,6 +307,10 @@ export async function runShard(): Promise<void> {
   );
 }
 
+//endregion Shard flow
+
+//region Entrypoint
+
 /**
  Whether this module is running as the process entrypoint.
  */
@@ -299,3 +321,5 @@ const isDirectEntrypoint = (process.argv[1] !== undefined)
 
 if (isDirectEntrypoint)
   await runShard();
+
+//endregion Entrypoint

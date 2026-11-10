@@ -25,6 +25,7 @@ import {
 import { runCommand, } from './command.ts';
 import { expect, } from './errors.ts';
 import { pathExists, } from './files.ts';
+import { numbersBelow, } from './numbers-below.ts';
 
 /**
  Samples per second of every generated tone.
@@ -231,7 +232,7 @@ export function waveBytes(
    The sample data, filled below.
    */
   const samples = Buffer.alloc(dataBytes,);
-  for (let frame = 0; frame < frames; frame++) {
+  for (const frame of numbersBelow(frames,)) {
     /**
      Phase of the sine at this sample, in radians.
      */
