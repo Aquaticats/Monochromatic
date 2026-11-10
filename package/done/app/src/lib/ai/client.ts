@@ -7,10 +7,27 @@
  */
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
 import type {
   ChatCompletionResponse,
   ChatMessage,
 } from '@monochromatic-dev/llm-llm-type/ts';
+
+//region Logging
+
+/**
+ Logger for this module: the chat client reports a failed completion and an unreadable error body here.
+ */
+const l = tagged({
+  tag: 'done-ai-client',
+  l: logger,
+},);
+
+//endregion Logging
 
 export type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
@@ -198,10 +215,7 @@ export async function chatCompletion(
       }
       catch (bodyTextError: unknown) {
         // Response body text could not be read; log it and keep the default message.
-        console.error(
-          'chatCompletion could not read error response body text:',
-          bodyTextError,
-        );
+        l.warn(`error response body text unreadable, so the failure message stays generic: ${caughtValueText(bodyTextError,)}`,);
       }
       return {
         ok: false,
@@ -237,10 +251,7 @@ export async function chatCompletion(
      Human-readable error text extracted whether the cause is an Error or a raw throw.
      */
     const message = caughtValueText(caughtError,);
-    console.error(
-      'AI chat completion failed:',
-      caughtError,
-    );
+    l.error(`chat completion failed: ${message}`,);
     return {
       ok: false,
       error: `AI request failed: ${message}`,

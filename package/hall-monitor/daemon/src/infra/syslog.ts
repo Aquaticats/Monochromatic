@@ -1,121 +1,218 @@
+/**
+ Journal routing for the hall-monitor daemon.
+
+ The daemon reports through `logger(1)`, which files each line in the system
+ journal, so `journalctl -t hall-monitor -f` follows a run.
+
+ This module used to keep its own `log` object: four functions over a
+ fire-and-forget spawn whose failures were discarded. The same routing is now a
+ sink the shared logger owns, which gains level filtering, tag composition, and a
+ flush that waits for the journal writes before the process exits.
+
+ @module
+ */
+
 import spawn from 'nano-spawn';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  createLogger,
+  tagged,
+  type Level,
+  type Logger,
+  type LogRecord,
+  type Sink,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Journal arguments
 
 /**
- Emits a syslog message via the `logger` CLI utility.
- Fire-and-forget: the spawn promise is discarded so logging never blocks
- the main flow.
- 
- @param priority - syslog priority level (e.g. "debug", "info", "warning", "err")
- 
- @param message - log message body
- 
+ Journal identifier every record of this daemon is filed under.
+ */
+const JOURNAL_TAG = 'hall-monitor';
+
+/**
+ syslog priority each log level is filed at.
+ `trace` is filed as `debug` because syslog has no finer level, and `fatal` as
+ `crit` because it outranks the `err` an ordinary failure uses.
+ */
+const PRIORITY_BY_LEVEL: Record<Level, string> = {
+  debug: 'debug',
+  error: 'err',
+  fatal: 'crit',
+  info: 'info',
+  trace: 'debug',
+  warn: 'warning',
+};
+
+/**
+ Deadline for one `logger(1)` invocation.
+ The utility measured under 10 ms per invocation on this daemon's host, so this
+ bound only fires once the journal socket has stopped answering; without it a
+ blocked write would hold the daemon's logging forever.
+ */
+const JOURNAL_WRITE_TIMEOUT_MS = 5_000;
+
+/**
+ Builds the argv one record is filed with.
+
+ The message is placed after `--` so a message starting with a dash is never read
+ as an option, and the journal tag comes from {@link JOURNAL_TAG} so every line of
+ this daemon carries the same identifier.
+
+ @param record - record to file
+
+ @returns argv for the journal utility
+
  @example
  ```ts
- emit({ priority: "info", message: "capture cycle complete" });
+ journalArgumentsFor({ level: 'warn', message: 'capture failed', timestamp: 0 });
+ // ['-t', 'hall-monitor', '-p', 'user.warning', '--', 'capture failed']
  ```
  */
-function emit(
-  {
-    priority,
-    message,
-  }: {
-    readonly priority: string;
-    readonly message: string;
-  },
-): void {
-  // Fire-and-forget: ignore spawn errors to avoid blocking the main flow
-  void spawn(
+function journalArgumentsFor(record: LogRecord,): readonly string[] {
+  return [
+    '-t',
+    JOURNAL_TAG,
+    '-p',
+    `user.${PRIORITY_BY_LEVEL[record.level]}`,
+    '--',
+    record.message,
+  ];
+}
+
+//endregion Journal arguments
+
+//region Journal sink
+
+/**
+ Files one journal line.
+
+ @param args - argv handed to the journal utility
+ */
+type JournalRunner = (args: readonly string[]) => Promise<void>;
+
+/**
+ Files one journal line through `logger(1)`.
+
+ @param args - argv handed to the journal utility
+ */
+async function runLoggerUtility(args: readonly string[],): Promise<void> {
+  await spawn(
     'logger',
-    [
-      '-t',
-      'hall-monitor',
-      '-p',
-      `user.${priority}`,
-      '--',
-      message,
-    ],
+    [...args,],
+    {
+      stderr: 'ignore',
+      stdin: 'ignore',
+      stdout: 'ignore',
+      timeout: JOURNAL_WRITE_TIMEOUT_MS,
+    },
   );
 }
 
 /**
- Logs a message at debug priority.
- 
- @param msg - log message body
+ Writes one record to the journal.
+
+ A journal utility that is missing or rejects the message falls back to stderr
+ rather than losing the record, because a gap in the record of a monitoring
+ daemon is worse than a line routed elsewhere, and a service manager collects
+ stderr anyway.
+
+ @param record - record the logger handed this sink
+
+ @param run - journal utility invocation, injected so a test observes the argv
+ without writing to the host journal
  */
-function logDebug(msg: string,): void {
-  emit({
-    priority: 'debug',
-    message: msg,
-  },);
+async function writeRecordToJournal({
+  record,
+  run,
+}: Readonly<{
+  record: LogRecord;
+  run: JournalRunner;
+}>): Promise<void> {
+  try {
+    await run(journalArgumentsFor(record,),);
+  }
+  catch (error: unknown) {
+    process.stderr
+      .write(`${JOURNAL_TAG}: ${record.message} (journal write failed: ${caughtValueText(error,)})\n`,);
+  }
 }
 
 /**
- Logs a message at info priority.
- 
- @param msg - log message body
+ Always-available verification for the journal sink.
+
+ Kept outside {@link createJournalSink} so the sink construction does not
+ recreate it, and documented here because the reason it never probes is the
+ sink's fallback rather than an omission.
+
+ @returns whether the sink can receive records, always true
  */
-function logInfo(msg: string,): void {
-  emit({
-    priority: 'info',
-    message: msg,
-  },);
+function verifyJournal(): Promise<boolean> {
+  return Promise.resolve(true,);
 }
 
 /**
- Logs a message at warning priority.
- 
- @param msg - log message body
- */
-function logWarn(msg: string,): void {
-  emit({
-    priority: 'warning',
-    message: msg,
-  },);
-}
+ Builds the journal sink described by this module's doc.
 
-/**
- Logs a message at err priority.
- 
- @param msg - log message body
- */
-function logError(msg: string,): void {
-  emit({
-    priority: 'err',
-    message: msg,
-  },);
-}
+ `verify` resolves true without probing the utility, because
+ {@link writeRecordToJournal} already delivers to stderr when the utility is
+ unusable. Reporting the sink unavailable instead would leave the logger with no
+ backend at all, which it reports by throwing on the next record and would take
+ the daemon down.
 
-/**
- Syslog-backed logger for hall-monitor.
- All output is tagged with `hall-monitor` and routed through `logger(1)`,
- viewable via `journalctl -t hall-monitor -f`.
- 
+ @param run - journal utility invocation; defaults to `logger(1)`
+
+ @returns sink filing every record once, on stderr when the journal refuses it
+
  @example
  ```ts
- log.info("[cycle] capture complete");
- log.error("[cycle] ffmpeg failed");
+ const written: (readonly string[])[] = [];
+ const sink = createJournalSink({ run: async (args) => { written.push(args); } });
+ await sink.write({ level: 'info', message: 'capture complete', timestamp: 0 });
  ```
  */
-export const log: {
-  /**
-   Log at debug priority.
-   */
-  debug: (msg: string,) => void;
-  /**
-   Log at info priority.
-   */
-  info: (msg: string,) => void;
-  /**
-   Log at warning priority.
-   */
-  warn: (msg: string,) => void;
-  /**
-   Log at err priority.
-   */
-  error: (msg: string,) => void;
-} = {
-  debug: logDebug,
-  info: logInfo,
-  warn: logWarn,
-  error: logError,
+function createJournalSink({
+  run = runLoggerUtility,
+}: Readonly<{
+  run?: JournalRunner;
+}> = {},): Sink {
+  return {
+    name: 'journal',
+    verify: verifyJournal,
+    write: function writeToJournal(record: LogRecord,): Promise<void> {
+      return writeRecordToJournal({
+        record,
+        run,
+      },);
+    },
+  };
+}
+
+//endregion Journal sink
+
+//region Logger
+
+/**
+ Logger over the journal sink alone, so an event is filed once rather than once
+ locally and once in the journal.
+ */
+const { logger: journalLogger, } = createLogger({ sinks: [createJournalSink(),], },);
+
+/**
+ Daemon logger: tagged with the journal identifier so a line still names the
+ daemon when it reaches stderr instead, and the only logging entry point the
+ daemon modules use.
+ */
+const log: Logger = tagged({
+  l: journalLogger,
+  tag: JOURNAL_TAG,
+},);
+
+//endregion Logger
+
+export {
+  createJournalSink,
+  journalArgumentsFor,
+  log,
 };
+export type { JournalRunner, };

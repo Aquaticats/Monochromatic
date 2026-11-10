@@ -116,9 +116,15 @@ pub use crate::service_index_identity::{
 
 /// The marker of the file at `path`,
 /// when it holds one.
+///
+/// The lock is opened by `open_plain_file`,
+/// which opens without blocking and refuses everything that is not a plain file,
+/// so a named pipe at the
+///  lock's name is answered at once instead of waiting for a writer that may never come
+/// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
 pub fn marker_of(path: &Path) -> Option<Marked> {
     let mut text: String = String::new();
-    std::fs::File::open(path).ok()?.take(MARKER_LIMIT).read_to_string(&mut text).ok()?;
+    crate::plain_file::open_plain_file(path).ok()?.take(MARKER_LIMIT).read_to_string(&mut text).ok()?;
     return parse_marker(text.as_str());
 }
 

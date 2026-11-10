@@ -87,6 +87,14 @@ rayon = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
+# The open flag that keeps a rules file from being waited on (`O_NONBLOCK`, in
+# `rules_snapshot.rs`): the standard library has no setting for it, and opening a
+# named pipe for reading waits for a writer that may never come. Already in this
+# crate's lockfile through the git index reader, so the dependency adds no crate
+# and `cargo publish` resolves it from the same version every other crate locks.
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 # The build script (`build.rs`) precompiles the ported builtin baseline into a
 # serialized `RegexSet` (`to_bytes`) at build time, embedded via `include_bytes!`
 # and reloaded at runtime through the validating `from_bytes` path. Compiling the
@@ -170,6 +178,7 @@ clap = ">=4.6.7"
 gix-hash = { version = ">=0.28.1", default-features = false }
 gix-index = { version = ">=0.58.0", default-features = false }
 ignore = ">=0.4.34"
+libc = ">=0.2.191"
 memchr = ">=2.8.3"
 rayon = ">=1.12.0"
 tracing = ">=0.1.44"
