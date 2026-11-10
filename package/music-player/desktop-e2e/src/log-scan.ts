@@ -11,6 +11,8 @@
  @packageDocumentation
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 /**
  Text the app logs each time a shortcut ran.
  */
@@ -87,8 +89,8 @@ export function isDisplayName(name: string,): boolean {
   const digits = name.slice(DISPLAY_PREFIX.length,);
   return (digits !== '')
     && Array.from(digits,)
-      .every(function isDigit(character,): boolean {
-        return (character >= '0') && (character <= '9');
+      .every(function checkDigit(character,): boolean {
+        return isDigit(character,);
       },);
 }
 

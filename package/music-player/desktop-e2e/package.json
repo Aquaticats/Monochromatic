@@ -19,6 +19,7 @@
     "typescript": "catalog:"
   },
   "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",

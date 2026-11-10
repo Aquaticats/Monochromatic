@@ -3133,6 +3133,9 @@ importers:
 
   package/music-player/desktop-e2e:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/async-time-core':
         specifier: workspace:*
         version: link:../../async-time/core
