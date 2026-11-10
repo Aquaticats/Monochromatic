@@ -13,6 +13,7 @@ import {
 import {
   CANVAS_FIG_MAGIC,
   CANVAS_HEADER_SIZE,
+  decompressZstd,
   parseCanvasFig,
   parseCanvasHeader,
   parseFigmaFile,
@@ -452,6 +453,54 @@ await describe({
               withDocument: true,
             },);
             await expect(parseCanvasFig(blob,),).rejects.toThrow('Unknown canvas.fig magic: "fig-nope"',);
+          },
+        },),
+        it({
+          name: 'rejects a schema chunk that is not deflate data',
+          fn: async () => {
+            /**
+             Header followed by bytes that cannot inflate.
+             */
+            const blob = new Uint8Array([
+              ...headerBytes({
+                prelude: CANVAS_FIG_MAGIC.fig,
+                version: VERSION_OLDER,
+              },),
+              0xFF,
+              0xFF,
+              0xFF,
+              0xFF,
+            ],);
+            await expect(parseCanvasFig(blob,),).rejects.toThrow();
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: decompressZstd.name,
+      children: [
+        it({
+          name: 'round-trips a zstd frame',
+          fn: async () => {
+            /**
+             Frame built by Node's own zstd encoder.
+             */
+            const frame = new Uint8Array(zstdCompressSync(DOCUMENT_BYTES,),);
+            expect([...await decompressZstd(frame,),],).toEqual([...DOCUMENT_BYTES,],);
+          },
+        },),
+        it({
+          name: 'rejects bytes that are not a zstd frame',
+          fn: async () => {
+            /**
+             Bytes with no zstd frame header.
+             */
+            const notAFrame = new Uint8Array([
+              0x00,
+              0x01,
+              0x02,
+            ],);
+            await expect(decompressZstd(notAFrame,),).rejects.toThrow();
           },
         },),
       ],
