@@ -337,7 +337,8 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
 /// a preparation never writes the real index
 /// (`commit_index_stat_refresh.rs`),
 /// and the commit after this one copies the index this landing installs,
-/// so a batch pays one refresh, in the step that already holds the lock,
+/// so a batch pays one refresh,
+/// in the step that already holds the lock,
 /// instead of one per client that then waits for the lock the landing needs.
 ///
 /// In TS you'd write (pseudocode):
@@ -419,7 +420,11 @@ fn file_stamp(path: &Path) -> Option<(u64, std::time::SystemTime)> {
 #[cfg(unix)]
 fn exempt_names(written: &[Vec<u8>]) -> Vec<OsString> {
     use std::os::unix::ffi::OsStrExt;
-    return written.iter().map(|path| { return std::ffi::OsStr::from_bytes(path.as_slice()).to_os_string(); }).collect();
+    let mut names: Vec<OsString> = Vec::with_capacity(written.len());
+    for path in written {
+        names.push(std::ffi::OsStr::from_bytes(path.as_slice()).to_os_string());
+    }
+    return names;
 }
 
 /// Where a byte path is not operating-system text,
@@ -444,11 +449,16 @@ fn exempt_names(_written: &[Vec<u8>]) -> Vec<OsString> {
 /// const names = paths.listed ?? paths.named ?? []
 /// ```
 fn named_paths(paths: IndexPaths<'_>) -> Vec<Vec<u8>> {
-    return match paths {
-        IndexPaths::Listed(listed) => listed.iter().map(|name| { return name.as_bytes().to_vec(); }).collect(),
-        IndexPaths::Named(named) => named.to_vec(),
-        IndexPaths::Derived { .. } => Vec::new(),
+    let listed: &[String] = match paths {
+        IndexPaths::Listed(listed) => listed,
+        IndexPaths::Named(named) => return named.to_vec(),
+        IndexPaths::Derived { .. } => return Vec::new(),
     };
+    let mut names: Vec<Vec<u8>> = Vec::with_capacity(listed.len());
+    for name in listed {
+        names.push(name.as_bytes().to_vec());
+    }
+    return names;
 }
 
 /// The names the private copy (made from the live index while `lock` is held) was reset at without starting Git,

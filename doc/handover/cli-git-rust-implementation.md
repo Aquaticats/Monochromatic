@@ -1638,11 +1638,6 @@ Seen only inside a larger run,
 passing alone,
 and open under `AGENTS.md` `SUF`:
 
-- `landing::service_land::adoption_tests::a_socket_that_cannot_start_the_earlier_helper_does_not_hold_the_adoption`,
-  `an_open_batch_of_the_earlier_helper_is_finished_by_the_new_service` and `the_adoption_says_what_it_did_with_each_batch`
-  timed out at 300 s in a run of 341 tests that took 932 s.
-- `package_repair::a_running_repair_does_not_hold_another_add` failed once at 58.5 s;
-  it passed alone in 2 s and in a rerun of its set.
 - `[cache option] [drops the cache when watch sees a change]` in `package/upstream-fork/conf`
   failed on main and in two landing runs.
   The agent `oxlint-findings-left-on-main` owns it,
@@ -6802,6 +6797,95 @@ which that run did not reach.
   (a shorter loop,
   a cheaper fixture,
   or its own bound).
+
+### The worktree-copy install and its notices, after the lifecycle audit (2026-11-09T19:10:00-05:00)
+
+The audit is the worktree-lifecycle run
+(`${HOME}/temp/agent/sonnet-audits/worktree-lifecycle/`),
+reproduced against `7da0abce05`.
+Branch `fix/git-policy-cli-worktree-copy-install-keeps-modes-and-finishes` fixes its findings 1,
+2 and 3,
+each control failing before its fix:
+an install whose destination cannot hard-link the stage now fills a file with no name
+(`O_TMPFILE`,
+or a private name the same copy computes again on a filesystem without one),
+gives it the entry's mode before it can be read,
+and links it into place whole,
+so a credential never stands at a wider mode than its source and a killed copy leaves nothing at a final name
+(`9c160a9f1b`,
+`539ec29235`);
+a copy that truly cannot finish leaves `<identifier>.unfilled` beside its journal,
+which every command names until the worktree is removed or replaced,
+so a half-filled worktree is never forgotten (`84de1c4bcf`);
+a snapshot add whose own swap carried the ignored state no longer prints
+"received no ignored-state copy ... the record of this add stays",
+and a refused add whose destination carries another command's proof no longer promises a record it does not keep
+(`c348d68e25`);
+and a conversion adopts and abandons the empty stage it made and did not record,
+instead of blocking the worktree with a directory only a hand could remove (`36ec6c6aab`).
+The linter's findings on the branch's own files are fixed in `6d59893631`.
+Measured on this host with the built binary and disposable `HOME` and `XDG_RUNTIME_DIR`:
+`s11` sees `.env` at 0600 at the paused look,
+after the `SIGKILL` in that window and after the next command;
+`10` of `10` `SIGKILL`s inside the install (six,
+then four on the merged tree) were resumed whole,
+with no zero-length file,
+no missing entry and an empty journal root;
+`s5` prints no "received no ignored-state copy" line for a snapshot add that carried the state;
+`worktree_copy` ran `352` of `352` and `worktree_add` `27` of `27` on the merged tree,
+Clippy is clean,
+and the binary tests compile.
+A fourth gap in the same goal was found by the binary fault sweep after the first report and is fixed in the same
+branch:
+the ladder released the add's claim when its rung finished and the copy then made a claim of its own,
+so a command killed in that handover left a whole tracked checkout with no ignored state and no record at all
+(`kill-copy-mkdir-3: the worktree has no ignored rules file, no stage is left, and no recovery pass named it: ""`).
+The rung now hands its claim to the copy and no rung writes the completion marker,
+so the record of an add that owes a copy lives from before real Git until the copy's journal.
+Measured after: the seven copy kill sweeps (`mkdir`,
+`rename`,
+`renameat2`,
+`write`,
+`pwrite64`,
+`clone3`,
+`unlink`) passed `3` of `3` rounds,
+about `250` kills with no failure,
+where `5` of `8` runs of the selection that contains them failed one or two sweeps each;
+the selection passed `6` of `8` runs afterwards,
+`63` of `63` each (`19`, `22`, `25`, `35.9`, `102` and `122` seconds);
+one of the two others ran under load average `132` to `160` and failed `12` of `63` with no copy sweep among them,
+and the other ran at load `98` to `118` and failed `7` fault sweeps on the harness's own bound,
+`the wrapper was still running after 120 seconds and its group was ended`,
+with no recovery failure named.
+The unit filters `worktree_copy`,
+`worktree_add`,
+`stage_claim`,
+`worktree_dirty` and `subvolume` ran `731` of `731` with Clippy clean.
+`main` moved more than `250` commits after this branch's last merge and now carries `LadderResult.placed` in the same
+rung files,
+where this branch adds `LadderResult.claim`:
+the merge conflicts there and is left to the owner,
+who merges branches himself.
+A resolution keeps both fields,
+keeps the handover in `finish_clones`,
+`finish_snapshot` and `Ladder::finish`,
+and keeps the rungs from writing the completion marker while a copy is owed.
+`s9` killed `convert-worktree-to-subvolume` in `8` of `8` trials and every rerun finished with exit 0,
+nothing lost or changed,
+nothing left beside the worktree and no temporary in its administrative directory;
+the audit's `5` of `12` exits that left `<wt>.cli-git-converting` behind do not come back here,
+and the window itself is covered by the control that kills the run at the `stage-unrecorded` point.
+Audit findings 3 (a live checkout's ignored churn fails the copy) and 4 (a non-UTF-8 ignored name fails it)
+no longer reproduce here:
+`32942a6940` and the bytes work fixed them on `main`,
+`S2_FILES=1500` two-mutation runs ended `exit=0` with no leftover,
+and a `\xff\xfe.b` name is copied by its bytes.
+Still open:
+the twelve `monochromatic-lint` errors `main` carries in `commit/`,
+`invocation/`,
+`landing/` and `testing/`,
+which no commit of this branch changed,
+and the linter's package run therefore still ends non-zero.
 
 ### The source layout waits for the owner's read (2026-11-08T23:57:46-05:00)
 
