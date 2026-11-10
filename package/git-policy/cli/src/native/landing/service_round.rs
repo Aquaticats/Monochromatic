@@ -7,10 +7,11 @@
 //! its own claims and its own pushes,
 //! so one repository's slow
 //!  push or review never needs to hold up another's.
-//! The round's thread hands each repository to a worker and takes the answers
-//!  back in the order the repositories were named (`parallel_runner.rs`),
+//! The round's task hands each repository to a lane of tasks on the runtime and takes the answers
+//!  back in the order the repositories were named (`parallel_runner_on_the_runtime_awaiting.rs`),
 //! so the retry list is the one a drain of one after
-//!  another gives.
+//!  another gives,
+//! and no worker waits on Git or on storage while an item runs.
 //! No lock is taken (`service_lock_inventory_tests.rs`):
 //! the handlers are shared read-only,
 //! every claim is made
@@ -26,11 +27,18 @@
 
 use crate::claim_time::ClaimTime;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::line_sink::LineSink;
-use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
+use crate::parallel_runner::Event;
+use crate::parallel_runner::OrderedEvents;
+use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
+use crate::parallel_runner_on_the_runtime::OrderedRunError;
+use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
 use crate::push_retry::{RetryChange, Retrying};
-use crate::service_work::{CLAIM_LEASE, Drained, WorkHandlers, common_directory_of, drain_common_records_planned, drain_planned};
+use crate::service_work::{CLAIM_LEASE, Drained, WorkHandlers, common_directory_of, drain_common_records_planned_awaiting, drain_planned_awaiting};
+use std::collections::HashMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// The 90th percentile of `MemoryPeak` over the 28 commit-service units of this host that `systemctl --user show 'cli-git@*.service'
@@ -124,15 +132,16 @@ pub struct RoundAnswer {
 /// ```ts
 /// type RoundDrain<H> = { directories: string[]; handlers: H; now: ClaimTime; host: HostResources };
 /// ```
-pub struct RoundDrain<'a, H: WorkHandlers + Sync> {
+pub struct RoundDrain<'a, H: WorkHandlers + Sync + Send + 'static> {
     /// The Git directories named by the round's wakes,
     /// each once,
     /// in the order they were first named,
     /// each with what is due again.
     pub directories: &'a [Assignment],
     /// What runs each kind of work;
-    /// shared read-only by every worker.
-    pub handlers: &'a H,
+    /// shared read-only by every lane,
+    /// and owned here because the lanes are tasks that outlive this frame.
+    pub handlers: Arc<H>,
     /// The reading of the clock the round started at.
     pub now: &'a ClaimTime,
     /// The CPUs and memory the budget is derived from.
@@ -159,29 +168,58 @@ fn lane_key(directory: &Path) -> PathBuf {
 }
 
 /// What:
-///  The drain of one directory,
-/// run by a worker of the ordered runner.
+///  The drain of one directory:
+/// the records of the directory itself and those of the common directory of a bare repository,
+/// awaited
+///  by whoever asks for them.
 /// Why:
-///   The handlers and the time are what each drain reads;
-/// the runner shares them among its worker threads.
+///   The lane of the round and the control that drains the same directories one after another
+/// (`service_round_tests.rs`)
+/// both run this one body,
+/// so a difference between them is the runner's and never the drain's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class DrainEachDirectory implements OrderedWork<Assignment, [Duration | undefined, RetryChange[]]> { run(i, assignment) { return [wait, changes]; } }
+/// const [wait, changes] = await drainOne(handlers, now, assignment)
 /// ```
-struct DrainEachDirectory<'a, H> {
-    /// What the drain does with each record it finds.
-    handlers: &'a H,
-    /// The time the drain judges leases and retries by.
-    now: &'a ClaimTime,
+async fn drain_one<H: WorkHandlers + Sync>(handlers: &H, now: &ClaimTime, assignment: &Assignment) -> (Option<Duration>, Vec<RetryChange>) {
+    let own: Drained = drain_planned_awaiting(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, &assignment.retrying).await;
+    let common: Drained = drain_common_records_planned_awaiting(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, &assignment.retrying).await;
+    let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
+    return (wait, own.changes.into_iter().chain(common.changes).collect::<Vec<RetryChange>>());
 }
 
-impl<H: WorkHandlers + Sync> OrderedWork<Assignment, (Option<Duration>, Vec<RetryChange>)> for DrainEachDirectory<'_, H> {
-    fn run(&self, _index: usize, assignment: &Assignment, _say: &mut dyn LineSink) -> (Option<Duration>, Vec<RetryChange>) {
-        let own: Drained = drain_planned(assignment.directory.as_path(), self.handlers, self.now, &assignment.retrying);
-        let common: Drained = drain_common_records_planned(assignment.directory.as_path(), self.handlers, self.now, CLAIM_LEASE, &assignment.retrying);
-        let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
-        return (wait, own.changes.into_iter().chain(common.changes).collect::<Vec<RetryChange>>());
+/// What:
+///  One lane's item work,
+/// held by the runner as a value it may move between workers.
+/// Why:
+///   Every step the drain runs reads its child through the runtime,
+/// so a lane is a task:
+/// a job of the blocking pool cannot await anything,
+/// and the faces that
+///  enter the runtime refuse a call from inside it.
+/// The handlers are shared by the lanes as one reference,
+/// which a task may carry because the handlers are `Sync`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class DrainEachDirectory implements OrderedAwaitingWork<Assignment, [Duration | undefined, RetryChange[]]> { async run(i, assignment) { return drainOne(handlers, now, assignment); } }
+/// ```
+struct DrainEachDirectory<H> {
+    /// What the drain does with each record it finds.
+    handlers: Arc<H>,
+    /// The time the drain judges leases and retries by.
+    now: ClaimTime,
+}
+
+impl<H: WorkHandlers + Sync + Send> OrderedAwaitingWork<Assignment, (Option<Duration>, Vec<RetryChange>)> for DrainEachDirectory<H> {
+    fn run<'a>(
+        &'a self,
+        _index: usize,
+        assignment: &'a Assignment,
+        _say: LinesToTheConsumer<(Option<Duration>, Vec<RetryChange>)>,
+    ) -> Pin<Box<dyn Future<Output = (Option<Duration>, Vec<RetryChange>)> + Send + 'a>> {
+        return Box::pin(async move { return drain_one(self.handlers.as_ref(), &self.now, assignment).await; });
     }
 }
 
@@ -218,23 +256,35 @@ impl OrderedEvents<(Option<Duration>, Vec<RetryChange>)> for CollectWaitsAndChan
 
 /// What:
 ///  Drain every directory,
-/// repositories side by side,
+/// repositories side by side as lanes of tasks,
 /// and give,
 /// for each directory that has a claim another instance holds,
 /// how
 ///  long until that claim's lease runs out,
-/// in the order the directories were named.
+/// and the changes the workers ask of the retry plan,
+/// both in the order the directories were named.
+/// Also,
+/// when a lane stopped before its last directory,
+/// why,
+/// because a
+///  caller that is told nothing reads the silence as a refresh that covered every directory.
 /// Why:
 ///   See the module description.
+/// A lane that ends early runs no item after the one it stopped in,
+/// and the claims those items hold keep their
+///  lease,
+/// so the next round of the work loop finds them again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const answer = await drainDirectories({ directories, handlers, now, host });
+/// const [answer, notFinished] = await drainDirectoriesAwaiting({ directories, handlers, now, host });
 /// ```
-pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) -> RoundAnswer {
-    let RoundDrain { directories, handlers, now, host } = *request;
+pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>(request: &RoundDrain<'_, H>) -> (RoundAnswer, Option<OrderedRunError>) {
+    let directories: &[Assignment] = request.directories;
+    let now: &ClaimTime = request.now;
+    let host: &HostResources = request.host;
     let mut lanes: Vec<Vec<usize>> = Vec::new();
-    let mut lane_of: std::collections::HashMap<PathBuf, usize> = std::collections::HashMap::new();
+    let mut lane_of: HashMap<PathBuf, usize> = HashMap::new();
     for (index, assignment) in directories.iter().enumerate() {
         match lane_of.get(&lane_key(assignment.directory.as_path())) {
             Some(&lane) => lanes[lane].push(index),
@@ -246,14 +296,46 @@ pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) ->
     }
     let workers: usize = worker_budget(&BudgetRequest { items: lanes.len(), per_item_memory: REPOSITORY_MEMORY, ceiling: None, cap: None, host });
     let mut answer: RoundAnswer = RoundAnswer::default();
-    run_ordered(OrderedRun {
-        items: directories,
-        lanes: lanes.as_slice(),
+    let finished: Result<(), OrderedRunError> = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
+        items: Arc::from(directories.to_vec()),
+        lanes: Arc::from(lanes),
         workers,
-        work: &DrainEachDirectory { handlers, now },
+        work: Arc::new(DrainEachDirectory { handlers: Arc::clone(&request.handlers), now: now.clone() }),
         on_event: &mut CollectWaitsAndChanges { directories, answer: &mut answer },
-    });
-    return answer;
+    })
+    .await;
+    return (answer, finished.err());
+}
+
+/// What:
+///  Drain every directory from a caller outside the runtime,
+/// entering it once.
+/// Why:
+///   The service's work loop runs on its own thread and keeps this face;
+/// the body is the awaited one,
+/// so a round cannot
+///  drain differently depending on which face asked it.
+/// A round that stopped before its last directory says so in the service log,
+/// and every
+///  directory it did drain answers as the awaited face reported it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [answer, stopped] = runOnRuntime(drainDirectoriesAwaiting(request)); if (stopped) warn(stopped)
+/// ```
+pub fn drain_directories<H: WorkHandlers + Sync + Send + 'static>(request: &RoundDrain<'_, H>) -> RoundAnswer {
+    return match crate::lazy_runtime::run_on_runtime(drain_directories_awaiting(request)) {
+        Ok((answer, stopped)) => {
+            if let Some(reason) = stopped {
+                crate::service_warn!("the round of the service's work did not finish: {reason}");
+            }
+            answer
+        }
+        Err(refusal) => {
+            crate::service_warn!("the round of the service's work was not run: {refusal}");
+            RoundAnswer::default()
+        }
+    };
 }
 
 /// Round controls stay out of the release executable.

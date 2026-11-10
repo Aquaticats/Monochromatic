@@ -155,6 +155,7 @@ config_roots = ["package/*/*"]
 experimental = true
 task.disable_spec_from_run_scripts = true
 [vars]
+${variableSection('mise_tasks_json_max_buffer',)}
 ${variableSection('parse_usage_args',)}
 ${variableSection('run_test_files',)}
 ${taskSection('try',)}

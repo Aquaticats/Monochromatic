@@ -147,6 +147,21 @@ The unfiltered root failure remains a separate observed discovery result.
 The source-bound logs and parsed cases are retained in
 [`depot-complete-coverage-finite-owner-receipts.json.gz`](../planning/depot-complete-coverage-finite-owner-receipts.json.gz).
 
+### Current discovery scope
+
+The discovery defect this section records was fixed by commit
+`7cb670351a` (`2026-11-08T23:14:42-05:00`),
+which added `testDir: './package'` to `playwright.e2e.config.ts`
+and left `testMatch: '**/*.e2e.test.ts'` relative to that directory.
+No file under `package-paused/` or `package-deprecated/` is inside it.
+
+Measured `2026-11-10T01:33:00-05:00` in the e2e container:
+`mise run test:e2e -- --list` reports `Total: 34 tests in 4 files`,
+all four from `package/dom/core`;
+`mise run test:e2e -- package/dom/core` passes all of them;
+and removing the `testDir` line reproduces the
+`paper2vn.e2e.test.ts` import failure this section records.
+
 ## Upstream filing decision
 
 Nothing is filed upstream.
