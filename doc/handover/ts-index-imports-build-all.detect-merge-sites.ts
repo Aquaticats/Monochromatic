@@ -72,6 +72,8 @@ function ownerOf(file: string): string | null {
 // word character is one member of the `\w` set, so both match what the grammar they
 // replaced accepted.
 const IMPORT_KEYWORD = 'import';
+const TYPE_KEYWORD = 'type';
+const WORD_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
 const WHITESPACE_CHARACTERS = ' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004'
   + '\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
 
@@ -124,6 +126,26 @@ function isSideEffectImport(text: string): boolean {
   ) !== null;
 }
 
+// Whether a one-character string is a member of the boundary test's word set.
+function isWordCharacter(character: string): boolean {
+  return (character !== '') && WORD_CHARACTERS.includes(character);
+}
+
+// `^import\s+type\b`: a type-only import, from which no runtime binding comes.
+function isTypeImport(text: string): boolean {
+  if (!text.startsWith(IMPORT_KEYWORD)) return false;
+  const typeStart = skipWhitespace(
+    text,
+    IMPORT_KEYWORD.length
+  );
+  if (typeStart === IMPORT_KEYWORD.length) return false;
+  if (!text.startsWith(
+    TYPE_KEYWORD,
+    typeStart
+  )) return false;
+  return !isWordCharacter(text.charAt(typeStart + TYPE_KEYWORD.length));
+}
+
 // Parse top-level import statements. Each statement starts with `import` (maybe
 // `import type`), may span multiple lines, ends at the line containing `from '...';`
 // or (side-effect import) `import '...';`. Returns {isType, specifier} per stmt.
@@ -152,7 +174,7 @@ function parseImports(text: string): ImportStmt[] {
         stmt += `\n${  lines[j]}`;
         if ((j - i) > 50) break;
       }
-      const isType = /^import\s+type\b/.test(stmt.trimStart());
+      const isType = isTypeImport(stmt.trimStart());
       const m = (/from\s*['"]([^'"]+)['"]/.exec(stmt)) ?? (/^import\s*['"]([^'"]+)['"]/.exec(stmt));
       if (m) out.push({
         isType,
