@@ -172,6 +172,11 @@ an even pass over `PASS1_COVERAGE_FRACTION` (a tenth) of the bins
 when bones seeds are present),
 then a climb that repeatedly measures the bins beside the loudest one heard so far
 until the bucket's coverage is spent.
+Which bins to measure is decided in one place,
+`select_probe_bins` in `src/probe_selection.rs`:
+the production probe answers it with a decoded window,
+and `truepeak-core.bench` replays the same selection over its precomputed bin peaks,
+so corpus evidence and playback measure the same bins.
 Each bin has its own meter,
 so a seek seam cannot fabricate a spike.
 For a lossless FLAC file,
