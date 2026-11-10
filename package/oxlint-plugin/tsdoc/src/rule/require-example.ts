@@ -38,6 +38,10 @@ import {
   shouldSkipIgnoredFile,
 } from './tsdoc-visitors.ts';
 
+//region Exported-function detection
+// Whether a node carries the inline `export` keyword, which decides whether
+// the `\@example` requirement applies at all.
+
 /**
  Checks whether a node is directly exported via inline `export` keyword.
  
@@ -65,6 +69,12 @@ function isDirectlyExported(node: ForeignBorrowed<Span>,): boolean {
     || (parent.type
       === 'ExportDefaultDeclaration');
 }
+
+//endregion Exported-function detection
+
+//region Exemptions
+// The two ways a comment escapes the requirement: an `\@example` already
+// present, or `\@inheritDoc`/`\@internal` documentation.
 
 /**
  Checks whether a TSDoc comment contains an `\@example` block tag.
@@ -95,6 +105,12 @@ function isExempt(result: ReadonlyDeep<TsdocParseResult>,): boolean {
   const { docComment, } = result;
   return docComment.hasInheritDocTag || docComment.hasInternalModifier;
 }
+
+//endregion Exemptions
+
+//region The rule
+// The exported rule, which checks directly exported and specifier-list
+// exported functions alike.
 
 /**
  Requires `\@example` tags on exported functions.
@@ -376,3 +392,5 @@ export const requireExample: CreateOnceRule = {
     } as VisitorWithHooks;
   },
 };
+
+//endregion The rule
