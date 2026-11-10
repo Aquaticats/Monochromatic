@@ -196,7 +196,7 @@ pub fn asked_once(kept: &mut Option<Vec<u8>>, place: &EditorPlace<'_>, message: 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const message = editWith({ session, gitDir }, message, editor); // throws EditorRefusal
+/// const message = editWith({ session, gitDir }, message, words); // throws EditorRefusal
 /// ```
 pub fn edit_with(place: &EditorPlace<'_>, message: &[u8], words: &[OsString]) -> Result<Vec<u8>, EditorRefusal> {
     let path: PathBuf = place.git_dir.join("MERGE_MSG");
