@@ -100,7 +100,8 @@ function sharedHeaders(): Headers {
  @param status - HTTP status
 
  @param extraHeaders - headers this response adds beyond the shared set, such as
-   the `Allow` a 405 advertises
+   the `Allow` a 405 advertises; never `Content-Type` or `Content-Length`, which
+   are computed from the body
 
  @returns response carrying the shared headers plus the text media type
  */
@@ -159,7 +160,8 @@ type PlainTextResponseParams = {
   readonly status: number;
   /**
    Headers this response adds beyond the shared set, such as the `Allow` a 405
-   advertises.
+   advertises. Never `Content-Type` or `Content-Length`: both are computed from
+   the body, and an entry here would replace them with an inconsistent value.
    */
   readonly extraHeaders?: Readonly<Record<string, string>>;
 };
