@@ -57,6 +57,12 @@ await describe({
           },
         },),
         it({
+          name: 'detects a lookup command spelled by path',
+          fn: async function testLookupByPath() {
+            expect(waitsOnProcessName('while /usr/bin/pgrep -f build; do sleep 1; done',),).toBe(true,);
+          },
+        },),
+        it({
           name: 'allows straight-line pgrep',
           fn: async function testStraightLinePgrep() {
             expect(waitsOnProcessName('pgrep --list-full --full build',),).toBe(false,);
@@ -115,6 +121,7 @@ await describe({
               waitsOnProcessName("timeout 60 bash -c 'until ! pgrep -f build; do sleep 1; done' \"unterminated",),
             )
               .toBe(true,);
+            expect(waitsOnProcessName('eval while pgrep -f build; do sleep 1; done "unterminated',),).toBe(true,);
           },
         },),
         it({
