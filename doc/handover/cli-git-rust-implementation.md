@@ -4651,6 +4651,26 @@ the 8 unmapped instances have neither a note nor a journal record that hashes to
 (units of worktrees that never landed a commit before this release,
 or whose repository was deleted whole),
 so they stay.
+An instance is a one-way 128-bit FNV-1a hash of the worktree's real Git directory (`service_instance.rs`),
+and neither the unit file nor the running process names that directory,
+so nothing can map one of them back;
+the three answers open to the owner,
+with the coordinator's ranking:
+leave them (`doctor` counts them and names them,
+no live service is ever cut;
+today's answer),
+stop the units of an unmapped instance whose socket file is older than a bound
+(a live but idle worktree's socket is just as old,
+because a socket unit has no idle exit,
+so this is a blind stop that cuts a live worktree's service mid-commit),
+or stop every unmapped instance's units once
+(the same risk,
+now,
+with no age to argue from).
+Ranking:
+leave > age-out > stop once,
+because everything past the first interrupts a commit somebody asked for,
+and 8 leftovers are a small price for never failing one.
 `run_forwarded_git`'s wiring to the stop was listed here as open for want of a unit control of its own;
 it has one in `b26020e703`:
 `run_forwarded_git_with_unit_stop` takes the stop,
@@ -4721,13 +4741,85 @@ which was red against a service that served the gone worktree.
 What is still unmeasured:
 the controls start no unit,
 so the composition of the loop's stop with a manager is checked only by that measurement,
-not by a control that runs in the gate.
+not by a control that runs in the gate,
+and it cannot be:
+the gate is a container with no `systemd --user` and no session bus,
+so a control that asked a manager there would have nothing to ask.
+What a gate control could check instead is the shipped stop against a hand-built bus peer,
+as `systemd_dbus_tests.rs` already does for the D-Bus client:
+that it asks for `StopUnit` on the socket unit alone,
+and then removes the note,
+the socket file and the journal.
+That is the request and the files,
+not what systemd does with the job,
+and it is not written.
 `doctor` counted the leftovers before this change and counts them still.
 The stopped instance's state directory (`$XDG_STATE_HOME/monochromatic-git-policy-cli/service/<instance>`,
-the service's journal) stays after its units go:
-the sweep and the service read the `gitdir=` records in it to name an instance whose note is missing,
-so removing it would take that mapping away,
-and nothing sweeps it.
+the service's journal) used to stay after its units go,
+and nothing swept it,
+so one folder per removed worktree stayed with up to `DONE_RETAINED` finished-batch records in it.
+It goes with the units now (`7399c1cacf`, 2026-11-10):
+a stopped instance of a worktree that is gone is never served again,
+and its note and its socket file are removed in the same step,
+so its records answer no retry and name a directory that no longer exists.
+The rule:
+the folder is removed when every entry in it is the record of a batch that landed (`<seq>.done`)
+or a folder the service made and left empty (`busy`);
+a journal that holds anything else stays whole,
+because work a person may still want is never discarded,
+and the answer is taken from one listing,
+so a journal that grows while it is read is kept rather than half-removed.
+What keeps a journal,
+in the words the command prints:
+the record of a commit that has not landed (`<seq>.intent`),
+the record of a batch whose objects a scratch reference may hold (`<seq>.scratch`),
+the record of a batch that was being landed (`<seq>.claim`,
+`.indexed`,
+`.start`),
+a record that was written and not published (`<seq>.tmp`,
+which holds a record a kill left between its write and its rename,
+and is not the remains it looks like),
+a record of a landing or of a withdrawal (a `busy/` folder with any entry,
+which holds the step of a write that never ended or a withdrawal's tombstone),
+and a file this release does not know.
+Three call sites:
+the sweep (`stop_units_of_gone_worktrees`),
+the service's own stop of a gone worktree's socket (`stop_own_socket_of_a_gone_worktree`,
+which logs the kept journal to its own journal),
+and the removal the wrapper runs (`stop_units_after_removal` in `worktree_removal_stops_units.rs`),
+which is the everyday one and passed `state_dir: None` before,
+so a worktree removed through the wrapper kept its state directory too.
+The command names each kept journal on standard error with its path,
+the entry that kept it and what that entry is,
+and its status stays 0,
+because the units it was asked about were stopped and the notice is no refusal.
+Controls:
+`the_journal_of_a_stopped_instance_goes_with_its_units`,
+`a_journal_that_names_a_commit_that_has_not_landed_stays`,
+`a_journal_of_a_landing_that_was_in_flight_stays`,
+`a_journal_of_a_record_that_was_written_and_not_published_stays`,
+`a_journal_of_a_file_this_release_does_not_know_stays`,
+`a_journal_of_a_present_worktree_and_of_a_refused_stop_stay`,
+`a_service_that_stops_its_own_socket_takes_its_journal_when_nothing_is_unresolved`,
+`a_removed_worktrees_journal_goes_with_its_units` and
+`a_kept_journal_is_named_on_standard_error_and_is_no_refusal`.
+Red first,
+with the removal planted out,
+39 controls ran and three failed:
+`the journal of a stopped instance is removed with its units`,
+`the journal of the service's own gone worktree is removed with its socket`,
+and `the journal of the removed worktree is removed with its units`
+(`39 tests run: 36 passed, 3 failed`);
+the kept-journal control passed there and passes with the removal in place,
+as the safe side must.
+Open,
+and needing the owner:
+whether a journal folder that is kept is swept later by anything,
+because no note and no socket file name the instance again after the stop,
+so today the person who reads the line is the one who removes it;
+and whether an earlier release's journal folder (`$XDG_STATE_HOME/cli-git/service/<instance>`) should be swept too,
+which nothing of this release writes or reads,
+and whose records may be the only copy of a commit from before the rename.
 
 Pre-existing,
 from the lock-removal pass,
