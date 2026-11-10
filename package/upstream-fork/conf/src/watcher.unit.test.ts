@@ -5,7 +5,7 @@
  @module
  */
 
-import path from 'node:path';
+import { join, } from 'node:path';
 import { setTimeout as delay, } from 'node:timers/promises';
 
 import {
@@ -17,6 +17,7 @@ import {
 import {
   type ConfigWatcher,
   createConfigWatcher,
+  type FileState,
 } from '../dist/final/neutral/index.mjs';
 
 import {
@@ -26,8 +27,8 @@ import {
 
 /**
  Upper bound for waiting on an `onChange` call:
- on Linux the watcher polls `fs.watchFile` at Node's default interval and
- then debounces one second,
+ on Linux the watcher polls file signatures at Node's `fs.watchFile`
+ interval and then debounces one second,
  so a call can arrive several seconds after the write. The bound exits
  early when the call arrives,
  so the slack only pays on slow schedulers.
@@ -78,7 +79,7 @@ const CLOSE_DROP_WINDOW = 8_000;
  
  @example
  ```ts
- const fixture = await createWatcherFixture();
+ const fixture = createWatcherFixture();
  fixture.watcher.close();
  ```
  */
@@ -112,10 +113,10 @@ type WatcherFixture = {
  
  @example
  ```ts
- const fixture = await createWatcherFixture();
+ const fixture = createWatcherFixture();
  ```
  */
-async function createWatcherFixture(): Promise<WatcherFixture> {
+function createWatcherFixture(): WatcherFixture {
   /**
    Disposable directory holding the watched config file.
    */
@@ -123,7 +124,7 @@ async function createWatcherFixture(): Promise<WatcherFixture> {
   /**
    Absolute path of the watched config file.
    */
-  const filePath = path.join(
+  const filePath = join(
     directory,
     'config.json',
   );
@@ -146,12 +147,6 @@ async function createWatcherFixture(): Promise<WatcherFixture> {
       calls.push(Date.now(),);
     },
   },);
-  /**
-   Settle window letting `fs.watchFile` record its baseline before any
-   case write: Node takes that first stat asynchronously, so a write
-   landing before it becomes the baseline and never fires a change.
-   */
-  await delay(WATCH_SETTLE_WINDOW,);
   return {
     directory,
     filePath,
@@ -159,16 +154,6 @@ async function createWatcherFixture(): Promise<WatcherFixture> {
     watcher,
   };
 }
-
-/**
- Settle window between watcher creation and the first case write.
- 
- @example
- ```ts
- WATCH_SETTLE_WINDOW; // 500
- ```
- */
-const WATCH_SETTLE_WINDOW = 500;
 
 /**
  Waits until the recorded call count reaches the wanted count,
@@ -215,7 +200,7 @@ await describe({
         /**
          Watcher fixture under test.
          */
-        const fixture = await createWatcherFixture();
+        const fixture = createWatcherFixture();
         writeConfigFile({
           directory: fixture.directory,
           data: {
@@ -237,12 +222,114 @@ await describe({
     },),
 
     it({
+      name: 'reads the watched file state before it returns, so a write made in the same tick still differs',
+      fn: async () => {
+        /**
+         Directory whose config file is never created.
+         */
+        const directory = createTempDirectory();
+        /**
+         Path the watcher is told to watch and read.
+         */
+        const filePath = join(
+          directory,
+          'config.json',
+        );
+        /**
+         Paths the injected reader was asked about, in call order.
+         */
+        const reads: string[] = [];
+        /**
+         Watcher whose reader records every baseline and poll read.
+         */
+        const watcher = createConfigWatcher({
+          path: filePath,
+          onChange: function ignoreChange(): void {
+            // This case asserts the baseline read, not delivery.
+          },
+          readState: function recordRead(
+            request: { readonly path: string; },
+          ): FileState {
+            reads.push(request.path,);
+            return { kind: 'absent', };
+          },
+        },);
+        // Asserted without awaiting, and before the first poll is due: the
+        // baseline has to be fixed by the time the factory returns, or a write
+        // the caller makes next lands before the watcher knows which file it
+        // started from and is never reported.
+        expect(reads,).toEqual([filePath,],);
+        watcher
+          .close();
+      },
+    },),
+
+    it({
+      name: 'reports the change a poll sees between two file-state reads',
+      fn: async () => {
+        /**
+         Directory standing in for the watched location; no file is written.
+         */
+        const directory = createTempDirectory();
+        /**
+         Path the injected reader answers for.
+         */
+        const filePath = join(
+          directory,
+          'config.json',
+        );
+        /**
+         State the reader reports once the case flips it.
+         */
+        const rewritten: FileState = {
+          kind: 'present',
+          inode: 2n,
+          size: 9n,
+          modifiedNanoseconds: 1n,
+        };
+        /**
+         Whether the reader already reports the rewrite.
+         */
+        let isRewritten = false;
+        /**
+         Timestamps recorded by `onChange`.
+         */
+        const calls: number[] = [];
+        /**
+         Watcher under test,
+         polling an injected reader instead of a file.
+         */
+        const watcher = createConfigWatcher({
+          path: filePath,
+          onChange: function recordChange(): void {
+            calls.push(Date.now(),);
+          },
+          readState: function reportState(): FileState {
+            return isRewritten ? rewritten : { kind: 'absent', };
+          },
+        },);
+        isRewritten = true;
+        /**
+         Whether the poll reported the change within the bound.
+         */
+        const arrived = await waitForCallCount({
+          calls,
+          wantedCount: 1,
+        },);
+        watcher
+          .close();
+        expect(arrived,).toBe(true,);
+        expect(calls,).toHaveLength(1,);
+      },
+    },),
+
+    it({
       name: 'coalesces a burst of writes into a single onChange call',
       fn: async () => {
         /**
          Watcher fixture under test.
          */
-        const fixture = await createWatcherFixture();
+        const fixture = createWatcherFixture();
         for (const run of [
           'burst-one',
           'burst-two',
@@ -275,7 +362,7 @@ await describe({
         /**
          Watcher fixture under test.
          */
-        const fixture = await createWatcherFixture();
+        const fixture = createWatcherFixture();
         writeConfigFile({
           directory: fixture.directory,
           data: {
@@ -309,7 +396,7 @@ await describe({
         /**
          Watcher fixture under test.
          */
-        const fixture = await createWatcherFixture();
+        const fixture = createWatcherFixture();
         writeConfigFile({
           directory: fixture.directory,
           data: {
@@ -329,7 +416,7 @@ await describe({
         /**
          Watcher fixture under test.
          */
-        const fixture = await createWatcherFixture();
+        const fixture = createWatcherFixture();
         fixture.watcher
           .close();
         fixture.watcher

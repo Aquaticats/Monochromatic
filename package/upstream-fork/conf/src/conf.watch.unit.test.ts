@@ -27,7 +27,7 @@ import {
 
 /**
  Upper bound on watcher waits;
- Linux `fs.watchFile` polls about every 5007 milliseconds.
+ the watcher polls file signatures about every 5007 milliseconds.
  */
 const WATCH_TIMEOUT_MILLISECONDS = 25_000;
 

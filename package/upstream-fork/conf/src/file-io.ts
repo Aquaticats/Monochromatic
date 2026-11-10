@@ -12,7 +12,11 @@
  @module
  */
 
-import path from 'node:path';
+import {
+  basename,
+  dirname,
+  join,
+} from 'node:path';
 import process from 'node:process';
 import { randomUUID, } from 'node:crypto';
 import {
@@ -20,6 +24,7 @@ import {
   mkdirSync,
   readFileSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -104,6 +109,143 @@ export function pathExists({
 }
 
 //endregion File reads
+
+//region File state
+
+/**
+ What change detection compares: whether a file is there and when it last
+ changed.
+ 
+ The present state carries the inode because the atomic write renames a fresh
+ file over the target: a rewrite of the same length inside the same
+ nanosecond still replaces the inode.
+ 
+ @example
+ ```ts
+ const present: FileState = {
+   kind: 'present',
+   inode: 1n,
+   size: 24n,
+   modifiedNanoseconds: 1_700_000_000_000_000_000n,
+ };
+ const absent: FileState = { kind: 'absent', };
+ ```
+ */
+export type FileState = {
+  /**
+   Reported when the path holds no file to read.
+   */
+  readonly kind: 'absent';
+} | {
+  /**
+   Reported when the path holds a file.
+   */
+  readonly kind: 'present';
+  /**
+   Inode number of the file.
+   */
+  readonly inode: bigint;
+  /**
+   Content length in bytes.
+   */
+  readonly size: bigint;
+  /**
+   Modification time in nanoseconds,
+   exact so a rewrite inside one millisecond still differs.
+   */
+  readonly modifiedNanoseconds: bigint;
+};
+
+/**
+ Reads one path's state, without following symbolic links.
+ 
+ Synchronous on purpose: a watcher takes its baseline through this call
+ before it returns,
+ so a write made by the caller afterwards cannot be mistaken for the state
+ the watcher started from.
+ 
+ @param path - Absolute path to read.
+ 
+ @param logger - Logger for a path that cannot be read at all.
+ 
+ @returns State of the path,
+ absent when it holds no file or cannot be read at all.
+ 
+ @example
+ ```ts
+ readFileState({ path: '/tmp/app/config.json' });
+ ```
+ */
+export function readFileState({
+  path: filePath,
+  logger,
+}: {
+  readonly path: string;
+  readonly logger?: Logger;
+},): FileState {
+  /**
+   Logger wrapped with this function's name so a read failure names its
+   origin.
+   */
+  const log = logger ?? tagged({
+    tag: readFileState.name,
+  },);
+  try {
+    /**
+     File metadata with exact timestamps and identifiers.
+     */
+    const metadata = statSync(
+      filePath,
+      { bigint: true, },
+    );
+    return {
+      kind: 'present',
+      inode: metadata.ino,
+      size: metadata.size,
+      modifiedNanoseconds: metadata.mtimeNs,
+    };
+  }
+  catch (error) {
+    // A path that cannot be stat'ed holds no file state to compare: it is
+    // missing, denied, or a broken link, and the store's read path reports the
+    // same conditions rather than a state.
+    log.debug(`no file state readable at ${filePath}: ${caughtValueText(error,)}`,);
+    return { kind: 'absent', };
+  }
+}
+
+/**
+ Reports whether two states describe the same file.
+ 
+ @param before - State read earlier.
+ 
+ @param after - State read later.
+ 
+ @returns `true` when nothing changed between the two reads.
+ 
+ @example
+ ```ts
+ isFileStateEqual({
+   before: readFileState({ path: '/tmp/app/config.json' }),
+   after: readFileState({ path: '/tmp/app/config.json' }),
+ });
+ ```
+ */
+export function isFileStateEqual({
+  before,
+  after,
+}: {
+  readonly before: FileState;
+  readonly after: FileState;
+},): boolean {
+  if ((before.kind === 'absent') || (after.kind === 'absent'))
+    return before.kind === after.kind;
+  return (before.inode === after.inode)
+    && (before.size === after.size)
+    && (before.modifiedNanoseconds === after.modifiedNanoseconds);
+}
+
+//endregion File state
 
 //region File writes
 
@@ -195,9 +337,9 @@ export function writeFileAtomic({
    Randomly-named sibling the content is staged in before the atomic
    rename.
    */
-  const temporaryPath = path.join(
-    path.dirname(filePath,),
-    `.${path.basename(filePath,)}.${randomUUID()}.tmp`,
+  const temporaryPath = join(
+    dirname(filePath,),
+    `.${basename(filePath,)}.${randomUUID()}.tmp`,
   );
   try {
     writeFileSync(

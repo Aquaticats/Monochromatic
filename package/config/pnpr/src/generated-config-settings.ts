@@ -145,6 +145,9 @@ export const PNPR_EXCLUDED_PACKAGES: Readonly<Record<string, string>> = {
   // pnpr-publish run 34917976384: rolldown `Could not resolve 'canvg'` from jspdf 4.2.1.
   '@monochromatic-dev/doodle-widget-app':
     'app exposing nothing importable; its client build also cannot resolve the optional `canvg` import inside jspdf',
+  // No consumer wants this app: its one importable surface is the `./main/*` export nothing imports.
+  '@monochromatic-dev/file-manager-variant-electron':
+    'desktop Electron app whose only importable surface is its `./main/*` export, which no workspace package and no published package imports',
 };
 
 //endregion Fixed facts of the generated pnpr server config

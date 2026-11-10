@@ -10,6 +10,7 @@
   "dependencies": {
     "@libsql/client": "catalog:",
     "@libsql/kysely-libsql": "catalog:",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/hyperscript-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",

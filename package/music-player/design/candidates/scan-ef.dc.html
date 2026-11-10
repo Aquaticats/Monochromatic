@@ -88,7 +88,7 @@ class Component extends DCLogic {
         num: i === 0 ? "▶" : String(i + 1), numFg: i === 0 ? "#D0BCFF" : "#5A5561",
         title: t[0], sub: t[1] + " · " + t[2] + " dBTP", bg: i === 0 ? "#332F3F" : "transparent"
       })),
-      caption: "SCAN-E (left) — a 2dp determinate line on the very bottom edge, nothing else: it occupies the 4px always, so nothing reflows when analysis starts or ends; no text, no control. SCAN-F (right) — a 56dp bar with the count and a fixed-width Pause that is always rendered (never appears/disappears mid-scan, unlike scan-a). Both leave when analysis finishes; the deck above is identical. Compare against scan-b."
+      caption: "SCAN-E (left), a 2dp determinate line on the very bottom edge, nothing else: it occupies the 4px always, so nothing reflows when analysis starts or ends; no text, no control. SCAN-F (right), a 56dp bar with the count and a fixed-width Pause that is always rendered (never appears/disappears mid-scan, unlike scan-a). Both leave when analysis finishes; the deck above is identical. Compare against scan-b."
     };
   }
 }

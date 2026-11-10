@@ -118,8 +118,9 @@ export function tokenizeExec({ exec, }: { readonly exec: string; },): readonly s
          Lookahead char for the quoted-backslash escape branch.
          */
         const next = exec[i + 1];
+        // Unreachable: the length check above guarantees a following character.
         if (next === undefined)
-          break; // unreachable (length checked above)
+          break;
         if ((next === '"') || (next === '`')
           || (next === '$')
           || (next === '\\')) {
@@ -161,8 +162,9 @@ export function tokenizeExec({ exec, }: { readonly exec: string; },): readonly s
        Lookahead char for the `%` field-code branch.
        */
       const next = exec[i + 1];
+      // Unreachable: the length check above guarantees a following character.
       if (next === undefined)
-        break; // unreachable (length checked above)
+        break;
       if (next === '%') {
         current += '%';
         i += 2;
