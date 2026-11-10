@@ -5,6 +5,7 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 import * as v from 'valibot';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -161,11 +162,14 @@ export function getSettingsPaths(
    */
   const { HOME: envHome, } = env;
   /**
-   Home directory used by pi for global settings.
+   Home directory used by pi for global settings: an explicit option wins, then
+   `HOME`, then the runtime user's home. A service environment without `HOME`
+   still reads the real global file instead of a literal `~` directory, which
+   `join` never expands and whose read fails as an absent file.
    */
   const home = options.home
     ?? envHome
-    ?? '~';
+    ?? homedir();
   return {
     globalPath: join(
       home,
