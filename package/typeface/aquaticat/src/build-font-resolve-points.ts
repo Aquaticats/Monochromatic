@@ -6,6 +6,7 @@
  */
 
 import type { SVGPathCommand, } from './parse-svg.ts';
+import type { Coordinate, } from './font-coordinate.ts';
 
 /**
  Resolves absolute X/Y positions from SVG path commands (expanding H/V to full coords).
@@ -22,17 +23,11 @@ import type { SVGPathCommand, } from './parse-svg.ts';
  */
 export function resolveAbsolutePoints(
   commands: readonly SVGPathCommand[],
-): [
-  number,
-  number,
-][] {
+): Coordinate[] {
   /**
    Accumulator of resolved absolute coordinates, written in command order.
    */
-  const points: [
-    number,
-    number,
-  ][] = [];
+  const points: Coordinate[] = [];
   /**
    X component of the pen cursor while replaying path commands.
    

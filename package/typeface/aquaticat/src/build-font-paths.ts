@@ -10,8 +10,8 @@
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type * as opentype from 'opentype.js';
 
-import { fontY, } from './build-font-metrics.ts';
 import { resolveAbsolutePoints, } from './build-font-resolve-points.ts';
+import { toFontCoordinate, } from './font-coordinate.ts';
 import {
   type CellPath,
   parseSvgPathD,
@@ -158,34 +158,70 @@ export function addFilledPath({
       === 'M') {
       cx = cmd.x;
       cy = cmd.y;
+      /**
+       Glyph-space point of the pen cursor after the move.
+       */
+      const [glyphX, glyphY,] = toFontCoordinate({
+        x: cx,
+        y: cy,
+        cellX,
+        xShift,
+      },);
       otPath.moveTo(
-        (cx - cellX) + xShift,
-        fontY(cy,),
+        glyphX,
+        glyphY,
       );
     }
     else if (cmd.type
       === 'L') {
       cx = cmd.x;
       cy = cmd.y;
+      /**
+       Glyph-space point of the pen cursor after the line.
+       */
+      const [glyphX, glyphY,] = toFontCoordinate({
+        x: cx,
+        y: cy,
+        cellX,
+        xShift,
+      },);
       otPath.lineTo(
-        (cx - cellX) + xShift,
-        fontY(cy,),
+        glyphX,
+        glyphY,
       );
     }
     else if (cmd.type
       === 'H') {
       cx = cmd.x;
+      /**
+       Glyph-space point after the horizontal command, whose Y is unchanged.
+       */
+      const [glyphX, glyphY,] = toFontCoordinate({
+        x: cx,
+        y: cy,
+        cellX,
+        xShift,
+      },);
       otPath.lineTo(
-        (cx - cellX) + xShift,
-        fontY(cy,),
+        glyphX,
+        glyphY,
       );
     }
     else if (cmd.type
       === 'V') {
       cy = cmd.y;
+      /**
+       Glyph-space point after the vertical command, whose X is unchanged.
+       */
+      const [glyphX, glyphY,] = toFontCoordinate({
+        x: cx,
+        y: cy,
+        cellX,
+        xShift,
+      },);
       otPath.lineTo(
-        (cx - cellX) + xShift,
-        fontY(cy,),
+        glyphX,
+        glyphY,
       );
     }
     else if (cmd.type
