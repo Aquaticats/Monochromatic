@@ -7946,10 +7946,14 @@ The wording of a refusal:
 
 Branch `test/git-policy-cli-word-merge-controls-wait-on-a-marker`,
 from main at `283d7d9053`.
-Three commits:
+Seven commits:
 `76b18e0f3b` (the stand-in Git and the two controls),
-`3e9133dbd5` (a warning in the stand-in's pipe opener) and
-`47f4caf239` (two doc lines the linter broke).
+`3e9133dbd5` (a warning in the stand-in's pipe opener),
+`47f4caf239` (two doc lines the linter broke),
+`8e3e04db94` (the gate's own control,
+the start record and the marker),
+`6eba3eb07e` and `3bf4062f59` (this record),
+and `7eb3328226` (the gate's own control and the final runs in it).
 
 ### What replaced the window
 
