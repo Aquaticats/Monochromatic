@@ -3674,6 +3674,18 @@ quoted by their chosen labels:
 - a plain `git commit` with unmerged files lands as the merge commit with the markers and warns per file:
   "Warn and finish the merge (Recommended)".
 
+A branch lock a killed Git left behind (owner,
+question tool,
+2026-11-09,
+verbatim)
+"Make it,
+hold until lock goes (Recommended)":
+the commit is written and kept on a side ref,
+the command exits `0`,
+says the branch has not moved yet and names the lock,
+and the next command that finds the lock gone moves the branch
+(see "A commit held behind a reference lock").
+
 The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
 for a `git merge` the person types,
 and for a `git commit`:
@@ -7187,29 +7199,103 @@ The locks are judged and cleared by the judgement above,
 through the same proof,
 notice and set-aside removal,
 and the landing tries its write again as soon as nothing stands.
-A lock that is still there at the bound,
-or one that a proof does not reach,
-ends the commit with a plain message that names the lock,
-says what is known about its holder,
-gives the exact command that clears it,
-and says that nothing in the repository changed
-(`FailureCode::ReferenceLocked`,
-`ClientFailure::ReferenceLocked`).
 No lock is removed on a claim about this service's own killed child,
 for the reasons above.
 The words of the judgement also go to the journal,
 with the lock's size,
 age and the evidence it was judged by.
+
+##### A commit held behind a reference lock
+
+A lock that is still there at the bound,
+or one that a proof does not reach,
+no longer ends the commit.
+The owner chose,
+verbatim,
+"Make it,
+hold until lock goes (Recommended)"
+(2026-11-09),
+and the rule it answers is "Commits should never fail."
+The landing keeps what the batch already has:
+its intent,
+the scratch reference `refs/worktree/cli-git-service/<batch>` that holds its commits
+and the witness of the index file it saw,
+and it publishes a record of the hold,
+whole or absent,
+before the client is answered
+(`src/native/landing/held_commit_record.rs`).
+The record names the two branch values,
+the commits,
+the journal,
+the index,
+the message the branch move writes in the reflog,
+the locks that stood and the instant the commit was held,
+in `monochromatic-git-policy-cli/held-commits/<batch>.held` below the worktree's own Git directory.
+The batch's held push records are given back,
+because no branch names the commit yet.
+The answer is `ServiceMessage::Held` with the words,
+the client prints them and exits `0`,
+and the commit is on the side reference.
+
+A kill at any instruction leaves a state the next command settles again,
+and the commit is never lost and never applied twice:
+a kill before the record leaves the intent and the side reference,
+which a restart drops with the commit kept on `refs/cli-git/kept/<batch>`;
+a kill after it leaves a record whose batch is settled from the branch.
+
+Every command in the worktree reads the records and says what each held commit waits for:
+a heading with the count,
+then one line per record naming the branch,
+the commit and the lock,
+with the exact `rm --` that clears it when no Git process uses the repository.
+A command whose output a program reads prints nothing and settles the same.
+The first command that finds the locks gone settles them,
+and so does the service before its next batch and at its start
+(`src/native/landing/held_commit_settle.rs`).
+
+The settlement reads the branch and moves it by one compare-and-swap,
+with the side reference removed in the same transaction.
+The index entries are installed under Git's index lock,
+which the settlement takes before the move and records the witness of under it,
+so nothing another program staged is overwritten and the entries are not left to the
+owed record when the locked commands of a worktree have touched the index since the landing.
+A branch that moved while the lock stood takes the change merged onto the tip from the base the
+batch was prepared on
+(`git merge-tree --write-tree --merge-base`,
+the primitive "Retry after a moved branch" uses),
+and the commit is written again with its own authorship,
+committer and message,
+each commit of a batch on the one before,
+its one parent the tip
+(`src/native/landing/held_commit_replay.rs`).
+A path that conflicts is not landed:
+the record stays,
+the commit stays on its side reference and the paths are named.
+A commit that concludes a merge,
+one prepared for a branch that did not exist and that another session created,
+and a signed commit are kept and named the same way,
+because a command that resumes a commit runs no policy,
+no hook and no signing program,
+and no command starts a wait for a key on its own.
+
+Nothing released the commit's push:
+the command that made it had ended,
+so no post-commit gate ran.
+The next commit or push from the branch carries the commit,
+which the held push notice says.
+
 Tests,
 red first:
-`a_reference_lock_nothing_proves_gone_is_named_with_the_command_that_clears_it`,
-with `a_lock_a_live_process_has_open_is_named_and_left`,
-`a_staging_file_with_no_lock_is_cleared_and_the_write_may_be_tried_again`,
-`nothing_standing_costs_no_wait`,
-`a_young_lock_is_looked_at_again_until_the_deadline_and_then_named`,
+`a_standing_lock_keeps_the_branch_without_losing_the_commit`,
+`a_held_commit_lands_once_the_lock_is_gone`,
+`a_held_commit_lands_on_the_branch_another_session_moved`,
+`a_held_commit_that_conflicts_keeps_its_record_and_names_the_paths`,
+`a_record_reads_back_as_it_was_written`,
+`holding_writes_the_record_the_intent_describes`,
 and the binary controls
-`a_commit_that_meets_a_reference_lock_names_it_with_the_command_that_clears_it` and
-`a_commit_that_meets_a_live_reference_lock_waits_for_it_and_lands`.
+`a_commit_that_meets_a_lock_nothing_proves_gone_is_held_and_moves_the_branch_when_it_goes`,
+`a_held_commit_lands_on_the_branch_another_session_moved` and
+`two_held_commits_wait_beside_each_other_and_both_land_in_order`.
 
 #### Races, and how each is handled
 
@@ -8875,7 +8961,10 @@ and cannot be disabled or assigned a severity through repository config.
   an explicit-path commit names one file of the worktree that an ignore rule matches while no index entry tracks it,
   so the private staging would refuse it.
   It is decided from the selection's own elements before any `git add` runs,
-  the commit is not made,
+  and the index it asks about is the real one,
+  read in process:
+  a commit whose named paths the index all holds asks Git nothing.
+  The commit is not made,
   nothing is staged by it,
   and the message names every rejected path with both ways forward:
   leave the file out of the commit's paths,
@@ -11535,10 +11624,15 @@ For injected commit-only semantics:
     where native Git refuses the pathspec,
     and a path that an ignore rule matches and that no index stages is refused before that staging runs,
     with the finding `explicit-path-commit/named-path-ignored` (see "Core finding event"):
-    the selection's own elements that name one file are asked of
-    `git check-ignore -z --stdin` under the real index,
+    the real index is read in process,
+    and the selection's own elements that name one file and that the index holds no entry at are asked of
+    `git check-ignore -z --stdin` under the real index in one start,
     so nothing depends on the words of a Git message and a path the real index tracks is left out,
     as `git add` leaves it out.
+    A commit whose named paths the index all holds starts no Git for this question,
+    which the spawn budget of `binary_budget_tests.rs` counts;
+    a reader that declines the index leaves every name to Git,
+    as before.
     The commit is not made,
     nothing is staged by it,
     and the message names every rejected path with both ways forward:
@@ -12324,7 +12418,13 @@ the attempts of one landing are `LANDING_ATTEMPTS` in `src/native/landing/servic
 The service keeps a journal of each batch it lands and settles an unfinished batch before its next batch;
 a service's start settles only an earlier release's shared journal,
 and the wrapper recovers nothing for a commit.
-A batch whose branch does not show its commit is dropped:
+A batch whose branch does not show its commit is dropped,
+unless a record of a hold names it:
+a held batch is settled first
+(`held_commit_settle.rs`),
+and one whose lock still stands is left with `Handled::Held` and `Recovery::Hold`,
+because dropping it would take a commit the person made and kept.
+Otherwise it is dropped:
 its commit is written to `refs/cli-git/kept/<batch>` before the intent goes
 (`keep_what_the_branch_does_not_show` in `src/native/landing/service_land_finish.rs`),
 so the commit of a branch write that a stop left running,
@@ -13167,10 +13267,16 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 10,
-the first whose landing answers `reference-locked`
-when a reference lock refused its branch write;
-a client of version 9 reads a failure word it does not know as an answer it cannot read.
+The commit request speaks protocol version 11,
+the first whose landing answers `held`
+when a reference lock keeps a commit off its branch:
+the answer carries the commit and the words the command prints,
+and a client of version 10 reads a message type it does not know as a line it cannot read,
+so a service of that version retires before a request is sent.
+Version 10 was the first whose landing answers `reference-locked`
+when a reference lock refused its branch write,
+which version 11 keeps for the one case a commit still ends on:
+a hold whose record cannot be written.
 Version 9 was the first that names the commit's scratch tree in a field of its own.
 A service of version 8 works the tree out from the request's index,
 which is the worktree's real index rather than a tree,
@@ -14749,6 +14855,18 @@ Before release readiness:
 - the package README exists and matches this interface;
 - Clippy reports no warning and the crate's tests pass in the bounded container
   (`mise run //package/git-policy/cli:native:test:container`);
+- the btrfs controls pass on this host,
+  which a real release waits for before it dispatches
+  (`mise run //package/git-policy/cli:native:release:host-controls`):
+  the container gate runs on an overlay filesystem,
+  where each of those controls prints `BTRFS CONTROL NOT RUN`,
+  passes,
+  and leaves the container run no evidence they work on btrfs;
+  a real release refuses to dispatch when one of them fails,
+  when one prints that line for any reason but needing a filesystem that is not btrfs,
+  when the run was stopped at the deadline it is given,
+  or when the run holds no passing status line for one of the controls the gate requires;
+  a `--dry-run` skips the controls and starts the workflow's dry run instead;
 - the release executable builds with `cargo build --release --locked --bin monochromatic-git-policy-cli`;
 - the `git` that `PATH` resolves first leads to `monochromatic-git-policy-cli`
   (`readlink --canonicalize "$(command -v git)"`);
