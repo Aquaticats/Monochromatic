@@ -66,13 +66,15 @@ pub enum Terminal {
 /// function hasControllingTerminal(): boolean { try { fs.closeSync(fs.openSync('/dev/tty', 'r+')); return true } catch { return false } }
 /// ```
 pub fn has_controlling_terminal() -> bool {
-    // `open` with both access modes asks for the terminal Git itself asks for; the file closes at once, so nothing holds the
-    //  terminal of a person who is not typing here.
+    // `open` with both access modes is the call Git 2.56.0 makes in `git_terminal_prompt` (`prompt.c`,
+    //  `open("/dev/tty", O_RDWR)`), so this answers whether Git could ask on this terminal at all: one it cannot open for
+    //  writing is one Git's own prompt cannot use either. The file closes at once, and no byte is read or written, so nothing
+    //  of a person's terminal changes.
     match std::fs::OpenOptions::new().read(true).write(true).open("/dev/tty") {
         // `Ok(_file)` is the "present" variant: the kernel named a controlling terminal.
-        Ok(_file) => true,
+        Ok(_file) => return true,
         // `Err(_)` is the "absent" variant: there is none, or this system has no `/dev/tty` at all.
-        Err(_) => false,
+        Err(_) => return false,
     }
 }
 

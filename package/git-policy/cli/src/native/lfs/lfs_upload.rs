@@ -388,7 +388,7 @@ pub fn run_upload_interactive(
             };
             // Terminal output error: the program's own words are advisory; the exit status carries the result.
             let _relayed = diagnostics.write_all(relayed.as_slice());
-            let (code, ended): (i32, ChildOutcome) = match ended {
+            let (code, outcome): (i32, ChildOutcome) = match ended {
                 UploadEnd::Finished(outcome) => (exit_code(outcome), outcome),
                 UploadEnd::Stopped(cause) => {
                     // Terminal output error: the explanation carries the result.
@@ -399,7 +399,7 @@ pub fn run_upload_interactive(
             if code == 0 {
                 continue;
             }
-            let description: String = match ended {
+            let description: String = match outcome {
                 ChildOutcome::Exited(status) => format!("exited with status {status}"),
                 ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
             };

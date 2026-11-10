@@ -4571,6 +4571,15 @@ as the push itself is
 A stopped upload's program is ended with the grace every stopped child gets,
 and what it started goes with it,
 so the password program a login would have started cannot outlive the push either.
+One shape stays unbounded by the owner's own pick:
+a program holding an open connection to the server is waited for however long it takes
+("Wait while connected",
+owner,
+2026-11-03),
+so a server that accepts the connection and never answers still holds an interactive push.
+What closes that shape's login case is the never-prompt pair,
+not the window:
+a missing login fails at once instead of leaving the connection's wait with nothing to answer it.
 The upload still owns its child through `SignalGuard::start_relayed`,
 which hands it over still published,
 so a signal a process sends to the wrapper reaches the program for the whole wait,

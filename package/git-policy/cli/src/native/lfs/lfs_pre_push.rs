@@ -342,22 +342,26 @@ pub fn failed_message(status: &str) -> String {
 /// and a person reading them may not know that "terminal prompts disabled" means
 ///  "a login is missing,
 /// and nothing was allowed to ask for one";
-/// these are the spellings the refusal is recognized by,
-/// and each is a string the two programs print.
-/// Measured on 2026-11-10 against a server answering `401` with `LFS-Authenticate`.
+/// these are the spellings the refusal is recognized by.
+/// What a run printed on 2026-11-10,
+/// with the pair set and a server answering `401` with `LFS-Authenticate`
+///  (`binary_lfs_server_tests.rs`,
+/// the control of the incident's own invocation):
+/// `fatal: could not read Username for 'http://127.0.0.1:46731': terminal prompts disabled`
+///  and `batch response: Git credentials for http://127.0.0.1:46731/lfs not found.`
+/// The last entry is git-lfs 3.8.1's own answer when a login it was given is refused,
+///  read in this session's control of the same incident with a prompt program that answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const LOGIN_NEEDED = ['terminal prompts disabled', 'could not read Username', 'could not read Password', 'Authentication required', 'too many authentication attempts'];
+/// const LOGIN_NEEDED = ['terminal prompts disabled', 'could not read Username', 'could not read Password', 'too many authentication attempts'];
 /// ```
-const LOGIN_NEEDED: [&str; 5] = [
+const LOGIN_NEEDED: [&str; 4] = [
     // Git's own words from `prompt.c`, with terminal prompts off.
     "terminal prompts disabled",
     // Git's credential prompt when no askpass program and no terminal answer.
     "could not read Username",
     "could not read Password",
-    // git-lfs's words for a `401` answer it could not get a login for.
-    "Authentication required",
     // git-lfs's words when every login it was given was refused.
     "too many authentication attempts",
 ];

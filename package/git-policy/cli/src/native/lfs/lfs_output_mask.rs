@@ -179,9 +179,10 @@ pub fn mask_userinfo_text(text: &str) -> String {
 /// Why:
 ///   A refusal that says which server asked for a login is actionable,
 /// and the program's own words name it:
-/// Git quotes the URL in "could not read Username for <https://host>",
-///  and git-lfs names it in "Authorization error:
-/// <https://host/objects/batch>".
+/// Git quotes the URL in "could not read Username for '<http://host:port>'",
+///  as the incident's own run printed,
+/// and git-lfs names it in "Git credentials for
+///  <http://host:port/lfs> not found."
 /// The host comes out of the same authority rule the mask uses,
 /// so a token in front of it is never part of what is returned.
 ///

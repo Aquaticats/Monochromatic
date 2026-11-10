@@ -900,23 +900,25 @@ fn processes_under(root: &Path) -> Vec<String> {
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     loop {
         let mut found: Vec<String> = Vec::new();
-        if let Ok(entries) = std::fs::read_dir("/proc") {
-            for entry in entries.flatten() {
-                let process: PathBuf = entry.path();
-                let Ok(cwd) = std::fs::read_link(process.join("cwd")) else {
-                    continue;
-                };
-                if !cwd.starts_with(root) {
-                    continue;
-                }
-                let command: String = std::fs::read(process.join("cmdline"))
-                    .unwrap_or_default()
-                    .split(|byte| { return *byte == 0; })
-                    .map(|word| { return String::from_utf8_lossy(word).into_owned(); })
-                    .collect::<Vec<String>>()
-                    .join(" ");
-                found.push(format!("{}:{command}", entry.file_name().to_string_lossy()));
+        // What: A system with no `/proc` makes this check fail instead of passing with nothing looked at.
+        // Why:  The control's point is that the run left no program behind, and a walk that cannot look would assert exactly
+        //  the sentence it was meant to test.
+        let entries: std::fs::ReadDir = std::fs::read_dir("/proc").expect("this control needs /proc to look for leftover programs");
+        for entry in entries.flatten() {
+            let process: PathBuf = entry.path();
+            let Ok(cwd) = std::fs::read_link(process.join("cwd")) else {
+                continue;
+            };
+            if !cwd.starts_with(root) {
+                continue;
             }
+            let command: String = std::fs::read(process.join("cmdline"))
+                .unwrap_or_default()
+                .split(|byte| { return *byte == 0; })
+                .map(|word| { return String::from_utf8_lossy(word).into_owned(); })
+                .collect::<Vec<String>>()
+                .join(" ");
+            found.push(format!("{}:{command}", entry.file_name().to_string_lossy()));
         }
         if found.is_empty() || std::time::Instant::now() > deadline {
             return found;
