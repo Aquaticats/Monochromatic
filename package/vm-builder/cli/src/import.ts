@@ -21,6 +21,7 @@ import {
 import { join, } from 'node:path';
 
 import { generateDomainXml, } from './domain-xml.ts';
+import { undefineVmIfExists, } from './domain-removal.ts';
 import { exec, } from './exec.ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
@@ -118,68 +119,6 @@ async function run(
   );
   if (child.exitCode !== 0)
     throw new Error(`${cmd} exited with code ${String(child.exitCode,)}`,);
-}
-
-/**
- Destroys and undefines an existing libvirt domain if it exists.
- No-op when the domain is not defined; the existence probe's failure is
- logged via {@link caughtValueText}.
- 
- @param name - Libvirt domain name to remove
- */
-async function undefineVmIfExists(name: string,): Promise<void> {
-  try {
-    await exec({
-      cmd: 'virsh',
-      args: [
-        '--connect',
-        LIBVIRT_URI,
-        'dominfo',
-        name,
-      ],
-    },);
-  }
-  catch (error) {
-    console.warn(
-      `[vm-builder] libvirt domain '${name}' existence probe failed; skipping removal: ${caughtValueText(error,)}`,
-    );
-    return;
-  }
-  console.log(`[vm-builder] removing existing VM '${name}'...`,);
-  /**
-   Current domain state from `virsh domstate`; `'running'` requires `destroy` before `undefine`.
-   */
-  const state = (await exec({
-    cmd: 'virsh',
-    args: [
-      '--connect',
-      LIBVIRT_URI,
-      'domstate',
-      name,
-    ],
-  },))
-    .trim();
-  if (state === 'running') {
-    await exec({
-      cmd: 'virsh',
-      args: [
-        '--connect',
-        LIBVIRT_URI,
-        'destroy',
-        name,
-      ],
-    },);
-  }
-  await exec({
-    cmd: 'virsh',
-    args: [
-      '--connect',
-      LIBVIRT_URI,
-      'undefine',
-      name,
-      '--nvram',
-    ],
-  },);
 }
 
 /**
@@ -288,7 +227,10 @@ async function copyToLibvirtImages(): Promise<void> {
   },);
 }
 
-await undefineVmIfExists(VM_NAME,);
+await undefineVmIfExists({
+  name: VM_NAME,
+  uri: LIBVIRT_URI,
+},);
 await copyToLibvirtImages();
 await importVm(VM_NAME,);
 await grantFlatpakAccess();
