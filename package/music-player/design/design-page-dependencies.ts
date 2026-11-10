@@ -131,14 +131,26 @@ export function fontFamilyValues(html: string,): readonly string[] {
 }
 
 /**
- `font` shorthand declarations in a document. A shorthand hides the family inside a value this module does not
- parse, so a page carrying one is reported instead of read.
+ `font` shorthand declarations in a document that could hide a family. A shorthand hides the family inside a value
+ this module does not parse, so a page carrying one is reported instead of read; the CSS-wide keywords set no
+ family and are not reported.
  */
 export function fontShorthandValues(html: string,): readonly string[] {
   const pattern = /(?:^|[^a-z-])font\s*:\s*([^;{}"]*)/giu;
-  return [...html.matchAll(pattern,)].map(function pick(match,): string {
-    return match[1].trim();
-  },);
+  const keywords = new Set<string>([
+    'inherit',
+    'initial',
+    'revert',
+    'revert-layer',
+    'unset',
+  ],);
+  return [...html.matchAll(pattern,)]
+    .map(function pick(match,): string {
+      return match[1].trim();
+    },)
+    .filter(function notKeyword(value,): boolean {
+      return !keywords.has(value.toLowerCase(),);
+    },);
 }
 
 /** Individual family names inside one `font-family` value. */

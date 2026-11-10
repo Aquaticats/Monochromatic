@@ -51,7 +51,7 @@ const CHECKS = [
 /** One defect the control fixture carries, and the finding text that proves a guard still reports it. */
 const CONTROLS = [
   {
-    defect: 'fonts.googleapis.com',
+    defect: 'example.org',
     run: externalReferenceFindings,
   },
   {
@@ -71,7 +71,7 @@ const CONTROLS = [
     run: vendorRecordFindings,
   },
   {
-    defect: 'loads https://unpkg.com',
+    defect: 'loads https://example.org',
     run: runtimeBuildFindings,
   },
   {

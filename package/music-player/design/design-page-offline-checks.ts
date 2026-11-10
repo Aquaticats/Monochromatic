@@ -139,9 +139,15 @@ export function unresolvedReferenceFindings({ root, }: { root: string; },): read
   return findings;
 }
 
+/** Records a `vendor/` directory holds that are not builds: the record itself and its prose. */
+const VENDOR_RECORD_FILES = new Set<string>([
+  'README.md',
+  'builds.json',
+],);
+
 /**
- Every vendored build the record names is present with the digest the record states, and no file sits in `vendor/`
- with no record saying where it came from.
+ Every vendored build the record names is present with the digest the record states and its licence text, and no
+ file sits in `vendor/` with no record saying where it came from.
  */
 export function vendorRecordFindings({ root, }: { root: string; },): readonly string[] {
   const findings: string[] = [];
@@ -149,9 +155,10 @@ export function vendorRecordFindings({ root, }: { root: string; },): readonly st
   if (record === null) {
     return [`${BUILD_RECORD} is missing or unparseable, so no vendored build has a recorded provenance`];
   }
-  const names = new Set<string>(recordedBuildNames(record,),);
+  const accounted = new Set<string>(VENDOR_RECORD_FILES,);
   for (const build of record.builds ?? []) {
     const name = String(build.file,);
+    accounted.add(name,);
     const file = join(
       root,
       'vendor',
@@ -167,12 +174,22 @@ export function vendorRecordFindings({ root, }: { root: string; },): readonly st
     }
     for (const field of [
       'license',
+      'licenseFile',
       'package',
       'version',
     ] as const) {
       if ((build[field] ?? '').length === 0) {
         findings.push(`vendor/${name} records no ${field}`);
       }
+    }
+    const licenseFile = String(build.licenseFile ?? '',);
+    accounted.add(licenseFile,);
+    if (licenseFile.length > 0 && !existsSync(join(
+      root,
+      'vendor',
+      licenseFile,
+    ),)) {
+      findings.push(`vendor/${name} names the licence file ${licenseFile} and no such file is committed`);
     }
   }
   const vendorDirectory = join(
@@ -181,7 +198,7 @@ export function vendorRecordFindings({ root, }: { root: string; },): readonly st
   );
   if (existsSync(vendorDirectory,)) {
     for (const entry of readdirSync(vendorDirectory,)) {
-      if (entry !== 'builds.json' && !names.has(entry,)) {
+      if (!accounted.has(entry,)) {
         findings.push(`vendor/${entry} is committed with no entry in ${BUILD_RECORD}`);
       }
     }

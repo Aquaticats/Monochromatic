@@ -177,24 +177,13 @@ export function shippedFamiliesOfPage(page: string,): readonly string[] {
   return [...named].sort();
 }
 
-/** Commands that visit every page and the control fixture, and read back what the session recorded. */
-export function sweepCommands({ baseUrl, controlPage, visits, }: {
+/** Commands that visit `visits` and read back what the session recorded. */
+export function sweepCommands({ baseUrl, visits, }: {
   baseUrl: string;
-  controlPage: string;
   visits: readonly Visit[];
-},): {
-  commands: string[][];
-  pages: readonly Visit[];
-} {
-  const pages = [
-    ...visits,
-    {
-      families: [],
-      page: controlPage,
-    },
-  ];
+},): string[][] {
   const commands: string[][] = [];
-  for (const visit of pages) {
+  for (const visit of visits) {
     commands.push([
       'open',
       `${baseUrl}/${visit.page}`,
@@ -212,10 +201,7 @@ export function sweepCommands({ baseUrl, controlPage, visits, }: {
     '--filter',
     'http',
   ],);
-  return {
-    commands,
-    pages,
-  };
+  return commands;
 }
 
 /** Collects a child process's output and exit, killing it at `deadlineMs`. */

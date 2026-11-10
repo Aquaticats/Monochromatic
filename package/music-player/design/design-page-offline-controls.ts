@@ -84,6 +84,7 @@ export function writeControls(base: string,): {
   rejected: string;
 } {
   const build = 'console.log("react");\n';
+  const license = 'MIT License\n';
   const record = {
     builds: [
       {
@@ -91,6 +92,7 @@ export function writeControls(base: string,): {
         package: 'react',
         version: '18.3.1',
         license: 'MIT',
+        licenseFile: 'react.LICENSE.txt',
         integrity: digestOf(build,),
       },
     ],
@@ -104,12 +106,14 @@ export function writeControls(base: string,): {
     {
       root: 'accepted',
       files: {
+        'vendor/README.md': 'the builds and where they came from\n',
         'vendor/builds.json': JSON.stringify(
           record,
           null,
           2,
         ),
         'vendor/react-18.3.1.production.min.js': build,
+        'vendor/react.LICENSE.txt': license,
         'support.js': ACCEPTED_RUNTIME,
         'candidates/support.js': ACCEPTED_RUNTIME,
         'tokens.css': "@font-face{font-family:'Roboto Flex';src:url(\"./roboto-flex.woff2\")}\n",
@@ -141,7 +145,7 @@ export function writeControls(base: string,): {
         ),
         'vendor/react-18.3.1.production.min.js': build,
         'vendor/stray-1.0.0.js': 'not recorded\n',
-        'support.js': `${ACCEPTED_RUNTIME}// https://unpkg.com/react@18.3.1/umd/react.production.min.js\n`,
+        'support.js': `${ACCEPTED_RUNTIME}// https://example.org/react.production.min.js\n`,
         'candidates/support.js': `${ACCEPTED_RUNTIME}// the copies drift\n`,
         'tokens.css': "@font-face{font-family:'Roboto Flex';src:url(\"../fonts/absent.woff2\")}\n",
         'absent-page.dc.html': `<!DOCTYPE html>
@@ -149,7 +153,7 @@ export function writeControls(base: string,): {
 <body><x-dc><div style="font-family:sans-serif">absent</div></x-dc></body></html>
 `,
         'remote.dc.html': `<!DOCTYPE html>
-<html><head><link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet"></head>
+<html><head><link href="https://example.org/remote.css" rel="stylesheet"></head>
 <body><x-dc><div style="font-family:sans-serif">remote</div></x-dc></body></html>
 `,
         'unshipped.dc.html': `<!DOCTYPE html>

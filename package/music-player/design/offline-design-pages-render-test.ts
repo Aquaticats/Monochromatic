@@ -127,7 +127,7 @@ try {
     ),
     `<!DOCTYPE html>
 <html><head>
-<link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+<link href="https://example.org/control.css" rel="stylesheet">
 </head><body><x-dc><div style="font-family:sans-serif">control</div></x-dc></body></html>
 `,
     'utf8',
@@ -138,18 +138,29 @@ try {
   //region Sweep
 
   site = await startSite({ controlRoot, },);
+  const origin = new URL(site.baseUrl,).origin;
+  const controlVisit: Visit = {
+    families: [],
+    page: controlPage,
+  };
   const visits: Visit[] = designPages(designRoot,).map(function visit(page,): Visit {
     return {
       families: shippedFamiliesOfPage(page,),
       page,
     };
   },);
-  const sweep = sweepCommands({
-    baseUrl: site.baseUrl,
-    controlPage,
-    visits,
+  const controlEntries = await runSweep({
+    commands: sweepCommands({
+      baseUrl: site.baseUrl,
+      visits: [controlVisit],
+    },),
   },);
-  const entries = await runSweep({ commands: sweep.commands, },);
+  const entries = await runSweep({
+    commands: sweepCommands({
+      baseUrl: site.baseUrl,
+      visits,
+    },),
+  },);
 
   //endregion Sweep
 
@@ -157,7 +168,7 @@ try {
 
   const failures: string[] = [];
   const findings: string[] = [];
-  for (const [index, visit] of sweep.pages.entries()) {
+  for (const [index, visit] of visits.entries()) {
     const answer = entries[index * 2 + 1]?.result?.result;
     if (typeof answer !== 'string') {
       findings.push(`${visit.page}: the browser answered ${JSON.stringify(answer,)}`);
@@ -169,12 +180,11 @@ try {
     },),);
   }
 
-  for (const error of entries[sweep.pages.length * 2]?.result?.errors ?? []) {
+  for (const error of entries[visits.length * 2]?.result?.errors ?? []) {
     findings.push(`a page raised ${String(error.text,)}`);
   }
 
-  const origin = new URL(site.baseUrl,).origin;
-  const recorded = entries[sweep.pages.length * 2 + 1]?.result?.requests ?? [];
+  const recorded = entries[visits.length * 2 + 1]?.result?.requests ?? [];
   findings.push(...requestFindings({
     origin,
     recorded,
@@ -182,21 +192,22 @@ try {
 
   //region Controls
 
-  const controlProbe = entries[(sweep.pages.length - 1) * 2 + 1]?.result?.result;
+  const controlProbe = controlEntries[1]?.result?.result;
   const controlFindings = typeof controlProbe === 'string'
     ? pageFindings({
       probe: JSON.parse(controlProbe,) as Probe,
-      visit: {
-        families: [],
-        page: controlPage,
-      },
+      visit: controlVisit,
     },)
     : [];
   if (controlFindings.length < 2) {
     failures.push(`control: the fixture that mounts nothing reported ${controlFindings.length} findings`);
   }
-  if (!findings.some(function remote(finding,): boolean {
-    return finding.includes('fonts.googleapis.com',);
+  const controlRequests = controlEntries[3]?.result?.requests ?? [];
+  if (!requestFindings({
+    origin,
+    recorded: controlRequests,
+  },).some(function remote(finding,): boolean {
+    return finding.includes('example.org',);
   },)) {
     failures.push('control: no finding named the request the fixture makes outside this tree');
   }
