@@ -150,8 +150,15 @@ export async function selectSources(options: {
      Exclusion reason for this file, when any suffix matches.
      */
     const reason = Object.entries(EXCLUDED_SUFFIXES,)
-      .find(function matches(entry,): boolean {
-        return file.endsWith(entry[0],);
+      .find(function matches(entry: readonly [
+        string,
+        string,
+      ],): boolean {
+        /**
+         Suffix that entry documents.
+         */
+        const [suffix,] = entry;
+        return file.endsWith(suffix,);
       },)
       ?.[1];
 

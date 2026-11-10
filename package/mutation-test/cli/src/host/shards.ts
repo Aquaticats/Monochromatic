@@ -29,6 +29,18 @@ export type MutantGroup = {
   readonly tests: readonly string[];
 };
 
+/**
+ Mutants and selected tests of one source file, as grouped manifests read them.
+
+ The accumulator inside {@link composeReshard} appends to its own mutable
+ array while ids are grouped; this read-only view is the boundary the grouping
+ callback receives, so no callback can restructure what was grouped.
+ */
+type ReshardBucket = {
+  readonly mutants: readonly Mutant[];
+  readonly tests: readonly string[];
+};
+
 //endregion Group shape
 
 //region Chunking
@@ -179,13 +191,21 @@ export function composeReshard(options: {
 
   return composeShards({
     groups: [...byFile.entries(),]
-      .map(function toGroup(entry,): MutantGroup {
+      .map(function toGroup(entry: readonly [
+        string,
+        ReshardBucket,
+      ],): MutantGroup {
+        /**
+         Source file and its grouped mutants.
+         */
+        const [
+          file,
+          bucket,
+        ] = entry;
         return {
-          file: entry[0],
-          mutants: entry[1]
-            .mutants,
-          tests: entry[1]
-            .tests,
+          file,
+          mutants: bucket.mutants,
+          tests: bucket.tests,
         };
       },),
     shardSize: options.size,
