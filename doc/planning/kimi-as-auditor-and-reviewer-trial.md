@@ -9,11 +9,10 @@ I suggest you let deepseek look through on disk transcripts after the trial kimi
 If it cheated,
 we need to disqualify it."
 
-This record holds what the trial showed and the recommendation drawn from it.
-The decision is the owner's.
-Rules `XVW`,
-`XVB`,
-`XVS` and `LHZ` in `AGENTS.md` stand until it is made.
+This record holds what the trial showed,
+the recommendation drawn from it,
+and the owner's decision,
+under the heading "Decision".
 
 ## How the trial ran
 
@@ -162,3 +161,17 @@ and Sonnet found 5 defects that Kimi missed.
 If Kimi stays in use,
 its briefs should forbid `ps` with `args`,
 the one channel through which these runs saw other runs' names.
+
+## Decision
+
+The owner answered in the question tool on 2026-11-10,
+after reading the rankings in the "Recommendation" section:
+"Kimi alone" for reviews of a change,
+and "Both side by side (Recommended)" for long audits.
+
+Rule `KRV` in `AGENTS.md` carries the first,
+and rule `LHZ` the second.
+GPT stays only for small audits,
+under rules `XVW`,
+`XVB` and `XVS`.
+Kimi's briefs forbid `ps` with `args`.

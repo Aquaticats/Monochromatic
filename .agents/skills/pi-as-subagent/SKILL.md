@@ -104,7 +104,21 @@ so prefer neuralwatt."
 New runs fill standard Neuralwatt,
 then flex with twice the wall clock,
 then `opencode-go`.
-Audits and reviews sit outside that limit and use another model.
+Audits and reviews sit outside that limit and use other models.
+Reviews of a change run on Kimi K3.1 Pro alone,
+and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
+rules `KRV` and `LHZ` in `AGENTS.md`,
+from the owner's "Kimi alone" and "Both side by side (Recommended)"
+after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
+Kimi runs through Pi on Synthetic,
+under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+The owner also wrote "Kimi K3.1 Pro has a tendency to cheat.",
+and the trial caught none,
+so rerun a finding's reproduction before believing it,
+and have its brief forbid `ps` with `args`,
+the one channel through which the trial's runs saw other runs' names.
+
+Small GPT audits also sit outside the limit.
 The owner on 2026-11-09:
 "Please use gpt-6.1-sol with the openai provider for audits and reviews.
 Those don't count within the 20 limit."
@@ -120,11 +134,7 @@ The command is rule `XVW` in `AGENTS.md`.
 The owner then limited those runs:
 "Keep GPT runs small.
 GPT models cannot be trusted on any long horizon work."
-and moved the long ones:
-"Use Claude Sonnet on long horizon reviews and audits."
-That holds in every harness,
-Pi included:
-rule `LHZ` in `AGENTS.md`.
+
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.

@@ -243,6 +243,16 @@ Compressed sizes in the registry from `skopeo inspect` on 2026-11-10:
 A comparison of what each image installs was stopped when the owner decided,
 so installed sizes and start times were not measured.
 
+## Answered in the question tool, recorded 2026-11-10T10:03:43-05:00
+
+### Who reviews and who audits after the Kimi trial
+
+"Kimi alone" for reviews of a change,
+and "Both side by side (Recommended)" for long audits.
+The evidence and the ranking the owner read are in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
+Rules `KRV` and `LHZ` in `AGENTS.md` carry them,
+and GPT stays only for small audits.
+
 ## Answered in the question tool, recorded 2026-11-10T09:48:06-05:00
 
 ### Build guard on unit tests that read built output (issue 1658)
