@@ -3,10 +3,10 @@
 
  The widget ships as one self-contained HTML file, so the browser bundle in
  `dist/client/` exports nothing a unit test can import. This entry re-exports
- the DOM-free stroke state, drawing configuration, and eraser modules, which
- `rolldown.node.config.ts` bundles to `dist/final/node/`, so unit tests load
- built output rather than sibling source, as `test-import/require-eventual-artifact`
- requires.
+ the stroke state, drawing configuration, eraser, PDF export, and page-state
+ modules, which `rolldown.node.config.ts` bundles to `dist/final/node/`, so unit
+ tests load built output rather than sibling source, as
+ `test-import/require-eventual-artifact` requires.
 
  Every export is internal: the package declares no `exports` map and nothing
  outside the package imports this entry, so it tracks the tests rather than a
@@ -40,3 +40,23 @@ export { getStrokeWidth, } from './client/drawing-config.ts';
  @internal
  */
 export { eraseStrokesAt, } from './client/eraser-strokes.ts';
+
+/**
+ Multi-page PDF export and the overlay-markup borrowing it restores through, so
+ a test can fail a page raster and read the overlay back.
+
+ @internal
+ */
+export { exportAsPdf, } from './client/export-pdf.ts';
+export { borrowOverlayMarkup, } from './client/borrow-overlay-markup.ts';
+
+/**
+ Page-state initializer and page switch, so a test can start the export with a
+ known page set and a known open page.
+
+ @internal
+ */
+export {
+  initPages,
+  switchToPage,
+} from './client/pages.ts';

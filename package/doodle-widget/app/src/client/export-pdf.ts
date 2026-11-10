@@ -9,6 +9,7 @@
 
 import { jsPDF, } from 'jspdf';
 
+import { borrowOverlayMarkup, } from './borrow-overlay-markup.ts';
 import { renderPageCanvas, } from './export-pdf-page.ts';
 import {
   TEXT_COLOR_RGB,
@@ -119,10 +120,6 @@ export async function exportAsPdf(deps: ExportDeps,): Promise<void> {
     overlay,
     textLayer,
   },);
-  /**
-   Save overlay HTML to restore after export
-   */
-  const savedOverlayHtml = overlay.innerHTML;
 
   //region PDF document setup (all dimensions in points)
   /**
@@ -148,6 +145,12 @@ export async function exportAsPdf(deps: ExportDeps,): Promise<void> {
   //endregion PDF document setup
 
   //region Render each page
+  /**
+   Restores the reader's page markup when this function leaves, which exception
+   unwinding reaches as well as a finished page set.
+   */
+  using _borrowedMarkup = borrowOverlayMarkup({ overlay, },);
+
   for (const [pageIndex, page,] of allPages.entries()) {
     if (pageIndex > 0) {
       doc.addPage([
@@ -236,11 +239,6 @@ export async function exportAsPdf(deps: ExportDeps,): Promise<void> {
     //endregion Overlay text
   }
   //endregion Render each page
-
-  /**
-   Restore overlay to its original state
-   */
-  overlay.innerHTML = savedOverlayHtml;
 
   doc.save('doodle.pdf',);
 }
