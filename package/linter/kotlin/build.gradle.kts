@@ -35,7 +35,10 @@ plugins {
 }
 
 // detekt 2.0.x is the active upgrade target for the repo's custom Kotlin rule set.
-val detektVersion = "2.0.0-alpha.6"
+// The version lives in gradle.properties, which the Maven Central verification task in
+// mise.toml reads too, so compile, test, detektCheck, and that check never disagree.
+val detektVersion = providers.gradleProperty("detektVersion").orNull
+    ?: error("gradle.properties must declare detektVersion")
 
 // Holds the detekt CLI and its dependencies, used as the classpath for the
 // detektCheck runner. Kept separate from the compile classpath so the runner gets
@@ -203,6 +206,11 @@ tasks.register<Zip>("centralBundle") {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // DetektVersionSingleOwnerTest reads these files rather than the classpath, so a version
+    // bump must re-run it instead of leaving the test task up to date.
+    inputs.files("gradle.properties", "mise.toml", "build.gradle.kts", "task.ts")
+        .withPropertyName("detektVersionSources")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 // Run detekt with the custom require-kdoc rule set and detekt's default config
