@@ -18,6 +18,12 @@ extends = "watch:build:js:node"
 
 [tasks.lint]
 extends = "lint"
+# Both lint children read the testing bundle's declarations, tsc directly and the
+# oxlint semantic bridge through them, so the node build runs once before the
+# fanout. The dependency stays on the fanout parent because each child is a
+# separate mise process: a `depends` on a child would run a second rolldown build,
+# and that build clears dist while the other child reads it.
+depends = ["build:js:node"]
 
 [tasks."lint:types"]
 extends = "lint:types"
@@ -30,6 +36,9 @@ extends = "format:oxlint"
 
 [tasks."test:unit"]
 extends = "test:unit"
+# The suites import dist/final/node/testing.mjs rather than sibling source, so the
+# built artifact must exist before they run.
+depends = ["build:js:node"]
 
 [tasks.run]
 description = "Run the key-helper daemon from source (dev)"
