@@ -89,8 +89,13 @@ const OLD_MAX_PASSES = 10;
  @returns Expanded clones.
  */
 function oldExpandNodes(
-  nodes: readonly ChildNode[],
-  registry: ReadonlyMap<string, readonly ChildNode[]>,
+  {
+    nodes,
+    registry,
+  }: {
+    readonly nodes: readonly ChildNode[];
+    readonly registry: ReadonlyMap<string, readonly ChildNode[]>;
+  },
 ): ChildNode[] {
   return nodes.reduce<ChildNode[]>(
     /**
@@ -114,12 +119,12 @@ function oldExpandNodes(
           .trim(),);
         if (body !== undefined) {
           result.push(
-            ...oldExpandNodes(
-              body.map(function cloneChild(child,) {
+            ...oldExpandNodes({
+              nodes: body.map(function cloneChild(child,) {
                 return child.clone();
               },),
               registry,
-            ),
+            },),
           );
         }
         return result;
@@ -129,13 +134,13 @@ function oldExpandNodes(
          Cloned container with expanded children.
          */
         const cloned = node.clone();
-        cloned.nodes = oldExpandNodes(
-          node.nodes
+        cloned.nodes = oldExpandNodes({
+          nodes: node.nodes
             .map(function cloneChild(child,) {
               return child.clone();
             },),
           registry,
-        );
+        },);
         result.push(cloned,);
         return result;
       }
@@ -209,10 +214,10 @@ function oldPostcssPipeline({
         /**
          Freshly expanded body.
          */
-        const expanded = oldExpandNodes(
+        const expanded = oldExpandNodes({
           nodes,
           registry,
-        );
+        },);
         if (nodes.map(String,).join('',) !== expanded.map(String,).join('',)) {
           registry.set(
             name,
