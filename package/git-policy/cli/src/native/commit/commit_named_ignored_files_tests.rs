@@ -177,6 +177,51 @@ fn a_selection_that_names_no_readable_element_asks_nothing() {
     remove(root.as_path());
 }
 
+/// The question asked of Git names the real index,
+/// the caller's repository and none of the caller's pathspec modes,
+/// and asks about the names on standard input.
+/// Why:
+///  The index and the object directory are both `Option<&Path>`,
+/// so passing one where the other belongs compiles and answers about the wrong thing:
+///  a question asked with no index would refuse a force-added ignored file the commit can take,
+/// and one asked without the caller's repository selection would answer for the directory's own repository
+///  instead of the one the command line named.
+#[test]
+fn the_question_names_the_real_index_and_the_callers_repository() {
+    let context: GitContext = GitContext {
+        global_prefix: [
+            OsString::from("--git-dir"),
+            OsString::from("/elsewhere/config.git"),
+            OsString::from("--work-tree"),
+            OsString::from("/elsewhere/work"),
+        ]
+        .to_vec(),
+        ..git_context()
+    };
+    let request: GitRequest = refused_paths_request(&context, Path::new("/here"), Path::new("/repo/.git/index"), b"lib/_c.js\0");
+    assert_eq!(
+        request.arguments,
+        ["check-ignore", "-z", "--stdin"].iter().map(OsString::from).collect::<Vec<OsString>>(),
+        "the names come on standard input, so no name is a path argument"
+    );
+    assert_eq!(request.index, Some(PathBuf::from("/repo/.git/index")), "the index is the one whose tracked paths count");
+    assert_eq!(request.object_directory, None, "this command writes no object");
+    assert!(request.without_prefix, "the caller's other options do not reach this start");
+    assert!(request.own_pathspecs, "Git refuses a pathspec mode for this command");
+    assert_eq!(
+        request.repository_selection,
+        [
+            OsString::from("--git-dir"),
+            OsString::from("/elsewhere/config.git"),
+            OsString::from("--work-tree"),
+            OsString::from("/elsewhere/work"),
+        ]
+        .to_vec(),
+        "the question is asked of the repository the command line names"
+    );
+    assert_eq!(request.input, Some(b"lib/_c.js\0".to_vec()), "one NUL-terminated name per path");
+}
+
 /// The message names every rejected path,
 /// says the commit was not made and nothing was staged by it,
 /// and gives both ways forward.

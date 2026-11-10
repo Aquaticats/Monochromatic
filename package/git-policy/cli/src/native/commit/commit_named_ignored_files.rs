@@ -94,24 +94,19 @@ fn ignored_among(
     real_index: &Path,
     named: &[&OsString],
 ) -> Result<Vec<Vec<u8>>, GitFailure> {
-    let arguments: Vec<OsString> = ["check-ignore", "-z", "--stdin"].iter().map(OsString::from).collect();
-    // The names are paths and not pathspecs, and Git refuses its own pathspec modes for this command:
-    // with `GIT_LITERAL_PATHSPECS=1` inherited it answers "pathspec magic not supported by this command: 'literal'".
-    // So the modes of the invocation are removed, and the names are read as the plain paths they are.
-    let mut request: GitRequest = indexed_request(cwd, arguments.as_slice(), Some(real_index), None).own_pathspecs();
     let mut input: Vec<u8> = Vec::new();
     for name in named {
         input.extend_from_slice(name.as_encoded_bytes());
         // `-z` reads and writes NUL-terminated names, so a name that holds a newline needs no quoting.
         input.push(0);
     }
-    request.input = Some(input);
+    let request: GitRequest = refused_paths_request(context, cwd, real_index, input.as_slice());
     let output: GitOutput = match run_git(context, &request) {
         Ok(finished) => finished,
         Err(error) => {
             return Err(GitFailure(format!(
                 "{} could not start: {error}",
-                command_text(arguments.as_slice())
+                command_text(request.arguments.as_slice())
             )));
         }
     };
@@ -121,7 +116,7 @@ fn ignored_among(
         _ => {
             return Err(GitFailure(format!(
                 "{} failed: {}",
-                command_text(arguments.as_slice()),
+                command_text(request.arguments.as_slice()),
                 output.error_text()
             )));
         }
@@ -134,6 +129,37 @@ fn ignored_among(
         ignored.push(path.to_vec());
     }
     return Ok(ignored);
+}
+
+/// What:
+///  The one `git check-ignore` start that answers which of `paths` an ignore rule refuses,
+/// `paths` being the NUL-terminated names to ask about.
+/// Why:
+///   Four of this request's fields decide the answer,
+/// so each has one owner here rather than at the start:
+/// the real index as `GIT_INDEX_FILE`,
+///  because the answer counts only where `git add` would refuse the path;
+/// the caller's repository selection,
+///  because the command may name a repository its directory does not hold
+/// (`repository_selection`);
+/// the wrapper's own pathspecs,
+///  because Git refuses a pathspec mode for this command,
+/// answering that the magic is unsupported there when the mode is inherited;
+/// and the names on standard input,
+///  so a name that holds any byte needs no quoting.
+///  The object directory stays unset,
+/// because this command writes no object,
+/// and the private store belongs to the staging that follows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inTheCallersRepository({ cwd, prefix }) // { index: realIndex, input, args: ['check-ignore', '-z', '--stdin'] }
+/// ```
+fn refused_paths_request(context: &GitContext, cwd: &Path, real_index: &Path, paths: &[u8]) -> GitRequest {
+    let arguments: Vec<OsString> = ["check-ignore", "-z", "--stdin"].iter().map(OsString::from).collect();
+    let mut request: GitRequest = indexed_request(context, cwd, arguments.as_slice(), Some(real_index), None).own_pathspecs();
+    request.input = Some(paths.to_vec());
+    return request;
 }
 
 /// What:
