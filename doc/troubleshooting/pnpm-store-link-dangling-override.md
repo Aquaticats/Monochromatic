@@ -58,6 +58,11 @@ Already up to date
 
 ## Repair
 
+This hand repair is the fallback for a store that
+`pnpm install --force` cannot rewrite;
+the pnpm-driven repair at `## Repair with pnpm itself` is what worked on
+`@earendil-works/pi-coding-agent` 1.5.1.
+
 Repoint that single store entry at a checkout that outlives the worktree,
 then re-probe resolution:
 
