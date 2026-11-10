@@ -276,10 +276,12 @@ await describe({
             await expect(delivery,).rejects.toBeInstanceOf(NotificationUnavailableError,);
             await expect(delivery,).rejects.toHaveProperty('cause', unavailable,);
             await expect(delivery,).rejects.toSatisfy(
-              (refusal: unknown) =>
-                refusal instanceof NotificationUnavailableError
-                && refusal.message.includes(unavailable.message)
-                && refusal.message.includes(NOTIFICATION_COMMAND),
+              function carriesBoundaryFailure(refusal: unknown,): boolean {
+                if (!(refusal instanceof NotificationUnavailableError))
+                  return false;
+                return refusal.message.includes(unavailable.message,)
+                  && refusal.message.includes(NOTIFICATION_COMMAND,);
+              },
             );
           },
         },),
