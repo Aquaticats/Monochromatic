@@ -69,20 +69,22 @@ export async function cycle(): Promise<void> {
     tag: cycle.name,
   },);
 
-  // Skip the entire cycle when the session is locked: no point capturing
-  // a lock screen, and it avoids waking the GPU for inference.
-  if (await isScreenLocked()) {
-    l.debug('Screen is locked: skipping cycle',);
-    return;
-  }
-
-  /**
-   Capture-cycle timestamp; reused for both the log line and the buffered capture set.
-   */
-  const ts = Date.now();
-  l.debug(`Starting capture cycle at ${new Date(ts,).toLocaleTimeString()}`,);
-
   try {
+    // Skip the entire cycle when the session is locked: no point capturing
+    // a lock screen, and it avoids waking the GPU for inference. The probe is
+    // inside this guard as well as owning its own failure, so a future probe
+    // that throws costs one cycle rather than the daemon.
+    if (await isScreenLocked()) {
+      l.debug('Screen is locked: skipping cycle',);
+      return;
+    }
+
+    /**
+     Capture-cycle timestamp; reused for both the log line and the buffered capture set.
+     */
+    const ts = Date.now();
+    l.debug(`Starting capture cycle at ${new Date(ts,).toLocaleTimeString()}`,);
+
     /**
      Screenshot and webcam buffers captured in parallel to keep latency minimal.
      */
