@@ -460,6 +460,32 @@ await describe({
       },
     },),
     //endregion resolves
+
+    //region async matcher surface
+
+    it({
+      name: 'rejects and resolves expose every sync matcher method',
+      fn: async () => {
+        /**
+         Sync matcher names: the full `MatcherSet` surface, since `.not` reuses the same builders.
+         */
+        const syncMatcherNames = Object.keys(expect(1,).not,)
+          .toSorted();
+        /**
+         Async matcher names must match, or a matcher omitted from the shared key list would be missing on these accessors.
+         */
+        expect(
+          Object.keys(expect(1,).rejects,)
+            .toSorted(),
+        ).toEqual(syncMatcherNames,);
+        expect(
+          Object.keys(expect(1,).resolves,)
+            .toSorted(),
+        ).toEqual(syncMatcherNames,);
+      },
+    },),
+
+    //endregion async matcher surface
   ],
 },);
 
