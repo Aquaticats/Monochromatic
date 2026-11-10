@@ -83,13 +83,17 @@ fn names_a_typed_path(word: &str, typed: &[&str]) -> bool {
 }
 
 /// What:
-///  The words of one logged start that follow a `--` and are not paths the person typed.
+///  The words of one logged start that follow a `--` and are neither paths the person typed nor pathspecs the wrapper wrote.
 /// Why:
 ///   A start is judged only when a `--` is followed by a word carrying a path the person typed,
 /// which is the person's
 ///  separator carried into the wrapper's command;
 /// a start whose `--` ends the wrapper's own pathspecs is not about it.
 ///  Whatever else follows is a wrapper option read by Git as a path.
+///  A `:(top,literal)<path>` or `:/` word is a pathspec and never an option,
+/// and the wrapper lists the
+///  commit's changed index paths beside the person's,
+/// so those words are the wrapper's own paths and not the fault this guard exists for.
 fn wrapper_words_after_separator(start: &[String], typed: &[&str]) -> Vec<String> {
     let from: usize = subcommand_index(start) + 1;
     let Some(separator) = start.iter().skip(from).position(|word| { return word == "--"; }).map(|at| { return at + from; }) else {
@@ -99,7 +103,22 @@ fn wrapper_words_after_separator(start: &[String], typed: &[&str]) -> Vec<String
     if !after.iter().any(|word| { return names_a_typed_path(word, typed); }) {
         return Vec::new();
     }
-    return after.iter().filter(|word| { return !names_a_typed_path(word, typed); }).cloned().collect();
+    return after
+        .iter()
+        .filter(|word| { return !names_a_typed_path(word, typed) && !is_a_wrapper_pathspec(word); })
+        .cloned()
+        .collect();
+}
+
+/// Whether a word is a pathspec the wrapper wrote:
+/// `:/`,
+/// or `:(top,literal)<path>`.
+/// Why:
+///   Git reads a pathspec after `--` as a path,
+/// so it can never be the option this guard is about,
+///  and the wrapper lists the changed paths of the commit with that magic.
+fn is_a_wrapper_pathspec(word: &str) -> bool {
+    return word == ":/" || word.starts_with(":(top,literal)");
 }
 
 /// Whether a word asks for quiet:
@@ -171,6 +190,10 @@ fn the_checks_catch_a_wrapper_option_after_the_separator_and_a_quiet_nobody_type
         words(&["add", "--update", "--", ":/"]),
         words(&["add", "--all", "--", "a.txt"]),
         words(&["-c", "commit", "diff", "--", ":(top,literal)a.txt"]),
+        // The wrapper lists the commit's changed index paths beside the person's, each with the magic it writes, and none of
+        //  them is an option.
+        words(&["commit", "-o", "--message=undo", "--", ":(top,literal)--quiet", ":(top,literal)-dash.txt", ":(top,literal)-o", ":(top,literal)a.txt"]),
+        words(&["diff-index", "--cached", "--raw", "HEAD", "--", ":(top,literal)a.txt", ":(top,literal)b.txt"]),
     ];
     assert_eq!(violations(&clean, "commit", &["commit", "--message=undo", "--", "a.txt"], &["a.txt"]), Vec::<String>::new());
     let typed: Vec<Vec<String>> = vec![words(&["commit", "-qn", "--message=undo", "--", "a.txt"])];

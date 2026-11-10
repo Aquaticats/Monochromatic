@@ -14,11 +14,16 @@
  * of async operations with varying response times.
  *
  * Key characteristics:
+ * - Every delay starts when this module is evaluated, not when a test first awaits a promise
  * - Promise at index 0 resolves immediately (0ms delay) to value 0
  * - Promise at index 1 resolves after 1ms to value 1
  * - Promise at index 999 resolves after 999ms to value 999
- * - Total execution time when awaited sequentially: ~499,500ms (sum of 0+1+...+999)
+ * - Awaiting the whole array sequentially finishes about 999ms after module evaluation,
+ *   because all 1000 timers run at once and their delays never add up
  * - All promises resolve successfully (no rejections)
+ *
+ * Importing this module schedules every timer immediately, so importing the package barrel
+ * (which re-exports this module) starts all 1000 timers even when only array0to999 is used.
  *
  * @example
  * Testing concurrent promise execution with Promise.all:
@@ -55,7 +60,8 @@
  *
  *   const elapsed = Date.now() - start;
  *   console.log(`Results: ${results}`); // [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
- *   console.log(`Sequential execution took: ${elapsed}ms`); // ~45ms (0+1+2+...+9)
+ *   // The ten timers started at import, so the loop waits only for the last one.
+ *   console.log(`Sequential execution took: ${elapsed}ms`); // at most the 9ms delay of index 9
  * }
  * ```
  *
@@ -159,7 +165,7 @@
  * }
  * ```
  */
-/* @__NO_SIDE_EFFECTS__ */ export const promises0to999: Promise<number>[] = Array.from(
+export const promises0to999: Promise<number>[] = Array.from(
   { length: 1_000, },
   (_, index,) =>
     new Promise(resolve =>

@@ -223,6 +223,8 @@ function runDirectJsonRequest(
  
  @mutates request - provider consumes model, auth, signal, and test transport capabilities
  
+ @throws {@link StructuredReviewProviderError} when the provider fails before calling the tool
+ 
  @example
  ```ts
  const result = await runStructuredToolRequest(request);
@@ -294,6 +296,8 @@ async function runStructuredToolRequest(
  @returns unknown JSON object for caller-owned strict parsing
  
  @mutates request - provider consumes model, auth, signal, and test transport capabilities
+ 
+ @throws {@link StructuredReviewProviderError} when the provider fails
  
  @example
  ```ts

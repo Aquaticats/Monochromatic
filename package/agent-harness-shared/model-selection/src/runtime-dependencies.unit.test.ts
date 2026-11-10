@@ -18,7 +18,7 @@ await describe({
 
     it({
       name: 'imports and estimates tokens with every Pi runtime dependency rejected',
-      fn: async function testRuntimeDependencies() {
+      fn: async function testRuntimeDependencies(): Promise<void> {
         /**
          Loader boundary rejects direct and transitive Pi package imports.
          */
