@@ -20,7 +20,9 @@
   },
   "dependencies": {
     "@monochromatic-dev/logger-core": "workspace:*",
-    "@monochromatic-dev/or-throw-core": "workspace:*"
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/shell-argument-core": "workspace:*",
+    "nano-spawn": "catalog:"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

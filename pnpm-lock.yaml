@@ -1288,6 +1288,12 @@ importers:
       '@monochromatic-dev/or-throw-core':
         specifier: workspace:*
         version: link:../../or-throw/core
+      '@monochromatic-dev/shell-argument-core':
+        specifier: workspace:*
+        version: link:../../shell-argument/core
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*

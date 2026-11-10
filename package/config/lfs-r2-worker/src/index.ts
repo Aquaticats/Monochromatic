@@ -45,6 +45,32 @@ export {
   type ConstantTimeEqualsParams,
 } from './constant-time-equal.ts';
 export {
+  type CredentialHelper,
+  type LfsHost,
+  LfsHostError,
+  parseLfsHost,
+  storeCredentialHelper,
+} from './credential-helper.ts';
+export {
+  GitCommandError,
+  runGit,
+  type RunGitParams,
+} from './git-command.ts';
+export {
+  CREDENTIAL_DIRECTORY_MODE,
+  CREDENTIAL_FILE_MODE,
+  type LoginToken,
+  LoginTokenError,
+  storeLoginToken,
+  type StoreLoginTokenParams,
+} from './login-token-file.ts';
+export {
+  installRepositoryLogin,
+  type InstallRepositoryLoginParams,
+  type RepositoryLogin,
+  RepositoryLoginError,
+} from './repository-login.ts';
+export {
   BAD_REQUEST as BATCH_BAD_REQUEST,
   type BatchObject,
   type BatchOperation,

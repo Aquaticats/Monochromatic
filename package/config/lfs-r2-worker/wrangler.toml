@@ -5,8 +5,12 @@ main = "dist/final/neutral/worker.mjs"
 compatibility_date = "2026-06-01"
 workers_dev = true
 
-# Download is anonymous (public read). Upload is gated by the LFS_WRITE_TOKEN
-# secret, set out-of-band with: wrangler secret put LFS_WRITE_TOKEN
+# Download is anonymous (public read). Upload is gated by the `clients` table in
+# the D1 database below: one row per machine, holding the sha256 of its token, its
+# scope and its revocation. The rows are written by hand with
+# `wrangler d1 execute ... --file clients.sql`; see doc/runbook/lfs-r2-worker.md.
+# LFS_WRITE_TOKEN, the secret this Worker shipped with, is accepted only while that
+# table holds no row, so the first per-machine row retires it.
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "monochromatic-lfs"

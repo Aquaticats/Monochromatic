@@ -49,6 +49,81 @@ run = "wrangler deploy --dry-run"
 description = "Create the presence index table in the remote D1 database (idempotent; requires a prior wrangler login)."
 run = "wrangler d1 execute monochromatic-lfs-index --remote --yes --file schema.sql"
 
+[tasks."clients:schema"]
+description = "Create the clients table that holds per-machine upload tokens as hashes in the remote D1 database (idempotent; requires a prior wrangler login)."
+run = "wrangler d1 execute monochromatic-lfs-index --remote --yes --file clients.sql"
+
+[tasks."login:use-here"]
+description = "Give the repository mise was invoked in a Git credential helper for the LFS host its .lfsconfig names, reading the private credential file. Writes that repository's own configuration only, never the global one, and repeating it changes nothing."
+usage = '''
+flag "--repository <dir>" help="repository or linked worktree to configure, defaulting to the directory mise was invoked in"
+flag "--host <url>" help="LFS host to serve, defaulting to the url of this repository's committed .lfsconfig"
+flag "--file <path>" help="private credential file, defaulting to ${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-lfs/credentials"
+'''
+shell = "node --input-type=module-typescript -e"
+run = '''
+import { execFileSync } from 'node:child_process'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { installRepositoryLogin } from '{{config_root}}/src/repository-login.ts'
+/** Value of one declared flag, or undefined when it was not given. */
+const flag = (name) => {
+  const value = (process.env[`usage_${name}`] ?? '').trim()
+  return value === '' ? undefined : value
+}
+/** Repository or linked worktree to configure; mise runs a package task at the package root, so the invocation directory is the target. */
+const repository = resolve(flag('repository') ?? process.env.MISE_ORIGINAL_CWD ?? process.cwd())
+/** The committed .lfsconfig of the repository this task ships with, which names the Worker. */
+const committedLfsConfig = resolve('{{config_root}}', '../../..', '.lfsconfig')
+/** LFS host the helper serves. */
+const host = flag('host') ?? execFileSync('git', ['config', '--file', committedLfsConfig, '--get', 'lfs.url'], { encoding: 'utf8' }).trim()
+/** Private credential file the helper reads; outside every .git, so no copy of a repository carries it. */
+const credentialFile = resolve(flag('file') ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'monochromatic-lfs', 'credentials'))
+const result = await installRepositoryLogin({ repository, host, credentialFile })
+console.log(`repository: ${result.repository}`)
+console.log(`git config file: ${result.configFile}`)
+console.log(`key: ${result.key}`)
+console.log(`helper: ${result.command}`)
+console.log(`credential file: ${result.file}`)
+console.log(result.changed ? 'installed' : 'already installed; nothing changed')
+console.log('next: mise run //package/config/lfs-r2-worker:login:store-token -- <client id>')
+'''
+
+[tasks."login:store-token"]
+description = "Store one machine's LFS upload token, read from standard input, in the private credential file at mode 0600. The token is never an argument and never echoed."
+usage = '''
+arg "<client_id>" help="client id of this machine's row in the clients table"
+flag "--host <url>" help="LFS host the credential is for, defaulting to the url of this repository's committed .lfsconfig"
+flag "--file <path>" help="private credential file, defaulting to ${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-lfs/credentials"
+'''
+shell = "node --input-type=module-typescript -e"
+run = '''
+import { execFileSync } from 'node:child_process'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { storeLoginToken } from '{{config_root}}/src/login-token-file.ts'
+/** Value of one declared flag, or undefined when it was not given. */
+const flag = (name) => {
+  const value = (process.env[`usage_${name}`] ?? '').trim()
+  return value === '' ? undefined : value
+}
+if (process.stdin.isTTY) { throw new Error('the token must arrive on standard input, never typed into a terminal where it would be echoed: printf %s "$TOKEN" | mise run //package/config/lfs-r2-worker:login:store-token -- <client id>') }
+/** The committed .lfsconfig of the repository this task ships with, which names the Worker. */
+const committedLfsConfig = resolve('{{config_root}}', '../../..', '.lfsconfig')
+/** LFS host the credential is for. */
+const host = flag('host') ?? execFileSync('git', ['config', '--file', committedLfsConfig, '--get', 'lfs.url'], { encoding: 'utf8' }).trim()
+/** Private credential file the helper reads. */
+const credentialFile = resolve(flag('file') ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'monochromatic-lfs', 'credentials'))
+/** Token, as every byte standard input carried. */
+const chunks = []
+for await (const chunk of process.stdin) { chunks.push(chunk) }
+const result = await storeLoginToken({ host, clientId: process.env.usage_client_id ?? '', credentialFile, token: Buffer.concat(chunks).toString('utf8') })
+console.log(`credential file: ${result.credentialFile}`)
+console.log(`key: ${result.key}`)
+console.log(`client id: ${result.clientId}`)
+console.log('stored and read back; the token is in that file alone')
+'''
+
 [tasks."secret:write-token"]
 description = "Set or rotate the LFS_WRITE_TOKEN upload secret (reads the value on stdin)."
 run = "wrangler secret put LFS_WRITE_TOKEN"
