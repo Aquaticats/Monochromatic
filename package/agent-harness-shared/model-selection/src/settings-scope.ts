@@ -8,6 +8,7 @@ import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import * as v from 'valibot';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { cleanModelPatterns, } from './model-pattern-cleaning.ts';
 
 /**
  Sentinel returned by internal {@link loadSettingsFile} when a settings file is
@@ -117,7 +118,7 @@ export async function loadSettingsScopePatterns(
   if ((project !== NO_SETTINGS_FILE) && (project.enabledModels
     !== undefined)) {
     return {
-      patterns: cleanPatterns(project.enabledModels,),
+      patterns: cleanModelPatterns(project.enabledModels,),
       sourcePath: paths.projectPath,
     };
   }
@@ -125,7 +126,7 @@ export async function loadSettingsScopePatterns(
   if ((global !== NO_SETTINGS_FILE) && (global.enabledModels
     !== undefined)) {
     return {
-      patterns: cleanPatterns(global.enabledModels,),
+      patterns: cleanModelPatterns(global.enabledModels,),
       sourcePath: paths.globalPath,
     };
   }
@@ -269,25 +270,6 @@ async function readJsonFile(
       { cause: error, },
     );
   }
-}
-
-/**
- Remove empty pattern strings.
- 
- @param patterns - raw model patterns
- 
- @returns cleaned model patterns
- */
-function cleanPatterns(
-  patterns: readonly string[],
-): string[] {
-  return patterns
-    .map(function trimPattern(pattern,) {
-      return pattern.trim();
-    },)
-    .filter(function keepPattern(pattern,) {
-      return pattern !== '';
-    },);
 }
 
 /**
