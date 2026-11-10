@@ -95,7 +95,9 @@ config_roots = ["package/*/*"]
 experimental = true
 task.disable_spec_from_run_scripts = true
 [vars]
+${variableSection('mise_tasks_json_max_buffer',)}
 ${variableSection('parse_usage_args',)}
+${variableSection('is_inactive_test',)}
 ${variableSection('run_test_files',)}
 ${variableSection('fanout_packages',)}
 ${unitTemplateSection()}
