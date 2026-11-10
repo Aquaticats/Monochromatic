@@ -188,26 +188,123 @@ function subkeyFor(
   return rest === '' ? '.' : `.${rest}`;
 }
 
-// The character set the pattern source escapes: one member of it has to carry a
-// backslash to appear literally inside a pattern.
-const PATTERN_SYNTAX_CHARACTERS = '.*+?^${}()|[]\\';
+// The import/export-context specifier grammar, scanned character by character: a
+// keyword that is not part of a longer identifier, an optional call parenthesis, then
+// the scope as literal text and the specifier running to the next quote. Comparing the
+// scope as text is what the boundary rule wants; it never travels through pattern
+// source, so no metacharacter in it needs escaping.
+const CALL_OPENING = '(';
+const FROM_KEYWORD = 'from';
+const IDENTIFIER_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$';
+const IMPORT_KEYWORD = 'import';
+const WHITESPACE_CHARACTERS = ' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004'
+  + '\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
 
-// The text with every pattern-syntax character prefixed by a backslash, so it appears
-// literally when read as pattern source. One character walk answers the same set the
-// escaping pattern named, and it keeps the value itself out of pattern source.
-function escapePatternSource(text: string): string {
-  let escaped = '';
-  for (const character of text) {
-    escaped += PATTERN_SYNTAX_CHARACTERS.includes(character) ? `\\${character}` : character;
-  }
-  return escaped;
+function isIdentifierCharacter(character: string): boolean {
+  return (character !== '') && IDENTIFIER_CHARACTERS.includes(character);
 }
 
-// import/export-context specifier scanner (same boundary rule as the rewriter).
-const re = new RegExp(
-  `(?<![A-Za-z0-9_$])(?:from|import)\\s*\\(?\\s*['"](${escapePatternSource(SCOPE)}[^'"]+)['"]`,
-  'g',
-);
+function isQuoteCharacter(character: string): boolean {
+  return (character === '"') || (character === "'");
+}
+
+function isWhitespaceCharacter(character: string): boolean {
+  return (character !== '') && WHITESPACE_CHARACTERS.includes(character);
+}
+
+// The first index at or after `index` that holds a non-whitespace character, or the end
+// of the text.
+function skipWhitespace(
+  text: string,
+  index: number
+): number {
+  let cursor = index;
+  while (isWhitespaceCharacter(text.charAt(cursor))) cursor += 1;
+  return cursor;
+}
+
+// The keyword that starts at `index`, or null.
+function keywordAt(
+  text: string,
+  index: number
+): string | null {
+  if (text.startsWith(
+    FROM_KEYWORD,
+    index
+  )) return FROM_KEYWORD;
+  if (text.startsWith(
+    IMPORT_KEYWORD,
+    index
+  )) return IMPORT_KEYWORD;
+  return null;
+}
+
+type ScannedSpecifier = {
+  readonly specifier: string;
+  readonly end: number
+};
+
+// The scoped specifier and the index past its closing quote for a
+// `\s*\(?\s*['"](<scope>...)[^'"]+['"]` tail starting at `index`, or null when the
+// tail does not start there.
+function scopedSpecifierAt(
+  text: string,
+  index: number
+): ScannedSpecifier | null {
+  let cursor = skipWhitespace(
+    text,
+    index
+  );
+  if (text.charAt(cursor) === CALL_OPENING) cursor = skipWhitespace(
+    text,
+    cursor + 1
+  );
+  if (!isQuoteCharacter(text.charAt(cursor))) return null;
+  cursor += 1;
+  if (!text.startsWith(
+    SCOPE,
+    cursor
+  )) return null;
+  const specifierStart = cursor;
+  cursor += SCOPE.length;
+  const contentStart = cursor;
+  while ((cursor < text.length) && (!isQuoteCharacter(text.charAt(cursor)))) cursor += 1;
+  if ((cursor === contentStart) || (!isQuoteCharacter(text.charAt(cursor)))) return null;
+  return {
+    specifier: text.slice(
+      specifierStart,
+      cursor
+    ),
+    end: cursor + 1
+  };
+}
+
+// Every import/export-context specifier of a scoped package in `text`, in the order a
+// global match reports them: each match resumes where the previous one ended, so a
+// keyword inside one specifier is never read as a second one.
+function* scopedSpecifiers(text: string): Generator<string> {
+  let cursor = 0;
+  while (cursor < text.length) {
+    const keyword = keywordAt(
+      text,
+      cursor
+    );
+    if ((keyword === null) || ((cursor > 0) && (isIdentifierCharacter(text.charAt(cursor - 1))))) {
+      cursor += 1;
+      continue;
+    }
+    const scanned = scopedSpecifierAt(
+      text,
+      cursor + keyword.length
+    );
+    if (scanned === null) {
+      cursor += 1;
+      continue;
+    }
+    yield scanned.specifier;
+    cursor = scanned.end;
+  }
+}
 
 type Finding = {
   readonly file: string;
@@ -236,8 +333,7 @@ for (const rel of new Glob('package/**/*.{ts,tsx,mts,cts}').scanSync(root)) {
   );
   if (!text.includes(SCOPE)) continue;
   const importer = ownerOf(file);
-  for (const m of text.matchAll(re)) {
-    const specifier = m[1];
+  for (const specifier of scopedSpecifiers(text)) {
     const tail = specifier.slice(SCOPE.length);
     // longest matching package name is the target
     const unscoped = names.find(n => (tail === n) || tail.startsWith(`${n}/`));
