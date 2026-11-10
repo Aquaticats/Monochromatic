@@ -35,6 +35,28 @@ the bypass the install steps already name (`README.md`,
 A Git a person starts as `/usr/bin/git` is outside every policy,
 every audit line and every wait of this file.
 
+Local durability follows what the remote already holds.
+The owner,
+2026-11-10:
+"We don't care about data protection on the local drive if it's pushed."
+The coordinator's reading,
+open to the owner's correction:
+no sync (`fsync`,
+`fdatasync`,
+`syncfs`,
+a btrfs sync ioctl,
+or a call that forces a btrfs commit) is made only to keep on this drive a copy of data the remote already has,
+such as the files a worktree add checks out from a pushed commit,
+objects fetched from the remote,
+indexes and caches rebuilt from pushed trees,
+and the wrapper's stage,
+trash,
+scratch repositories and pools.
+Data the remote does not have yet,
+meaning a person's commits and merges before their push lands
+and the records of an unfinished operation that hold them,
+keeps its protection under the owner's "never discard user data".
+
 ## Module seams
 
 The executable has these external seams:
