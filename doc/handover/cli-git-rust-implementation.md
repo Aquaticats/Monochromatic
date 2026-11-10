@@ -4219,7 +4219,8 @@ neither of the two step names above exists in the tree.
 as the step `handOverTrash` and return,
 so the service empties the trash after the command has ended
 and an add no longer waits for a disposal:
-the steps of the add's timing record are `handOverTrash` and `repair`
+the steps of the add's timing record today are `copyIgnored`,
+`handOverTrash` and `repair`
 (`SPEC.md`,
 "Timing logs").
 Every figure in this section that names `disposeTrash` or `disposeTrashWait` describes a release before that commit.
