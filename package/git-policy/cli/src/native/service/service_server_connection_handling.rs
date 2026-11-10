@@ -59,6 +59,11 @@ pub(crate) struct ConnectionShared {
     /// The worktree this instance serves,
     /// when it serves one.
     pub instance: Option<String>,
+    /// The Git directory of the worktree this instance serves,
+    /// as its note or journal named it when the service started,
+    /// and nothing when that could not be told.
+    /// A request that names this text is this instance's without asking the filesystem whose it is.
+    pub own_git_dir: Option<PathBuf>,
 }
 
 
@@ -170,8 +175,28 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
 /// Whether a Git directory belongs to another instance of the service than this one,
 /// asked on the blocking pool because naming the instance resolves the path;
 /// nothing when the pool could not run it.
-async fn is_foreign(instance: Option<&str>, git_dir: PathBuf) -> Option<bool> {
-    let Some(mine) = instance.map(str::to_string) else { return Some(false) };
+/// Why:
+///  A request that names this worktree's own Git directory exactly is this instance's without that ask:
+/// the same text
+///  names the same directory,
+/// so the same instance,
+/// and the filesystem is asked only for a request that spells it another way
+///  or belongs to another worktree.
+///  The ask resolves a real path,
+/// which under a busy disk took thirty-two seconds in the record of
+///  2026-11-10T17:50:19Z,
+/// and it is on the answering path of every commit and every wake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isForeign(shared, gitDir) // shared.ownGitDir === gitDir ? false : await named(gitDir) !== shared.instance
+/// ```
+async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool> {
+    let Some(mine) = shared.instance.clone() else { return Some(false) };
+    // The text this service was named for: the same text names the same directory, whatever a resolution would say.
+    if shared.own_git_dir.as_deref() == Some(git_dir.as_path()) {
+        return Some(false);
+    }
     return match run_blocking_job(move || { return instance_of(git_dir.as_path()) != mine; }).await {
         Ok(foreign) => Some(foreign),
         Err(error) => {
@@ -200,18 +225,18 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
     // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
-        Ok(ClientMessage::Commit(request)) => match is_foreign(shared.instance.as_deref(), request.git_dir.clone()).await {
+        Ok(ClientMessage::Commit(request)) => match is_foreign(shared, request.git_dir.clone()).await {
             Some(true) => {
                 crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
                 send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected }).await;
             }
             Some(false) => {
-                let deciding = is_foreign(shared.instance.as_deref(), request.git_dir.clone());
+                let deciding = is_foreign(shared, request.git_dir.clone());
                 queue_a_commit(request, write_half, shared, accepted, deciding).await;
             }
             None => send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable }).await,
         },
-        Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared.instance.as_deref(), git_dir.clone()).await {
+        Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => {
                 let _queued = shared.work.send((git_dir, review_key));
@@ -219,7 +244,7 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             }
             None => tell_unavailable(write_half).await,
         },
-        Ok(ClientMessage::Warm { repository, git_dir }) => match is_foreign(shared.instance.as_deref(), git_dir.clone()).await {
+        Ok(ClientMessage::Warm { repository, git_dir }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             // Nothing is answered: the compile is a job of the blocking pool, and the connection closes with this function.
             Some(false) => crate::service_rules_precompile::warm_in_background(repository),
