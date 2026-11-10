@@ -13,6 +13,7 @@ import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
+import { isProcessIdentifier } from './process-identifier.ts';
 import { withoutTerminalColors } from './terminal-color-escapes.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
@@ -185,7 +186,7 @@ const sweep = ({ compositorProcess, application }: { compositorProcess: number |
   const directory = join(runtimeDirectory, 'monochromatic-nested-wayland-session-' + compositorProcess + '-0');
   const found: string[] = [];
   for (const entry of readdirSync('/proc')) {
-    if (!/^\d+$/.test(entry)) continue;
+    if (!isProcessIdentifier(entry)) continue;
     // A process may end between the listing and these reads; that is not a leftover.
     let exe: string;
     let command: string[];
