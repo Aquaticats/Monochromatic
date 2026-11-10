@@ -16,15 +16,11 @@
 /// The path list of an overlap report:
 /// a few names,
 /// then a count.
-use crate::auto_push_dirty_paths::listed;
 /// The finding event and its rendering.
 use crate::policy_events::{PolicyEvent, render_policy_events};
 
 /// The finding family of every refusal here.
 pub const CORE_ID: &str = "merge-isolation";
-
-/// Code of the refusal when the merge changes a path another session holds changes in.
-pub const OVERLAP_CODE: &str = "paths-in-use";
 
 /// Code of the refusal when the merge conflicts textually.
 pub const CONFLICT_CODE: &str = "merge-conflict";
@@ -50,38 +46,6 @@ fn render(code: &'static str, message: String) -> String {
             code,
             message,
         }],
-    );
-}
-
-/// What:
-///  The refusal for a merge that changes paths which the checkout holds staged or modified.
-/// Why:
-///   Those paths belong to another session's work;
-/// writing the merge over them would lose it,
-/// and Git itself refuses
-///  the same overlap.
-///  Every way out is named,
-/// including the one that needs no cooperation:
-/// a clean linked worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function overlapFinding({ reference, paths }): string;
-/// ```
-pub fn overlap_finding(reference: &str, paths: &[Vec<u8>]) -> String {
-    return render(
-        OVERLAP_CODE,
-        format!(
-            "git merge {reference} was not run: the merge changes {}, which this checkout holds staged or modified \
-             (probably another session's work in progress). Writing the merge there would overwrite that work, so \
-             nothing was changed. Valid ways forward: wait until the session that owns those files has committed or \
-             restored them, then merge again; or merge in a clean linked worktree \
-             (`git worktree add -b merge-work ../merge-work <branch>`, then `git merge {reference}` there, and bring \
-             the result back with `git merge --ff-only merge-work` here once those paths are free); or, when the \
-             files are yours, commit them (`git commit -- <path>`) or set them aside (`git stash push -- <path>`) and \
-             run the merge again.",
-            listed(paths)
-        ),
     );
 }
 
