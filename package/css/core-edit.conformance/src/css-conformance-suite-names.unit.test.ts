@@ -8,6 +8,10 @@
  nothing says which corpus produced them. The corpus root is the level that lost
  its name: `name: ''` there made the whole run report `[valid corpus]`,
  `[context amplification]` and `[invalid corpus]` with no CSS corpus above them.
+ This corpus naming itself is a deliberate departure from the harness allowance
+ for an empty top-level name, which assumes a runner that prints the test file;
+ this package's run prints its task command line instead, so the corpus name is
+ the only thing a log line from the run carries above its cases.
 
  The scan reads the corpus test file's text rather than its descriptors, because
  the descriptors run the tests when they are awaited. A suite is read when the
