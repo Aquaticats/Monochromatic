@@ -9,7 +9,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { restoreGlobalDefaultThinkingLevel, } from './global-settings.ts';
+import { restoreGlobalDefaultThinkingLevel, } from '../dist/final/node/testing.mjs';
 
 //region Test helpers
 

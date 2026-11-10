@@ -14,7 +14,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import type { ThinkingDefaultLevel, ThinkingLevelMapFragment, } from './model-policy.ts';
+import type { ThinkingDefaultLevel, ThinkingLevelMapFragment, } from '../dist/final/node/testing.mjs';
 
 //region Mock infrastructure
 

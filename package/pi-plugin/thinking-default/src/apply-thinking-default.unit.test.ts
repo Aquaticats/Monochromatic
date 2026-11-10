@@ -9,8 +9,10 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { applyThinkingDefault, } from './apply-thinking-default.ts';
-import type { ThinkingDefaultLevel, } from './model-policy.ts';
+import {
+  applyThinkingDefault,
+  type ThinkingDefaultLevel,
+} from '../dist/final/node/testing.mjs';
 
 //region Test helpers
 

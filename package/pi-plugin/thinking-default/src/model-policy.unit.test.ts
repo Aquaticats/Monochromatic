@@ -15,7 +15,7 @@ import {
   isGptModelId,
   isXhighAvailable,
   type ThinkingLevelMapFragment,
-} from './model-policy.ts';
+} from '../dist/final/node/testing.mjs';
 
 //region Test cases
 

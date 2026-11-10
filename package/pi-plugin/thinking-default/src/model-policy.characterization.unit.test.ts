@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { getThinkingDefaultForModel, } from './model-policy.ts';
+import { getThinkingDefaultForModel, } from '../dist/final/node/testing.mjs';
 
 //region Fixtures
 
