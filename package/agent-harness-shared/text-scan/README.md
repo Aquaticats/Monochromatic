@@ -34,6 +34,9 @@ The package exports:
   and `PHRASE_NOT_FOUND`
 - delimiter and line stripping:
   `stripBetweenDelims` and `stripLinesStartingWith`
+- delimiter validation:
+  `EmptyDelimiterError`,
+  thrown by `stripBetweenDelims` when a delimiter literal is empty
 
 ## Usage
 

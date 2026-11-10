@@ -18,7 +18,6 @@
 use crate::auto_push_single_flight::{
     PushGit, SingleFlightError, run_query_awaiting,
 };
-use crate::auto_push_reconcile_branch_advance_settling::settle_failed_merge_awaiting;
 use crate::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
 use crate::diagnostic_log::{debug, warn};
 use std::future::Future;
@@ -27,7 +26,7 @@ use std::pin::Pin;
 use crate::inner_git_words::record_streams;
 use crate::iso_time::now_iso;
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
-use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace};
+use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge_awaiting};
 use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
 use crate::transaction_owner::current_transaction_owner;
@@ -322,7 +321,9 @@ pub(crate) async fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local
         common_dir: git_dir.clone().unwrap_or_default(),
         git_dir: git_dir.unwrap_or_default(),
     };
-    return Ok(match settle_failed_merge_awaiting(place, record, intent).await {
+    // The settle reads Git, so it is the awaited face: a task can start no child through the synchronous one,
+    //  which registers its step's pipes by entering the runtime.
+    return Ok(match settle_failed_merge_awaiting(&place, record.as_path(), &intent, &mut std::io::stderr()).await {
         Ok(MergeRecoveryAction::Completed) => Ok(()),
         Ok(_) => Err(refusal),
         Err(error) => Err(format!("{refusal} ({})", error.error.0)),
