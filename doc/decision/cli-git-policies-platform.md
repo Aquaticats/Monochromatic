@@ -113,6 +113,12 @@ including source-selected paths the destination branch does not ignore.
 A differing destination entry fails after retaining the new worktree.
 Require exact final source-to-stage equivalence before installation;
 perfectly reverted transient mutations are outside the portable guarantee.
+(Changed 2026-11-10T05:40:16-05:00,
+the owner's answer "Amend the rule (Recommended)":
+equivalence holds for every entry the stage holds.
+An entry that keeps changing while the copy runs and never settles stays in its source and is named to the person,
+and an entry the source removed during the copy is left out,
+so a busy checkout no longer fails the whole add.)
 
 Use private sibling staging,
 a common-directory journal,
