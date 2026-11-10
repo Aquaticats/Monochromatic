@@ -6659,6 +6659,27 @@ no missing entry and an empty journal root;
 `worktree_copy` ran `352` of `352` and `worktree_add` `27` of `27` on the merged tree,
 Clippy is clean,
 and the binary tests compile.
+A fourth gap in the same goal was found by the binary fault sweep after the first report and is fixed in the same
+branch:
+the ladder released the add's claim when its rung finished and the copy then made a claim of its own,
+so a command killed in that handover left a whole tracked checkout with no ignored state and no record at all
+(`kill-copy-mkdir-3: the worktree has no ignored rules file, no stage is left, and no recovery pass named it: ""`).
+The rung now hands its claim to the copy and no rung writes the completion marker,
+so the record of an add that owes a copy lives from before real Git until the copy's journal.
+Measured after: the seven copy kill sweeps (`mkdir`,
+`rename`,
+`renameat2`,
+`write`,
+`pwrite64`,
+`clone3`,
+`unlink`) passed `3` of `3` rounds,
+about `250` kills with no failure,
+where `5` of `8` runs of the selection that contains them failed one or two sweeps each;
+the selection passed `5` of `6` runs afterwards,
+and the unit filters `worktree_copy`,
+`worktree_add`,
+`stage_claim`,
+`worktree_dirty` and `subvolume` ran `731` of `731` with Clippy clean.
 `s9` killed `convert-worktree-to-subvolume` in `8` of `8` trials and every rerun finished with exit 0,
 nothing lost or changed,
 nothing left beside the worktree and no temporary in its administrative directory;
