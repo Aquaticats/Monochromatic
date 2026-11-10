@@ -12,8 +12,9 @@
 //! expect(withoutSettledOptions({ region: ['--patch'], interactive: true, borrowed: undefined })).toEqual({ kind: 'line', tokens: [] });
 //! ```
 
-use super::{BorrowedAuthor, Settled, borrows_its_author, rewords_another_commit, without_selection_letters, without_settled_options};
+use super::{BorrowedAuthor, Settled, borrows_its_author, rewords_a_commit, rewords_another_commit, without_selection_letters, without_settled_options};
 use crate::commit_args::normalise_commit_args;
+use std::ffi::OsString;
 
 /// What one region keeps,
 /// as text,
@@ -122,11 +123,14 @@ fn a_line_that_borrows_an_authorship_says_so_once() {
 /// What:
 ///  A fixup commit is made of its message,
 ///  so its option goes and the message lands,
-///  except for the one fixup that throws the index away.
+///  except for the one fixup whose commit is the branch's own tree.
 /// Why:
 ///  `--fixup=<commit>` and `--fixup=amend:<commit>` commit the index this preparation captured,
 ///  while `--fixup=reword:<commit>` commits the branch's own tree,
-///  which a replay of the captured tree would get wrong.
+///  which a replay of the captured tree would get wrong:
+///  such a line is landed from the fields of the commit Git built instead
+///  (`rewords_a_commit`,
+/// and the arm of `service_commit.rs` for a branch that moved).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,6 +147,35 @@ fn a_fixup_that_commits_the_index_goes_and_a_reword_does_not() {
         let region: Vec<String> = words.iter().map(|word| { return (*word).to_string(); }).collect();
         assert!(matches!(without_settled_options(region.as_slice(), false, None), Settled::Cannot), "{words:?}");
     }
+}
+
+/// What:
+///  The line the commit loop reads to know that an empty commit is what the person asked for.
+/// Why:
+///   `--fixup=reword:<commit>` makes its commit from the branch,
+///  so the preparation of the attempt that lands it on a branch that moved holds no change at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(rewordsACommit(['commit', '--fixup=reword:HEAD'], 0)).toBe(true);
+/// expect(rewordsACommit(['commit', '-m', '--fixup=reword:HEAD'], 0)).toBe(false);
+/// ```
+#[test]
+fn a_reword_fixup_is_the_line_that_asks_for_an_empty_commit() {
+    // The subcommand's index is the caller's: a global option before `commit` moves it.
+    let asks = |words: &[&str], subcommand: usize| -> bool {
+        let arguments: Vec<OsString> = words.iter().map(OsString::from).collect();
+        return rewords_a_commit(arguments.as_slice(), subcommand);
+    };
+    assert!(asks(&["commit", "--fixup=reword:HEAD"], 0));
+    assert!(asks(&["commit", "--squash=reword:HEAD"], 0));
+    assert!(asks(&["commit", "--quiet", "--fixup=reword:HEAD", "--no-enforce-only"], 0));
+    assert!(asks(&["-c", "core.x=1", "commit", "--fixup=reword:HEAD"], 2));
+    // A value that reads like the option is the person's text, and neither a plain fixup nor a path is one of these.
+    assert!(!asks(&["commit", "-m", "--fixup=reword:HEAD"], 0));
+    assert!(!asks(&["commit", "--fixup=HEAD"], 0));
+    assert!(!asks(&["commit", "--fixup=amend:HEAD"], 0));
+    assert!(!asks(&["commit", "-m", "x", "--", "--fixup=reword:HEAD"], 0));
 }
 
 /// What:
