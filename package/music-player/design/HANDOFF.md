@@ -1,4 +1,4 @@
-# Local music player — full project handoff
+# Local music player: full project handoff
 
 ## Presentation policy correction (2026-09-09)
 
@@ -895,29 +895,37 @@ You are picking this project up with **no prior context**.
 is in this folder.
  Read in this order:
 
-1. **HANDOFF.md** (this file) — what the product is,
+1. **HANDOFF.md** (this file),
+   what the product is,
     who it is for,
     current status,
    what to do next,
     and how the files work.
-2. **review-notes.md** — the mistakes made so far and the standing instructions from
+2. **review-notes.md**:
+   the mistakes made so far and the standing instructions from
    the user.
     Read this before you build anything.
     **Everything in it is binding,
     not
-   advisory** — standing standard 6:
+   advisory**,
+   standing standard 6:
     rules here are recorded absolutely and are never
    to be softened,
     hedged,
     or narrowed to the one candidate that prompted them (5f).
-3. **decisions.md** — every settled decision,
+3. **decisions.md**:
+   every settled decision,
     with the reasoning and what was rejected.
-4. **open-questions.md** — what is unresolved,
+4. **open-questions.md**:
+   what is unresolved,
     what was already tried,
     and what to build.
-5. **md3-tokens.md** — verified Material Design 3 spec values and how to look up more.
-6. **device-metrics.md** — real screen dimensions for the target device.
-7. **candidates.md** — inventory of the ~45 exploratory files in candidates/.
+5. **md3-tokens.md**:
+   verified Material Design 3 spec values and how to look up more.
+6. **device-metrics.md**:
+   real screen dimensions for the target device.
+7. **candidates.md**:
+   inventory of the ~45 exploratory files in candidates/.
 
 ---
 
@@ -926,8 +934,10 @@ is in this folder.
 A **local-file music player** for people with **big local music libraries**,
  built for:
 
-- **Android** — Jetpack Compose
-- **Desktop** — macOS,
+- **Android**:
+  Jetpack Compose
+- **Desktop**:
+  macOS,
    Windows and Linux,
    in **Slint** (settled 2026-09-03,
    A4;
@@ -946,7 +956,8 @@ wouldn't have needed to support 3 desktop platforms."
  Audience,
  in their words:
 "people with big local music libraries."
- Read every decision in that light — see the
+ Read every decision in that light,
+see the
 project-context note at the top of decisions.md for the five consequences that follow
 (non-Latin folder names,
  defaults,
@@ -954,7 +965,8 @@ project-context note at the top of decisions.md for the five consequences that f
  library sizes,
  theme).
 
-It must present **one visual identity on every platform** — not a Mac-native look on
+It must present **one visual identity on every platform**:
+not a Mac-native look on
 Mac and a Material look on Android.
  The user was explicit about this:
  parity is the
@@ -974,19 +986,22 @@ goal,
 - No playlists.
    No queue.
    No "up next" list.
-   No search field yet — Ctrl+F is
+   No search field yet,
+  Ctrl+F is
   **reserved** for one (D25),
    and a command bar with a configurable global hotkey is
   settled but undesigned (D21).
 - **No album art,
-   ever** (D19 — settled,
+   ever** (D19,
+  settled,
    not an accident;
    do not propose it again).
 
 ### The core loop
 
 1. The user points the app at a **music directory** (one "Open" action).
-2. That directory’s **subfolders are artist folders** — roughly **1,000 of them**,
+2. That directory’s **subfolders are artist folders**:
+   roughly **1,000 of them**,
    flat and name-sorted.
     The user browses them,
     or jumps by letter.
@@ -996,7 +1011,8 @@ goal,
 4. Playback is **loudness-normalised by true peak**,
     which requires each file to be
    analysed once.
-5. The app **restores the session on launch** — folder,
+5. The app **restores the session on launch**:
+   folder,
     track and playback position,
    restored **paused**.
     Because of this,
@@ -1020,16 +1036,19 @@ systems (D28),
 **The three NOs,
  all learned the hard way (D17,
  review-notes 5b/5d):**
-1. No sub-letter segmentation in any form — no Ca / Ch / Cr,
+1. No sub-letter segmentation in any form,
+   no Ca / Ch / Cr,
     no tabs,
     no rail accordion.
-2. No chip styling on the names — no pill,
+2. No chip styling on the names,
+   no pill,
     no fill,
     no outline.
     The wrapped
-   several-per-line *layout* is right;
+   several-per-line **layout** is right;
     only the styling was wrong.
-3. No one-item-per-row lists — one,
+3. No one-item-per-row lists,
+   one,
     two or three columns alike.
     Rejected 4+ times.
 
@@ -1043,7 +1062,8 @@ generated folder names,
 
 True-peak normalisation must measure every file once.
  For a library this size that is
-**about an hour of high CPU** — audible fans.
+**about an hour of high CPU**:
+audible fans.
  It is pausable,
  it happens once,
  and
@@ -1061,9 +1081,11 @@ analysis is off,
 
 The user specifies and builds this;
  they are not the only person who will use it.
-Specifics still beat opinions — they know the domain,
+Specifics still beat opinions,
+they know the domain,
  the hardware and the habits
-better than any design rationale does — but "what one person prefers" is no longer a
+better than any design rationale does,
+but "what one person prefers" is no longer a
 sufficient argument for a product decision.
  The working standards below are what the
 project holds itself to.
@@ -1085,19 +1107,23 @@ project holds itself to.
 - **Design calls belong to the designer.**
    Bring a recommendation and the reasoning
   behind it.
-   Choices that only the owner can make — their library,
+   Choices that only the owner can make,
+  their library,
    their hardware,
   their habits,
-   what they find annoying — get asked.
+   what they find annoying,
+  get asked.
 - **Every option carries pros,
    cons and my own pick,
-   written as a LIST** — in the chat
+   written as a list**,
+  in the chat
   message,
    in the form subtitle,
    AND in the caption printed inside the candidate file,
   because the user may be reading any of the three (review-notes standing standard 6).
   A flat menu of equally-weighted options is an unfinished presentation.
-- **Every question form ends with a free-text field — no exceptions** (review-notes
+- **Every question form ends with a free-text field:
+  no exceptions** (review-notes
   standing standard 1,
    and 5e for the two times it was broken).
    Options are always a
@@ -1171,34 +1197,38 @@ project holds itself to.
 
 Terms used throughout these docs and in the candidate filenames:
 
-- **transport block** — track title,
+- **transport block**:
+  track title,
    seek slider,
    prev / play / next,
    a volume icon,
   and the mode control.
    Older notes call it "the deck";
-   the user did not know the word
-  — say "transport block" to them.
+   the user did not know the word,
+  say "transport block" to them.
    **Volume is no longer an inline slider row**:
    it is
   an icon button opening a vertical popover slider (D20).
-- **mode control** — the four-way choice for what happens when a track ends:
+- **mode control**:
+  the four-way choice for what happens when a track ends:
   Repeat / In order / Shuffle folder / Shuffle all.
    This single control also defines
   end-of-folder behaviour,
    so there is no separate "what happens at the end" setting.
-- **current-folder identity** — the right-pane app-bar title and selected plain-text
+- **current-folder identity**:
+  the right-pane app-bar title and selected plain-text
   target name the active folder.
    There is no separate left-pane current-folder button.
   `Open` shares the left `Folders` app-bar line and changes the directory.
-- **letter rail** — one column of 48dp letter targets,
+- **letter rail**:
+  one column of 48dp letter targets,
    scrolls on its own;
    tapping a
   letter FILTERS the picker to it.
    **Generated from the library**,
-   not fixed A–Z:
+   not fixed A to Z:
    only
-  writing systems present get a section (Latin A–Z,
+  writing systems present get a section (Latin A to Z,
    Japanese kana rows + 漢,
    Cyrillic,
   Greek,
@@ -1207,7 +1237,8 @@ Terms used throughout these docs and in the candidate filenames:
    hairline-separated (D28).
    Replaces the earlier "jump strip" (a
   9×3 boxed grid the user rejected as "a keyboard").
-- **picker** — the folder chooser:
+- **picker**:
+  the folder chooser:
    letter rail + that letter's names as **plain text,
   several per line,
    48dp targets,
@@ -1215,21 +1246,26 @@ Terms used throughout these docs and in the candidate filenames:
    It never lists all
   folders,
    and the names are never pills.
-- **dBTP** — decibels relative to true peak;
+- **dBTP**:
+  decibels relative to true peak;
    the measured value shown per track
   (e.g. −1.2 dBTP).
-- **seam / crease** — the fold line on the unfolded foldable display.
+- **seam / crease**:
+  the fold line on the unfolded foldable display.
    **Nothing
   interactive may cross it**;
    the expanded layout uses the Material-required 24dp
   spacer down the middle.
-- **cover screen** — the outer display,
+- **cover screen**:
+  the outer display,
    used when the device is folded (411×923dp).
-- **tabletop posture** — the device half-folded like a laptop;
+- **tabletop posture**:
+  the device half-folded like a laptop;
    Compose can detect
   this,
    desktop toolkits cannot.
-- **outlined segmented button** — the mode control's component (D1,
+- **outlined segmented button**:
+  the mode control's component (D1,
    reversed from the
   connected button group on 2026-09-03):
    one non-wrapping Material row with four
@@ -2863,7 +2899,7 @@ things a new session must know about it:
     the five
    surface-container values are this project's own (D32).
 2. **Its dark scheme lives under `[data-theme="dark"]`,
-    and the HOST sets that
+    and the host sets that
    attribute on `<html>`.**
     Custom properties inherit,
     so a light design built on
@@ -2937,14 +2973,15 @@ session-3 decision applied),
  Nine forms,
  five re-asked,
  none
-because the user changed their mind — three were failures of checking rather than of
+because the user changed their mind,
+three were failures of checking rather than of
 design (review-notes 5h has the tally and the three pre-flight checks that would have
 caught them).
  The user's closing note:
  "I think we both might not be feeling well
 today,
  given how many mistakes we made."
- Read review-notes 5d–5h before building
+ Read review-notes 5d to 5h before building
 anything:
  rejected patterns kept returning because rejections had been recorded as
 nuances instead of as absolute NOs.
@@ -2957,7 +2994,7 @@ nuances instead of as absolute NOs.
  decisions largely closed;
  the light theme is the big unbuilt area.**
 
-Settled in session 3 (decisions.md D19–D31,
+Settled in session 3 (decisions.md D19 to D31,
  A4,
  B1 revised,
  D8 revised):
@@ -2974,7 +3011,8 @@ Settled in session 3 (decisions.md D19–D31,
 - Track order = tag track number,
    filename fallback (D24).
    Ctrl+F reserved for search,
-  Ctrl+O opens the picker (D25) — the whole map still needs an IntelliJ-alignment pass.
+  Ctrl+O opens the picker (D25),
+  the whole map still needs an IntelliJ-alignment pass.
 - Scan indicator = scan-F:
    56dp bar,
    count + always-rendered fixed-width Pause (D26).
@@ -3000,7 +3038,8 @@ Settled in session 3 (decisions.md D19–D31,
 
 **Best current files:**
  `candidates/unf-j.dc.html` (the assembled unfolded screen,
-every session-3 decision applied — start here),
+every session-3 decision applied,
+start here),
  `candidates/pk-g.dc.html` (the chosen
 picker presentation,
  D31),
@@ -3008,7 +3047,8 @@ picker presentation,
 (first-run prompt + the chosen scan bar),
  `candidates/toast-a.dc.html` (undo toast over
 the error bar),
- `candidates/scan-ef.dc.html` (scan E vs F — F chosen).
+ `candidates/scan-ef.dc.html` (scan E vs F,
+F chosen).
 
 **Biggest unbuilt area:
  the light theme.**
@@ -3043,7 +3083,7 @@ reviewer-sharing question (bundles) was never answered.
  One assembled surface exists.**
 
 Settled this session (all in decisions.md,
- D1 and D5–D18):
+ D1 and D5 to D18):
 - Picker = filter,
    never a list (D17).
    Letter rail one column,
@@ -3054,7 +3094,7 @@ Settled this session (all in decisions.md,
    parent's tracks first (D5/D6).
 - Mode control = outlined segmented button,
    always four visible (D1 reversed).
-- Transport block LEFT under the picker;
+- Transport block left under the picker;
    tracks fill the right half (D16).
 - Transport block centred/balanced layout (D18).
 - Cover screen = full player,
@@ -3065,7 +3105,8 @@ Settled this session (all in decisions.md,
 
 **Best current files:**
  `candidates/unf-h.dc.html` (assembled unfolded screen),
-`candidates/cover-c.dc.html` (cover — still carries the OLD connected group and
+`candidates/cover-c.dc.html` (cover,
+still carries the OLD connected group and
 left-hugging transport;
  needs D1/D18 applied),
  `candidates/desc-g.dc.html`
@@ -3075,7 +3116,8 @@ left-hugging transport;
  unanswered).
 
 **Unanswered when the session ended:**
-1. Scrollbar spec (open-questions.md 3b) — form was posted;
+1. Scrollbar spec (open-questions.md 3b),
+   form was posted;
     the user closed it to ask
    about sharing instead.
     Re-ask by showing scroll-a,
@@ -3089,7 +3131,8 @@ left-hugging transport;
    cover-c,
     desc-g,
     scroll-a,
-    Decisions.dc.html — or one stacked review page.
+    Decisions.dc.html,
+   or one stacked review page.
     **The
    user has not yet said which.**
     Use the "Save as standalone HTML" skill
@@ -3099,7 +3142,8 @@ left-hugging transport;
     Drive/Dropbox link is the fallback.
 
 **Reviewer feedback (a professor,
- 2026-09-03) — NOT yet built,
+ 2026-09-03),
+NOT yet built,
  NOT yet accepted by
 the user as decisions;
  treat as strong input and build candidates for each:**
@@ -3108,11 +3152,12 @@ the user as decisions;
     The volume slider leaves the transport block;
    a speaker icon opens a vertical slider only when clicked (YouTube's model).
     Reopens
-   D18's transport layout and D14 ("volume kept" on the cover — the question there
+   D18's transport layout and D14 ("volume kept" on the cover,
+   the question there
    becomes whether the popover is enough).
 2. **Command bar (⌘/Ctrl-Shift-style,
     "dshift").**
-    A type-to-act bar over the app —
+    A type-to-act bar over the app,
    jump to folder,
     switch mode,
     seek,
@@ -3121,33 +3166,37 @@ the user as decisions;
    globally** (system-wide hotkey when the app is in the background).
     Desktop-first;
    check what Slint/Compose allow for global hotkeys before promising it on Android.
-   Interacts with F1 (keyboard map) and D3/D17 (the picker) — a command bar may be the
+   Interacts with F1 (keyboard map) and D3/D17 (the picker),
+   a command bar may be the
    better way to reach 1k folders on desktop.
-3. **Sub-dir names must not be a wall of chips** — the wrapped-chip picker (unf-h)
+3. **Sub-dir names must not be a wall of chips**:
+   the wrapped-chip picker (unf-h)
    was called overwhelming.
-    D17's *filter* principle stands;
-    its *presentation* is
+    D17's **filter** principle stands;
+    its **presentation** is
    reopened.
     Try:
-    a plain single column within the filtered letter (only ~20–70
+    a plain single column within the filtered letter (only ~20 to 70
    names,
-    so a column is fine here — the objection to columns was to listing all
+    so a column is fine here,
+   the objection to columns was to listing all
    1,000),
     two columns,
     or a denser 40dp list.
-    Build 2–3 and show them.
+    Build 2 to 3 and show them.
 
 **Lessons this session (all in review-notes.md 5b/5c,
  read them):**
 - "Handle 1k folders" means COPE,
-   never LIST.
+   never list.
    Cost four rejected candidates.
 - Device candidates must render in a fixed device-size frame scaled to fit (pattern in
   unf-h / cover-c / desc-g).
    The preview otherwise stretches them.
 - Ask by demo,
    never by prose,
-   for anything visual — the user sent back a whole
+   for anything visual,
+  the user sent back a whole
   question round with "I'm not seeing any visual demos?"
 - Look critically,
    not just look:
@@ -3162,7 +3211,8 @@ the user as decisions;
 ## 5. What to do next, in order
 
 0. **Get the two open picks** (light separation,
-    secondary text) — both are built and
+    secondary text),
+   both are built and
    waiting;
     do not start light-theme work on the other surfaces until 11a is answered,
    because it decides how every one of them separates its panes.
@@ -3186,12 +3236,15 @@ the user as decisions;
     how it relates to the reserved
    Ctrl+F search,
     and the Settings row for the global hotkey (Settings goes to four
-   rows — check that D11's "the pane is short" claim still reads honestly).
+   rows,
+   check that D11's "the pane is short" claim still reads honestly).
 4. **Keyboard map,
-    one IntelliJ-aligned pass** (D25) — bring back a single revised
+    one IntelliJ-aligned pass** (D25),
+   bring back a single revised
    map,
     not binding-by-binding questions.
-5. **Accessibility pass** — focus order,
+5. **Accessibility pass**:
+   focus order,
     screen-reader labels for the transport,
     rail
    and popover,
@@ -3209,10 +3262,14 @@ the user as decisions;
    no special design round remains.
 
 ### Suggested skills for the next session
-- **Save as standalone HTML** — for the reviewer bundles.
-- **Hi-fi design** / **Options** — when assembling the remaining surfaces.
-- **Make tweakable** — only if the user asks for switches in the assembled screens.
-- **Web research** — for any further spec value not in md3-tokens.md (Compose
+- **Save as standalone HTML**:
+  for the reviewer bundles.
+- **Hi-fi design** / **Options**:
+  when assembling the remaining surfaces.
+- **Make tweakable**:
+  only if the user asks for switches in the assembled screens.
+- **Web research**:
+  for any further spec value not in md3-tokens.md (Compose
   Material3 source on GitHub:
    androidx/androidx,
    `compose/material3/material3/src/
@@ -4860,7 +4917,7 @@ explicit request.
 - Picker presentation within a letter:
   settled by D31 (pk-g) and carried natively at 48dp
  row pitch;
-  `open-questions.md` section 10 carried a stale STILL OPEN entry listing
+  `open-questions.md` section 10 carried a stale still open entry listing
  pk-e and pk-f,
   now closed with the D31 citation and native evidence.
   The next active
@@ -5390,7 +5447,7 @@ keeps the project on **baseline** M3.
 are recoverable from `components/search/specs/manifest.json`:
  ask the original
 `images/{34,35}.png` URL for `=w1200` instead of the archived 40px thumb.
-They show a 56dp *collapsed* full-pill field,
+They show a 56dp **collapsed** full-pill field,
  then a docked expanded container
 rounded 28dp with a 56dp header and divider,
  or a full-content sharp container

@@ -12,6 +12,7 @@ import {
   join,
   relative,
 } from 'node:path';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
@@ -65,6 +66,7 @@ async function readdirOrAbsent(
     if (!(Error.isError(error,)))
       throw error;
 
+    l.debug(`application directory '${current}' cannot be read: ${caughtValueText(error,)}`,);
     return DIR_UNREADABLE;
   }
 }

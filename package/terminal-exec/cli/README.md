@@ -100,6 +100,14 @@ org.kde.konsole.desktop
 First valid entry wins.
  Entries listed here bypass `OnlyShowIn`/`NotShowIn` checks.
 
+Config files are read in descending priority order:
+`$XDG_CONFIG_HOME` first,
+ then each `$XDG_CONFIG_DIRS` entry,
+ then `$XDG_DATA_DIRS`.
+The first file naming an entry ID decides that ID's execarg default and
+ its exclusion marker,
+so a file under `/etc/xdg` or `/usr/share` never overrides your own setting.
+
 The host's OdyTTY AppImage integration uses `odytty.desktop`.
 The development VM's upstream OdyTTY RPM uses `io.unfinished_works.odytty.desktop` instead.
 Use the desktop-entry filename installed on the target system.

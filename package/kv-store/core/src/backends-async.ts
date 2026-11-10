@@ -13,6 +13,10 @@ import type { StorageBackend, } from './types.ts';
 /**
  Query all backends for a key and return typed results with priority info.
  
+ Hand-written twin of `queryAllBackendsSync` in `backends-sync.ts`, on the same
+ deliberate split the two stores use (see {@link createStore}); the two must
+ collect the same result shape, and only the awaiting differs.
+ 
  @param backends - storage backends to query
  
  @param key - lookup key

@@ -94,32 +94,6 @@ impl Scratch {
     pub fn held_by_the_service(&mut self, held: bool) {
         self.1 = held;
     }
-
-    /// What:
-    ///  Takes a tree the service handed back to this command,
-    ///  and starts its removal beside the command.
-    /// Why:
-    ///   A request the service answered without landing (a commit sent back to be prepared again,
-    /// a branch that moved)
-    ///  leaves its tree to this process,
-    ///  which reads the change it captured from the tree's private index to make the commit again
-    ///  (`service_server.rs`,
-    ///  `remove_the_trees`).
-    ///  The read is over when this is called,
-    ///  and the removal is recursive and bounded by `SCRATCH_REMOVAL_CEILING`,
-    ///  so it runs beside the command and never makes it wait.
-    ///  A process killed before it calls this leaves the tree inside the repository scratch directory,
-    ///  where the sweep of a later command removes it.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// scratch.releaseBesideTheCommand();
-    /// ```
-    pub fn release_beside_the_command(&mut self) {
-        // The removal started here is this tree's only remover, so the drop must not start another.
-        self.1 = true;
-        crate::service_scratch_release_removal::start(self.0.clone());
-    }
 }
 
 impl Drop for Scratch {
@@ -233,10 +207,15 @@ pub struct Ready {
     /// a cherry-pick or a revert.
     pub cleanup: Option<Cleanup>,
     /// Whether the person chose what to commit interactively,
-    /// so that a moved branch cannot be answered by choosing again.
+    /// so that a rebuild keeps the private index holding that choice and asks no selection option again.
     pub interactive: bool,
-    /// Whether a moved branch makes another build on the new tip meaningless (a conclusion,
-    /// a branch that did not exist).
+    /// Whether a moved branch makes another build on the new tip meaningless (a conclusion).
+    /// Why:
+    ///   A conclusion's parents come from the state the worktree holds,
+    ///  so the same build makes it on the tip as it is now;
+    ///  a branch that did not exist is not one of these:
+    ///  the change captured against it is a whole root tree,
+    ///  which the replay puts on the branch as it is now.
     pub fixed_parents: bool,
     /// When the worktree's bytes were captured (`service_replay::capture_stamp`);
     /// a retry keeps the first capture's stamp.

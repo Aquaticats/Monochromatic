@@ -31,6 +31,7 @@ import {
 import { join, } from 'node:path';
 
 import { generateDomainXml, } from './domain-xml.ts';
+import { undefineVmIfExists, } from './domain-removal.ts';
 import {
   bootcConverterArguments,
   imageBuildArguments,
@@ -251,70 +252,6 @@ async function fixOwnership(): Promise<void> {
 }
 
 /**
- Destroys and undefines an existing libvirt domain if it exists.
- No-op when the domain is not defined; the existence probe's failure is
- logged via {@link caughtValueText}.
- Forcibly destroys a running domain before undefining to avoid an "active domain" error.
- 
- @param name - Libvirt domain name to remove
- */
-async function undefineVmIfExists(name: string,): Promise<void> {
-  try {
-    await exec({
-      cmd: 'virsh',
-      args: [
-        '--connect',
-        LIBVIRT_URI,
-        'dominfo',
-        name,
-      ],
-    },);
-  }
-  catch (error) {
-    console.warn(
-      `[vm-builder] libvirt domain '${name}' existence probe failed; skipping removal: ${caughtValueText(error,)}`,
-    );
-    // Domain not defined; nothing to remove.
-    return;
-  }
-  console.log(`[vm-builder] removing existing VM '${name}'...`,);
-  /**
-   Current domain state from `virsh domstate`; `'running'` requires `destroy` before `undefine`.
-   */
-  const state = (await exec({
-    cmd: 'virsh',
-    args: [
-      '--connect',
-      LIBVIRT_URI,
-      'domstate',
-      name,
-    ],
-  },))
-    .trim();
-  if (state === 'running') {
-    await exec({
-      cmd: 'virsh',
-      args: [
-        '--connect',
-        LIBVIRT_URI,
-        'destroy',
-        name,
-      ],
-    },);
-  }
-  await exec({
-    cmd: 'virsh',
-    args: [
-      '--connect',
-      LIBVIRT_URI,
-      'undefine',
-      name,
-      '--nvram',
-    ],
-  },);
-}
-
-/**
  Imports the qcow2 disk image into libvirt as a new domain.
  Writes domain XML rendered by {@link generateDomainXml} to a file and
  defines it via `virsh define`.
@@ -421,7 +358,10 @@ await buildImage();
 await convertToQcow2();
 await fixOwnership();
 await copyToLibvirtImages();
-await undefineVmIfExists(VM_NAME,);
+await undefineVmIfExists({
+  name: VM_NAME,
+  uri: LIBVIRT_URI,
+},);
 await importVm(VM_NAME,);
 await grantFlatpakAccess();
 
