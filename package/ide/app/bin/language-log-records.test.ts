@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { levelOf, withoutColourSequences } from './language-log-records.ts';
+import { isBareShutdownError, levelOf, withoutColourSequences } from './language-log-records.ts';
 
 test(
   'removes the colour sequence a tracing record carries',
@@ -165,5 +165,67 @@ test(
   () => {
     // A zero-width space is part of the field, so the level no longer follows a run of whitespace.
     assert.equal(levelOf('2026-11-10T12:00:00Z\u200bINFO ide_app: started'), undefined);
+  }
+);
+
+test(
+  'reads the phrase a server reports its own shutdown with',
+  () => {
+    // helix-lsp forwards each line a server writes to standard error into the log, so a server that reports its own
+    // shutdown as a failure reaches the log as one of these phrases, in the case the server wrote it in.
+    assert.equal(isBareShutdownError('scripted-ls err <- "context canceled"'), true);
+    assert.equal(isBareShutdownError('helix_lsp::transport: 123 err: <- StreamClosed'), true);
+    assert.equal(isBareShutdownError('write failed: broken pipe'), true);
+  }
+);
+
+test(
+  'reads a phrase in any case the pattern reached',
+  () => {
+    assert.equal(isBareShutdownError('CONTEXT CANCELED'), true);
+    assert.equal(isBareShutdownError('Context Canceled'), true);
+    assert.equal(isBareShutdownError('StreamClosed'), true);
+    assert.equal(isBareShutdownError('streamclosed'), true);
+    assert.equal(isBareShutdownError('Broken Pipe'), true);
+    assert.equal(isBareShutdownError('BROKEN PIPE'), true);
+  }
+);
+
+test(
+  'reads a phrase anywhere in a longer text',
+  () => {
+    assert.equal(isBareShutdownError('a context canceled b'), true);
+    assert.equal(isBareShutdownError('Broken pipeline'), true);
+  }
+);
+
+test(
+  'reads no phrase from text that states one with something other than a space between its words',
+  () => {
+    assert.equal(isBareShutdownError('context  canceled'), false);
+    assert.equal(isBareShutdownError('contextcanceled'), false);
+    assert.equal(isBareShutdownError('context\tcanceled'), false);
+    assert.equal(isBareShutdownError('stream closed'), false);
+    assert.equal(isBareShutdownError('brokenpipe'), false);
+  }
+);
+
+test(
+  'reads no phrase from text that states another word or nothing at all',
+  () => {
+    assert.equal(isBareShutdownError('context cancelled'), false);
+    assert.equal(isBareShutdownError('StreamClosures'), false);
+    assert.equal(isBareShutdownError('no shutdown error'), false);
+    assert.equal(isBareShutdownError(''), false);
+  }
+);
+
+test(
+  'reads no phrase across a character that uppercases to an ASCII letter',
+  () => {
+    // The `i` flag leaves a character above ASCII unfolded when its uppercase form is an ASCII letter, so a long s
+    // never stands for an `s` and a Kelvin sign never stands for a `k`.
+    assert.equal(isBareShutdownError('\u017ftreamclosed'), false);
+    assert.equal(isBareShutdownError('\u212aey'), false);
   }
 );

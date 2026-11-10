@@ -15,7 +15,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { levelOf, withoutColourSequences } from './language-log-records.ts';
+import { isBareShutdownError, levelOf, withoutColourSequences } from './language-log-records.ts';
 import { isProcessNumberName } from './process-number-name.ts';
 
 const binary = resolve('target/debug/ide-language-inspect');
@@ -98,9 +98,8 @@ const marked = (marker: string): string[] => readdirSync('/proc').filter(name =>
 });
 // One record of the application log per line; ANSI color sequences removed.
 const logRecords = (text: string): string[] => withoutColourSequences(text).split('\n').filter(Boolean);
-// Text a process prints when it reports its own shutdown as a failure. It is a bare shutdown error
-// when it reaches the log at WARN or ERROR, or outside any record; below WARN it is labelled for what it is.
-const bareShutdownError = /context canceled|StreamClosed|broken pipe/i;
+// A phrase a process prints when it reports its own shutdown as a failure is a bare shutdown error when it reaches
+// the log at WARN or ERROR, or outside any record; below WARN it is labelled for what it is.
 const bareLevels = new Set<string | undefined>(['WARN', 'ERROR', undefined]);
 // The three helix-lsp record shapes for a healthy server, worded as helix-lsp words them.
 const helixShapes: [string, RegExp][] = [
@@ -169,7 +168,7 @@ for (const item of cases) {
   const hoverText = events.flatMap(event => (event.reply ? [event.reply.outcome.text ?? ''] : [])).join('\n');
   const lines = logRecords(run.stderr ?? '');
   const errors = lines.filter(line => levelOf(line) === 'ERROR');
-  const bare = lines.filter(line => bareShutdownError.test(line) && bareLevels.has(levelOf(line)));
+  const bare = lines.filter(line => isBareShutdownError(line) && bareLevels.has(levelOf(line)));
   // Each re-labelled record with its level; one at WARN or ERROR fails, as any ERROR record does.
   const relabelled = lines.flatMap(line => helixShapes.filter(([, pattern]) => pattern.test(line)).map(([shape]) => ({ shape, level: levelOf(line), line })));
   const loud = relabelled.filter(entry => !(['INFO', 'DEBUG'] as (string | undefined)[]).includes(entry.level));
