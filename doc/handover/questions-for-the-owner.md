@@ -26,6 +26,462 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### What should kv-store do with `set('')`? (issues 1408 and 1412), asked 2026-11-09T21:18:00-05:00
+
+An async `set('', value)` writes under a hash of the value,
+and `get` and `delete` receive only the key,
+so nothing can read or remove that entry.
+No consumer in the repository calls `set('')`.
+`package/kv-store/core/DECISION.fs-backend.md` Hazard 8 ranks these three and leaves the pick open.
+The empty-key clause of the parity test in 1412 waits on this.
+
+#### A: reject empty keys
+
+`set('', value)` throws and names the key.
+
+- Pro:
+  an entry nothing can reach can no longer be made.
+- Con:
+  drops the documented content-addressed use (`types.ts:301`,
+  README) on a package planned to go public.
+
+#### B: make the derivation symmetric
+
+`get` and `delete` learn to address entries by content.
+
+- Pro:
+  keeps the documented feature.
+- Con:
+  `get('')` has no value to hash,
+  so it needs a new way to name the entry.
+
+#### C: keep it and document the quirk
+
+- Pro:
+  no behaviour change.
+- Con:
+  a write that cannot be read stays possible.
+
+Ranking:
+A > B > C,
+because no consumer uses the feature and A removes the trap outright,
+B needs a new API to keep something nobody calls,
+and C leaves the trap in place.
+
+### How should pnpr tell that a package has a build? (issue 1267), asked 2026-11-09T21:09:20-05:00
+
+The publish job reads `mise.toml` line by line for a literal `[tasks.build]`,
+so `tasks.build = { ... }` or `[tasks.build] # comment` is missed.
+Nothing configured trips this today:
+all 175 packages use the plain header.
+
+#### A: refuse when `package.json` names `dist/` and `task.ts` declares no build
+
+- Pro:
+  no new dependency,
+  and pnpr stops interpreting `mise.toml` at all.
+- Con:
+  it replaces the criterion `doc/decision/mise-free-ci.md:203-232` records,
+  so that record needs your amendment.
+
+#### B: read `mise.toml` with `@monochromatic-dev/toml-edit-core`
+
+- Pro:
+  keeps the recorded criterion.
+- Con:
+  a new dependency for this package,
+  and pnpr keeps a second reading of what `mise.toml` means.
+
+#### C: leave it
+
+- Pro:
+  no work.
+- Con:
+  a differently spelled header would be missed.
+
+Ranking:
+A > B > C,
+because A removes the second reader where B keeps it,
+and B at least handles every spelling where C handles one.
+
+### Should vmsync adopt the shared JSONC parser? (issue 1242), asked 2026-11-09T21:09:20-05:00
+
+vmsync keeps its own comment stripper for `vmsync.jsonc`,
+the only production copy in TypeScript.
+Adopting `@monochromatic-dev/jsonc-edit-core-ts` needs that dependency
+and an export of `toJsValue` from that package.
+This run fixed the stripper's bug in place (`bcc905f030`).
+
+#### A: adopt the shared parser
+
+- Pro:
+  one JSONC reader,
+  and the stripper is deleted.
+- Con:
+  a new dependency and a new export in another package.
+
+#### B: keep the stripper
+
+- Pro:
+  no new edge between packages.
+- Con:
+  a second JSONC reader stays.
+
+Ranking:
+A > B,
+because one reader is what the issue asks for and the cost is one export.
+
+### What should vmsync do with a name that starts badly? (issue 1243), asked 2026-11-09T21:09:20-05:00
+
+`nameFromPath` turns `/tmp/.hidden.img` into `-hidden`,
+and `validateName` rejects a leading `-`,
+so `importImage` refuses the name it derived itself.
+
+#### A: strip leading characters the name may not start with
+
+`/tmp/.hidden.img` becomes `hidden`.
+
+- Pro:
+  the import works with no extra step.
+- Con:
+  two files can derive one name.
+
+#### B: keep refusing, and say which file and which rule
+
+- Pro:
+  nothing is renamed silently.
+- Con:
+  the person must pass a name by hand.
+
+Ranking:
+B > A,
+because a disk image's identity should not change without being asked,
+and the sentence costs little.
+
+### Should the silent stub's decision record be amended?, asked 2026-11-09T21:09:20-05:00
+
+Coordinator pick,
+landed as `fe17472361` under your "nothing should ever wait forever or indefinitely":
+`await stub` now settles,
+and `String(stub)` returns text.
+`doc/decision/proper-lockfile-removal.md:77-104` and `:161-162` still describe the old thenable,
+and say editing the stub to add a carve-out "weakens the stub contract for every other policy entry,
+and is out of scope here".
+The session may not edit that record.
+
+- A:
+  amend it to say the stub no longer hangs.
+- B:
+  undo the change to the stub:
+  say "undo" and it is reverted.
+
+Ranking:
+A > B,
+because a stub that hangs every `await` contradicts your rule,
+and the record's own ranking does not depend on the old behaviour.
+
+### Does `package/vm-builder/cli/README.md` or the code say what you want?, asked 2026-11-09T21:09:20-05:00
+
+The README says `Network: default (NAT via libvirt)` and `Display: SPICE + QXL`.
+The code renders `<interface type="user">` and a virtio video model with `accel3d`.
+Tests now pin what the code renders.
+
+- A:
+  the code is right:
+  correct the README.
+- B:
+  the README is right:
+  change the code to libvirt NAT and SPICE with QXL.
+
+Ranking:
+A > B,
+because the code is what has been running and virtio with 3D is the newer choice.
+
+### Should a package with no unit tests fail `test:unit`? (issue 1761), asked 2026-11-09T21:09:20-05:00
+
+The root task returns success on an empty file list at `mise.toml:298`:
+`mise run //package/pi-plugin/cost-dismissal:test:unit` exits 0 and names no test.
+
+- A:
+  fail,
+  with a documented exemption list for packages that truly have none.
+- B:
+  print a loud skip and pass.
+- C:
+  leave it.
+
+Ranking:
+A > B > C,
+because a green run that ran nothing is the failure `AGENTS.md` `TRV` names,
+B at least shows it,
+and C hides it.
+
+### Should the music player's design pages stop fetching from the network? (issue 1441), asked 2026-11-09T21:09:20-05:00
+
+`support.js` loads React and Babel from `unpkg.com`,
+and 86 pages link Google Fonts,
+so the pages do not render offline.
+`support.js` is generated from a `dc-runtime` source that is not in this repository.
+
+- A:
+  vendor React,
+  ReactDOM and Babel (about 1.5 MB) and swap to the shipped fonts,
+  which changes the typeface of every candidate page.
+- B:
+  leave them online-only.
+
+Ranking:
+B > A,
+because these are review artifacts and A changes what the candidates look like.
+
+### Should the two FLAC profilers stay separate? (issue 1464), asked 2026-11-09T21:09:20-05:00
+
+`flac-bones.mjs` (1121 lines) writes the `out/flac-profiles.jsonl` that `--buckets` reads,
+and the FLAC part of `truepeak-core/src/bones.rs` is about 150 lines.
+The two already differ on SEEKTABLE handling and a trailing ID3v1 tag.
+
+- A:
+  retire the JavaScript and have Rust write the profile file.
+- B:
+  keep both as an independent pair,
+  with a comment saying why.
+- C:
+  generate one from the other.
+
+Ranking:
+A > B > C,
+because one owner ends the drift,
+B at least records it,
+and generating across languages costs the most.
+
+### Should the plural folder names go? (issue 1676), asked 2026-11-09T21:09:20-05:00
+
+Eight plural content folders remain,
+six of them outside `package/ide/app`,
+and the rename touches `doc/decision/slint-ide-0x-scope.md` and `doc/handover/`.
+
+- A:
+  rename them all and amend that record.
+- B:
+  list them as residue in `doc/planning/singular-dir-name-invariant.md`.
+
+Ranking:
+A > B,
+because the invariant is yours and the rename is mechanical.
+
+### Should agents work on packages under `package-paused`?, asked 2026-11-09T20:45:42-05:00
+
+An agent spent a run fixing issues 1482 to 1484 in `package-paused/pi-plugin/morph-compact`,
+because those issues name its old path and the issue sweep filter did not know it had moved.
+The fixes landed as `5340d97ff1`.
+
+Nothing under `package-paused/*/*` can be reached the normal way:
+it is in neither the `packages` list of `pnpm-workspace.yaml` nor `config_roots` in `mise.toml`,
+while `doc/howto/deprecate-package.md` says `package-deprecated/*/*` is in both.
+So `mise run //package-paused/pi-plugin/morph-compact:test:unit` answers `no task ... found`,
+`pnpm install` does not repair its links,
+and `package/config/oxlint/src/config-base.ts:79` ignores the folder,
+so `lint:oxlint` answers `No files found to lint`.
+The agent relinked eight `node_modules` entries by hand to run the tests.
+
+#### A: a pause means no work
+
+The issue sweep leaves out anything whose code now lives under `package-paused`,
+and those issues wait for an unpause.
+
+- Pro:
+  a paused package costs nothing,
+  which is what pausing it asked for.
+- Con:
+  defects in paused code stay open.
+
+#### B: add `package-paused/*/*` to both lists
+
+`mise run //package-paused/pi-plugin/morph-compact:test:unit` then works from the root,
+and `pnpm install` keeps its links.
+
+- Pro:
+  a paused package can be tested when someone does touch it.
+- Con:
+  every install and every task lookup pays for packages nobody is working on.
+- Con:
+  `lint:oxlint` still ignores the folder unless the shared config changes,
+  and changing that needs your approval.
+
+#### C: move morph-compact back to `package/`
+
+- Pro:
+  every tool works on it again.
+- Con:
+  undoes the pause of commit `64046360d2`.
+
+Ranking:
+A > B > C,
+because A is what a pause already means and costs nothing,
+while B adds a standing cost to keep paused code runnable;
+and B keeps the pause,
+which C undoes.
+
+### Where should a shared named error class live? (issues 1668 and 666), asked 2026-11-09T20:45:42-05:00
+
+Custom errors set their own name by hand:
+`git ls-files -- 'package/**' | xargs rg -n "this\.name = "` found 413 such lines in 318 files.
+Issue 666 records the open choice:
+"Decision needed:
+the home package for NamedError".
+Nothing can be derived from until a class exists,
+so issue 1668 is stopped on this.
+
+A concrete example of either home:
+`class ConfParseError extends NamedError {}` replaces a constructor whose only job is `this.name = 'ConfParseError'`.
+
+#### A: a new package holding only that class
+
+- Pro:
+  no dependencies of its own,
+  so every package can depend on it without pulling anything else in.
+- Con:
+  one more package to publish and keep.
+
+#### B: the existing package of throw helpers
+
+Issue 666 names it `module/throws`.
+
+- Pro:
+  no new package.
+- Con:
+  every error class would depend on the helpers beside it.
+
+#### C: leave the hand-written lines
+
+- Pro:
+  no migration across 318 files.
+- Con:
+  the lines stay,
+  and each new error class copies them.
+
+Ranking:
+A > B > C,
+because A costs one small package and spares every consumer a wider dependency,
+and B still removes the lines that C keeps.
+
+### OpenAI flagged the review of the merge carry: how should it continue?, asked 2026-11-09T20:03:17-05:00
+
+The merge carry landed on main as `3a1368a777`:
+a `git merge` over a person's unsaved or staged edits now keeps them and finishes,
+as you decided ("Carry edits forward (Recommended)").
+It is not released yet.
+
+To check it,
+the session started one narrow `codex` review asking whether a kill,
+or a write the person saves while the merge runs,
+can lose those edits.
+The provider ended that run with the message the earlier audit got:
+"This content was flagged for possible cybersecurity risk."
+The session did not restart it,
+reword it,
+or hand it to another model.
+
+The run left one script behind,
+`~/temp/agent/codex-runs/review-merge-carry-round-1/reproductions/carry-interruption.ts`.
+The script stops the merge under a debugger at `merge_isolation_carry_apply.rs:555` and asserts these outcomes:
+
+- `write-after-check`:
+  a file the person saves after the carry's check is overwritten.
+- A kill during the carry:
+  the unsaved edit is not put back,
+  while the capture's ref and record are removed all the same.
+
+Nothing shows whether either one happens.
+The run was flagged before it reported a result,
+and the session has not run the script.
+The merge carry's own controls cover a path written after the capture and a merge that did not land,
+each shown failing with its guard removed;
+that is the evidence there is today.
+
+Your standing word is that reviews never block publishing,
+so this does not hold the next alpha unless you say it should.
+
+#### A: the session runs that script here
+
+It reads the script whole,
+runs it on disposable repositories with no model involved,
+and a Pi agent fixes whatever reproduces.
+
+- Pro:
+  answers the exact scenarios,
+  and nothing goes to a provider's filter.
+- Con:
+  the script came from the flagged run,
+  so this carries that run's work forward,
+  which is why the session asks first.
+- Con:
+  covers only these scenarios.
+
+#### B: a Claude Sonnet audit of the same question
+
+This is the `AGENTS.md` `LHZ` route for long reviews.
+
+- Pro:
+  wider than these scenarios.
+- Con:
+  it hands the flagged work to another model,
+  which the session will not do without your word.
+- Con:
+  costs a long run.
+
+#### C: request the access the message names
+
+The message points at "Daybreak access" in the organization's OpenAI settings.
+
+- Pro:
+  would also let the earlier stopped audit continue.
+- Con:
+  only you can do it,
+  and how long it takes is unknown.
+
+#### D: leave it as tested
+
+- Pro:
+  no further work.
+- Con:
+  these scenarios stay unknown on the code that touches unsaved work.
+
+Ranking:
+A > B > C > D,
+because A settles the named scenarios soonest and B then costs far more to cover them;
+B needs no one to wait on a third party,
+which C does;
+and C at least gets an answer,
+which D does not.
+
+### What colours should the aquati.cat quiz verdicts use?, asked 2026-11-09T19:25:35-05:00
+
+Issue 1540:
+the quiz components set literal `green` and `red`,
+which ignore `tokens.ts` and do not follow the dark-mode toggle.
+Their docs promise a `color-mix()` derivation from the link tokens that was never wired.
+The agent `ssg-aquati-cat-ready-bugs` fixed the rest of that package and stopped here,
+because the answer is a design choice.
+Nothing else is waiting on it.
+
+#### A: add success and danger colour tokens
+
+Right answers stay green and wrong answers stay red in both themes.
+It costs one more pair of tokens,
+with values you pick or a contrast-checked pair an agent proposes.
+
+#### B: derive verdicts from the link tokens with `color-mix()`, as the docs promise
+
+It adds no tokens and follows the theme by construction.
+The link colour is purple,
+so right and wrong become two purples and lose the green and red meaning.
+
+Ranking:
+A > B,
+because the colour carries the verdict,
+and B gives that up to save a pair of tokens.
+
 ### Should a commit land when a killed Git left a branch's lock behind?, asked 2026-11-09T18:30:54-05:00
 
 A Claude Sonnet audit killed `git update-ref` during a commit.
@@ -1686,6 +2142,41 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T19:25:35-05:00,
+  issue 1555 of `package/ssg/aquati.cat`:
+  a post's dates compare calendar days in the git author's own offset,
+  carried through `ResolvedDates` and the build manifest,
+  so the answer does not depend on the machine that builds.
+  Say "undo" to compare in the build machine's zone instead.
+- 2026-11-09T19:25:35-05:00,
+  issue 1557 of `package/ssg/aquati.cat`:
+  `@lezer/json` joins the catalog and that package so JSON fences keep their highlighting.
+  Say "undo" to drop the alias and leave JSON fences unstyled.
+- 2026-11-09T19:25:35-05:00,
+  issue 1541 of `package/ssg/aquati.cat`:
+  an agent writes the alert labels and the brand-image alt in Catalan and Chinese,
+  and `lang` goes into the MDX component scope,
+  which makes the cached post HTML depend on language.
+  Say "undo" to keep English labels on every language.
+- 2026-11-09T19:25:35-05:00,
+  issue 1549 of `package/ssg/aquati.cat`:
+  the dark-theme dropdown shadow is `rgb(0 0 0 / 45%)`,
+  and the light theme keeps its earlier alpha.
+  Say "undo" to pick another value.
+- 2026-11-09T19:25:35-05:00,
+  issue 1400 of `package/logger/core`:
+  a record buffer holds its page lifecycle listeners only while records wait,
+  and no public teardown method was added,
+  because nothing calls one today.
+  `DECISIONS.md` in that package records the alternative.
+  Say "undo" to add `Sink.dispose` and a `Logger` method.
+- 2026-11-09T19:25:35-05:00,
+  issues 1500 and 1510 of `package/pi-shared/model-review`:
+  `assertModelUsesApi` is gone,
+  because a table keyed on `model.api` cannot mismatch,
+  and the Bedrock and Google dispatch branches get tests through a fake table,
+  so `@aws-sdk/client-bedrock-runtime` and `@google/genai` do not become dependencies for tests alone.
+  Say "undo" to restore the assertion or add the SDKs.
 - 2026-11-09T16:22:51-05:00,
   the merge's second pass becomes awaitable as one body:
   `GitRunner::run` hands back a boxed future,

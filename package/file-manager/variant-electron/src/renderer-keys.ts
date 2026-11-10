@@ -260,6 +260,44 @@ function closeActivePane({ session, }: { readonly session: RendererSession; },):
 }
 
 /**
+ Dispatches one keydown event through the strip keyboard model: a key the
+ lookup names is prevented and its action runs, any other key is ignored.
+ 
+ The parameter is the keydown event itself, not a wider `Event`: the
+ listener a `keydown` registration receives is always a `KeyboardEvent`, so
+ a runtime narrowing guard would only hide an event-plumbing defect.
+ 
+ @param actions - Key-name to action lookup for the strip.
+ 
+ @param event - Keydown event delivered to the strip listener.
+ 
+ @example
+ ```ts
+ handleStripKey({ actions: {}, event });
+ ```
+ */
+export function handleStripKey(
+  {
+    actions,
+    event,
+  }: {
+    readonly actions: Readonly<Record<string, () => void>>;
+    readonly event: KeyboardEvent;
+  },
+): void {
+  /**
+   Action bound to the pressed key, when one exists.
+   */
+  const action = actions[event.key];
+
+  if (action === undefined)
+    return;
+
+  event.preventDefault();
+  action();
+}
+
+/**
  Installs the strip-wide keyboard model on the global scope.
  
  @param session - Renderer session the keys mutate.
@@ -308,20 +346,11 @@ export function installKeyboard({ session, }: { readonly session: RendererSessio
 
   globalThis.addEventListener(
     'keydown',
-    function handleStripKey(event: Event,): void {
-      if (!(event instanceof KeyboardEvent))
-        return;
-
-      /**
-       Action bound to the pressed key, when one exists.
-       */
-      const action = actions[event.key];
-
-      if (action === undefined)
-        return;
-
-      event.preventDefault();
-      action();
+    function handleStripKeyEvent(event: KeyboardEvent,): void {
+      handleStripKey({
+        actions,
+        event,
+      },);
     },
   );
 }

@@ -81,7 +81,11 @@ fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     let Some(root) = btrfs_fixture("finish-same") else { return };
     let repo: PathBuf = subvolume_repository(root.as_path());
     let (result, steps, printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: Some(root.join("topic")), trash: None });
+    assert_eq!(result.git, GitStatus { code: Some(0) });
+    assert_eq!(result.carried, Some(root.join("topic")));
+    // The swap put the snapshot where Git's directory stood, so the destination is the object the rung made and not the one that was reserved before Git ran.
+    assert_eq!(result.placed, crate::worktree_add_binding::path_identity(root.join("topic").as_path()), "the destination is the snapshot the rung swapped in");
+    assert_eq!(result.trash, None);
     assert!(steps.is_empty(), "{steps:?}");
     let head: String = git_text(repo.as_path(), &["log", "-1", "--format=HEAD is now at %h %s"]);
     assert_eq!(printed, format!("{head}\n"));
@@ -156,7 +160,7 @@ fn btrfs_a_refused_step_destroys_the_stage_and_completes_the_checkout_like_git()
     let (result, steps, printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |destination| {
         std::fs::write(destination.join("stray"), b"x").expect("a stray file");
     });
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None, trash: None });
+    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None, placed: None, trash: None });
     assert_eq!(printed, "", "Git's own reset prints the line, not the ladder");
     assert_eq!(steps.len(), 1, "{steps:?}");
     assert_eq!(&steps[0][2..], ["reset", "--hard", "--no-recurse-submodules"], "{steps:?}");
@@ -178,7 +182,7 @@ fn btrfs_a_failing_checkout_step_gives_its_status() {
     let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &["--quiet"], true, |destination| {
         std::fs::write(destination.join("stray"), b"x").expect("a stray file");
     });
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(1) }, carried: None, trash: None });
+    assert_eq!(result, LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None });
     assert!(root.join("topic/.git").exists() && root.join("topic/stray").exists(), "nothing was deleted");
     assert!(repo.join(".git/worktrees/topic").exists(), "nothing was unregistered");
     remove(root.as_path());

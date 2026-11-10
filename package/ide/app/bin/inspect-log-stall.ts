@@ -22,7 +22,7 @@ import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { compositor, demandCurrentCompositor } from './nested-compositor.ts';
+import { compositor, demandCurrentCompositor, endedWithin } from './nested-compositor.ts';
 import { containerBounds } from './container-bounds.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
@@ -237,13 +237,24 @@ const session = async (variant: Variant): Promise<Variant> => {
     const draining = setInterval(drainOnce, 20);
     await wait(500);
     const quitAt = performance.now();
-    await control({ socketPath, line: 'quit' }).catch(() => host.kill('SIGTERM'));
-    // The compositor gets time to stop its private bus; a forced kill leaves that bus behind.
-    const outcome = await Promise.race([exited, wait(30000).then(() => undefined)]);
-    if (outcome === undefined) {
+    try {
+      await control({ socketPath, line: 'quit' });
+    } catch (error) {
+      // The session cannot be asked to quit; a signal is the only way to end it.
+      console.error('the session did not accept its quit request: ' + (error instanceof Error ? error.message : String(error)));
       host.kill('SIGTERM');
-      variant.exit = await Promise.race([exited, wait(10000).then(() => { host.kill('SIGKILL'); return { killed: true }; })]);
-    } else variant.exit = outcome;
+    }
+    // The compositor gets time to stop its private bus; a forced kill leaves that bus behind.
+    if (await endedWithin(exited, 30000)) {
+      variant.exit = await exited;
+    } else {
+      host.kill('SIGTERM');
+      if (await endedWithin(exited, 10000)) variant.exit = await exited;
+      else {
+        host.kill('SIGKILL');
+        variant.exit = { killed: true };
+      }
+    }
     variant.exitAfterQuitMs = Math.round(performance.now() - quitAt);
     clearInterval(draining);
     drainOnce();

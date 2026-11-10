@@ -75,7 +75,7 @@ await describe({
       children: [
         it({
           name: 'computes expected cost score',
-          fn: async function testScoreModel() {
+          fn: async function testScoreModel(): Promise<void> {
             const [entry,] = scope.entries;
             if (entry === undefined)
               throw new Error('missing fixture entry',);
@@ -96,7 +96,7 @@ await describe({
       children: [
         it({
           name: 'uses slug as final tie-breaker',
-          fn: async function testCompareCostScores() {
+          fn: async function testCompareCostScores(): Promise<void> {
             expect(compareCostScores({
               left: {
                 slug: 'a/model',
@@ -127,7 +127,7 @@ await describe({
       children: [
         it({
           name: 'sorts highest expected cost first',
-          fn: async function testBuildCostRanking() {
+          fn: async function testBuildCostRanking(): Promise<void> {
             const ranking = buildCostRanking({
               scope,
               estimatedInputTokensBySlug: new Map([
@@ -147,7 +147,7 @@ await describe({
       children: [
         it({
           name: 'selects highest expected-cost model',
-          fn: async function testSelectDefaultModel() {
+          fn: async function testSelectDefaultModel(): Promise<void> {
             const result = selectDefaultModel({
               scope,
               estimatedInputTokens: INPUT_TOKENS,
@@ -163,7 +163,7 @@ await describe({
       children: [
         it({
           name: 'scores each model with its own input-token estimate',
-          fn: async function testPerModelEstimates() {
+          fn: async function testPerModelEstimates(): Promise<void> {
             const result = selectDefaultModelFromContextEstimates({
               scope,
               estimatedInputTokensBySlug: new Map([

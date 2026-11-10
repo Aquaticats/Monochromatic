@@ -27,6 +27,7 @@ import { parser as cssParser, } from '@lezer/css';
 import { highlightTree, } from '@lezer/highlight';
 import { parser as htmlParser, } from '@lezer/html';
 import { parser as jsParser, } from '@lezer/javascript';
+import { parser as jsonParser, } from '@lezer/json';
 import { parser as markdownParser, } from '@lezer/markdown';
 import { parser as rustParser, } from '@lezer/rust';
 import { parser as xmlParser, } from '@lezer/xml';
@@ -65,6 +66,10 @@ const tsxParser = jsParser.configure({ dialect: 'ts jsx', },);
  Language name to Lezer parser mapping.
  
  Covers the same language aliases as the former client-side `PARSER_LOADERS`.
+ `json` maps to the JSON grammar: the JavaScript parser accepts JSON as a
+ single expression and tags object keys as strings, so a JSON block highlighted
+ through it lost the property tag and could parse invalid JSON through error
+ recovery.
  */
 const PARSERS: Readonly<Record<string, Parser>> = {
   js: jsParser,
@@ -82,7 +87,7 @@ const PARSERS: Readonly<Record<string, Parser>> = {
   svg: xmlParser,
   yaml: yamlParser,
   yml: yamlParser,
-  json: jsParser,
+  json: jsonParser,
   rust: rustParser,
   rs: rustParser,
 };

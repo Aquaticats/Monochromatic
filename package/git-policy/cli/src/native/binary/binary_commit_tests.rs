@@ -903,3 +903,242 @@ fn an_explicit_path_commit_keeps_other_staged_entries_without_a_warning() {
     );
     remove_settled(&fixture);
 }
+
+/// The paths the head commit holds,
+/// one per line,
+/// as native Git lists them.
+fn head_paths(fixture: &Fixture, repo: &Path) -> String {
+    return git_text(fixture, repo, &["show", "--name-only", "--format=", "HEAD"]);
+}
+
+/// Two repositories holding the same shapes:
+/// a tracked file edited,
+/// a tracked file below a directory edited,
+/// one addition staged,
+/// and a file nothing staged beside each of them.
+fn twins_with_unstaged_neighbours(fixture: &Fixture, name: &str) -> (PathBuf, PathBuf) {
+    let wrapped: PathBuf = repository(fixture, OsStr::new(format!("{name}-wrapped").as_str()));
+    let native: PathBuf = repository(fixture, OsStr::new(format!("{name}-native").as_str()));
+    for repo in [wrapped.clone(), native.clone()] {
+        std::fs::write(repo.join("a.txt"), b"alpha\n").expect("a");
+        std::fs::create_dir(repo.join("dir")).expect("dir");
+        std::fs::write(repo.join("dir/c.txt"), b"c1\n").expect("c");
+        git(fixture, repo.as_path(), &["add", "--", "a.txt", "dir/c.txt"]);
+        git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+        std::fs::write(repo.join("a.txt"), b"alpha edited\n").expect("edit a");
+        std::fs::write(repo.join("dir/c.txt"), b"c2\n").expect("edit c");
+        std::fs::write(repo.join("dir/staged.txt"), b"staged\n").expect("staged");
+        git(fixture, repo.as_path(), &["add", "--", "dir/staged.txt"]);
+        std::fs::write(repo.join("scratch.txt"), b"scratch\n").expect("scratch");
+        std::fs::write(repo.join("dir/never-added.txt"), b"never\n").expect("never");
+        keep_maintenance_in_the_foreground(fixture, repo.as_path());
+    }
+    return (wrapped, native);
+}
+
+/// What:
+///  A directory,
+/// the whole worktree,
+/// and a wildcard pathspec commit what native Git commits:
+/// tracked paths and staged additions,
+/// and no file nothing staged.
+/// Why:
+///   The private index was staged with `git add --all`,
+/// which swept in every untracked file the pathspec matched,
+/// so a commit of `.` published a scratch file nobody staged
+/// (owner:
+/// "never discard user data").
+///  The same argv runs in a twin repository through native Git,
+/// and the two commits,
+/// statuses
+///  and exit codes are compared.
+#[test]
+fn a_pathspec_that_is_a_directory_or_a_pattern_commits_no_file_nothing_staged() {
+    let fixture: Fixture = fixture("commit-pathspec-untracked");
+    for (number, pathspec) in [".", "dir", "*"].iter().enumerate() {
+        let name: String = format!("pathspec-untracked-{number}");
+        let (wrapped, native): (PathBuf, PathBuf) = twins_with_unstaged_neighbours(&fixture, name.as_str());
+        let arguments: [&str; 5] = ["commit", "--quiet", "--message=x", "--", pathspec];
+        let wrapped_ran: Observed = run_commit(&fixture, wrapped.as_path(), &arguments);
+        let native_ran: Observed = run_direct(&fixture, native.as_path(), &arguments);
+        assert_eq!(wrapped_ran.code, native_ran.code, "pathspec {pathspec}: {}", stderr_of(&wrapped_ran));
+        assert_eq!(head_paths(&fixture, wrapped.as_path()), head_paths(&fixture, native.as_path()), "pathspec {pathspec}: the commit holds what native Git commits");
+        assert_eq!(
+            porcelain(&fixture, wrapped.as_path()),
+            porcelain(&fixture, native.as_path()),
+            "pathspec {pathspec}: the worktree is left as native Git leaves it"
+        );
+        assert!(porcelain(&fixture, wrapped.as_path()).contains("?? scratch.txt"), "pathspec {pathspec}: {}", porcelain(&fixture, wrapped.as_path()));
+    }
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A pathspec mode given as a global option selects the paths native Git selects:
+/// `--noglob-pathspecs` makes `*.txt` literal (nothing matches,
+/// exit 1),
+/// makes `st*r.txt` literal (the file of that name only),
+/// and `--icase-pathspecs` matches a staged `A.TXT` through `a.txt`.
+/// Why:
+///   The private staging,
+/// the staged-addition listing and the carried check runs dropped the caller's global options
+///  (`GitRequest::without_prefix`),
+/// so a mode written as an option did not reach the pathspecs the caller wrote,
+/// where the same mode as a variable did.
+///  Every case runs in a twin repository through native Git and compares exit codes,
+///  commits and statuses.
+#[test]
+fn a_pathspec_mode_given_as_a_global_option_selects_what_native_git_selects() {
+    let fixture: Fixture = fixture("commit-pathspec-mode");
+    // `*.txt` under noglob matches no file, so native Git refuses the commit and changes nothing.
+    {
+        let (wrapped, native): (PathBuf, PathBuf) = twins_with_unstaged_neighbours(&fixture, "mode-noglob-none");
+        let arguments: [&str; 6] = ["--noglob-pathspecs", "commit", "--quiet", "--message=x", "--", "*.txt"];
+        let wrapped_ran: Observed = run_commit(&fixture, wrapped.as_path(), &arguments);
+        let native_ran: Observed = run_direct(&fixture, native.as_path(), &arguments);
+        // The refusal is an engine failure of the private staging, exit status 2 after the finding sentence; native Git
+        // refuses the same pathspec with exit status 1 (`README.md` "Output and exit status").
+        assert_ne!(wrapped_ran.code, Some(0), "noglob-none: the wrapper refuses the pathspec");
+        assert_ne!(native_ran.code, Some(0), "the control: native Git refuses a literal pathspec that matches nothing");
+        assert!(stderr_of(&wrapped_ran).contains("pathspec '*.txt' did not match any files"), "noglob-none: {}", stderr_of(&wrapped_ran));
+        assert_eq!(head_paths(&fixture, wrapped.as_path()), head_paths(&fixture, native.as_path()), "noglob-none: nothing lands");
+        assert_eq!(porcelain(&fixture, wrapped.as_path()), porcelain(&fixture, native.as_path()), "noglob-none");
+    }
+    // `st*r.txt` under noglob names the file of that name, not every sibling its glob would match.
+    {
+        let (wrapped, native): (PathBuf, PathBuf) = (repository(&fixture, OsStr::new("mode-star-wrapped")), repository(&fixture, OsStr::new("mode-star-native")));
+        for repo in [wrapped.clone(), native.clone()] {
+            std::fs::write(repo.join("st*r.txt"), b"star\n").expect("the literal name");
+            std::fs::write(repo.join("stxr.txt"), b"sibling\n").expect("the sibling");
+            git(&fixture, repo.as_path(), &["--noglob-pathspecs", "add", "--", "st*r.txt"]);
+            keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+        }
+        let arguments: [&str; 6] = ["--noglob-pathspecs", "commit", "--quiet", "--message=x", "--", "st*r.txt"];
+        let wrapped_ran: Observed = run_commit(&fixture, wrapped.as_path(), &arguments);
+        let native_ran: Observed = run_direct(&fixture, native.as_path(), &arguments);
+        assert_eq!(wrapped_ran.code, native_ran.code, "noglob-star: {}", stderr_of(&wrapped_ran));
+        assert_eq!(head_paths(&fixture, wrapped.as_path()), head_paths(&fixture, native.as_path()), "noglob-star: the commit holds what native Git commits");
+        assert!(porcelain(&fixture, wrapped.as_path()).contains("?? stxr.txt"), "noglob-star: {}", porcelain(&fixture, wrapped.as_path()));
+    }
+    // `a.txt` under icase names the staged `A.TXT`.
+    {
+        let (wrapped, native): (PathBuf, PathBuf) = (repository(&fixture, OsStr::new("mode-icase-wrapped")), repository(&fixture, OsStr::new("mode-icase-native")));
+        for repo in [wrapped.clone(), native.clone()] {
+            std::fs::write(repo.join("A.TXT"), b"upper\n").expect("the upper-case name");
+            git(&fixture, repo.as_path(), &["add", "--", "A.TXT"]);
+            keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+        }
+        let arguments: [&str; 6] = ["--icase-pathspecs", "commit", "--quiet", "--message=x", "--", "a.txt"];
+        let wrapped_ran: Observed = run_commit(&fixture, wrapped.as_path(), &arguments);
+        let native_ran: Observed = run_direct(&fixture, native.as_path(), &arguments);
+        assert_eq!(wrapped_ran.code, native_ran.code, "icase: {}", stderr_of(&wrapped_ran));
+        assert_eq!(native_ran.code, Some(0), "the control: native Git commits the staged file the icase pathspec names");
+        assert_eq!(head_paths(&fixture, wrapped.as_path()), head_paths(&fixture, native.as_path()), "icase: the commit holds what native Git commits");
+        assert_eq!(porcelain(&fixture, wrapped.as_path()), porcelain(&fixture, native.as_path()), "icase");
+    }
+    remove_settled(&fixture);
+}
+
+/// The reflog subjects of the head's last `count` entries,
+/// newest first.
+fn reflog_subjects(fixture: &Fixture, repo: &Path, count: &str) -> String {
+    return git_text(fixture, repo, &["reflog", "show", "--format=%gs", format!("--max-count={count}").as_str(), "HEAD"]);
+}
+
+/// What:
+///  A commit landed by the service writes the reflog message native Git writes for the same commit:
+/// `commit: <subject>` for an ordinary commit,
+/// `commit (amend): <subject>` for an amend,
+/// and `commit (initial): <subject>` for the first commit of a branch.
+/// Why:
+///   The landing moved the branch with `update-ref --stdin` and no message,
+/// so every row of `git reflog`,
+///  the recovery tool a lost commit is found with,
+/// read blank.
+///  The same sequence runs in a twin repository through native Git and the subjects are compared.
+#[test]
+fn a_landed_commit_writes_the_reflog_message_native_git_writes() {
+    let fixture: Fixture = fixture("commit-reflog");
+    let wrapped: PathBuf = repository(&fixture, OsStr::new("reflog-wrapped"));
+    let native: PathBuf = repository(&fixture, OsStr::new("reflog-native"));
+    for repo in [wrapped.clone(), native.clone()] {
+        std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
+        git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+        keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+    }
+    let plain: [&str; 5] = ["commit", "--quiet", "--message=plain", "--", "a.txt"];
+    assert_eq!(run_commit(&fixture, wrapped.as_path(), &plain).code, Some(0));
+    assert_eq!(run_direct(&fixture, native.as_path(), &plain).code, Some(0));
+    std::fs::write(wrapped.join("a.txt"), b"one\ntwo\n").expect("edit wrapped");
+    std::fs::write(native.join("a.txt"), b"one\ntwo\n").expect("edit native");
+    let amend: [&str; 5] = ["commit", "--quiet", "--amend", "--message=amended", "a.txt"];
+    let amended: Observed = run_commit(&fixture, wrapped.as_path(), &amend);
+    assert_eq!(amended.code, Some(0), "{}", stderr_of(&amended));
+    assert_eq!(run_direct(&fixture, native.as_path(), &amend).code, Some(0));
+    assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1"), reflog_subjects(&fixture, native.as_path(), "1"), "the amend's row");
+    assert_eq!(
+        reflog_subjects(&fixture, wrapped.as_path(), "1").as_str(),
+        "commit (amend): amended\n",
+        "the amend's wording"
+    );
+    // The first commit of a branch is `commit (initial)`.
+    let unborn_wrapped: PathBuf = fixture.root.join("unborn-wrapped");
+    let unborn_native: PathBuf = fixture.root.join("unborn-native");
+    for repo in [unborn_wrapped.clone(), unborn_native.clone()] {
+        std::fs::create_dir(repo.as_path()).expect("unborn repository");
+        git(&fixture, repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+        std::fs::write(repo.join("first.txt"), b"first\n").expect("first");
+        // The file is staged, so the commit names a path both sides know: an untracked exact path is the wrapper's own
+        // deliberate difference in the other direction.
+        git(&fixture, repo.as_path(), &["add", "--", "first.txt"]);
+        keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+    }
+    let initial: [&str; 5] = ["commit", "--quiet", "--message=first", "--", "first.txt"];
+    let landed: Observed = run_commit(&fixture, unborn_wrapped.as_path(), &initial);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    assert_eq!(run_direct(&fixture, unborn_native.as_path(), &initial).code, Some(0));
+    assert_eq!(reflog_subjects(&fixture, unborn_wrapped.as_path(), "1"), reflog_subjects(&fixture, unborn_native.as_path(), "1"), "the initial row");
+    assert_eq!(
+        reflog_subjects(&fixture, unborn_wrapped.as_path(), "1").as_str(),
+        "commit (initial): first\n",
+        "the initial commit's wording"
+    );
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit that concludes a stopped merge writes the reflog row native Git writes for it,
+/// `commit (merge): <first line>`.
+/// Why:
+///   The merge's state is another kind the landing has to tell apart,
+/// and its row is the one a person reads to find the merge commit after a `reset`.
+///  The same sequence runs in a twin repository through native Git and the subjects are compared.
+#[test]
+fn a_merge_conclusion_writes_the_reflog_message_native_git_writes() {
+    let fixture: Fixture = fixture("commit-reflog-merge");
+    let wrapped: PathBuf = repository(&fixture, OsStr::new("reflog-merge-wrapped"));
+    let native: PathBuf = repository(&fixture, OsStr::new("reflog-merge-native"));
+    for repo in [wrapped.clone(), native.clone()] {
+        std::fs::write(repo.join("f.txt"), b"a\nb\n").expect("f");
+        git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base", "--", "f.txt"]);
+        git(&fixture, repo.as_path(), &["branch", "side"]);
+        std::fs::write(repo.join("f.txt"), b"a\nMAIN\n").expect("main edit");
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+        git(&fixture, repo.as_path(), &["checkout", "--quiet", "side"]);
+        std::fs::write(repo.join("f.txt"), b"a\nSIDE\n").expect("side edit");
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=side"]);
+        git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+        let merged: Observed = run_direct(&fixture, repo.as_path(), &["merge", "--quiet", "side"]);
+        assert_eq!(merged.code, Some(1), "the control: the merge stops on the conflict");
+        std::fs::write(repo.join("f.txt"), b"a\nRESOLVED\n").expect("resolution");
+        git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
+        keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+    }
+    let concluded: Observed = run_commit(&fixture, wrapped.as_path(), &["commit", "--no-only", "--message=merged"]);
+    assert_eq!(concluded.code, Some(0), "{}", stderr_of(&concluded));
+    assert_eq!(run_direct(&fixture, native.as_path(), &["commit", "--quiet", "--message=merged"]).code, Some(0));
+    assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1"), reflog_subjects(&fixture, native.as_path(), "1"), "the merge row");
+    assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1").as_str(), "commit (merge): merged\n", "the merge's wording");
+    remove_settled(&fixture);
+}

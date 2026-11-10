@@ -291,6 +291,7 @@ fn predicted_add(
         prefix,
         command.as_slice(),
         overlay,
+        &[],
         "predict what git add stages",
     )?;
     let after: Vec<StageRecord> = store.stage_records(&whole_index)?;
@@ -326,11 +327,14 @@ fn projected_scope(
         OsString::from("--"),
     ];
     command.extend_from_slice(pathspecs);
+    // Every name here is a pathspec the wrapper wrote (`:/` or `:(top,literal)<path>`), so no pathspec mode the caller
+    //  set may reach this start: literal mode would read `:/` as a file name and the staging would match nothing.
     run_git(
         real_git,
         prefix,
         command.as_slice(),
         overlay,
+        crate::conflict_side_modes::MODE_VARIABLES.as_slice(),
         "read the selected worktree files",
     )?;
     return staged_scope(store, pathspecs);
@@ -404,7 +408,7 @@ fn note_listing(
 /// const magicEnabledPrefix = (prefix: string[]) => withoutPathspecModeOptions(prefix);
 /// ```
 fn magic_enabled_prefix(global_prefix: &[OsString]) -> Vec<OsString> {
-    return crate::global_arguments::without_pathspec_mode_options(global_prefix);
+    return crate::global_arguments_pathspec_modes::without_pathspec_mode_options(global_prefix);
 }
 
 /// What:

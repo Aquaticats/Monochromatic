@@ -11,9 +11,13 @@
 import {
   spawnSync,
 } from 'node:child_process';
+import { mkdtempDisposableSync, writeFileSync, } from 'node:fs';
+import { join, } from 'node:path';
 import {
   fileURLToPath,
 } from 'node:url';
+
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
   describe,
@@ -50,6 +54,18 @@ const FINISHING_CHILD_BOUND_MS = 60_000;
  well under a second on a loaded host.
  */
 const OUTLIVED_BOUND_MS = 300;
+
+/**
+ Bound a case gives a child that must print before the bound ends it, in
+ milliseconds.
+
+ A case that asserts the printed text has to outlast the child's own start,
+ which the shell keeps to milliseconds; a Node child of the same test file took
+ 2.5 s to start under a full-suite fanout on 2026-11-10, which is why this case
+ runs a shell rather than another Node process. The value leaves the shell 60x
+ the start time it needs and still keeps the case to two seconds.
+ */
+const OUTLIVED_PRINTING_BOUND_MS = 2_000;
 
 /**
  Status used when the wrapper child was ended by a signal instead of exiting.
@@ -187,16 +203,63 @@ await describe({
       },
     },),
     it({
-      name: 'treats a command that never started as a failure',
+      name: 'names the command it could not start, the reason, and what to check',
       fn: async () => {
+        const missingCommand = 'no-such-command-for-the-collapsed-output-test';
         const outcome = runExecutorInChild({
-          command: 'no-such-command-for-the-collapsed-output-test',
+          command: missingCommand,
+          commandArgs: [],
+          verbose: false,
+          allowFailure: false,
+          commandTimeoutMs: FINISHING_CHILD_BOUND_MS,
+        },);
+        // A command that never started reports no status of its own.
+        expect(outcome.status,).toBe(UNREPORTED_STATUS,);
+        expect(outcome.stderr,).toContain(missingCommand,);
+        expect(outcome.stderr,).toContain('ENOENT',);
+        expect(outcome.stderr,).toContain('PATH',);
+      },
+    },),
+    it({
+      name: 'reports a start it was told to allow and leaves the exit status alone',
+      fn: async () => {
+        const missingCommand = 'no-such-command-for-an-allowed-collapsed-output-test';
+        const outcome = runExecutorInChild({
+          command: missingCommand,
+          commandArgs: [],
+          verbose: false,
+          allowFailure: true,
+          commandTimeoutMs: FINISHING_CHILD_BOUND_MS,
+        },);
+        expect(outcome.status,).toBe(SUCCESS_STATUS,);
+        expect(outcome.stderr,).toContain(missingCommand,);
+      },
+    },),
+    it({
+      name: 'names the permission reason when the file exists and cannot be run',
+      fn: async () => {
+        /**
+         Disposable folder holding a file this account may not execute.
+         */
+        using folder = mkdtempDisposableSync(join(
+          scratchRoot(),
+          'task-depends-exec-test-',
+        ),);
+        /**
+         Path of a script written without any execute bit.
+         */
+        const notExecutable = join(folder.path, 'not-executable',);
+        writeFileSync(notExecutable, '#!/bin/sh\necho should-not-run\n',);
+        const outcome = runExecutorInChild({
+          command: notExecutable,
           commandArgs: [],
           verbose: false,
           allowFailure: false,
           commandTimeoutMs: FINISHING_CHILD_BOUND_MS,
         },);
         expect(outcome.status,).toBe(UNREPORTED_STATUS,);
+        expect(outcome.stderr,).toContain('EACCES',);
+        expect(outcome.stderr,).toContain('may run it',);
       },
     },),
     it({
@@ -225,6 +288,24 @@ await describe({
           commandTimeoutMs: OUTLIVED_BOUND_MS,
         },);
         expect(outcome.stderr,).toContain('--command-timeout-seconds',);
+        expect(outcome.status,).toBe(UNREPORTED_STATUS,);
+      },
+    },),
+    it({
+      name: 'dumps what a timed-out child printed before the bound ended it',
+      fn: async () => {
+        const outcome = runExecutorInChild({
+          command: 'sh',
+          commandArgs: [
+            '-c',
+            'echo printed-before-the-bound; echo warned-before-the-bound >&2; sleep 60',
+          ],
+          verbose: false,
+          allowFailure: false,
+          commandTimeoutMs: OUTLIVED_PRINTING_BOUND_MS,
+        },);
+        expect(outcome.stdout,).toContain('printed-before-the-bound',);
+        expect(outcome.stderr,).toContain('warned-before-the-bound',);
         expect(outcome.status,).toBe(UNREPORTED_STATUS,);
       },
     },),

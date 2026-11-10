@@ -23,6 +23,15 @@
 //!  finding 4),
 //!  and the copy itself is refused for a process this one may not attach to,
 //!  which would read as no holder at all (finding 2).
+//!  A kernel `overlay` mount is the one whose type does not settle the question from inside a container:
+//!  its layers are the host's directories,
+//!  which no process inside the container can name,
+//!  and a mount this process refuses there leaves an abandoned `index.lock` that no scan can prove unheld,
+//!  so every commit behind it fails at its ceiling for ever.
+//!  That read is made by a child of this process instead
+//!  (`open_file_of_a_descriptor_in_a_child.rs`),
+//!  which is abandoned at its ceiling,
+//!  so a layer that a stopped server backs cannot hold the caller either.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -113,6 +122,11 @@ fn file_system_of_mount(process: &Path, mount: u64) -> std::io::Result<Option<St
     return Ok(None);
 }
 
+/// The file system type of a kernel `overlay` mount:
+/// the one whose layers, not itself, decide whether a read can reach a server,
+/// and whose layers a process inside a container cannot name.
+const OVERLAY_FILE_SYSTEM: &str = "overlay";
+
 /// What:
 ///  Whether attributes of a file on this mount come from the memory of the kernel.
 /// Why:
@@ -149,6 +163,14 @@ pub fn opened_file_of(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile>
         Some(number) => file_system_of_mount(process, number)?,
         None => None,
     };
+    // An overlay's own attributes are in the memory of this kernel, and a read of them asks a layer only when that layer
+    //  sets a revalidation of its own (`fs/overlayfs/super.c`, `ovl_revalidate_real`). Whether a layer does is decided by
+    //  the layer's own file system, which a container's overlay names with the host's paths and this process cannot read:
+    //  so the walk is made where a stopped server cannot hold the caller, and its answer is waited for only until the
+    //  child's ceiling.
+    if kind.as_deref() == Some(OVERLAY_FILE_SYSTEM) {
+        return crate::open_file_of_a_descriptor_in_a_child::opened_file_of_in_a_child(process, fd);
+    }
     if !read_in_memory(kind.as_deref()) {
         let named: String = match kind {
             Some(name) => format!("a `{name}` file system"),
@@ -176,6 +198,75 @@ pub fn opened_file_of(process: &Path, fd: &OsStr) -> std::io::Result<OpenedFile>
         return Err(std::io::Error::last_os_error());
     }
     return Ok(OpenedFile { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino });
+}
+
+/// What:
+///  The device and inode of the file one of this process's own open descriptors refers to,
+///  named by the number of that descriptor.
+/// Why:
+///   This process's own descriptors need no mount's leave to be read:
+///  `statx(2)` with `AT_EMPTY_PATH` asks for what the kernel already holds of the open file,
+///  without walking any path,
+///  so no file system revalidates a directory entry and no server is asked anything
+///  (`doc/troubleshooting/fuse-descriptor-attributes.md`).
+///  A count of this process's own descriptors of a lock is therefore the same on every mount type,
+///  and a mount this process cannot classify does not turn that count into an unknown one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fstat({ descriptor: 3 }); // { device, inode }, from what the kernel holds
+/// ```
+#[cfg(target_os = "linux")]
+pub fn opened_file_of_our_own(descriptor: i32) -> std::io::Result<OpenedFile> {
+    let mut found: libc::statx = unsafe { std::mem::zeroed() };
+    // SAFETY: the descriptor is this process's own, the empty name is the one `AT_EMPTY_PATH` requires, and `found` is a
+    //  live `statx`.
+    let answer: libc::c_int = unsafe {
+        libc::statx(
+            descriptor,
+            c_empty_name(),
+            libc::AT_EMPTY_PATH | libc::AT_STATX_DONT_SYNC,
+            libc::STATX_BASIC_STATS,
+            &mut found,
+        )
+    };
+    if answer < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    return Ok(OpenedFile { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino });
+}
+
+/// What:
+///  The same on a platform that has no `statx`, and no `/proc` to walk for a count of descriptors.
+/// Why:
+///   Nothing is guessed at where the kernel's own answer is not there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// throw new Error('no statx on this platform');
+/// ```
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+pub fn opened_file_of_our_own(_descriptor: i32) -> std::io::Result<OpenedFile> {
+    return Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "this platform answers no descriptor's own attributes, so the file is not read",
+    ));
+}
+
+/// What:
+///  The empty name `AT_EMPTY_PATH` reads a descriptor's own file by.
+/// Why:
+///   `statx(2)` takes a terminated name,
+///  and the flag says the name is empty and the descriptor itself is the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from('\0')
+/// ```
+#[cfg(target_os = "linux")]
+fn c_empty_name() -> *const libc::c_char {
+    return b"\0".as_ptr().cast();
 }
 
 /// What:

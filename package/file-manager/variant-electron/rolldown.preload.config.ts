@@ -20,9 +20,9 @@ const preloadConfig: RolldownOptions = defineConfig({
   transform: { target: 'node22', },
   external: [
     // oxlint-disable-next-line no-restricted-syntax/no-regex -- Anchored protocol prefix test for node builtins; input is one bare import specifier; no repetition, no backtracking.
-    /^node:/,
+    /^node:/u,
     // oxlint-disable-next-line no-restricted-syntax/no-regex -- Anchored literal name test keeping the electron runtime external; input is one bare import specifier; no repetition, no backtracking.
-    /^electron(\/|$)/,
+    /^electron(?:\/|$)/u,
   ],
   output: {
     // Own subdir per bundling config, so a config-level clean can never

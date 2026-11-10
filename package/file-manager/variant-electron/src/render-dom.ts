@@ -174,11 +174,14 @@ function buildPaneElement(
    Sticky pane container.
    */
   const section = document.createElement('section',);
-  section.className = (pane.location
-    .kind
-    === 'directory')
-    ? 'pane'
-    : 'pane pane-preview';
+  section.className = 'pane';
+
+  /**
+   What the pane shows, as the stylesheet's kind selector reads it.
+   */
+  const { kind, } = pane.location;
+  section.dataset
+    .kind = kind;
   section.dataset
     .paneId = String(pane.id,);
   section.addEventListener(
@@ -306,11 +309,11 @@ function fillPaneListing(
      One listing row.
      */
     const item = document.createElement('li',);
-    item.className = (entry.kind === 'directory')
-      ? 'entry entry-dir'
-      : 'entry';
+    item.className = 'entry';
     item.dataset
       .index = String(index,);
+    item.dataset
+      .kind = entry.kind;
     item.textContent = entry.name;
     item.addEventListener(
       'click',
@@ -363,11 +366,10 @@ function updateSelectionHighlight(
       entry,
       index,
     ): void {
-      entry.classList
-        .toggle(
-        'selected',
+      entry.toggleAttribute(
+        'data-selected',
         index === selected,
-        );
+      );
     },);
 }
 
@@ -524,11 +526,10 @@ export function renderStrip(
         if (paneElement === undefined)
           return;
 
-        paneElement.classList
-          .toggle(
-          'active',
+        paneElement.toggleAttribute(
+          'data-active',
           strip.active === rail.id,
-          );
+        );
         fillPaneListing({
           handlers,
           pane,

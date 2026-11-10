@@ -14,6 +14,11 @@ import {
   hCss as $,
 } from '@monochromatic-dev/hyperscript-core/ts';
 
+import {
+  i18n,
+  type Locale,
+} from '../i18n/index.ts';
+import type { Label, } from '../i18n/labels-types.ts';
 import { icon, } from '../lib/icon/icon.ts';
 import {
   jsx,
@@ -24,7 +29,16 @@ import { GAP_SMALL, } from '../style/constants.ts';
 /**
  Valid alert type identifiers.
  */
-type AlertType = 'caution' | 'important' | 'note' | 'tip' | 'warning';
+export type AlertType = 'caution' | 'important' | 'note' | 'tip' | 'warning';
+
+/**
+ Props an alert callout renders from.
+ */
+export type CalloutAlertProps = {
+  readonly children: unknown;
+  readonly lang: Locale;
+  readonly 'data-type': AlertType;
+};
 
 /**
  Material Symbols PUA codepoint per alert type (resolved at import time from ligature names).
@@ -38,32 +52,32 @@ const ALERT_ICONS: Record<AlertType, string> = {
 };
 
 /**
- Human-readable label per alert type.
+ Label key per alert type, resolved through the active locale's table.
  */
-const ALERT_LABELS: Record<AlertType, string> = {
-  caution: 'Caution',
-  important: 'Important',
-  note: 'Note',
-  tip: 'Tip',
-  warning: 'Warning',
+const ALERT_LABEL_KEYS: Record<AlertType, Label> = {
+  caution: 'alertCaution',
+  important: 'alertImportant',
+  note: 'alertNote',
+  tip: 'alertTip',
+  warning: 'alertWarning',
 };
 
 /**
  Renders an alert callout as a semantic blockquote.
  
- @param props - component props with `data-type` (alert kind: `note`, `tip`, `important`, `warning`, or `caution`) and `children` (alert content)
+ The indicator label comes from the active locale's table, so the callout reads
+ in the language of the page that embeds it rather than in English everywhere.
+ 
+ @param props - component props with `lang` (locale the page renders in), `data-type` (alert kind: `note`, `tip`, `important`, `warning`, or `caution`), and `children` (alert content)
  
  @returns rendered alert HTML
  
  @example
  ```ts
- CalloutAlert({ 'data-type': 'note', children: 'Heads up.' });
+ CalloutAlert({ lang: 'ca', 'data-type': 'note', children: 'Atenció.' });
  ```
  */
-export function CalloutAlert(props: {
-  readonly children: unknown;
-  readonly 'data-type': AlertType;
-},): SafeHtml {
+export function CalloutAlert(props: CalloutAlertProps,): SafeHtml {
   /**
    Discriminator picking the right icon and label pair from the alert tables.
    */
@@ -85,7 +99,12 @@ export function CalloutAlert(props: {
         ),
         jsx(
           'span',
-          { children: ALERT_LABELS[type], },
+          {
+            children: i18n.label(
+              props.lang,
+              ALERT_LABEL_KEYS[type],
+            ),
+          },
         ),
       ],
     },
@@ -128,11 +147,6 @@ export function CalloutAlert(props: {
  Border thickness for the alert's leading edge, in rem.
  */
 const ALERT_BORDER_REM = 0.25;
-
-/**
- Emphasis font-weight for the indicator label.
- */
-const INDICATOR_WEIGHT = 600;
 
 /**
  Per-type accent color expression.

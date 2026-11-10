@@ -1,20 +1,24 @@
 /**
  Root index page: language picker.
  
- Renders a list of available languages linking to their landing pages.
+ Renders a list of available languages linking to their landing pages,
+ each labelled with its own autonym so a reader picks a language in a
+ language they can already read.
  */
 import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,
   locales,
+  type Locale,
 } from '../i18n/index.ts';
+import { LANG_NAMES, } from '../i18n/lang-names.ts';
 import { pageLayout, } from '../template/layout.ts';
 
 /**
  Generates the language picker page HTML.
  
- @param langs - available language codes
+ @param langs - available locales
  
  @param canonicalUrl - full canonical URL for this page
  
@@ -22,7 +26,7 @@ import { pageLayout, } from '../template/layout.ts';
  
  @example
  ```ts
- const html = indexPage({ langs: ['en', 'fr'], canonicalUrl: 'https://aquati.cat/' });
+ const html = indexPage({ langs: ['en', 'ca'], canonicalUrl: 'https://aquati.cat/' });
  ```
  */
 export function indexPage(
@@ -30,7 +34,7 @@ export function indexPage(
     langs,
     canonicalUrl,
   }: {
-    readonly langs: readonly string[];
+    readonly langs: readonly Locale[];
     readonly canonicalUrl: string;
   },
 ): string {
@@ -71,7 +75,7 @@ export function indexPage(
             children: [h({
               tag: 'a',
               attrs: { href: `/${lang}`, },
-              text: lang,
+              text: LANG_NAMES[lang],
             },),],
           },);
         },),

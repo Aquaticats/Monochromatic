@@ -16,6 +16,8 @@ import {
   type GoalRuntimeHarness,
 } from './pi-runtime-verifier-harness.ts';
 
+//region Flow contracts
+
 /**
  Kickoff messages after start and immediate replacement.
  */
@@ -28,6 +30,10 @@ type GoalFlowResult = {
   readonly harness: GoalRuntimeHarness;
   readonly summary: string;
 };
+
+//endregion Flow contracts
+
+//region Task content
 
 /**
  Check captured primary task content for private protocol absence.
@@ -48,6 +54,10 @@ function taskContentHasNoProtocol(content: unknown,): boolean {
     && (!content.includes('review'))
     && (!content.includes('goal_complete'));
 }
+
+//endregion Task content
+
+//region Flow verification
 
 /**
  Exercise discovered command, lifecycle, and selected-branch reconstruction.
@@ -307,6 +317,8 @@ async function verifyDiscoveredGoalFlow(
     summary: 'manifest discovery, zero tools, task-only context, process gating, abort, compaction, clear, and branch reconstruction',
   };
 }
+
+//endregion Flow verification
 
 export { verifyDiscoveredGoalFlow, };
 export type { GoalFlowResult, };
