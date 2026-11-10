@@ -828,6 +828,106 @@ await describe({
             expect(fixed,).toBe(source,);
           },
         },),
+        it({
+          name: 'keeps a line comment inside the parameter list out of the arrow body',
+          fn: async () => {
+            const source = [
+              'const wrap = (value // trailing note',
+              ') => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function wrap(value // trailing note',
+              ') { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a block comment whose star does not close it inside the parameter list',
+          fn: async () => {
+            const source = [
+              'const wrapStar = (value /* * */) => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function wrapStar(value /* * */) { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a default value string with an escaped quote intact',
+          fn: async () => {
+            const source = [
+              String.raw`const quoted = (label = 'a\'b') => label;`,
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              String.raw`function quoted(label = 'a\'b') { return label }`,
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a nested-paren default value inside the parameter list',
+          fn: async () => {
+            const source = [
+              'const paired = (pair = call(1, 2)) => pair;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function paired(pair = call(1, 2)) { return pair }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a template-literal default value with a paren intact',
+          fn: async () => {
+            const source = [
+              'const templated = (value = `a)b`) => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function templated(value = `a)b`) { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a generic arrow parameter list after its type parameters',
+          fn: async () => {
+            const source = [
+              'const identity = <T>(value: T) => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function identity<T>(value: T) { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'skips a comment between async and the parameter list',
+          fn: async () => {
+            const source = [
+              'const reader = async /* note */ (path) => read(path);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'async function reader(path) { return read(path) }',
+              '',
+            ].join('\n',),);
+          },
+        },),
       ],
     },),
     describe({
