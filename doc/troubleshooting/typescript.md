@@ -2064,13 +2064,17 @@ Measured with tsc 7.1.0-beta against
 
 ### Root cause
 
-The `new` check resolves the callee symbol as well as its type.
-A namespace-import binding is a module namespace object whose symbol carries no construct signature,
- so the checker reports TS2351.
-An `export =` alias,
+The checker accepts `new` for an `export =` alias,
  a namespace-typed value,
- and a default import of the same module keep the export assignment's value meaning,
- which the checker accepts for `new`.
+ a default import of the same module,
+ and `any`,
+ and rejects it for a namespace import of the same declaration,
+ so the discriminator is the callee's symbol rather than only its type.
+This note records the observed split;
+ the internal reason was not traced,
+ because TypeScript 7.1.0-beta ships as a native binary and the checker source is not in the package.
+The rule is still actionable:
+ read the symbol kind a diagnostic names before calling the declaration wrong.
 
 Consequence for a bug report that reads a declaration statically:
  the TS2351 symptom appears only for the namespace-import form of a constructor-valued `module.exports`,
