@@ -168,6 +168,20 @@ async function writeRememberedWord({
 //region Public reader
 
 /**
+ Reads this render's activity word from a transcript.
+
+ A test substitutes it to see when a render's two reads start.
+ */
+type FreshWordReader = (input: Readonly<{ transcriptPath: string }>,) => Promise<string>;
+
+/**
+ Reads the activity word an earlier render of the same session kept.
+
+ A test substitutes it to see when a render's two reads start.
+ */
+type RememberedWordReader = (input: Readonly<{ memoryPath: string }>,) => Promise<string>;
+
+/**
  Reads the activity word, falling back to the word extracted on an earlier render of the same session.
 
  A freshly extracted word replaces the remembered one; the file is only written when the word changed.
@@ -175,6 +189,10 @@ async function writeRememberedWord({
  @param transcriptPath - path to session transcript JSONL
 
  @param home - user home directory holding the memory; defaults to `HOME` so tests can inject a disposable home
+
+ @param readFresh - reads this render's word; injected so tests can see when it starts
+
+ @param readRemembered - reads the earlier render's word; injected so tests can see when it starts
 
  @returns capitalized activity word, or empty string when this session never produced one
 
@@ -186,9 +204,13 @@ async function writeRememberedWord({
 async function readRememberedActivityWord({
   transcriptPath,
   home,
+  readFresh = readActivityWord,
+  readRemembered = readRememberedWord,
 }: Readonly<{
   transcriptPath: string;
   home?: string;
+  readFresh?: FreshWordReader;
+  readRemembered?: RememberedWordReader;
 }>,): Promise<string> {
   /**
    Home from the environment, used when the caller injects none.
@@ -202,13 +224,18 @@ async function readRememberedActivityWord({
     home: home ?? environmentHome,
   },);
   /**
-   Word extracted from the transcript tail on this render.
+   Word extracted from the transcript tail on this render, and the word kept from
+   an earlier render.
+
+   The two files are independent and neither read depends on the other, so both
+   start together: a render waits for the slower read instead of paying for both
+   in turn, and a render is a fresh process, so that saving is paid on every
+   refresh.
    */
-  const fresh = await readActivityWord({ transcriptPath, },);
-  /**
-   Word kept from an earlier render.
-   */
-  const remembered = await readRememberedWord({ memoryPath, },);
+  const [fresh, remembered,] = await Promise.all([
+    readFresh({ transcriptPath, },),
+    readRemembered({ memoryPath, },),
+  ],);
 
   if (fresh.length === 0)
     return remembered;

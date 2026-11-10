@@ -159,6 +159,11 @@ stderr when a shell emits OSC commands that Ghostty parses but does not implemen
 PTY output into Ghostty.
 The filter drops only lines containing `unimplemented OSC callback` and forwards every other stderr line to the original
 stderr destination unchanged.
+If reading that pipe fails,
+the filter writes one report to the same original destination and then stops.
+That report is the only notice of the failure,
+because fd 2 keeps pointing at a pipe with no reader afterwards,
+so every later stderr write in the process fails with `EPIPE`.
 
 ## Font rendering
 
