@@ -1119,3 +1119,24 @@ Why:
   and none of the four under `package/`.
  The issue can be closed against `37d69e10e6`.
  The owner's pause on Windows still governs any new Windows work in that record.
+
+- `#4132`:
+  the claim no longer holds on `main`.
+ `doc/troubleshooting/git-policy-auto-push-reconciliation.md` was rebuilt in `6de0037d96`,
+  one of the commits merge `5ac11cf09e` brought in.
+  Its second-level headings are the seven the skill requires,
+ `Symptom`,
+ `Root cause`,
+ `Verification`,
+ `Verified workarounds`,
+ `What does not work` and `Upstream filing artifact`,
+  the last carrying the six numbered constraints of `Upstream filing decision`,
+  and the release-by-release narrative sits in the specification now.
+ The issue can be closed against `6de0037d96`.
+ Two citations the rebuild left in that record were wrong,
+  and both are corrected on this branch:
+ `package/git-policy/cli/src/native/lfs_bounded_push` is
+ `package/git-policy/cli/src/native/lfs/lfs_bounded_push.rs`,
+  where `run_push` is declared at line 142,
+  and `Reconcile and bounds` sits at `package/git-policy/cli/SPEC.md:6174`,
+  not at the line the note gave.
