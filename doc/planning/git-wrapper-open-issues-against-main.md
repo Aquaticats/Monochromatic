@@ -135,12 +135,41 @@ Issues whose named module is gone but whose behaviour is not were marked
  and each one that fails maps a non-`NotFound` error through `io_failure` with its operation and path,
  so no io reason is reported as an identity change.
 - `#6007`:
-  `parse_layout` and `replay_*` are gone.
- The layout report is produced in process by `repo_read_adapter::invocation_report`,
- whose path conversions are `to_str()?`,
- so a non-UTF-8 path gives no report instead of a lossy one.
- Whether a non-UTF-8 repository path should work at all is a separate decision,
-  not this defect.
+  `parse_layout` and `replay_*` are gone,
+ and the defect lived on in the layout the commit records,
+ not in the lossy conversion the issue quotes.
+ The report was produced in process by `repo_read_adapter::invocation_report`,
+ which spelled its paths with `to_str()?`,
+ so a name that is not UTF-8 gave no report and the capture asked Git,
+ whose report it then decoded as UTF-8 and refused;
+ and a name holding a line feed gave a report the capture split at every line feed,
+ which moved every path after it.
+ Measured with the built wrapper in throwaway repositories before the fix:
+ a directory whose name is not UTF-8 failed its commit with
+ "Git returned non-UTF-8 output.",
+ and one whose name holds a line feed failed with
+ "repository root is unreadable:
+ No such file or directory (os error 2)".
+ With `CLI_GIT_IN_PROCESS_READS=off`
+ the first failed on a Git directory spelled with
+ U+FFFD in place of the byte,
+ and the second was refused by the identity reader.
+ Branch `fix/git-policy-cli-layout-paths-keep-their-bytes` makes the layout the bytes Git printed,
+ reads the report as bytes,
+ asks each pathname on its own when a report holds more answers than the layout has pathnames,
+ and writes the object directory,
+ the shadow's `config` and its `--git-dir` option from those bytes.
+ Measured after it:
+ a repository whose directory name is not UTF-8 commits,
+ with the in-process reads on and off.
+ One case still fails:
+ a directory name holding a line feed,
+ because `objects/info/alternates` holds one pathname per line and Git has no escape for a line feed in it.
+ That commit stops in the shadow's read-back with "unable to normalize alternate object path",
+ and closing it needs an owner decision:
+ `GIT_ALTERNATE_OBJECT_DIRECTORIES` for the shadow's Git children,
+ or a symlink under a clean name,
+ each with its own lifetime to sweep.
 - `#6005`:
   `index_writer_coordination.rs` and `transaction_lease.rs` are gone,
  and no lossy-write against a strict `Path::to_str` compare survives in

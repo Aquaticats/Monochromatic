@@ -24,6 +24,9 @@
 use crate::hooks_off::HOOK_EVENTS;
 /// The one configuration read the commit shares.
 use crate::config_snapshot::ConfigSnapshot;
+/// The bytes of a path,
+/// for a file that names one.
+use crate::path_bytes::path_bytes_of;
 /// One required Git start,
 /// and its failure text.
 use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
@@ -215,6 +218,36 @@ pub fn repository_format_from_snapshot(snapshot: &ConfigSnapshot) -> Option<Repo
 }
 
 /// What:
+///  One value inside a double-quoted Git configuration string,
+///  from the bytes it holds.
+/// Why:
+///  A value may be a pathname,
+/// and a pathname need not be UTF-8;
+/// Git reads the configuration file as bytes,
+///  so the value keeps them,
+///  while the characters the format reserves are escaped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.concat([Buffer.from('"'), escaped, Buffer.from('"')])
+/// ```
+fn quote_git_config_value_bytes(value: &[u8]) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::with_capacity(value.len() + 2);
+    body.push(b'"');
+    for byte in value {
+        match byte {
+            b'\\' => body.extend_from_slice(b"\\\\"),
+            b'"' => body.extend_from_slice(b"\\\""),
+            b'\n' => body.extend_from_slice(b"\\n"),
+            b'\t' => body.extend_from_slice(b"\\t"),
+            other => body.push(*other),
+        }
+    }
+    body.push(b'"');
+    return body;
+}
+
+/// What:
 ///  Formats the shadow `config` file.
 /// Why:
 ///   The line order is the incumbent's,
@@ -223,45 +256,39 @@ pub fn repository_format_from_snapshot(snapshot: &ConfigSnapshot) -> Option<Repo
 /// the include,
 /// then the worktree,
 /// gc and maintenance overrides.
+///  The included path and the worktree are the bytes the layout holds,
+///  so a repository whose name is not UTF-8 is included where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// formatShadowConfig({ format, commonDir, worktreeRoot });
 /// ```
-pub fn format_shadow_config(format: &RepositoryFormat, common_dir: &Path, worktree_root: &Path) -> String {
-    let common: String = common_dir.display().to_string();
-    let mut lines: Vec<String> = vec![
-        String::from("[core]"),
-        format!("\trepositoryformatversion = {}", quote_git_config_value(format.version.as_str())),
-    ];
+pub fn format_shadow_config(format: &RepositoryFormat, common_dir: &Path, worktree_root: &Path) -> Vec<u8> {
+    let mut config: Vec<u8> = Vec::new();
+    config.extend_from_slice(b"[core]\n\trepositoryformatversion = ");
+    config.extend_from_slice(quote_git_config_value(format.version.as_str()).as_bytes());
+    config.push(b'\n');
     if !format.extensions.is_empty() {
-        lines.push(String::from("[extensions]"));
+        config.extend_from_slice(b"[extensions]\n");
         for (name, value) in &format.extensions {
-            lines.push(format!("\t{name} = {}", quote_git_config_value(value.as_str())));
+            config.extend_from_slice(format!("\t{name} = ").as_bytes());
+            config.extend_from_slice(quote_git_config_value(value.as_str()).as_bytes());
+            config.push(b'\n');
         }
     }
-    lines.push(String::from("[include]"));
-    lines.push(format!(
-        "\tpath = {}",
-        quote_git_config_value(format!("{common}/config").as_str())
-    ));
-    lines.push(String::from("[core]"));
-    lines.push(format!(
-        "\tworktree = {}",
-        quote_git_config_value(worktree_root.display().to_string().as_str())
-    ));
-    lines.push(String::from("[gc]"));
-    lines.push(String::from("\tauto = 0"));
-    lines.push(String::from("[maintenance]"));
-    lines.push(String::from("\tauto = false"));
+    let mut include: Vec<u8> = path_bytes_of(common_dir).to_vec();
+    include.extend_from_slice(b"/config");
+    config.extend_from_slice(b"[include]\n\tpath = ");
+    config.extend_from_slice(quote_git_config_value_bytes(include.as_slice()).as_slice());
+    config.extend_from_slice(b"\n[core]\n\tworktree = ");
+    config.extend_from_slice(quote_git_config_value_bytes(path_bytes_of(worktree_root)).as_slice());
+    config.extend_from_slice(b"\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n");
     // After the include, so it beats the real config: no hook of any event runs in the shadow, whatever the real
     // config defines (the wrapper supports no external hook).
     for event in HOOK_EVENTS {
-        lines.push(format!("[hook \"{event}\"]"));
-        lines.push(String::from("\tenabled = false"));
+        config.extend_from_slice(format!("[hook \"{event}\"]\n\tenabled = false\n").as_bytes());
     }
-    lines.push(String::new());
-    return lines.join("\n");
+    return config;
 }
 
 /// Shadow config controls stay out of the release executable.
