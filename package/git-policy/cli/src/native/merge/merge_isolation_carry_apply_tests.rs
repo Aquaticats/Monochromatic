@@ -168,3 +168,170 @@ fn a_path_changed_after_the_capture_is_left_alone() {
     assert_eq!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt"), "written by another program\n", "the later bytes stay");
     remove(root.as_path());
 }
+
+/// What:
+///  A program's descriptor on `location`,
+///  held by a process of its own.
+/// Why:
+///   The scan that proves no program can write into a file that was set aside skips this process,
+///  so a control needs a holder the scan can see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holder = spawnOwned(['sh', '-c', 'exec 3<>"$0"; exec sleep 30', location]);
+/// ```
+fn a_holder_of(location: &Path) -> std::process::Child {
+    let child: std::process::Child = crate::test_support::spawn_owned(
+        std::process::Command::new("sh")
+            .args(["-c", "exec 3<>\"$0\"; exec sleep 30", location.to_str().expect("a UTF-8 path")])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null()),
+    )
+    .expect("a holder process");
+    return child;
+}
+
+/// What:
+///  The same holder,
+///  once its descriptor is on `location`'s own inode.
+/// Why:
+///   A shell's descriptor exists a moment after the start,
+///  and the loader may reach descriptor 3 first,
+///  so the control waits for the descriptor that names the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await until(() => identityOf(`/proc/${child.pid}/fd/3`) === identityOf(location));
+/// ```
+fn a_holder_with_its_descriptor_on(location: &Path) -> std::process::Child {
+    use std::os::unix::fs::MetadataExt;
+    let child: std::process::Child = a_holder_of(location);
+    let found: std::fs::Metadata = std::fs::metadata(location).expect("the file the holder opens");
+    let wanted: (u64, u64) = (found.dev(), found.ino());
+    let descriptor: PathBuf = PathBuf::from(format!("/proc/{}/fd/3", child.id()));
+    let started: std::time::Instant = std::time::Instant::now();
+    while started.elapsed() < std::time::Duration::from_secs(10) {
+        match std::fs::metadata(descriptor.as_path()) {
+            Ok(held) if held.dev() == wanted.0 && held.ino() == wanted.1 => return child,
+            _ => std::thread::sleep(std::time::Duration::from_millis(5)),
+        }
+    }
+    panic!("the holder never opened {}", location.display());
+}
+
+/// Every file at the top of `repository` whose whole content is `bytes`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filesHolding = (repository, bytes) => readdir(repository).filter((name) => read(join(repository, name)).equals(bytes));
+/// ```
+fn files_that_hold(repository: &Path, bytes: &[u8]) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in std::fs::read_dir(repository).expect("the worktree top").flatten() {
+        let path: PathBuf = entry.path();
+        if std::fs::read(path.as_path()).map(|content| { return content == bytes; }).unwrap_or(false) {
+            found.push(path);
+        }
+    }
+    return found;
+}
+
+/// What:
+///  A save that arrives through a descriptor opened before the take is kept in the file that was set aside,
+///  and named.
+/// Why:
+///  The take of a path the carry replaces was followed by an unlink of its private name after the last check,
+///  so a program that still had that file open wrote its save into an entry no name reached and the bytes were
+///  gone
+///  (a cross-vendor review of the second round,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const buffer = open('a.txt'); const holder = spawnHolder('a.txt'); clear(); readTree(); carry(); write(buffer, save); expect(filesHolding(repo, save)).toHaveLength(1);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_save_through_a_descriptor_opened_before_the_take_is_kept_beside_the_carried_file() {
+    let (root, repo, old, new) = diverged("carry-save-through-descriptor");
+    let context = git_context();
+    std::fs::write(repo.join("a.txt"), format!("{}{PERSON_LINE}\n", LINES.replace("one", "one main"))).expect("the person's edit");
+    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
+    let mut out: Vec<u8> = Vec::new();
+    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, LockWait::BeforeTheApply, &mut out).expect("the clear");
+    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    let location: PathBuf = repo.join("a.txt");
+    // A program opened the file before the carry, keeps that descriptor across the take, and has a process of its own that
+    //  the scan can see holding it too; it saves once the carry has placed its own bytes.
+    let mut buffer: std::fs::File = std::fs::File::options().read(true).write(true).open(location.as_path()).expect("the program's descriptor");
+    let holder: std::process::Child = a_holder_with_its_descriptor_on(location.as_path());
+    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, LockWait::WhileFinishing, &mut out).expect("the carry");
+    assert_eq!(report.changed, Vec::<Vec<u8>>::new(), "the carry wrote its own layer");
+    let save: &[u8] = b"SAVE-THROUGH-OPEN-DESCRIPTOR\n";
+    use std::io::{Seek, Write};
+    buffer.set_len(0).expect("the buffer is replaced");
+    buffer.rewind().expect("the buffer's start");
+    buffer.write_all(save).expect("the save");
+    buffer.sync_all().expect("the save is on disk");
+    drop(buffer);
+    let mut holder: std::process::Child = holder;
+    let _killed = holder.kill();
+    let _waited = holder.wait();
+    let kept: Vec<PathBuf> = files_that_hold(repo.as_path(), save);
+    assert_eq!(kept.len(), 1, "the save is in one file a person can reach: {kept:?}");
+    let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
+    assert!(said.contains(kept[0].to_string_lossy().as_ref()), "the file that holds it is named: {said}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A save that arrives through a descriptor opened before a take whose path the carry deletes is kept too,
+///  and named.
+/// Why:
+///   The deletion branch of a carry unlinked the private name in the same step,
+///  so a program that had the file open wrote its save into
+///  an entry no name reached
+///  (a cross-vendor review of the second round,
+/// its first finding,
+/// the deletion branch).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rm('a.txt'); clear(); readTree(); const buffer = open('a.txt'); const holder = spawnHolder('a.txt'); carry(); write(buffer, save); expect(filesHolding(repo, save)).toHaveLength(1);
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_save_through_a_descriptor_opened_before_the_take_of_a_deleted_file_is_kept() {
+    let (root, repo, old, new) = diverged("carry-save-through-descriptor-deletion");
+    let context = git_context();
+    // The person deleted the file, which the merge keeps, so the carry removes the file the merge put there.
+    std::fs::remove_file(repo.join("a.txt")).expect("the person's deletion");
+    let capture: Capture = keep_capture(&context, repo.as_path(), &capture_work(&context, repo.as_path(), &[b"a.txt".to_vec()]).expect("the capture")).expect("kept");
+    let merge: Vec<Change> = changes(repo.as_path(), old.as_str(), new.as_str());
+    let mut out: Vec<u8> = Vec::new();
+    clear(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, LockWait::BeforeTheApply, &mut out).expect("the clear");
+    git(repo.as_path(), &["read-tree", "-u", "-m", old.as_str(), new.as_str()]);
+    let location: PathBuf = repo.join("a.txt");
+    let mut buffer: std::fs::File = std::fs::File::options().read(true).write(true).open(location.as_path()).expect("the program's descriptor");
+    let holder: std::process::Child = a_holder_with_its_descriptor_on(location.as_path());
+    let report: Report = carry(&context, repo.as_path(), repo.join(".git").as_path(), merge.as_slice(), &capture, LockWait::WhileFinishing, &mut out).expect("the carry");
+    assert_eq!(report.changed, Vec::<Vec<u8>>::new(), "the carry removed the file the merge put there");
+    assert!(!location.exists(), "the path the person deleted is gone");
+    let save: &[u8] = b"SAVE-AFTER-THE-DELETION\n";
+    use std::io::{Seek, Write};
+    buffer.set_len(0).expect("the buffer is replaced");
+    buffer.rewind().expect("the buffer's start");
+    buffer.write_all(save).expect("the save");
+    buffer.sync_all().expect("the save is on disk");
+    drop(buffer);
+    let mut holder: std::process::Child = holder;
+    let _killed = holder.kill();
+    let _waited = holder.wait();
+    let kept: Vec<PathBuf> = files_that_hold(repo.as_path(), save);
+    assert_eq!(kept.len(), 1, "the save is in one file a person can reach: {kept:?}");
+    let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
+    assert!(said.contains(kept[0].to_string_lossy().as_ref()), "the file that holds it is named: {said}");
+    remove(root.as_path());
+}

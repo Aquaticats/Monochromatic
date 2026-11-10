@@ -24,7 +24,7 @@ use crate::merge_isolation_carry_reads::run_bytes_awaiting;
 use crate::transaction_git::{GitContext, GitOutput};
 use crate::transaction_phase::Phase;
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The mode an `update-index --index-info` record gives a path it removes.
 const REMOVAL_MODE: &str = "0";
@@ -327,10 +327,12 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
         if !matches!(step.worktree, FileWrite::Leave) {
             wrote_a_file = true;
         }
-        let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree).await {
+        let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
+        // The private names this one path's write may not remove, because a program could still write into them.
+        let mut held: Vec<PathBuf> = Vec::new();
+        let placed: Placed = match place_file_awaiting(context, root, step.path.as_slice(), &step.judged, &step.worktree, &mut held).await {
             Ok(found) => found,
             Err(failure) => {
-                let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
                 let _ = out.write_all(
                     format!(
                         "monochromatic-git-policy-cli: {path} could not be written ({}); the bytes this merge carries are kept, and the next \
@@ -342,10 +344,19 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
                 return Err(failure);
             }
         };
+        for aside in &held {
+            let _ = out.write_all(
+                format!(
+                    "monochromatic-git-policy-cli: {path} was replaced while a program still had the file it held open, so the file that was \
+                     set aside is kept at {}; nothing of the person's was removed.\n",
+                    aside.display()
+                )
+                .as_bytes(),
+            );
+        }
         match placed {
             Placed::Written | Placed::Nothing => {}
             Placed::Changed { kept } => {
-                let path: String = String::from_utf8_lossy(step.path.as_slice()).into_owned();
                 if let Some(waits) = kept {
                     let _ = out.write_all(
                         format!(

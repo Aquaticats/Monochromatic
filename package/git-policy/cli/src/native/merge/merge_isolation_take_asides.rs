@@ -566,7 +566,7 @@ pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &Recovery
         // `may_remove` proves that nothing can write into the file any more;
         // a file it cannot prove that of is kept where it is,
         //  because its private name is then one of that write's only names.
-        if !may_remove_awaiting(place, root, entry).await {
+        if !may_remove_the_aside_awaiting(&place.git, root, entry.path.as_slice(), entry.aside.as_path(), entry.taken, entry.expected.as_str()).await {
             let _noted = out.write_all(
                 format!(
                     "monochromatic-git-policy-cli: {} was written or is still held open after this command checked it, so it is kept \
@@ -597,6 +597,11 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 ///  and whether its bytes are
 ///  the branch's own form rather than bytes a clean filter hides.
 /// Why:
+///   Every step that removes a private name asks this same question,
+///  whether it finishes the take of a merge's file
+///  (`merge_isolation_carry_place.rs`)
+///  or one of the second pass's install,
+///  so a write that arrives through an old descriptor is kept by both.
 ///   A program that already has the file open keeps that descriptor across the rename,
 /// and a write through it lands
 ///  in the file that waits aside;
@@ -622,14 +627,14 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function mayRemove(entry): boolean; // identity unchanged && no readable process has it open && the scan finished
+/// function mayRemoveTheAside(git, root, path, aside, taken, expected): boolean; // identity unchanged && no readable process has it open && the scan finished && the bytes are the judged ones
 /// ```
-async fn may_remove_awaiting(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
+pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path, path: &[u8], aside: &Path, taken: FileIdentity, expected: &str) -> bool {
     // The scan comes first, and the two looks come after it, as the last steps before the unlink: a writer that still holds
     //  the file is seen by the scan, a writer that let go has already written so the bytes and the identity then show it, and
     //  the identity is read because a clean filter can hide changed bytes: an appended line that the filter drops leaves the
     //  object as it was and the size changed.
-    let scanned: HolderEvidence = scan_platform_holders_bounded(entry.aside.as_path(), entry.taken.device, entry.taken.inode);
+    let scanned: HolderEvidence = scan_platform_holders_bounded(aside, taken.device, taken.inode);
     if !scanned.holders.is_empty() {
         return false;
     }
@@ -640,7 +645,7 @@ async fn may_remove_awaiting(place: &RecoveryPlace, root: &Path, entry: &TakenOn
     }
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("aside-scanned");
-    return are_the_file_form_of_awaiting(&place.git, root, entry.path.as_slice(), entry.aside.as_path(), entry.expected.as_str()).await == Some(true);
+    return are_the_file_form_of_awaiting(git, root, path, aside, expected).await == Some(true);
 }
 
 /// What:

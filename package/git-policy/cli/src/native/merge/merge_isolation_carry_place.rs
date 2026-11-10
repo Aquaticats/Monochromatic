@@ -34,7 +34,7 @@
 
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
-use crate::merge_isolation_take_asides::{aside_name, are_the_file_form_of_awaiting};
+use crate::merge_isolation_take_asides::{are_the_file_form_of_awaiting, aside_name, may_remove_the_aside_awaiting};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
@@ -277,6 +277,48 @@ fn put_back(location: &Path, aside: &Path) -> Result<Placed, CarryFailure> {
     };
 }
 
+/// What:
+///  Whether the entry a take put aside may lose its private name,
+///  and the private name that stays when it may not.
+/// Why:
+///   The bytes the take holds are the merge's own,
+///  which the capture keeps,
+///  but a program that already had the file open
+///  can still write into it after the take checked it,
+///  so the private name goes only on the proof nothing can write any
+///  more,
+///  and a file the proof does not cover is kept and named
+///  (`merge_isolation_take_asides.rs`).
+///  A take that holds no identity cannot prove anything about the file,
+/// so its private name stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function dropTheAside({ context, root, path, aside, judged, kept }): Promise<void>; // mayRemove ? unlink : kept.push(aside)
+/// ```
+async fn drop_the_aside_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    aside: &Path,
+    judged: &JudgedFile,
+    kept: &mut Vec<PathBuf>,
+) -> Result<(), CarryFailure> {
+    let (Some(taken), Some(expected)) = (judged.identity, judged.content.as_deref()) else {
+        kept.push(aside.to_path_buf());
+        return Ok(());
+    };
+    if !may_remove_the_aside_awaiting(context, root, path, aside, taken, expected).await {
+        kept.push(aside.to_path_buf());
+        return Ok(());
+    }
+    return match std::fs::remove_file(aside) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(CarryFailure::Failed(format!("{} could not be removed: {error}", aside.display()))),
+    };
+}
+
 /// What a take of one worktree entry found.
 ///
 /// In TS you'd write (pseudocode):
@@ -339,7 +381,14 @@ async fn take_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
 /// ```ts
 /// async function removeJudged({ context, root, path, location, judged }): Promise<Placed>;
 /// ```
-async fn remove_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path, judged: &JudgedFile) -> Result<Placed, CarryFailure> {
+async fn remove_judged_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    location: &Path,
+    judged: &JudgedFile,
+    kept: &mut Vec<PathBuf>,
+) -> Result<Placed, CarryFailure> {
     if judged.content.is_none() {
         // Nothing stood there when the write looked, so an entry that is there now came after it.
         return match std::fs::symlink_metadata(location) {
@@ -350,12 +399,10 @@ async fn remove_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], 
     return match take_judged_awaiting(context, root, path, location, judged).await? {
         Taken::Aside(aside) => {
             // The entry that was judged is the one this write removes, and its bytes are in the merge's capture.
-            if let Err(error) = std::fs::remove_file(aside.as_path()) {
-                return Err(CarryFailure::Failed(format!("{} could not be removed: {error}", aside.display())));
-            }
+            drop_the_aside_awaiting(context, root, path, aside.as_path(), judged, kept).await?;
             Ok(Placed::Written)
         }
-        Taken::Changed { kept } => Ok(Placed::Changed { kept }),
+        Taken::Changed { kept: stranded } => Ok(Placed::Changed { kept: stranded }),
     };
 }
 
@@ -373,7 +420,16 @@ async fn remove_judged_awaiting(context: &GitContext, root: &Path, path: &[u8], 
 /// ```ts
 /// async function placeBytes({ context, root, path, location, judged, bytes, mode }): Promise<Placed>;
 /// ```
-async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], location: &Path, judged: &JudgedFile, bytes: &[u8], mode: &str) -> Result<Placed, CarryFailure> {
+async fn place_bytes_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    location: &Path,
+    judged: &JudgedFile,
+    bytes: &[u8],
+    mode: &str,
+    kept: &mut Vec<PathBuf>,
+) -> Result<Placed, CarryFailure> {
     let private: PathBuf = match write_private(location, bytes, mode) {
         Ok(made) => made,
         Err(error) => return Err(CarryFailure::Failed(format!("{} could not be written: {error}", location.display()))),
@@ -391,9 +447,9 @@ async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
     }
     let aside: PathBuf = match take_judged_awaiting(context, root, path, location, judged).await? {
         Taken::Aside(waits) => waits,
-        Taken::Changed { kept } => {
+        Taken::Changed { kept: stranded } => {
             let _left = std::fs::remove_file(private.as_path());
-            return Ok(Placed::Changed { kept });
+            return Ok(Placed::Changed { kept: stranded });
         }
     };
     let placed: Placed = match rename_noreplace(private.as_path(), location) {
@@ -412,7 +468,7 @@ async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
     };
     if matches!(placed, Placed::Written) {
         // What the take holds is the entry the write replaces, whose bytes the merge's capture keeps.
-        let _removed = std::fs::remove_file(aside.as_path());
+        drop_the_aside_awaiting(context, root, path, aside.as_path(), judged, kept).await?;
     } else {
         let _left = std::fs::remove_file(private.as_path());
     }
@@ -434,7 +490,14 @@ async fn place_bytes_awaiting(context: &GitContext, root: &Path, path: &[u8], lo
 /// ```ts
 /// async function placeFile({ context, root, path, judged, write }): Promise<Placed>;
 /// ```
-pub(crate) async fn place_file_awaiting(context: &GitContext, root: &Path, path: &[u8], judged: &JudgedFile, write: &FileWrite) -> Result<Placed, CarryFailure> {
+pub(crate) async fn place_file_awaiting(
+    context: &GitContext,
+    root: &Path,
+    path: &[u8],
+    judged: &JudgedFile,
+    write: &FileWrite,
+    kept: &mut Vec<PathBuf>,
+) -> Result<Placed, CarryFailure> {
     // The comparisons run from the top of the worktree, where a relative directory option of the invocation does not reach:
     //  a `-C repo` applied to a request that already runs in the worktree would name the worktree twice, and every read of
     //  `--path=<path>` would fail, which reads as a file that nobody judged.
@@ -442,8 +505,8 @@ pub(crate) async fn place_file_awaiting(context: &GitContext, root: &Path, path:
     let location: PathBuf = worktree_path(root, path);
     return match write {
         FileWrite::Leave => Ok(Placed::Nothing),
-        FileWrite::Remove => remove_judged_awaiting(&rooted, root, path, location.as_path(), judged).await,
-        FileWrite::Bytes(bytes, mode) => place_bytes_awaiting(&rooted, root, path, location.as_path(), judged, bytes, mode).await,
+        FileWrite::Remove => remove_judged_awaiting(&rooted, root, path, location.as_path(), judged, kept).await,
+        FileWrite::Bytes(bytes, mode) => place_bytes_awaiting(&rooted, root, path, location.as_path(), judged, bytes, mode, kept).await,
     };
 }
 
