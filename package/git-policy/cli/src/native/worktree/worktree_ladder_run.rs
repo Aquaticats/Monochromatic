@@ -100,7 +100,8 @@ pub struct Ladder {
 /// the destination whose
 ///  ignored state the rung already carried,
 /// the object the rung left at that destination,
-/// and the trash a snapshot left there.
+/// the trash a snapshot left there,
+/// and the claim that names this add.
 /// Why:
 ///   A snapshot carries the source's ignored state,
 /// so the lifecycle's own copy skips that destination.
@@ -112,12 +113,16 @@ pub struct Ladder {
 ///  replaced the directory Git made,
 /// so the object at the path is the snapshot and not the one the lifecycle reserved,
 ///  and only the rung can say which object that is.
+/// The claim is handed over rather than released:
+/// a rung that takes the claim from the caller would otherwise leave the add with no record between the end of its
+///  checkout and the copy's own claim,
+/// so a command killed in that handover would leave a worktree with no ignored state and nothing naming it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LadderResult = { git: GitStatus; carried?: string; placed?: ObjectId; trash?: PendingTrash };
+/// type LadderResult = { git: GitStatus; carried?: string; placed?: ObjectId; trash?: PendingTrash; claim?: StageClaim };
 /// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub struct LadderResult {
     /// Git's status for the person.
     pub git: GitStatus,
@@ -131,6 +136,9 @@ pub struct LadderResult {
     /// when it left one.
     #[cfg(target_os = "linux")]
     pub trash: Option<crate::worktree_trash::PendingTrash>,
+    /// The durable record of this add,
+    /// for the copy that fills the destination to own until its journal exists.
+    pub claim: Option<StageClaim>,
 }
 
 /// What:

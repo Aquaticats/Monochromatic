@@ -9,6 +9,11 @@ import {
   containerLimitArguments,
   type ContainerLimits,
 } from '@monochromatic-dev/container-limit-core/ts';
+import {
+  logger as defaultLogger,
+  tagged,
+  type Logger,
+} from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 import {
   detectPackageManager,
@@ -401,12 +406,16 @@ export function containerRunArguments({
  
  Mounts the monorepo root at `/workspace:Z` (SELinux relabel)
  and executes the command built by {@link buildContainerCommand} via `sh -c`.
+ A run that exits successfully forwards its stderr to `l` as a warning, so the caller decides where it goes and
+ whether it is shown at all; the return value carries its stdout.
  
  @param combination - Fully resolved combination to execute
  
  @param monorepoRoot - Absolute path to the monorepo root on the host
  
  @param cachyosImage - CachyOS image resolved once for the whole matrix, for a bare `cachyos` distro
+ 
+ @param l - Logger; defaults to the shared logger
  
  @returns stdout from the container execution
  
@@ -429,11 +438,20 @@ export async function runContainer({
   combination,
   monorepoRoot,
   cachyosImage,
+  l: parentLogger = defaultLogger,
 }: {
   readonly combination: Combination;
   readonly monorepoRoot: string;
   readonly cachyosImage?: string;
+  readonly l?: Logger;
 },): Promise<string> {
+  /**
+   Logger tagged with this function, so a forwarded stderr line names the backend that ran.
+   */
+  const l: Logger = tagged({
+    tag: runContainer.name,
+    l: parentLogger,
+  },);
   /**
    Pre-parsed OS so the vm-protocol guard and the image resolution can both reuse it.
    */
@@ -474,7 +492,7 @@ export async function runContainer({
 
   if (result.stderr
     !== '')
-    console.error(result.stderr,);
+    l.warn(result.stderr,);
 
   return result.stdout;
 }
