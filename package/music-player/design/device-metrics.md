@@ -1,4 +1,4 @@
-# Device metrics — Pixel 9 Pro Fold
+# Device metrics: Pixel 9 Pro Fold
 
 **Do not invent these numbers,
  and do not put invented ones into question options.**
@@ -40,7 +40,7 @@ Both mistakes were made in phase one (see review-notes.md #2).
 <tr>
 <td>Panel</td>
 <td>OLED, 120Hz</td>
-<td>LTPO OLED, 1–120Hz</td>
+<td>LTPO OLED, 1 to 120Hz</td>
 </tr>
 </tbody>
 </table>
