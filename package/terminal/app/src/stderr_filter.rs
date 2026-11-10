@@ -5,8 +5,8 @@
 ///  `File` owns file
 ///           descriptors,
 ///  `BufRead` and `Write` move bytes,
-///  `c_int` matches C's
-///           integer type,
+///  `Read` names the byte-stream trait the forwarder reads through,
+///  `c_int` matches C's integer type,
 ///  and `thread` starts the forwarding worker.
 /// Why:
 ///       The filter redirects process stderr through a pipe and forwards every
@@ -14,7 +14,7 @@
 use std::{
     ffi::c_int,
     fs::File,
-    io::{self, BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, Read, Write},
     thread,
 };
 
@@ -345,12 +345,18 @@ fn file_from_fd(fd: c_int) -> File {
 /// What:
 ///      `fn forward_filtered_stderr(...)` reads redirected stderr and writes kept
 ///           lines to the original stderr destination.
+///  Sibling shapes are a `File`-only signature,
+///  which a test cannot make
+///           fail,
+///  and a closure over the two streams,
+///  which reads worse than
+///           named byte-stream traits.
 /// Why:
 ///       Only Ghostty's known noisy OSC debug line should disappear.
-fn forward_filtered_stderr(reader_file: File, mut writer_file: File) {
-    // What:     `BufReader::new(reader_file)` buffers reads from the pipe.
+fn forward_filtered_stderr<R: Read, W: Write>(reader_source: R, mut original_stderr: W) {
+    // What:     `BufReader::new(reader_source)` buffers reads from the pipe.
     // Why:      Line-oriented filtering should not make one syscall per byte.
-    let mut reader = BufReader::new(reader_file);
+    let mut reader = BufReader::new(reader_source);
     // What:     `let mut line = Vec::new()` creates a growable byte buffer. Sibling
     //           `String` would require UTF-8; fixed arrays cannot grow for long logs.
     // Why:      Ghostty debug records can be long because they dump OSC metadata bytes.
@@ -372,16 +378,42 @@ fn forward_filtered_stderr(reader_file: File, mut writer_file: File) {
                 if should_suppress_stderr_line(line.as_slice()) {
                     continue;
                 }
-                // What:     `let _ = writer_file.write_all(...)` forwards all kept bytes
-                //           and explicitly discards write errors.
+                // What:     `let _ = original_stderr.write_all(...)` forwards all kept
+                //           bytes and explicitly discards write errors.
                 // Why:      If original stderr closes, there is nowhere useful to report it.
-                let _ = writer_file.write_all(line.as_slice());
-                // What:     `let _ = writer_file.flush()` pushes diagnostics promptly and
+                let _ = original_stderr.write_all(line.as_slice());
+                // What:     `let _ = original_stderr.flush()` pushes diagnostics promptly and
                 //           explicitly discards flush errors.
                 // Why:      Error logs should remain interactive, but failure is unrecoverable.
-                let _ = writer_file.flush();
+                let _ = original_stderr.flush();
             }
-            Err(_) => return,
+            // What:     `Err(error) => { ... }` reports the read failure on the retained
+            //           original stderr and then stops forwarding. Sibling shapes are a
+            //           bare `return`, which silences the rest of the session, and a
+            //           retry, which repeats a failure that did not clear.
+            // Why:      `Err(_) => return` ended forwarding with no notice while fd 2
+            //           still named this pipe's write end, so every later stderr write
+            //           failed with EPIPE and the app's diagnostics vanished for the rest
+            //           of the run (issue 1284). `read_until` already retries
+            //           `ErrorKind::Interrupted` itself, so the only errors that reach
+            //           this arm are ones no retry would clear.
+            Err(error) => {
+                // What:     `let _ = writeln!(...)` writes one report to the retained
+                //           original stderr and explicitly discards a write error.
+                // Why:      This file is the only destination left: `tracing`'s subscriber
+                //           also writes to fd 2, which is the pipe this error came from.
+                let _ = writeln!(
+                    original_stderr,
+                    "monochromatic-terminal: stderr forwarding stopped after a read error \
+                     ({error}), so later stderr output from this process is lost"
+                );
+                // What:     `let _ = original_stderr.flush()` pushes the report out before
+                //           the reader is dropped, discarding a flush error.
+                // Why:      The reader's drop closes the pipe read end; nothing later
+                //           flushes this duplicate of the original stderr.
+                let _ = original_stderr.flush();
+                return;
+            }
         }
     }
 }

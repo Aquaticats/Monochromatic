@@ -96,23 +96,23 @@ The runner is in-tree.
  Walking the 5 constraints as if `module-test`
 were the upstream:
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    Deduplication
-   matching bun:
-   test's reporter would help but adds complexity.
-2. **Can upstream fix it?
-   ** Yes;
-    augment the reporter to mark
-   duplicates with a suffix or path.
-3. **Are they supporting this use case?
-   ** The runner accepts any
-   name;
-    duplicates are not rejected.
-4. **Will they likely fix it?
-   ** Not at this priority.
-5. **Have we prototyped a minimal fix?
-   ** No.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     Deduplication
+    matching bun:
+    test's reporter would help but adds complexity.
+2.  **Can upstream fix it?
+    ** Yes;
+     augment the reporter to mark
+    duplicates with a suffix or path.
+3.  **Are they supporting this use case?
+    ** The runner accepts any
+    name;
+     duplicates are not rejected.
+4.  **Will they likely fix it?
+    ** Not at this priority.
+5.  **Have we prototyped a minimal fix?
+    ** No.
 
 Decision:
  keep the convention rule.
@@ -188,25 +188,25 @@ boilerplate but easy to forget;
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    The throw-on-fail
-   contract is intentional;
-    the wrapper pattern is the documented
-   shape.
-2. **Can upstream fix it?
-   ** Could change top-level behaviour to use
-   `allSettled` implicitly,
-    but that hides bugs where the file
-   forgets to declare a parent.
-3. **Are they supporting this use case?
-   ** Yes;
-    the wrapper pattern
-   is documented.
-4. **Will they likely fix it?
-   ** No.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     The throw-on-fail
+    contract is intentional;
+     the wrapper pattern is the documented
+    shape.
+2.  **Can upstream fix it?
+    ** Could change top-level behaviour to use
+    `allSettled` implicitly,
+     but that hides bugs where the file
+    forgets to declare a parent.
+3.  **Are they supporting this use case?
+    ** Yes;
+     the wrapper pattern
+    is documented.
+4.  **Will they likely fix it?
+    ** No.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  keep the wrapper convention.

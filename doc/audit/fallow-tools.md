@@ -58,27 +58,27 @@ auto-cleanup or always-on linter.
 
 Four invocation modes:
 
-1. **Bare default**:
-    `bunx fallow` with no config
-2. **`fallow init` default**:
-    ran `bunx fallow init`,
-    used the auto-generated config
-3. **Hand-tuned `.fallowrc.json`**:
-    a manual config that adds entry-point patterns
-   for this repo's conventions (`mise.*.ts`,
-    `tsdown.*.config.ts`,
-    editord client
-   modules,
-    test-fixture overrides) and disables rules that overlap with oxlint
-4. **file-enforcer-generated config**:
-    the prototype on branch `fallow-wrap-prototype`,
-   where `file-enforcer.config.ts` adds a `generateFallowConfig()` step that
-   globs `package/*/*/tsdown.*.config.ts`,
-    extracts each config's `entry` array
-   (literal arrays via regex,
-    plus base-config re-exports inferred from the
-   imported filename),
-    and merges discovered entries into the static base
+1.  **Bare default**:
+     `bunx fallow` with no config
+2.  **`fallow init` default**:
+     ran `bunx fallow init`,
+     used the auto-generated config
+3.  **Hand-tuned `.fallowrc.json`**:
+     a manual config that adds entry-point patterns
+    for this repo's conventions (`mise.*.ts`,
+     `tsdown.*.config.ts`,
+     editord client
+    modules,
+     test-fixture overrides) and disables rules that overlap with oxlint
+4.  **file-enforcer-generated config**:
+     the prototype on branch `fallow-wrap-prototype`,
+    where `file-enforcer.config.ts` adds a `generateFallowConfig()` step that
+    globs `package/*/*/tsdown.*.config.ts`,
+     extracts each config's `entry` array
+    (literal arrays via regex,
+     plus base-config re-exports inferred from the
+    imported filename),
+     and merges discovered entries into the static base
 
 Each pass was captured under `/tmp/fallow-out/`.
  The fallow source was
@@ -98,7 +98,7 @@ detector reads as TypeScript).
 
 Across the four invocation modes:
 
-- **Bare default**:
+- Bare default:
    2344 dead-code issues,
    235 clone groups (7.8% duplication),
   5347 functions analyzed,
@@ -110,7 +110,7 @@ Across the four invocation modes:
    241 entry points
   detected (145 from `package.json`,
    96 from plugins).
-- **`fallow init` default config**:
+- `fallow init` default config:
    identical to bare.
    The default config is
   too minimal to affect anything;
@@ -118,7 +118,7 @@ Across the four invocation modes:
   and declares `package/*/*` as the workspace pattern,
    both of which fallow
   already infers.
-- **Hand-tuned `.fallowrc.json`**:
+- Hand-tuned `.fallowrc.json`:
    869 dead-code issues (-63%),
    232 clone groups
   (8.9% duplication),
@@ -129,7 +129,7 @@ Across the four invocation modes:
    145 `package.json`,
    96 plugin,
   44 manual entry).
-- **file-enforcer-generated config (prototype)**:
+- file-enforcer-generated config (prototype):
    744 dead-code issues
   (-68% from default;
    -14% from hand-tuned),
@@ -319,7 +319,7 @@ Closing this gap would extend the generator to scan every
 
 ### Bare `tsdown.config.ts` files
 
-**Resolved 2026-05-09**:
+Resolved 2026-05-09:
  every per-package config now uses
 `tsdown.<platform>.config.ts`,
  so the false-positive class described below
@@ -537,21 +537,21 @@ Don't adopt as:
 
 Suggested cleanup sequence after adoption:
 
-1. Triage the 18 unlisted dependencies into the right `package.json` files
-2. Remove the 4 truly dead dependencies
-3. Move the 6 misplaced devDep declarations to the packages that import them
-4. Delete the 9 unused class members in editord LSP code
-5. Decide whether to extract `package/cli/_shared/` (or similar) for the
-   mvm/vmsync clones,
-    or accept them
-6. After each cleanup batch,
-    re-save the three baselines:
+1.  Triage the 18 unlisted dependencies into the right `package.json` files
+2.  Remove the 4 truly dead dependencies
+3.  Move the 6 misplaced devDep declarations to the packages that import them
+4.  Delete the 9 unused class members in editord LSP code
+5.  Decide whether to extract `package/cli/_shared/` (or similar) for the
+    mvm/vmsync clones,
+     or accept them
+6.  After each cleanup batch,
+     re-save the three baselines:
 
-   ```bash
-   bunx fallow dead-code --save-baseline fallow-baselines/dead-code.json
-   bunx fallow health    --save-baseline fallow-baselines/health.json
-   bunx fallow dupes     --save-baseline fallow-baselines/dupes.json
-   ```
+    ```bash
+    bunx fallow dead-code --save-baseline fallow-baselines/dead-code.json
+    bunx fallow health    --save-baseline fallow-baselines/health.json
+    bunx fallow dupes     --save-baseline fallow-baselines/dupes.json
+    ```
 
 After step 6,
  the baselines shrink and future audit runs surface a smaller

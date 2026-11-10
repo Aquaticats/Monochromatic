@@ -147,16 +147,16 @@ Cli-git is owned by this repository,
 `.out-of-scope/` has no matching exemption,
 and this run has not established a tool defect:
 
-1. Upstream fault is unproven;
-   serialization with a live linked-worktree owner matches the inspected path.
-2. The implementation could change its read-only applicability rule,
-   but no fix is prescribed from this single contention observation.
-3. Linked-worktree copy is an intentionally supported path.
-4. The code belongs to this repository,
-   so no third-party contribution policy applies.
-5. No maintainer rejection or remediation request was established.
-6. No compatible patch was prototyped because the diagnosed state was live
-   contention,
-   not a reproduced fault.
+1.  Upstream fault is unproven;
+    serialization with a live linked-worktree owner matches the inspected path.
+2.  The implementation could change its read-only applicability rule,
+    but no fix is prescribed from this single contention observation.
+3.  Linked-worktree copy is an intentionally supported path.
+4.  The code belongs to this repository,
+    so no third-party contribution policy applies.
+5.  No maintainer rejection or remediation request was established.
+6.  No compatible patch was prototyped because the diagnosed state was live
+    contention,
+    not a reproduced fault.
 
 No external issue or comment draft is prepared.

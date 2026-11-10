@@ -170,29 +170,29 @@ through 5).
  Ratings happen only after every finalist passes equal-depth
 validation.
 
-1. Authoring ergonomics for commented multi-line rules
-   (the ratified core requirement,
-    quality thereof).
-2. Container-to-pattern boundary surface
-   (escaping,
-    collision,
-    and misparse hazards between format and regex bytes).
-3. Human-auditability of the parsing path
-   (measured non-test source lines,
-    control flow,
-    dependency count of
-   whatever parses the format at the gate).
-4. Migration cost
-   (three live files,
-    build.rs embed,
-    file-enforcer concatenation,
-   binary-before-data-file release sequencing).
-5. Ecosystem precedent and familiarity
-   (peer secret scanners' rule formats;
-    general format adoption).
-6. Extensibility toward open rule-identity needs
-   (named rules possible later without forcing that open decision now).
-7. Spec and implementation maintenance health.
+1.  Authoring ergonomics for commented multi-line rules
+    (the ratified core requirement,
+     quality thereof).
+2.  Container-to-pattern boundary surface
+    (escaping,
+     collision,
+     and misparse hazards between format and regex bytes).
+3.  Human-auditability of the parsing path
+    (measured non-test source lines,
+     control flow,
+     dependency count of
+    whatever parses the format at the gate).
+4.  Migration cost
+    (three live files,
+     build.rs embed,
+     file-enforcer concatenation,
+    binary-before-data-file release sequencing).
+5.  Ecosystem precedent and familiarity
+    (peer secret scanners' rule formats;
+     general format adoption).
+6.  Extensibility toward open rule-identity needs
+    (named rules possible later without forcing that open decision now).
+7.  Spec and implementation maintenance health.
 
 ## Unresolved preferences
 

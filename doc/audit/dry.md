@@ -153,7 +153,7 @@ duplication,
 
 #### Three packages declare per-platform mise tasks without matching config files
 
-**Resolved 2026-05-09**:
+Resolved 2026-05-09:
  each package's bare `tsdown.config.ts` was renamed to the
 platform-suffixed form matching its declared mise tasks.
 `package/module/hyperscript/` now has `tsdown.browser.config.ts` only;
@@ -478,7 +478,7 @@ Suggested resolution:
 
 #### `escapeHtml` is reimplemented in three files
 
-**Resolved 2026-05-09**:
+Resolved 2026-05-09:
  both consumer copies were deleted;
  the
 `messages-demo` export had no importers,
@@ -590,7 +590,7 @@ These collapse if the `done` fork is consolidated (see fork finding above).
 
 #### `findRepoRoot` in ssg-test reimplements `findMiseMonorepoRoot`
 
-**Resolved 2026-05-09**:
+Resolved 2026-05-09:
  `git-dates.ts` now imports `findMiseMonorepoRoot` from
 `@monochromatic-dev/module-es/find-monorepo-root`.
  The local `findRepoRoot`
@@ -640,7 +640,7 @@ public entry point that dispatches;
 
 #### `Logger` declared with two different shapes
 
-**Resolved 2026-05-09**:
+Resolved 2026-05-09:
  `ssg-test/src/lib/types.ts` now re-exports `Logger`
 from `@monochromatic-dev/module-logger/types`;
  the `ReturnType<typeof tagged>`
@@ -655,7 +655,7 @@ Suggested resolution:
 
 #### `CommandResult` declared locally in ssg-test
 
-**Resolved 2026-05-10**:
+Resolved 2026-05-10:
  folded into the `nano-spawn` migration.
  The
 local type now reads `type CommandResult = Pick<Result, 'stdout' | 'stderr'>`
@@ -1449,7 +1449,7 @@ already covered by earlier findings:
 
 #### `nano-spawn` is the convention with four hold-outs using `promisify(execFile)`
 
-**Resolved 2026-05-10**:
+Resolved 2026-05-10:
  all four hold-outs migrated to `nano-spawn`.
 `git-dates.ts` also folds in the `CommandResult` finding (line 449) by
 typing the wrapper return as `Pick<Result, 'stdout' | 'stderr'>` from
@@ -2026,7 +2026,7 @@ than just consolidating the fork.
 
 #### `padLeft` / `padRight` thin wrappers around `String.prototype.padStart` / `padEnd` (delete, not extract)
 
-**Resolved 2026-05-09**:
+Resolved 2026-05-09:
  both wrappers were deleted from
 `package/dev-script/page-weight/src/index.ts`;
  the eight call sites now use
@@ -2137,7 +2137,7 @@ the escape sets differ.
 
 #### `withTimeout(promise)` browser variant alongside `module/es` async variant
 
-**Resolved 2026-05-09**:
+Resolved 2026-05-09:
  `storage-probe.ts` now composes with the shared
 `withTimeout` from `@monochromatic-dev/module-es/with-timeout`.
  A small

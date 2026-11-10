@@ -1,28 +1,28 @@
 # Rolling Linux desktop with encrypted boot-menu rollback vet report
 
-- **Status**:
+- Status:
   In progress
-- **Lifecycle phase**:
+- Lifecycle phase:
   Context and rubric frozen;
   discovery pending
-- **Subject**:
+- Subject:
   Rolling Linux desktop with encrypted boot-menu rollback
-- **Scope**:
+- Scope:
   Choose a rolling Linux installation architecture for this user’s x86-64 KDE gaming desktop
   that provides encrypted root and direct boot-menu selection of rollback targets.
-- **Started**:
+- Started:
   2026-08-29
-- **Last updated**:
+- Last updated:
   2026-08-29
-- **Governing skill commit**:
+- Governing skill commit:
   `a05818ad70a40e5769a36de669697ba109891b31`
-- **Governing skill SHA-256**:
+- Governing skill SHA-256:
   `393eb68c5b2b2f7b16c8f7f90c100fb8be43eefa4501511360cd0572e4ae8087`
-- **Compatibility fingerprint**:
+- Compatibility fingerprint:
   `636923994432fe5afbe3a13086afb7ffdc004479de4fb2c68842ea6022eff9ce`
-- **Active audit owner**:
+- Active audit owner:
   Pi session `01a04220-8e59-7772-ad8a-2c5eb2dedb7b`
-- **Prior compatible report**:
+- Prior compatible report:
   None found
 
 ## Context

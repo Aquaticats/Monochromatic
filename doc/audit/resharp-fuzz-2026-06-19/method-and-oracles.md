@@ -23,27 +23,27 @@ With the dotnet RE# reference being retired (see README),
 decided by,
  in order:
 
-1. Any panic,
-    crash,
-    or compile-time DoS on a compile-accepted pattern:
-    always
-   real.
-2. Violation of an asserted contract (the three `match_invariants` invariants:
-   find_all ordering,
-    is_match iff find_all non-empty,
-    find_anchored = longest at
-   0):
-    real soundness bug.
-3. Positional wrongness on a faithful-fragment (trust0) pattern,
-    established by
-   the independent denotational oracle or the Lean oracle:
-    real soundness bug.
-4. Cross-API inconsistency on an accepted-superset pattern where `api.md` already
-   says the invariant is "stated intent,
-    known to be violated":
-    catalogued as a
-   known gap,
-    not inflated to a new finding.
+1.  Any panic,
+     crash,
+     or compile-time DoS on a compile-accepted pattern:
+     always
+    real.
+2.  Violation of an asserted contract (the three `match_invariants` invariants:
+    find_all ordering,
+     is_match iff find_all non-empty,
+     find_anchored = longest at
+    0):
+     real soundness bug.
+3.  Positional wrongness on a faithful-fragment (trust0) pattern,
+     established by
+    the independent denotational oracle or the Lean oracle:
+     real soundness bug.
+4.  Cross-API inconsistency on an accepted-superset pattern where `api.md` already
+    says the invariant is "stated intent,
+     known to be violated":
+     catalogued as a
+    known gap,
+     not inflated to a new finding.
 
 The supported subset is the arbiter for "real bug vs engine correctly rejecting /
 permissive by design":

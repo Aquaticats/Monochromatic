@@ -518,39 +518,39 @@ The BIND delayed-input issue 4044 is related only by wording and does not match 
 
 The six filing constraints are:
 
-1. **Is it really upstream's fault?**
-    No.
-   systemd's documented inheritance rule is working as implemented.
-   Strict mode explicitly requires selected DNS servers to support DNS-over-TLS.
-   The local configuration combines that strict global default with a per-link server whose port 853 path timed out.
-2. **Can upstream fix it?**
-    The necessary control already exists as a per-link DNS-over-TLS setting.
-   Upstream cannot infer whether the user wants strict global policy,
-    VPN-provider DNS,
-    or downgrade.
-3. **Are they supporting this use case?**
-    Yes,
-    when link owners set the per-link mode or all selected servers support
-   the inherited global mode.
-   The manual documents both requirements.
-4. **Would the repo welcome our contribution?**
-    Contributions are welcome,
-    but this report would not qualify.
-   `docs/CONTRIBUTING.md:14-24` limits issues to bugs and feature requests and requires a reproduction.
-   `docs/CONTRIBUTING.md:53-67` requires AI assistance disclosure and thorough human review.
-   The issue templates and repository policy were checked;
-    no policy bans a reviewed,
-    disclosed contribution.
-5. **Will they likely fix it?**
-    No upstream behavior change is warranted by the evidence.
-   Automatically downgrading would violate `DNSOverTLS=yes`,
-    while ignoring per-link DNS would violate routing policy.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    No.
-   Constraints 1 and 5 fail,
-    so the auto-prototype gate does not trigger.
-   The available fixes are local policy changes,
-    not a systemd patch.
+1.  **Is it really upstream's fault?**
+     No.
+    systemd's documented inheritance rule is working as implemented.
+    Strict mode explicitly requires selected DNS servers to support DNS-over-TLS.
+    The local configuration combines that strict global default with a per-link server whose port 853 path timed out.
+2.  **Can upstream fix it?**
+     The necessary control already exists as a per-link DNS-over-TLS setting.
+    Upstream cannot infer whether the user wants strict global policy,
+     VPN-provider DNS,
+     or downgrade.
+3.  **Are they supporting this use case?**
+     Yes,
+     when link owners set the per-link mode or all selected servers support
+    the inherited global mode.
+    The manual documents both requirements.
+4.  **Would the repo welcome our contribution?**
+     Contributions are welcome,
+     but this report would not qualify.
+    `docs/CONTRIBUTING.md:14-24` limits issues to bugs and feature requests and requires a reproduction.
+    `docs/CONTRIBUTING.md:53-67` requires AI assistance disclosure and thorough human review.
+    The issue templates and repository policy were checked;
+     no policy bans a reviewed,
+     disclosed contribution.
+5.  **Will they likely fix it?**
+     No upstream behavior change is warranted by the evidence.
+    Automatically downgrading would violate `DNSOverTLS=yes`,
+     while ignoring per-link DNS would violate routing policy.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     No.
+    Constraints 1 and 5 fail,
+     so the auto-prototype gate does not trigger.
+    The available fixes are local policy changes,
+     not a systemd patch.
 
 ### Filing artifact
 

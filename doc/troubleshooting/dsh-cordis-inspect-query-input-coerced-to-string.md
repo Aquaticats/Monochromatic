@@ -145,36 +145,36 @@ The upstream repository is `deepseek-ai/deepseek-harness`
 (`packages/extensions/tool-cordis`,
 from the package `repository` field).
 
-1. Is it really upstream's fault?
-   Yes.
-   The `json` parameter declaration,
-   the unchecked forward,
-   and the rejecting validator are all in upstream packages,
-   quoted in the Root cause section.
-2. Can upstream fix it?
-   Yes.
-   Either the tool-call marshaling parses `json` parameters,
-   or `validateInput` accepts a JSON string and parses it.
-3. Are they supporting this use case?
-   Yes.
-   `@deepseek-ai/dsh-tool-cordis/README.md:28`
-   instructs filtered inspect queries,
-   and the tool description tells agents
-   `input must satisfy that method's schema`.
-4. Would the repo welcome our contribution?
-   Fails for issue filing:
-   `gh repo view deepseek-ai/deepseek-harness --json hasIssuesEnabled`
-   returns `false`,
-   so the tracker accepts no issues at all.
-   A pull-request channel is not investigated here.
-5. Will they likely fix it?
-   No signal exists to read,
-   because the repository keeps no issue tracker.
-6. Have we prototyped a minimal fix?
-   Not reached,
-   since constraint 4 fails and no filing channel exists.
-   The fix site is upstream's tool marshaling,
-   outside this repository's boundary.
+1.  Is it really upstream's fault?
+    Yes.
+    The `json` parameter declaration,
+    the unchecked forward,
+    and the rejecting validator are all in upstream packages,
+    quoted in the Root cause section.
+2.  Can upstream fix it?
+    Yes.
+    Either the tool-call marshaling parses `json` parameters,
+    or `validateInput` accepts a JSON string and parses it.
+3.  Are they supporting this use case?
+    Yes.
+    `@deepseek-ai/dsh-tool-cordis/README.md:28`
+    instructs filtered inspect queries,
+    and the tool description tells agents
+    `input must satisfy that method's schema`.
+4.  Would the repo welcome our contribution?
+    Fails for issue filing:
+    `gh repo view deepseek-ai/deepseek-harness --json hasIssuesEnabled`
+    returns `false`,
+    so the tracker accepts no issues at all.
+    A pull-request channel is not investigated here.
+5.  Will they likely fix it?
+    No signal exists to read,
+    because the repository keeps no issue tracker.
+6.  Have we prototyped a minimal fix?
+    Not reached,
+    since constraint 4 fails and no filing channel exists.
+    The fix site is upstream's tool marshaling,
+    outside this repository's boundary.
 
 Outcome:
 do not file;

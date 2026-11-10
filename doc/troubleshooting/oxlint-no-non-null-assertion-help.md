@@ -336,23 +336,23 @@ It is correct only when absence is part of the domain behavior.
 
 ## What does not work
 
-- **Following the optional-chaining suggestion unconditionally**:
+- Following the optional-chaining suggestion unconditionally:
   it changes missing-value behavior from throwing to returning `undefined`,
   and it cannot appear on the left side of an assignment such as the issue's example.
-- **Changing only the comment in `restriction.ts` or a handover document**:
+- Changing only the comment in `restriction.ts` or a handover document:
   those files do not alter the diagnostic shown at the lint boundary.
-- **Replacing the built-in rule with a project JS rule**:
+- Replacing the built-in rule with a project JS rule:
   it duplicates Oxlint's working `TSNonNullExpression` detection,
   expands the test surface,
   and loses the built-in rule's maintained syntax coverage.
   `package/config/oxlint/src/index.ts:33` also records that the language server does not support JS plugins.
-- **Teaching `oxlint-augment.ts` about this rule directly**:
+- Teaching `oxlint-augment.ts` about this rule directly:
   repository design keeps rule-specific policy in `oxlint-guidance.ts`.
   The generic augmenter already handles both help-line shapes.
-- **Removing or replacing Oxlint's help text in the wrapper**:
+- Removing or replacing Oxlint's help text in the wrapper:
   the wrapper's documented contract is augmentation,
   and the established guidance model appends one string rather than introducing replacement modes.
-- **Filing the repository-specific helper requirement upstream**:
+- Filing the repository-specific helper requirement upstream:
   Oxlint cannot prescribe a private workspace package used by one consumer.
 
 ## Upstream filing artifact

@@ -17,16 +17,16 @@ source) was done for any candidate in this round.
 
 Definitions used in this file:
 
-- **result**:
+- result:
   one package or crate object returned by the provider on that page.
-- **new names**:
+- new names:
   results whose package or crate name had not appeared on any earlier page of the frozen schedule
 - (schedule order Q1 to Q8).
-- **new screening survivors**:
+- new screening survivors:
   distinct tools (package families collapsed,
   forks and mirrors merged) first recorded as
 - survivors on that page.
-- **survivor**:
+- survivor:
   the registry description itself claims a category function (runs tasks across packages,
   build
 - orchestration,
@@ -34,16 +34,16 @@ Definitions used in this file:
   or a persistent watch/process with dashboard,
   daemon,
   monitor or API).
-- **survivor (unverified)**:
+- survivor (unverified):
   the description plausibly fits but is vague,
   very short,
   or has no repository link;
   verify
 - first in the next round.
-- **generic task runner**:
+- generic task runner:
   a Make/Task/just-class runner with no stated workspace graph.
   It was kept because the brief lists Task as an in-scope example.
-- **excluded**:
+- excluded:
   out of category (library,
   template/scaffold,
   bundler,
@@ -522,7 +522,7 @@ not repository activity.
 
 ### Monorepo managers and build systems: established (from Q7 and Q8)
 
-- **Bazel**:
+- Bazel:
   <https://bazel.build> (github.com/bazelbuild/bazel,
   active,
   Apache-2.0);
@@ -541,7 +541,7 @@ not repository activity.
   remote execution,
   BUILD files,
   target determinator.
-- **Gradle**:
+- Gradle:
   <https://github.com/gradle/gradle> (active,
   Apache-2.0);
   Q7;
@@ -552,14 +552,14 @@ not repository activity.
   terms:
   polyglot,
   build cache.
-- **Lage**:
+- Lage:
   <https://github.com/microsoft/lage> (active,
   MIT);
   Q7;
   manager;
   survivor;
   absent from npm keyword results.
-- **Lerna**:
+- Lerna:
   <https://lerna.js.org> (github.com/lerna/lerna);
   Q1 p0,
   Q7,
@@ -583,7 +583,7 @@ not repository activity.
   build system,
   multi-package,
   publish.
-- **moon**:
+- moon:
   <https://github.com/moonrepo/moon> (active,
   MIT);
   Q7 (also implied by `callisto-moon` Moon WASM plugin in Q5
@@ -595,7 +595,7 @@ not repository activity.
   WASM
 - plugins,
   polyglot.
-- **Nx**:
+- Nx:
   <https://nx.dev> (github.com/nrwl/nx,
   active,
   MIT);
@@ -622,7 +622,7 @@ not repository activity.
   Nx Cloud,
   distributed
 - task execution.
-- **Pants**:
+- Pants:
   <https://www.pantsbuild.org> (github.com/pantsbuild/pants,
   active,
   Apache-2.0);
@@ -631,7 +631,7 @@ not repository activity.
   manager/build
 - system;
   survivor.
-- **Rush**:
+- Rush:
   <https://rushjs.io> (github.com/microsoft/rushstack);
   Q1 p0,
   Q7,
@@ -648,7 +648,7 @@ not repository activity.
   build orchestrator,
   incremental,
   MCP server.
-- **Turborepo**:
+- Turborepo:
   <https://turborepo.org> (github.com/vercel/turborepo,
   active,
   MIT);
@@ -678,7 +678,7 @@ not repository activity.
   cache miss
 - explanation,
   persistent tasks.
-- **Buck / Buck2**:
+- Buck / Buck2:
   <https://buck2.build> (github.com/facebook/buck2 active;
   github.com/facebook/buck archived 2023);
   Q8
@@ -689,7 +689,7 @@ not repository activity.
   terms:
   monorepo-oriented build
 - system.
-- **Please**:
+- Please:
   <https://please.build> (github.com/thought-machine/please,
   active,
   Apache-2.0);
@@ -699,7 +699,7 @@ not repository activity.
 - terms:
   cross-language,
   reproducible.
-- **baur**:
+- baur:
   <https://github.com/simplesurance/baur> (active,
   GPL-2.0);
   Q8;
@@ -709,7 +709,7 @@ not repository activity.
   builds only changed
 - applications,
   build artifact management.
-- **Bit**:
+- Bit:
   <https://github.com/teambit/bit> (active,
   license NOASSERTION per GitHub);
   Q8;
@@ -718,14 +718,14 @@ not repository activity.
   license needs checking;
   terms:
   component dependency graph.
-- **Bolt**:
+- Bolt:
   <https://github.com/boltpkg/bolt> (last push 2024-06,
   not archived);
   Q8;
   manager (Yarn-era workspaces);
 - survivor;
   likely abandoned.
-- **drkns**:
+- drkns:
   <https://github.com/frantzmiccoli/drkns> (active,
   license NOASSERTION);
   Q8;
@@ -733,21 +733,21 @@ not repository activity.
   survivor;
   terms:
 - language agnostic.
-- **Garment**:
+- Garment:
   <https://github.com/Farfetch/garment> (archived 2024-01);
   Q8;
   manager;
   survivor (archived);
   terms:
 - centralized customizable task management.
-- **MBT**:
+- MBT:
   <https://github.com/mbtproject/mbt> (last push 2023-10);
   Q8;
   build tool;
   survivor;
   terms:
   differential build.
-- **Nix**:
+- Nix:
   <https://github.com/NixOS/nix> (active,
   LGPL-2.1);
   Q8;
@@ -758,7 +758,7 @@ not repository activity.
   terms:
   remote caching,
   reproducible.
-- **pnpm**:
+- pnpm:
   <https://pnpm.io>;
   Q8;
   package manager with recursive topological script runs;
@@ -769,7 +769,7 @@ not repository activity.
   terms:
   workspace filter,
   recursive run.
-- **Yarn**:
+- Yarn:
   <https://yarnpkg.com>;
   Q8;
   package manager with workspaces foreach;
@@ -777,26 +777,26 @@ not repository activity.
   package manager);
   terms:
 - workspaces.
-- **Builder (FormidableLabs)**:
+- Builder (FormidableLabs):
   <https://github.com/FormidableLabs/builder> (archived 2022);
   Q8;
   shared script runner;
 - survivor (archived).
-- **Lank**:
+- Lank:
   <https://github.com/FormidableLabs/lank> (archived 2022);
   Q8;
   manager (links packages,
   runs commands across
 - all or subsets);
   survivor (archived).
-- **wsrun**:
+- wsrun:
   <https://github.com/hfour/wsrun> (redirected from whoeverest/wsrun;
   last push 2024-05);
   Q8;
   manager (command
 - per Yarn workspace package);
   survivor.
-- **OAO**:
+- OAO:
   <https://github.com/guigrpa/oao> (last push 2023-01;
   npm last 2021-04);
   Q1 p0,
@@ -804,7 +804,7 @@ not repository activity.
   manager;
   survivor
 - (abandoned).
-- **monorepo-run**:
+- monorepo-run:
   <https://github.com/Akryum/monorepo-run> (archived 2021;
   npm last 2019-10);
   Q1 p0,
@@ -815,7 +815,7 @@ not repository activity.
   fork `monorepo-run-workspace` excluded (Q1 p13);
   terms:
   separated panes.
-- **Ultra Runner**:
+- Ultra Runner:
   <https://github.com/folke/ultra-runner> (npm last 2021-02);
   Q1 p0,
   Q8;
@@ -831,7 +831,7 @@ not repository activity.
 
 ### Monorepo managers and build systems: npm registry discoveries
 
-- **Vite+ task runner (vp run)**:
+- Vite+ task runner (vp run):
   <https://github.com/voidzero-dev/vite-task>;
   Q1 p0 (via
 - `@voidzero-dev/vite-task-client`);
@@ -857,14 +857,14 @@ not repository activity.
   git hooks,
   AI agent integrations,
 - cache-correctness fingerprint client.
-- **bun-workspaces**:
+- bun-workspaces:
   <https://bunworkspaces.com>;
   Q1 p0;
   manager (Bun);
   survivor;
   terms:
   CLI and API.
-- **pacwich**:
+- pacwich:
   <https://pacwich.dev>;
   Q1 p0;
   manager;
@@ -873,14 +873,14 @@ not repository activity.
   orchestrates package.json scripts,
   TypeScript
 - library API.
-- **mono-vir**:
+- mono-vir:
   <https://github.com/electrovir/mono-vir>;
   Q1 p0;
   manager (minimal);
   survivor;
   terms:
   for each.
-- **Holocron astromech (@theholocron/astromech)**:
+- Holocron astromech (@theholocron/astromech):
   <https://github.com/theholocron/holocron>;
   Q1 p0,
   Q3 p0;
@@ -892,27 +892,27 @@ not repository activity.
   one task manifest drives run,
   CI
 - and checks.
-- **yakumo**:
+- yakumo:
   <https://github.com/cordiverse/yakumo>;
   Q1 p0;
   manager (plugin-based workspace scripts);
   survivor;
   fork
 - `@hieuzest/yakumo` excluded.
-- **bun-spaces**:
+- bun-spaces:
   <https://github.com/Pckool/bun-spaces>;
   Q1 p0;
   manager (Bun);
   survivor;
   last 2025-01.
-- **@williamthorsen/nmr**:
+- @williamthorsen/nmr:
   <https://github.com/williamthorsen/node-monorepo-tools>;
   Q1 p0;
   manager (lightweight);
 - survivor;
   terms:
   context-aware script runner.
-- **npm-recursive-runner**:
+- npm-recursive-runner:
   <https://github.com/avi747av/npm-recursive-runner>;
   Q1 p0;
   manager (minimal);
@@ -928,14 +928,14 @@ not repository activity.
 - zero setup,
   dep graph,
   topo.
-- **@forklaunch/bunrun**:
+- @forklaunch/bunrun:
   <https://www.npmjs.com/package/@forklaunch/bunrun>;
   Q1 p0;
   manager (Bun);
   survivor;
   terms:
 - topological ordering.
-- **@aklinker1/buildc**:
+- @aklinker1/buildc:
   <https://github.com/aklinker1/buildc>;
   Q1 p1;
   manager;
@@ -943,7 +943,7 @@ not repository activity.
   terms:
   caching and
 - orchestrating builds.
-- **packer-commander**:
+- packer-commander:
   <https://github.com/Slowmoney/packer-commander>;
   Q1 p1,
   Q3 p0;
@@ -952,7 +952,7 @@ not repository activity.
   terms:
 - live task statuses,
   pipelines.
-- **@enspirit/emb**:
+- @enspirit/emb:
   <https://github.com/enspirit/emb>;
   Q1 p1;
   manager;
@@ -962,14 +962,14 @@ not repository activity.
   docker
 - compose,
   sentinel.
-- **run-shared-scripts**:
+- run-shared-scripts:
   <https://github.com/bubkoo/run-shared-scripts>;
   Q1 p1;
   manager (minimal);
   survivor;
   last
 - 2025-10.
-- **workspace-utils**:
+- workspace-utils:
   <https://torstendittmann.github.io/workspace-utils/>;
   Q1 p1;
   manager;
@@ -977,18 +977,18 @@ not repository activity.
   terms:
 - dependency-aware builds,
   build orchestration.
-- **northbrook**:
+- northbrook:
   <https://github.com/northbrookjs/northbrook>;
   Q1 p1;
   manager;
   survivor;
   last 2017-01 (abandoned).
-- **scriptio**:
+- scriptio:
   <https://github.com/michaelcocova/scriptio>;
   Q1 p2;
   generic task runner;
   survivor.
-- **rman**:
+- rman:
   <https://github.com/panates/rman>;
   Q1 p2;
   manager;
@@ -996,7 +996,7 @@ not repository activity.
   terms:
   repository manager,
 - lerna-like.
-- **bru**:
+- bru:
   <https://github.com/kamilkisiela/bru>;
   Q1 p2;
   manager;
@@ -1004,7 +1004,7 @@ not repository activity.
   may be dependency-only);
   last
 - 2018-12.
-- **@nu-art/build-and-install**:
+- @nu-art/build-and-install:
   <https://github.com/nu-art-js/thunderstorm>;
   Q1 p2,
   Q2 p0;
@@ -1013,7 +1013,7 @@ not repository activity.
   terms:
 - dependency-aware phase execution,
   units.
-- **neex**:
+- neex:
   <https://github.com/Neexjs/neex>;
   Q1 p2;
   manager;
@@ -1023,7 +1023,7 @@ not repository activity.
 - terms:
   tiered caching,
   Rust.
-- **@layermix/cli**:
+- @layermix/cli:
   <https://github.com/layermix-labs/cli>;
   Q1 p2,
   Q3 p0;
@@ -1033,7 +1033,7 @@ not repository activity.
   DAG-based task
 - runner,
   Ink TUI.
-- **@tinyaxis/toolkit**:
+- @tinyaxis/toolkit:
   <https://www.npmjs.com/package/@tinyaxis/toolkit>;
   Q1 p2,
   Q3 p0;
@@ -1041,7 +1041,7 @@ not repository activity.
   survivor
 - (unverified;
   no repo).
-- **@halecraft/verify**:
+- @halecraft/verify:
   <https://github.com/halecraft/verify>;
   Q1 p2;
   generic task runner;
@@ -1049,7 +1049,7 @@ not repository activity.
   terms:
   hierarchical
 - verification runner.
-- **ts-task (@oliveryasuna/ts-task)**:
+- ts-task (@oliveryasuna/ts-task):
   <https://github.com/oliveryasuna/ts-task>;
   Q1 p2 (plugin),
   Q3 p0;
@@ -1059,7 +1059,7 @@ not repository activity.
   terms:
   TypeScript-configured tasks,
   plugins.
-- **greenly**:
+- greenly:
   <https://github.com/yusifaliyevpro/greenly>;
   Q1 p1,
   Q3 p0;
@@ -1078,7 +1078,7 @@ not repository activity.
   generic task runner;
   survivor (unverified;
   no repo).
-- **calviche**:
+- calviche:
   <https://github.com/sosafeapp/calviche>;
   Q1 p3;
   manager (minimal);
@@ -1086,18 +1086,18 @@ not repository activity.
   last 2020-08;
   terms:
 - hierarchical dependency order.
-- **laoban**:
+- laoban:
   <https://github.com/phil-rice/laoban>;
   Q1 p3;
   manager;
   survivor.
-- **qiao-project**:
+- qiao-project:
   <https://github.com/uikoo9/qiao-nodejs>;
   Q1 p3;
   manager;
   survivor (unverified;
   vague description).
-- **@meslzy/outdo**:
+- @meslzy/outdo:
   <https://meslzy.github.io/outdo/>;
   Q1 p6,
   Q3 p0;
@@ -1107,7 +1107,7 @@ not repository activity.
   typed
 - do.ts,
   Bun Shell.
-- **laufen**:
+- laufen:
   <https://github.com/zrosenbauer/lauf>;
   Q1 p6,
   Q3 p0;
@@ -1116,19 +1116,19 @@ not repository activity.
   terms:
   typed script
 - runner.
-- **crowd (also @d-fischer/crowd)**:
+- crowd (also @d-fischer/crowd):
   <https://github.com/d-fischer/crowd>;
   Q1 p6,
   Q1 p12;
   manager;
   survivor (unverified).
-- **mondorepo**:
+- mondorepo:
   <https://github.com/sencha/mondorepo>;
   Q1 p7;
   manager;
   survivor (unverified);
   last 2016-11.
-- **Bilt (@bilt/cli and family)**:
+- Bilt (@bilt/cli and family):
   <https://github.com/giltayar/bilt>;
   Q1 p7;
   manager;
@@ -1137,20 +1137,20 @@ not repository activity.
   terms:
 - artifact dependency graph,
   packages to build.
-- **mrpm**:
+- mrpm:
   <https://github.com/ota-meshi/mrpm>;
   Q1 p7;
   manager;
   survivor (unverified);
   last 2022-02.
-- **@jakehamilton/titan**:
+- @jakehamilton/titan:
   <https://github.com/jakehamilton/packages>;
   Q1 p8;
   manager;
   survivor (unverified);
   last
 - 2024-08.
-- **buildverse**:
+- buildverse:
   <https://github.com/Typeverse/buildverse-sdk>;
   Q1 p8;
   manager;
@@ -1170,7 +1170,7 @@ not repository activity.
   vx-cloud orchestrator service,
   distributed,
   remote cache.
-- **lattice (@latticeandcompany/lattice)**:
+- lattice (@latticeandcompany/lattice):
   <https://latticeandcompany.github.io/lattice>;
   Q1 p8,
   Q3 p0;
@@ -1180,12 +1180,12 @@ not repository activity.
   local toolchain,
   task-runner,
   cache.
-- **monopkg**:
+- monopkg:
   <https://github.com/beerush-id/monopkg>;
   Q1 p8;
   manager;
   survivor (unverified).
-- **fiducial (@fiducial/fiducial)**:
+- fiducial (@fiducial/fiducial):
   <https://github.com/AleksaZCodes/fiducial>;
   Q1 p8,
   Q2 p0;
@@ -1203,7 +1203,7 @@ not repository activity.
   Q2 p0;
   build system;
   survivor.
-- **rune (@gio-labs/rune)**:
+- rune (@gio-labs/rune):
   <https://github.com/giancarlosisasi/rune>;
   Q1 p8,
   Q3 p0;
@@ -1211,7 +1211,7 @@ not repository activity.
   survivor;
 - terms:
   centralized script runner.
-- **unorepo**:
+- unorepo:
   <https://github.com/0livare/unorepo>;
   Q1 p8;
   manager;
@@ -1229,7 +1229,7 @@ not repository activity.
   manager (plugin);
   survivor (unverified);
   last 2018-02.
-- **changeset-releaser**:
+- changeset-releaser:
   <https://github.com/harnyk/changeset-releaser>;
   Q1 p8;
   manager;
@@ -1250,7 +1250,7 @@ not repository activity.
   Rust,
   concurrent,
   dependency analysis.
-- **@varlabs/monorun**:
+- @varlabs/monorun:
   <https://github.com/HamzaKV/monorun>;
   Q1 p8;
   manager;
@@ -1258,13 +1258,13 @@ not repository activity.
   last 2025-05;
   `create-monorun`
 - template excluded.
-- **@enzsft/mono**:
+- @enzsft/mono:
   <https://github.com/enzsft/mono>;
   Q1 p9;
   manager;
   survivor (unverified);
   last 2019-04.
-- **@shazhou/proman (with proman-core)**:
+- @shazhou/proman (with proman-core):
   <https://www.npmjs.com/package/@shazhou/proman>;
   Q1 p9,
   p10;
@@ -1288,7 +1288,7 @@ not repository activity.
   terms:
   incremental test/lint/build,
   automatic dependency graph resolver.
-- **bun-manage-workspace**:
+- bun-manage-workspace:
   <https://github.com/kkiwior/bun-manage-workspace>;
   Q1 p9;
   manager (Bun);
@@ -1296,18 +1296,18 @@ not repository activity.
   terms:
 - graph-aware script runner with cache,
   graph diagnostics.
-- **moci**:
+- moci:
   <https://oss.zero-one-group.com/monorepo>;
   Q1 p9;
   manager;
   survivor (unverified).
-- **lerna-run**:
+- lerna-run:
   <https://github.com/shokai/lerna-run>;
   Q1 p9;
   manager (minimal);
   survivor;
   last 2016-02.
-- **dragon (@bunvader/dragon)**:
+- dragon (@bunvader/dragon):
   <https://github.com/Flora90001/dragon>;
   Q1 p9;
   manager;
@@ -1316,7 +1316,7 @@ not repository activity.
   experimental
 - build system,
   cache.
-- **@zssz-soft/zs**:
+- @zssz-soft/zs:
   <https://github.com/zssz-soft/libraries>;
   Q1 p9;
   manager (org-specific);
@@ -1324,13 +1324,13 @@ not repository activity.
   terms:
   hash-based
 - incremental builds.
-- **monilla**:
+- monilla:
   <https://github.com/ctrlplusb/monilla>;
   Q1 p9;
   manager;
   survivor (unverified);
   last 2022-06.
-- **just-build-tools**:
+- just-build-tools:
   <https://github.com/mattsibs/just-build-tools>;
   Q1 p9;
   manager;
@@ -1339,7 +1339,7 @@ not repository activity.
   terms:
 - dependency graph,
   tech-agnostic.
-- **@speedy-js/mono (fork @nomadland/mono)**:
+- @speedy-js/mono (fork @nomadland/mono):
   <https://github.com/speedy-js/workflow>;
   Q1 p9,
   p10;
@@ -1347,7 +1347,7 @@ not repository activity.
   survivor
 - (unverified);
   last 2022-02.
-- **hammerkit**:
+- hammerkit:
   <https://no0dles.gitbook.io/hammerkit/>;
   Q1 p9,
   Q3 p0;
@@ -1358,7 +1358,7 @@ not repository activity.
 - incremental caching,
   local,
   Docker and Kubernetes.
-- **mono-runner**:
+- mono-runner:
   <https://github.com/JanNitschke/mono-runner>;
   Q1 p9;
   manager (lightweight);
@@ -1371,14 +1371,14 @@ not repository activity.
   survivor
 - (unverified);
   last 2024-12.
-- **@webeferen/buildable**:
+- @webeferen/buildable:
   <https://github.com/WebEferen/buildable>;
   Q1 p10;
   manager;
   survivor (unverified);
   last
 - 2023-03.
-- **monist / monist-tools**:
+- monist / monist-tools:
   <https://github.com/lddubeau/monist>;
   Q1 p10,
   p11;
@@ -1386,12 +1386,12 @@ not repository activity.
   survivor (unverified);
   last
 - 2020-02 and 2021-11.
-- **mrdr**:
+- mrdr:
   <https://github.com/padcom/mrdr>;
   Q1 p10;
   manager;
   survivor.
-- **yamat**:
+- yamat:
   <https://github.com/cancerberoSgx/yamat>;
   Q1 p10;
   manager;
@@ -1400,20 +1400,20 @@ not repository activity.
   terms:
   lerna and rush
 - alternative.
-- **workspaces-filter**:
+- workspaces-filter:
   <https://github.com/tunnckoCore/workspaces-filter>;
   Q1 p10;
   manager (minimal);
   survivor;
   terms:
 - run scripts on workspace subsets.
-- **mr-yarn**:
+- mr-yarn:
   <https://github.com/leecheneler/mr-yarn>;
   Q1 p10;
   manager;
   survivor (unverified);
   last 2018-10.
-- **workspace-builder**:
+- workspace-builder:
   <https://github.com/suchipi/workspace-builder>;
   Q1 p10;
   manager (minimal);
@@ -1430,13 +1430,13 @@ not repository activity.
   parallel execution,
   dependency graph,
   checkpoint recovery.
-- **@jacob-ebey/mono-build**:
+- @jacob-ebey/mono-build:
   <https://www.npmjs.com/package/@jacob-ebey/mono-build>;
   Q1 p10;
   manager (minimal);
 - survivor;
   last 2018-09.
-- **verify-grid**:
+- verify-grid:
   <https://github.com/kirull1/verify-grid>;
   Q1 p10;
   generic task runner;
@@ -1444,7 +1444,7 @@ not repository activity.
   terms:
   task matrix,
 - status reporting.
-- **yanice (with @yanice/import-boundaries)**:
+- yanice (with @yanice/import-boundaries):
   <https://github.com/abuob/yanice>;
   Q1 p10,
   p12;
@@ -1453,7 +1453,7 @@ not repository activity.
   terms:
 - incremental command executor,
   change detection.
-- **buildsure**:
+- buildsure:
   <https://github.com/clasen/BuildSure>;
   Q1 p11;
   manager (lightweight);
@@ -1462,14 +1462,14 @@ not repository activity.
   build only when
 - sources changed,
   mtime.
-- **kitchen-tools**:
+- kitchen-tools:
   <https://github.com/JacopoPatroclo/kitchen-tools>;
   Q1 p11;
   manager;
   survivor (unverified);
   last
 - 2020-10.
-- **workgraph**:
+- workgraph:
   <https://www.npmjs.com/package/workgraph>;
   Q1 p11;
   manager;
@@ -1478,14 +1478,14 @@ not repository activity.
   parallel build
 - orchestrator,
   watch.
-- **affected-ci**:
+- affected-ci:
   <https://github.com/Cst2989/affected-ci>;
   Q1 p11;
   manager (affected runner);
   survivor;
   terms:
 - import-graph affected detection.
-- **@monoloom/cli**:
+- @monoloom/cli:
   <https://git.fallet.net/monoloom/workspace>;
   Q1 p11,
   Q2 p0;
@@ -1494,7 +1494,7 @@ not repository activity.
   terms:
   affected build
 - and test.
-- **@blaze-js/cli**:
+- @blaze-js/cli:
   <https://www.npmjs.com/package/@blaze-js/cli>;
   Q1 p11;
   manager;
@@ -1502,7 +1502,7 @@ not repository activity.
   no repo);
   last
 - 2022-09.
-- **nasti-task (Nasti Plus)**:
+- nasti-task (Nasti Plus):
   <https://github.com/nasti-toolchain/nasti-task>;
   Q1 p11,
   Q3 p0;
@@ -1511,32 +1511,32 @@ not repository activity.
   terms:
 - dependency-aware,
   cache.
-- **Hark (@hark/plugin-monorepo)**:
+- Hark (@hark/plugin-monorepo):
   <https://github.com/sparebytes/hark>;
   Q1 p11;
   generic task runner;
   survivor
 - (unverified);
   last 2020-04.
-- **gmm**:
+- gmm:
   <https://github.com/k-koehler/gmm>;
   Q1 p11;
   manager;
   survivor (unverified);
   last 2021-09.
-- **rumos**:
+- rumos:
   <https://github.com/remirobichet/rumos>;
   Q1 p11;
   manager;
   survivor (unverified);
   last 2023-05.
-- **npm-mono-repo (Sodaru)**:
+- npm-mono-repo (Sodaru):
   <https://github.com/sodaru/mono-repo>;
   Q1 p11;
   manager;
   survivor (unverified);
   last 2022-09.
-- **@yamato-daiwa/monorepo-helper**:
+- @yamato-daiwa/monorepo-helper:
   <https://github.com/TokugawaTakeshi/Yamato-Daiwa-Monorepo-Helper>;
   Q1 p11;
   manager;
@@ -1550,7 +1550,7 @@ not repository activity.
   survivor
 - (unverified);
   last 2024-04.
-- **fraktos**:
+- fraktos:
   <https://github.com/holasoymalva/fraktos>;
   Q1 p11;
   manager;
@@ -1559,20 +1559,20 @@ not repository activity.
   dependency ordering,
   log
 - multiplexing.
-- **robonaut**:
+- robonaut:
   <https://github.com/f1lt3r/robotnaut>;
   Q1 p11;
   manager;
   survivor (unverified);
   last 2017-01.
-- **@emeryld/manager**:
+- @emeryld/manager:
   <https://www.npmjs.com/package/@emeryld/manager>;
   Q1 p11;
   manager (interactive);
   survivor
 - (unverified;
   no repo).
-- **bdep**:
+- bdep:
   <https://github.com/sourcewizard-ai/bdep>;
   Q1 p11;
   manager (lightweight);
@@ -1593,7 +1593,7 @@ not repository activity.
   manifest,
   affected detection,
   deploy adapters.
-- **npm-ws**:
+- npm-ws:
   <https://github.com/bstefanescu/npm-ws>;
   Q1 p12;
   manager;
@@ -1603,23 +1603,23 @@ not repository activity.
   multi-package
 - build manager,
   watch.
-- **auto-n-glad**:
+- auto-n-glad:
   <https://www.npmjs.com/package/auto-n-glad>;
   Q1 p12;
   manager (minimal);
   survivor (no repo).
-- **monopod**:
+- monopod:
   <https://github.com/studio-b12/monopod>;
   Q1 p12;
   manager;
   survivor (unverified);
   last 2016-05.
-- **obr (One Big Repo)**:
+- obr (One Big Repo):
   <https://github.com/sourcewizard-ai/obr>;
   Q1 p12;
   manager;
   survivor.
-- **sail (@tylerbu/sail)**:
+- sail (@tylerbu/sail):
   <https://github.com/tylerbutler/tools-monorepo>;
   Q1 p12;
   manager;
@@ -1627,19 +1627,19 @@ not repository activity.
   terms:
   build
 - orchestration CLI.
-- **@anzerr/mono.cli**:
+- @anzerr/mono.cli:
   <https://github.com/anzerr/mono.cli>;
   Q1 p13;
   manager;
   survivor (unverified);
   last 2022-01.
-- **@sfomin/for-each-package**:
+- @sfomin/for-each-package:
   <https://github.com/slavafomin/for-each-package>;
   Q1 p13;
   manager (minimal);
   survivor;
 - last 2020-04.
-- **mrex**:
+- mrex:
   <https://github.com/ssupinsky/mrex>;
   Q1 p13;
   manager (minimal);
@@ -1648,20 +1648,20 @@ not repository activity.
   terms:
   order of
 - inclusion.
-- **hwan**:
+- hwan:
   <https://www.npmjs.com/package/hwan>;
   Q1 p13;
   manager;
   survivor (unverified);
   last 2018-04.
-- **alle (with alle-publish)**:
+- alle (with alle-publish):
   <https://github.com/kogosoftwarellc/alle>;
   Q1 p13,
   p14;
   manager;
   survivor (unverified);
 - last 2018-03.
-- **orca (@fasunle/orca)**:
+- orca (@fasunle/orca):
   <https://github.com/fasunle/orca>;
   Q1 p13,
   Q3 p0;
@@ -1672,7 +1672,7 @@ not repository activity.
 - orchestration,
   build cache,
   turbo alternative.
-- **bun-cache (@fasunle/bun-cache)**:
+- bun-cache (@fasunle/bun-cache):
   <https://github.com/fasunle/bun-cache>;
   Q1 p14;
   manager;
@@ -1680,21 +1680,21 @@ not repository activity.
   terms:
 - Turbo-inspired task orchestrator,
   zero-config caching.
-- **spinx**:
+- spinx:
   <https://github.com/nirikshan/spinx>;
   Q1 p13;
   manager;
   survivor;
   terms:
   parallel execution.
-- **monob**:
+- monob:
   <https://www.npmjs.com/package/monob>;
   Q1 p13;
   manager;
   survivor (unverified;
   no repo);
   last 2020-12.
-- **lolaus**:
+- lolaus:
   <https://gitlab.com/tom.davidson/lolaus>;
   Q1 p13;
   manager;
@@ -1703,14 +1703,14 @@ not repository activity.
   terms:
   commands on
 - directories with diffs against an ancestor.
-- **@cvsky/monorepo-builder**:
+- @cvsky/monorepo-builder:
   <https://www.npmjs.com/package/@cvsky/monorepo-builder>;
   Q1 p13;
   manager;
   survivor
 - (unverified;
   no repo).
-- **ditoh**:
+- ditoh:
   <https://github.com/katerman/ditoh>;
   Q1 p14,
   Q3 p1;
@@ -1718,7 +1718,7 @@ not repository activity.
   survivor;
   terms:
   meta scripts.
-- **BuildNet (@musclemap.me/buildnet)**:
+- BuildNet (@musclemap.me/buildnet):
   <https://musclemap.me/buildnet>;
   Q1 p14;
   manager;
@@ -1729,19 +1729,19 @@ not repository activity.
   build orchestration,
   incremental,
   caching.
-- **onom**:
+- onom:
   <https://github.com/pshrmn/onom>;
   Q1 p14;
   manager;
   survivor (unverified);
   last 2018-08.
-- **@mono-repo/cli**:
+- @mono-repo/cli:
   <https://github.com/mono-repo/mono-repo>;
   Q1 p14;
   manager;
   survivor (unverified);
   last 2020-08.
-- **monorunyg**:
+- monorunyg:
   <https://www.npmjs.com/package/monorunyg>;
   Q1 p14;
   manager;
@@ -1749,19 +1749,19 @@ not repository activity.
   terms:
   lightweight
 - Turborepo alternative.
-- **@kienleholdings/mrt-run**:
+- @kienleholdings/mrt-run:
   <https://github.com/kienleholdings/monorepo-tools>;
   Q1 p14;
   manager (minimal);
   survivor;
 - last 2022-02.
-- **mr-monorepo**:
+- mr-monorepo:
   <https://github.com/SoulEvans07/mr-monorepo>;
   Q1 p14;
   manager;
   survivor (unverified);
   last 2022-06.
-- **@mykulyak/linterpol**:
+- @mykulyak/linterpol:
   <https://github.com/mykulyak/linterpol>;
   Q1 p14;
   manager (minimal);
@@ -1769,13 +1769,13 @@ not repository activity.
   last 2022-01;
 - terms:
   modified packages.
-- **@messman/node-mono-builder**:
+- @messman/node-mono-builder:
   <https://github.com/messman/node-mono-builder>;
   Q1 p14;
   manager;
   survivor (unverified);
 - last 2022-05.
-- **quimera**:
+- quimera:
   <https://github.com/Tautorn/quimera>;
   Q1 p14;
   manager;
@@ -1783,18 +1783,18 @@ not repository activity.
   may be scaffold);
   last
 - 2018-10.
-- **tukod**:
+- tukod:
   <https://github.com/vexCoder/tukod>;
   Q1 p15;
   manager;
   survivor (unverified);
   last 2022-11.
-- **deicide**:
+- deicide:
   <https://github.com/binbandit/deicide>;
   Q1 p15;
   manager;
   survivor (unverified).
-- **@xelbera/monobuild**:
+- @xelbera/monobuild:
   <https://github.com/matafonoff/monobuild>;
   Q1 p15;
   manager;
@@ -1804,7 +1804,7 @@ not repository activity.
 - builds,
   dependency-aware sorting,
   build caching.
-- **ghidora (@hyperforge/ghidora)**:
+- ghidora (@hyperforge/ghidora):
   <https://ghidora.hyperforge.in>;
   Q1 p15;
   manager;
@@ -1814,32 +1814,32 @@ not repository activity.
 - build,
   test,
   watch.
-- **ystage**:
+- ystage:
   <https://github.com/amurdock/ystage>;
   Q1 p15;
   manager;
   survivor (unverified);
   last 2019-01.
-- **@linbop/modulify**:
+- @linbop/modulify:
   <https://linbop.github.io/modulify>;
   Q1 p15;
   manager;
   survivor (unverified);
   last 2022-02.
-- **bun-pkg**:
+- bun-pkg:
   <https://github.com/thejasonxie/bun-pkg>;
   Q1 p15;
   manager (Bun);
   survivor (unverified);
   last 2024-04.
-- **bouddha-monorepo**:
+- bouddha-monorepo:
   <https://github.com/andrade0/bouddha-monorepo>;
   Q1 p16;
   manager;
   survivor (unverified);
   last
 - 2024-07.
-- **umrepo**:
+- umrepo:
   <https://github.com/umrepo/um>;
   Q1 p16;
   manager;
@@ -1847,7 +1847,7 @@ not repository activity.
   last 2024-10;
   terms:
   zero-footprint.
-- **@osndot/osn**:
+- @osndot/osn:
   <https://github.com/osndot/osn>;
   Q1 p16,
   Q3 p1;
@@ -1855,12 +1855,12 @@ not repository activity.
   survivor (unverified);
   terms:
 - plugin-driven developer runtime.
-- **rootrun**:
+- rootrun:
   <https://github.com/Barani1912/rootrun>;
   Q1 p16;
   manager (minimal);
   survivor.
-- **Sleet (sleetrepo)**:
+- Sleet (sleetrepo):
   <https://github.com/dupyjs/sleet>;
   Q1 p16,
   Q3 p1;
@@ -1868,7 +1868,7 @@ not repository activity.
   survivor;
   terms:
   incremental.
-- **dk (@dkjs/cli)**:
+- dk (@dkjs/cli):
   <https://diskuv.com/dk/>;
   Q2 p0;
   build system;
@@ -1876,7 +1876,7 @@ not repository activity.
   terms:
   reproducible,
   deterministic.
-- **simplebuild (@simple-software/simplebuild)**:
+- simplebuild (@simple-software/simplebuild):
   <https://github.com/SimpleSoftwareOrg/Simple-Build>;
   Q2 p0;
   build
@@ -1897,7 +1897,7 @@ not repository activity.
   DAG,
   provenance,
   sandboxing.
-- **oxymake (@noogram/oxymake)**:
+- oxymake (@noogram/oxymake):
   <https://noogram.org/oxymake>;
   Q2 p0;
   workflow/build orchestration;
@@ -1919,7 +1919,7 @@ not repository activity.
   Gradle-inspired,
   workspace resolution,
   language server.
-- **linkctl**:
+- linkctl:
   <https://github.com/saintparish4/linkctl>;
   Q3 p0;
   manager;
@@ -1928,14 +1928,14 @@ not repository activity.
   task DAG,
   content caching,
 - runtime detection.
-- **reckon (@andrew24601/reckon)**:
+- reckon (@andrew24601/reckon):
   <https://www.npmjs.com/package/@andrew24601/reckon>;
   Q3 p0;
   manager;
   survivor;
   terms:
 - incremental build graph runner.
-- **frunk**:
+- frunk:
   <https://github.com/ludicroushq/frunk>;
   Q3 p0;
   manager (script orchestration);
@@ -1943,7 +1943,7 @@ not repository activity.
   terms:
   wireit,
 - npm-run-all.
-- **nalth**:
+- nalth:
   <https://www.nalthjs.com>;
   Q3 p0;
   unified toolchain;
@@ -1952,7 +1952,7 @@ not repository activity.
   terms:
   vite-plus,
 - task-runner.
-- **machora**:
+- machora:
   <https://github.com/jasonz1987/machora>;
   Q3 p0;
   distributed job orchestration;
@@ -1962,7 +1962,7 @@ not repository activity.
 
 ### Monorepo managers and build systems: crates.io discoveries
 
-- **cargo-make**:
+- cargo-make:
   <https://github.com/sagiegurari/cargo-make>;
   Q5 p1;
   generic task runner and build tool;
@@ -1977,7 +1977,7 @@ not repository activity.
   manager
 - (commands over collections of git trees);
   survivor.
-- **Chomp (chompbuild)**:
+- Chomp (chompbuild):
   <https://github.com/guybedford/chomp>;
   Q5 p1,
   Q6 p1;
@@ -2026,7 +2026,7 @@ not repository activity.
   Dagger backend,
   CI emitters,
   codegen.
-- **whiz**:
+- whiz:
   <https://crates.io/crates/whiz>;
   Q5 p2,
   Q6 p2;
@@ -2035,13 +2035,13 @@ not repository activity.
   last 2023-08;
   terms:
 - DAG/tasks runner for multi-platform monorepos.
-- **dors**:
+- dors:
   <https://github.com/aklitzke/dors>;
   Q5 p2;
   manager (cargo workspace);
   survivor;
   last 2020-06.
-- **maid**:
+- maid:
   <https://github.com/theMackabu/maid>;
   Q5 p2;
   generic task runner;
@@ -2050,7 +2050,7 @@ not repository activity.
   dependencies,
   cached build
 - steps.
-- **engage**:
+- engage:
   <https://or.computer.surgery/charles/engage>;
   Q5 p2;
   generic task runner;
@@ -2058,14 +2058,14 @@ not repository activity.
   last 2023-09;
   terms:
 - DAG-based parallelism.
-- **bake (bake-cli)**:
+- bake (bake-cli):
   <https://github.com/trinio-labs/bake>;
   Q5 p2,
   Q6 p3;
   manager;
   survivor;
   last 2024-02.
-- **cargo-flux**:
+- cargo-flux:
   <https://github.com/ignition-is-go/cargo-flux>;
   Q5 p3,
   Q6 p5;
@@ -2076,7 +2076,7 @@ not repository activity.
 - topology,
   task orchestration,
   mixed-language.
-- **fern (fern-run)**:
+- fern (fern-run):
   <https://github.com/felipesere/fern>;
   Q5 p3;
   manager;
@@ -2085,7 +2085,7 @@ not repository activity.
   terms:
   unified task
 - interface across a mono-repo.
-- **fyrer**:
+- fyrer:
   <https://github.com/07calc/fyrer>;
   Q5 p4,
   Q6 p5;
@@ -2094,7 +2094,7 @@ not repository activity.
   terms:
   declarative language-agnostic
 - monorepo task orchestrator.
-- **taskrush**:
+- taskrush:
   <https://github.com/iPeluwa/rush>;
   Q5 p4;
   generic task runner;
@@ -2103,7 +2103,7 @@ not repository activity.
   terms:
   parallel,
 - intelligent caching.
-- **make_ultra**:
+- make_ultra:
   <https://github.com/CoolOppo/make-ultra>;
   Q5 p4;
   generic task runner;
@@ -2111,19 +2111,19 @@ not repository activity.
   last 2022-04;
   terms:
 - tracks file changes.
-- **compi**:
+- compi:
   <https://github.com/allyedge/compi>;
   Q5 p4;
   build system;
   survivor (unverified).
-- **heron-rebuild**:
+- heron-rebuild:
   <https://github.com/heronsounds/heron-rebuild>;
   Q5 p4;
   workflow runner;
   survivor (unverified);
   last
 - 2024-10.
-- **haz (haz-cli and family)**:
+- haz (haz-cli and family):
   <https://forge.cloudsling.dev/andreu/haz-cli>;
   Q5 p8 to p15;
   manager;
@@ -2134,7 +2134,7 @@ not repository activity.
   task query language,
   target selection,
   discovery.
-- **trellis-gleam**:
+- trellis-gleam:
   <https://github.com/tylerbutler/trellis>;
   Q5 p9;
   manager (Gleam);
@@ -2143,7 +2143,7 @@ not repository activity.
   task fan-out,
 - introspection,
   release orchestration.
-- **monorepo-meta**:
+- monorepo-meta:
   <https://github.com/wolven-tech/rust-v1>;
   Q5 p9;
   meta orchestrator;
@@ -2152,7 +2152,7 @@ not repository activity.
   orchestrates
 - Turborepo,
   Cargo and Bacon in tmux.
-- **repoctl-runner (Rust repoctl)**:
+- repoctl-runner (Rust repoctl):
   <https://github.com/tyrchen/repoctl>;
   Q5 p10;
   manager;
@@ -2162,14 +2162,14 @@ not repository activity.
 - analysis,
   CI matrix,
   task execution.
-- **zcheck (with zcheck-core)**:
+- zcheck (with zcheck-core):
   <https://github.com/zsumz/zcheck>;
   Q5 p10;
   manager;
   survivor (unverified);
   terms:
 - deterministic repository qualification task graphs.
-- **zetten (ztn)**:
+- zetten (ztn):
   <https://docs.zetten.in> (github.com/amit-devb/zetten);
   Q5 p10,
   p13;
@@ -2179,7 +2179,7 @@ not repository activity.
 - Python-aware,
   deterministic caching,
   DAG scheduling.
-- **yatr (with yatr-plugin)**:
+- yatr (with yatr-plugin):
   <https://github.com/cargopete/yatr>;
   Q5 p10,
   p17;
@@ -2220,7 +2220,7 @@ not repository activity.
   survivor (unverified);
   terms:
   run planning engine.
-- **runkernel (with cli)**:
+- runkernel (with cli):
   <https://github.com/Adriftdev/runkernel>;
   Q5 p7,
   p13,
@@ -2231,7 +2231,7 @@ not repository activity.
   terms:
   define,
   inspect and run task graphs.
-- **winch**:
+- winch:
   <https://codeberg.org/esavier/winch>;
   Q5 p14;
   manager (affected CI);
@@ -2239,7 +2239,7 @@ not repository activity.
   terms:
   granular
 - CI helper for large Rust repositories.
-- **guild (guild-cli)**:
+- guild (guild-cli):
   <https://github.com/sprouted-dev/guild>;
   Q5 p16;
   manager;
@@ -2247,7 +2247,7 @@ not repository activity.
   terms:
   polyglot monorepo
 - orchestrator.
-- **buildsmith**:
+- buildsmith:
   <https://github.com/ze/buildsmith>;
   Q5 p17;
   build system;
@@ -2255,7 +2255,7 @@ not repository activity.
   terms:
   content-hashed,
   DAG-based.
-- **breach (breach-cli)**:
+- breach (breach-cli):
   <https://github.com/radical-beard/breach>;
   Q5 p17;
   manager;
@@ -2263,7 +2263,7 @@ not repository activity.
   terms:
   config-driven
 - monorepo command runtime.
-- **rivox**:
+- rivox:
   <https://rivox.dev> (github.com/Grevix/Rivox);
   Q5 p18;
   manager;
@@ -2272,7 +2272,7 @@ not repository activity.
   polyglot build coordination
 - for Python,
   Rust and Node.
-- **now-runner**:
+- now-runner:
   <https://now.dev.br> (github.com/EpicEric/now);
   Q5 p13;
   distributed runner;
@@ -2300,13 +2300,13 @@ not repository activity.
 - (unverified);
   terms:
   scripting runtime.
-- **cargo-mono**:
+- cargo-mono:
   <https://github.com/delinoio/oss>;
   Q6 p1;
   manager (Rust);
   survivor (unverified;
   may be release-only).
-- **monorail**:
+- monorail:
   <https://github.com/pnordahl/monorail>;
   Q6 p2;
   manager;
@@ -2315,7 +2315,7 @@ not repository activity.
   terms:
   polyglot,
 - multi-project.
-- **orcs**:
+- orcs:
   <https://github.com/nmoutschen/orcs>;
   Q6 p2;
   manager;
@@ -2324,21 +2324,21 @@ not repository activity.
   terms:
   microservices monorepo
 - orchestration.
-- **Blaze (blaze-cli)**:
+- Blaze (blaze-cli):
   <https://blaze-monorepo.dev> (github.com/rnza0u/blaze);
   Q6 p2;
   build system;
   survivor;
   last
 - 2024-09.
-- **esteem**:
+- esteem:
   <https://github.com/IgnisDa/developrs>;
   Q6 p2;
   manager (reads Nx workspaces);
   survivor (unverified);
   last
 - 2022-07.
-- **hammer (hammer-cli)**:
+- hammer (hammer-cli):
   <https://crates.io/crates/hammer-cli>;
   Q6 p2;
   manager;
@@ -2347,7 +2347,7 @@ not repository activity.
 - terms:
   concurrent tasks,
   monorepo support.
-- **shiv (shivr)**:
+- shiv (shivr):
   <https://github.com/xtenduke/shiv>;
   Q6 p3;
   manager;
@@ -2356,13 +2356,13 @@ not repository activity.
   terms:
   monorepo package
 - command runner.
-- **affected**:
+- affected:
   <https://github.com/DenysVuika/affected>;
   Q6 p3;
   manager (affected runner);
   survivor;
   last 2024-11.
-- **superepo**:
+- superepo:
   <https://github.com/GrandEngineering/superepo>;
   Q6 p4;
   manager;
@@ -2371,7 +2371,7 @@ not repository activity.
   terms:
   builds and
 - runs.
-- **cargo-tangerine**:
+- cargo-tangerine:
   <https://github.com/alxolr/cargo-tangerine>;
   Q6 p5;
   manager (Cargo);
@@ -2379,7 +2379,7 @@ not repository activity.
   terms:
   inspired by
 - Lerna.
-- **cargo-monorepo**:
+- cargo-monorepo:
   <https://github.com/legion-labs/cargo-monorepo>;
   Q6 p6;
   manager (Cargo);
@@ -2390,7 +2390,7 @@ not repository activity.
 
 npm (Q3):
 
-- **Task (go-task)**:
+- Task (go-task):
   <https://taskfile.dev> (github.com/go-task/task);
   Q3 p0 (`@go-task/cli`;
   mirrors `@nmnmcc/task`,
@@ -2401,7 +2401,7 @@ npm (Q3):
   terms:
 - Taskfile,
   Make-inspired.
-- **just**:
+- just:
   <https://github.com/casey/just>;
   Q3 p0 (TS port `@indiekitai/just`),
   Q5 p1 (`just`,
@@ -2415,109 +2415,109 @@ npm (Q3):
   terms:
   justfile,
   command runner.
-- **bunosh**:
+- bunosh:
   <https://www.npmjs.com/package/bunosh>;
   Q3 p0;
   survivor;
   terms:
   JS functions as CLI commands.
-- **@jonacem/do-file**:
+- @jonacem/do-file:
   <https://www.npmjs.com/package/@jonacem/do-file>;
   Q3 p0;
   survivor;
   terms:
   YAML tasks with
 - dependencies.
-- **mxflow**:
+- mxflow:
   <https://www.npmjs.com/package/mxflow>;
   Q3 p0;
   survivor;
   last 2023-06.
-- **task-pipeliner**:
+- task-pipeliner:
   <https://www.npmjs.com/package/task-pipeliner>;
   Q3 p0;
   survivor (unverified).
-- **@madinco/smith**:
+- @madinco/smith:
   <https://www.npmjs.com/package/@madinco/smith>;
   Q3 p0;
   survivor (unverified).
-- **zet-x**:
+- zet-x:
   <https://www.npmjs.com/package/zet-x>;
   Q3 p0;
   survivor.
-- **@glyphtek/scriptit**:
+- @glyphtek/scriptit:
   <https://www.npmjs.com/package/@glyphtek/scriptit>;
   Q3 p0;
   survivor (unverified).
-- **bask.sh**:
+- bask.sh:
   <https://www.npmjs.com/package/bask.sh>;
   Q3 p0;
   survivor (minimal);
   last 2020-09.
-- **swig-cli**:
+- swig-cli:
   <https://www.npmjs.com/package/swig-cli>;
   Q3 p0;
   survivor.
-- **@xenoverseup/trane**:
+- @xenoverseup/trane:
   <https://www.npmjs.com/package/@xenoverseup/trane>;
   Q3 p0;
   survivor.
-- **@ras0q/cute**:
+- @ras0q/cute:
   <https://www.npmjs.com/package/@ras0q/cute>;
   Q3 p0;
   survivor;
   terms:
   commands from Markdown.
-- **invokej**:
+- invokej:
   <https://www.npmjs.com/package/invokej>;
   Q3 p0;
   survivor;
   terms:
   Python Invoke-inspired.
-- **invoket**:
+- invoket:
   <https://www.npmjs.com/package/invoket>;
   Q3 p0;
   survivor.
-- **oh**:
+- oh:
   <https://www.npmjs.com/package/oh>;
   Q3 p0;
   survivor (unverified);
   last 2020-10.
-- **run-task**:
+- run-task:
   <https://www.npmjs.com/package/run-task>;
   Q3 p0;
   survivor;
   last 2017-07.
-- **helm-ctrl**:
+- helm-ctrl:
   <https://www.npmjs.com/package/helm-ctrl>;
   Q3 p0;
   survivor (unverified).
-- **boot-stacker**:
+- boot-stacker:
   <https://www.npmjs.com/package/boot-stacker>;
   Q3 p0;
   survivor (unverified);
   last 2017-02.
-- **gue (formerly gluey)**:
+- gue (formerly gluey):
   <https://www.npmjs.com/package/gue>;
   Q3 p0,
   p1;
   survivor;
   last 2017-08.
-- **ok-runner**:
+- ok-runner:
   <https://www.npmjs.com/package/ok-runner>;
   Q3 p0;
   survivor;
   last 2017-03.
-- **@zemerik/task-runner**:
+- @zemerik/task-runner:
   <https://www.npmjs.com/package/@zemerik/task-runner>;
   Q3 p0;
   survivor (unverified).
-- **master-roshi**:
+- master-roshi:
   <https://www.npmjs.com/package/master-roshi>;
   Q3 p0;
   survivor (minimal);
   last 2018-10.
-- **noxedo**:
+- noxedo:
   <https://www.npmjs.com/package/noxedo>;
   Q3 p0;
   survivor (unverified);
@@ -2525,72 +2525,72 @@ npm (Q3):
   nox-style sessions,
   test
 - matrix.
-- **@samvv/bake (BakeJS)**:
+- @samvv/bake (BakeJS):
   <https://github.com/samvv/BakeJS>;
   Q3 p0;
   survivor (unverified);
   last 2022-05.
-- **jido (with jido-kit)**:
+- jido (with jido-kit):
   <https://www.npmjs.com/package/jido>;
   Q3 p0;
   survivor;
   terms:
   named flows.
-- **clii**:
+- clii:
   <https://www.npmjs.com/package/clii>;
   Q3 p0;
   survivor;
   last 2022-02.
-- **@devx-cli/devx**:
+- @devx-cli/devx:
   <https://www.npmjs.com/package/@devx-cli/devx>;
   Q3 p0;
   survivor (unverified).
-- **@yampp/yampp**:
+- @yampp/yampp:
   <https://www.npmjs.com/package/@yampp/yampp>;
   Q3 p0;
   survivor;
   terms:
   concurrent,
   DSL.
-- **jtg**:
+- jtg:
   <https://www.npmjs.com/package/jtg>;
   Q3 p0;
   survivor;
   last 2021-06.
-- **metcalf**:
+- metcalf:
   <https://www.npmjs.com/package/metcalf>;
   Q3 p0;
   survivor;
   last 2021-07.
-- **shellforge**:
+- shellforge:
   <https://github.com/BaerBonesTechnology/shellforge>;
   Q3 p0;
   survivor (unverified).
-- **Ease task manager (via ease-task-sass)**:
+- Ease task manager (via ease-task-sass):
   <https://github.com/chisel/ease-task-sass>;
   Q3 p0;
   survivor (unverified);
 - last 2021-02.
-- **@guiho/runx**:
+- @guiho/runx:
   <https://github.com/CGuiho/runx>;
   Q3 p0;
   survivor (unverified);
   terms:
   Go/Cobra command catalog.
-- **npm-tasks**:
+- npm-tasks:
   <https://github.com/frontainer/npm-tasks>;
   Q3 p1;
   survivor (unverified);
   last 2016-10.
-- **run-project-commands**:
+- run-project-commands:
   <https://github.com/AdarshHatkar/run-project-commands>;
   Q3 p1;
   survivor (unverified).
-- **Flow (@nikivdev/flow)**:
+- Flow (@nikivdev/flow):
   <https://myflow.sh>;
   Q3 p1;
   survivor.
-- **buildfile (@dev-kas/buildfile)**:
+- buildfile (@dev-kas/buildfile):
   <https://github.com/dev-kas/buildfile>;
   Q3 p1;
   survivor;
@@ -2598,53 +2598,53 @@ npm (Q3):
   DSL,
   Makefile
 - alternative.
-- **mdrun (@leyohli/mdrun)**:
+- mdrun (@leyohli/mdrun):
   <https://github.com/liyiheng/mdrun>;
   Q3 p1;
   survivor;
   terms:
   Markdown-based.
-- **pylp**:
+- pylp:
   <https://github.com/ppetkov89/pylp>;
   Q3 p1;
   survivor (unverified);
   last 2023-10.
-- **buildtool.js**:
+- buildtool.js:
   <https://github.com/leso-kn/buildtool.js>;
   Q3 p1;
   survivor;
   last 2022-07.
-- **ssal**:
+- ssal:
   <https://www.npmjs.com/package/ssal>;
   Q3 p1;
   survivor (unverified);
   terms:
   automation language.
-- **sarata-task-runner**:
+- sarata-task-runner:
   <https://github.com/gorlIoll/sarata-task-runner>;
   Q3 p1;
   survivor (unverified);
   last 2024-03.
-- **violet.ts**:
+- violet.ts:
   <https://www.npmjs.com/package/violet.ts>;
   Q3 p1;
   survivor.
-- **i-do**:
+- i-do:
   <https://github.com/christianheyn/i-do>;
   Q3 p1;
   survivor (unverified);
   last 2016-07.
-- **zolo**:
+- zolo:
   <https://www.npmjs.com/package/zolo>;
   Q3 p1;
   survivor.
-- **@sohaha/zzz**:
+- @sohaha/zzz:
   <https://github.com/sohaha/zzz>;
   Q3 p0;
   survivor (unverified);
   terms:
   daily development aids (Go).
-- **vibe-queue**:
+- vibe-queue:
   <https://www.npmjs.com/package/vibe-queue>;
   Q3 p0;
   survivor (unverified;
@@ -2653,7 +2653,7 @@ npm (Q3):
   execution
 - engine,
   dashboard.
-- **bs (@jaandrle/bs)**:
+- bs (@jaandrle/bs):
   <https://github.com/jaandrle/bs>;
   Q2 p0;
   survivor (minimal);
@@ -2663,49 +2663,49 @@ npm (Q3):
 
 crates.io (Q5 unless noted):
 
-- **cargo-auto (with cargo-rssc predecessor)**:
+- cargo-auto (with cargo-rssc predecessor):
   <https://codeberg.org/automation-tasks-rs/cargo-auto>;
   Q5 p1,
   p4;
 - survivor.
-- **argc**:
+- argc:
   <https://github.com/sigoden/argc>;
   Q5 p1;
   survivor;
   terms:
   bash-based command runner.
-- **nur**:
+- nur:
   <https://github.com/nur-taskrunner/nur>;
   Q5 p1;
   survivor;
   terms:
   nu shell.
-- **neomake**:
+- neomake:
   <https://github.com/cchexcode/neomake>;
   Q5 p1;
   survivor;
   last 2025-02.
-- **rmake**:
+- rmake:
   <https://github.com/mass10/rmake>;
   Q5 p1;
   survivor;
   last 2022-06.
-- **mask**:
+- mask:
   <https://github.com/jacobdeichert/mask>;
   Q5 p1;
   survivor;
   terms:
   Markdown-defined tasks.
-- **cargo-task**:
+- cargo-task:
   <https://github.com/neonphog/cargo-task>;
   Q5 p2;
   survivor;
   last 2021-10.
-- **mk**:
+- mk:
   <https://github.com/ffimnsr/mk-rs>;
   Q5 p2;
   survivor.
-- **checkexec**:
+- checkexec:
   <https://github.com/kurtbuilds/checkexec>;
   Q5 p2;
   survivor (minimal);
@@ -2713,65 +2713,65 @@ crates.io (Q5 unless noted):
   terms:
   conditional
 - run like Make.
-- **devrc**:
+- devrc:
   <https://github.com/devrc-hub/devrc>;
   Q5 p2;
   survivor;
   last 2023-06.
-- **yamis**:
+- yamis:
   <https://github.com/adrianmrit/yamis>;
   Q5 p2;
   survivor;
   last 2023-01.
-- **mom (mom-task)**:
+- mom (mom-task):
   <https://github.com/adrianmrit/mom>;
   Q5 p3;
   survivor;
   last 2023-06.
-- **yake**:
+- yake:
   <https://gitlab.com/elbartus/yake>;
   Q5 p2;
   survivor;
   last 2020-07.
-- **party (party-run)**:
+- party (party-run):
   <https://github.com/iamroot99/party>;
   Q5 p2,
   p5;
   survivor (unverified).
-- **haku**:
+- haku:
   <https://github.com/VladimirMarkelov/haku>;
   Q5 p2;
   survivor;
   last 2020-08.
-- **rhiz**:
+- rhiz:
   <https://bitbucket.org/nathanielknight/rhiz/>;
   Q5 p2;
   survivor;
   last 2021-09.
-- **ruke**:
+- ruke:
   <https://github.com/kauefraga/ruke>;
   Q5 p2;
   survivor;
   last 2024-05.
-- **rsbuild**:
+- rsbuild:
   <https://github.com/JeanMaximilienCadic/rsbuild>;
   Q5 p2;
   survivor (unverified).
-- **jog**:
+- jog:
   <https://github.com/callum-oakley/jog>;
   Q5 p3;
   survivor.
-- **runme (sigoden)**:
+- runme (sigoden):
   <https://github.com/sigoden/runme>;
   Q5 p3;
   survivor;
   last 2023-03.
-- **sate**:
+- sate:
   <https://github.com/nicholasbishop/sate>;
   Q5 p3;
   survivor;
   last 2024-03.
-- **xf**:
+- xf:
   <https://github.com/sigoden/xf>;
   Q5 p3;
   survivor (minimal);
@@ -2779,46 +2779,46 @@ crates.io (Q5 unless noted):
   terms:
   file-aware dynamic command
 - runner.
-- **nauman**:
+- nauman:
   <https://github.com/EgorDm/nauman>;
   Q5 p3;
   survivor;
   last 2021-12;
   terms:
   CI-inspired local job automation.
-- **faster (faster-build)**:
+- faster (faster-build):
   <https://github.com/happenslol/faster>;
   Q5 p3;
   survivor;
   last 2022-05.
-- **cb2**:
+- cb2:
   <https://crates.io/crates/cb2>;
   Q5 p3;
   survivor;
   last 2019-01.
-- **cargo-metask**:
+- cargo-metask:
   <https://github.com/kanarus/cargo-metask>;
   Q5 p3;
   survivor.
-- **jarvis**:
+- jarvis:
   <https://github.com/moseschmiedel/jarvis>;
   Q5 p3;
   survivor;
   last 2020-07.
-- **hoi**:
+- hoi:
   <https://github.com/kevinquillen/hoi>;
   Q5 p3;
   survivor.
-- **tasksitter**:
+- tasksitter:
   <https://github.com/lionkor/tasksitter>;
   Q5 p3;
   survivor (unverified).
-- **cargo-task-wasm**:
+- cargo-task-wasm:
   <https://github.com/yoshuawuyts/cargo-task-wasm>;
   Q5 p3;
   survivor;
   last 2024-09.
-- **rushon**:
+- rushon:
   <https://crates.io/crates/rushon>;
   Q5 p4;
   survivor (unverified;
@@ -2830,12 +2830,12 @@ crates.io (Q5 unless noted):
   Q5 p4;
   survivor;
   last 2022-08.
-- **umm**:
+- umm:
   <https://crates.io/crates/umm>;
   Q5 p4;
   survivor (minimal);
   last 2021-08.
-- **rumake**:
+- rumake:
   <https://github.com/letaron/rumake>;
   Q5 p4;
   survivor;
@@ -2853,22 +2853,22 @@ crates.io (Q5 unless noted):
   survivor (unverified;
   looks like a name-squat set);
   last 2021.
-- **cmd-runner**:
+- cmd-runner:
   <https://gitee.com/mathegg/siphan>;
   Q5 p4;
   survivor (minimal);
   last 2021-01.
-- **rxe**:
+- rxe:
   <https://github.com/loxygenK/rxe>;
   Q5 p4;
   survivor;
   last 2022-05.
-- **instruct**:
+- instruct:
   <https://github.com/manuel2258/instruct>;
   Q5 p5;
   survivor;
   last 2022-05.
-- **digtask (Dig)**:
+- digtask (Dig):
   <https://crates.io/crates/digtask>;
   Q5 p5;
   survivor (unverified);
@@ -2876,100 +2876,100 @@ crates.io (Q5 unless noted):
   terms:
   YAML-defined
 - OS-level task orchestrator.
-- **jake**:
+- jake:
   <https://github.com/AstraBert/jake>;
   Q5 p5,
   Q6 p6;
   survivor.
-- **bake-tool**:
+- bake-tool:
   <https://github.com/myferr/bake>;
   Q5 p5;
   survivor;
   last 2025-07.
-- **rune-rs**:
+- rune-rs:
   <https://github.com/safinsingh/rune>;
   Q5 p5;
   survivor (unverified);
   last 2020-09.
-- **fledge**:
+- fledge:
   <https://github.com/CorvidLabs/fledge>;
   Q5 p6;
   survivor (unverified);
   terms:
   dev lifecycle CLI.
-- **runtask**:
+- runtask:
   <https://crates.io/crates/runtask>;
   Q5 p6;
   survivor (no repo).
-- **trix**:
+- trix:
   <https://crates.io/crates/trix>;
   Q5 p8;
   survivor (unverified;
   no repo).
-- **plzplz**:
+- plzplz:
   <https://github.com/k88hudson/plzplz>;
   Q5 p8;
   survivor.
-- **tazk**:
+- tazk:
   <https://github.com/nehu3n/tazk>;
   Q5 p8;
   survivor.
-- **rnme (runme.rs)**:
+- rnme (runme.rs):
   <https://github.com/dgrijalva/runme>;
   Q5 p8;
   survivor;
   terms:
   tasks are plain Rust.
-- **xeq**:
+- xeq:
   <https://github.com/opmr0/xeq>;
   Q5 p9;
   survivor;
   terms:
   TOML command sequences.
-- **madoru**:
+- madoru:
   <https://codeberg.org/Fatcat560/madoru>;
   Q5 p9;
   survivor;
   terms:
   Markdown task runner.
-- **only**:
+- only:
   <https://github.com/KercyDing/only>;
   Q5 p9;
   survivor;
   terms:
   deterministic,
   staged language pipeline.
-- **mq-task**:
+- mq-task:
   <https://github.com/harehare/mq>;
   Q5 p9;
   survivor;
   terms:
   Markdown task runner.
-- **oxdock**:
+- oxdock:
   <https://github.com/jzombie/rust-oxdock>;
   Q5 p9;
   survivor (unverified);
   terms:
   Dockerfile-inspired build
 - DSL.
-- **mmz**:
+- mmz:
   <https://github.com/mlavrinenko/mmz>;
   Q5 p10;
   survivor (minimal);
   terms:
   memoized command runner.
-- **machfile (with machfile-cli)**:
+- machfile (with machfile-cli):
   <https://github.com/machfile/machfile>;
   Q5 p10,
   p12;
   survivor.
-- **rhask**:
+- rhask:
   <https://github.com/nakkiy/rhask>;
   Q5 p11;
   survivor;
   terms:
   Rhai.
-- **yarli**:
+- yarli:
   <https://github.com/rahulrajaram/yarli>;
   Q5 p11;
   survivor (unverified);
@@ -2978,7 +2978,7 @@ crates.io (Q5 unless noted):
   store,
   API,
   TUI.
-- **mdtask (with mdtask-core)**:
+- mdtask (with mdtask-core):
   <https://github.com/jhheider/mdtask>;
   Q5 p11,
   p12;
@@ -2986,37 +2986,37 @@ crates.io (Q5 unless noted):
   terms:
   Markdown tasks,
 - embeddable.
-- **jao**:
+- jao:
   <https://github.com/RoyPrinsGH/jao>;
   Q5 p12;
   survivor (unverified);
   terms:
   workspace scripts.
-- **grim (grimoire)**:
+- grim (grimoire):
   <https://github.com/Vaishnav-Sabari-Girish/grimoire>;
   Q5 p13;
   survivor (unverified).
-- **meriadoc**:
+- meriadoc:
   <https://github.com/segunmo/meriadoc>;
   Q5 p13;
   survivor (unverified).
-- **rusk-task**:
+- rusk-task:
   <https://github.com/gw31415/rusk-task>;
   Q5 p14;
   survivor.
-- **devrunner**:
+- devrunner:
   <https://github.com/NyxTools/DevRunner>;
   Q5 p15;
   survivor (unverified).
-- **besaz**:
+- besaz:
   <https://github.com/ManiProjs/besaz>;
   Q5 p15;
   survivor.
-- **jobfile**:
+- jobfile:
   <https://github.com/darwincereska/jobfile>;
   Q5 p15;
   survivor (unverified).
-- **otto (otto-cli)**:
+- otto (otto-cli):
   <https://github.com/mcmanussliam/otto>;
   Q5 p15;
   survivor;
@@ -3025,17 +3025,17 @@ crates.io (Q5 unless noted):
   timeouts,
   history,
 - notifications.
-- **cargo-x-do**:
+- cargo-x-do:
   <https://github.com/j-Cis/cargo-x-do>;
   Q5 p15;
   survivor (unverified).
-- **zua**:
+- zua:
   <https://github.com/abab-bk/zua>;
   Q5 p15;
   survivor;
   terms:
   Rhai.
-- **alba**:
+- alba:
   <https://github.com/albahq/alba>;
   Q5 p16;
   survivor;
@@ -3045,7 +3045,7 @@ crates.io (Q5 unless noted):
   caching,
   watch mode,
 - interactive interface.
-- **flux-core**:
+- flux-core:
   <https://github.com/yunusgungor/flux>;
   Q5 p16;
   survivor;
@@ -3054,44 +3054,44 @@ crates.io (Q5 unless noted):
   parallel
 - execution,
   watch mode.
-- **shifu**:
+- shifu:
   <https://gitlab.com/implabinash/shifu>;
   Q5 p16;
   survivor (unverified).
-- **sentinel-rs**:
+- sentinel-rs:
   <https://github.com/ayushbindlish/sentinel-rs>;
   Q5 p16;
   survivor (unverified);
   terms:
   out-of-band
 - notifications.
-- **rtask (wensheng/rusk)**:
+- rtask (wensheng/rusk):
   <https://github.com/wensheng/rusk>;
   Q5 p16;
   survivor;
   terms:
   YAML.
-- **patmat (drevo-patmat)**:
+- patmat (drevo-patmat):
   <https://github.com/ElectricPulse/patmat>;
   Q5 p17;
   survivor (unverified);
   terms:
 - Makefile-like GUI build tool.
-- **forger-runner**:
+- forger-runner:
   <https://gitlab.com/mlejeune/forge>;
   Q5 p17;
   survivor.
-- **phenotype-forge**:
+- phenotype-forge:
   <https://github.com/KooshaPari/forge>;
   Q5 p17;
   survivor (unverified).
-- **steward**:
+- steward:
   <https://github.com/alexfedoseev/steward>;
   Q5 p2;
   survivor;
   terms:
   task runner and process manager.
-- **emergent-engine**:
+- emergent-engine:
   <https://github.com/govcraft/emergent>;
   Q5 p12;
   survivor (unverified);
@@ -3101,7 +3101,7 @@ crates.io (Q5 unless noted):
 
 ### Components: persistent watch, process or inspection surface
 
-- **Watchman**:
+- Watchman:
   <https://github.com/facebook/watchman> (active,
   MIT);
   Q8;
@@ -3113,7 +3113,7 @@ crates.io (Q5 unless noted):
   triggers,
   query API,
   fsmonitor.
-- **dev-process-manager**:
+- dev-process-manager:
   <https://dev-process-manager.com>;
   Q1 p0,
   Q3 p0;
@@ -3122,7 +3122,7 @@ crates.io (Q5 unless noted):
   terms:
 - process manager,
   orchestration.
-- **braid (@aip-tech/braid)**:
+- braid (@aip-tech/braid):
   <https://github.com/aip-tech/braid>;
   Q1 p1;
   component;
@@ -3133,7 +3133,7 @@ crates.io (Q5 unless noted):
   watch-triggered restarts,
   persistent rotated logs,
   process supervisor.
-- **baton-run (Baton)**:
+- baton-run (Baton):
   <https://kanumuri9593.github.io/Baton/>;
   Q1 p1;
   component;
@@ -3147,7 +3147,7 @@ crates.io (Q5 unless noted):
   capture evidence,
   MCP,
   HUD.
-- **lerna-watch**:
+- lerna-watch:
   <https://github.com/mattstyles/lerna-watch>;
   Q1 p1;
   component/manager;
@@ -3155,7 +3155,7 @@ crates.io (Q5 unless noted):
   last 2020-06;
   terms:
 - watch dependency tree.
-- **@fervon/launchpad**:
+- @fervon/launchpad:
   <https://fervon.dev/launchpad/>;
   Q1 p2;
   component;
@@ -3166,7 +3166,7 @@ crates.io (Q5 unless noted):
 - monitor,
   live logs,
   binds 127.0.0.1.
-- **devtooie**:
+- devtooie:
   <https://github.com/rhyek/devtooie>;
   Q1 p2;
   component/manager;
@@ -3175,7 +3175,7 @@ crates.io (Q5 unless noted):
   dependency-aware dev
 - processes,
   TUI.
-- **@vonage/monowatch**:
+- @vonage/monowatch:
   <https://github.com/Vonage/monowatch>;
   Q1 p5;
   component;
@@ -3185,7 +3185,7 @@ crates.io (Q5 unless noted):
   watcher,
 - monitor,
   script runner.
-- **@18ways/monorunner**:
+- @18ways/monorunner:
   <https://github.com/ways-labs/18ways>;
   Q1 p7;
   component;
@@ -3203,7 +3203,7 @@ crates.io (Q5 unless noted):
   local GUI,
   dashboard,
   soft-ci.
-- **@codepadding/coder**:
+- @codepadding/coder:
   <https://www.npmjs.com/package/@codepadding/coder>;
   Q1 p8;
   component;
@@ -3213,14 +3213,14 @@ crates.io (Q5 unless noted):
   terms:
   browser dashboard,
   tmux.
-- **@funeste38/rome**:
+- @funeste38/rome:
   <https://github.com/jEFFLEZ/rome>;
   Q1 p9;
   component/manager;
   survivor (unverified);
   terms:
 - detached process management.
-- **devmux (@chriscode/devmux)**:
+- devmux (@chriscode/devmux):
   <https://github.com/hassoncs/devmux>;
   Q1 p9;
   component;
@@ -3229,7 +3229,7 @@ crates.io (Q5 unless noted):
   tmux service
 - management,
   human-agent shared awareness.
-- **port-daddy**:
+- port-daddy:
   <https://github.com/curiositech/port-daddy>;
   Q1 p9;
   component;
@@ -3241,7 +3241,7 @@ crates.io (Q5 unless noted):
   distributed locks,
   agent registry,
   service orchestration.
-- **veloctl**:
+- veloctl:
   <https://github.com/MahmoudGhoraba/veloctl>;
   Q1 p10;
   component/manager;
@@ -3249,7 +3249,7 @@ crates.io (Q5 unless noted):
   terms:
 - dev-environment orchestrator,
   process manager.
-- **@khijo/devportal**:
+- @khijo/devportal:
   <https://github.com/Khijo/DevPortal>;
   Q1 p11;
   component;
@@ -3257,7 +3257,7 @@ crates.io (Q5 unless noted):
   terms:
   dashboard,
 - process manager.
-- **@gbdx/devis**:
+- @gbdx/devis:
   <https://www.npmjs.com/package/@gbdx/devis>;
   Q1 p11;
   component;
@@ -3268,7 +3268,7 @@ crates.io (Q5 unless noted):
   workspace scanning,
   process management (pm2),
   HTTPS proxy.
-- **grove (@theagileengineer/grove)**:
+- grove (@theagileengineer/grove):
   <https://www.npmjs.com/package/@theagileengineer/grove>;
   Q1 p11;
   component;
@@ -3276,14 +3276,14 @@ crates.io (Q5 unless noted):
   terms:
   dashboard to start,
   stop and monitor dev servers.
-- **bun-wtui**:
+- bun-wtui:
   <https://github.com/Zerodayu/bun-wtui>;
   Q1 p12;
   component;
   survivor (unverified);
   terms:
   TUI dashboard.
-- **helix (@stellix-agency/helix)**:
+- helix (@stellix-agency/helix):
   <https://github.com/Stellix-Agency/Helix>;
   Q1 p12;
   component;
@@ -3291,7 +3291,7 @@ crates.io (Q5 unless noted):
 - terms:
   process monitoring TUI,
   restart on the fly.
-- **monoboard**:
+- monoboard:
   <https://www.npmjs.com/package/monoboard>;
   Q1 p12;
   component;
@@ -3299,14 +3299,14 @@ crates.io (Q5 unless noted):
   terms:
   local dashboard
 - for running and observing packages.
-- **monotui (@factorim/monotui)**:
+- monotui (@factorim/monotui):
   <https://github.com/factorim/monotui>;
   Q1 p13;
   component;
   survivor (unverified);
 - terms:
   workspace TUI dashboard.
-- **stackwake**:
+- stackwake:
   <https://github.com/tofu-dev0123/Stackwake>;
   Q1 p13;
   component;
@@ -3327,7 +3327,7 @@ crates.io (Q5 unless noted):
   terms:
   persistent Turborepo pipelines,
 - notifications from builds.
-- **pnpm-dash**:
+- pnpm-dash:
   <https://github.com/artygus/pnpm-dash>;
   Q1 p14;
   component/manager;
@@ -3336,7 +3336,7 @@ crates.io (Q5 unless noted):
   TUI dashboard,
   run
 - scripts across packages.
-- **clier-ai (clier)**:
+- clier-ai (clier):
   <https://github.com/somersstack/clier>;
   Q3 p0;
   component/manager;
@@ -3344,7 +3344,7 @@ crates.io (Q5 unless noted):
   terms:
 - process orchestration,
   event-driven pipeline management.
-- **devsurface**:
+- devsurface:
   <https://github.com/mrfandu1/devsurface>;
   Q3 p0;
   component;
@@ -3356,7 +3356,7 @@ crates.io (Q5 unless noted):
   ports,
   logs,
   repo health.
-- **asciyml (@irautox/asciyml)**:
+- asciyml (@irautox/asciyml):
   <https://github.com/IrAutoX/asciyml>;
   Q3 p1;
   component;
@@ -3381,14 +3381,14 @@ crates.io (Q5 unless noted):
   local port registry,
 - runner,
   local dashboard server.
-- **bizi (bizi-server)**:
+- bizi (bizi-server):
   <https://getbizi.dev> (github.com/ieedan/bizi);
   Q5 p10;
   component (task runner server);
 - survivor;
   terms:
   task runner server.
-- **oxproc**:
+- oxproc:
   <https://github.com/fcoury/oxproc>;
   Q5 p11;
   component;
@@ -3399,7 +3399,7 @@ crates.io (Q5 unless noted):
 - process manager,
   daemon mode,
   log following.
-- **harness-canopy**:
+- harness-canopy:
   <https://github.com/UniverLab/harness-canopy>;
   Q5 p15;
   component;
@@ -3409,7 +3409,7 @@ crates.io (Q5 unless noted):
   MCP server,
   task scheduling,
   file watching.
-- **park (park-cli)**:
+- park (park-cli):
   <https://github.com/Natoandro/park>;
   Q5 p16;
   component;

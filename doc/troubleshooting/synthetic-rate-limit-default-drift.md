@@ -30,22 +30,22 @@ This diagnosis therefore stops at documented service boundary rather than invent
 
 Consumer-side call chain is visible:
 
-1. `package/translation-repair/provider/src/synthetic-catalog.ts:242` stores static denominator.
+1.  `package/translation-repair/provider/src/synthetic-catalog.ts:242` stores static denominator.
 
-   ```ts
-   export const SYNTHETIC_BASELINE_PROMPT_DOLLARS_PER_TOKEN = 0.000003;
-   ```
+    ```ts
+    export const SYNTHETIC_BASELINE_PROMPT_DOLLARS_PER_TOKEN = 0.000003;
+    ```
 
-2. `package/translation-repair/provider/src/synthetic-catalog.ts:296` divides each model's current prompt price by that
-   denominator.
+2.  `package/translation-repair/provider/src/synthetic-catalog.ts:296` divides each model's current prompt price by that
+    denominator.
 
-   ```ts
-   return modelPrice / SYNTHETIC_BASELINE_PROMPT_DOLLARS_PER_TOKEN;
-   ```
+    ```ts
+    return modelPrice / SYNTHETIC_BASELINE_PROMPT_DOLLARS_PER_TOKEN;
+    ```
 
-3. Provider changed documented default while package still carried earlier same-day GLM-5.2 denominator.
-   No live field binds five-hour request denominator to current default,
-   so static consumer value did not move automatically.
+3.  Provider changed documented default while package still carried earlier same-day GLM-5.2 denominator.
+    No live field binds five-hour request denominator to current default,
+    so static consumer value did not move automatically.
 
 Earlier hypothesis that current model alias identifies request-weight baseline was wrong.
 Live catalog now maps `syn:large:text` to GLM-5.3-Flash,
@@ -118,26 +118,26 @@ No `.out-of-scope/` entry matches Synthetic.
 Public search found provider documentation and third-party integrations,
 but no Synthetic service source repository or matching provider issue tracker.
 
-1. **Is it upstream's fault?**
-   No.
-   Provider intentionally changed documented default and aliases.
-   Stale constant was consumer responsibility.
-2. **Can upstream fix it?**
-   Not applicable as defect.
-   Provider could expose baseline in API,
-   but absence is not documented contract violation.
-3. **Are they supporting this use case?**
-   Partly.
-   Rate-limit page documents weight rule,
-   but not machine-readable discovery.
-4. **Would repository welcome contribution?**
-   Unknown.
-   No provider source or contribution policy was found.
-5. **Will they likely fix it?**
-   Unknown and no defect was established.
-6. **Have we prototyped compatible fix?**
-   Yes at consumer boundary:
-   update denominator and pin it with package test.
+1.  **Is it upstream's fault?**
+    No.
+    Provider intentionally changed documented default and aliases.
+    Stale constant was consumer responsibility.
+2.  **Can upstream fix it?**
+    Not applicable as defect.
+    Provider could expose baseline in API,
+    but absence is not documented contract violation.
+3.  **Are they supporting this use case?**
+    Partly.
+    Rate-limit page documents weight rule,
+    but not machine-readable discovery.
+4.  **Would repository welcome contribution?**
+    Unknown.
+    No provider source or contribution policy was found.
+5.  **Will they likely fix it?**
+    Unknown and no defect was established.
+6.  **Have we prototyped compatible fix?**
+    Yes at consumer boundary:
+    update denominator and pin it with package test.
 
 Nothing should be filed upstream.
 There is no provider defect report or additive comment to draft.

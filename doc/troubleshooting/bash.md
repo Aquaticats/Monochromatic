@@ -16,7 +16,7 @@ no longer reflects the execution sequence:
 Discovered while verifying that `mise run //pkg:build` completed before
 `bun test` started in the `buildAndTest` task.
  Build-completion lines
-appeared *after* the test results in the captured output,
+appeared **after** the test results in the captured output,
  suggesting
 concurrent execution;
  in reality the commands ran sequentially and the
@@ -34,13 +34,13 @@ redirects see the post-mutation table:
 cmd 2>&1 > file
 ```
 
-1. `2>&1`:
-    duplicate fd 1 (currently the terminal) onto fd 2.
-    Stderr
-   now points to the **terminal**.
-2. `> file`:
-    redirect fd 1 to `file`.
-    Stdout now points to **file**.
+1.  `2>&1`:
+     duplicate fd 1 (currently the terminal) onto fd 2.
+     Stderr
+    now points to the **terminal**.
+2.  `> file`:
+     redirect fd 1 to `file`.
+     Stdout now points to **file**.
 
 Final state:
  stderr goes to the terminal,
@@ -102,12 +102,12 @@ cmd > file 2>&1; cat file
 
 With `> file 2>&1`:
 
-1. `> file`:
-    redirect fd 1 to `file`.
-2. `2>&1`:
-    duplicate fd 1 (now `file`) onto fd 2.
-    Stderr also points to
-   **file**.
+1.  `> file`:
+     redirect fd 1 to `file`.
+2.  `2>&1`:
+     duplicate fd 1 (now `file`) onto fd 2.
+     Stderr also points to
+    **file**.
 
 Tradeoff:
  none for the redirect ordering itself.
@@ -149,21 +149,21 @@ order in the original incident.
 The behaviour is a documented feature of bash,
  not a defect.
 
-1. **Is it really upstream's fault?
-   ** No. `man bash` documents the
-   left-to-right redirection order explicitly.
-2. **Can upstream fix it?
-   ** Nothing to fix.
-    Any change to the order
-   would break decades of working scripts.
-3. **Are they supporting this use case?
-   ** Both forms (`2>&1 > file` and
-   `> file 2>&1`) are supported and produce well-defined behaviour;
-   they just differ.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. `man bash` documents the
+    left-to-right redirection order explicitly.
+2.  **Can upstream fix it?
+    ** Nothing to fix.
+     Any change to the order
+    would break decades of working scripts.
+3.  **Are they supporting this use case?
+    ** Both forms (`2>&1 > file` and
+    `> file 2>&1`) are supported and produce well-defined behaviour;
+    they just differ.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  keep this doc as an internal reference;

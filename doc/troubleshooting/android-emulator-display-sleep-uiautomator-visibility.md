@@ -19,23 +19,23 @@ so marker lists that passed at 100% fail at 200%.
 
 Two independent emulator behaviors:
 
-1. The virtual display sleeps on its own timeout while a capture run is still working.
-   `dumpsys power` reports `mWakefulness=Asleep`,
-   Compose never draws,
-   and
-   `uiautomator dump` returns window shells without content.
-   Waking the display
-   (`input keyevent 224` plus `cmd window dismiss-keyguard`) makes the very same activity
-   compose and dump correctly,
-   which isolates sleep as the cause.
-   `settings put global stay_on_while_plugged_in 7` alone did not hold across night-mode
-   and font-scale changes during a run.
-2. `uiautomator dump` omits nodes whose bounds fall outside the visible viewport of a
-   scrolled container.
-   At 200% text the picker's name wall scrolls,
-   so names beyond the
-   first screens are simply not in the XML,
-   while at 100% everything fit and appeared.
+1.  The virtual display sleeps on its own timeout while a capture run is still working.
+    `dumpsys power` reports `mWakefulness=Asleep`,
+    Compose never draws,
+    and
+    `uiautomator dump` returns window shells without content.
+    Waking the display
+    (`input keyevent 224` plus `cmd window dismiss-keyguard`) makes the very same activity
+    compose and dump correctly,
+    which isolates sleep as the cause.
+    `settings put global stay_on_while_plugged_in 7` alone did not hold across night-mode
+    and font-scale changes during a run.
+2.  `uiautomator dump` omits nodes whose bounds fall outside the visible viewport of a
+    scrolled container.
+    At 200% text the picker's name wall scrolls,
+    so names beyond the
+    first screens are simply not in the XML,
+    while at 100% everything fit and appeared.
 
 ## Verification
 
