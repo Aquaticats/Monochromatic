@@ -209,18 +209,18 @@ makes the effort worthwhile.
 
 ## What does not work
 
-- **Workers on a `workers.dev` URL + Njalla HTTP redirect**:
+- Workers on a `workers.dev` URL + Njalla HTTP redirect:
    the
   public URL changes after redirect;
    not a transparent alternate
   endpoint,
    which defeats the diversification goal.
-- **Cloudflare Tunnel**:
+- Cloudflare Tunnel:
    the public hostname must live on a
   Cloudflare zone;
    collapses into Path 1 (move apex) or Path 4
   (SaaS Custom Hostnames).
-- **Cloudflare Pages with custom domain**:
+- Cloudflare Pages with custom domain:
    same constraint as
   Tunnel (custom-domain binding requires the hostname's zone on
   Cloudflare).
@@ -244,24 +244,24 @@ The constraint is a Cloudflare procurement policy,
  not a defect.
 Walking the 5 constraints anyway:
 
-1. **Is it really upstream's fault?
-   ** No. Plan gating is a
-   business decision.
-2. **Can upstream fix it?
-   ** Yes,
-    by opening partial setup to free
-   tier.
-    They will not,
-    because partial setup is the documented
-   conversion path to paid plans.
-3. **Are they supporting this use case?
-   ** Yes for paid tiers,
-    no
-   for free.
-4. **Will they likely fix it?
-   ** No.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No. Plan gating is a
+    business decision.
+2.  **Can upstream fix it?
+    ** Yes,
+     by opening partial setup to free
+    tier.
+     They will not,
+     because partial setup is the documented
+    conversion path to paid plans.
+3.  **Are they supporting this use case?
+    ** Yes for paid tiers,
+     no
+    for free.
+4.  **Will they likely fix it?
+    ** No.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.

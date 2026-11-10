@@ -391,22 +391,22 @@ so it would need the owner's decision first.
 Nothing to file.
 `.out-of-scope/` was read on 2026-10-31 and has no entry for systemd or SELinux.
 
-1. Is it really upstream's fault?
-   No.
-   systemd reports a denial that the SELinux policy issues on purpose;
-   `init_t` is not meant to execute user-home files.
-2. Can upstream fix it?
-   Not applicable;
-   the behavior is the policy's intent.
-3. Do they support this use case?
-   Running a service from a home directory on a confined host is what the targeted policy restricts.
-4. Would the repository welcome a contribution?
-   Not evaluated;
-   there is nothing to contribute.
-5. Will they likely fix it?
-   Not applicable.
-6. Prototype?
-   The workaround (the `/usr/bin/env` start) is on our side of the boundary,
-   in the launchers.
+1.  Is it really upstream's fault?
+    No.
+    systemd reports a denial that the SELinux policy issues on purpose;
+    `init_t` is not meant to execute user-home files.
+2.  Can upstream fix it?
+    Not applicable;
+    the behavior is the policy's intent.
+3.  Do they support this use case?
+    Running a service from a home directory on a confined host is what the targeted policy restricts.
+4.  Would the repository welcome a contribution?
+    Not evaluated;
+    there is nothing to contribute.
+5.  Will they likely fix it?
+    Not applicable.
+6.  Prototype?
+    The workaround (the `/usr/bin/env` start) is on our side of the boundary,
+    in the launchers.
 
 No issue or comment is drafted.

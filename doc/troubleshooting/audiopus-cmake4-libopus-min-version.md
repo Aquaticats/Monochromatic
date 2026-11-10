@@ -229,49 +229,49 @@ or opus-rs;
  checked and found none.
  The 6-constraint check:
 
-1. **Upstream's fault?
-   ** Not really,
-    and spread across projects.
-    CMake 4 dropping
-   `< 3.5` compatibility is an intended,
-    announced removal.
-    xiph/opus already raised
-   its minimum to 3.16 (v1.5.2+).
-    The stale link is `audiopus_sys` pinning a 2021
-   libopus,
-    and that crate appears unmaintained (no release since 0.2.2).
-    The
-   user-facing failure is the interaction,
-    not a single defect.
-2. **Can upstream fix it?
-   ** `audiopus_sys` could bump its libopus submodule;
-    opus-rs
-   already did the equivalent by switching to `opusic-sys` (PR #27).
-    So it is
-   fixable,
-    and is effectively already fixed upstream in opus-rs HEAD.
-3. **Supporting this use case?
-   ** opusic-sys explicitly bundles and builds modern
-   libopus;
-    opus-rs HEAD adopts it.
-    The combination is supported there.
-4. **Welcome a contribution?
-   ** Not assessed (not reached):
-    the fix already exists in
-   opus-rs HEAD,
-    so there is no patch to contribute.
-5. **Will they fix it?
-   ** opus-rs already has (the opusic-sys backend is on HEAD,
-   awaiting a release).
-    audiopus_sys looks dormant;
-    filing there is low-value.
-6. **Prototyped a minimal fix?
-   ** The consumer-side fix (pin to opus-rs HEAD,
-    or set
-   the policy env var) fully resolves it;
-    both are verified above.
-    No upstream patch
-   is needed.
+1.  **Upstream's fault?
+    ** Not really,
+     and spread across projects.
+     CMake 4 dropping
+    `< 3.5` compatibility is an intended,
+     announced removal.
+     xiph/opus already raised
+    its minimum to 3.16 (v1.5.2+).
+     The stale link is `audiopus_sys` pinning a 2021
+    libopus,
+     and that crate appears unmaintained (no release since 0.2.2).
+     The
+    user-facing failure is the interaction,
+     not a single defect.
+2.  **Can upstream fix it?
+    ** `audiopus_sys` could bump its libopus submodule;
+     opus-rs
+    already did the equivalent by switching to `opusic-sys` (PR #27).
+     So it is
+    fixable,
+     and is effectively already fixed upstream in opus-rs HEAD.
+3.  **Supporting this use case?
+    ** opusic-sys explicitly bundles and builds modern
+    libopus;
+     opus-rs HEAD adopts it.
+     The combination is supported there.
+4.  **Welcome a contribution?
+    ** Not assessed (not reached):
+     the fix already exists in
+    opus-rs HEAD,
+     so there is no patch to contribute.
+5.  **Will they fix it?
+    ** opus-rs already has (the opusic-sys backend is on HEAD,
+    awaiting a release).
+     audiopus_sys looks dormant;
+     filing there is low-value.
+6.  **Prototyped a minimal fix?
+    ** The consumer-side fix (pin to opus-rs HEAD,
+     or set
+    the policy env var) fully resolves it;
+     both are verified above.
+     No upstream patch
+    is needed.
 
 Decision:
  do not file.

@@ -14,7 +14,7 @@
    both survivors validated at equal depth,
    scored with sensitivity,
    and a recommendation recorded.
-   **Not adopted**:
+   Not adopted:
    adoption is a separate user decision,
    and no product code,
    dependency,
@@ -347,17 +347,17 @@ JSON in a Biome 2.2.5 application run.
    this port neither adopts nor replaces it.
 
 Terminal outcome for the frozen schedule:
- **saturated with two survivors.**
+ saturated with two survivors.
 
-1. The repository-owned parser and emitter translation,
-   validated through the bounded suites,
-   independent oracle controls,
-   external consumer lifecycle,
-   conformance corpus and workload-shape timings recorded in this report.
-2. The `biome_json_parser` 0.5.7 syntax source plus the scratch projection adapter,
-   validated at the same depth,
-   with the preparse depth preflight,
-   diagnostics gate and unsafe-surface findings recorded here.
+1.  The repository-owned parser and emitter translation,
+    validated through the bounded suites,
+    independent oracle controls,
+    external consumer lifecycle,
+    conformance corpus and workload-shape timings recorded in this report.
+2.  The `biome_json_parser` 0.5.7 syntax source plus the scratch projection adapter,
+    validated at the same depth,
+    with the preparse depth preflight,
+    diagnostics gate and unsafe-surface findings recorded here.
 
 Every other candidate either failed a hard gate as published
  (surrogate rejection,
@@ -934,7 +934,7 @@ The published single-file `src/lib.rs:3-68` exports JSONC-to-JSON normalization 
 
 ### `fjson` 0.3.1
 
-**Source correction:**
+Source correction:
  the shallow clone initially pointed at `fe5a04a` despite its `Cargo.toml` still saying 0.3.1.
  Its scanner and AST SHA-256 hashes differed from the published 0.3.1 Cargo archive.
  After fetching `v0.3.1` (`e658f8a`),

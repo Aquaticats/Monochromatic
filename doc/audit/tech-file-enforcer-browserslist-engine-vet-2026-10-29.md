@@ -747,49 +747,49 @@ not yet executed (all in `docker.io/library/rust:1.97.0`,
 rustc 1.97.0,
 cargo 1.97.0):
 
-1. browserslist-rs data regeneration.
+1.  browserslist-rs data regeneration.
  In `/var/home/user/temp/agent/bl-repro-2026-10-29` (checked out at `7503606`,
-   node packages installed):
+    node packages installed):
  network phase `cargo generate-lockfile` and `cargo fetch` with `CARGO_HOME` and `CARGO_TARGET_DIR` on the scratch volume;
  then `--network=none`:
-   `cargo run -p generate-data --offline` with `PATH` including `/n` (the node binary).
+    `cargo run -p generate-data --offline` with `PATH` including `/n` (the node binary).
  The generator runs `git submodule` (needs the directory to be a git repository,
-   which it is),
+    which it is),
  and `node -e` scripts reading `node_modules/caniuse-lite`,
-   `node_modules/baseline-browser-mapping`.
+    `node_modules/baseline-browser-mapping`.
  Then `cmp` each `data/src/generated/*` against `x2/browserslist-data-0.3.1/src/generated/*`.
  Pass criterion:
-   byte-identical,
-   or every difference explained.
-2. browserslist-rs CI-equivalent:
-   `cargo test`,
-   `cargo test --no-default-features`,
+    byte-identical,
+    or every difference explained.
+2.  browserslist-rs CI-equivalent:
+    `cargo test`,
+    `cargo test --no-default-features`,
  `cargo clippy --all-features`,
  `cargo clippy --example inspect`,
  `cargo clippy --tests`.
  Expected writes:
-   tests create `/tmp/browserslist-test-pkgs` and temp files,
-   set process environment variables,
+    tests create `/tmp/browserslist-test-pkgs` and temp files,
+    set process environment variables,
  and spawn `node` in `extends.rs` tests.
-3. oxc-browserslist data regeneration:
+3.  oxc-browserslist data regeneration:
  in `/var/home/user/temp/agent/oxc-repro-2026-10-29` (checked out at `a9b49a1`,
-   `node_modules` copied in),
+    `node_modules` copied in),
  `RUSTUP_TOOLCHAIN=1.97.0 cargo codegen` (xtask;
-   runs `node -e`,
-   `cargo fmt`),
+    runs `node -e`,
+    `cargo fmt`),
  then `git diff --exit-code -- src/generated`.
-4. oxc CI-equivalent:
-   `cargo check --all-targets --all-features`,
-   `cargo test` (includes `tests/proptest.rs`),
+4.  oxc CI-equivalent:
+    `cargo check --all-targets --all-features`,
+    `cargo test` (includes `tests/proptest.rs`),
  `cargo clippy --all-targets --all-features -- -D warnings`.
  Fuzz target `fuzz/fuzz_targets/fuzz_resolve.rs` and `benches/resolve.rs` are to be read and recorded as omitted
  with their commands (`cargo +nightly fuzz run fuzz_resolve`,
-   `cargo bench`).
-5. Consumer boundary:
-   a scratch crate depending on each engine calling `resolve` with the `.browserslistrc` queries,
+    `cargo bench`).
+5.  Consumer boundary:
+    a scratch crate depending on each engine calling `resolve` with the `.browserslistrc` queries,
  printing JSON in the incumbent's shape;
  then `node` (26.12.0,
-   type stripping) running `browserslistTargets` from
+    type stripping) running `browserslistTargets` from
  `package/config/rolldown/src/browserslist-targets.ts` with an injected `importJson` (no repository edit),
  compared with the incumbent file contents.
  The separate probe agent covers the real-config run for `browserslist-rs`;
@@ -823,65 +823,65 @@ cargo 1.97.0):
 
 ## Steps done, in the skill's order
 
-1. Read the skill fully,
-   the decision record,
-   the planning record,
-   the consumer,
-   the generator,
-   and `.browserslistrc`.
-2. Context forks:
-   measurable facts gathered;
-   no user question needed so far.
-3. Classification of base and overlays (above).
-4. Candidate discovery:
-   source class 1 complete (crates.io);
-   class 4 partial;
-   classes 2 and 3 not run.
-5. Screening:
-   five exits recorded;
-   two survivors.
-6. Report created and compatibility fingerprint computed (this file).
-7. Open-source gates started:
-   both crates cloned or extracted,
-   source equals tag checked,
-   dependencies listed,
+1.  Read the skill fully,
+    the decision record,
+    the planning record,
+    the consumer,
+    the generator,
+    and `.browserslistrc`.
+2.  Context forks:
+    measurable facts gathered;
+    no user question needed so far.
+3.  Classification of base and overlays (above).
+4.  Candidate discovery:
+    source class 1 complete (crates.io);
+    class 4 partial;
+    classes 2 and 3 not run.
+5.  Screening:
+    five exits recorded;
+    two survivors.
+6.  Report created and compatibility fingerprint computed (this file).
+7.  Open-source gates started:
+    both crates cloned or extracted,
+    source equals tag checked,
+    dependencies listed,
  lifecycle scripts checked.
-8. Provenance overlay:
-   findings E3 and E7.
-9. Source reading for the caller's three questions (E4) and the Firefox ESR finding (E5).
+8.  Provenance overlay:
+    findings E3 and E7.
+9.  Source reading for the caller's three questions (E4) and the Firefox ESR finding (E5).
 
 ## Steps not yet done
 
-1. Run discovery source classes 2 and 3 and finish class 4;
-   run the one expansion round;
-   freeze and record the saturation result.
-2. Read `rspack_browserslist` source and close its exit.
-3. Complete the license and transitive dependency audit (`cargo tree` per candidate,
-   in a container).
-4. Production-source reading of both finalists for parser,
-   error handling,
-   and date handling
+1.  Run discovery source classes 2 and 3 and finish class 4;
+    run the one expansion round;
+    freeze and record the saturation result.
+2.  Read `rspack_browserslist` source and close its exit.
+3.  Complete the license and transitive dependency audit (`cargo tree` per candidate,
+    in a container).
+4.  Production-source reading of both finalists for parser,
+    error handling,
+    and date handling
  (`parser.rs`,
-   `dead.rs`,
-   `last_n_node_major.rs`;
-   oxc's equivalents including how it derives Firefox ESR and today's date).
-5. Tests,
-   CI,
-   fuzz and mutation search for both (oxc has `fuzz/` and `tests/proptest.rs`;
+    `dead.rs`,
+    `last_n_node_major.rs`;
+    oxc's equivalents including how it derives Firefox ESR and today's date).
+5.  Tests,
+    CI,
+    fuzz and mutation search for both (oxc has `fuzz/` and `tests/proptest.rs`;
  `browserslist-rs` has no fuzz or property tests found in the tree listing;
-   confirm with `rg`).
-6. Maintenance audit for both repositories per the skill's sampling rule
+    confirm with `rg`).
+6.  Maintenance audit for both repositories per the skill's sampling rule
  (issues and pull requests updated since 2025-10-29,
-   maintainer comments versus actions,
-   merge latency,
-   release reach,
+    maintainer comments versus actions,
+    merge latency,
+    release reach,
  commit authors in twelve months).
-7. Execution manifests approved and the five prepared runs above executed,
-   one pass each (no repeated runs).
-8. Consumer-boundary run through `browserslist-targets.ts` for both finalists and comparison with the incumbent output
+7.  Execution manifests approved and the five prepared runs above executed,
+    one pass each (no repeated runs).
+8.  Consumer-boundary run through `browserslist-targets.ts` for both finalists and comparison with the incumbent output
  (expect a Firefox 140 versus 153 difference for `browserslist-rs`;
-   measure oxc).
-9. Platform claims:
+    measure oxc).
+9.  Platform claims:
  Linux x64 only is available.
  macOS arm64 and Windows x64 are not available on this host;
  record whether the repository targets them for the Rust file-enforcer

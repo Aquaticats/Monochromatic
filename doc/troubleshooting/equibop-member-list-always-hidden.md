@@ -533,47 +533,47 @@ Walked per constraint,
 2026-10-30,
 against Equicord `8d0ebf35`:
 
-1. **Is it really upstream's fault?**
-   No. Nothing misbehaves.
-   Discord renders a member
-   list and offers a toggle action;
-   Equibop and Equicord expose no always-hidden row.
-   This is a missing preference,
-   and upstream's own wording assigns hiding UI to CSS
-   (`CONTRIBUTING.md:66`).
-   The behavior is by design,
-   so this fails at the first gate.
-2. **Can upstream fix it?**
-   Technically yes (a plugin or a settings row),
-   but see 1 and
-   4:
-   the fix shape their rules allow is the CSS the user can already write.
-3. **Are they supporting this use case?**
-   Yes,
-   through QuickCSS.
-   The themes tab says
-   `use QuickCSS for quick style tweaks` (`themes/index.tsx:441`) and CollapsibleUI ships
-   the weaker collapse variant for users who want a peek strip.
-   The use case is served.
-4. **Would the repo welcome our contribution?**
-   A hide-only plugin is banned by
-   `CONTRIBUTING.md:66`,
-   and their AI policy requires disclosure and forbids AI-generated
-   text in issues.
-   A settings-row patch might be negotiable per that rule's last sentence,
-   but the case for it is weak while CSS solves the want completely.
-5. **Will they likely fix it?**
-   No signal of an always-hidden mode in flight.
-   Fresh
-   maintainer commits on `collapsibleUi` (2026-10-19) show the collapse feature is
-   maintained as-is,
-   not extended toward hiding.
-6. **Have we prototyped a minimal fix?**
-   Not run.
-   Constraints 1,
-   3,
-   and 4 already fail,
-   so the auto-prototype trigger (constraints 1-5 hold or sorta-hold) does not fire.
+1.  **Is it really upstream's fault?**
+    No. Nothing misbehaves.
+    Discord renders a member
+    list and offers a toggle action;
+    Equibop and Equicord expose no always-hidden row.
+    This is a missing preference,
+    and upstream's own wording assigns hiding UI to CSS
+    (`CONTRIBUTING.md:66`).
+    The behavior is by design,
+    so this fails at the first gate.
+2.  **Can upstream fix it?**
+    Technically yes (a plugin or a settings row),
+    but see 1 and
+    4:
+    the fix shape their rules allow is the CSS the user can already write.
+3.  **Are they supporting this use case?**
+    Yes,
+    through QuickCSS.
+    The themes tab says
+    `use QuickCSS for quick style tweaks` (`themes/index.tsx:441`) and CollapsibleUI ships
+    the weaker collapse variant for users who want a peek strip.
+    The use case is served.
+4.  **Would the repo welcome our contribution?**
+    A hide-only plugin is banned by
+    `CONTRIBUTING.md:66`,
+    and their AI policy requires disclosure and forbids AI-generated
+    text in issues.
+    A settings-row patch might be negotiable per that rule's last sentence,
+    but the case for it is weak while CSS solves the want completely.
+5.  **Will they likely fix it?**
+    No signal of an always-hidden mode in flight.
+    Fresh
+    maintainer commits on `collapsibleUi` (2026-10-19) show the collapse feature is
+    maintained as-is,
+    not extended toward hiding.
+6.  **Have we prototyped a minimal fix?**
+    Not run.
+    Constraints 1,
+    3,
+    and 4 already fail,
+    so the auto-prototype trigger (constraints 1-5 hold or sorta-hold) does not fire.
 
 Decision:
 **do not file.
@@ -607,50 +607,50 @@ Recorded 2026-10-30 against Equibop 3.3.2 and Equicord `8d0ebf35`.
 An item that was not
 run is written as not run.
 
-1. Reproduce on the latest release and other maintained lines:
-   not run.
-   Only 3.3.2 is
-   installed here,
-   and the decision is do-not-file.
-2. Prior art in the touched code:
-   run.
-   CollapsibleUI history,
-   the plugin inventory,
-   and
-   `CONTRIBUTING.md:66` were read (root cause steps 5 and 6).
-3. Intake fit (issue forms,
-   templates,
-   contribution policy):
-   run in part.
-   `CONTRIBUTING.md` was read and its AI policy and plugin rules recorded.
-   Issue and PR
-   templates were not read,
-   because no filing is planned.
-4. Automation on new filings (triage bots,
-   auto-labelers,
-   trust lists):
-   not run.
-   No
-   filing is planned.
-5. Same-day duplicate,
-   WIP,
-   and trust-system search:
-   run.
-   Queries and results are in the
-   search record above.
-6. Run the draft's reproduction exactly as written:
-   run.
-   Harness A and Harness B are the
-   reproduction and were run as written on 2026-10-30.
-7. Make the reproduction runnable by others (minimal repo plus CI workflow):
-   not run.
-   No
-   filing is planned.
-8. Verdict:
-   do not file.
-   The blocker that stops a recommendation to file is the target's
-   own policy (`CONTRIBUTING.md:66`) together with a complete consumer-side workaround,
-   not an unmet checklist item.
+1.  Reproduce on the latest release and other maintained lines:
+    not run.
+    Only 3.3.2 is
+    installed here,
+    and the decision is do-not-file.
+2.  Prior art in the touched code:
+    run.
+    CollapsibleUI history,
+    the plugin inventory,
+    and
+    `CONTRIBUTING.md:66` were read (root cause steps 5 and 6).
+3.  Intake fit (issue forms,
+    templates,
+    contribution policy):
+    run in part.
+    `CONTRIBUTING.md` was read and its AI policy and plugin rules recorded.
+    Issue and PR
+    templates were not read,
+    because no filing is planned.
+4.  Automation on new filings (triage bots,
+    auto-labelers,
+    trust lists):
+    not run.
+    No
+    filing is planned.
+5.  Same-day duplicate,
+    WIP,
+    and trust-system search:
+    run.
+    Queries and results are in the
+    search record above.
+6.  Run the draft's reproduction exactly as written:
+    run.
+    Harness A and Harness B are the
+    reproduction and were run as written on 2026-10-30.
+7.  Make the reproduction runnable by others (minimal repo plus CI workflow):
+    not run.
+    No
+    filing is planned.
+8.  Verdict:
+    do not file.
+    The blocker that stops a recommendation to file is the target's
+    own policy (`CONTRIBUTING.md:66`) together with a complete consumer-side workaround,
+    not an unmet checklist item.
 
 ### Draft (do not file as-is)
 

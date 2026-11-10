@@ -458,48 +458,48 @@ open and closed:
 
 Constraint walk:
 
-1. **Is it really upstream's fault?**
-   Yes.
-   Two first-party pages in `pnpm/pnpm.io` disagree,
-   and one contradicts the shipped scheduler
-   (`workspace-task-scheduler/src/tests.rs:880`).
-   The defect is documentation,
-   not consumer misuse.
-2. **Can upstream fix it?**
-   Yes.
-   The minimal fix is one paragraph in `docs/cli/recursive.md`,
-   prototyped below.
-   Nothing architectural blocks it.
-3. **Are they supporting this use case?**
-   Yes.
-   The same bullet advertises the use case
-   ("run tests in every package,
-   continue if tests fail in one of them"),
-   and RFC 23 plus [pnpm/pnpm#14211](https://github.com/pnpm/pnpm/issues/14211)
-   show active investment in workspace task orchestration docs.
-4. **Would the repo welcome our contribution?**
-   Yes,
-   with disclosure.
-   `pnpm/CONTRIBUTING.md:325-345` ("AI-assisted contributions")
-   states "We use AI coding agents ourselves and welcome contributions made
-   with them" and requires a footer naming the agent and the model.
-   `pnpm/pnpm.io` ships no `CONTRIBUTING.md` and no issue templates
-   (only `.github/workflows`),
-   and no policy banning AI-assisted filings was found in either repository.
-5. **Will they likely fix it?**
-   Likely.
-   [pnpm/pnpm.io#903](https://github.com/pnpm/pnpm.io/pull/903)
-   merged on 2026-08-29 and
-   [pnpm/pnpm.io#953](https://github.com/pnpm/pnpm.io/pull/953)
-   on 2026-09-25 show documentation pull requests being merged this quarter.
-   Counter-signal:
-   [pnpm/pnpm.io#519](https://github.com/pnpm/pnpm.io/issues/519)
-   has been open since 2024.
-   No documented won't-fix exists,
-   so this constraint holds as a soft yes.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes.
-   See below.
+1.  **Is it really upstream's fault?**
+    Yes.
+    Two first-party pages in `pnpm/pnpm.io` disagree,
+    and one contradicts the shipped scheduler
+    (`workspace-task-scheduler/src/tests.rs:880`).
+    The defect is documentation,
+    not consumer misuse.
+2.  **Can upstream fix it?**
+    Yes.
+    The minimal fix is one paragraph in `docs/cli/recursive.md`,
+    prototyped below.
+    Nothing architectural blocks it.
+3.  **Are they supporting this use case?**
+    Yes.
+    The same bullet advertises the use case
+    ("run tests in every package,
+    continue if tests fail in one of them"),
+    and RFC 23 plus [pnpm/pnpm#14211](https://github.com/pnpm/pnpm/issues/14211)
+    show active investment in workspace task orchestration docs.
+4.  **Would the repo welcome our contribution?**
+    Yes,
+    with disclosure.
+    `pnpm/CONTRIBUTING.md:325-345` ("AI-assisted contributions")
+    states "We use AI coding agents ourselves and welcome contributions made
+    with them" and requires a footer naming the agent and the model.
+    `pnpm/pnpm.io` ships no `CONTRIBUTING.md` and no issue templates
+    (only `.github/workflows`),
+    and no policy banning AI-assisted filings was found in either repository.
+5.  **Will they likely fix it?**
+    Likely.
+    [pnpm/pnpm.io#903](https://github.com/pnpm/pnpm.io/pull/903)
+    merged on 2026-08-29 and
+    [pnpm/pnpm.io#953](https://github.com/pnpm/pnpm.io/pull/953)
+    on 2026-09-25 show documentation pull requests being merged this quarter.
+    Counter-signal:
+    [pnpm/pnpm.io#519](https://github.com/pnpm/pnpm.io/issues/519)
+    has been open since 2024.
+    No documented won't-fix exists,
+    so this constraint holds as a soft yes.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes.
+    See below.
 
 All six constraints hold.
 The draft below was posted as

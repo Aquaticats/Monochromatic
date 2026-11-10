@@ -341,46 +341,46 @@ draft below is fileable.
 
 ### Six-constraint check
 
-1. **Is it really upstream's fault?**
-    Yes.
-    `dropHandlerForSurface` returning
-   `first()` (and the drag-start `[0]`) is the direct cause.
-    The two-data-device
-   condition is Wayland-legal and arises in any app that adds its own data device
-   alongside a toolkit clipboard;
-    KWin is the component that drops the drag.
-2. **Can upstream fix it?**
-    Yes,
-    and their own TODO names the fix ("we should send
-   the drag to all of them").
-3. **Are they supporting this use case?**
-    A client binding `wl_data_device` more
-   than once is allowed by the protocol,
-    and KWin already tracks a list of them
-   (`dataDevices`);
-    it just picks one for drags.
-4. **Would the repo welcome our contribution?**
-    KWin takes merge requests on
-   `invent.kde.org` (`CONTRIBUTING.md`);
-    a test is "appreciated,
-    but not expected"
-   for a bug fix.
-    No ban on AI-assisted contributions appears in `CONTRIBUTING.md`.
-   The draft discloses AI assistance and the human-verification status.
-5. **Will they likely fix it?**
-    Their in-code TODO agrees the fix is correct ("we
-   should send the drag to all of them") and only deferred it as unprioritized
-   ("seems overly complicated in practice so far the only case ... is for clipboard
-   overriding").
-    That is a deferral,
-    not a stated non-goal or won't-fix,
-    and this
-   report supplies the missing second case.
-    Not a fail.
-6. **Have we prototyped a minimal fix?**
-    Yes:
-   [kwin-drag-only-first-data-device.patch](kwin-drag-only-first-data-device.patch)
-   beside this doc.
+1.  **Is it really upstream's fault?**
+     Yes.
+     `dropHandlerForSurface` returning
+    `first()` (and the drag-start `[0]`) is the direct cause.
+     The two-data-device
+    condition is Wayland-legal and arises in any app that adds its own data device
+    alongside a toolkit clipboard;
+     KWin is the component that drops the drag.
+2.  **Can upstream fix it?**
+     Yes,
+     and their own TODO names the fix ("we should send
+    the drag to all of them").
+3.  **Are they supporting this use case?**
+     A client binding `wl_data_device` more
+    than once is allowed by the protocol,
+     and KWin already tracks a list of them
+    (`dataDevices`);
+     it just picks one for drags.
+4.  **Would the repo welcome our contribution?**
+     KWin takes merge requests on
+    `invent.kde.org` (`CONTRIBUTING.md`);
+     a test is "appreciated,
+     but not expected"
+    for a bug fix.
+     No ban on AI-assisted contributions appears in `CONTRIBUTING.md`.
+    The draft discloses AI assistance and the human-verification status.
+5.  **Will they likely fix it?**
+     Their in-code TODO agrees the fix is correct ("we
+    should send the drag to all of them") and only deferred it as unprioritized
+    ("seems overly complicated in practice so far the only case ... is for clipboard
+    overriding").
+     That is a deferral,
+     not a stated non-goal or won't-fix,
+     and this
+    report supplies the missing second case.
+     Not a fail.
+6.  **Have we prototyped a minimal fix?**
+     Yes:
+    [kwin-drag-only-first-data-device.patch](kwin-drag-only-first-data-device.patch)
+    beside this doc.
 
 ### Prototype and its verification
 

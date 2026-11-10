@@ -291,27 +291,27 @@ Their current fix is already present,
 and this incident adds no reproduction of their recursion failure.
 There is nothing additive to post on the closed issue.
 
-1. **Is it really upstream's fault?**
-   No.
-   The consumer treated component initialization and property change callbacks as a post-layout notification.
-   Slint does not make that contract.
-2. **Can upstream fix it?**
-   Slint could add a supported post-layout callback,
-   but that would be a new API or semantic guarantee rather than the fix for a demonstrated defect.
-3. **Are they supporting this use case?**
-   Slint supports layouts,
-   geometry properties,
-   callbacks,
-   and timers.
-   The investigation did not find a documented post-layout callback contract.
-4. **Would the repo welcome the contribution?**
-   Not evaluated because constraint 1 fails and no upstream patch is proposed.
-5. **Will they likely fix it?**
-   Not applicable because no upstream defect is established.
-   The related eager-instantiation problem was already fixed by PR #11397.
-6. **Have we prototyped a minimal upstream fix?**
-   Not applicable.
-   The verified minimal change is a direct full-width plate binding plus a finite row-membership report burst.
+1.  **Is it really upstream's fault?**
+    No.
+    The consumer treated component initialization and property change callbacks as a post-layout notification.
+    Slint does not make that contract.
+2.  **Can upstream fix it?**
+    Slint could add a supported post-layout callback,
+    but that would be a new API or semantic guarantee rather than the fix for a demonstrated defect.
+3.  **Are they supporting this use case?**
+    Slint supports layouts,
+    geometry properties,
+    callbacks,
+    and timers.
+    The investigation did not find a documented post-layout callback contract.
+4.  **Would the repo welcome the contribution?**
+    Not evaluated because constraint 1 fails and no upstream patch is proposed.
+5.  **Will they likely fix it?**
+    Not applicable because no upstream defect is established.
+    The related eager-instantiation problem was already fixed by PR #11397.
+6.  **Have we prototyped a minimal upstream fix?**
+    Not applicable.
+    The verified minimal change is a direct full-width plate binding plus a finite row-membership report burst.
 
 Decision:
 do not file a new issue and do not comment on issue #7402.

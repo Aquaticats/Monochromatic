@@ -256,34 +256,34 @@ Searches across open and closed Oxc issues and pull requests for `JS plugin rela
 `context.report secondary location`,
 and `related location diagnostic JS plugin` found no duplicate.
 
-1. **Is it really upstream's fault?**
-   No.
-   Oxlint implements the ordinary ESLint-compatible report shape it documents.
-   Cross-file related locations are an extension request,
-   not a behavior bug.
-2. **Can upstream fix it?**
-   Yes.
-   Oxc could extend the JS-to-Rust diagnostic report with foreign-file related spans.
-3. **Are they supporting this use case?**
-   Partly.
-   Oxc supports custom JS rules and editor diagnostics,
-   but does not claim cross-file related-location support.
-4. **Would the repository welcome our contribution?**
-   Yes with review and disclosure.
-   `CONTRIBUTING.md` welcomes contributions and permits AI assistance when disclosed,
-   understood,
-   tested,
-   and reviewed.
-5. **Will they likely fix it?**
-   Unknown but not declined.
-   No matching issue,
-   pull request,
-   or documented non-goal was found.
-6. **Have we prototyped a minimal upstream fix?**
-   No.
-   Constraint 1 fails,
-   so the automatic upstream-prototype gate does not apply.
-   The verified consumer-side workaround resolves this repository's user-facing failure.
+1.  **Is it really upstream's fault?**
+    No.
+    Oxlint implements the ordinary ESLint-compatible report shape it documents.
+    Cross-file related locations are an extension request,
+    not a behavior bug.
+2.  **Can upstream fix it?**
+    Yes.
+    Oxc could extend the JS-to-Rust diagnostic report with foreign-file related spans.
+3.  **Are they supporting this use case?**
+    Partly.
+    Oxc supports custom JS rules and editor diagnostics,
+    but does not claim cross-file related-location support.
+4.  **Would the repository welcome our contribution?**
+    Yes with review and disclosure.
+    `CONTRIBUTING.md` welcomes contributions and permits AI assistance when disclosed,
+    understood,
+    tested,
+    and reviewed.
+5.  **Will they likely fix it?**
+    Unknown but not declined.
+    No matching issue,
+    pull request,
+    or documented non-goal was found.
+6.  **Have we prototyped a minimal upstream fix?**
+    No.
+    Constraint 1 fails,
+    so the automatic upstream-prototype gate does not apply.
+    The verified consumer-side workaround resolves this repository's user-facing failure.
 
 ### Upstream filing artifact
 

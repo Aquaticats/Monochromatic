@@ -84,7 +84,7 @@ list,
  so a wrong shape fails as a wrong shape instead of reading as a missing sentinel.
 
 `entries()` does not fit any of the three.
- The elements it yields are freshly allocated pairs which *contain*
+ The elements it yields are freshly allocated pairs which **contain**
 a receiver element rather than alias one,
  so a sentinel placed in the receiver is never identical to any
 element of the result and the existing probe shape cannot pass for it.
@@ -475,7 +475,7 @@ say.
    discharging the report would leave a false offer on a function that rewrites every key.
    The premise
    was measured and the conclusion did not follow.
-   The attribution is empty *because* the relation is
+   The attribution is empty **because** the relation is
    missing:
    with no relation the element walk cannot resolve `rows.keys()`,
    so the iterated binding
