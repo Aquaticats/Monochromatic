@@ -820,24 +820,35 @@ Measured with the harness at the end of this section,
 Git 2.56.0,
 a disposable repository of 60,000 directories,
 `core.fsmonitor` given per command,
-no daemon listening before each arm:
+no daemon listening before each arm,
+two runs of the same steps:
 
 - `git diff-tree -r --name-only -z --no-renames HEAD~1 HEAD`:
-  14.4 ms with the monitor off and no daemon started;
-  2,707.6 ms with the monitor on and the default bound;
-  1,186.6 ms with `fsmonitor.startTimeout=1`.
+  14.4 ms and 3.7 ms with the monitor off,
+  and no daemon started;
+  2,707.6 ms and 4,608.9 ms with the monitor on and the default bound;
+  1,186.6 ms and 425.1 ms with `fsmonitor.startTimeout=1`.
 - `git reset -q HEAD --pathspec-from-file=-`:
-  23.8 ms with the monitor off;
-  2,272.8 ms and 2,628.4 ms with the monitor on;
-  5,974.6 ms with `fsmonitor.startTimeout=1`.
+  23.8 ms and 4.0 ms with the monitor off;
+  2,272.8 ms,
+  2,628.4 ms,
+  2,486.6 ms and 3,650.0 ms with the monitor on;
+  5,974.6 ms and 1,001.6 ms with `fsmonitor.startTimeout=1`.
 - With the monitor on,
-  each step started `fsmonitor--daemon start` itself.
+  each step started `fsmonitor--daemon start` itself,
+  and with the monitor off it started none.
+
+The spread inside one arm is wide because every arm pays a full registration that competes with
+the other sessions of the host for the disk;
+the difference between the arms is three orders of magnitude,
+so the conclusion does not rest on it.
 
 A lowered bound ends the start's wait and not the step's:
 the client then waits for the socket with `wait_if_not_found = 1`
 ([`fsmonitor-ipc.c:105-124`][src-ipc-retry]),
 which appears only when the registration ends,
-so the 6 s arm is the bound plus the rest of a registration that a lowered bound does not shorten.
+so an arm ends at the bound when the socket is already there (1,001.6 ms)
+and at the bound plus the rest of the registration when it is not (5,974.6 ms).
 
 So a cold step waits for the smaller of the registration and the bound,
 and the 60 s pair is the bound rather than a registration of exactly 60 s:
@@ -873,7 +884,8 @@ and `git commit` in the shadow repository (`src/native/commit/commit_preparation
 Every one of them would still wait on a cold daemon with the monitor configured on a large checkout.
 
 Harness,
-saved as `step-waits.ts` and run from its own directory inside a capped scope:
+saved as `step-waits.ts` and run from its own directory inside a capped scope;
+the second run of the figures above is its own output:
 
 ```sh
 # Bounds: six CPU threads, 4 GiB of memory, 512 tasks, disk weight 10.
@@ -883,10 +895,10 @@ systemd-run --user --scope --quiet --property=CPUQuota=600% --property=MemoryMax
 
 ```ts
 // step-waits.ts
-// How long the two steps of the 120 s commit wait for a cold fsmonitor daemon, and where the wait ends.
-// Disposable repository only; it stops every daemon it started and never touches a real repository.
+// How long the two steps of the 120 s commit wait for a cold fsmonitor daemon, and where that wait ends.
+// Disposable repository only; it stops the repository's daemon before and after every arm.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -895,46 +907,24 @@ const directoryCount = Number(process.argv[2] ?? 60000);
 const scratch = join(homedir(), 'temp/agent/fsmonitor-steps');
 mkdirSync(scratch, { recursive: true });
 const root = realpathSync(mkdtempSync(join(scratch, 'wait.')));
-// The marker finds this harness's daemons by environment, never by process name.
-const baseEnv = { ...process.env, FSM_PROBE: root, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+// A private global configuration: nothing of the person's own files decides this measurement.
+const baseEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
 
-function run(args: readonly string[], environment = baseEnv) {
-  return spawnSync(git, ['-C', root, ...args], { env: environment, encoding: 'utf8' });
-}
+const run = (args: readonly string[]) => spawnSync(git, ['-C', root, ...args], { env: baseEnv, encoding: 'utf8' });
 
-function required(args: readonly string[]) {
+function required(args: readonly string[]): string {
   const result = run(args);
   if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
   return result.stdout;
 }
 
-function census(): { pid: string }[] {
-  const found: { pid: string }[] = [];
-  for (const pid of readdirSync('/proc').filter((name) => /^\d+$/.test(name))) {
-    try {
-      if (!readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes('fsmonitor--daemon\0run')) continue;
-      if (!readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0').includes(`FSM_PROBE=${root}`)) continue;
-    } catch {
-      continue;
-    }
-    found.push({ pid });
-  }
-  return found;
-}
+// No daemon listens for the repository afterwards: `stop` reaches the socket, and a client's answer
+// arrives only after the socket exists, so every arm leaves a daemon `stop` can reach.
+const stopDaemon = () => { run(['fsmonitor--daemon', 'stop']); };
 
-function stopDaemons() {
-  run(['fsmonitor--daemon', 'stop']);
-  const deadline = Date.now() + 30000;
-  while (census().length > 0 && Date.now() < deadline) spawnSync('sleep', ['0.05']);
-  for (const { pid } of census()) process.kill(Number(pid), 'SIGTERM');
-  const killDeadline = Date.now() + 30000;
-  while (census().length > 0 && Date.now() < killDeadline) spawnSync('sleep', ['0.05']);
-  if (census().length > 0) throw new Error(`daemons left running: ${JSON.stringify(census())}`);
-}
-
-// One arm: wall milliseconds of the step, and whether its own trace2 stream shows a daemon start.
+// One arm: wall milliseconds of the step, and whether its own trace2 stream shows the daemon start it waited for.
 function arm(label: string, settings: readonly string[], args: readonly string[], input?: string) {
-  stopDaemons();
+  stopDaemon();
   const trace = join(scratch, `wait.${label}.trace2.json`);
   const started = process.hrtime.bigint();
   const result = spawnSync(git, ['-C', root, ...settings, ...args], {
@@ -943,9 +933,10 @@ function arm(label: string, settings: readonly string[], args: readonly string[]
     input,
   });
   const wallMs = Number(process.hrtime.bigint() - started) / 1e6;
-  const lines: string[] = readFileSync(trace, 'utf8').split('\n');
-  const starts: string[] = lines.filter((line) => line.includes('child_start') && line.includes('fsmonitor--daemon'));
-  console.log(JSON.stringify({ arm: label, status: result.status, wallMs: Number(wallMs.toFixed(1)), daemonStarts: starts.length }));
+  const daemonStarts = readFileSync(trace, 'utf8')
+    .split('\n')
+    .filter((line) => line.includes('child_start') && line.includes('fsmonitor--daemon')).length;
+  console.log(JSON.stringify({ arm: label, status: result.status, wallMs: Number(wallMs.toFixed(1)), daemonStarts }));
 }
 
 try {
@@ -970,11 +961,8 @@ try {
   arm('diff-tree-bound-1s', [...on, '-c', 'fsmonitor.startTimeout=1'], ['diff-tree', '-r', '--name-only', '-z', '--no-renames', 'HEAD~1', 'HEAD']);
   arm('reset-bound-1s', [...on, '-c', 'fsmonitor.startTimeout=1'], ['reset', '-q', 'HEAD', '--pathspec-from-file=-'], 'tracked.txt\n');
 } finally {
-  try {
-    stopDaemons();
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
+  stopDaemon();
+  rmSync(root, { recursive: true, force: true });
 }
 ```
 
