@@ -129,7 +129,7 @@ function domainStateIsActive(
 
  @param runner - Command runner; tests pass one that records the `virsh` calls instead of running them
 
- @throws `UnknownDomainStateError` when `virsh domstate` prints a state {@link DOMAIN_STATE_IS_ACTIVE} does not carry
+ @throws `UnknownDomainStateError` when `virsh domstate` prints a state in neither {@link ACTIVE_DOMAIN_STATES} nor {@link INACTIVE_DOMAIN_STATES}
 
  @throws `SubprocessError` from {@link exec} when a `virsh` call other than the existence probe fails
 
