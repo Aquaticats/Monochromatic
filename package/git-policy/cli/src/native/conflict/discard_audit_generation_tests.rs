@@ -22,10 +22,11 @@
 use crate::command_test_support::{fixture, os_arguments, remove};
 use crate::discard_audit::{AUDIT_FILE, AUDIT_RETENTION, AuditOutcome};
 use crate::discard_audit_record::{AuditRecord, DecidedForm, audit_line};
-use crate::log_generations_kept_to_a_bound::LOG_HISTORY_BYTES;
+use crate::log_generations_kept_to_a_bound::{LOG_HISTORY_BYTES, a_pass_is_running};
 use crate::log_lines_appended_without_a_lock::{ROTATE_AT_BYTES, append_line};
 use crate::rule_linked_worktree::GuardedCommand;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// How many whole generations the bound holds.
 fn kept_generations() -> u64 {
@@ -90,10 +91,17 @@ fn existing_copy(root: &Path, name: &str) -> String {
 }
 
 /// Fills the live file so that the next append rotates it,
-/// then appends one line.
+/// then appends one line,
+/// and waits for the pass the rotation schedules,
+/// so what the control reads afterwards is the state the shipped code settles at.
 fn rotate_once(target: &Path, name: &str) {
     std::fs::write(target, full_file(&[marker(name)])).expect("a full live file");
     append_line(target, b"{\"live\":1}\n", &AUDIT_RETENTION).expect("the append that rotates");
+    let deadline: Instant = Instant::now() + Duration::from_secs(120);
+    while a_pass_is_running(target) {
+        assert!(Instant::now() < deadline, "the pass for {} did not end within its deadline", target.display());
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 
 /// The numbers of the generations `target.<number>` that exist,

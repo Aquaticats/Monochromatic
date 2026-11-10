@@ -35,8 +35,10 @@
 //! ```
 
 use crate::diagnostic_log::debug;
+use std::collections::BTreeSet;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 /// Module tag for diagnostics.
 const TAG: &str = "logGenerations";
@@ -222,6 +224,105 @@ pub fn install_generation(taken: &Path, target: &Path) -> std::io::Result<()> {
 /// `sort_by_key` takes this function by path.
 fn piece_number(piece: &&Piece) -> Option<u64> {
     return piece.number;
+}
+
+/// What:
+///  Runs the pass that trims a log's generations on a thread of its own,
+/// once per log at a time,
+/// and returns at once.
+/// Why:
+///   A rotation happens on the path of a command a person waits for,
+/// and the pass reads a generation to see whether
+///  it names a saved copy;
+/// measured on 2026-11-10 (`log_rotation_cost_measurement_tests.rs`,
+/// the entry in
+///  `doc/planning/cli-git-shipped-limits-audit.md`) the pass took a median of 13 ms and a 99th percentile of 254 ms
+///  to drop one generation that names no saved copy,
+/// and a median of 369 ms and a 99th percentile of 432 ms where every generation
+///  pinned and had to be read to its end,
+/// run inside the appending call,
+/// which is close to the 5 s by which the owner said a
+///  commit must not be slower than native Git.
+/// On a thread of its own the rotation costs the command a median of 385 us and a
+///  99th percentile of 580 us,
+/// and one under the bound 267 us and 322 us.
+/// So the rotation itself (one rename and one link) stays on the command's path and this pass does not:
+/// a command
+///  that ends first leaves the generations as they are,
+/// and the next command's rotation runs the pass again,
+/// which is safe
+///  because the pass removes only what the bound asks for and edits nothing else.
+/// One log has one pass at a time in a
+///  process,
+/// so a burst of rotations cannot start a thread for each;
+/// a skipped schedule is no loss,
+/// because the pass
+///  that is running reads the directory as it is and the next rotation asks again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function scheduleTrim(log: string, retention: LogRetention) { if (!claimAPass(log)) return; setTimeout(() => { trimGenerations(log, retention); passEnded(log); }, 0); }
+/// ```
+pub fn schedule_trim(target: &Path, retention: &LogRetention) {
+    if !claim_a_pass(target) {
+        return;
+    }
+    let owned: PathBuf = target.to_path_buf();
+    let kept: LogRetention = *retention;
+    let spawned = std::thread::Builder::new().name(String::from("log-trim")).spawn(move || {
+        if let Err(error) = trim_generations(owned.as_path(), &kept) {
+            debug(TAG, &format!("the generations of {} could not be trimmed: {error}", owned.display()));
+        }
+        pass_ended(owned.as_path());
+    });
+    if let Err(error) = spawned {
+        debug(TAG, &format!("the generations of {} wait for a later command: no thread could be started: {error}", target.display()));
+        pass_ended(target);
+    }
+}
+
+/// The logs whose pass runs in this process,
+/// so one log has one pass at a time.
+static PASSES_IN_FLIGHT: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());
+
+/// The passes in flight,
+/// found even after a panic poisoned the list:
+/// the list is only paths,
+/// and a pass that lost its entry is one a later rotation starts again.
+fn passes_in_flight() -> std::sync::MutexGuard<'static, BTreeSet<PathBuf>> {
+    return match PASSES_IN_FLIGHT.lock() {
+        Ok(running) => running,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+}
+
+/// What:
+///  Whether this caller is the one that starts the pass for `target`.
+/// Why:
+///   The decision is one step under a lock,
+/// so two rotations of one log never start two threads,
+/// and a log no passing thread
+///  looks at is a log whose generations wait for the next rotation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const passes = new Set<string>(); function claimAPass(log: string) { if (passes.has(log)) return false; passes.add(log); return true; }
+/// ```
+pub(crate) fn claim_a_pass(target: &Path) -> bool {
+    return passes_in_flight().insert(target.to_path_buf());
+}
+
+/// Says that the pass for `target` has ended,
+/// so the next rotation starts another.
+pub(crate) fn pass_ended(target: &Path) {
+    passes_in_flight().remove(target);
+}
+
+/// Whether a pass for `target` runs in this process now,
+/// so a control that reads the generations after a rotation waits for the pass instead of racing it.
+#[cfg(test)]
+pub fn a_pass_is_running(target: &Path) -> bool {
+    return passes_in_flight().contains(target);
 }
 
 /// What:

@@ -5694,7 +5694,7 @@ would stop it the same way.
 
 Every ending of the trigger leaves one line in `monochromatic-git-policy-cli-push-trigger.jsonl` in the common Git directory (size-capped like
 the commit timing file,
-moved aside to `.1`),
+its generations kept under the next free number),
 and a debug line under `MONOCHROMATIC_VERBOSE=true`;
 the terminal is told
 nothing except a service that cannot be reached.
@@ -12285,43 +12285,62 @@ and a build that stops inside itself closes the phase where the command stops,
 so its time is stated by `buildMs` and never left to `otherMs`.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
-The file moves to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,
+The file moves to the next free generation (`monochromatic-git-policy-cli-commit-timing.jsonl.1`,
+then `.2`,
+and on) at one mebibyte,
 and a failed write never changes the command's result.
-All three JSONL files (timing,
+All five logs (commit timing,
+worktree-add timing,
 push trigger,
-audit) are written by one appender with one `write` per line and no lock.
+audit and the standards-review shadow log) are written by one appender:
+one `write` per line or entry,
+and no lock.
 It moves the file aside only when the path still names the file it opened,
-so two writers that both see a full file cannot put the new small file over the history in `.1`,
+so two writers that both see a full file cannot take the new small file in place of the history,
 and a file that ends without a newline (a write a full disk or a signal cut short) gets the next line on a fresh line,
 so one torn line is lost alone.
 A reader skips empty lines and lines that are not JSON.
-The three kinds of file differ in what a rotation keeps.
-The timing files and the push trigger file keep one generation:
-the rotated file is `.1` and the next rotation replaces it,
-because they are diagnostics.
-At the rate measured on 2026-11-03 (760,605 bytes of commit timing in about 30 hours),
-one mebibyte of commit timing is about two days,
-so the two files together keep three to four days of timing.
-The audit file keeps every rotated file under the next free number (`.1`,
+Every log keeps its rotated files under the next free number (`.1`,
 `.2`,
 and on;
 the highest is the newest),
 claimed with a hard link,
 which fails when the name is taken,
 so two writers never take one number,
-nothing is replaced and no lock is held.
-After a rotation the writer removes the oldest generations until the generations that name no saved copy still on disk,
-together with any file a killed rotation left at its private name,
-total at most four mebibytes.
-A generation that holds a `saved-conflict` line whose copy place exists is never removed,
-and neither is one that cannot be read,
+nothing is replaced and no lock is held;
+a name that is not a regular file ends the numbering with an error rather than counting up for ever.
+The generations of one log may take `LOG_HISTORY_BYTES` (32 MiB) together,
+the live file aside,
+and the oldest go first,
+never the newest.
+A reader of the standards-review log reads the log and every generation of it,
+so a commit whose entry rotated away is not reviewed a second time.
+The owner answered on 2026-11-10 in the question tool,
+"Keep more,
+capped (Recommended)":
+32 MiB per log,
+and an audit line naming a saved copy that still exists is never dropped.
+The bound is six days of commit timing at the pace measured on 2026-11-10
+(1,143,526 bytes of 229 records in 5.4 hours)
+and the whole history of an ordinary audit log
+(782,685 bytes in 1,619 lines over twenty days).
+The audit log's generations are the only ones whose lines name something outside the log,
+so before the pass removes one it reads it,
+and a generation holding a `saved-conflict` line whose copy place exists stays past the bound;
+so does one that cannot be read,
 one with a `saved-conflict` line that cannot be parsed,
-or one that names a place the line could not show as text,
+and one that names a place the line could not show as text,
 because a wrong answer in that direction costs disk and the other costs the only account of a copy.
 A file left at a private name by a killed rotation is counted and kept,
 and a second name left for a generation by a kill between the link and the removal is removed.
+The reading that decides whether a generation pins happens on a thread of its own,
+never on the path of the command that rotated the log,
+because it was measured at a median of 369 ms and a 99th percentile of 432 ms where every generation
+pinned,
+against 385 us and 580 us for the rotation that schedules it
+(`foundation/log_rotation_cost_measurement_tests.rs`).
 The audit measurement,
-the derivation of the four mebibytes and the choice
+the derivation of the 32 MiB and the choice
 (a pick the coordinator made under the owner's delegation,
 open to the owner's veto)
 are in `doc/planning/cli-git-shipped-limits-audit.md`.
@@ -13492,8 +13511,9 @@ The line also has `time` (the ISO form),
 which `worktree` the kind word does not name).
 The file moves aside at one mebibyte to the next free generation,
 `monochromatic-git-policy-cli-audit.jsonl.<number>`,
-and generations that name no saved copy on disk are kept up to four mebibytes
-(see "Timing logs").
+and the generations are kept up to 32 MiB together.
+A generation that names a saved copy still on disk is never removed,
+even past that bound (see "Timing logs").
 A failed write never changes the command's result.
 
 After an explicit-path landing computes its post-index,

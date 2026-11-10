@@ -31,7 +31,7 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::log_generations_kept_to_a_bound::{LogRetention, install_generation, trim_generations};
+use crate::log_generations_kept_to_a_bound::{LogRetention, install_generation, schedule_trim};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -118,10 +118,9 @@ fn append_block(target: &Path, block: &[u8], retention: &LogRetention, open: Ope
         if let Err(error) = move_aside_if_still_named(target, &file) {
             debug(TAG, &format!("the log {} could not be moved aside: {error}", target.display()));
         } else {
-            // Best effort as well: a pass that cannot run leaves the generations as they are, which is more history, not less.
-            if let Err(error) = trim_generations(target, retention) {
-                debug(TAG, &format!("the generations of {} could not be trimmed: {error}", target.display()));
-            }
+            // Best effort as well, and on a thread of its own: a pass that cannot run leaves the generations as they are, which is more
+            // history, not less, and the generation it reads costs a command nothing.
+            schedule_trim(target, retention);
             if let Ok(fresh) = open(target) {
                 file = fresh;
             }
@@ -431,3 +430,9 @@ mod tests;
 #[cfg(test)]
 #[path = "log_generations_kept_to_a_bound_tests.rs"]
 mod generation_tests;
+
+/// What a rotation costs on the path that appends a line,
+/// measured for the record and not run as a control.
+#[cfg(test)]
+#[path = "log_rotation_cost_measurement_tests.rs"]
+mod rotation_cost_measurement_tests;

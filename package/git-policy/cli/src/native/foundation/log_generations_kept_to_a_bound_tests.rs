@@ -23,9 +23,10 @@ use super::{ROTATE_AT_BYTES, RotationStep, append_line, move_aside_between};
 use crate::add_timing::ADD_TIMING_FILE;
 use crate::command_test_support::{fixture, remove};
 use crate::commit_timing::TIMING_FILE;
-use crate::log_generations_kept_to_a_bound::{LOG_HISTORY_BYTES, UNPINNED_LOG, trim_generations};
+use crate::log_generations_kept_to_a_bound::{LOG_HISTORY_BYTES, UNPINNED_LOG, a_pass_is_running, claim_a_pass, pass_ended, trim_generations};
 use crate::push_trigger_log::TRIGGER_FILE;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// A log name that no shipped log uses,
 /// so a control never reads a real log's path.
@@ -65,10 +66,28 @@ fn write_generation(target: &Path, number: u64, lines: &[String]) {
 }
 
 /// Fills the live file so that the next append rotates it,
-/// then appends one line.
+/// then appends one line,
+/// and waits for the pass the rotation schedules,
+/// so what the control reads afterwards is the state the shipped code settles at.
 fn rotate_once(target: &Path, name: &str) {
     std::fs::write(target, full_file(&[marker(name)])).expect("a full live file");
     append_line(target, b"{\"live\":1}\n", &UNPINNED_LOG).expect("the append that rotates");
+    wait_for_the_pass(target);
+}
+
+/// Waits, within a deadline,
+/// for the pass a rotation scheduled to end.
+/// Why:
+///   The pass runs on a thread of its own so that a command never waits for it;
+/// a control that reads the generations must wait for
+///  it instead of racing it,
+/// and a pass that never ends fails the control here rather than making its assertion flake.
+fn wait_for_the_pass(target: &Path) {
+    let deadline: Instant = Instant::now() + Duration::from_secs(120);
+    while a_pass_is_running(target) {
+        assert!(Instant::now() < deadline, "the pass for {} did not end within its deadline", target.display());
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 
 /// The numbers of the generations `target.<number>` that exist,
@@ -384,5 +403,41 @@ fn a_directory_at_a_generation_name_ends_the_numbering() {
     let opened: std::fs::File = opened_full_file(target.as_path());
     let rotated = move_aside_between(target.as_path(), &opened, &mut |_step: RotationStep| {});
     assert!(rotated.is_err(), "the rotation gives up instead of trying every number: {rotated:?}");
+    remove(root.as_path());
+}
+
+/// One log has one pass at a time in a process:
+/// the rotation that claims it starts the thread,
+/// and every rotation until the pass ends is told to leave it alone,
+/// so a burst of rotations cannot start a thread for each.
+#[test]
+fn one_log_has_one_pass_at_a_time() {
+    let root: PathBuf = fixture("generations-one-pass");
+    let target: PathBuf = root.join(LOG_FILE);
+    assert!(claim_a_pass(target.as_path()), "the first rotation claims the pass");
+    assert!(!claim_a_pass(target.as_path()), "a second rotation leaves the running pass alone");
+    pass_ended(target.as_path());
+    assert!(claim_a_pass(target.as_path()), "once the pass ends, the next rotation claims another");
+    pass_ended(target.as_path());
+    remove(root.as_path());
+}
+
+/// A rotation over the bound appends its line at once and leaves the pass to a thread:
+/// the generations settle to the bound,
+/// and the record is in the live file before the pass has done anything.
+#[test]
+fn a_rotation_over_the_bound_appends_at_once_and_lets_a_pass_settle_the_generations() {
+    let root: PathBuf = fixture("generations-scheduled");
+    let target: PathBuf = root.join(LOG_FILE);
+    let extra: u64 = 3;
+    for number in 1..=kept_generations() + extra - 1 {
+        write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
+    }
+    std::fs::write(&target, full_file(&[marker("newest")])).expect("a full live file");
+    append_line(target.as_path(), b"{\"live\":1}\n", &UNPINNED_LOG).expect("the append that rotates");
+    assert_eq!(std::fs::read(&target).expect("live file"), b"{\"live\":1}\n", "the line is in a file of its own at the name, before any pass");
+    wait_for_the_pass(target.as_path());
+    let newest: u64 = kept_generations() + extra;
+    assert_eq!(generations(target.as_path()), (extra + 1..=newest).collect::<Vec<u64>>(), "and the pass brings the generations back to the bound");
     remove(root.as_path());
 }
