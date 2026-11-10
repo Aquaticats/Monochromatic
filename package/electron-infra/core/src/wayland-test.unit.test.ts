@@ -271,5 +271,19 @@ await describe({
         expect(compositor.counters.peakOutstandingCommands,).toBe(1,);
       },
     },),
+    it({
+      name: 'waits for observed state alone when a step lists no commands',
+      fn: async () => {
+        await using compositor = await makeFakeCompositor();
+
+        await runBoundaryStep({
+          socketPath: compositor.socketPath,
+          statePath: compositor.statePath,
+          step: { expected: { ready: true, }, },
+        },);
+
+        expect(compositor.receivedCommands,).toEqual([],);
+      },
+    },),
   ],
 },);
