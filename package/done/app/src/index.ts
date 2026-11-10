@@ -54,3 +54,15 @@ export {
   SQL_SEARCH_FTS,
   SQL_SEARCH_LIKE,
 } from './lib/db/tasks-sql.ts';
+
+/**
+ Drawer navigation and header builders, exported for built-artifact
+ verification: the drawer must not offer a destination that only moves the
+ scroll position, nor a placeholder identity.
+
+ @internal
+ */
+export {
+  buildHeader,
+  buildNav,
+} from './client/component/side-drawer-helpers.ts';

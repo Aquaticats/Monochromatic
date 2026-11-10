@@ -38,14 +38,6 @@ export const SIDE_DRAWER_SIDEBAR_STYLES: string[] = [
     },
     children: [
       css({
-        rule: '& .header',
-        decls: {
-          'padding-block': cssVar('min-padding',),
-          'padding-inline-start': cssVar('min-gap',),
-          'padding-inline-end': cssVar('min-padding',),
-        },
-      },),
-      css({
         rule: '& .close',
         decls: { display: 'none', },
       },),

@@ -80,11 +80,6 @@ export const SIDE_DRAWER_STYLES: string = css(`
     border-inline-end-width: calc(1 / 16 * 1rem);
     border-inline-end-style: solid;
     border-inline-end-color: var(--bg-weaker);
-    & .header {
-      padding-block: var(--min-padding);
-      padding-inline-start: var(--min-gap);
-      padding-inline-end: var(--min-padding);
-    }
     & .close { display: none; }
   }
 

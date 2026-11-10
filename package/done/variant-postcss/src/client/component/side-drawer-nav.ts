@@ -9,6 +9,9 @@ import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 /**
  Builds a nav element with the standard link set.
  
+ Every entry leads to a route this app serves; a destination that exists only to
+ move the scroll position would be an action that does nothing.
+ 
  @returns Navigation element with app links
  
  @example
@@ -36,17 +39,15 @@ export function buildNav(): HTMLElement {
         attrs: { href: '/settings', },
         text: 'Settings',
       },),
-      h({
-        tag: 'a',
-        attrs: { href: '#', },
-        text: 'Contact',
-      },),
     ],
   },);
 }
 
 /**
- Builds a header row with a name label and an optional close button.
+ Builds the drawer header, which holds the close button the phone layout shows.
+ 
+ The design puts a profile identity above the name, but the app has no user data
+ contract to read one from, so the row carries no placeholder name until it does.
  
  @param closeButton - Close button element, omitted for the inline sidebar
  
@@ -58,22 +59,10 @@ export function buildNav(): HTMLElement {
  ```
  */
 export function buildHeader(closeButton?: HTMLElement,): HTMLElement {
-  /**
-   Initial children list; the optional close button is appended only when supplied.
-   */
-  const children: HTMLElement[] = [
-    h({
-      tag: 'span',
-      style: { fontSize: '1.25rem', },
-      text: 'Firstname',
-    },),
-  ];
-  if (closeButton !== undefined)
-    children.push(closeButton,);
   return h({
     tag: 'div',
     class: 'header',
-    children,
+    children: closeButton === undefined ? [] : [closeButton,],
   },);
 }
 

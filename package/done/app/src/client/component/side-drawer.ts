@@ -151,17 +151,12 @@ class SideDrawer extends HTMLElement {
         class: 'wrapper',
         children: [
           //region Inline sidebar (visible in sidebar mode)
+          // The header and its divider exist for the phone layout's close button and the profile
+          // row above it, neither of which the inline sidebar shows.
           h({
             tag: 'aside',
             class: 'sidebar',
-            children: [
-              buildHeader(),
-              h({
-                tag: 'div',
-                class: 'divider',
-              },),
-              buildNav(),
-            ],
+            children: [buildNav(),],
           },),
           //endregion Inline sidebar
 
