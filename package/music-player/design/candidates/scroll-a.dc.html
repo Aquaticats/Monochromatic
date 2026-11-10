@@ -12,7 +12,7 @@
   <div style="flex:1 1 auto;min-height:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;padding:24px 24px 12px">
     <div style="min-width:0;display:flex;flex-direction:column;gap:12px">
       <div style="font-size:14px;font-weight:500">A · Material 3 as shipped (Android)</div>
-      <div style="font-size:12px;line-height:16px;color:#CAC4D0;text-wrap:pretty">Compose <span style="font-family:ui-monospace,monospace">Modifier.nonInteractiveScrollbar</span>: 4dp thumb, outline @ 70%, min 24dp, 2dp end insets, no track. Visual only — appears on scroll, fades after 400ms idle over 250ms. Scroll the list.</div>
+      <div style="font-size:12px;line-height:16px;color:#CAC4D0;text-wrap:pretty">Compose <span style="font-family:ui-monospace,monospace">Modifier.nonInteractiveScrollbar</span>: 4dp thumb, outline @ 70%, min 24dp, 2dp end insets, no track. Visual only, appears on scroll, fades after 400ms idle over 250ms. Scroll the list.</div>
       <div onScroll="{{ scrollA }}" style="flex:1 1 auto;min-height:0;position:relative;border:1px solid #26262E;border-radius:12px;overflow:hidden">
         <div ref="{{ innerA }}" style="position:absolute;inset:0;overflow:auto;scrollbar-width:none">
           <sc-for list="{{ names }}" as="n" hint-placeholder-count="12">
@@ -24,7 +24,7 @@
     </div>
     <div style="min-width:0;display:flex;flex-direction:column;gap:12px">
       <div style="font-size:14px;font-weight:500">B · Same look, interactive, always on (desktop)</div>
-      <div style="font-size:12px;line-height:16px;color:#CAC4D0;text-wrap:pretty">Identical geometry and colour; no fade; a 12dp-wide invisible grab zone (mouse) — thumb widens to 8dp on hover/drag (state layer 8%/10% behind it). Drag the thumb or click the track.</div>
+      <div style="font-size:12px;line-height:16px;color:#CAC4D0;text-wrap:pretty">Identical geometry and colour; no fade; a 12dp-wide invisible grab zone (mouse), thumb widens to 8dp on hover/drag (state layer 8%/10% behind it). Drag the thumb or click the track.</div>
       <div ref="{{ refB }}" style="flex:1 1 auto;min-height:0;position:relative;border:1px solid #26262E;border-radius:12px;overflow:hidden">
         <div ref="{{ innerB }}" onScroll="{{ scrollB }}" style="position:absolute;inset:0;overflow:auto;scrollbar-width:none;padding-right:12px">
           <sc-for list="{{ names }}" as="n" hint-placeholder-count="12">
@@ -36,7 +36,7 @@
     </div>
     <div style="min-width:0;display:flex;flex-direction:column;gap:12px">
       <div style="font-size:14px;font-weight:500">C · Where each surface gets which</div>
-      <div style="font-size:12px;line-height:16px;color:#CAC4D0;text-wrap:pretty">One rule, not per-platform looks: <b style="color:#E6E0E9;font-weight:500">touch → A, pointer → B</b>, decided by the input that last touched the view, not by OS. Same 4dp/outline-70% thumb everywhere. Never the OS-native bar (Windows 17px, GTK overlay, macOS overlay) — those break the one-identity rule.</div>
+      <div style="font-size:12px;line-height:16px;color:#CAC4D0;text-wrap:pretty">One rule, not per-platform looks: <b style="color:#E6E0E9;font-weight:500">touch → A, pointer → B</b>, decided by the input that last touched the view, not by OS. Same 4dp/outline-70% thumb everywhere. Never the OS-native bar (Windows 17px, GTK overlay, macOS overlay), those break the one-identity rule.</div>
       <div style="flex:1 1 auto;min-height:0;overflow:auto;border:1px solid #26262E;border-radius:12px;padding:4px 0">
         <sc-for list="{{ surfaces }}" as="s" hint-placeholder-count="5">
           <div style="display:flex;align-items:center;gap:16px;min-height:56px;padding:8px 16px;box-sizing:border-box"><div style="flex:1 1 auto;min-width:0"><div style="font-size:14px">{{ s.name }}</div><div style="font-size:12px;color:#CAC4D0;margin-top:2px">{{ s.note }}</div></div><span style="font-size:12px;font-weight:500;color:#D0BCFF;white-space:nowrap">{{ s.rule }}</span></div>
@@ -44,7 +44,7 @@
       </div>
     </div>
   </div>
-  <div style="flex:0 0 auto;padding:8px 16px;border-top:1px solid #26262E;color:#8E8894;font-size:11px;line-height:14px;font-family:ui-monospace,monospace;background:#000;position:relative">SCROLL-A — values read from androidx compose/material3 Scrollbar.kt (NonInteractiveScrollbarDefaults). B is this project's desktop extension; MD3 has no interactive scrollbar spec.</div>
+  <div style="flex:0 0 auto;padding:8px 16px;border-top:1px solid #26262E;color:#8E8894;font-size:11px;line-height:14px;font-family:ui-monospace,monospace;background:#000;position:relative">SCROLL-A: values read from androidx compose/material3 Scrollbar.kt (NonInteractiveScrollbarDefaults). B is this project's desktop extension; MD3 has no interactive scrollbar spec.</div>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:640}}">
@@ -101,9 +101,9 @@ class Component extends DCLogic {
       },
       upB: () => this.setState((st) => ({ b: { ...st.b, drag: false } })),
       surfaces: [
-        { name: "Folder picker — names", note: "Wrapped chips; ~2 screens for a big letter", rule: "A / B by input" },
-        { name: "Folder picker — letter rail", note: "27 × 48dp, 1,296dp tall; scrolls on its own", rule: "none — rail is its own index" },
-        { name: "Track list", note: "72dp rows; 16–200 per folder", rule: "A / B by input" },
+        { name: "Folder picker, names", note: "Wrapped chips; ~2 screens for a big letter", rule: "A / B by input" },
+        { name: "Folder picker, letter rail", note: "27 × 48dp, 1,296dp tall; scrolls on its own", rule: "none, rail is its own index" },
+        { name: "Track list", note: "72dp rows; 16 to 200 per folder", rule: "A / B by input" },
         { name: "Cover screen track list", note: "Touch only", rule: "A" },
         { name: "Settings, menus, dialogs", note: "Never taller than the screen", rule: "none" }
       ]

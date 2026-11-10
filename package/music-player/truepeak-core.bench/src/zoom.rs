@@ -22,22 +22,12 @@
 
 /// Imports the corpus track record.
 use crate::corpus::Track;
+/// Imports the bench's one dBTP conversion.
+use crate::levels::peak_dbtp_or_silence;
 /// Imports the max-heap driving the frontier expansion.
 use std::collections::BinaryHeap;
 /// Imports the safe-provenance path set for split-margin reporting.
 use std::collections::HashSet;
-/// Imports the shared dB conversion.
-use truepeak_core::peak_dbtp;
-
-/// Convert a linear peak to dBTP,
-///  treating silence as a very negative level.
-fn db(peak: f64) -> f64 {
-    if peak <= 0.0 {
-        return f64::NEG_INFINITY
-    } else {
-        return peak_dbtp(peak)
-    }
-}
 
 /// One probed long track:
 ///  its true level,
@@ -179,8 +169,8 @@ pub fn evaluate_zoom(
         let (peak, used_secs) = zoom_probe(track, pass1_coverage, total_coverage);
         decoded += used_secs;
         rows.push(ZoomRow {
-            full_db: db(f64::from(track.full_peak)),
-            probe_db: db(peak),
+            full_db: peak_dbtp_or_silence(f64::from(track.full_peak)),
+            probe_db: peak_dbtp_or_silence(peak),
             safe: safe_paths.contains(&track.path),
         });
     }
@@ -263,3 +253,14 @@ pub fn zoom_under_read_quantile(rows: &[ZoomRow], ceiling_dbtp: f64, fraction: f
     let index = ((values.len() as f64 - 1.0) * fraction).round() as usize;
     return values.get(index).copied().unwrap_or(0.0)
 }
+
+/// What:
+///  `#[cfg(test)] #[path = "zoom_tests.rs"] mod tests;`.
+///  Test-only submodule in the sibling file,
+///  gated to test builds.
+/// Why:
+///  keep this file to production code;
+///  sibling `*_tests.rs` is max-lines exempt.
+#[cfg(test)]
+#[path = "zoom_tests.rs"]
+mod tests;

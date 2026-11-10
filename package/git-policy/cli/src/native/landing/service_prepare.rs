@@ -223,7 +223,7 @@ pub fn prepare<F: RepositoryFacts>(
         };
         let (tree, combined): (String, Vec<MergedFile>) = match merge_captured(&site, again.captured, base.as_str(), again.attempt)? {
             Merged::Conflict(paths) => {
-                let landed = first_landed(context, cwd, again.captured.base.as_str(), base.as_str(), paths.as_slice())?;
+                let landed = first_landed(context, cwd, (!again.captured.unborn).then_some(again.captured.base.as_str()), base.as_str(), paths.as_slice())?;
                 return Ok(Prepared::Conflict(Box::new(ReplayConflict { paths, landed, git_dir: capture.layout.git_dir.clone() })));
             }
             Merged::Tree(tree) => (tree, Vec::new()),

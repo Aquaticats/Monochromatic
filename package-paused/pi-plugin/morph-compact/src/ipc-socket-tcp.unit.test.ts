@@ -5,6 +5,10 @@
  @module
  */
 
+import { execFile, } from 'node:child_process';
+import { fileURLToPath, } from 'node:url';
+import { promisify, } from 'node:util';
+
 import {
   describe,
   expect,
@@ -15,6 +19,57 @@ import {
   type OneShotTcpServerResult,
   readFromTcpSocket,
 } from './ipc-socket-tcp.ts';
+
+/**
+ Payload the child-process probe reads before it is expected to exit.
+ */
+const PROBE_TEXT = 'settled-read';
+
+/**
+ Milliseconds the child-process probe may live, far below the 10-second read
+ timeout and far above the settle time of a successful read.
+ */
+const CHILD_EXIT_BUDGET_MS = 3_000;
+
+/**
+ Run a script that imports this module in a fresh process and return its output.
+
+ The probe proves process-exit behaviour, which the reader's own timeout can
+ only express through the event loop: a scheduled timer keeps the child alive.
+
+ @param body - Script body appended after the module import
+
+ @returns Trimmed child stdout
+
+ @throws when the child exits non-zero or is killed at the exit budget
+ */
+async function runProbeChild(body: string,): Promise<string> {
+  /**
+   Module URL the probe script imports the reader under test from.
+   */
+  const moduleUrl = new URL(
+    './ipc-socket-tcp.ts',
+    import.meta.url,
+  ).href;
+  /**
+   Complete probe script: import the module, then run the caller's steps.
+   */
+  const script = `import * as moduleUnderTest from ${JSON.stringify(moduleUrl,)};\n`
+    + body;
+  const { stdout, } = await promisify(execFile,)(
+    process.execPath,
+    [
+      '--input-type=module-typescript',
+      '--eval',
+      script,
+    ],
+    {
+      cwd: fileURLToPath(new URL('.', import.meta.url,),),
+      timeout: CHILD_EXIT_BUDGET_MS,
+    },
+  );
+  return stdout.trim();
+}
 
 /** Wrap a TCP server result so `using` calls cleanup automatically. */
 function usingTcpServer(
@@ -134,6 +189,18 @@ await describe({
               expect(error,).toBeDefined();
             }
             expect(caught,).toBe(true,);
+          },
+        },),
+        it({
+          name: 'lets the reading process exit once the read settles',
+          timeout: 15_000,
+          fn: async () => {
+            const childOutput = await runProbeChild(`
+const { address } = await moduleUnderTest.createOneShotTcpServer(${JSON.stringify(PROBE_TEXT,)});
+const text = await moduleUnderTest.readFromTcpSocket(address);
+console.log(text);
+`,);
+            expect(childOutput,).toBe(PROBE_TEXT,);
           },
         },),
       ],
