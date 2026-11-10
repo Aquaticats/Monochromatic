@@ -82,7 +82,7 @@ await describe({
       children: [
         it({
           name: 'formats provider and id',
-          fn: async function testCanonicalSlug() {
+          fn: async function testCanonicalSlug(): Promise<void> {
             expect(canonicalSlug(cheapModel,),).toBe('cheap/reviewer',);
           },
         },),
@@ -93,7 +93,7 @@ await describe({
       children: [
         it({
           name: 'parses provider/model slugs',
-          fn: async function testParseProviderSlug() {
+          fn: async function testParseProviderSlug(): Promise<void> {
             expect(parseProviderModelSlug('openai/gpt-5.5',),).toEqual({
               provider: 'openai',
               modelId: 'gpt-5.5',
@@ -102,7 +102,7 @@ await describe({
         },),
         it({
           name: 'returns MALFORMED_SLUG for malformed slugs',
-          fn: async function testMalformedProviderSlug() {
+          fn: async function testMalformedProviderSlug(): Promise<void> {
             expect(parseProviderModelSlug('gpt-5.5',),).toBe(MALFORMED_SLUG,);
           },
         },),
@@ -113,7 +113,7 @@ await describe({
       children: [
         it({
           name: 'returns final slash-delimited segment',
-          fn: async function testModelIdLeaf() {
+          fn: async function testModelIdLeaf(): Promise<void> {
             expect(getModelIdLeaf({ modelId: 'synthetic/hf:org/model', },),).toBe('model',);
           },
         },),
@@ -124,7 +124,7 @@ await describe({
       children: [
         it({
           name: 'formats scoped slugs and empty scopes',
-          fn: async function testAllowedSlugs() {
+          fn: async function testAllowedSlugs(): Promise<void> {
             expect(allowedSlugs(scope,),).toBe('cheap/reviewer, expensive/reviewer',);
             expect(allowedSlugs({ source: 'available', entries: [], },),).toBe('none',);
           },
@@ -136,7 +136,7 @@ await describe({
       children: [
         it({
           name: 'accepts canonical scoped slug',
-          fn: async function testCanonicalResolution() {
+          fn: async function testCanonicalResolution(): Promise<void> {
             const result = resolveRequestedModel({
               scope,
               requestedSlug: 'expensive/reviewer',
@@ -148,7 +148,7 @@ await describe({
         },),
         it({
           name: 'rejects ambiguous bare id',
-          fn: async function testAmbiguousBareId() {
+          fn: async function testAmbiguousBareId(): Promise<void> {
             const error = captureError(function resolveAmbiguousBareId() {
               return resolveRequestedModel({
                 scope,
@@ -163,7 +163,7 @@ await describe({
         },),
         it({
           name: 'distinguishes out-of-scope and unknown slugs',
-          fn: async function testOutOfScopeAndUnknown() {
+          fn: async function testOutOfScopeAndUnknown(): Promise<void> {
             const outOfScope = captureError(function resolveOutOfScope() {
               return resolveRequestedModel({
                 scope,

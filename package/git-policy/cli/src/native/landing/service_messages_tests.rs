@@ -37,6 +37,10 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::WithdrawalUnconfirmed { blocker: Some(String::from("monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes and has not heard back: `git update-ref --stdin` in /work/repo (it moves refs/heads/main to abc123; the commit is also at refs/worktree/cli-git-service/7 until the update ends).")) },
         ClientFailure::Refused,
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
+        ClientFailure::ReferenceLocked {
+            branch: String::from("main"),
+            words: String::from("Nothing proves that a Git process still holds the lock `/work/repo/.git/refs/heads/main.lock`. If no Git process is running in this repository, remove it with `rm -- /work/repo/.git/refs/heads/main.lock`."),
+        },
         ClientFailure::Unavailable,
         ClientFailure::ProgramMissing(String::from("/opt/monochromatic-git-policy-cli/cli-git-service")),
         ClientFailure::CouldNotStart(String::from("the runtime directory has no space left")),
@@ -66,6 +70,7 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::ServiceSilentAfterPreparing { .. } => 24,
         ClientFailure::Refused => 9,
         ClientFailure::IndexInUse(_) => 10,
+        ClientFailure::ReferenceLocked { .. } => 25,
         ClientFailure::Unavailable => 11,
         ClientFailure::ProgramMissing(_) => 12,
         ClientFailure::CouldNotStart(_) => 13,

@@ -230,6 +230,16 @@ mod merge_isolation;
 #[path = "binary_word_merge_tests.rs"]
 mod word_merge;
 
+/// The stand-in Git that holds the second pass at its own attribute query,
+/// so a control of the pass acts inside the pass itself.
+#[path = "binary_word_merge_pass_gate.rs"]
+mod word_merge_pass_gate;
+
+/// The gate's own control:
+/// a command that never asks for the attribute leaves the control woken by the command's end.
+#[path = "binary_word_merge_pass_gate_tests.rs"]
+mod word_merge_pass_gate_guard;
+
 /// The finish after the second pass:
 /// the operation ends like a clean run,
 /// and `--no-commit`,
@@ -481,6 +491,13 @@ mod service_pruned;
 /// never re-read.
 #[path = "binary_service_replay_tests.rs"]
 mod service_replay;
+
+/// A commit whose branch write meets a reference lock:
+/// the wait for a live holder,
+/// and the lock that nothing proves gone,
+/// named with the command that clears it.
+#[path = "binary_service_reference_lock_tests.rs"]
+mod service_reference_lock;
 
 /// A backup push the service made after a commit returned and the remote refused,
 /// shown by the next wrapper command.
