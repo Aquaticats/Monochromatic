@@ -11,5 +11,8 @@
   "files": [
     "src/",
     "LICENSES"
-  ]
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/test-harness-core": "workspace:*"
+  }
 }

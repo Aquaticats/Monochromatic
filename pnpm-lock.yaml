@@ -4898,7 +4898,11 @@ importers:
         specifier: workspace:*
         version: link:../css-imported-no-exports
 
-  package/test-fixture/data-sequence: {}
+  package/test-fixture/data-sequence:
+    devDependencies:
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
 
   package/test-fixture/effect-subject-toml-edit:
     devDependencies:
