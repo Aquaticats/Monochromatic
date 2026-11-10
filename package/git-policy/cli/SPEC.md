@@ -11549,18 +11549,24 @@ A merge that settling finishes says so on standard error,
 naming the ref it landed on and the merge commit,
 because the command may have been run only to look at the worktree;
 the same line names the ref a merge was abandoned on when the branch moved while it was prepared.
-Settling writes the index only after waiting,
+Settling writes the index only after deciding what another program's `index.lock` allows,
+so a program that holds the index does not end every command in that worktree.
+A merge that already installed part of its checkout waits for the lock,
 bounded and naming the holder,
-for any program's `index.lock`,
-so a program that holds the index does not end every command in that worktree;
-a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
-leaves the record and the checkout as they were,
-and the next command finishes the same merge.
-That leaving alone is for a merge that installed nothing:
-when the merge's index entries or files are already installed and the index stays held,
+and a lock that outlasts `MERGE_LOCK_CEILING` writes nothing:
+the record and the checkout stay as they were,
 the command is stopped and told the lock,
 the record and what is installed,
 because a command that went on would read the half-installed merge as another session's staged work.
+A merge that installed nothing is settled from one look at the lock instead
+(`merge_isolation_recovery_index_lock.rs`):
+nothing of it is in the checkout,
+so a command says where the merge is saved and goes on at once,
+and the next command finishes the merge once the lock is free,
+because the owner's rule is "nothing should ever wait forever or indefinitely".
+A lock whose Git lock PID file names a process that no longer runs is cleared on the commit service's proof of disuse,
+exactly as the merge's own path clears it,
+and the merge goes on rather than every command exiting 2 until the person deletes the file.
 A staged entry for a path the merge changes is judged before the take and written after it,
 so another command that stages one of those paths inside that window replaces a version this command never read:
 the standings are read once,
