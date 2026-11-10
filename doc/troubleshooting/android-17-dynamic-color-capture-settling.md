@@ -186,30 +186,30 @@ an app mapping change from an Android palette change.
 
 ## Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   No.
-   SystemUI applies observed settings
-   asynchronously,
-   and Compose correctly reads resolved Android resources.
-2. **Can upstream fix it?**
-   No upstream change is needed;
-   the capture consumer must wait for
-   the resource boundary it depends on.
-3. **Are they supporting this use case?**
-   Dynamic resources and diagnostic dumps are
-   supported surfaces;
-   direct customization-setting injection is a local test technique.
-4. **Would the repositories welcome our contribution?**
-   Not evaluated because no defect
-   remains after consumer-side synchronization.
-5. **Will they likely fix it?**
-   Not applicable.
-6. **Have we prototyped a minimal fix?**
-   Yes.
-   The verified capture task waits on SystemUI,
-   resolved roles,
-   Compose content,
-   and an explicit display.
+1.  **Is it really upstream's fault?**
+    No.
+    SystemUI applies observed settings
+    asynchronously,
+    and Compose correctly reads resolved Android resources.
+2.  **Can upstream fix it?**
+    No upstream change is needed;
+    the capture consumer must wait for
+    the resource boundary it depends on.
+3.  **Are they supporting this use case?**
+    Dynamic resources and diagnostic dumps are
+    supported surfaces;
+    direct customization-setting injection is a local test technique.
+4.  **Would the repositories welcome our contribution?**
+    Not evaluated because no defect
+    remains after consumer-side synchronization.
+5.  **Will they likely fix it?**
+    Not applicable.
+6.  **Have we prototyped a minimal fix?**
+    Yes.
+    The verified capture task waits on SystemUI,
+    resolved roles,
+    Compose content,
+    and an explicit display.
 
 No matching exemption exists under `.out-of-scope/`.
  There is no upstream issue to file.

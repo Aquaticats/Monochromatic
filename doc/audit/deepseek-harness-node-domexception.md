@@ -32,7 +32,7 @@ where `DOMException` is native
 (<https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e/package.json#L7-L10>,
 <https://nodejs.org/docs/latest-v22.x/api/globals.html#class-domexception>).
 
-**Assessment:**
+Assessment:
  this is a medium dependency-packaging and documentation-hygiene finding,
 not a meaningful runtime-security finding by itself.
 The sloppy part is not a mistaken direct polyfill import.
@@ -283,17 +283,17 @@ and replacing it with `node-domexception` 2 would retain a deprecated package wi
 
 The appropriate actions are complementary:
 
-1. Correct `packages/llm/llm-pi-ai/README.md` to say the adapter is default-installed but dormant until configured.
-2. Decide whether multi-provider support justifies default installation.
-   If it does,
-    document the closure honestly.
-   If it does not,
-    remove `dsh-llm-pi-ai` from `dsh-base` and make provider installation a real opt-in boundary.
-3. Add a lockfile-deprecation inventory gate with reviewed allowlist entries,
-   so known upstream blockers remain visible without making every transitive warning an immediate release failure.
-4. Track upstream removal through `fetch-blob` pull request 176 and Google's `gaxios` transport.
-   The durable fix is for the Google path to stop defaulting to `node-fetch`,
-   or for the provider SDK closure to become separable.
+1.  Correct `packages/llm/llm-pi-ai/README.md` to say the adapter is default-installed but dormant until configured.
+2.  Decide whether multi-provider support justifies default installation.
+    If it does,
+     document the closure honestly.
+    If it does not,
+     remove `dsh-llm-pi-ai` from `dsh-base` and make provider installation a real opt-in boundary.
+3.  Add a lockfile-deprecation inventory gate with reviewed allowlist entries,
+    so known upstream blockers remain visible without making every transitive warning an immediate release failure.
+4.  Track upstream removal through `fetch-blob` pull request 176 and Google's `gaxios` transport.
+    The durable fix is for the Google path to stop defaulting to `node-fetch`,
+    or for the provider SDK closure to become separable.
 
 The dependency is untidy dead weight on DeepSeek's runtime floor.
 The evidence supports criticizing package-boundary and documentation choices,

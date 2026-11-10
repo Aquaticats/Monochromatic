@@ -266,28 +266,28 @@ Both threads and comments were read.
 The first search invocation used an incorrectly quoted repository qualifier;
  rerunning with `--repo earendil-works/pi` produced the cited results.
 
-1. **Upstream fault:**
-    The requested call-local Advisor routing policy is our extension's responsibility.
-   The tested adapter preserves the reported diagnostic;
-    no upstream fix is required to implement this request.
-2. **Upstream fixability:**
-    Structured error fields could improve integration,
-    but this task does not depend on them.
-3. **Supported use case:**
-    Pi documents custom providers,
-    nested tools,
-    cancellation signals,
-    and top-level nested usage in its extension documentation.
-4. **Contribution policy:**
-    Pi's `CONTRIBUTING.md` requires human-voiced issue prose
-    or clearly AI-labelled follow-up comments and prior approval for pull requests.
-   This does not authorize an upstream filing from this interview.
-5. **Maintainer direction:**
-    The related threads contain automated new-contributor closure comments,
-    not a technical rejection of this task's consumer-side solution.
-6. **Prototype:**
-    The network-free consumer probe verifies the relevant contract.
-   No upstream patch is needed because the fault criterion does not hold for the requested routing policy.
+1.  **Upstream fault:**
+     The requested call-local Advisor routing policy is our extension's responsibility.
+    The tested adapter preserves the reported diagnostic;
+     no upstream fix is required to implement this request.
+2.  **Upstream fixability:**
+     Structured error fields could improve integration,
+     but this task does not depend on them.
+3.  **Supported use case:**
+     Pi documents custom providers,
+     nested tools,
+     cancellation signals,
+     and top-level nested usage in its extension documentation.
+4.  **Contribution policy:**
+     Pi's `CONTRIBUTING.md` requires human-voiced issue prose
+     or clearly AI-labelled follow-up comments and prior approval for pull requests.
+    This does not authorize an upstream filing from this interview.
+5.  **Maintainer direction:**
+     The related threads contain automated new-contributor closure comments,
+     not a technical rejection of this task's consumer-side solution.
+6.  **Prototype:**
+     The network-free consumer probe verifies the relevant contract.
+    No upstream patch is needed because the fault criterion does not hold for the requested routing policy.
 
 Nothing additive is being filed upstream.
 The structured-error concern already has an issue;

@@ -196,29 +196,29 @@ There is nothing additive to post.
 
 The filing gate is not met:
 
-1. Upstream fault:
-    no.
-   `Node.js` exposes underlying directory order;
-   the repository now normalizes it at the consumer boundary.
-2. Upstream fixability:
-    technically yes.
-   A global sort would be an upstream behavior change,
-    not a repair of a defect.
-3. Supported use case:
-    no documented `Node.js` guarantee covers deterministic
-   glob ordering for generated configuration.
-4. Contribution welcome:
-    `nodejs/node@v26.5.0:CONTRIBUTING.md` welcomes
-   contributions,
-    but it requires explicit authorization before external
-   automation interacts with the project.
-   No such authorization exists for this diagnosis.
-5. Likely upstream resolution:
-    no basis exists to expect a change to documented
-   native-order behavior.
-6. Compatible upstream prototype:
-    not applicable.
-   The consumer-side fix is complete because the first constraint fails.
+1.  Upstream fault:
+     no.
+    `Node.js` exposes underlying directory order;
+    the repository now normalizes it at the consumer boundary.
+2.  Upstream fixability:
+     technically yes.
+    A global sort would be an upstream behavior change,
+     not a repair of a defect.
+3.  Supported use case:
+     no documented `Node.js` guarantee covers deterministic
+    glob ordering for generated configuration.
+4.  Contribution welcome:
+     `nodejs/node@v26.5.0:CONTRIBUTING.md` welcomes
+    contributions,
+     but it requires explicit authorization before external
+    automation interacts with the project.
+    No such authorization exists for this diagnosis.
+5.  Likely upstream resolution:
+     no basis exists to expect a change to documented
+    native-order behavior.
+6.  Compatible upstream prototype:
+     not applicable.
+    The consumer-side fix is complete because the first constraint fails.
 
 No issue,
  comment,

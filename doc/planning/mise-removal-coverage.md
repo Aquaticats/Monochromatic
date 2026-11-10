@@ -1007,31 +1007,31 @@ Intentionally retired behavior:
 
 ## Safe migration sequence
 
-1. Validate file-enforcer as the canonical TypeScript compiler and pilot pnpm 12.4+ in a disposable workspace while Mise
+1.  Validate file-enforcer as the canonical TypeScript compiler and pilot pnpm 12.4+ in a disposable workspace while Mise
 remains installed.
-2. Select the remaining task,
+2.  Select the remaining task,
 tool,
 and environment boundaries from the pilot evidence.
-3. Move executable logic behind ordinary process interfaces that do not require Mise discovery,
+3.  Move executable logic behind ordinary process interfaces that do not require Mise discovery,
 templates,
 or environment variables.
 Keep thin Mise adapters so existing callers continue working.
-4. Run representative TypeScript,
+4.  Run representative TypeScript,
 Rust,
 Android,
 desktop,
 watch,
 deployment,
 and secret paths through both interfaces in disposable fixtures.
-5. Migrate CI,
+5.  Migrate CI,
 editor paths,
 root discovery,
 file-enforcer policy,
 agent tooling,
 and documentation only after their new owners pass their parity gates.
-6. Select and validate tool provisioning early,
+6.  Select and validate tool provisioning early,
 but cut it over after task and environment consumers no longer require Mise semantics.
-7. Remove Mise configuration and installation only after a clean-machine exercise passes without it.
+7.  Remove Mise configuration and installation only after a clean-machine exercise passes without it.
 
 Every step is an independently useful checkpoint.
 Keeping Mise solely for tool acquisition,

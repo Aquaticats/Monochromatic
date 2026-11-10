@@ -206,16 +206,16 @@ The move tool excuses a placeholder by what the live tree holds at its path
 
 No filing.
 
-1. Not btrfs's fault:
-   the placeholder is how btrfs shows a nested subvolume that a snapshot does not contain,
-   and a send carrying no subvolume it was not asked to send is correct.
-   The defect is ours:
-   the wrapper leaves a placeholder of another add's stage in a new worktree.
-2. Not applicable.
-3. Not applicable.
-4. Not applicable.
-5. Not applicable.
-6. Not applicable.
+1.  Not btrfs's fault:
+    the placeholder is how btrfs shows a nested subvolume that a snapshot does not contain,
+    and a send carrying no subvolume it was not asked to send is correct.
+    The defect is ours:
+    the wrapper leaves a placeholder of another add's stage in a new worktree.
+2.  Not applicable.
+3.  Not applicable.
+4.  Not applicable.
+5.  Not applicable.
+6.  Not applicable.
 
 `.out-of-scope/` was not consulted,
 since nothing is filed.

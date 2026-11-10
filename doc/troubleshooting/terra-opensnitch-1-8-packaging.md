@@ -473,35 +473,35 @@ Copying an agent-written draft into the issue would violate that policy.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   Yes,
-    where upstream means Terra packaging.
-   The OpenSnitch source contains the required data.
-   Its own RPM recipe demonstrates both prefix correction and configuration installation.
-2. **Can upstream fix it?**
-   Yes.
-   The package spec controls runtime requirements,
-    installed data,
-    and unit rewriting.
-3. **Are they supporting this use case?**
-   Yes.
-   Terra ships the package for Fedora 44,
-    and issue 15904 requested an out-of-box working service.
-4. **Would the repo welcome our contribution?**
-   Not as agent-authored external text.
-   Terra accepts package fixes,
-   but its AI policy explicitly prohibits LLM-written issue comments and pull request descriptions.
-5. **Will they likely fix it?**
-   There is positive maintenance evidence:
-   PR 15995 was merged for the first report,
-    and a maintainer backported it to Fedora branches.
-   This is evidence of active maintenance,
-    not a prediction of timing.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Partially.
-   The linked spec patch covers the measured activation blockers and passes its structural positive-control harness.
-   It has not passed a Terra package build or installed-runtime test,
-    so it does not satisfy the full prototype gate.
+1.  **Is it really upstream's fault?**
+    Yes,
+     where upstream means Terra packaging.
+    The OpenSnitch source contains the required data.
+    Its own RPM recipe demonstrates both prefix correction and configuration installation.
+2.  **Can upstream fix it?**
+    Yes.
+    The package spec controls runtime requirements,
+     installed data,
+     and unit rewriting.
+3.  **Are they supporting this use case?**
+    Yes.
+    Terra ships the package for Fedora 44,
+     and issue 15904 requested an out-of-box working service.
+4.  **Would the repo welcome our contribution?**
+    Not as agent-authored external text.
+    Terra accepts package fixes,
+    but its AI policy explicitly prohibits LLM-written issue comments and pull request descriptions.
+5.  **Will they likely fix it?**
+    There is positive maintenance evidence:
+    PR 15995 was merged for the first report,
+     and a maintainer backported it to Fedora branches.
+    This is evidence of active maintenance,
+     not a prediction of timing.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Partially.
+    The linked spec patch covers the measured activation blockers and passes its structural positive-control harness.
+    It has not passed a Terra package build or installed-runtime test,
+     so it does not satisfy the full prototype gate.
 
 Constraints 4 and 6 fail.
 Nothing should be posted or filed from this document.

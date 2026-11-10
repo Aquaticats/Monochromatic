@@ -338,17 +338,17 @@ Nothing to file,
  and nothing was filed or commented.
 The 6-constraint check stops at the first constraint:
 
-1. **Is it really upstream's fault?
-   ** No.
-    Darwin has no `posix_fadvise`;
-    rustix
-   gates the wrapper out on exactly the targets that lack the syscall and ships
-   the Apple `fcntl` equivalents under `#[cfg(apple)]` in the same module.
-    The
-   surprise is entirely on the consumer side:
-    a Linux-only call was written
-   without a target gate.
-    Constraints 2 through 6 are not reached.
+1.  **Is it really upstream's fault?
+    ** No.
+     Darwin has no `posix_fadvise`;
+     rustix
+    gates the wrapper out on exactly the targets that lack the syscall and ships
+    the Apple `fcntl` equivalents under `#[cfg(apple)]` in the same module.
+     The
+    surprise is entirely on the consumer side:
+     a Linux-only call was written
+    without a target gate.
+     Constraints 2 through 6 are not reached.
 
 The one thing that could be improved upstream is the diagnostic,
  and rustc owns

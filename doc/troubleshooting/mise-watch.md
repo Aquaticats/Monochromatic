@@ -77,26 +77,26 @@ Versions under test:
 
 ### Why we would file this upstream
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    advertised but
-   silently dropped flags.
-2. **Can upstream fix it?
-   ** Yes;
-    forward the parsed flags to
-   the watchexec invocation.
-3. **Are they supporting this use case?
-   ** Implicitly;
-    the
-   flags appear in `--help`.
-4. **Will they likely fix it?
-   ** Plausible.
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    patch + DEBUG output
-   comparison below.
-    Diff lives in
-   [mise-watch.patch](mise-watch.patch).
+1.  **Is it really upstream's fault?
+    ** Yes;
+     advertised but
+    silently dropped flags.
+2.  **Can upstream fix it?
+    ** Yes;
+     forward the parsed flags to
+    the watchexec invocation.
+3.  **Are they supporting this use case?
+    ** Implicitly;
+     the
+    flags appear in `--help`.
+4.  **Will they likely fix it?
+    ** Plausible.
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     patch + DEBUG output
+    comparison below.
+     Diff lives in
+    [mise-watch.patch](mise-watch.patch).
 
 Decision:
  worth raising as an issue;
@@ -408,25 +408,25 @@ hash) for the editord-on-editord path it already covered.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** No;
-    the OS reports
-   `Modify(Data(Any))` for "same bytes" writes because the
-   kernel cannot tell them apart from "different bytes".
-    The
-   watcher behaves correctly.
-2. **Can upstream fix it?
-   ** Not in watchexec;
-    the data is
-   not there to filter on.
-3. **Are they supporting this use case?
-   ** Yes;
-    the `-j`
-   filter program exists for exactly this.
-4. **Will they likely fix it?
-   ** N/A.
-5. **Have we prototyped a minimal fix?
-   ** N/A.
+1.  **Is it really upstream's fault?
+    ** No;
+     the OS reports
+    `Modify(Data(Any))` for "same bytes" writes because the
+    kernel cannot tell them apart from "different bytes".
+     The
+    watcher behaves correctly.
+2.  **Can upstream fix it?
+    ** Not in watchexec;
+     the data is
+    not there to filter on.
+3.  **Are they supporting this use case?
+    ** Yes;
+     the `-j`
+    filter program exists for exactly this.
+4.  **Will they likely fix it?
+    ** N/A.
+5.  **Have we prototyped a minimal fix?
+    ** N/A.
 
 Decision:
  no upstream report.
@@ -459,18 +459,18 @@ exponential backoff but always uses the original token from
 
 A token file at `$TMPDIR/editord-<port>.token` persists the token across restarts:
 
-1. **On startup**:
-    check if the token file exists and its mtime is within 3 seconds.
-   If so,
-    reuse the token (auto-restart detected).
-    Otherwise generate a fresh UUID.
-2. **While running**:
-    re-write the token file every 1 second to keep its mtime fresh.
-3. **On SIGTERM** (auto-restart from watchexec):
-    stop the mtime touch interval
-   but **keep the token file** so the next instance finds it fresh.
-4. **On SIGINT** (user Ctrl+C):
-    delete the token file since no restart is expected.
+1.  **On startup**:
+     check if the token file exists and its mtime is within 3 seconds.
+    If so,
+     reuse the token (auto-restart detected).
+     Otherwise generate a fresh UUID.
+2.  **While running**:
+     re-write the token file every 1 second to keep its mtime fresh.
+3.  **On SIGTERM** (auto-restart from watchexec):
+     stop the mtime touch interval
+    but **keep the token file** so the next instance finds it fresh.
+4.  **On SIGINT** (user Ctrl+C):
+     delete the token file since no restart is expected.
 
 The 3-second freshness window is wide enough to cover the gap between
 watchexec killing the old process and spawning the new one (typically < 500ms)
@@ -569,29 +569,29 @@ rather than by careful argv composition.
 
 ### Why we do not file this upstream
 
-1. **Is it really upstream's fault?
-   ** Borderline.
-    The task shell
-   does not propagate signals to child processes by default;
-   mise inherits that behaviour.
-    Both are documented.
-2. **Can upstream fix it?
-   ** mise could opt to spawn child
-   processes that forward signals;
-    the task shell could change its
-   default.
-    Both are large behaviour changes.
-3. **Are they supporting this use case?
-   ** Yes for direct
-   `bun` invocations;
-    the deep-tree case is a side effect.
-4. **Will they likely fix it?
-   ** No targeted fix expected.
-5. **Have we prototyped a minimal fix?
-   ** Bypass at our
-   boundary:
-    flat process tree via direct watchexec/bun
-   invocation.
+1.  **Is it really upstream's fault?
+    ** Borderline.
+     The task shell
+    does not propagate signals to child processes by default;
+    mise inherits that behaviour.
+     Both are documented.
+2.  **Can upstream fix it?
+    ** mise could opt to spawn child
+    processes that forward signals;
+     the task shell could change its
+    default.
+     Both are large behaviour changes.
+3.  **Are they supporting this use case?
+    ** Yes for direct
+    `bun` invocations;
+     the deep-tree case is a side effect.
+4.  **Will they likely fix it?
+    ** No targeted fix expected.
+5.  **Have we prototyped a minimal fix?
+    ** Bypass at our
+    boundary:
+     flat process tree via direct watchexec/bun
+    invocation.
 
 Decision:
  no upstream report.
@@ -724,35 +724,35 @@ before the first event arrives.
 
 When SIGINT fires:
 
-1. The action handler calls `quit(action)` which schedules
-   `action.quit_gracefully(stop_signal, stop_timeout)`
-   (`crates/cli/src/config.rs:298-322`).
-2. `bun` receives SIGTERM,
-    runs its shutdown,
-    exits.
-3. The action worker breaks out of its loop
-   (`crates/lib/src/action/worker.rs:63-86`).
-4. The main task ends and runs `tasks.shutdown().await`
-   (`crates/lib/src/watchexec.rs:191-193`),
-    aborting the remaining async
-   workers.
-5. `wx.main().await` resolves,
-    `run_watchexec` returns,
-    `run` returns,
-   the async block in `main()` completes,
-    `block_on` returns.
-6. The `tokio::runtime::Runtime` drops.
-    Drop waits for `spawn_blocking`
-   tasks to finish naturally (they cannot be aborted).
-7. The `FilterProgs` blocking thread is still parked in
-   `receiver.blocking_recv()` because the cycle is keeping `Arc<Config>`
-   alive,
-    which keeps `Arc<WatchexecFilterer>` alive,
-    which keeps the
-   `Sender` alive,
-    which keeps the channel open.
-8. The runtime never releases its threads;
-    the process never exits.
+1.  The action handler calls `quit(action)` which schedules
+    `action.quit_gracefully(stop_signal, stop_timeout)`
+    (`crates/cli/src/config.rs:298-322`).
+2.  `bun` receives SIGTERM,
+     runs its shutdown,
+     exits.
+3.  The action worker breaks out of its loop
+    (`crates/lib/src/action/worker.rs:63-86`).
+4.  The main task ends and runs `tasks.shutdown().await`
+    (`crates/lib/src/watchexec.rs:191-193`),
+     aborting the remaining async
+    workers.
+5.  `wx.main().await` resolves,
+     `run_watchexec` returns,
+     `run` returns,
+    the async block in `main()` completes,
+     `block_on` returns.
+6.  The `tokio::runtime::Runtime` drops.
+     Drop waits for `spawn_blocking`
+    tasks to finish naturally (they cannot be aborted).
+7.  The `FilterProgs` blocking thread is still parked in
+    `receiver.blocking_recv()` because the cycle is keeping `Arc<Config>`
+    alive,
+     which keeps `Arc<WatchexecFilterer>` alive,
+     which keeps the
+    `Sender` alive,
+     which keeps the channel open.
+8.  The runtime never releases its threads;
+     the process never exits.
 
 Without `-j`,
  no `FilterProgs` and no `spawn_blocking` task is created,
@@ -809,29 +809,29 @@ behind (stage 2).
 
 Earlier alternatives considered:
 
-1. Keep `-j` and recover the terminal manually after Ctrl+C:
-   `pkill -9 -f 'watchexec -w src/server'`.
-    Rejected because every dev
-   session needs manual cleanup.
-2. Drop `-j` with no replacement filter.
-    Rejected because the dogfooding
-   case (editord editing editord's source) restarts on every Ctrl+S,
-    even
-   when no content changed,
-    which kills WebSocket connections and LSP
-   servers.
-3. Custom TypeScript watcher replacing watchexec entirely.
-    Initially
-   rejected as over-scoped (stage 1);
-    revisited and adopted in stage 2
-   once the external-editor format-on-save case and the architectural
-   failure modes (SIGINT hang,
-    deep-tree signal propagation) were
-   weighed against the implementation cost.
-    Lives at
-   `package/watch-restart/cli/`;
-    see its README for the chokidar
-   - custom `child_process.spawn` rationale.
+1.  Keep `-j` and recover the terminal manually after Ctrl+C:
+    `pkill -9 -f 'watchexec -w src/server'`.
+     Rejected because every dev
+    session needs manual cleanup.
+2.  Drop `-j` with no replacement filter.
+     Rejected because the dogfooding
+    case (editord editing editord's source) restarts on every Ctrl+S,
+     even
+    when no content changed,
+     which kills WebSocket connections and LSP
+    servers.
+3.  Custom TypeScript watcher replacing watchexec entirely.
+     Initially
+    rejected as over-scoped (stage 1);
+     revisited and adopted in stage 2
+    once the external-editor format-on-save case and the architectural
+    failure modes (SIGINT hang,
+     deep-tree signal propagation) were
+    weighed against the implementation cost.
+     Lives at
+    `package/watch-restart/cli/`;
+     see its README for the chokidar
+    - custom `child_process.spawn` rationale.
 
 ### What does not work
 
@@ -861,30 +861,30 @@ Earlier alternatives considered:
 
 All 5 constraints hold:
 
-1. **Is it really upstream's fault?
-   ** Yes;
-    the Arc cycle
-   keeping `FilterProgs`' channel sender alive past shutdown
-   is the root cause.
-2. **Can upstream fix it?
-   ** Yes;
-    two concrete patches sketched
-   in the draft below (Weak capture in the action handler,
-    or
-   explicit Drop/Notify shutdown for FilterProgs).
-3. **Are they supporting this use case?
-   ** Yes;
-    `-j` is a
-   first-class CLI feature.
-4. **Will they likely fix it?
-   ** Plausible;
-    watchexec is
-   actively maintained.
-5. **Have we prototyped a minimal fix?
-   ** Yes;
-    the Weak-capture
-   variant from the draft.
-    See "Verified prototype" below.
+1.  **Is it really upstream's fault?
+    ** Yes;
+     the Arc cycle
+    keeping `FilterProgs`' channel sender alive past shutdown
+    is the root cause.
+2.  **Can upstream fix it?
+    ** Yes;
+     two concrete patches sketched
+    in the draft below (Weak capture in the action handler,
+     or
+    explicit Drop/Notify shutdown for FilterProgs).
+3.  **Are they supporting this use case?
+    ** Yes;
+     `-j` is a
+    first-class CLI feature.
+4.  **Will they likely fix it?
+    ** Plausible;
+     watchexec is
+    actively maintained.
+5.  **Have we prototyped a minimal fix?
+    ** Yes;
+     the Weak-capture
+    variant from the draft.
+     See "Verified prototype" below.
 
 Decision:
  worth filing.

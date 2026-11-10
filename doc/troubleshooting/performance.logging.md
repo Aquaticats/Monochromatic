@@ -347,24 +347,24 @@ The `.out-of-scope/` entries contain no matching logger exemption.
 tracks this exact premise;
  there is no second issue or additive upstream comment to file.
 
-1. **Upstream fault?**
-    No:
-    the severity paths and sink behavior are working as implemented;
-   the former troubleshooting note was wrong.
-2. **Fixable upstream?**
-    Yes:
-    this repository can correct its own documentation.
-3. **Supported use case?**
-    Yes:
-    tagged severity methods and console filtering are public APIs.
-4. **Contribution welcome?**
-    This is our own repository,
-    not an outside contribution.
-5. **Likely fix?**
-    The existing issue requests verification and correction if the premise fails.
-6. **Minimal fix prototyped?**
-    Not applicable to a logger defect:
-    the measured resolution is
-   to retain the calls and correct the documentation.
+1.  **Upstream fault?**
+     No:
+     the severity paths and sink behavior are working as implemented;
+    the former troubleshooting note was wrong.
+2.  **Fixable upstream?**
+     Yes:
+     this repository can correct its own documentation.
+3.  **Supported use case?**
+     Yes:
+     tagged severity methods and console filtering are public APIs.
+4.  **Contribution welcome?**
+     This is our own repository,
+     not an outside contribution.
+5.  **Likely fix?**
+     The existing issue requests verification and correction if the premise fails.
+6.  **Minimal fix prototyped?**
+     Not applicable to a logger defect:
+     the measured resolution is
+    to retain the calls and correct the documentation.
 
 There is nothing to add to a separate upstream filing.

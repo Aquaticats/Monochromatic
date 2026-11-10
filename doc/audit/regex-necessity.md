@@ -72,57 +72,57 @@ A repo-owned annotation is not an external contract.
 Enumeration had to see justified sites too,
  so suppression directives could not simply be honoured.
 
-1. Mirror every `.ts`,
-   `.tsx`,
-   `.mts`,
-   `.cts`,
-   `.js`,
-   `.jsx`,
-   `.mjs`,
-   and `.cjs` file in the working tree into a scratch tree
-   (`build-mirror.mjs`,
-   6996 files),
-   rewriting `oxlint-disable` to `oxlint-xisable` and `oxlint-enable` to `oxlint-xnable`.
-   Both replacements are the same byte length,
-   so line and column positions are unchanged.
-2. Run the repository's own `no-restricted-syntax/no-regex` rule over the mirror with a
-   scratch config whose `ignorePatterns` is empty and whose only enabled rule is `no-regex`.
-   The detector is therefore the parser-backed rule the gate uses,
-   not a text search.
-3. Map each diagnostic back to the original path and slice the exact source text on UTF-8
-   byte offsets.
-   oxlint spans are byte offsets,
-   so slicing code units drifts on any file containing non-ASCII;
-   an early version of this harness had that bug and mis-sliced every pattern in
-   `package/music-player/design/settings-pane.mjs`.
-4. Dedupe on `(offset, length)`.
-   Chained calls such as `md.replaceAll(/a/, '').replaceAll(/b/, '')` report one diagnostic
-   per call with the same start offset and different lengths,
-   and the regex belonging to a given call is the last literal inside its span.
-   Keying on line and column instead collapsed 14 distinct sites into 4 and would have
-   published duplicate issue bodies.
-5. Recompute directive ranges from the original text
-   (block `disable` to matching `enable` or end of file,
-   plus `disable-next-line` and `disable-line`),
-   so each site is attributed to the justification that actually covers it.
-6. Classify necessity,
-   derive the replacement shape from a tokenizer over the pattern body
-   (literals,
-   character classes,
-   quantifiers,
-   groups,
-   anchors,
-   boundaries,
-   lookbehind),
-   and resolve the owning package from the nearest `mise.toml` and `package.json`.
-7. Cover the surfaces a JavaScript rule cannot see:
-   extract every `<script>` block from tracked HTML,
-   Vue,
-   and Astro files into mirror `.js` files and scan them with the same rule
-   (`extract-html.mjs`,
-   102 blocks from 162 files),
-   and enumerate Kotlin and inline YAML script strings by text search with each hit read
-   individually.
+1.  Mirror every `.ts`,
+    `.tsx`,
+    `.mts`,
+    `.cts`,
+    `.js`,
+    `.jsx`,
+    `.mjs`,
+    and `.cjs` file in the working tree into a scratch tree
+    (`build-mirror.mjs`,
+    6996 files),
+    rewriting `oxlint-disable` to `oxlint-xisable` and `oxlint-enable` to `oxlint-xnable`.
+    Both replacements are the same byte length,
+    so line and column positions are unchanged.
+2.  Run the repository's own `no-restricted-syntax/no-regex` rule over the mirror with a
+    scratch config whose `ignorePatterns` is empty and whose only enabled rule is `no-regex`.
+    The detector is therefore the parser-backed rule the gate uses,
+    not a text search.
+3.  Map each diagnostic back to the original path and slice the exact source text on UTF-8
+    byte offsets.
+    oxlint spans are byte offsets,
+    so slicing code units drifts on any file containing non-ASCII;
+    an early version of this harness had that bug and mis-sliced every pattern in
+    `package/music-player/design/settings-pane.mjs`.
+4.  Dedupe on `(offset, length)`.
+    Chained calls such as `md.replaceAll(/a/, '').replaceAll(/b/, '')` report one diagnostic
+    per call with the same start offset and different lengths,
+    and the regex belonging to a given call is the last literal inside its span.
+    Keying on line and column instead collapsed 14 distinct sites into 4 and would have
+    published duplicate issue bodies.
+5.  Recompute directive ranges from the original text
+    (block `disable` to matching `enable` or end of file,
+    plus `disable-next-line` and `disable-line`),
+    so each site is attributed to the justification that actually covers it.
+6.  Classify necessity,
+    derive the replacement shape from a tokenizer over the pattern body
+    (literals,
+    character classes,
+    quantifiers,
+    groups,
+    anchors,
+    boundaries,
+    lookbehind),
+    and resolve the owning package from the nearest `mise.toml` and `package.json`.
+7.  Cover the surfaces a JavaScript rule cannot see:
+    extract every `<script>` block from tracked HTML,
+    Vue,
+    and Astro files into mirror `.js` files and scan them with the same rule
+    (`extract-html.mjs`,
+    102 blocks from 162 files),
+    and enumerate Kotlin and inline YAML script strings by text search with each hit read
+    individually.
 
 ## Results
 
@@ -151,18 +151,18 @@ Enumeration had to see justified sites too,
   (the constructor beside it stays necessary),
   and the string branch of `toMatch` in
   `package/module/test-expect/src/expect-matchers-core.ts:294`.
-- **1069 sites in untracked files**:
+- 1069 sites in untracked files:
   gitignored local artifacts,
   dominated by `src/canary-lint/<model>/<probe>/canary.ts`,
   which `package-paused/dev-script/inference-canary/README.md` documents as generated model
   outputs,
   gitignored but preserved locally.
   Editing them would falsify a measurement record.
-- **165 sites in `package/module/deepmerge-ts.fuzz/src/declared-type-soundness.generated.ts`**:
+- 165 sites in `package/module/deepmerge-ts.fuzz/src/declared-type-soundness.generated.ts`:
   generated corpus data marked "Do not edit",
   where each `new RegExp("x", "gu")` is a leaf value the merge must handle.
   Excluded as generated and classified necessary.
-- **1 site in `package/module/conf-fork.fuzz/upstream-conf/index.ts`**:
+- 1 site in `package/module/conf-fork.fuzz/upstream-conf/index.ts`:
   a vendored upstream snapshot under `@ts-nocheck`,
   whose value is that it matches upstream.
 - **The directories the mirror skipped** (`bundle`,
@@ -319,7 +319,7 @@ All timings are Node v26.11.1 on this machine,
   so the seven sites plus `anchoredExternal` and `escapePackageNameForRegExp` in
   `package/config/rolldown/src/package-externals.ts` must migrate as one change,
   and each issue in that group says so.
-  **Correction (2026-10-17):**
+  Correction (2026-10-17):
   this bullet read the TypeScript declaration surface and stopped there.
   Tracing rolldown's Rust source at tag `v1.2.13` shows the `RegExp` entries never
   execute as JavaScript:
@@ -430,7 +430,7 @@ No issue is filed for it until that work is done.
 Completeness needs the negative results too,
  each with the search that produced it.
 
-- **Dot-directories the mirror skipped**:
+- Dot-directories the mirror skipped:
   `.agents`,
   `.cargo`,
   `.changeset`,
@@ -443,7 +443,7 @@ Completeness needs the negative results too,
   and `.serena` hold exactly one tracked JS or TS file between them,
   `.changeset/changelog.ts`,
   which contains no regex.
-- **Shell-tool regex**:
+- Shell-tool regex:
   every tracked hit for `grep -E`,
   `sed -E`,
   `sed -r`,
@@ -458,12 +458,12 @@ Completeness needs the negative results too,
   and replacing them would mean telling the reader to write a program instead of a
   command.
   Out of scope by decision.
-- **`mise.toml` task bodies and `Caddyfile`**:
+- `mise.toml` task bodies and `Caddyfile`:
   no `grep -E`,
   `sed -E`,
   `=~`,
   or Caddy regexp matcher.
-- **Other declarative surfaces**:
+- Other declarative surfaces:
   Slint,
   CSS,
   and Dockerfile files carry no regex constructs.

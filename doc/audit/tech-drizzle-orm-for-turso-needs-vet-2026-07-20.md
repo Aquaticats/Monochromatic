@@ -39,18 +39,18 @@
 
 Identical decision context to the Prisma report:
 
-1. Drive the embedded `@tursodatabase/database` engine used by the active packages
-   (`package/webapp-productivity/done`,
-   `done-postcss`).
-2. Preserve the native search surface
-   (Turso's Tantivy-backed experimental index method:
-   `CREATE INDEX ... USING fts`,
-   `fts_match()`,
-   `fts_score()`,
-   behind `experimental: ['index_method']`).
-   This is not SQLite FTS5;
-   the engine ships no FTS5 at all
-   (`doc/troubleshooting/turso-fts5-native-fts.md`).
+1.  Drive the embedded `@tursodatabase/database` engine used by the active packages
+    (`package/webapp-productivity/done`,
+    `done-postcss`).
+2.  Preserve the native search surface
+    (Turso's Tantivy-backed experimental index method:
+    `CREATE INDEX ... USING fts`,
+    `fts_match()`,
+    `fts_score()`,
+    behind `experimental: ['index_method']`).
+    This is not SQLite FTS5;
+    the engine ships no FTS5 at all
+    (`doc/troubleshooting/turso-fts5-native-fts.md`).
 
 Base category:
 inspectable open-source local technology.
@@ -198,21 +198,21 @@ Route B,
 
 ### Hard-gate outcomes
 
-1. Drive the embedded engine:
-   **pass**,
-   two routes,
-   both exercised at the consumer boundary.
-2. Preserve the native search surface:
-   **pass**;
-   `fts_match`/`fts_score` compose naturally inside Drizzle's `sql` template
-   with column references and bound parameters,
-   and the native index self-maintains across Drizzle-issued DML.
-   The `USING fts` DDL itself stays raw SQL:
-   Drizzle's schema DSL cannot express it,
-   but the active packages already hand-roll migrations
-   (`package/webapp-productivity/done`,
-    `src/lib/db-migrations.ts`),
-   so no drizzle-kit dependency is required or proposed.
+1.  Drive the embedded engine:
+    **pass**,
+    two routes,
+    both exercised at the consumer boundary.
+2.  Preserve the native search surface:
+    **pass**;
+    `fts_match`/`fts_score` compose naturally inside Drizzle's `sql` template
+    with column references and bound parameters,
+    and the native index self-maintains across Drizzle-issued DML.
+    The `USING fts` DDL itself stays raw SQL:
+    Drizzle's schema DSL cannot express it,
+    but the active packages already hand-roll migrations
+    (`package/webapp-productivity/done`,
+     `src/lib/db-migrations.ts`),
+    so no drizzle-kit dependency is required or proposed.
 
 ### Route ranking
 

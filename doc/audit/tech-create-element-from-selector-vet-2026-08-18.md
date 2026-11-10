@@ -854,9 +854,9 @@ Cons:
 
 ## Ranking
 
-1. Keep `hDom` and add no shorthand now.
-2. Add a clean descriptor helper beside `hDom` when the first qualifying consumer appears.
-3. Create a standalone descriptor package now.
+1.  Keep `hDom` and add no shorthand now.
+2.  Add a clean descriptor helper beside `hDom` when the first qualifying consumer appears.
+3.  Create a standalone descriptor package now.
 
 The first option ranks over the helper because current callers are already served,
 while a speculative parser would add interface knowledge and verification work without current leverage.

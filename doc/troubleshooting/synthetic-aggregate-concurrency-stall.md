@@ -279,21 +279,21 @@ Listed so the report does not overclaim.
 
 ## Questions for Synthetic
 
-1. Is per-account aggregate concurrency (across different models)
-   limited or deprioritized in a way that is separate from the
-   documented per-model-per-pack concurrency?
-2. Is the vendor asymmetry expected,
-   for example different queuing policies per upstream GPU provider?
-3. Are the instant clustered 502s on large simultaneous dispatch an
-   intentional burst gate,
-   and if so,
-   what dispatch pacing do you recommend?
-4. Do client-aborted streaming requests keep consuming account
-   concurrency server-side after the abort,
-   and for how long?
-5. Is there anything about this account's state on 2026-07-17 between
-   03:39 and 04:15 UTC (for example an automatic penalty triggered by
-   the earlier burst) that would explain the collapse?
+1.  Is per-account aggregate concurrency (across different models)
+    limited or deprioritized in a way that is separate from the
+    documented per-model-per-pack concurrency?
+2.  Is the vendor asymmetry expected,
+    for example different queuing policies per upstream GPU provider?
+3.  Are the instant clustered 502s on large simultaneous dispatch an
+    intentional burst gate,
+    and if so,
+    what dispatch pacing do you recommend?
+4.  Do client-aborted streaming requests keep consuming account
+    concurrency server-side after the abort,
+    and for how long?
+5.  Is there anything about this account's state on 2026-07-17 between
+    03:39 and 04:15 UTC (for example an automatic penalty triggered by
+    the earlier burst) that would explain the collapse?
 
 ## What we can provide on request
 

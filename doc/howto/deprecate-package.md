@@ -66,14 +66,16 @@ dependencies,
 ## Prerequisites
 
 - `pnpm whoami` returns your npm username (pnpm is authenticated against npm).
-- `npm whoami` returns your username too — npm CLI auth is **separate** from
+- `npm whoami` returns your username too;
+  npm CLI auth is **separate** from
   pnpm's.
    If `npm whoami` fails with `ENEEDAUTH`,
    run `npm login` in a
   visible terminal before the deprecate step.
 - 2FA OTP available (pnpm publish prompts for it interactively in a real
   terminal;
-   pnpm deprecate does not — you must use `npm deprecate` for the
+   pnpm deprecate does not;
+  you must use `npm deprecate` for the
   deprecation marker).
 - The package's source is in a publishable state (no secrets,
    license
@@ -335,7 +337,8 @@ Do not rely on `pnpm view`;
 
 ### 9. Deprecate on the registry
 
-`pnpm deprecate` does **not** handle 2FA OTP — it surfaces the
+`pnpm deprecate` does **not** handle 2FA OTP;
+it surfaces the
 `ERR_PNPM_UNAUTHORIZED: You must provide a one-time pass. Upgrade your
 client to npm@latest in order to use 2FA` error without prompting.
  Use
@@ -397,7 +400,8 @@ the publishable package's local `node_modules`;
 `--force` reinstall,
  `--no-frozen-lockfile`,
  full `rm -rf node_modules`
-followed by fresh install — none of these create the symlink.
+followed by fresh install;
+none of these create the symlink.
  Other
 workspace deps in the same `devDependencies` block do symlink normally.
 

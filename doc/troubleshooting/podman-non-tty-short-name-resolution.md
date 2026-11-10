@@ -420,35 +420,35 @@ The same remedy applies to the SingleFile image's fully qualified name.
 
 The six constraints are:
 
-1. **Is it really upstream's fault?**
-    No defect was established.
-   Podman emits the documented,
-    source-confirmed result of enforcing mode with ambiguous registries and no TTY.
-2. **Can upstream fix it?**
-    Mechanically yes,
-    but silently choosing a registry would alter the security policy.
-   Existing configuration and qualified-name paths already represent the intended solutions.
-3. **Are they supporting this use case?**
-    Yes for non-interactive pulls with unambiguous references.
-   Podman's pull documentation recommends fully qualified references and explains aliases.
-4. **Would the repo welcome our contribution?**
-    Generally yes.
-   The checked `README.md`,
-   `CONTRIBUTING.md`,
-   `ISSUE.md`,
-   `SUPPORT.md`,
-   `.github/ISSUE_TEMPLATE.md`,
-   and `.github/PULL_REQUEST_TEMPLATE.md` describe external reports and changes.
-   [`CONTRIBUTING.md`][contributing] asks for reproducible bug reports.
-   A recent external-contributor change was merged as [pull request 29682][pr-29682].
-   No prohibition on AI-assisted reports was found in those files.
-5. **Will they likely fix it?**
-    No for the behavior reported here.
-   [Issue 11530][issue-11530] records the maintainer's intended-behavior decision.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-    Not applicable.
-   Constraints 1 and 5 fail.
-   The verified configuration paths solve the caller's ambiguity without an upstream patch.
+1.  **Is it really upstream's fault?**
+     No defect was established.
+    Podman emits the documented,
+     source-confirmed result of enforcing mode with ambiguous registries and no TTY.
+2.  **Can upstream fix it?**
+     Mechanically yes,
+     but silently choosing a registry would alter the security policy.
+    Existing configuration and qualified-name paths already represent the intended solutions.
+3.  **Are they supporting this use case?**
+     Yes for non-interactive pulls with unambiguous references.
+    Podman's pull documentation recommends fully qualified references and explains aliases.
+4.  **Would the repo welcome our contribution?**
+     Generally yes.
+    The checked `README.md`,
+    `CONTRIBUTING.md`,
+    `ISSUE.md`,
+    `SUPPORT.md`,
+    `.github/ISSUE_TEMPLATE.md`,
+    and `.github/PULL_REQUEST_TEMPLATE.md` describe external reports and changes.
+    [`CONTRIBUTING.md`][contributing] asks for reproducible bug reports.
+    A recent external-contributor change was merged as [pull request 29682][pr-29682].
+    No prohibition on AI-assisted reports was found in those files.
+5.  **Will they likely fix it?**
+     No for the behavior reported here.
+    [Issue 11530][issue-11530] records the maintainer's intended-behavior decision.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+     Not applicable.
+    Constraints 1 and 5 fail.
+    The verified configuration paths solve the caller's ambiguity without an upstream patch.
 
 There is nothing additive to post on issue 11530.
 The existing thread already records the non-TTY failure,

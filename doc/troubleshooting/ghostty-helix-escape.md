@@ -320,33 +320,33 @@ No exact physical-Escape intermittent duplicate was found.
 
 The six constraints are:
 
-1. **Is it really upstream's fault?**
-   Not established.
-   The failing keypress was not captured at either side of the PTY,
+1.  **Is it really upstream's fault?**
+    Not established.
+    The failing keypress was not captured at either side of the PTY,
 and both source trees contain the expected physical Escape path.
-2. **Can upstream fix it?**
-   Unknown until the failing boundary is identified.
-   Ghostty,
-   Crossterm,
-   or Helix could fix a defect in their owned layer if evidence locates one.
-3. **Are they supporting this use case?**
-   Yes in general.
-   Ghostty encodes physical Escape,
-   and Helix explicitly negotiates enhanced keyboard input and maps parsed Escape events.
-4. **Would the repositories welcome the contribution?**
-   Ghostty requires an issue-triage discussion,
-   first-contributor vouch,
-   human review,
-   and AI disclosure under `CONTRIBUTING.md` and `AI_POLICY.md`.
-   Helix's `docs/CONTRIBUTING.md` welcomes tested bug fixes and has no AI prohibition in the inspected policy.
-5. **Will they likely fix it?**
-   Unknown because no actionable report identifies an owned defect.
-   No matching tracker thread contains maintainer direction.
-6. **Have we prototyped a minimal compatible fix?**
-   No.
-   Constraints 1 and 5 fail,
-   so the automatic prototype requirement does not trigger.
-   Changing either source tree without a red-capable reproduction would be speculation.
+2.  **Can upstream fix it?**
+    Unknown until the failing boundary is identified.
+    Ghostty,
+    Crossterm,
+    or Helix could fix a defect in their owned layer if evidence locates one.
+3.  **Are they supporting this use case?**
+    Yes in general.
+    Ghostty encodes physical Escape,
+    and Helix explicitly negotiates enhanced keyboard input and maps parsed Escape events.
+4.  **Would the repositories welcome the contribution?**
+    Ghostty requires an issue-triage discussion,
+    first-contributor vouch,
+    human review,
+    and AI disclosure under `CONTRIBUTING.md` and `AI_POLICY.md`.
+    Helix's `docs/CONTRIBUTING.md` welcomes tested bug fixes and has no AI prohibition in the inspected policy.
+5.  **Will they likely fix it?**
+    Unknown because no actionable report identifies an owned defect.
+    No matching tracker thread contains maintainer direction.
+6.  **Have we prototyped a minimal compatible fix?**
+    No.
+    Constraints 1 and 5 fail,
+    so the automatic prototype requirement does not trigger.
+    Changing either source tree without a red-capable reproduction would be speculation.
 
 Nothing should be filed upstream from the current evidence.
 The following draft is deliberately marked do not file as-is:

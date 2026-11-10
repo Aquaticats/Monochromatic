@@ -478,53 +478,53 @@ There is nothing additive to post there about Starship behavior.
 
 The six filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?**
-   No.
-   Starship selected `git` through `PATH`,
-   invoked a documented Git query,
-   enforced its configured timeout,
-   and emitted the exact timeout diagnostic.
-   Cli-git supplied the avoidable delay.
-2. **Can upstream fix it?**
-   No upstream correction is needed for this incident.
-   Starship could add more command-selection configuration,
-   but that would be a separate feature and would not remove cli-git's resolver defect for other consumers.
-3. **Are they supporting this use case?**
-   Yes.
-   Starship's Git status implementation explicitly invokes external `for-each-ref` when upstream-status segments are
-   enabled.
-4. **Would the repo welcome our contribution?**
-   Generally yes for real performance defects.
-   Starship `CONTRIBUTING.md:15-19` explicitly says:
+1.  **Is it really upstream's fault?**
+    No.
+    Starship selected `git` through `PATH`,
+    invoked a documented Git query,
+    enforced its configured timeout,
+    and emitted the exact timeout diagnostic.
+    Cli-git supplied the avoidable delay.
+2.  **Can upstream fix it?**
+    No upstream correction is needed for this incident.
+    Starship could add more command-selection configuration,
+    but that would be a separate feature and would not remove cli-git's resolver defect for other consumers.
+3.  **Are they supporting this use case?**
+    Yes.
+    Starship's Git status implementation explicitly invokes external `for-each-ref` when upstream-status segments are
+    enabled.
+4.  **Would the repo welcome our contribution?**
+    Generally yes for real performance defects.
+    Starship `CONTRIBUTING.md:15-19` explicitly says:
 
-   > We aim to make starship as fast,
-   > robust and reliable as possible [...].
-   > If you spot anywhere that we could trim some time or reduce the prompt's workload,
-   > we will gladly accept new issues or PRs!
+    > We aim to make starship as fast,
+    > robust and reliable as possible [...].
+    > If you spot anywhere that we could trim some time or reduce the prompt's workload,
+    > we will gladly accept new issues or PRs!
 
-   Starship `AI_POLICY.md:11-31` requires disclosure,
-   human understanding,
-   and verified information:
+    Starship `AI_POLICY.md:11-31` requires disclosure,
+    human understanding,
+    and verified information:
 
-   > Every Pull Request that utilizes AI-assisted tooling [...] must disclose its usage.
-   > Contributors must fully understand all submitted contributions.
-   > You are not allowed to reply to user issues or discussions with unverified or raw AI-generated information.
+    > Every Pull Request that utilizes AI-assisted tooling [...] must disclose its usage.
+    > Contributors must fully understand all submitted contributions.
+    > You are not allowed to reply to user issues or discussions with unverified or raw AI-generated information.
 
-   `AI_POLICY.md:38-41` also says:
+    `AI_POLICY.md:38-41` also says:
 
-   > Contributions via OpenClaw,
-   > or any other unsupervised autonomous agent operating in an automated loop,
-   > are strictly prohibited.
+    > Contributions via OpenClaw,
+    > or any other unsupervised autonomous agent operating in an automated loop,
+    > are strictly prohibited.
 
-   No contribution is proposed because constraint 1 fails.
-5. **Will they likely fix it?**
-   Not applicable as an upstream defect.
-   Issue #3271 was closed after environment-specific remedies,
+    No contribution is proposed because constraint 1 fails.
+5.  **Will they likely fix it?**
+    Not applicable as an upstream defect.
+    Issue #3271 was closed after environment-specific remedies,
 and the v1.26.0 source still intentionally uses `PATH` and `command_timeout` for this call.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No Starship patch was prototyped because constraints 1 and 2 fail.
-   The minimal consumer fix was instead implemented and verified in cli-git.
-   The auto-prototype requirement is not triggered when the incident is not upstream's fault.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No Starship patch was prototyped because constraints 1 and 2 fail.
+    The minimal consumer fix was instead implemented and verified in cli-git.
+    The auto-prototype requirement is not triggered when the incident is not upstream's fault.
 
 ### Filing result
 

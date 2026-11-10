@@ -367,37 +367,37 @@ Rejected for this repository.
 Default policy is not to file.
 Walking the six constraints:
 
-1. **Is it really upstream's fault?**
-   No.
-   The behavior is deliberate and documented in the design discussion behind `cli/cli#2462`,
-   restated by a maintainer in `cli/cli#13452`,
-   and `cli/cli#13322` closed as `NOT_PLANNED`.
-   This is a design decision,
-   not a defect.
-2. **Can upstream fix it?**
-   Yes technically,
-   by printing metadata and body before the comment list on the non-terminal branch.
-   This constraint does not decide the outcome.
-3. **Are they supporting this use case?**
-   Yes.
-   The maintainer reply names the supported pattern for scripts:
-   fetch bodies and comment threads separately.
-4. **Would the repo welcome our contribution?**
-   Unlikely for this behavior.
-   `.github/CONTRIBUTING.md` at `v2.101.0` routes bug reports and enhancement requests through the
-   issue templates in `.github/ISSUE_TEMPLATE`,
-   and no ban on AI-assisted reports was found in that file or those templates.
-   The `github-actions[bot]` triage messages in `cli/cli#13452` state the team is not looking for
-   external contributions on enhancement-labeled issues without a `help wanted` label.
-5. **Will they likely fix it?**
-   No.
-   `cli/cli#13322` closed `NOT_PLANNED`,
-   and `cli/cli#13452` closed after a maintainer declared the behavior intended.
-   Both are direct signals against a change.
-6. **Have we prototyped a minimal fix?**
-   Not needed,
-   because constraints 1 and 5 already fail,
-   and the consumer-side workaround is in place and measured.
+1.  **Is it really upstream's fault?**
+    No.
+    The behavior is deliberate and documented in the design discussion behind `cli/cli#2462`,
+    restated by a maintainer in `cli/cli#13452`,
+    and `cli/cli#13322` closed as `NOT_PLANNED`.
+    This is a design decision,
+    not a defect.
+2.  **Can upstream fix it?**
+    Yes technically,
+    by printing metadata and body before the comment list on the non-terminal branch.
+    This constraint does not decide the outcome.
+3.  **Are they supporting this use case?**
+    Yes.
+    The maintainer reply names the supported pattern for scripts:
+    fetch bodies and comment threads separately.
+4.  **Would the repo welcome our contribution?**
+    Unlikely for this behavior.
+    `.github/CONTRIBUTING.md` at `v2.101.0` routes bug reports and enhancement requests through the
+    issue templates in `.github/ISSUE_TEMPLATE`,
+    and no ban on AI-assisted reports was found in that file or those templates.
+    The `github-actions[bot]` triage messages in `cli/cli#13452` state the team is not looking for
+    external contributions on enhancement-labeled issues without a `help wanted` label.
+5.  **Will they likely fix it?**
+    No.
+    `cli/cli#13322` closed `NOT_PLANNED`,
+    and `cli/cli#13452` closed after a maintainer declared the behavior intended.
+    Both are direct signals against a change.
+6.  **Have we prototyped a minimal fix?**
+    Not needed,
+    because constraints 1 and 5 already fail,
+    and the consumer-side workaround is in place and measured.
 
 Duplicate search performed with `gh search issues --repo cli/cli` over the phrases
 `issue view --comments`,

@@ -400,40 +400,40 @@ No existing report specifically documented `::1/128` reaching `VpnService.check`
 
 ### Upstream filing decision
 
-1. Is it really upstream's fault?
-   No for the platform rejection.
-   GrapheneOS intentionally rejects loopback VPN routes.
-   WG Tunnel could improve validation or skip a known-unsupported route with a warning,
-   but it cannot make Android route `::1`.
-2. Can upstream fix it?
-   Partially.
-   Upstream can identify the offending entry,
-   reject the config earlier,
-   or filter loopback routes.
-   Upstream cannot preserve the literal `::1/128` route through Android `VpnService`.
-3. Are they supporting this use case?
-   Not explicitly.
-   The README supports WireGuard and split tunneling,
-   but no docs,
-   examples,
-   or tests found during this investigation promise loopback `AllowedIPs` support.
-4. Would the repo welcome our contribution?
-   Yes in general.
-   The README says feedback,
-   issues,
-   code,
-   and translations are welcome.
-   The repository has a bug issue template.
-   No `CONTRIBUTING.md` or AI-report restriction was found in the checked tree.
-5. Will they likely fix it?
-   No direct signal for this exact loopback variant.
-   Issue [#229][issue-229] was closed after error handling improved,
-   and issue [#827][issue-827] was closed because large-list support would require major changes.
-6. Have we prototyped a minimal fix compatible with their architecture?
-   No upstream patch was prototyped.
-   The auto-prototype gate did not fire because constraints 1 and 3 fail.
-   The config-side fix is to remove the Android-unsupported loopback route.
-   End-to-end Android activation remains user-side verification.
+1.  Is it really upstream's fault?
+    No for the platform rejection.
+    GrapheneOS intentionally rejects loopback VPN routes.
+    WG Tunnel could improve validation or skip a known-unsupported route with a warning,
+    but it cannot make Android route `::1`.
+2.  Can upstream fix it?
+    Partially.
+    Upstream can identify the offending entry,
+    reject the config earlier,
+    or filter loopback routes.
+    Upstream cannot preserve the literal `::1/128` route through Android `VpnService`.
+3.  Are they supporting this use case?
+    Not explicitly.
+    The README supports WireGuard and split tunneling,
+    but no docs,
+    examples,
+    or tests found during this investigation promise loopback `AllowedIPs` support.
+4.  Would the repo welcome our contribution?
+    Yes in general.
+    The README says feedback,
+    issues,
+    code,
+    and translations are welcome.
+    The repository has a bug issue template.
+    No `CONTRIBUTING.md` or AI-report restriction was found in the checked tree.
+5.  Will they likely fix it?
+    No direct signal for this exact loopback variant.
+    Issue [#229][issue-229] was closed after error handling improved,
+    and issue [#827][issue-827] was closed because large-list support would require major changes.
+6.  Have we prototyped a minimal fix compatible with their architecture?
+    No upstream patch was prototyped.
+    The auto-prototype gate did not fire because constraints 1 and 3 fail.
+    The config-side fix is to remove the Android-unsupported loopback route.
+    End-to-end Android activation remains user-side verification.
 
 Decision:
  do not file as-is.

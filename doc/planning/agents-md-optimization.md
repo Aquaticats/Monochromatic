@@ -1324,6 +1324,7 @@ SPG:
  session type filter,
  transcript size check).
 ```
+
 ### Batch 12
 
 ```md
@@ -1416,6 +1417,7 @@ cxx-qt files exempt `use` + trait impls;
  tests/fuzz exempt;
  never disable.
 ```
+
 ### Batch 13
 
 ```md

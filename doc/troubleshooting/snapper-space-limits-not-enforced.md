@@ -525,46 +525,46 @@ duplicate.
 The six constraints,
 walked:
 
-1. **Is it really upstream's fault?**
-   No. The daily cleanup schedule comes from the
-   distribution's `snapper-cleanup.timer`,
-   not from snapper's code.
-   Reading `FREE_LIMIT` only
-   at cleanup time is the documented consequence of that design,
-   and the fix is local
-   scheduling or local configuration.
-2. **Can upstream fix it?**
-   Partially,
-   and only for a different complaint.
-   snapper cannot make
-   a distribution timer fire more often.
-   It could surface that `SPACE_LIMIT` is inoperative
-   while the qgroup is inconsistent,
-   instead of printing `0 B` and proceeding.
-3. **Are they supporting this use case?**
-   Yes.
-   Both limits are documented features in
-   `snapper-configs(5)`,
-   including absolute sizes since 0.9.0.
-4. **Would the repo welcome our contribution?**
-   Not established.
-   No `CONTRIBUTING.md` policy
-   check was run for this doc,
-   and no filing is proposed,
-   so this constraint is unevaluated
-   rather than failed.
-5. **Will they likely fix it?**
-   Unknown,
-   and not gated here because constraint 1 already
-   fails.
-   openSUSE/snapper#967 shows maintainers do engage on these two settings.
-6. **Have we prototyped a minimal fix?**
-   No. Constraint 1 fails,
-   so the auto-prototype step
-   does not trigger.
-   The effective fix on this system is configuration and scheduling,
-   both
-   recorded under "Verified workarounds".
+1.  **Is it really upstream's fault?**
+    No. The daily cleanup schedule comes from the
+    distribution's `snapper-cleanup.timer`,
+    not from snapper's code.
+    Reading `FREE_LIMIT` only
+    at cleanup time is the documented consequence of that design,
+    and the fix is local
+    scheduling or local configuration.
+2.  **Can upstream fix it?**
+    Partially,
+    and only for a different complaint.
+    snapper cannot make
+    a distribution timer fire more often.
+    It could surface that `SPACE_LIMIT` is inoperative
+    while the qgroup is inconsistent,
+    instead of printing `0 B` and proceeding.
+3.  **Are they supporting this use case?**
+    Yes.
+    Both limits are documented features in
+    `snapper-configs(5)`,
+    including absolute sizes since 0.9.0.
+4.  **Would the repo welcome our contribution?**
+    Not established.
+    No `CONTRIBUTING.md` policy
+    check was run for this doc,
+    and no filing is proposed,
+    so this constraint is unevaluated
+    rather than failed.
+5.  **Will they likely fix it?**
+    Unknown,
+    and not gated here because constraint 1 already
+    fails.
+    openSUSE/snapper#967 shows maintainers do engage on these two settings.
+6.  **Have we prototyped a minimal fix?**
+    No. Constraint 1 fails,
+    so the auto-prototype step
+    does not trigger.
+    The effective fix on this system is configuration and scheduling,
+    both
+    recorded under "Verified workarounds".
 
 Decision:
 do not file.
