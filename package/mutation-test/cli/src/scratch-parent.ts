@@ -37,15 +37,37 @@ export async function scratchParent(): Promise<string> {
     join,
   },);
   /**
+   User cache directory, the fallback when no enclosing project names a
+   `node_modules`.
+   */
+  const userCacheDirectory = process.env
+    .XDG_CACHE_HOME
+    ?? join(
+      homedir(),
+      '.cache',
+    );
+  /**
    Directory under which every monochromatic tool keeps its scratch.
    */
   const base = nodeModules === NO_NODE_MODULES_FOUND
-    ? join(process.env['XDG_CACHE_HOME'] ?? join(homedir(), '.cache',), 'monochromatic-dev',)
-    : join(nodeModules, '.monochromatic',);
+    ? join(
+      userCacheDirectory,
+      'monochromatic-dev',
+    )
+    : join(
+      nodeModules,
+      '.monochromatic',
+    );
   /**
    This tool's own scratch parent.
    */
-  const parent = join(base, 'mutation-test',);
-  await mkdir(parent, { recursive: true, },);
+  const parent = join(
+    base,
+    'mutation-test',
+  );
+  await mkdir(
+    parent,
+    { recursive: true, },
+  );
   return parent;
 }
