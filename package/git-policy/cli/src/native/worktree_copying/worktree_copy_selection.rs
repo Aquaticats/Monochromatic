@@ -18,7 +18,7 @@
 
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::path_bytes::{os_from_path_bytes, path_bytes_of};
-use crate::worktree_copy_prune::Prune;
+use crate::worktree_copy_prune::{Prune, names_a_private_stage};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use std::path::{Path, PathBuf};
 
@@ -209,7 +209,7 @@ fn special_entries(
             } else {
                 join_repository_path(current.as_slice(), name.as_slice())
             };
-            if repository_path == b".git" {
+            if repository_path == b".git" || names_a_private_stage(repository_path.as_slice()) {
                 continue;
             }
             let source_path: PathBuf = filesystem_path(source_root, repository_path.as_slice())?;

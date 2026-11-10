@@ -854,6 +854,10 @@ and symbolic links.
 Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
+The traversal that finds those entries never enters a directory whose name begins `.cli-git-worktree-copy-`,
+because that directory is another command's stage container:
+its payload is another worktree's ignored state,
+and a container its owner removes while a walk runs would otherwise end this command with a filesystem error.
 A selection that names repository paths asks about each one as `:(top,literal)<path>`,
 and that listing runs real Git with `--no-literal-pathspecs`,
 so a global pathspec mode (`GIT_LITERAL_PATHSPECS`,
