@@ -485,7 +485,7 @@ export default {
 
 Leave `task.ts` out of the project and read the warning as expected.
 Adding `${configDir}/task.ts` to the preset's `include` looks like the fix and
-breaks every package whose `task.ts` carries that import,
+breaks packages whose `task.ts` carries that import,
 because the import reaches source outside the package's `rootDir`:
 
 ```text
