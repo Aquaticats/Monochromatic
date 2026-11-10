@@ -28,6 +28,8 @@ import {
   type StubFixture,
 } from './stub-tools-fixture.ts';
 import {
+  blockBelow,
+  indentOf,
   type JobBlock,
   jobBlocks,
   runScripts,
@@ -61,15 +63,16 @@ const decisionVariable = 'GOES_TO_CRATES_IO';
  Read a repository file as text.
 
  @param path - repository-relative path
+
  @returns the file's text
  */
 async function readRepositoryFile(path: string): Promise<string> {
   return await readFile(
     join(
       root,
-      path
+      path,
     ),
-    'utf8'
+    'utf8',
   );
 }
 
@@ -81,12 +84,12 @@ const registry = await loadCrateRegistry({
     root,
     'package',
     'crate-release',
-    'cli'
+    'cli',
   ),
   readText: async function readText(path) {
     return await readFile(
       path,
-      'utf8'
+      'utf8',
     );
   },
 });
@@ -153,9 +156,10 @@ type StepResult = {
  Run a step's script the way GitHub runs it, with a bound on the wait.
 
  GitHub writes a step's `run:` body to an extensionless file and gives it to the interpreter the step's `shell:` names:
- `node {0}` for the decision action, and the default bash for a step that names none.
+ `node {0}` for the JavaScript steps, and the default bash for a step that names none.
 
- @param options - the fixture directory, the script, the interpreter, and the environment the step reads
+ @param options - the fixture directory, the script, its interpreter, the environment the step reads, and the working
+ directory the step declares
 
  @returns the status, stdout and stderr of the finished step
 
@@ -171,11 +175,13 @@ function runStep({
   script,
   shell,
   env,
+  cwd = fixture.directory,
 }: {
   readonly fixture: StubFixture;
   readonly script: string;
   readonly shell: string;
   readonly env: Readonly<Record<string, string>>;
+  readonly cwd?: string;
 }): StepResult {
   /**
    Whether the step runs the file through Node, as the `node {0}` shell in the action's step declares. The launcher is
@@ -186,19 +192,29 @@ function runStep({
    The command and its arguments: the interpreter with the script file, or bash with the script as its argument.
    */
   const command = runsNode ? process.execPath : 'bash';
-  const args = runsNode ? ['decide-action'] : ['-c', script];
+  const args = runsNode ? ['step-script'] : ['-c', script];
   if (runsNode)
-    writeFileSync(join(fixture.directory, 'decide-action'), script);
-  const child = spawnSync(command, args, {
-    cwd: fixture.directory,
-    env: {
-      ...fixture.environment(),
-      ...env,
+    writeFileSync(
+      join(
+        cwd,
+        'step-script',
+      ),
+      script,
+    );
+  const child = spawnSync(
+    command,
+    args,
+    {
+      cwd,
+      env: {
+        ...fixture.environment(),
+        ...env,
+      },
+      encoding: 'utf8',
+      timeout: stepTimeoutMilliseconds,
+      killSignal: 'SIGKILL',
     },
-    encoding: 'utf8',
-    timeout: stepTimeoutMilliseconds,
-    killSignal: 'SIGKILL',
-  });
+  );
   if (child.error !== undefined)
     throw new Error(
       `the ${shell} step did not finish within ${String(stepTimeoutMilliseconds)} ms`,
@@ -214,52 +230,10 @@ function runStep({
 }
 
 /**
- Jobs whose id is, or ends with, a suffix.
-
- @param suffix - end of the job id, after the crate prefix
- @returns the jobs in file order
- */
-function jobsEnding(suffix: string): readonly JobBlock[] {
-  return jobs.filter(function endsWithSuffix(job) {
-    return (job.id === suffix) || job.id.endsWith(`-${suffix}`);
-  });
-}
-
-/**
- Text every upload step holds before it publishes: the crates.io existence check that answers whether the version is
- already published, and the notice it logs instead of uploading a duplicate.
- */
-const cratesIoExistenceCheck = 'crates.io/api/v1/crates/';
-
-/**
- Text an upload step logs when the version is already on crates.io.
- */
-const duplicateUploadNotice = 'already on crates.io';
-
-/**
- The crate prefix of a job id: `ms-` for `ms-detect`, nothing for `detect`.
-
- @param id - job id
- @param suffix - end of the id
- @returns the prefix with its hyphen
- */
-function prefixOf({
-  id,
-  suffix,
-}: {
-  readonly id: string;
-  readonly suffix: string;
-}): string {
-  return id.slice(
-    0,
-    id.length - suffix.length
-  );
-}
-
-/**
  Text of a step without its comment lines.
 
  @param step - lines of the step
+
  @returns the step as text, so a word in a comment does not count
  */
 function stepText(step: readonly string[]): string {
@@ -274,6 +248,7 @@ function stepText(step: readonly string[]): string {
  A step line without its indentation and without the dash that starts the step.
 
  @param line - one line of a step
+
  @returns the line as a key and value
  */
 function withoutDash(line: string): string {
@@ -284,8 +259,8 @@ function withoutDash(line: string): string {
 /**
  The value of a `key: value` line of a step, or an empty text when there is none.
 
- @param step - lines of the step
- @param key - key without its colon
+ @param options - the step lines and the key without its colon
+
  @returns the value after the key
  */
 function stepValue({
@@ -304,39 +279,361 @@ function stepValue({
 }
 
 /**
- Words that mark a step as one that touches crates.io.
+ The text of a block value of a step, dedented.
+
+ @param options - the step lines and the key, which must hold a `|` block
+
+ @returns the block's text without the indentation the workflow gives it
+
+ @throws Error when the step has no such block
  */
-const cratesIoMarkers: readonly string[] = ['crates.io', 'cargo publish', 'cargo package', 'crates-io-auth'];
+function blockValue({
+  step,
+  key,
+}: {
+  readonly step: readonly string[];
+  readonly key: string;
+}): string {
+  const at = step.findIndex(function isKey(line) {
+    return withoutDash(line)
+      .trim() === `${key}: |`;
+  });
+  if (at === (-1))
+    throw new Error(`the step has no ${key}: | block`);
+  /**
+   The block's own indentation, two spaces below its key.
+   */
+  const blockIndent = indentOf(step[at] ?? '') + 2;
+  return blockBelow({
+    lines: step,
+    at,
+    stopsAt: blockIndent,
+  })
+    .map(function dedent(line) {
+      return line.trim() === '' ? '' : line.slice(blockIndent);
+    })
+    .join('\n');
+}
 
 /**
- Whether a step touches crates.io: it names crates.io, publishes, packages or logs in to the registry.
+ One descriptor of the workflow's crate list.
+ */
+type Descriptor = {
+  readonly key: string;
+  readonly crate: string;
+  readonly manifest: string;
+  readonly cache?: boolean;
+  readonly system_libs?: boolean;
+  readonly locked?: boolean;
+};
+
+/**
+ The job with a given id.
+
+ @param id - the job id
+
+ @returns the job
+
+ @throws Error when the workflow has no such job
+ */
+function jobWithId(id: string): JobBlock {
+  const job = jobs.find(function isJob(candidate) {
+    return candidate.id === id;
+  });
+  if (job === undefined)
+    throw new Error(`the workflow has no job ${id}`);
+  return job;
+}
+
+/**
+ The job that decides every crate's version bump.
+ */
+const detectJob = jobWithId('detect');
+
+/**
+ The job that publishes the crates detect selected.
+ */
+const publishJob = jobWithId('publish-crate');
+
+/**
+ Name of the step that waits for the sibling releases a run publishes, which must run before the package step.
+ */
+const siblingWaitStepName = 'Wait for the sibling releases this run publishes';
+
+/**
+ Job ids the workflow defines.
+ */
+const jobIds = new Set(jobs.map(function idOf(job) {
+  return job.id;
+}));
+
+/**
+ The create-release jobs, which all read the label of the version they release.
+ */
+const releaseJobs = jobs.filter(function isRelease(job) {
+  return (job.id === 'create-release') || job.id.endsWith('-create-release');
+});
+
+/**
+ The step of a job with a given id.
+
+ @param options - the job and the step id
+
+ @returns the lines of the step
+
+ @throws Error when the job has no such step
+ */
+function stepWithId({
+  job,
+  id,
+}: {
+  readonly job: JobBlock;
+  readonly id: string;
+}): readonly string[] {
+  const step = stepBlocks(job.lines)
+    .find(function isStep(candidate) {
+      return stepValue({
+        step: candidate,
+        key: 'id',
+      }) === id;
+    });
+  if (step === undefined)
+    throw new Error(`the job ${job.id} has no step with the id ${id}`);
+  return step;
+}
+
+/**
+ The script of a job step, read from the workflow.
+
+ @param options - the job and the step id
+
+ @returns the script text
+
+ @throws Error when the job or the step is missing, or the step holds no script
+ */
+function scriptOf({
+  job,
+  id,
+}: {
+  readonly job: JobBlock;
+  readonly id: string;
+}): string {
+  const [script] = runScripts(stepWithId({
+    job,
+    id,
+  }));
+  if (script === undefined)
+    throw new Error(`the step ${id} holds no script`);
+  return script.join('\n');
+}
+
+/**
+ The interpreter a step declares, or the runner's default bash.
 
  @param step - lines of the step
- @returns true for a step that must not run for a version that never goes to crates.io
+
+ @returns the `shell:` value, or the default bash for a step that names none
  */
-function touchesCratesIo(step: readonly string[]): boolean {
-  return cratesIoMarkers.some(function appearsInStep(marker) {
-    return stepText(step)
-      .includes(marker);
+function shellOf(step: readonly string[]): string {
+  const declared = stepValue({
+    step,
+    key: 'shell',
+  });
+  return declared === '' ? bashShell : declared;
+}
+
+/**
+ The step of the detect job that decides every crate's bump.
+
+ @returns the lines of the step
+
+ @throws Error when the workflow has no such step
+ */
+function detectStep(): readonly string[] {
+  return stepWithId({
+    job: detectJob,
+    id: 'detect',
   });
 }
 
 /**
- Whether a step reads the decision: it names the output, the variable, or the action that makes it.
+ The step of the publish job that waits for the sibling releases this run publishes.
 
- @param step - lines of the step
- @returns true when the step is the decision or reads it
+ @returns the lines of the step
+
+ @throws Error when the workflow has no such step
  */
-function readsDecision(step: readonly string[]): boolean {
-  const text = stepText(step);
-  return text.includes(decisionOutput) || text.includes(decisionVariable) || text.includes(decisionActionFolder);
+function waitStep(): readonly string[] {
+  const step = stepBlocks(publishJob.lines)
+    .find(function isWait(candidate) {
+      return stepValue({
+        step: candidate,
+        key: 'name',
+      }) === siblingWaitStepName;
+    });
+  if (step === undefined)
+    throw new Error('the publish job has no sibling wait step');
+  return step;
+}
+
+/**
+ The crate list the workflow carries: one descriptor per published crate.
+
+ @returns the descriptors, in the order the workflow lists them
+ */
+function descriptors(): readonly Descriptor[] {
+  return JSON.parse(blockValue({
+    step: detectStep(),
+    key: 'CRATES',
+  })) as Descriptor[];
+}
+
+/**
+ The crates the workflow describes, by their short key.
+ */
+const crateList = descriptors();
+
+/**
+ The characters a crate key is written in.
+ */
+const lowerCaseLetters = 'abcdefghijklmnopqrstuvwxyz';
+
+/**
+ The ids the per-crate phases of one crate would have: its build, release-state and release jobs.
+
+ The three jobs of forbidden-strings carry no prefix, because its phases came first in the workflow.
+
+ @param key - the crate's short key
+
+ @returns the job id of each phase, whether or not the workflow defines it
+ */
+function phaseJobIdsOf(key: string): readonly string[] {
+  const prefix = key === 'fs' ? '' : `${key}-`;
+  return ['build-binary', 'release-state', 'create-release']
+    .map(function idOf(phase) {
+      return `${prefix}${phase}`;
+    });
+}
+
+/**
+ Whether one crate has a per-crate phase job, which is what makes the detect job's outputs for it read.
+
+ @param key - the crate's short key
+
+ @returns true when at least one phase job of the crate exists
+ */
+function hasPerCratePhase(key: string): boolean {
+  return phaseJobIdsOf(key)
+    .some(function isDefined(id) {
+      return jobIds.has(id);
+    });
+}
+
+/**
+ The outputs the detect job declares, as keys.
+
+ @returns the declared output names
+ */
+function declaredOutputs(): Readonly<Record<string, string>> {
+  /**
+   Lines of the job from its `outputs:` key to its `steps:` key.
+   */
+  const { lines } = detectJob;
+  const outputsAt = lines.findIndex(function isOutputs(line) {
+    return line.trim() === 'outputs:';
+  });
+  const stepsAt = lines.findIndex(function isSteps(line) {
+    return line.trim() === 'steps:';
+  });
+  return Object.fromEntries(lines.slice(outputsAt + 1, stepsAt)
+    .filter(function isEntry(line) {
+      /**
+       The line without the six spaces an output key starts at.
+       */
+      const name = line.slice(6);
+      return (name !== '')
+        && (!name.startsWith(' '))
+        && (!name.startsWith('-'))
+        && (!name.startsWith('#'))
+        && (name.indexOf(':') > 0);
+    })
+    .map(function entry(line): [string, string] {
+      return [
+        line.slice(
+          6,
+          line.indexOf(':'),
+        ), '',
+      ];
+    }));
+}
+
+/**
+ Every output name that follows a marker on a line.
+
+ @param options - the line and the marker whose text ends just before the name
+
+ @returns one entry per occurrence, in line order
+ */
+function namesAfter({
+  line,
+  marker,
+}: {
+  readonly line: string;
+  readonly marker: string;
+}): readonly string[] {
+  /**
+   The characters an output names is written in.
+   */
+  const nameCharacters = 'abcdefghijklmnopqrstuvwxyz0123456789_';
+  const names: string[] = [];
+  let from = line.indexOf(marker);
+  while (from !== (-1)) {
+    const start = from + marker.length;
+    let end = start;
+    while ((end < line.length) && nameCharacters.includes(line[end] ?? ''))
+      end += 1;
+    if (end > start)
+      names.push(line.slice(start, end));
+    from = line.indexOf(marker, end);
+  }
+  return names;
+}
+
+/**
+ Versions the workflow's own text can hold on one manifest line: the ones of the label table without a line break.
+ */
+const manifestLineCases = labelCases.filter(function holdsNoBreak({ version }) {
+  return !version.includes('\n');
+});
+
+/**
+ Read a file GitHub's `$GITHUB_OUTPUT` holds as key and value pairs.
+
+ @param text - the file's text
+
+ @returns one entry per written key
+ */
+function outputsOf(text: string): Readonly<Record<string, string>> {
+  return Object.fromEntries(text.split('\n')
+    .filter(function nonBlank(line) {
+      return line !== '';
+    })
+    .map(function pair(line): [string, string] {
+      const equals = line.indexOf('=');
+      return [
+        line.slice(
+          0,
+          equals,
+        ), line.slice(equals + 1),
+      ];
+    }));
 }
 
 /**
  Run the decision action's script on a manifest that holds a version.
 
- @param fixture - stub fixture whose directory is the working directory
- @param version - version to write into the manifest
+ @param options - the fixture whose directory is the working directory, and the version to write
+
  @returns what the script wrote to its output file, as key and value pairs
  */
 async function decide({
@@ -352,7 +649,7 @@ async function decide({
   });
   await fixture.write({
     path: 'out',
-    text: ''
+    text: '',
   });
   const child = runStep({
     fixture,
@@ -362,176 +659,197 @@ async function decide({
       MANIFEST_PATH: 'Cargo.toml',
       GITHUB_OUTPUT: join(
         fixture.directory,
-        'out'
+        'out',
       ),
     },
   });
   expect(child.status).toBe(0);
-  return Object.fromEntries((await fixture.read('out')).split('\n')
-    .filter(function nonBlank(line) {
-      return line !== '';
-    })
-    .map(function pair(line): [string, string] {
-      const equals = line.indexOf('=');
-      return [line.slice(
-        0,
-        equals
-      ), line.slice(equals + 1)];
-    }));
+  return outputsOf(await fixture.read('out'));
 }
 
 /**
- Versions the workflow's own text can hold on one manifest line: the ones of the label table without a line break.
+ What the detect step decided in one run.
  */
-const manifestLineCases = labelCases.filter(function holdsNoBreak({ version }) {
-  return !version.includes('\n');
-});
-
-/**
- What one detect job shows the publish jobs, read from its text.
- */
-type DetectFacts = {
-  readonly id: string;
-  readonly crate: string;
-  readonly manifest: string;
-  readonly script: string;
+type DetectRun = {
+  readonly status: number;
+  readonly outputs: Readonly<Record<string, string>>;
+  readonly publishing: readonly Descriptor[];
+  readonly programs: readonly string[];
+  readonly stdout: string;
+  readonly stderr: string;
 };
 
 /**
- Read the single-quoted text that follows a marker.
+ Run the workflow's detect script over the crate list, once, as the job does.
 
- @param text - script text
- @param marker - text that ends just before the opening quote's content
- @param job - job id, for the message
- @returns the text up to the closing quote
- @throws Error when the marker or the closing quote is missing
+ @param options - the version the pre-push commit held, the crates whose manifest holds another version, the event, and
+ what the stubs answer
+
+ @returns what the run wrote, which crates it selected, and the programs it started
+
+ @example
+ ```ts
+ await runDetect({ event: 'push', previous: '0.1.0', versions: { nws: '0.1.1' } });
+ ```
  */
-function quotedAfter({
-  text,
-  marker,
-  job,
+async function runDetect({
+  previous = '0.1.0',
+  versions = {},
+  event = 'push',
+  dispatchCrate = 'forbidden-strings',
+  beforeSha = 'a'.repeat(40),
+  indexVersion = '',
+  gitShowAvailable = true,
+  gitCatFileAvailable = true,
+  fetchStatus = 0,
+  missingVersionIn = '',
 }: {
-  readonly text: string;
-  readonly marker: string;
-  readonly job: string;
-}): string {
-  const start = text.indexOf(marker);
-  if (start === (-1))
-    throw new Error(`${job} does not hold ${marker}`);
-  const from = start + marker.length;
-  const end = text.indexOf(
-    '\'',
-    from
-  );
-  if (end === (-1))
-    throw new Error(`${job} does not close the quote after ${marker}`);
-  return text.slice(
-    from,
-    end
-  );
-}
-
-/**
- Read the crate, the manifest and the script of a detect job.
-
- @param job - a `detect` job
- @returns the facts, or throws when the job lacks one
- */
-function detectFacts(job: JobBlock): DetectFacts {
-  const step = stepBlocks(job.lines)
-    .find(function isDetect(candidate) {
-      return stepValue({
-        step: candidate,
-        key: 'id'
-      }) === 'detect';
+  readonly previous?: string;
+  readonly versions?: Readonly<Record<string, string>>;
+  readonly event?: string;
+  readonly dispatchCrate?: string;
+  readonly beforeSha?: string;
+  readonly indexVersion?: string;
+  readonly gitShowAvailable?: boolean;
+  readonly gitCatFileAvailable?: boolean;
+  readonly fetchStatus?: number;
+  readonly missingVersionIn?: string;
+} = {}): Promise<DetectRun> {
+  await using fixture = await createStubFixture();
+  await Promise.all(crateList.map(async function writeManifest(crate) {
+    const held = versions[crate.key] ?? previous;
+    await fixture.write({
+      path: crate.manifest,
+      text: crate.key === missingVersionIn
+        ? `[package]\nname = "${crate.crate}"\n`
+        : `[package]\nname = "${crate.crate}"\nversion = "${held}"\n`,
     });
-  if (step === undefined)
-    throw new Error(`${job.id} has no step with the id detect`);
-  const text = stepText(step);
+  }));
+  await fixture.write({
+    path: 'detect-out',
+    text: '',
+  });
+  await Promise.all([
+    fixture.script({
+      key: 'git.show',
+      stdout: `[package]\nname = "x"\nversion = "${previous}"\n`,
+      status: gitShowAvailable ? 0 : 128,
+    }),
+    fixture.script({
+      key: 'git.cat-file',
+      stdout: '',
+      status: gitCatFileAvailable ? 0 : 128,
+    }),
+    fixture.script({
+      key: 'git.fetch',
+      stdout: '',
+      status: fetchStatus,
+    }),
+    fixture.script({
+      key: 'curl',
+      stdout: indexVersion === '' ? '' : `{"name":"x","vers":"${indexVersion}"}\n`,
+      status: indexVersion === '' ? 22 : 0,
+    }),
+  ]);
+  const step = detectStep();
+  const child = runStep({
+    fixture,
+    script: scriptOf({
+      job: detectJob,
+      id: 'detect',
+    }),
+    shell: shellOf(step),
+    env: {
+      BEFORE_SHA: beforeSha,
+      EVENT_NAME: event,
+      INPUT_CRATE: dispatchCrate,
+      CRATES: blockValue({
+        step,
+        key: 'CRATES',
+      }),
+      GITHUB_OUTPUT: join(
+        fixture.directory,
+        'detect-out',
+      ),
+    },
+  });
+  const outputs = outputsOf(await fixture.read('detect-out'));
   return {
-    id: job.id,
-    crate: quotedAfter({
-      text,
-      marker: 'INPUT_CRATE" = \'',
-      job: job.id
+    status: child.status,
+    outputs,
+    publishing: JSON.parse(outputs.publishing ?? '[]') as Descriptor[],
+    programs: (await fixture.calls()).map(function programOf(call) {
+      return call.program;
     }),
-    manifest: quotedAfter({
-      text,
-      marker: 'cargo_toml=\'',
-      job: job.id
-    }),
-    script: (runScripts(step)[0] ?? []).join('\n'),
+    stdout: child.stdout,
+    stderr: child.stderr,
   };
 }
 
 /**
- Run the decision action and then the detect script of a job for a manual dispatch of its crate.
-
- @param facts - what the detect job names
- @param version - version the manifest holds
- @param event - workflow event name
- @returns the outputs of the detect script and of the decision, and the programs the stubs recorded
+ What one run of the sibling wait script did.
  */
-async function runDetect({
-  facts,
-  version,
-  event,
-}: {
-  readonly facts: DetectFacts;
-  readonly version: string;
-  readonly event: string;
-}): Promise<{
-  readonly detect: Readonly<Record<string, string>>;
-  readonly decision: Readonly<Record<string, string>>;
+type WaitRun = {
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string;
   readonly programs: readonly string[];
-}> {
+};
+
+/**
+ Run the publish job's sibling wait script on a manifest of the fixture's own package directory.
+
+ @param options - the crate, the dependency line its manifest holds, the crates this run publishes, what the index
+ answers, and how many attempts the wait gets
+
+ @returns the status, what the script printed, and the programs it started
+ */
+async function runWait({
+  crate,
+  dependency,
+  publishing,
+  indexVersion = '',
+  attempts = 1,
+}: {
+  readonly crate: string;
+  readonly dependency: string;
+  readonly publishing: readonly { readonly crate: string; readonly version: string }[];
+  readonly indexVersion?: string;
+  readonly attempts?: number;
+}): Promise<WaitRun> {
   await using fixture = await createStubFixture();
-  const manifestText = `[package]\nname = "${facts.crate}"\nversion = "${version}"\n`;
   await fixture.write({
-    path: facts.manifest,
-    text: manifestText
+    path: 'package/dir/Cargo.toml',
+    text: `[package]\nname = "${crate}"\nversion = "0.1.0"\n\n[dependencies]\n${dependency}`,
   });
-  await fixture.write({
-    path: 'Cargo.toml',
-    text: manifestText
-  });
-  const decision = await decide({
-    fixture,
-    version
-  });
-  await fixture.write({
-    path: 'detect-out',
-    text: ''
+  await fixture.script({
+    key: 'curl',
+    stdout: indexVersion === '' ? '' : `{"name":"x","vers":"${indexVersion}"}\n`,
+    status: indexVersion === '' ? 22 : 0,
   });
   const child = runStep({
     fixture,
-    script: facts.script,
-    shell: bashShell,
+    script: scriptOf({
+      job: publishJob,
+      id: 'wait',
+    }),
+    shell: shellOf(waitStep()),
+    cwd: join(
+      fixture.directory,
+      'package',
+      'dir',
+    ),
     env: {
-      EVENT_NAME: event,
-      INPUT_CRATE: facts.crate,
-      BEFORE_SHA: '',
-      [decisionVariable]: decision[decisionOutput] ?? '',
-      GITHUB_OUTPUT: join(
-        fixture.directory,
-        'detect-out'
-      ),
+      CRATE: crate,
+      PUBLISHING: JSON.stringify(publishing),
+      WAIT_ATTEMPTS: String(attempts),
+      WAIT_SECONDS: '0',
     },
   });
-  expect(child.status).toBe(0);
   return {
-    detect: Object.fromEntries((await fixture.read('detect-out')).split('\n')
-      .filter(function nonBlank(line) {
-        return line !== '';
-      })
-      .map(function pair(line): [string, string] {
-        const equals = line.indexOf('=');
-        return [line.slice(
-          0,
-          equals
-        ), line.slice(equals + 1)];
-      })),
-    decision,
+    status: child.status,
+    stdout: child.stdout,
+    stderr: child.stderr,
     programs: (await fixture.calls()).map(function programOf(call) {
       return call.program;
     }),
@@ -539,22 +857,70 @@ async function runDetect({
 }
 
 /**
- The detect jobs of the workflow.
+ Text every upload step holds before it publishes: the crates.io existence check that answers whether the version is
+ already published, and the notice it logs instead of uploading a duplicate.
  */
-const detectJobs = jobsEnding('detect');
+const cratesIoExistenceCheck = 'crates.io/api/v1/crates/';
 
 /**
- The publish-crate jobs of the workflow.
+ Text an upload step logs when the version is already on crates.io.
  */
-const publishJobs = jobsEnding('publish-crate');
+const duplicateUploadNotice = 'already on crates.io';
 
 /**
- The create-release jobs of the workflow.
+ Words that mark a step as one that touches crates.io.
  */
-const releaseJobs = jobsEnding('create-release');
+const cratesIoMarkers: readonly string[] = [
+  'crates.io',
+  'cargo publish',
+  'cargo package',
+  'crates-io-auth',
+];
+
+/**
+ Whether a step touches crates.io: it names crates.io, publishes, packages or logs in to the registry.
+
+ @param step - lines of the step
+
+ @returns true for a step that must not run for a version that never goes to crates.io
+ */
+function touchesCratesIo(step: readonly string[]): boolean {
+  return cratesIoMarkers.some(function appearsInStep(marker) {
+    return stepText(step)
+      .includes(marker);
+  });
+}
+
+/**
+ Whether a step reads the decision: it names the output, the variable, or the action that makes it.
+
+ @param step - lines of the step
+
+ @returns true when the step is the decision or reads it
+ */
+function readsDecision(step: readonly string[]): boolean {
+  const text = stepText(step);
+  return text.includes(decisionOutput) || text.includes(decisionVariable) || text.includes(decisionActionFolder);
+}
+
+/**
+ The steps whose script asks a registry question before any decision exists, and so cannot read one: the detect step,
+ which asks the index which bumped versions it already holds, and the decision action's own steps.
+
+ @param step - lines of the step
+
+ @returns true for a step that is exempt from reading the decision
+ */
+function isBeforeAnyDecision(step: readonly string[]): boolean {
+  const id = stepValue({
+    step,
+    key: 'id',
+  });
+  return (id === 'detect') || (id === 'label');
+}
 
 await describe({
-  name: 'the crates.io label gate of the publish workflow',
+  name: 'the crate list and the jobs that read it in the publish workflow',
   children: [
     describe({
       name: 'the decision action',
@@ -581,7 +947,7 @@ await describe({
               await using fixture = await createStubFixture();
               const outputs = await decide({
                 fixture,
-                version
+                version,
               });
               expect(outputs[decisionOutput]).toBe(
                 String(goesToCratesIo(version)),
@@ -596,11 +962,11 @@ await describe({
             await using fixture = await createStubFixture();
             await fixture.write({
               path: 'Cargo.toml',
-              text: '[package]\nname = "x"\n'
+              text: '[package]\nname = "x"\n',
             });
             await fixture.write({
               path: 'out',
-              text: ''
+              text: '',
             });
             const child = runStep({
               fixture,
@@ -610,7 +976,7 @@ await describe({
                 MANIFEST_PATH: 'Cargo.toml',
                 GITHUB_OUTPUT: join(
                   fixture.directory,
-                  'out'
+                  'out',
                 ),
               },
             });
@@ -621,226 +987,515 @@ await describe({
       ],
     }),
     describe({
-      name: 'the jobs of the workflow',
+      name: 'the crate list',
       children: [
         it({
-          name: 'has one detect job and one publish-crate job for every crate of the registry',
+          name: 'names exactly the crates of the registry, so every crate that publishes is described once',
           fn: async () => {
-            expect(detectJobs.length).toBe(registryCrateNames(registry).length);
-            expect(publishJobs.length).toBe(registryCrateNames(registry).length);
+            expect(crateList.map(function crateOf(entry) {
+              return entry.crate;
+            }).toSorted()).toEqual(
+              registryCrateNames(registry)
+                .toSorted(),
+            );
           },
         }),
         it({
-          name: 'has a detect job for each crate that decides from the crate manifest it also reads the version from, and exposes the decision',
+          name: 'points each descriptor at a manifest the repository holds, and one the push trigger watches',
           fn: async () => {
-            for (const job of detectJobs) {
-              const facts = detectFacts(job);
-              const steps = stepBlocks(job.lines);
-              const deciding = steps.filter(function usesAction(step) {
-                return stepValue({
-                  step,
-                  key: 'uses'
-                }) === `./${decisionActionFolder}`;
-              });
-              expect(deciding.map(function jobOf() {
-                return job.id;
-              })).toEqual([job.id]);
-              const [step] = deciding;
-              expect(stepText(step ?? [])).toContain(`manifest-path: '${facts.manifest}'`);
-              expect(stepValue({
-                step: step ?? [],
-                key: 'id'
-              })).toBe('label');
-              expect(job.lines.join('\n')).toContain(`${decisionOutput}: \${{ steps.label.outputs.${decisionOutput} }}`);
-              expect(steps.indexOf(step ?? [])).toBeLessThan(steps.findIndex(function isDetect(candidate) {
-                return stepValue({
-                  step: candidate,
-                  key: 'id'
-                }) === 'detect';
-              }));
+            for (const crate of crateList) {
+              expect(
+                existsSync(
+                  join(
+                    root,
+                    crate.manifest,
+                  ),
+                ),
+              ).toBe(true);
+              expect(publishLines).toContain(`    - '${crate.manifest}'`);
             }
           },
         }),
         it({
-          name: 'covers every registry crate with the detect job that names it',
+          name: 'gives every crate one key, which names its outputs and its cache entry',
           fn: async () => {
-            expect(detectJobs.map(function crateOf(job) {
-              return detectFacts(job).crate;
-            }).toSorted()).toEqual(registryCrateNames(registry).toSorted());
+            const keys = crateList.map(function keyOf(entry) {
+              return entry.key;
+            });
+            expect(new Set(keys).size).toBe(keys.length);
+            for (const key of keys)
+              for (const character of key)
+                expect(lowerCaseLetters).toContain(character);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: 'the detect job',
+      children: [
+        it({
+          name: 'exists once, and the workflow has no per-crate copy of it',
+          fn: async () => {
+            expect(jobs.filter(function isDetectJob(job) {
+              return job.id === 'detect';
+            }).length).toBe(1);
+            expect(jobs.filter(function isCopy(job) {
+              return job.id.endsWith('-detect');
+            })).toEqual([]);
           },
         }),
         it({
-          name: 'lets every step that touches crates.io, outside the decision itself, read the decision of its own crate',
+          name: 'declares an output the jobs read for every crate that has a build or release job',
+          fn: async () => {
+            const declared = Object.keys(declaredOutputs());
+            const cratesWithPhases = crateList.filter(function hasPhase(crate) {
+              return hasPerCratePhase(crate.key);
+            });
+            expect(cratesWithPhases.length).toBeGreaterThan(0);
+            for (const crate of cratesWithPhases) {
+              expect(declared).toContain(`should_publish_${crate.key}`);
+              expect(declared).toContain(`version_${crate.key}`);
+            }
+          },
+        }),
+        it({
+          name: 'declares every output a job reads through the needs context, and declares no other',
+          fn: async () => {
+            /**
+             The outputs the job graph reads from the detect job.
+             */
+            const declaredNames = Object.keys(declaredOutputs());
+            const declared = new Set(declaredNames);
+            const read = new Set(publishLines.flatMap(function namesOfLine(line) {
+              return namesAfter({
+                line,
+                marker: 'needs.detect.outputs.',
+              });
+            }));
+            expect(read.size).toBeGreaterThan(crateList.length);
+            expect([...read].filter(function isUndeclared(name) {
+              return !declared.has(name);
+            })).toEqual([]);
+            expect([...declared].filter(function isUnread(name) {
+              return !read.has(name);
+            })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'asks the crates.io index about a pushed version before anything builds',
+          fn: async () => {
+            const script = scriptOf({
+              job: detectJob,
+              id: 'detect',
+            });
+            expect(script).toContain('index.crates.io');
+            expect(script).toContain('can be published only once');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: 'the detect script',
+      children: [
+        it({
+          name: 'publishes only the crate a manual dispatch names',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'workflow_dispatch',
+              dispatchCrate: 'monochromatic-lint',
+            });
+            expect(run.status).toBe(0);
+            expect(run.publishing.map(function keyOf(entry) {
+              return entry.key;
+            })).toEqual(['ml']);
+            for (const crate of crateList)
+              expect(run.outputs[`should_publish_${crate.key}`]).toBe(String(crate.key === 'ml'));
+          },
+        }),
+        it({
+          name: 'publishes the one crate whose pushed version changed, and nothing else',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'push',
+              versions: { nws: '0.2.7' },
+              previous: '0.2.6',
+            });
+            expect(run.status).toBe(0);
+            expect(run.publishing.map(function keyOf(entry) {
+              return entry.key;
+            })).toEqual(['nws']);
+            expect(run.outputs.version_nws).toBe('0.2.7');
+            expect(run.outputs.should_publish_nws).toBe('true');
+          },
+        }),
+        it({
+          name: 'publishes nothing when a push leaves every version unchanged, and asks no index',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'push',
+              previous: '0.2.6',
+            });
+            expect(run.status).toBe(0);
+            expect(run.outputs.publishing).toBe('[]');
+            expect(run.programs).not.toContain('curl');
+            for (const crate of crateList)
+              expect(run.outputs[`should_publish_${crate.key}`]).toBe('false');
+          },
+        }),
+        it({
+          name: 'skips a pushed version the crates.io index already lists, which frees the build and release jobs',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'push',
+              versions: { fs: '0.6.1' },
+              previous: '0.6.0',
+              indexVersion: '0.6.1',
+            });
+            expect(run.status).toBe(0);
+            expect(run.programs).toContain('curl');
+            expect(run.outputs.publishing).toBe('[]');
+            expect(run.stdout).toContain('already on crates.io; nothing to publish');
+          },
+        }),
+        it({
+          name: 'asks a manual dispatch no index, because a dispatch rebuilds the release of a published version',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'workflow_dispatch',
+              dispatchCrate: 'forbidden-strings',
+              indexVersion: '0.1.0',
+            });
+            expect(run.status).toBe(0);
+            expect(run.programs).not.toContain('curl');
+            expect(run.outputs.should_publish_fs).toBe('true');
+          },
+        }),
+        it({
+          name: 'publishes an alpha push, which the index can never list, after asking it',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'push',
+              versions: { fs: '0.2.7-alpha.1' },
+              previous: '0.2.7-alpha.0',
+            });
+            expect(run.status).toBe(0);
+            expect(run.programs).toContain('curl');
+            expect(run.outputs.should_publish_fs).toBe('true');
+          },
+        }),
+        it({
+          name: 'reads a manifest the pre-push commit did not hold as a bump, which a package move is',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'push',
+              previous: '0.1.0',
+              gitShowAvailable: false,
+            });
+            expect(run.status).toBe(0);
+            expect(run.outputs.should_publish_fs).toBe('true');
+          },
+        }),
+        it({
+          name: 'fetches the pre-push commit when the checkout does not hold it, and refuses when the fetch fails',
+          fn: async () => {
+            const fetched = await runDetect({
+              event: 'push',
+              versions: { fs: '0.2.0' },
+              gitCatFileAvailable: false,
+            });
+            expect(fetched.programs).toContain('git');
+            expect(fetched.status).toBe(0);
+            const refused = await runDetect({
+              event: 'push',
+              versions: { fs: '0.2.0' },
+              gitCatFileAvailable: false,
+              fetchStatus: 128,
+            });
+            expect(refused.status).toBe(1);
+            expect(refused.stderr).toContain('refusing to publish');
+            expect(Object.keys(refused.outputs)).toEqual([]);
+          },
+        }),
+        it({
+          name: 'refuses a manifest without a version line instead of publishing an empty version',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'push',
+              versions: { ml: '0.2.0' },
+              missingVersionIn: 'ml',
+            });
+            expect(run.status).toBe(1);
+            expect(run.stderr).toContain('holds no version line; refusing to publish');
+          },
+        }),
+        it({
+          name: 'hands the publish matrix its own directory, crate name, version and flags',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'workflow_dispatch',
+              dispatchCrate: 'monochromatic-nested-wayland-session',
+            });
+            expect(run.publishing).toEqual([
+              {
+                key: 'nws',
+                crate: 'monochromatic-nested-wayland-session',
+                manifest: 'package/nested-wayland-session/cli/Cargo.toml',
+                dir: 'package/nested-wayland-session/cli',
+                version: '0.1.0',
+                cache: true,
+                system_libs: true,
+                locked: false,
+              },
+            ]);
+          },
+        }),
+        it({
+          name: 'marks the one crate that packages and publishes with --locked',
+          fn: async () => {
+            const run = await runDetect({
+              event: 'workflow_dispatch',
+              dispatchCrate: 'monochromatic-git-policy-cli',
+            });
+            expect(run.publishing.map(function lockedOf(entry) {
+              return entry.locked;
+            })).toEqual([true]);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: 'the publish job',
+      children: [
+        it({
+          name: 'exists once, and the workflow has no per-crate copy of it',
+          fn: async () => {
+            expect(jobs.filter(function isPublishJob(job) {
+              return job.id === 'publish-crate';
+            }).length).toBe(1);
+            expect(jobs.filter(function isCopy(job) {
+              return job.id.endsWith('-publish-crate');
+            })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'skips itself instead of expanding an empty matrix, which GitHub refuses to run',
+          fn: async () => {
+            /**
+             The job as text, which is what an expression in it is read from.
+             */
+            const text = publishJob.lines.join('\n');
+            expect(text).toContain(`if: \${{ needs.detect.outputs.publishing != '[]' }}`);
+            expect(text).toContain(`include: \${{ fromJSON(needs.detect.outputs.publishing) }}`);
+          },
+        }),
+        it({
+          name: 'has a label step per matrix entry, which is how a step reads its own crate',
+          fn: async () => {
+            /**
+             The label step of one matrix entry.
+             */
+            const step = stepWithId({
+              job: publishJob,
+              id: 'label',
+            });
+            expect(stepValue({
+              step,
+              key: 'uses',
+            })).toBe(`./${decisionActionFolder}`);
+            expect(stepValue({
+              step,
+              key: 'manifest-path',
+            })).toBe(`\${{ matrix.manifest }}`);
+          },
+        }),
+        it({
+          name: 'lets every step that touches crates.io read the decision, except the ones made before it exists',
           fn: async () => {
             const ungated: string[] = [];
             let gated = 0;
             for (const job of jobs)
               for (const step of stepBlocks(job.lines))
-                if (touchesCratesIo(step) && (!stepText(step).includes(decisionActionFolder))) {
+                if (touchesCratesIo(step) && (!isBeforeAnyDecision(step))) {
                   gated += 1;
                   if (!readsDecision(step))
                     ungated.push(`${job.id}: ${step[0] ?? ''}`);
                 }
             expect(ungated).toEqual([]);
-            expect(gated).toBeGreaterThan(registryCrateNames(registry).length);
+            expect(gated).toBeGreaterThanOrEqual(releaseJobs.length);
           },
         }),
         it({
-          name: 'gates each publish-crate step on the detect job of its own crate',
+          name: 'has exactly one upload in the whole workflow, and it queries crates.io before it publishes',
           fn: async () => {
-            const ungated: string[] = [];
-            for (const job of publishJobs) {
-              const prefix = prefixOf({
-                id: job.id,
-                suffix: 'publish-crate'
-              });
-              for (const step of stepBlocks(job.lines))
-                if (touchesCratesIo(step) && (!stepValue({
-                  step,
-                  key: 'if'
-                }).includes(`needs.${prefix}detect.outputs.${decisionOutput} == 'true'`)))
-                  ungated.push(`${job.id}: ${step[0] ?? ''}`);
-            }
-            expect(ungated).toEqual([]);
-          },
-        }),
-        it({
-          name: 'queries crates.io before every upload, so a re-run to rebuild the release binaries never fails on a duplicate upload',
-          fn: async () => {
+            const uploads: string[] = [];
             const unguarded: string[] = [];
-            let uploads = 0;
-            for (const job of publishJobs)
+            for (const job of jobs)
               for (const step of stepBlocks(job.lines)) {
                 const script = (runScripts(step)[0] ?? []).join('\n');
-                const uploadsThisVersion = script.includes('cargo publish');
-                if (!uploadsThisVersion)
+                if (!script.includes('cargo publish'))
                   continue;
-                const onlyDryRun = script.includes('--dry-run');
-                if (onlyDryRun)
+                if (script.includes('--dry-run'))
                   continue;
-                uploads += 1;
-                const guarded = script.includes(cratesIoExistenceCheck) && script.includes(duplicateUploadNotice);
-                if (!guarded)
+                uploads.push(`${job.id}: ${step[0] ?? ''}`);
+                if (!(script.includes(cratesIoExistenceCheck) && script.includes(duplicateUploadNotice)))
                   unguarded.push(`${job.id}: ${script.split('\n')[0] ?? ''}`);
               }
             expect(unguarded).toEqual([]);
-            expect(uploads).toBe(registryCrateNames(registry).length);
+            expect(uploads.length).toBe(1);
           },
         }),
         it({
-          name: 'never gates a publish-crate job as a whole, because a skipped job would skip the GitHub release that needs it',
+          name: 'runs the sibling wait before it packages, because a package resolves its pins against crates.io',
           fn: async () => {
-            expect(publishJobs.filter(function gatesJob(job) {
+            const steps = stepBlocks(publishJob.lines);
+            const waitAt = steps.findIndex(function isWait(step) {
+              return stepValue({
+                step,
+                key: 'name',
+              }) === siblingWaitStepName;
+            });
+            const packageAt = steps.findIndex(function isPackage(step) {
+              return stepText(step)
+                .includes('cargo package');
+            });
+            expect(waitAt).toBeGreaterThan(-1);
+            expect(packageAt).toBeGreaterThan(-1);
+            expect(waitAt).toBeLessThan(packageAt);
+            /**
+             The wait step as text, which is where its inputs are read from.
+             */
+            const waitText = stepText(waitStep());
+            expect(waitText).toContain(`PUBLISHING: \${{ needs.detect.outputs.publishing }}`);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: 'the sibling wait script',
+      children: [
+        it({
+          name: 'waits for a pin this run publishes until the index lists it',
+          fn: async () => {
+            const run = await runWait({
+              crate: 'monochromatic-pnpm-shadow',
+              dependency: 'monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.3" }\n',
+              publishing: [
+                {
+                  crate: 'monochromatic-jsonc-edit',
+                  version: '0.1.3',
+                },
+              ],
+              indexVersion: '0.1.3',
+            });
+            expect(run.status).toBe(0);
+            expect(run.programs).toContain('curl');
+            expect(run.stdout).toContain('is in the crates.io index');
+          },
+        }),
+        it({
+          name: 'asks nothing when the pinned version is not one this run publishes, which must already be indexed',
+          fn: async () => {
+            const run = await runWait({
+              crate: 'monochromatic-pnpm-shadow',
+              dependency: 'monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }\n',
+              publishing: [
+                {
+                  crate: 'monochromatic-jsonc-edit',
+                  version: '0.1.3',
+                },
+              ],
+            });
+            expect(run.status).toBe(0);
+            expect(run.programs).not.toContain('curl');
+          },
+        }),
+        it({
+          name: 'fails at its bound instead of waiting forever, naming the pin that never appeared',
+          fn: async () => {
+            const run = await runWait({
+              crate: 'monochromatic-pnpm-shadow',
+              dependency: 'monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.3" }\n',
+              publishing: [
+                {
+                  crate: 'monochromatic-jsonc-edit',
+                  version: '0.1.3',
+                },
+              ],
+              attempts: 2,
+            });
+            expect(run.status).toBe(1);
+            expect(run.stderr).toContain('monochromatic-jsonc-edit 0.1.3 did not appear in the crates.io index');
+          },
+        }),
+        it({
+          name: 'ignores a pin the manifest writes without an exact version, which a published manifest drops',
+          fn: async () => {
+            const run = await runWait({
+              crate: 'monochromatic-pnpm-shadow',
+              dependency: 'monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust" }\n',
+              publishing: [
+                {
+                  crate: 'monochromatic-jsonc-edit',
+                  version: '0.1.3',
+                },
+              ],
+            });
+            expect(run.status).toBe(0);
+            expect(run.programs).not.toContain('curl');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: 'the release jobs',
+      children: [
+        it({
+          name: 'reads the label of its own crate for the note it writes, from the action instead of a detect job',
+          fn: async () => {
+            expect(releaseJobs.length).toBeGreaterThan(0);
+            for (const job of releaseJobs) {
+              const notes = stepBlocks(job.lines)
+                .filter(function createsRelease(step) {
+                  return stepText(step)
+                    .includes('gh release create');
+                });
+              expect(notes.map(function jobOf() {
+                return job.id;
+              })).toEqual([job.id]);
+              expect(stepText(notes[0] ?? [])).toContain(`GOES_TO_CRATES_IO: \${{ steps.label.outputs.${decisionOutput} }}`);
+              /**
+               The label step of this release job.
+               */
+              const label = stepWithId({
+                job,
+                id: 'label',
+              });
+              expect(stepValue({
+                step: label,
+                key: 'uses',
+              })).toBe(`./${decisionActionFolder}`);
+              /**
+               The manifest the release job reads its label from.
+               */
+              const manifest = stepValue({
+                step: label,
+                key: 'manifest-path',
+              });
+              expect(manifest.startsWith('package/')).toBe(true);
+              expect(manifest.endsWith('/Cargo.toml')).toBe(true);
+            }
+          },
+        }),
+        it({
+          name: 'never gates a release job as a whole on the crates.io label, because a skipped job would skip its release',
+          fn: async () => {
+            expect(jobs.filter(function gatesJob(job) {
               return (job.lines.find(function isJobCondition(line) {
                 return line.startsWith('    if:');
               }) ?? '').includes(decisionOutput);
             }).map(function idOf(job) {
               return job.id;
             })).toEqual([]);
-          },
-        }),
-        it({
-          name: 'tells every GitHub release whether its crate is on crates.io, from the detect job of its own crate',
-          fn: async () => {
-            expect(releaseJobs.length).toBeGreaterThan(0);
-            for (const job of releaseJobs) {
-              const prefix = prefixOf({
-                id: job.id,
-                suffix: 'create-release'
-              });
-              const notes = stepBlocks(job.lines)
-                .filter(function createsRelease(step) {
-                  return stepText(step).includes('gh release create');
-                });
-              expect(notes.map(function jobOf() {
-                return job.id;
-              })).toEqual([job.id]);
-              expect(stepText(notes[0] ?? [])).toContain(`${decisionVariable}: \${{ needs.${prefix}detect.outputs.${decisionOutput} }}`);
-            }
-          },
-        }),
-      ],
-    }),
-    describe({
-      name: 'the detect jobs run for a manual dispatch of each crate',
-      children: detectJobs.flatMap(function detectCases(job) {
-        const facts = detectFacts(job);
-        return [
-          it({
-            name: `${facts.crate}: an alpha version still publishes its GitHub release and skips crates.io`,
-            fn: async () => {
-              const result = await runDetect({
-                facts,
-                version: '0.2.7-alpha.1',
-                event: 'workflow_dispatch'
-              });
-              expect(result.detect.should_publish).toBe('true');
-              expect(result.detect.version).toBe('0.2.7-alpha.1');
-              expect(result.decision[decisionOutput]).toBe('false');
-            },
-          }),
-          it({
-            name: `${facts.crate}: a beta version skips crates.io`,
-            fn: async () => {
-              const result = await runDetect({
-                facts,
-                version: '0.2.7-beta.3',
-                event: 'workflow_dispatch'
-              });
-              expect(result.detect.should_publish).toBe('true');
-              expect(result.decision[decisionOutput]).toBe('false');
-            },
-          }),
-          it({
-            name: `${facts.crate}: a release candidate and a plain number go to crates.io`,
-            fn: async () => {
-              const results = await Promise.all(['0.2.7-rc.1', '0.2.7'].map(async function detectVersion(version) {
-                return await runDetect({
-                  facts,
-                  version,
-                  event: 'workflow_dispatch'
-                });
-              }));
-              for (const result of results) {
-                expect(result.detect.should_publish).toBe('true');
-                expect(result.decision[decisionOutput]).toBe('true');
-              }
-            },
-          }),
-          it({
-            name: `${facts.crate}: a push of an alpha version asks no crates.io index`,
-            fn: async () => {
-              const alpha = await runDetect({
-                facts,
-                version: '0.2.7-alpha.1',
-                event: 'push'
-              });
-              expect(alpha.programs).not.toContain('curl');
-              expect(alpha.detect.should_publish).toBe('true');
-            },
-          }),
-        ];
-      }),
-    }),
-    describe({
-      name: 'the forbidden-strings push check',
-      children: [
-        it({
-          name: 'asks the crates.io index for a pushed plain number, which the alpha test above proves it skips for an alpha',
-          fn: async () => {
-            const facts = detectJobs.map(detectFacts)
-              .find(function isScanner(candidate) {
-                return candidate.crate === 'forbidden-strings';
-              });
-            expect(facts).not.toBe(undefined);
-            if (facts === undefined)
-              return;
-            const result = await runDetect({
-              facts,
-              version: '0.2.7',
-              event: 'push'
-            });
-            expect(result.programs).toContain('curl');
           },
         }),
       ],

@@ -307,6 +307,7 @@ jobs:
     # indexed, and packaging names it when it is not. This replaces the `needs:` chain that ordered the per-crate publish
     # jobs, whose run order GitHub does not guarantee.
     - name: Wait for the sibling releases this run publishes
+      id: wait
       if: ${{ steps.label.outputs.goes_to_crates_io == 'true' }}
       shell: node {0}
       working-directory: ${{ matrix.dir }}
