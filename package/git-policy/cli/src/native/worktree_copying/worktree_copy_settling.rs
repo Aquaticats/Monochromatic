@@ -31,8 +31,8 @@ use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, apply_entry_modes, retained_mode};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::filesystem_path;
-use crate::worktree_copy_vanished_entry::lstat_or_absent;
 use crate::worktree_copy_stage_leaf_copying::{CopiedLeaf, copy_one_leaf};
+use crate::worktree_copy_vanished_entry::{lstat_or_absent, went_away};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -350,7 +350,7 @@ fn remove_the_staged_copy(stage_path: &Path) -> Result<(), WorktreeCopyError> {
     };
     return match removed {
         Ok(()) => Ok(()),
-        Err(error) if crate::worktree_copy_vanished_entry::went_away(&error) => Ok(()),
+        Err(error) if went_away(&error) => Ok(()),
         Err(error) => Err(crate::worktree_copy_error::failure_with_cause(
             format!("{} cannot be removed from the private stage ({error})", stage_path.display()).as_str(),
             None,
