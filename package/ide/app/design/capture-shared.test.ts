@@ -1,14 +1,16 @@
 // Checks of the capture helpers the two design scripts share.
-// What: the PNG flat-frame probe and the settled-screenshot loop, exercised without a compositor: a screenshot is a
-//       real file the fake control socket writes.
-// Why: the settle rule decides which frame a capture script records, and both scripts now record through it.
+// What: the PNG flat-frame probe, the settled-screenshot loop, and the session lifecycle, exercised without the real
+//       compositor: a screenshot is a real file the fake control socket writes, and a stand-in compositor ends the way
+//       a compositor that cannot start its client does.
+// Why: the settle rule decides which frame a capture script records, and a session that ended must be reported at once
+//      with what it said, because a capture run that waits the readiness deadline out reports nothing useful.
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { deflateSync } from 'node:zlib';
-import { READY_DEADLINE_MS, SETTLE_DRAWN_ATTEMPTS, flat, settleScreenshot, waitForCompositor } from './capture-shared.ts';
+import { READY_DEADLINE_MS, SETTLE_DRAWN_ATTEMPTS, captureSession, flat, sessionEnvironment, settleScreenshot, waitForCompositor } from './capture-shared.ts';
 
 // A CRC32 of the chunk bytes, so the fixture is a PNG a decoder accepts rather than only the bytes `flat` reads.
 const crcTable: number[] = [];
@@ -62,13 +64,13 @@ test(
   'the readiness wait returns once the compositor answers ok',
   async () => {
     let asked = 0;
-    await waitForCompositor(
-      async () => {
+    await waitForCompositor({
+      deadline: Date.now() + READY_DEADLINE_MS,
+      control: async () => {
         asked += 1;
         return asked < 2 ? 'busy' : 'ok';
       },
-      Date.now() + READY_DEADLINE_MS
-    );
+    });
     assert.equal(asked, 2, 'a compositor that is not up yet is asked again');
   }
 );
@@ -78,9 +80,12 @@ test(
   async () => {
     // A compositor killed while it starts closes its socket instead of answering, which is not a slow compositor.
     await assert.rejects(
-      waitForCompositor(async () => {
-        throw new Error('connect ENOENT /captures/control.sock');
-      }, Date.now()),
+      waitForCompositor({
+        deadline: Date.now(),
+        control: async () => {
+          throw new Error('connect ENOENT /captures/control.sock');
+        },
+      }),
       { message: /connect ENOENT \/captures\/control.sock/ }
     );
   }
@@ -160,6 +165,77 @@ test(
         { message: 'frame never settled: ' + path }
       );
       assert.equal(taken, 6, 'every allowed attempt is spent before the loop gives up');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+);
+
+// A stand-in compositor that ends at startup, the way a compositor that cannot start its client does.
+// What: an executable program that records the arguments it was handed, prints one line, and exits with a failure.
+// Why: the session's own report has to arrive at once and name where the compositor's words were written, and the
+//      application path the caller gave has to reach the compositor from a session that runs in another folder.
+const dyingCompositor = ({ directory, line }: { directory: string; line: string }): string => {
+  const path = join(directory, 'compositor-that-ends-at-startup.cjs');
+  writeFileSync(path, [
+    '#!/usr/bin/env node',
+    '// Records the arguments the session handed it, prints one line, and ends with a failure.',
+    'const { writeFileSync } = require("node:fs");',
+    'const { join } = require("node:path");',
+    'writeFileSync(join(__dirname, "arguments.json"), JSON.stringify(process.argv.slice(2)));',
+    'process.stderr.write(' + JSON.stringify(line + '\n') + ');',
+    'process.exit(1);',
+    '',
+  ].join('\n'));
+  chmodSync(path, 0o755);
+  return path;
+};
+
+// One session of the stand-in compositor over an empty project, started the way a capture script starts a session.
+const captureOver = ({ directory, compositor }: { directory: string; compositor: string }): Promise<void> => captureSession({
+  application: 'target/debug/monochromatic-ide',
+  project: join(directory, 'project'),
+  file: 'sample.rs',
+  scheme: 'dark',
+  size: '1100x660',
+  directory,
+  env: sessionEnvironment({ directory }),
+  logPath: join(directory, 'session.log'),
+  compositor,
+}, async () => {
+  throw new Error('a session whose compositor ended at startup must not run the requests of its script');
+});
+
+test(
+  'the application reaches the compositor as a path from the root, so a caller may name it from its own folder',
+  async () => {
+    const directory = scratch();
+    try {
+      mkdirSync(join(directory, 'project'), { recursive: true });
+      const compositor = dyingCompositor({ directory, line: 'failed to spawn hosted client' });
+      await captureOver({ directory, compositor }).catch(() => undefined);
+      const handed: string[] = JSON.parse(readFileSync(join(directory, 'arguments.json'), 'utf8'));
+      const hosted = handed[handed.indexOf('--') + 1];
+      assert.equal(hosted, resolve('target/debug/monochromatic-ide'), 'the application the caller named from its own folder is started by its path from the root');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+);
+
+test(
+  'a compositor that ended before answering is reported at once, with its socket failure and where it said why',
+  async () => {
+    const directory = scratch();
+    try {
+      mkdirSync(join(directory, 'project'), { recursive: true });
+      const said = 'failed to spawn hosted client: target/debug/monochromatic-ide';
+      const compositor = dyingCompositor({ directory, line: said });
+      const started = performance.now();
+      await assert.rejects(captureOver({ directory, compositor }), { message: /ended with status 1[\s\S]*session\.log/ });
+      const waited = Math.round(performance.now() - started);
+      assert.ok(waited < 5000, 'the session reports the end of its compositor instead of waiting the readiness deadline out; it waited ' + waited + ' ms');
+      assert.match(readFileSync(join(directory, 'session.log'), 'utf8'), new RegExp(said), 'the reported log is the one that holds why the compositor ended');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

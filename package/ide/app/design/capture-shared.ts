@@ -106,11 +106,15 @@ export function controlTo(socket: string): (line: string) => Promise<string> {
  Why: a session started before the compositor listens fails at its first request, and the compositor's own start
       (its EGL setup) can take tens of seconds on a busy host.
 
- @param control - the control-socket request of this session
- @param deadline - the instant after which the session is declared unstarted
- @throws {Error} when the compositor has not answered `ok` by `deadline`, naming the last transport failure
+ @param options - the control-socket request, the instant the session is declared unstarted, and what to report when the session itself has ended
+ @throws {Error} when the compositor has ended, when it has not answered `ok` by `deadline` (naming the last transport
+         failure), or when `reportEnd` explains why it cannot answer any more
  */
-export async function waitForCompositor(control: (line: string) => Promise<string>, deadline = Date.now() + READY_DEADLINE_MS): Promise<void> {
+export async function waitForCompositor({ control, deadline = Date.now() + READY_DEADLINE_MS, reportEnd }: {
+  control: (line: string) => Promise<string>;
+  deadline?: number;
+  reportEnd?: (failure: string) => string | undefined;
+}): Promise<void> {
   let failure = 'the control socket has not answered yet';
   while (true) {
     try {
@@ -121,6 +125,10 @@ export async function waitForCompositor(control: (line: string) => Promise<strin
       // keep the transport failure so the deadline report names what went wrong.
       failure = error instanceof Error ? error.message : String(error);
     }
+    // A compositor that has already ended cannot answer later, so what ended it is reported now instead of at the
+    // deadline, which would otherwise blame a compositor that is no longer running for not answering.
+    const ended = reportEnd?.(failure);
+    if (ended !== undefined) throw new Error(ended);
     if (Date.now() > deadline) throw new Error('the compositor did not answer: ' + failure);
     await wait(READY_INTERVAL_MS);
   }
@@ -200,7 +208,7 @@ export function sessionEnvironment({ directory, helixRuntime }: { directory: str
 
  @param options - the session's application, project, file, screen, and environment
  @param body - the requests this session makes, given the session's control-socket request
- @throws {Error} when the compositor does not answer, or when `body` fails
+ @throws {Error} when the compositor ends or does not answer, or when `body` fails
  */
 export async function captureSession({ application, project, file, scheme, size, directory, env, logPath, compositor = defaultCompositor }: {
   application: string;
@@ -214,14 +222,25 @@ export async function captureSession({ application, project, file, scheme, size,
   compositor?: string;
 }, body: (control: (line: string) => Promise<string>) => Promise<void>): Promise<void> {
   const socket = join(directory, 'control.sock');
-  const child = spawn(compositor, ['--socket', socket, '--size', size, '--color-scheme', scheme, '--', application, project, '--file', file], { cwd: '/', env, stdio: ['ignore', 'pipe', 'pipe'] });
+  // The session runs from the root, so nothing the application opens starts out in this checkout; a caller names the
+  // application the way the usage line of a capture script does, from the folder the script runs in, so the path is made
+  // absolute here. Without that, the compositor looks for it below the root and the session fails before it listens.
+  const hosted = resolve(application);
+  const child = spawn(compositor, ['--socket', socket, '--size', size, '--color-scheme', scheme, '--', hosted, project, '--file', file], { cwd: '/', env, stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks: Buffer[] = [];
   child.stdout.on('data', chunk => chunks.push(chunk));
   child.stderr.on('data', chunk => chunks.push(chunk));
   const exited = once(child, 'exit');
   const control = controlTo(socket);
   try {
-    await waitForCompositor(control);
+    await waitForCompositor({
+      control,
+      reportEnd: failure => {
+        if (child.exitCode === null && child.signalCode === null) return undefined;
+        const status = child.signalCode === null ? 'status ' + String(child.exitCode) : 'signal ' + child.signalCode;
+        return 'the compositor ended with ' + status + ' before it answered its control socket (' + failure + '); what it said is in ' + logPath;
+      },
+    });
     await body(control);
     await control('quit');
     await exited;

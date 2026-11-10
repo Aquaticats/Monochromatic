@@ -428,7 +428,7 @@ description = "Check the compositor version reader, the container bound, the fra
 run = "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/stress-native-report.test.ts bin/runtime-publish.test.ts"
 
 [tasks."test:design"]
-description = "Check the PNG flat-frame probe and the settled-screenshot loop the two design capture scripts share with node:test"
+description = "Check the PNG flat-frame probe, the settled-screenshot loop, and the session lifecycle the two design capture scripts share with node:test"
 run = "node --test design/capture-shared.test.ts"
 
 [tasks."test:ignored"]
