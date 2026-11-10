@@ -29,6 +29,8 @@ import {
   promptManualGoalReview,
 } from './manual-review-dialog.ts';
 
+//region Fallback guidance and audit contracts
+
 /**
  Task-only fallback guidance when manual rejection has no reason.
  */
@@ -42,6 +44,10 @@ type GoalReviewFailureAudit = {
   readonly diagnostics: readonly string[];
   readonly diagnostic: string;
 };
+
+//endregion Fallback guidance and audit contracts
+
+//region Failure normalization
 
 /**
  Convert arbitrary exhausted-review error to stable audit fields.
@@ -82,6 +88,10 @@ function normalizeGoalReviewFailure(error: unknown,): GoalReviewFailureAudit {
   };
 }
 
+//endregion Failure normalization
+
+//region Stale fallback disposition
+
 /**
  Return explicit stale fallback disposition.
  
@@ -95,6 +105,10 @@ function normalizeGoalReviewFailure(error: unknown,): GoalReviewFailureAudit {
 function staleFallbackDisposition(): GoalSettlementDisposition {
   return 'stale';
 }
+
+//endregion Stale fallback disposition
+
+//region Exhaustion handler
 
 /**
  Create mode-specific reviewer exhaustion handler.
@@ -226,6 +240,8 @@ function createGoalReviewerUnavailableHandler(
     return 'continued';
   };
 }
+
+//endregion Exhaustion handler
 
 export {
   createGoalReviewerUnavailableHandler,

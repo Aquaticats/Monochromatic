@@ -265,9 +265,9 @@ pub fn render(failure: &ClientFailure) -> String {
              pause. {NOTHING_CHANGED}"
         ),
         ClientFailure::BranchMoved { branch } => format!(
-            "The branch {branch} moved while this commit was being prepared, and a commit that replaces the last one, or one \
-             that was written or signed by hand, cannot be moved onto a different last commit, so it was not made. Run the \
-             commit again to make it on the branch as it is now. {NOTHING_CHANGED}"
+            "The branch {branch} moved while this commit was being prepared, and a commit that replaces or rewrites another \
+             commit, or one that was written or signed by hand, cannot be moved onto a different last commit, so it was not \
+             made. Run the commit again to make it on the branch as it is now. {NOTHING_CHANGED}"
         ),
         ClientFailure::ConclusionStateChanged { branch } => format!(
             "The merge, cherry-pick or revert this commit was concluding changed while it was being prepared, so it was \
