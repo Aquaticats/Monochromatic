@@ -12,6 +12,7 @@
  */
 /* oxlint-disable test-import/require-eventual-artifact -- this package ships src/ (package.json `files`) and builds font binaries rather than a JS artifact, so the modules beside this test are the shipped ones; see doc/planning/oxlint-test-import-eventual-artifact.md, section "Packages that ship source". */
 import {
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -82,6 +83,78 @@ await describe({
             expect(caught,).toBeInstanceOf(Error,);
             expect((caught as Error).message,).toContain(otfPath,);
             expect((caught as Error).cause,).toBeInstanceOf(SubprocessError,);
+          },
+        },),
+
+        it({
+          name: 'reports a conversion that could not start, which captures no stderr',
+          timeout: 300_000,
+          fn: async () => {
+            /**
+             Disposable directory standing in for the package's output directory.
+             */
+            const directory = await mkdtemp(join(
+              scratchRoot(),
+              'aquaticat-woff2-start-',
+            ),);
+            await using guard = {
+              [Symbol.asyncDispose]: async function removeDirectory(): Promise<void> {
+                await rm(
+                  directory,
+                  { recursive: true, force: true, },
+                );
+              },
+            };
+            // The binding exists solely for its dispose hook.
+            void guard;
+            /**
+             Empty directory holding no `uv` executable.
+             */
+            const emptyBin = join(
+              directory,
+              'bin',
+            );
+            await mkdir(
+              emptyBin,
+              { recursive: true, },
+            );
+            /**
+             PATH the conversion's `uv` lookup runs under.
+             */
+            const originalPath = process.env.PATH;
+            process.env.PATH = emptyBin;
+            await using pathGuard = {
+              [Symbol.asyncDispose]: async function restorePath(): Promise<void> {
+                if (originalPath === undefined) {
+                  delete process.env.PATH;
+                }
+                else {
+                  process.env.PATH = originalPath;
+                }
+              },
+            };
+            // The binding exists solely for its dispose hook.
+            void pathGuard;
+            /**
+             Value the conversion rejected with, when it rejects.
+             */
+            let caught: unknown;
+
+            try {
+              await convertToWoff2({
+                otfPath: join(
+                  directory,
+                  'Aquaticat-Regular.otf',
+                ),
+                distDir: directory,
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+
+            expect(caught,).toBeInstanceOf(Error,);
+            expect((caught as Error).message,).toContain('ENOENT',);
           },
         },),
 

@@ -15,7 +15,8 @@ import spawn, { SubprocessError, } from 'nano-spawn';
  
  @param error - value the conversion rejected with
  
- @returns the subprocess message and its stderr, or the value's own text
+ @returns the subprocess message and its stderr, the innermost cause message when
+   nothing was captured, or the value's own text
  
  @example
  ```ts
@@ -23,12 +24,22 @@ import spawn, { SubprocessError, } from 'nano-spawn';
  ```
  */
 function conversionFailureText({ error, }: { readonly error: unknown; },): string {
-  if (error instanceof SubprocessError) {
-    return error.stderr === ''
-      ? error.message
-      : `${error.message}\n${error.stderr}`;
-  }
-  return String(error,);
+  if (!(error instanceof SubprocessError))
+    return String(error,);
+  if (error.stderr !== '')
+    return `${error.message}\n${error.stderr}`;
+  /**
+   A child that never started has no captured output; its innermost cause names
+   the failed executable and its code, which is what a reader can act on
+   (doc/troubleshooting/nano-spawn-failure-shapes.md).
+   */
+  /**
+   Innermost failure nano-spawn wrapped, when it recorded one.
+   */
+  const { cause, } = error;
+  if (Error.isError(cause,))
+    return cause.message;
+  return error.message;
 }
 
 /**
