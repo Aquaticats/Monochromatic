@@ -1,0 +1,43 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/agent-branch-landing-cli",
+  "description": "Lands agents' branches on main in the main checkout: merges one branch without committing, compiles the merged tree when it touches the Git wrapper, commits through the wrapper while its scratch commit ceiling stops it, and reports what is still not on main. One more command commits a merge left open there.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "bin": {
+    "land-agent-branches": "dist/final/node/land-agent-branches.mjs"
+  },
+  "dependencies": {
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/agent-branch-landing/cli"
+  },
+  "sideEffects": false
+}

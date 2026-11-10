@@ -1,0 +1,56 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."format:dprint"]
+description = "Format this package's files with dprint"
+run = "dprint fmt src"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.land]
+description = "Land one branch on main: `land -- --branch=<name> --message=<text>`; merges without committing, compiles the merged tree when it touches the Git wrapper, commits through the wrapper and reports what is not on main (see README.md)"
+run = "node src/land-agent-branches.ts land"
+
+[tasks.check]
+description = "Merge main into an agent's worktree and compile or type-check the result: `check -- --worktree=<name> --check=wrapper|package [--task=//package/x:task ...]` (see README.md)"
+run = "node src/land-agent-branches.ts check"
+
+[tasks."land:list"]
+description = "Land each branch a list file names, each after the check its entry asks for: `land:list -- --list=<file>` (see README.md)"
+run = "node src/land-agent-branches.ts list"
+
+[tasks."commit:open-merge"]
+description = "Commit the merge left open in the main checkout, retrying while the wrapper's scratch commit ceiling stops it: `commit:open-merge -- --message=<text>` (see README.md)"
+run = "node src/land-agent-branches.ts commit-open-merge"
+
+[tasks.buildAndTest]
+description = "Build the library, then run unit tests; the unit tests import the built library and run the bin from source"
+run = ["mise run build", "mise run test:unit"]
