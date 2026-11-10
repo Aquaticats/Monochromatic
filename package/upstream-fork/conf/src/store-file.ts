@@ -14,7 +14,7 @@ import {
   tagged,
   type Logger,
 } from '@monochromatic-dev/logger-core/ts';
-import path from 'node:path';
+import { dirname, } from 'node:path';
 
 import {
   DecryptionFailedError,
@@ -198,7 +198,7 @@ export function createStoreFile<T extends Record<string, unknown>>({
     catch (error) {
       if (isMissingFileError(error,)) {
         ensureDirectory({
-          path: path.dirname(filePath,),
+          path: dirname(filePath,),
         },);
         return createPlainObject();
       }
@@ -219,7 +219,7 @@ export function createStoreFile<T extends Record<string, unknown>>({
     },
     ensureDirectory: function ensureDirectoryPath(): void {
       ensureDirectory({
-        path: path.dirname(filePath,),
+        path: dirname(filePath,),
       },);
     },
     readParsedFile,

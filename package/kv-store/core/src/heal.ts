@@ -4,6 +4,10 @@ import type { BackendResult, } from './consensus.ts';
 /**
  Heal async backends to the canonical serialized value by deleting or setting mismatches.
  
+ Hand-written twin of {@link healBackendsSync}, on the same deliberate split the
+ two stores use (see {@link createStore}); the two must reach the same decision
+ for the same backend results, and only the awaiting differs.
+ 
  Internal helper for the async store; not part of the package public API.
  
  @param results - all backend results
@@ -57,6 +61,9 @@ export async function healBackends({
 
 /**
  Heal sync backends to the canonical serialized value by deleting or setting mismatches.
+ 
+ Hand-written twin of {@link healBackends}; a change to one side's decision
+ belongs on the other side in the same commit.
  
  Internal helper for the sync store; not part of the package public API.
  

@@ -29,7 +29,12 @@ export const KIWI_PRIMITIVES = [
 ] as const;
 
 /**
- Sentinel returned when a decoded Kiwi value has no representable payload.
+ Sentinel marking absence in {@link KiwiDecodedValue}.
+ 
+ The decoder no longer produces it: every unrecoverable state raises a decode
+ error naming the offset and the field, because struct fields are positional and
+ a skipped value would silently shift every later field onto the wrong bytes.
+ Callers comparing a decoded value against this symbol keep compiling.
  
  @example
  ```ts

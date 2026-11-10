@@ -35,6 +35,11 @@ const VARFLOAT_BYTE_LENGTH = 4;
 const BYTE_BITS = 8;
 
 /**
+ Byte count of a little-endian uint32.
+ */
+const UINT32_BYTE_LENGTH = 4;
+
+/**
  Bit rotation restoring Kiwi varfloat payloads to IEEE 754 layout.
  */
 const VARFLOAT_LEFT_ROTATE_BITS = 23;
@@ -69,6 +74,24 @@ export type BinaryReader = {
 };
 
 /**
+ Builds the error a read throws when it would run past the end of the buffer.
+ All truncation failures in this module share one message shape, so a caller can
+ recognize a truncated file from the prefix alone.
+ 
+ @param detail - What the read wanted and what was left.
+ 
+ @returns Error naming the input and the requested read.
+ 
+ @example
+ ```ts
+ truncationError({ detail: 'readBytes(10) at byte 0 needs 10 bytes, 2 remain' });
+ ```
+ */
+function truncationError({ detail, }: { readonly detail: string; },): Error {
+  return new Error(`Unexpected end of Kiwi data: ${detail}`);
+}
+
+/**
  Reads byte at index or throws when the buffer is exhausted.
  
  @param data - Byte array.
@@ -97,7 +120,7 @@ function byteAt(
    */
   const value = data[index];
   if (value === undefined)
-    throw new Error(`Unexpected end of Kiwi data at byte ${index}`);
+    throw truncationError({ detail: `byte ${index} does not exist`, },);
   return value;
 }
 
@@ -173,6 +196,8 @@ export function createBinaryReader(
        Start cursor for returned slice.
        */
       const start = state.cursor;
+      if ((start + count) > data.length)
+        throw truncationError({ detail: `readBytes(${count}) at byte ${start} needs ${count} bytes, ${data.length - start} remain`, },);
       state.cursor += count;
       return data
         .subarray(
@@ -182,24 +207,36 @@ export function createBinaryReader(
     },
     readString(): string {
       /**
-       Terminator offset found by a bounded scan.
+       Start cursor of the string payload.
        */
-      const end = findNullTerminator({
-        data,
-        start: state.cursor,
-      },);
+      const start = state.cursor;
+      /**
+       Terminator offset, or a negative index when the payload runs to the end.
+       */
+      const end = data.indexOf(
+        0,
+        start,
+      );
+      if (end === (-1))
+        throw truncationError({ detail: `string starting at byte ${start} has no null terminator`, },);
       /**
        UTF-8 decoded bytes before the terminator.
        */
       const value = new TextDecoder('utf-8',).decode(data
         .subarray(
-        state.cursor,
+        start,
         end,
         ),);
       state.cursor = end + 1;
       return value;
     },
     readUint32LE(): number {
+      /**
+       Start cursor of the uint32 payload.
+       */
+      const start = state.cursor;
+      if ((start + UINT32_BYTE_LENGTH) > data.length)
+        throw truncationError({ detail: `uint32 at byte ${start} needs ${UINT32_BYTE_LENGTH} bytes, ${data.length - start} remain`, },);
       /**
        View over the next uint32 payload.
        */
@@ -208,10 +245,10 @@ export function createBinaryReader(
           .buffer,
         data
           .byteOffset
-          + state.cursor,
-        VARFLOAT_BYTE_LENGTH,
+          + start,
+        UINT32_BYTE_LENGTH,
       );
-      state.cursor += VARFLOAT_BYTE_LENGTH;
+      state.cursor += UINT32_BYTE_LENGTH;
       return view.getUint32(
         0,
         true,
@@ -237,37 +274,6 @@ export function createBinaryReader(
 }
 
 /**
- Finds null terminator starting at a cursor.
- 
- @param data - Buffer.
- 
- @param start - Start cursor.
- 
- @returns Terminator offset, or buffer length when absent.
- 
- @example
- ```ts
- findNullTerminator({ data: new Uint8Array([65, 0]), start: 0 });
- // 1
- ```
- */
-function findNullTerminator(
-  {
-    data,
-    start,
-  }: {
-    readonly data: Uint8Array;
-    readonly start: number;
-  },
-): number {
-  for (let index = start; index < data.length; index++) {
-    if (data[index] === 0)
-      return index;
-  }
-  return data.length;
-}
-
-/**
  Reads unsigned LEB128 varint from reader.
  
  @param reader - {@link BinaryReader} to advance.
@@ -281,6 +287,10 @@ function findNullTerminator(
  ```
  */
 function readVarUint({ reader, }: { readonly reader: BinaryReader; },): number {
+  /**
+   Offset of the varuint's first byte, for the truncation message.
+   */
+  const start = reader.pos;
   for (let result = 0, shift = 0; !reader.eof; shift += VARUINT_CHUNK_BITS) {
     /**
      Current LEB128 byte.
@@ -290,7 +300,7 @@ function readVarUint({ reader, }: { readonly reader: BinaryReader; },): number {
     if ((byte & VARUINT_CONTINUATION_BIT) === 0)
       return Math.trunc(result);
   }
-  return 0;
+  throw truncationError({ detail: `varuint starting at byte ${start} has no terminator`, },);
 }
 
 /**

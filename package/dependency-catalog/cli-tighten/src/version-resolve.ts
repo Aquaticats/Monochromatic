@@ -10,6 +10,9 @@
  Also resolves `npm:` alias names.
  */
 
+import type {
+  Dirent,
+} from 'node:fs';
 import {
   readdir,
 } from 'node:fs/promises';
@@ -20,6 +23,10 @@ import {
 import {
   isValidPackageName,
 } from '@monochromatic-dev/dependency-catalog-core-pnpm/ts';
+
+import {
+  isAbsentPathError,
+} from './absent-path-error.ts';
 
 import {
   readVersionFromPnp,
@@ -105,12 +112,57 @@ export function resolveNpmNames(
 const workspaceRootsCache = new Map<string, string[]>();
 
 /**
+ Reads one directory's entries, reporting an absent directory as empty.
+ 
+ A directory that is not there simply holds no packages, which is the
+ ordinary case in a repo without a `package/` layout. Any other failure, such
+ as a directory this process may not read, is thrown with the directory named:
+ an empty list would make every catalog entry look uninstalled and every
+ package look undeclared, and the run cannot tell that apart from the truth.
+ 
+ @param dir - absolute path to the directory to list
+ 
+ @returns the directory's entries, or an empty list when it does not exist
+ 
+ @throws Error wrapping the read failure for every cause other than a missing
+ or non-directory path
+ 
+ @example
+ ```ts
+ await readDirectoryEntries("/repo/package") // [Dirent { name: "logger" }, ...]
+ ```
+ */
+async function readDirectoryEntries(dir: string,): Promise<Dirent[]> {
+  try {
+    return await readdir(
+      dir,
+      { withFileTypes: true, },
+    );
+  }
+  catch (error) {
+    if (!(Error.isError(error,)))
+      throw error;
+
+    if (isAbsentPathError(error,))
+      return [];
+
+    throw new Error(
+      `cannot read directory ${dir}: a failed scan would report every catalog entry as missing, so the run stops instead`,
+      { cause: error, },
+    );
+  }
+}
+
+/**
  Discovers all workspace package directories under `package/{category}/{pkg}`.
- Cached per `monorepoRoot` after first call.
+ Cached per `monorepoRoot` after first call; a failed scan is never cached.
  
  @param monorepoRoot - absolute path to the monorepo root
  
  @returns array of absolute paths to workspace package directories
+ 
+ @throws Error when `package/` or one of its category directories exists but
+ cannot be read, so a broken scan is never reported as an empty workspace
  
  @example
  ```ts
@@ -122,7 +174,9 @@ export async function discoverWorkspaceRoots(monorepoRoot: string,): Promise<str
   /**
    Previously-computed roots for this `monorepoRoot`, if any; short-circuits the directory scan.
    */
-  const cached = workspaceRootsCache.get(monorepoRoot,);
+  const cached = workspaceRootsCache.get(
+    monorepoRoot,
+  );
   if (cached !== undefined)
     return cached;
 
@@ -134,69 +188,51 @@ export async function discoverWorkspaceRoots(monorepoRoot: string,): Promise<str
     'package',
   );
 
-  try {
-    /**
-     Direct children of `package/`, expected to be category directories (e.g. `module`, `dev-script`).
-     */
-    const categories = await readdir(
-      packagesDir,
-      { withFileTypes: true, },
-    );
-    /**
-     Workspace package roots discovered per package category.
-     */
-    const rootsByCategory = await Promise.all(categories
-      .filter(function isDirectory(cat: Readonly<(typeof categories)[number]>,): boolean {
-        return cat.isDirectory();
-      },)
-      .map(async function readPackageCategory(
-        cat: Readonly<(typeof categories)[number]>,
-      ): Promise<readonly string[]> {
-        /**
-         Absolute path to one category directory, scanned for the actual package folders.
-         */
-        const catPath = join(
-          packagesDir,
-          cat.name,
-        );
-        /**
-         Individual workspace packages nested under the category; each becomes one entry in `roots`.
-         */
-        const pkgs = await readdir(
-          catPath,
-          { withFileTypes: true, },
-        );
-        return pkgs
-          .filter(function isPackageDirectory(pkg: Readonly<(typeof pkgs)[number]>,): boolean {
-            return pkg.isDirectory();
-          },)
-          .map(function toPackageRoot(pkg: Readonly<(typeof pkgs)[number]>,): string {
-            return join(
-              catPath,
-              pkg.name,
-            );
-          },);
-      },),);
-    /**
-     Flattened workspace package roots cached for the current monorepo.
-     */
-    const roots = rootsByCategory.flat();
-    workspaceRootsCache.set(
-      monorepoRoot,
-      roots,
-    );
-    return roots;
-  }
-  catch (error) {
-    if (!(Error.isError(error,)))
-      throw error;
-
-    workspaceRootsCache.set(
-      monorepoRoot,
-      [],
-    );
-    return [];
-  }
+  /**
+   Direct children of `package/`, expected to be category directories (e.g. `module`, `dev-script`).
+   */
+  const categories = await readDirectoryEntries(packagesDir,);
+  /**
+   Workspace package roots discovered per package category.
+   */
+  const rootsByCategory = await Promise.all(categories
+    .filter(function isDirectory(cat: Readonly<Dirent>,): boolean {
+      return cat.isDirectory();
+    },)
+    .map(async function readPackageCategory(
+      cat: Readonly<Dirent>,
+    ): Promise<readonly string[]> {
+      /**
+       Absolute path to one category directory, scanned for the actual package folders.
+       */
+      const catPath = join(
+        packagesDir,
+        cat.name,
+      );
+      /**
+       Individual workspace packages nested under the category; each becomes one entry in `roots`.
+       */
+      const pkgs = await readDirectoryEntries(catPath,);
+      return pkgs
+        .filter(function isPackageDirectory(pkg: Readonly<Dirent>,): boolean {
+          return pkg.isDirectory();
+        },)
+        .map(function toPackageRoot(pkg: Readonly<Dirent>,): string {
+          return join(
+            catPath,
+            pkg.name,
+          );
+        },);
+    },),);
+  /**
+   Flattened workspace package roots cached for the current monorepo.
+   */
+  const roots = rootsByCategory.flat();
+  workspaceRootsCache.set(
+    monorepoRoot,
+    roots,
+  );
+  return roots;
 }
 
 /**

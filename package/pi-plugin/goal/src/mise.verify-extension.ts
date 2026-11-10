@@ -108,10 +108,10 @@ function createRegistrationHarness(): RegistrationHarness {
    Session-entry renderers in registration order.
    */
   const entryRenderers: string[] = [];
+  /* oxlint-disable typescript/no-unsafe-type-assertion -- Registration verifier implements only API methods invoked during factory loading. */
   /**
    Minimal registration-only Pi API.
    */
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Registration verifier implements only API methods invoked during factory loading.
   const api = {
     on(
       event: string,
@@ -135,6 +135,7 @@ function createRegistrationHarness(): RegistrationHarness {
       entryRenderers.push(customType,);
     },
   } as unknown as ExtensionAPI;
+  /* oxlint-enable typescript/no-unsafe-type-assertion */
   return {
     api,
     events,
