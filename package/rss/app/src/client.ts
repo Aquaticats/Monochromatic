@@ -5,7 +5,22 @@ import {
   THREE_QUARTERS,
 } from '@monochromatic-dev/const-core/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import * as v from 'valibot';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+
+ This module runs in the reader's browser, where the console sink reaches the
+ reader's console and no file sink exists.
+ */
+const clientLogger = tagged({ tag: 'rss-client', },);
+
+//endregion Logging
 
 //region Scroll event observer: Tracks element visibility and dispatches custom scroll lifecycle events
 
@@ -103,7 +118,11 @@ function addScrollEvents(scrollOptions: {
        */
       const [entry,] = entries;
       if (!entry) {
-        console.error(`empty entries for observer; observed entry count: ${entries.length}`,);
+        tagged({
+          tag: addScrollEvents.name,
+          l: clientLogger,
+        },)
+          .warn(`empty entries for observer; observed entry count: ${entries.length}`,);
         return;
       }
       /**
@@ -165,7 +184,11 @@ function bindScrollIgnore(element: HTMLElement,): void {
     function onScrolledOut() {
       void (async function onScrolledOutAsync(): Promise<void> {
         try {
-          console.error('scrolledOut',);
+          tagged({
+            tag: bindScrollIgnore.name,
+            l: clientLogger,
+          },)
+            .debug('scrolled out, ignoring the feed entry',);
           /**
            Required metadata wrapper so a missing element fails loud, not silent.
            */
@@ -205,25 +228,31 @@ function bindScrollIgnore(element: HTMLElement,): void {
             },
           );
           if (!response.ok) {
-            console.error(
-              `ignore request failed`,
-              response,
-            );
+            tagged({
+              tag: bindScrollIgnore.name,
+              l: clientLogger,
+            },)
+              .error(`ignore request failed: ${String(response.status,)} ${response.statusText}`,);
             return;
           }
           /**
            Response text persisted for the success log line.
            */
           const text = await response.text();
-          console.error(`ignored: ${text}`,);
+          tagged({
+            tag: bindScrollIgnore.name,
+            l: clientLogger,
+          },)
+            .debug(`ignored: ${text}`,);
           element.dataset
             .ignored = '';
         }
         catch (error: unknown) {
-          console.error(
-            `scrolledOut handler failed`,
-            error,
-          );
+          tagged({
+            tag: bindScrollIgnore.name,
+            l: clientLogger,
+          },)
+            .error(`scrolledOut handler failed: ${caughtValueText(error,)}`,);
         }
       })();
     },

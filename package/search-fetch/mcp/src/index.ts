@@ -147,6 +147,43 @@ export type {
 
 //endregion Public re-exports
 
+//region Helpers
+
+/**
+ Report whether this module is the launched executable.
+
+ @returns true when the process was started as the built bin
+
+ @example
+ ```ts
+ await isDirectlyExecuted();
+ ```
+ */
+async function isDirectlyExecuted(): Promise<boolean> {
+  /**
+   Path the process was launched through, when launched at all.
+   */
+  const [, launchedPath,] = process.argv;
+  if (launchedPath === undefined)
+    return false;
+
+  /**
+   Real path of this module in the built output.
+   */
+  const modulePath = await realpath(import.meta.filename,);
+  // Deliberate catch-and-return: a launch path that cannot be resolved means an import,
+  // not a bin launch, so resolution failure must never start the server by accident.
+  try {
+    return (await realpath(launchedPath,)) === modulePath;
+  }
+  catch (error: unknown) {
+    l.debug(`could not resolve launch path ${launchedPath}: ${String(error,)}`,);
+    return false;
+  }
+}
+
+//endregion Helpers
+
 //region Bin entry: runs only when executed directly
 
 /**
@@ -186,40 +223,3 @@ if (isBinLaunch) {
 }
 
 //endregion Bin entry
-
-//region Helpers
-
-/**
- Report whether this module is the launched executable.
-
- @returns true when the process was started as the built bin
-
- @example
- ```ts
- await isDirectlyExecuted();
- ```
- */
-async function isDirectlyExecuted(): Promise<boolean> {
-  /**
-   Path the process was launched through, when launched at all.
-   */
-  const [, launchedPath,] = process.argv;
-  if (launchedPath === undefined)
-    return false;
-
-  /**
-   Real path of this module in the built output.
-   */
-  const modulePath = await realpath(import.meta.filename,);
-  // Deliberate catch-and-return: a launch path that cannot be resolved means an import,
-  // not a bin launch, so resolution failure must never start the server by accident.
-  try {
-    return (await realpath(launchedPath,)) === modulePath;
-  }
-  catch (error: unknown) {
-    l.debug(`could not resolve launch path ${launchedPath}: ${String(error,)}`,);
-    return false;
-  }
-}
-
-//endregion Helpers
