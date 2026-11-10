@@ -340,15 +340,17 @@ pub fn failed_message(status: &str) -> String {
 /// Why:
 ///   The upload's own words name the cause,
 /// and a person reading them may not know that "terminal prompts disabled" means
-///  "a login is missing, and nothing was allowed to ask for one";
-/// these are the spellings the refusal is recognized by, and each is a string the two programs print.
+///  "a login is missing,
+/// and nothing was allowed to ask for one";
+/// these are the spellings the refusal is recognized by,
+/// and each is a string the two programs print.
 /// Measured on 2026-11-10 against a server answering `401` with `LFS-Authenticate`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const LOGIN_NEEDED = ['terminal prompts disabled', 'could not read Username', 'could not read Password', 'Authentication required', 'Authorization error', 'too many authentication attempts'];
+/// const LOGIN_NEEDED = ['terminal prompts disabled', 'could not read Username', 'could not read Password', 'Authentication required', 'too many authentication attempts'];
 /// ```
-const LOGIN_NEEDED: [&str; 6] = [
+const LOGIN_NEEDED: [&str; 5] = [
     // Git's own words from `prompt.c`, with terminal prompts off.
     "terminal prompts disabled",
     // Git's credential prompt when no askpass program and no terminal answer.
@@ -356,8 +358,6 @@ const LOGIN_NEEDED: [&str; 6] = [
     "could not read Password",
     // git-lfs's words for a `401` answer it could not get a login for.
     "Authentication required",
-    // git-lfs's words for an `Authorization error` of the batch API.
-    "Authorization error",
     // git-lfs's words when every login it was given was refused.
     "too many authentication attempts",
 ];
@@ -367,6 +367,9 @@ const LOGIN_NEEDED: [&str; 6] = [
 /// Why:
 ///   Only that failure has a way forward the person must be told about,
 /// and a missing object or an unreachable server has others.
+/// A server that refused a login it was given says "Authorization error" and is not one of these:
+/// a login is there,
+/// and the ways forward are the repository's access and not a credential helper.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -390,7 +393,8 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 ///   The incident of 2026-11-10 ran for seven minutes because nothing said what was missing,
 /// and the push it belonged to could not be
 ///  published (`doc/troubleshooting/lfs-credential-in-url.md`).
-/// The server is named without any credential, and the setting that stores one is named without its value.
+/// The server is named without any credential,
+/// and the setting that stores one is named without its value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

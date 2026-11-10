@@ -191,15 +191,21 @@ a keyring-backed helper is a drop-in replacement.
 ### Git commands that may need a login
 
 AKP:
- Git and `git-lfs` commands this package's scripts, runbooks or agents start that may reach a login set
+ Git and `git-lfs` commands this package's scripts,
+runbooks or agents start that may reach a login set
  `GIT_ASKPASS` to the empty string and `GIT_TERMINAL_PROMPT=0`.
 
 Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one:
-Git 2.56.0 and git-lfs 3.8.1 try `GIT_ASKPASS`, then `core.askPass`, then `SSH_ASKPASS`, and only then read
+Git 2.56.0 and git-lfs 3.8.1 try `GIT_ASKPASS`,
+then `core.askPass`,
+then `SSH_ASKPASS`,
+and only then read
 `GIT_TERMINAL_PROMPT` ([why](../../../doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md)).
 A probe or a test that uploads writes `GIT_ASKPASS= GIT_TERMINAL_PROMPT=0 git lfs push ...` in front of the command.
-The wrapper's own Git children get the pair from it when their process has no controlling terminal, so an agent session
-is covered without this rule; a shell command typed by a person is not.
+The wrapper's own Git children get the pair from it when their process has no controlling terminal,
+so an agent session
+is covered without this rule;
+a shell command typed by a person is not.
 
 With that set,
 the normal flow uploads to R2 automatically,

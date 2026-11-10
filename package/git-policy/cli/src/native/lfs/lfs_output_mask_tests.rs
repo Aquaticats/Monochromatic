@@ -181,3 +181,20 @@ fn the_host_of_a_destination_is_the_server_alone() {
         assert_eq!(host_of(destination).as_deref(), expected, "{destination}");
     }
 }
+
+/// The servers a failure's own words name are read in order,
+/// whoever they carry in front of the host.
+#[test]
+fn the_servers_a_failure_names_are_read_in_order() {
+    let line: &str = "fatal: could not read Username for 'https://lfs.example.invalid': No such device or address; \
+                      batch response: Authorization error: https://user:secret@other.example.invalid/objects/batch";
+    assert_eq!(hosts_in(line), vec![String::from("lfs.example.invalid"), String::from("other.example.invalid")]);
+    assert_eq!(hosts_in("nothing here names a server"), Vec::<String>::new());
+    assert_eq!(hosts_in("a path /home/person/repo is not one"), Vec::<String>::new());
+    assert_eq!(hosts_in("the same host twice: https://host.invalid/a and https://host.invalid/b"), vec![String::from("host.invalid")]);
+    // Text this module already masked still names its server: the mask stands where the userinfo was.
+    assert_eq!(
+        hosts_in(&format!("batch response: Authorization error: https://lfs:{CREDENTIALS_MASK}@host.invalid/objects/batch")),
+        vec![String::from("host.invalid")]
+    );
+}

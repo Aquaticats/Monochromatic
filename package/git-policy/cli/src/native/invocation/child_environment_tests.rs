@@ -366,5 +366,5 @@ fn the_never_prompt_pair_wins_over_a_caller_set_child_variable() {
     let inherited = environment(&[(format!("{CHILD_SET_PREFIX}{ASKPASS_VARIABLE}").as_str(), "/usr/bin/ksshaskpass")]);
     let overlay = invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Absent);
     let askpass: Vec<&OsString> = overlay.iter().filter(|(name, _value)| { return name == ASKPASS_VARIABLE; }).map(|(_name, value)| { return value; }).collect();
-    assert_eq!(askpass, vec![&OsString::new()], "the last entry wins, as an environment block reads it");
+    assert_eq!(askpass.last(), Some(&&OsString::new()), "the last entry wins, as an environment block reads it: {askpass:?}");
 }

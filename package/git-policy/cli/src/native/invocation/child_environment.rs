@@ -493,10 +493,12 @@ pub fn service_child_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsStr
 /// The push of
 ///  2026-11-10 did that for seven minutes while its errors sat in a private file
 /// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
-/// A command at a terminal keeps Git's own prompting, which the owner asked for on 2026-11-07.
+/// A command at a terminal keeps Git's own prompting,
+/// which the owner asked for on 2026-11-07.
 ///  The answer comes from the process's controlling terminal and never from whether standard input is a terminal:
 /// the incident's
-///  wrapper had its input at `/dev/null` and still inherited `DISPLAY`, which is all a dialog needs.
+///  wrapper had its input at `/dev/null` and still inherited `DISPLAY`,
+/// which is all a dialog needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

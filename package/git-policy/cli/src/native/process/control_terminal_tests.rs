@@ -51,7 +51,8 @@ fn helper_entry() {
     assert_eq!(text, expected.to_string_lossy(), "the probe answered about the wrong terminal");
 }
 
-/// Wait for a path a helper writes, or fail the control at its own bound.
+/// Wait for a path a helper writes,
+/// or fail the control at its own bound.
 fn wait_for(path: &Path) {
     let began: Instant = Instant::now();
     while !path.exists() {
@@ -62,7 +63,9 @@ fn wait_for(path: &Path) {
 
 /// A pseudo-terminal the control keeps open:
 /// the master end and the slave end a helper's standard streams are made from.
-///  The name is the sibling `Terminal` of this module plus what it is: a device of this control, not an answer about a process.
+///  The name is the sibling `Terminal` of this module plus what it is:
+/// a device of this control,
+/// not an answer about a process.
 struct PseudoTerminal {
     /// Kept open so the helper's terminal stays a terminal for its whole run.
     _master: std::fs::File,

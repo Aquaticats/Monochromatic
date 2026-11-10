@@ -41,21 +41,25 @@ use crate::child_environment::environment_value;
 /// How a child ended,
 /// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
-/// The texts,
-/// the program lookup,
-/// and the reading that says a failure was a login.
-use crate::lfs_pre_push::{
-    environment_config_count, failed_message, find_program, login_needed_message, missing_program_message, reads_as_a_login_failure,
+/// The program lookup,
+/// the explanation after a failure,
+/// and the refusal a push without the program prints.
+use crate::lfs_pre_push::{environment_config_count, failed_message, find_program, missing_program_message};
+/// Every word about a failed,
+/// stopped or refused upload.
+use crate::lfs_upload_explanations::{
+    MAX_RELAYED_BYTES, capture_failed_message, explanation_after_failure, failed_upload, guard_failed_message, missing_program_attempt,
+    stopped_upload_words,
 };
-/// Hides the credentials in a URL of relayed text,
-/// and reads the host of a destination to name it.
-use crate::lfs_output_mask::{host_of, mask_userinfo, mask_userinfo_text};
+/// Hides the credentials in a URL of relayed text.
+use crate::lfs_output_mask::mask_userinfo;
 use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use crate::scratch_location::scratch_file;
 /// Relays signals to the child,
 /// which starts it and hands it over still published.
-use crate::signal_relay::{RelayedChild, SignalGuard};
+use crate::signal_relay::SignalGuard;
+use crate::signal_relay_relayed_child::RelayedChild;
 /// The child held until it is reaped,
 /// awaited on its pidfd.
 use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
@@ -154,7 +158,8 @@ enum CaptureError {
     /// The program could not be started.
     Start,
     /// The wait for the program could not be made at all:
-    /// no signal handler could be installed, or the process's runtime refused.
+    /// no signal handler could be installed,
+    /// or the process's runtime refused.
     /// The text says why.
     Guard(String),
 }
@@ -198,11 +203,6 @@ enum UploadEnd {
     /// and the cause says which limit came first.
     Stopped(StopCause),
 }
-
-/// The most standard error text one run keeps and relays;
-/// the rest is dropped,
-/// so a flood cannot fill memory.
-const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
 
 /// What:
 ///  Run the command with its standard error in an anonymous file and return how it ended with that text,
@@ -289,7 +289,11 @@ async fn await_upload(
     captured: &std::fs::File,
     environment: &[(OsString, OsString)],
 ) -> Result<UploadEnd, RunError> {
-    let mut relayed: RelayedChild = guard.start_relayed(command).await.map_err(|_error| RunError::Start)?;
+    let mut relayed: RelayedChild = match guard.start_relayed(command).await {
+        // A program that never started is the missing-program refusal, not a defect of the wait.
+        Err(_error) => return Err(RunError::Start),
+        Ok(started) => started,
+    };
     let started: std::process::Child = relayed.take_child().expect("the child was handed over once");
     let mut child: OwnedChild = adopt(started);
     let label: String = command_label(command);
@@ -297,8 +301,11 @@ async fn await_upload(
     // The upload leaves no reference lock, so the ledger the stop sweeps is empty.
     let locks: LockLedger = LockLedger::none();
     let patience = push_patience(environment);
-    let ended: Result<ExitStatus, StopCause> =
-        wait_until_done_noting(&mut child, &[captured], patience, label.as_str(), &mut waits, None).await.map_err(|wait| RunError::Wait(wait.to_string()))?;
+    let ended: Result<ExitStatus, StopCause> = match wait_until_done_noting(&mut child, &[captured], patience, label.as_str(), &mut waits, None).await {
+        // A wait that could not be made at all is this process's own defect, and its words say which.
+        Err(wait) => return Err(RunError::Wait(wait.to_string())),
+        Ok(finished) => finished,
+    };
     let finished: UploadEnd = match ended {
         // `outcome_of` maps the status the way the wrapper's exit and its notices read it, a death by a signal included.
         Ok(status) => UploadEnd::Finished(outcome_of(status)),
@@ -311,109 +318,6 @@ async fn await_upload(
     // The token stops the relay pointing at the child here, once the wait no longer owns a living one.
     drop(relayed);
     return Ok(finished);
-}
-
-/// What:
-///  The words a run the wrapper stopped is explained with.
-/// Why:
-///  The program chose no status of its own,
-/// so the explanation says which limit came first and what the person can do about a
-///  slow line, as the auto-push's upload does.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// cause.kind === 'stalled' ? `made no progress for ${limit} seconds and was stopped` : `...`
-/// ```
-fn stopped_upload_words(cause: &StopCause) -> String {
-    return match cause {
-        StopCause::Deadline => String::from("did not finish in time and was stopped"),
-        StopCause::Stalled(report) => format!(
-            "made no progress for {} seconds and was stopped (bytes_moved={}); {}",
-            report.limit.as_secs(),
-            report.moved,
-            crate::push_deadline_advice::extend_clause()
-        ),
-        StopCause::Flood => format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped"),
-        // A typed upload carries no arm for the service's stop, so this ending cannot be reached here.
-        StopCause::ServiceStopped => String::from("was ended because the service was stopped"),
-    };
-}
-
-/// What:
-///  How a refusal names the destination whose upload needed a login:
-///  the server the destination URL names,
-/// or, for a remote name or a local path,
-/// the destination as typed with any userinfo hidden.
-/// Why:
-///   A refusal a person acts on says which server asked,
-/// and never repeats a token that a repository's `lfs.url` carries.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// hostOf(text) ? `the server \`${hostOf(text)}\`` : `the destination \`${maskUserinfoText(text)}\``
-/// ```
-fn login_subject(destination: &std::ffi::OsStr) -> String {
-    // `to_string_lossy` reads a destination that is not UTF-8 without failing; a remote name or URL is text in practice.
-    let text: String = destination.to_string_lossy().into_owned();
-    return match host_of(text.as_str()) {
-        Some(host) => format!("the server `{host}`"),
-        None => format!("the destination `{}`", mask_userinfo_text(text.as_str())),
-    };
-}
-
-/// What:
-///  The explanation printed after a failed upload:
-/// the general one,
-/// and,
-/// when the program's own words say it needed a login,
-/// the one that names the server and every way to give it one.
-/// Why:
-///   The wrapper is what refused to ask a person,
-/// so that failure is the one whose way forward only the wrapper can explain
-///  (`doc/troubleshooting/lfs-credential-in-url.md`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(loginSubject(destination)) : '')
-/// ```
-fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8]) -> String {
-    let mut text: String = failed_message(status);
-    // `from_utf8_lossy` reads the program's words whatever their encoding; only the search matters here.
-    let shown: String = String::from_utf8_lossy(output).into_owned();
-    if reads_as_a_login_failure(shown.as_str()) {
-        text.push_str(login_needed_message(login_subject(destination).as_str()).as_str());
-    }
-    return text;
-}
-
-/// The refusal printed when the standard error of the upload cannot be captured.
-fn capture_failed_message(why: &str) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The wrapper reads the output of `git-lfs push` through \
-         a private temporary file, to hide the credentials in the URLs it names, and that file could not be made ({why}). Ways forward: fix the cause named in the parentheses (the \
-         wrapper needs a writable `XDG_STATE_HOME`, or a `HOME`, for its private scratch directory) and push again; or \
-         skip the upload for this push with `GIT_LFS_SKIP_PUSH=1` or `git push --no-verify`, which publishes pointer \
-         files without their objects.\n"
-    );
-}
-
-/// What:
-///  The refusal printed when no signal handler could be installed for the upload's wait.
-/// Why:
-///  Without a guard the wait would have no bound and no relay,
-/// so the push is stopped before it sends anything rather than left to wait
-///  where nothing bounds it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: this push was stopped before it sent anything. ... (${why}) ...`
-/// ```
-fn guard_failed_message(why: &str) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The wrapper bounds the run of `git-lfs push` \
-         and relays a signal sent to it to that program, and it could not begin that wait ({why}). Ways forward: push again, because \
-         the cause may be transient; or upload by hand with `git lfs push --all <remote>` and push with `git push --no-verify`.\n"
-    );
 }
 
 /// What:
@@ -651,59 +555,6 @@ fn upload_commands(git: &PushGit, plan: &UploadPlan) -> Option<Vec<(OsString, Co
 /// ```
 pub(crate) fn refused_job(refusal: crate::blocking_job::BlockingJobError) -> SingleFlightError {
     return SingleFlightError::Start(std::io::Error::other(refusal.to_string()));
-}
-
-/// What:
-///  What a person is told when no `git-lfs` is on the caller's `PATH`.
-/// Why:
-///   Both faces refuse the upload with the same words,
-/// and the push that would have followed it is never started.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ({ exitCode: 1, output: missingProgramMessage().trimEnd() })
-/// ```
-fn missing_program_attempt() -> PushAttempt {
-    return PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() };
-}
-
-/// What:
-///  The failed attempt of one finished upload,
-/// with the credentials in its output hidden,
-/// or nothing when it succeeded.
-/// Why:
-///  A server error is not run again here,
-/// for the reason given in `run_upload_interactive`:
-/// the service's push retry plan
-///  tries the push again by itself.
-/// Both faces read one finished attempt here,
-/// so the two cannot report a failure differently.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// attempt.exitCode === 0 ? undefined : explained({ exitCode, output: maskUserinfoText(attempt.output) });
-/// ```
-fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr) -> Option<PushAttempt> {
-    if attempt.exit_code == 0 {
-        return None;
-    }
-    let shown: String = mask_userinfo_text(attempt.output.as_str());
-    return Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown }, destination));
-}
-
-/// The failed attempt with the explanation after the program's own output;
-/// a stop by deadline says so,
-/// and a login the program needed says how to give it one.
-fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr) -> PushAttempt {
-    let description: String = if attempt.exit_code == STOPPED_EXIT_CODE {
-        String::from("did not finish and was stopped")
-    } else {
-        format!("exited with status {}", attempt.exit_code)
-    };
-    let explanation: String = explanation_after_failure(description.as_str(), destination, attempt.output.as_bytes());
-    let shown: &str = explanation.trim_end();
-    let output: String = if attempt.output.is_empty() { shown.to_owned() } else { format!("{}\n{shown}", attempt.output) };
-    return PushAttempt { exit_code: attempt.exit_code, output };
 }
 
 /// The runs are controlled in the test module.

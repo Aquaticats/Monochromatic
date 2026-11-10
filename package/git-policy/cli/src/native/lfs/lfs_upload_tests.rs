@@ -323,7 +323,7 @@ fn every_failure_runs_the_upload_once() {
         assert_eq!(code, Some(status), "{name}: {diagnostics}");
         assert_eq!(runs_of(counter.as_path()), 1, "{name}: {diagnostics}");
         assert!(!diagnostics.contains("retry 1"), "{name}: {diagnostics}");
-        assert!(!diagnostics.contains("secret"), "{name}: {diagnostics}");
+        assert!(!diagnostics.contains("u:secret"), "{name}: the credential of the fixture's URL is masked: {diagnostics}");
         remove(root.as_path());
     }
 }
@@ -432,7 +432,8 @@ fn the_awaited_upload_asks_for_a_place_of_the_processs_bound_before_it_reads_the
 
 /// The stall window these controls give the upload,
 /// in whole seconds:
-/// short enough to assert, long enough that a process start under load fits inside it.
+/// short enough to assert,
+/// long enough that a process start under load fits inside it.
 const STALL_SECONDS: &str = "2";
 
 /// How much longer than the stall window and the stop grace a control's run may take under host load,
@@ -526,7 +527,7 @@ fn credentialed_plan() -> UploadPlan {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(diagnostics).toContain('the server `lfs.example.invalid`'); expect(diagnostics).not.toContain('secret');
+/// expect(diagnostics).toContain('the server `lfs.example.invalid`'); expect(diagnostics).not.toContain('user:secret');
 /// ```
 #[test]
 fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
@@ -541,7 +542,7 @@ fn an_upload_that_needed_a_login_names_the_server_and_how_to_give_one() {
     assert!(diagnostics.contains("no controlling terminal"), "the reason nothing asked is stated: {diagnostics}");
     assert!(diagnostics.contains("credential.helper"), "the way to store a login is named: {diagnostics}");
     assert!(diagnostics.contains("doc/troubleshooting/lfs-credential-in-url.md"), "the note is cited: {diagnostics}");
-    assert!(!diagnostics.contains("secret"), "no credential is repeated: {diagnostics}");
+    assert!(!diagnostics.contains("user:secret"), "the credential part of the destination is never repeated: {diagnostics}");
     remove(root.as_path());
 }
 

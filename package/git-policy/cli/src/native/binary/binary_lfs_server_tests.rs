@@ -41,7 +41,8 @@ struct ServerState {
     /// as a server that rejects the credentials would.
     refuse_batch: bool,
     /// Whether the batch endpoint asks for a login,
-    /// as the Worker of the 2026-11-10 incident did: an HTTP 401 with the realm it wants.
+    /// as the Worker of the 2026-11-10 incident did:
+    /// an HTTP 401 with the realm it wants.
     login_required: bool,
     /// How many of the next batch requests are answered with HTTP 503,
     /// as the incident's server did.
@@ -851,7 +852,8 @@ fn terminal() -> Terminal {
 
 /// What:
 ///  Run one wrapped push whose standard input is `/dev/null`
-///  (or a terminal, when `at` is given)
+///  (or a terminal,
+/// when `at` is given)
 ///  and whose process is in a session of its own.
 /// Why:
 ///   The incident's push came from a session with no controlling terminal,
@@ -892,7 +894,8 @@ fn observe_push(fixture: &Fixture, repo: &Path, arguments: &[&str], variables: &
 }
 
 /// The programs still running whose working directory is inside the fixture,
-/// as `"pid:command"`, after waiting a moment for the ones a finished run is ending.
+/// as `"pid:command"`,
+/// after waiting a moment for the ones a finished run is ending.
 fn processes_under(root: &Path) -> Vec<String> {
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     loop {
@@ -922,7 +925,8 @@ fn processes_under(root: &Path) -> Vec<String> {
     }
 }
 
-/// The second words of a push the incident's form names: an explicit URL destination and a bare refspec.
+/// The second words of a push the incident's form names:
+/// an explicit URL destination and a bare refspec.
 const URL_FORM_DESTINATION: &str = "refs/heads/fixture-url-form";
 
 /// The ref a push in the incident's form publishes.
@@ -960,12 +964,17 @@ fn an_unattended_push_without_a_controlling_terminal_never_opens_the_password_di
         None,
     );
     let stderr: String = stderr_of(&pushed);
-    eprintln!("THE DIAGNOSTIC OF THE UNATTENDED PUSH:\n{stderr}");
     assert!(!log.exists(), "the desktop password program was started: {:?}", questions(log.as_path()));
     assert_ne!(pushed.code, Some(0), "a login the caller does not have is a failure: {stderr}");
     assert_eq!(published_url_form(&fixture, origin.as_path()), "absent", "nothing was published: {stderr}");
     assert!(server.uploads().is_empty(), "{stderr}");
     assert_eq!(processes_under(fixture.root.as_path()), Vec::<String>::new(), "the run left a program behind");
+    // The refusal names the server that asked, from the program's own words, and says how to give it a login.
+    let asked: String = format!("the server `127.0.0.1:{}`", server.port);
+    assert!(stderr.contains(asked.as_str()), "the server that asked is named: {stderr}");
+    assert!(stderr.contains("no controlling terminal") && stderr.contains("credential.helper"), "{stderr}");
+    assert!(stderr.contains("doc/troubleshooting/lfs-credential-in-url.md"), "{stderr}");
+    assert!(stderr.contains("`git-lfs push` exited with status"), "the program's own status is kept: {stderr}");
     drop(server);
     remove_settled(&fixture);
 }

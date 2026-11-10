@@ -364,13 +364,16 @@ Read-only commands,
    reconcile pushes.
   The typed push's upload is bounded like the auto-push's:
   a program that shows no sign of work for the push's stall window
-   (`CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 seconds by default) is stopped,
+   (`CLI_GIT_PUSH_DEADLINE_SECONDS`,
+  30 seconds by default) is stopped,
   everything it started is ended,
   and the push
    says the upload "made no progress for N seconds and was stopped" instead of waiting for an answer that never comes;
-  a program whose connection to the server is open is waited for, as a push is.
+  a program whose connection to the server is open is waited for,
+  as a push is.
   The plan's own Git questions are bounded the same
-   way, so a Git that never answers is stopped and named.
+   way,
+  so a Git that never answers is stopped and named.
   A push whose process has no controlling terminal uploads with `GIT_ASKPASS` set to the empty string and
    `GIT_TERMINAL_PROMPT=0`,
   so a login it does not have fails at once instead of opening a desktop password window for nobody
@@ -3080,7 +3083,8 @@ fractional or non-numeric value is ignored.
   and no desktop password dialog opens for nobody to answer.
   `SSH_ASKPASS` stays in the environment for OpenSSH's key passphrases,
   and a command typed at a terminal keeps Git's own prompting
-   while one whose process has no controlling terminal gets the same pair, because nobody can answer it.
+   while one whose process has no controlling terminal gets the same pair,
+  because nobody can answer it.
   The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying,
   and goes when the push lands.

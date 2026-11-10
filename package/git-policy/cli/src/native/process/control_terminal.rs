@@ -4,7 +4,8 @@
 //! Why:
 //!  Only a command with a controlling terminal may have a person at it,
 //! and only such a command keeps Git's own prompting.
-//! A process without one, like the daemon that started the push of
+//! A process without one,
+//! like the daemon that started the push of
 //!  2026-11-10 (`ps -o tty=` printed `?`),
 //! has nobody to answer a login question,
 //! and Git's and git-lfs's prompt programs
@@ -12,7 +13,8 @@
 //! (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
 //!  A terminal this process merely inherits as a descriptor is not asked about:
 //! the incident's wrapper had its standard input at `/dev/null` and still
-//!  inherited `DISPLAY`, so "is standard input a terminal" answers the wrong question.
+//!  inherited `DISPLAY`,
+//! so "is standard input a terminal" answers the wrong question.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +22,8 @@
 //! ```
 
 /// What:
-///  The two answers, named so a call site reads as a decision:
+///  The two answers,
+/// named so a call site reads as a decision:
 ///  a person may be able to answer (`Present`),
 /// or nobody can (`Absent`).
 ///  The siblings of an enum here are a `bool`,

@@ -4565,7 +4565,9 @@ The window is the push's stall window in both,
 so a program or a question that shows no sign of work for it is stopped and named,
 and one that holds an open connection to a server is waited for,
 as the push itself is
-(owner, 2026-11-03: "Stop only on no progress").
+(owner,
+2026-11-03:
+"Stop only on no progress").
 A stopped upload's program is ended with the grace every stopped child gets,
 and what it started goes with it,
 so the password program a login would have started cannot outlive the push either.

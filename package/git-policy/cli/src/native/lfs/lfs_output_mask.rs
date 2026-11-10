@@ -48,8 +48,11 @@ pub const CREDENTIALS_MASK: &str = "<credentials>";
 /// function hostOf(destination: string): string | undefined
 /// ```
 pub fn host_of(destination: &str) -> Option<String> {
+    // The mask this module writes stands where the userinfo was, and its angle brackets end a URL's authority, so it is
+    //  removed first: `https://lfs:<credentials>@host` names `host`, not `lfs:`.
+    let stripped: String = destination.replace(CREDENTIALS_MASK, "");
     // `as_bytes()` lends the text as raw bytes, so the rules below match what a URL really holds.
-    let bytes: &[u8] = destination.as_bytes();
+    let bytes: &[u8] = stripped.as_bytes();
     let separator: usize = next_separator(bytes, 0)?;
     // A separator that follows no scheme character is a path, not a URL.
     if separator == 0 || !ends_scheme(bytes[separator - 1]) {
@@ -167,6 +170,64 @@ pub fn mask_userinfo(text: &[u8]) -> Vec<u8> {
 /// ```
 pub fn mask_userinfo_text(text: &str) -> String {
     return String::from_utf8_lossy(mask_userinfo(text.as_bytes()).as_slice()).into_owned();
+}
+
+/// What:
+///  Every server a text names,
+/// in the order it names them,
+/// each as its host and port with any userinfo left out.
+/// Why:
+///   A refusal that says which server asked for a login is actionable,
+/// and the program's own words name it:
+/// Git quotes the URL in "could not read Username for <https://host>",
+///  and git-lfs names it in "Authorization error:
+/// <https://host/objects/batch>".
+/// The host comes out of the same authority rule the mask uses,
+/// so a token in front of it is never part of what is returned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function hostsIn(text: string): string[]
+/// ```
+pub fn hosts_in(text: &str) -> Vec<String> {
+    // The mask this module writes stands where the userinfo was, and its angle brackets end a URL's authority, so it is
+    //  removed first: `https://lfs:<credentials>@host` names `host`, not `lfs:`.
+    let stripped: String = text.replace(CREDENTIALS_MASK, "");
+    // `as_bytes()` lends the text as raw bytes, so every URL in it is scanned by the rules below.
+    let bytes: &[u8] = stripped.as_bytes();
+    let mut hosts: Vec<String> = Vec::new();
+    let mut from: usize = 0;
+    while let Some(separator) = next_separator(bytes, from) {
+        // A separator that follows no scheme character starts no URL, and the scan goes on after it.
+        if separator == 0 || !ends_scheme(bytes[separator - 1]) {
+            from = separator + SCHEME_SEPARATOR.len();
+            continue;
+        }
+        let authority_start: usize = separator + SCHEME_SEPARATOR.len();
+        let mut authority_end: usize = bytes.len();
+        for (offset, byte) in bytes[authority_start..].iter().enumerate() {
+            if ends_authority(*byte) {
+                authority_end = authority_start + offset;
+                break;
+            }
+        }
+        // The next search starts where this authority ended, so each byte is read a constant number of times.
+        from = authority_end;
+        let authority: &[u8] = &bytes[authority_start..authority_end];
+        let host_start: usize = match authority.iter().rposition(is_at_sign) {
+            Some(offset) => offset + 1,
+            None => 0,
+        };
+        let host: &[u8] = &authority[host_start..];
+        if host.is_empty() {
+            continue;
+        }
+        let named: String = String::from_utf8_lossy(host).into_owned();
+        if !hosts.contains(&named) {
+            hosts.push(named);
+        }
+    }
+    return hosts;
 }
 
 /// Masking is controlled in the test module.
