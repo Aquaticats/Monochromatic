@@ -45,6 +45,11 @@ body {
   margin-block: 0;
   margin-inline: 0;
   overflow: hidden;
+}
+html {
+  font-size: 100%;
+}
+body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: ui-sans-serif, system-ui, sans-serif;

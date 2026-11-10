@@ -30,6 +30,14 @@ import { renderStyles, } from './styles.ts';
 const ROOT_SELECTOR = ':root';
 
 /**
+ Selector whose rule may define a color token at the document root.
+ */
+const ROOT_SELECTORS: readonly string[] = [
+  ':root',
+  'html',
+];
+
+/**
  Prefix every color token in the design-token system carries.
  */
 const COLOR_TOKEN_PREFIX = '--color-';
@@ -398,7 +406,7 @@ const varDeclarations = allDeclarations.filter(function usesVar(declaration,) {
  Declarations that carry a hardcoded color, ignoring the palette in `:root`.
  */
 const colorLiteralDeclarations = allDeclarations.filter(function hasLiteral(declaration,) {
-  return (declaration.selector !== ROOT_SELECTOR) || !declaration.property.startsWith('--',);
+  return !ROOT_SELECTORS.includes(declaration.selector,) || !declaration.property.startsWith('--',);
 },)
   .filter(function hardcoded(declaration,) {
     if (COLOR_LITERAL_PATTERN.test(declaration.value,))
@@ -422,7 +430,9 @@ await describe({
              */
             const rootTokens = [...definedProperties.entries(),]
               .filter(function isColorToken(entry,) {
-                return entry[1].includes(ROOT_SELECTOR,)
+                return entry[1].some(function atRoot(selector,) {
+                  return ROOT_SELECTORS.includes(selector,);
+                },)
                   && entry[0].startsWith(COLOR_TOKEN_PREFIX,);
               },);
             expect(rootTokens.length,)
@@ -548,6 +558,29 @@ await describe({
                 return !definedProperties.has(name,);
               },);
             expect(undefinedNames,)
+              .toEqual([],);
+          },
+        },),
+        it({
+          name: 'leaves the root font size at the browser default, so rem keeps its basis',
+          fn: async () => {
+            /**
+             Rules that would scale every rem length by changing the root font size.
+             */
+            const rootFontSizes = allDeclarations
+              .filter(function atRoot(declaration,) {
+                return ROOT_SELECTORS.includes(declaration.selector,);
+              },)
+              .filter(function setsFontSize(declaration,) {
+                return declaration.property === 'font-size';
+              },)
+              .filter(function notADefault(declaration,) {
+                return declaration.value !== '100%';
+              },)
+              .map(function describe(declaration,) {
+                return describeDeclaration(declaration,);
+              },);
+            expect(rootFontSizes,)
               .toEqual([],);
           },
         },),
