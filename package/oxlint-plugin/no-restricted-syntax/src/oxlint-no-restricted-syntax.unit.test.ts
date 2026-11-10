@@ -282,6 +282,73 @@ const BAN_DISABLE_RULES = [
   'no-disable-require-tsdoc',
 ] as const;
 
+/** Diagnostic `code` emitted by the ban rule guarding `no-restricted-syntax/no-switch`. */
+const NO_SWITCH_BAN_CODE = 'no-restricted-syntax(no-disable-no-switch)';
+
+/** Diagnostic `code` emitted by the ban rule guarding `no-useless-return`, whose rule id carries no plugin prefix. */
+const NO_USELESS_RETURN_BAN_CODE = 'no-restricted-syntax(no-disable-no-useless-return)';
+
+/**
+ Returns the source lines one ban rule points at, in oxlint's emission order,
+ and an empty list when it reported nothing.
+
+ @param diagnostics - diagnostics oxlint reported for one linted file
+
+ @param code - diagnostic `code` of the ban rule under test
+
+ @returns one-based lines of that ban rule's diagnostics
+
+ @example
+ ```ts
+ banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE }); // [4] for a directive on line 4
+ ```
+ */
+function banRuleLines(
+  { diagnostics, code, }: {
+    readonly diagnostics: readonly OxlintDiagnostic[];
+    readonly code: string;
+  },
+): readonly number[] {
+  return diagnostics
+    .filter(function isBanRule(diagnostic,): boolean {
+      return diagnostic.code === code;
+    },)
+    .map(function firstLabelLine(diagnostic,): number {
+      return diagnostic.labels?.[0]?.span.line ?? 0;
+    },);
+}
+
+/**
+ Reads the one-based lines of a fixture whose text begins with a `//`
+ oxlint-disable directive, so an expectation follows the fixture when it moves.
+
+ @param fixturePath - fixture path relative to the fixture `src/` root
+
+ @returns one-based lines holding a line-comment directive
+
+ @example
+ ```ts
+ lineCommentDirectiveLines({ fixturePath: 'invalid/no-disable-no-switch.ts' }); // [4]
+ ```
+ */
+function lineCommentDirectiveLines(
+  { fixturePath, }: { readonly fixturePath: string; },
+): readonly number[] {
+  const lines: number[] = [];
+  const text = readFileSync(
+    resolve(
+      FIXTURES,
+      fixturePath,
+    ),
+    'utf8',
+  );
+  text.split('\n',)
+    .forEach(function collectDirective(line, index,): void {
+      if (line.startsWith('// oxlint-disable',)) lines.push(index + 1,);
+    },);
+  return lines;
+}
+
 //endregion Helpers
 
 await describe({
@@ -312,6 +379,105 @@ await describe({
           },
         },);
       },),
+    },),
+    describe({
+      name: 'ban-disable directive detection',
+      children: [
+        it({
+          name: 'reports the fixture directive without reporting the prose header',
+          fn: async () => {
+            const diagnostics = await lint('invalid/no-disable-no-switch.ts',);
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
+              .toEqual(lineCommentDirectiveLines({ fixturePath: 'invalid/no-disable-no-switch.ts', },),);
+          },
+        },),
+        it({
+          name: 'ignores a directive naming only a longer rule id',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'longer-rule-id.ts',
+              source: [
+                '// oxlint-disable-next-line no-restricted-syntax/no-switch-extra -- another rule.',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
+              .toEqual([],);
+          },
+        },),
+        it({
+          name: 'ignores a star-prefixed block comment line oxlint reads as prose',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'star-prefixed-block.ts',
+              source: [
+                '/*',
+                ' * oxlint-disable no-restricted-syntax/no-switch -- prose to oxlint.',
+                ' */',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
+              .toEqual([],);
+          },
+        },),
+        it({
+          name: 'reports a block-comment directive naming the banned rule id',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'block-directive.ts',
+              source: [
+                '/* oxlint-disable no-restricted-syntax/no-switch -- intentional. */',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
+              .toEqual([1],);
+          },
+        },),
+        it({
+          name: 'reports a next-line directive that lists the banned rule id with others',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'comma-list-directive.ts',
+              source: [
+                '// oxlint-disable-next-line no-unused-vars, no-restricted-syntax/no-switch -- intentional.',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(banRuleLines({ diagnostics, code: NO_SWITCH_BAN_CODE, },),)
+              .toEqual([1],);
+          },
+        },),
+        it({
+          name: 'reports a bare-id rule behind a plugin prefix and without one',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'bare-rule-id.ts',
+              source: [
+                '// oxlint-disable-next-line eslint/no-useless-return -- intentional.',
+                '// oxlint-disable-next-line no-useless-return -- intentional.',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(banRuleLines({ diagnostics, code: NO_USELESS_RETURN_BAN_CODE, },),)
+              .toEqual([
+                1,
+                2,
+              ],);
+          },
+        },),
+      ],
     },),
     describe({
       name: 'no-system-tmpdir forms',
@@ -447,12 +613,12 @@ await describe({
           name: 'converts bare-parameter arrow with expression body to a parseable function declaration',
           fn: async () => {
             const source = [
-              "const hoverText = label => repliesOf(label).map(reply => reply.outcome.text ?? '').join('\\n');",
+              String.raw`const hoverText = label => repliesOf(label).map(reply => reply.outcome.text ?? '').join('\n');`,
               '',
             ].join('\n',);
             const fixed = await fixGeneratedSource({ source, },);
             expect(fixed,).toBe([
-              "function hoverText(label) { return repliesOf(label).map(reply => reply.outcome.text ?? '').join('\\n') }",
+              String.raw`function hoverText(label) { return repliesOf(label).map(reply => reply.outcome.text ?? '').join('\n') }`,
               '',
             ].join('\n',),);
           },
@@ -660,6 +826,106 @@ await describe({
             ].join('\n',);
             const fixed = await fixGeneratedSource({ source, },);
             expect(fixed,).toBe(source,);
+          },
+        },),
+        it({
+          name: 'keeps a line comment inside the parameter list out of the arrow body',
+          fn: async () => {
+            const source = [
+              'const wrap = (value // trailing note',
+              ') => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function wrap(value // trailing note',
+              ') { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a block comment whose star does not close it inside the parameter list',
+          fn: async () => {
+            const source = [
+              'const wrapStar = (value /* * */) => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function wrapStar(value /* * */) { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a default value string with an escaped quote intact',
+          fn: async () => {
+            const source = [
+              String.raw`const quoted = (label = 'a\'b') => label;`,
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              String.raw`function quoted(label = 'a\'b') { return label }`,
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a nested-paren default value inside the parameter list',
+          fn: async () => {
+            const source = [
+              'const paired = (pair = call(1, 2)) => pair;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function paired(pair = call(1, 2)) { return pair }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a template-literal default value with a paren intact',
+          fn: async () => {
+            const source = [
+              'const templated = (value = `a)b`) => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function templated(value = `a)b`) { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps a generic arrow parameter list after its type parameters',
+          fn: async () => {
+            const source = [
+              'const identity = <T>(value: T) => value;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function identity<T>(value: T) { return value }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'skips a comment between async and the parameter list',
+          fn: async () => {
+            const source = [
+              'const reader = async /* note */ (path) => read(path);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'async function reader(path) { return read(path) }',
+              '',
+            ].join('\n',),);
           },
         },),
       ],
