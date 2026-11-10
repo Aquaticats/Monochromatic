@@ -15,7 +15,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { withoutColourSequences } from './language-log-records.ts';
+import { levelOf, withoutColourSequences } from './language-log-records.ts';
 import { isProcessNumberName } from './process-number-name.ts';
 
 const binary = resolve('target/debug/ide-language-inspect');
@@ -98,7 +98,6 @@ const marked = (marker: string): string[] => readdirSync('/proc').filter(name =>
 });
 // One record of the application log per line; ANSI color sequences removed.
 const logRecords = (text: string): string[] => withoutColourSequences(text).split('\n').filter(Boolean);
-const levelOf = (line: string): string | undefined => /^\S+\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s/.exec(line)?.[1];
 // Text a process prints when it reports its own shutdown as a failure. It is a bare shutdown error
 // when it reaches the log at WARN or ERROR, or outside any record; below WARN it is labelled for what it is.
 const bareShutdownError = /context canceled|StreamClosed|broken pipe/i;
