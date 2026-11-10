@@ -32,7 +32,7 @@ and the owner answered a request for such a switch (2026-11-10) with
 A person who needs one command to skip the wrapper's policies runs `/usr/bin/git` itself,
 the bypass the install steps already name (`README.md`,
 "Install").
-A command that runs the native Git is outside every policy,
+A Git a person starts as `/usr/bin/git` is outside every policy,
 every audit line and every wait of this file.
 
 ## Module seams

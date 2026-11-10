@@ -3436,7 +3436,7 @@ and a checkout used from two machines is not protected:
 the owner answered a request to support a repository two hosts share (2026-11-10)
 with "Not supported (Recommended)".
 A command of another host counts as an owner of another PID namespace,
-so the wrapper waits for it only as the record's age allows (see "What it does"),
+so the wrapper judges it by the age of its record and not by its process number (see "What it does"),
 and the claims and leases of the commit service are compared by machine and boot identity,
 which tells a restarted host from a running one and never closes a race between two.
 
