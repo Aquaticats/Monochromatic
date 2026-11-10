@@ -3442,17 +3442,24 @@ and "never discard user data"):
 - Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
   so `git merge --ff-only` takes them as it always did,
   and a path that changed after the capture stops the step with nothing written.
-- After the branch moved, each layer is merged with the merge's own:
+- After the branch moved,
+  each layer is merged with the merge's own:
   the worktree's file form and the index's blob separately,
   so a staged edit stays staged and an unsaved one stays unsaved.
-  A side unchanged on either side takes the other side; the bytes of a layer nothing of the merge reaches are written back exactly;
+  A side unchanged on either side takes the other side;
+  the bytes of a layer nothing of the merge reaches are written back exactly;
   a text both sides changed goes through `merge_second_pass`,
   the pass this package already runs,
   and a region it cannot settle keeps both sides between `word_merge::keep_both`'s markers.
-  A binary file, a link, a mode the pass cannot take, a path the merge deletes and a path the person deleted keep the
+  A binary file,
+  a link,
+  a mode the pass cannot take,
+  a path the merge deletes and a path the person deleted keep the
   person's side whole and are named on standard error with what to do;
   a path written after the capture is left alone and named.
-  Every such finding exits 0: the merge is made, and the person's work is theirs to judge.
+  Every such finding exits 0:
+  the merge is made,
+  and the person's work is theirs to judge.
 - A kill after the clear and before the branch move restores the captured layers,
   because the record says so and the merge did not land;
   a kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
@@ -12068,6 +12075,12 @@ null when the command made none),
 `exitCode`,
 `totalMs`,
 the disjoint phases
+`routeMs`
+(what the command spent before its first preparation began:
+finding the worktree's route to a service,
+this commit's identity,
+the standard input a pathspec file is read from,
+and the client's settings),
 `prepareMs`,
 `buildMs`,
 `provisionMs`,
@@ -12119,6 +12132,12 @@ each figure the time the stretch spent without a Git child,
 because the steps are recorded apart,
 a name marked again by a retry added together with `calls` saying how many stretches the sum is made of,
 at most 64 entries with the rest counted in `preparePartsDropped`),
+`buildParts`
+(the build phase's stretches by name,
+in the same shape as `prepareParts` and with the same rule,
+its own list and its own bound stated in `buildPartsDropped`:
+a build's name is never read as a preparation's),
+`buildPartsDropped`
 `indexBuilds`
 (one entry per build of the private commit index,
 in the order built:
@@ -12172,8 +12191,23 @@ and within `submitMs` the reach (`reachMs`,
 The record carries two accounts of the preparation,
 and they answer different questions:
 `prepareSpans` names the work a site in the wrapper measured around itself,
-`prepareParts` names the stretches no Git child covered,
+`prepareParts` and `buildParts` name the stretches no Git child covered,
 and a Git child that a span started is inside that span and outside every part.
+The build phase's names are `branch`,
+`message`,
+`amend tree`,
+`fitting request`,
+`request`,
+`shadow`,
+`shadow skeleton`,
+`shadow config`,
+`shadow links`,
+`shadow conclusion`,
+`shadow refs`,
+`client build`,
+`commit read back` and `amend fields`,
+and a build that stops inside itself closes the phase where the command stops,
+so its time is stated by `buildMs` and never left to `otherMs`.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to `monochromatic-git-policy-cli-commit-timing.jsonl.1` at one mebibyte,

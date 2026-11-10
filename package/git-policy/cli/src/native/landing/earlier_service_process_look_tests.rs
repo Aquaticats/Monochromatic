@@ -136,7 +136,8 @@ async fn held_look_awaited(ceiling: Duration) -> Option<Holding> {
 /// A scan that outlasts the ceiling is "cannot look",
 /// which counts as a service that may be running,
 /// and the wait ends at the ceiling while the scan goes on in the pool.
-/// Why a held scan says what the wait did, and a clock does not:
+/// Why a held scan says what the wait did,
+/// and a clock does not:
 ///   The proof that the wait was awaited is that the ceiling's own timer fired:
 /// the runtime can drive that timer only
 ///  while the task that waits is not occupying its worker,
