@@ -225,7 +225,7 @@ await describe({
     },),
 
     it({
-      name: 'clear leaves a later computation deduplication entry in place',
+      name: 'clear leaves the deduplication entry of a later call in place',
       fn: async () => {
         const firstStart = Promise.withResolvers<void>();
         const secondStart = Promise.withResolvers<void>();
