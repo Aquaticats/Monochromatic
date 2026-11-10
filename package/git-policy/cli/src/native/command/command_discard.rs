@@ -16,6 +16,10 @@
 //! once the worktree
 //!  holds uncommitted state,
 //! in a linked worktree too.
+//!  Every `git read-tree` form Git accepts writes the index or,
+//! with `-u`,
+//! worktree files,
+//!  so each is read as what it writes.
 //! Each region is read as Git 2.56.0 reads it,
 //! so a spelling
 //!  Git accepts as `--force` is not missed and a value that looks like a flag is not mistaken for one.
@@ -31,9 +35,16 @@
 use crate::command_checkout_table::{
     CHECKOUT_TABLE, DISCARD_CHANGES, FORCE, PATCH, PATHSPEC_FROM_FILE, STAGE, SWITCH_TABLE,
 };
-use crate::command_options::{Boundary, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, parse_options};
+use crate::command_options::{Arity, Boundary, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, parse_options, row, UNREAD};
 use crate::command_options_query::{is_enabled, is_stated, positional_tokens};
 use std::ffi::OsString;
+
+/// The `--dry-run` row of `git read-tree`:
+/// it writes neither the index nor the worktree.
+const DRY_RUN: u16 = 1;
+/// The `--debug-unpack` row of `git read-tree`:
+/// Git prints the unpacked entries and returns before the index is written.
+const DEBUG_UNPACK: u16 = 2;
 
 /// What:
 ///  What a region can do to uncommitted state.
@@ -331,25 +342,70 @@ pub fn force_discard(region: &[OsString]) -> Discard {
 }
 
 /// What:
-///  Read a `git read-tree` region.
+///  Read `git read-tree`'s own options,
+///  so a spelling Git accepts is never read as an unknown option and a value that looks like a flag is never
+///  read as one.
 /// Why:
-///   `--reset` replaces the index and,
-/// with `-u`,
-/// the worktree,
-/// dropping every unmerged and local entry.
-///   `--res` is the shortest prefix that `--recurse-submodules` does not share.
+///   `-m`,
+///  `-u`,
+///  `-i` and `-n` have no long spelling,
+///  `--no-sparse-checkout` is one option whose name begins with `no-`,
+///  `--prefix`,
+///  `--index-output` and `--exclude-per-directory` refuse the `--no-` form,
+///  and `--prefix`,
+///  `--index-output`,
+///  `--super-prefix`,
+///  `--exclude-per-directory` and `--recurse-submodules` take values
+///  (`read-tree.c`,
+///  `read_tree_options`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readTreeDiscard(region: string[]): Discard;
+/// export const READ_TREE_TABLE = [row(UNREAD, 'm', undefined, 'none', true), /* ... */] as const;
 /// ```
-pub fn read_tree_discard(region: &[OsString]) -> Discard {
-    for token in options_of(region) {
-        if spells_long(token, "--reset", 5) {
-            return Discard::Overwrites;
-        }
+pub const READ_TREE_TABLE: &[OptionSpec] = &[
+    row(UNREAD, None, Some("super-prefix"), Arity::Required, true),
+    row(UNREAD, None, Some("index-output"), Arity::Required, false),
+    row(UNREAD, None, Some("empty"), Arity::None, true),
+    row(UNREAD, Some(b'v'), Some("verbose"), Arity::None, true),
+    row(UNREAD, Some(b'm'), None, Arity::None, true),
+    row(UNREAD, None, Some("trivial"), Arity::None, true),
+    row(UNREAD, None, Some("aggressive"), Arity::None, true),
+    row(UNREAD, None, Some("reset"), Arity::None, true),
+    row(UNREAD, None, Some("prefix"), Arity::Required, false),
+    row(UNREAD, Some(b'u'), None, Arity::None, true),
+    row(UNREAD, None, Some("exclude-per-directory"), Arity::Required, false),
+    row(UNREAD, Some(b'i'), None, Arity::None, true),
+    row(DRY_RUN, Some(b'n'), Some("dry-run"), Arity::None, true),
+    row(UNREAD, None, Some("no-sparse-checkout"), Arity::None, true),
+    row(DEBUG_UNPACK, None, Some("debug-unpack"), Arity::None, true),
+    row(UNREAD, None, Some("recurse-submodules"), Arity::Optional, true),
+    row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
+];
+
+/// What:
+///  Read a `git read-tree` region.
+/// Why:
+///   Every form Git accepts writes either the index or,
+///  with `-u`,
+///  worktree files,
+///  and `-u` writes a file the worktree holds with the content of the tree,
+///  so `git read-tree -m -u HEAD` reverts a staged edit and deletes a staged new file;
+///  `-n` and `--dry-run` write nothing,
+///  and neither does `--debug-unpack`,
+///  which returns before the index is written (`read-tree.c`);
+///  a region Git refuses is the refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readTreeDiscard(region: string[]): Discard; // throws OptionError
+/// ```
+pub fn read_tree_discard(region: &[OsString]) -> Result<Discard, OptionError> {
+    let parsed: ParsedOptions = parse_options(region, READ_TREE_TABLE, DEFAULT_MODE, &[])?;
+    if is_enabled(&parsed, DRY_RUN) || is_enabled(&parsed, DEBUG_UNPACK) {
+        return Ok(Discard::Harmless);
     }
-    return Discard::Harmless;
+    return Ok(Discard::Overwrites);
 }
 
 /// What:

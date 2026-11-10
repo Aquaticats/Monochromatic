@@ -12749,17 +12749,45 @@ mixed and default modes,
 `switch` with a force or discard option,
 `rm` and `mv` with force,
 `checkout-index` with force,
-`read-tree` with reset,
+every `read-tree` form Git accepts,
 and the abort forms of `merge`,
 `rebase`,
 `cherry-pick`,
 `revert` and `am`.
+Read-tree is read from its own option table,
+because every form Git accepts writes the index and,
+with `-u`,
+the worktree:
+`git read-tree -m -u HEAD` reverts a staged edit and deletes a staged new file from the worktree,
+and a plain `git read-tree HEAD` or `git read-tree --empty` replaces the staged entries.
+The two forms that write nothing pass:
+`-n` or `--dry-run`,
+and `--debug-unpack`,
+which returns before Git writes the index (`read-tree.c`).
+A region Git refuses,
+like `-u` without `-m`,
+`--reset` or `--prefix`,
+is the refusal and passes.
 The word this reading reads is the word Git will run.
 An ordinary alias (`alias.<name>`,
 either spelling) is expanded the way Git expands it,
 up to 16 expansions,
 and the guard decides on the expansion,
 which is also the argument list the wrapper forwards and the audit record names.
+One `git config --null --list` answers which value Git keeps:
+`config_alias_cb` overwrites what it kept on every matching variable,
+so when a repository holds both `alias.<name>` and `[alias "<name>"] command`,
+the last one in config order runs,
+and a plain name matches whatever its case while a subsection matches byte for byte.
+A matching variable with no value is Git's own `missing value` refusal,
+so the wrapper leaves that alias to Git and Git prints it.
+The value is split as `split_cmdline` splits it,
+on space,
+TAB,
+LF and CR only (Git's `GIT_SPACE`),
+so a vertical tab or a form feed stays inside one word,
+and a value that ends with one of those four characters keeps the empty last word Git gives it,
+which is what makes `git -c 'alias.x=status ' x` fail as `git status ''` does.
 Two aliases are left unexpanded and forwarded as the caller typed them,
 because the expansion the wrapper read is not the command that runs:
 one whose value moves the directory or sets an environment variable,

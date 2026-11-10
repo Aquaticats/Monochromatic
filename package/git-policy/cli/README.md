@@ -1794,6 +1794,12 @@ not the word on the command line:
 an ordinary Git alias is expanded as Git expands it,
 the decision is taken on the expansion,
 and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
+`git config --null --list` decides which value Git keeps when both spellings of one alias are set,
+so the last one in config order runs,
+and the value is split on space,
+TAB,
+LF and CR only,
+keeping the empty last word a trailing whitespace character leaves.
 A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
@@ -2031,9 +2037,14 @@ Each alternative is run through the built executable by `src/native/binary/binar
    or `git rm <destination>` first.
 - `git checkout-index --force`:
    `git checkout-index --prefix=<directory>/ --all` writes copies elsewhere.
-- `git read-tree --reset`:
-   `git read-tree -m` merges,
-   or reset in a clean linked worktree.
+- `git read-tree` in any form Git writes with,
+  `--reset`,
+  `-m`,
+  `-m -u`,
+  `--empty` and a plain tree included:
+   `git read-tree --dry-run` with the same arguments shows what the read would change without writing anything,
+   `git ls-tree` and `git cat-file` read a tree without touching the index,
+   or replace the index in a clean linked worktree.
 - `git merge --abort`,
    `git rebase --abort`,
    `git cherry-pick --abort`,
