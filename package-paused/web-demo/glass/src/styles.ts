@@ -1,24 +1,24 @@
 /**
- * Stylesheet for the glass corridor demo page: full-viewport canvas, a
- * minimal HUD in the corners, and an error overlay for browsers that
- * cannot start the renderer.
- *
- * Sizing is in `rem`, positions and alignment use logical properties, every
- * color comes from a custom property declared in `:root`, and shorthands stay
- * single-concept, as `.agents/skills/css/SKILL.md` requires. The palette is
- * dark-only by design: the corridor renders dark and the HUD is lit text over
- * it, so retuning the demo means changing the tokens, not the rules.
+ Stylesheet for the glass corridor demo page: full-viewport canvas, a
+ minimal HUD in the corners, and an error overlay for browsers that
+ cannot start the renderer.
+ 
+ Sizing is in `rem`, positions and alignment use logical properties, every
+ color comes from a custom property declared in `:root`, and shorthands stay
+ single-concept, as `.agents/skills/css/SKILL.md` requires. The palette is
+ dark-only by design: the corridor renders dark and the HUD is lit text over
+ it, so retuning the demo means changing the tokens, not the rules.
  */
 
 /**
- * Renders the complete CSS for the demo page.
- *
- * @returns CSS stylesheet string
- *
- * @example
- * ```ts
- * const css = renderStyles();
- * ```
+ Renders the complete CSS for the demo page.
+ 
+ @returns CSS stylesheet string
+ 
+ @example
+ ```ts
+ const css = renderStyles();
+ ```
  */
 export function renderStyles(): string {
   return `
