@@ -10,9 +10,9 @@
  Under mise the `pnpm` on `PATH` is this repository's `pnpm-shadow`, which
  prints pnpm's own output and then a notice naming itself, in the shape `hub`
  and `mpm-shadow` use. That notice is deliberate
- (`package/pnpm-shadow/cli/src/shadow_notice.rs`), so a version read as the
- first line carrying a version is right under either printing order, where the
- whole trimmed stdout is a spec no `packageManager` field can hold.
+ (`package/pnpm-shadow/cli/src/shadow_notice.rs`), and the whole trimmed stdout
+ is a spec no `packageManager` field can hold, so the version is taken from the
+ version line alone.
  */
 
 import {
