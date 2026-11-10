@@ -21,6 +21,7 @@
 //! git diff-index --cached --raw --no-abbrev -z --diff-filter=A <base> -- <pathspecs>
 //! ```
 
+use crate::private_index_request::caller_pathspec_request;
 use crate::private_index_request::indexed_request;
 use crate::path_bytes::os_from_path_bytes;
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
@@ -100,7 +101,7 @@ pub fn staged_additions_selected(
     .map(OsString::from)
     .collect();
     arguments.extend(pathspecs.iter().cloned());
-    let output: GitOutput = run_git_checked(context, &indexed_request(cwd, &arguments, Some(real_index), None))?;
+    let output: GitOutput = run_git_checked(context, &caller_pathspec_request(context, cwd, &arguments, Some(real_index), None))?;
     return parse_raw_additions(output.stdout.as_slice());
 }
 

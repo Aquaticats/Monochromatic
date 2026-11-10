@@ -789,6 +789,43 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
     remove_settled(&fixture);
 }
 
+/// What:
+///  A service the manager stops with `SIGTERM` removes the lock marker it made ahead,
+/// as a service that retires does,
+/// and the service's own shutdown is what removes it.
+/// Why:
+///  `SPEC.md` "Removing the lock and what is made durable" says the marker "is removed when the service ends,
+///  whichever way its loop ends",
+/// and the signal path ended the process from the runtime's shutdown,
+///  where no destructor runs,
+/// so every stop left one file behind in the Git directory.
+#[test]
+fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
+    let fixture: Fixture = fixture("timing-signal-marker");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-signal-marker-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let runtime: PathBuf = runtime_for(name.as_str());
+    let served: super::support::Observed = commit_a(&fixture, &repo, runtime.as_path());
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    // The marker of the next batch is made after the answer, while the service is idle.
+    let began: Instant = Instant::now();
+    while marker_files(&repo).len() != 1 {
+        assert!(began.elapsed() < Duration::from_secs(10), "{:?}", marker_files(&repo));
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    let status = exit_of(&mut service, PATIENCE);
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
+    assert!(lines_of(&places.log, "exiting")[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()));
+    assert!(marker_files(&repo).is_empty(), "the marker made ahead is removed when the service ends by the signal: {:?}", marker_files(&repo));
+    remove_settled(&fixture);
+}
+
 /// A service with nothing to do exits after the idle period and says so,
 /// with an uptime at least as long as the period.
 #[test]
