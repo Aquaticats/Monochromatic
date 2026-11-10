@@ -44,6 +44,26 @@ export class UnknownKeyError extends KeyHelperError {
 }
 
 /**
+ Thrown when a command the daemon ran did not exit successfully: it exited
+ nonzero, a signal ended it, or it could not be started. The message names the
+ command, how it ended, and whatever it wrote to stderr.
+ 
+ @example
+ ```ts
+ throw new CommandFailedError("'ydotool key' exited with code 7");
+ ```
+ */
+export class CommandFailedError extends KeyHelperError {
+  /**
+   @param message - The invocation, how it ended, and its stderr
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = 'CommandFailedError';
+  }
+}
+
+/**
  Thrown when no Neovim listen socket exists, so there is nothing to send input
  to. Callers treat this as "Neovim not running" rather than a hard failure.
  
