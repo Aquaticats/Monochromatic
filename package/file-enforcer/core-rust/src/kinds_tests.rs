@@ -167,6 +167,87 @@ fn toml_keys_sets_guarded_keys_appends_blocks_and_keeps_comments() {
 }
 
 #[test]
+fn json_keys_sets_guarded_members_and_keeps_the_rest_of_the_manifest() {
+    let dir = scratch_dir();
+    let nested = "{\n  \"name\": \"a\",\n  \"repository\": {\n    \"type\": \"git\",\n    \"url\": \"https://old.example/mono.git\"\n  }\n}\n";
+    write_files(
+        dir.path(),
+        &[
+            ("package/x/y/package.json", nested),
+            ("package/x/z/package.json", "{\n  \"name\": \"z\"\n}\n"),
+            ("package/x/e/package.json", "{\n  \"name\": \"e\",\n  \"repository\": {}\n}\n"),
+            ("package/x/w/package.json", "{\n  \"name\": \"w\",\n  \"repository\": \"github:old/mono\"\n}\n"),
+        ],
+    );
+    let config = r#"{"rules": [{"kind": "json-keys", "id": "meta", "manifests": ["package/*/*/package.json"],
+        "edits": [
+          {"guard": ["repository"], "path": ["repository", "type"], "value": "git"},
+          {"guard": ["repository"], "path": ["repository", "url"], "value": "https://new.example/mono.git"},
+          {"guard": ["repository"], "path": ["repository", "directory"], "value": {"var": "dir"}},
+          {"guard": ["repository"], "path": ["homepage"], "value": {"concat": ["https://new.example/tree/", {"var": "dir"}]}}
+        ]}]}"#;
+    let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
+    assert_eq!(code1, 0, "{events1:?}");
+    let written = read_text(dir.path(), "package/x/y/package.json");
+    let expected = concat!(
+        "{\n",
+        "  \"name\": \"a\",\n",
+        "  \"repository\": {\n",
+        "    \"type\": \"git\",\n",
+        "    \"url\": \"https://new.example/mono.git\",\n",
+        "    \"directory\": \"package/x/y\"\n",
+        "  },\n",
+        "  \"homepage\": \"https://new.example/tree/package/x/y\"\n",
+        "}\n",
+    );
+    assert_eq!(written, expected, "only the owned members change");
+    let empty_object = read_text(dir.path(), "package/x/e/package.json");
+    let expected_empty = concat!(
+        "{\n",
+        "  \"name\": \"e\",\n",
+        "  \"repository\": {\n",
+        "    \"type\": \"git\",\n",
+        "    \"url\": \"https://new.example/mono.git\",\n",
+        "    \"directory\": \"package/x/e\"\n",
+        "  },\n",
+        "  \"homepage\": \"https://new.example/tree/package/x/e\"\n",
+        "}\n",
+    );
+    assert_eq!(empty_object, expected_empty, "a member is added to an empty record");
+    let string_repository = read_text(dir.path(), "package/x/w/package.json");
+    let expected_string = concat!(
+        "{\n",
+        "  \"name\": \"w\",\n",
+        "  \"repository\": \"github:old/mono\",\n",
+        "  \"homepage\": \"https://new.example/tree/package/x/w\"\n",
+        "}\n",
+    );
+    assert_eq!(string_repository, expected_string, "a parent that is not a record is left alone");
+    assert_eq!(
+        read_text(dir.path(), "package/x/z/package.json"),
+        "{\n  \"name\": \"z\"\n}\n",
+        "a manifest whose guard is absent is never written"
+    );
+    let (code2, events2) = run_config(dir.path(), config, check());
+    assert_eq!(code2, 0, "{events2:?}");
+}
+
+#[test]
+fn json_keys_names_a_manifest_that_is_not_json_and_writes_nothing() {
+    let dir = scratch_dir();
+    write_files(
+        dir.path(),
+        &[("package/x/y/package.json", "{\n  \"repository\": {\n"), ("package/x/z/package.json", "{}\n")],
+    );
+    let config = r#"{"rules": [{"kind": "json-keys", "id": "meta", "manifests": ["package/*/*/package.json"],
+        "edits": [{"guard": [], "path": ["homepage"], "value": "https://new.example"}]}]}"#;
+    let (code1, events1) = run_config(dir.path(), config, RunMode::Write);
+    assert_eq!(code1, 1, "{events1:?}");
+    assert_eq!(count_code(&events1, "json-invalid"), 1, "{events1:?}");
+    assert_eq!(read_text(dir.path(), "package/x/z/package.json"), "{}\n", "a failing run writes nothing");
+}
+
+#[test]
 fn mise_path_list_lists_sorted_non_empty_directories_only() {
     let dir = scratch_dir();
     write_files(
