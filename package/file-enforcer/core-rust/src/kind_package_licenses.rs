@@ -10,10 +10,11 @@
 //!  A requirement names a whole SPDX id of the expression,
 //! never a substring of it,
 //! so an `AGPL-3.0-or-later` manifest never pulls the `GPL-3.0-or-later` text.
-//!  A text under `texts` comes from one repository-wide source and serves every package (own).
+//!  A text under `texts` comes from one repository-wide source and serves every package.
 //!  A text under `packageTexts` is the copy each package carries itself:
-//! the rule adopts those bytes and never writes one package's text into another,
-//! because an MIT text names the author of the crate a package forked.
+//! the rule reads it and never writes one,
+//! because an MIT text names the author of the crate a package forked,
+//! so it only removes that copy once the expression stops naming the id.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -173,10 +174,14 @@ impl Rule for PackageLicensesRule {
 
     /// What:
     ///  Work out each package directory's required texts,
-    /// copy them,
+    /// copy those with a repository-wide source,
+    /// check those each package carries itself,
     /// and prune owned texts that are not required.
     /// Why:
     ///  A package with both a `package.json` and a `Cargo.toml` needs the union of what each asks for.
+    ///  A text a package carries itself is never written here:
+    /// the package's own copy is the text,
+    /// so there is nothing to copy over it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -219,8 +224,7 @@ impl Rule for PackageLicensesRule {
             for (license, relative) in &self.package_texts {
                 let target = format!("{package_dir}/{relative}");
                 if wanted.contains(license) {
-                    let content = own_text(view, &target)?;
-                    plan.changes.push(Change::Write { path: target, content, mode: None });
+                    own_text(view, &target)?;
                 } else if view.mode_of(&target)?.is_some() {
                     plan.changes.push(Change::Remove { path: target });
                 }
@@ -231,20 +235,21 @@ impl Rule for PackageLicensesRule {
 }
 
 /// What:
-///  The bytes of a text one package carries itself.
+///  Read the text one package carries itself,
+///  and stop the run when the package carries no usable one.
 /// Why:
-///  This text names the author of the crate the package forked,
-/// and the rule knows no such author,
-/// so it never writes one package's text into another.
-/// A package that needs the text and carries none stops the run,
+///  The rule writes this file only when it removes it,
+/// because the text names the author of the crate the package forked,
+/// and the rule knows no such author.
+/// So a package that needs the text and carries none stops the run,
 /// and so does a text that states nothing,
 /// because either way the package would publish without a usable license text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function ownText(view: View, target: string): Uint8Array
+/// function ownText(view: View, target: string): void
 /// ```
-fn own_text(view: &mut View, target: &str) -> Result<Vec<u8>, Diagnostic> {
+fn own_text(view: &mut View, target: &str) -> Result<(), Diagnostic> {
     let Some(content) = view.read_bytes(target)? else {
         let message = format!(
             "{target} does not exist, and a package text is the copy its package carries: the copyright line in it names the author of the crate the package forked. Copy that author's license text from the upstream package to {target}."
@@ -257,7 +262,7 @@ fn own_text(view: &mut View, target: &str) -> Result<Vec<u8>, Diagnostic> {
         );
         return Err(Diagnostic::new("license-text-blank", &message).with_path(target));
     }
-    return Ok(content);
+    return Ok(());
 }
 
 /// What:

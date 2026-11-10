@@ -225,12 +225,14 @@ neither written nor checked.
   which is copied into every package that needs it.
   An id under `packageTexts` names a path inside each package directory,
   and the file there is that package's own text:
-  the rule adopts the bytes it finds,
-  removes the file when the expression drops the id,
-  and fails with `license-text-missing` or `license-text-blank` when a package needs the id and carries no
-  usable text.
+  the rule reads it,
+  fails with `license-text-missing` or `license-text-blank` when a package needs the id and carries no
+  usable text,
+  and removes the file when the expression drops the id.
   It never writes one package's text into another,
-  because an MIT text names the author of the crate a package forked.
+  because an MIT text names the author of the crate a package forked,
+  so such a file is the package's own to keep correct,
+  and a hand edit to it is not drift.
   A requirement names one whole SPDX id of the expression,
   so `AGPL-3.0-or-later` never pulls the `GPL-3.0-or-later` text.
   A manifest without a license expression is not managed.

@@ -267,8 +267,8 @@
     // over GPL-3.0-or-later, so it needs both. A requirement names one whole SPDX id, so an AGPL expression never pulls
     // the GPL text. An id under "texts" names one repository-wide file, copied into every package that needs it. An id
     // under "packageTexts" names a path inside each package directory, and the file there is that package's own text:
-    // the rule adopts what the package carries, because an MIT text names the author of the crate a fork came from, and
-    // a fork of another author must never receive that line.
+    // the rule reads it and never writes one, because an MIT text names the author of the crate a fork came from, and a
+    // fork of another author must never receive that line.
     {
       "kind": "package-licenses",
       "id": "package-licenses",

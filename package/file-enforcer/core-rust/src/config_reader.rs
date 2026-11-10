@@ -280,6 +280,8 @@ impl<'a> Reader<'a> {
     /// Why:
     ///  `packageTexts` is optional,
     /// so a config written before it existed still decodes.
+    ///  A value of the wrong type counts as absent too,
+    /// because the one message it earns is the one naming the type.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -293,8 +295,13 @@ impl<'a> Reader<'a> {
     ) -> Option<BTreeMap<String, String>> {
         match object.get(key) {
             None | Some(Value::Null) => return None,
-            Some(_) => return Some(self.text_map(object, key, pointer)),
+            Some(Value::Object(map)) => {
+                let map_pointer = format!("{pointer}/{key}");
+                return Some(self.text_map_of(map, &map_pointer));
+            }
+            Some(_) => self.error(&format!("{pointer}/{key}"), "must be an object"),
         }
+        return None;
     }
 
     /// What:
