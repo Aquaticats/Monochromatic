@@ -65,7 +65,13 @@ pub(crate) fn take_index_lock(
         crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
     }
     match taken {
-        Ok(lock) => return Ok(lock),
+        Ok(lock) => {
+            // The marker of the batch after this one begins flushing now, while this landing holds the lock and does its own work,
+            //  so the next commit finds the file on the disk. Started only after this landing ended, the flush was the next
+            //  commit's wait (`lock_stage_ms` with `lock_stage_kind=pre` in the service's answers).
+            crate::service_index_prestage::start(first.index.as_path(), seq + 1);
+            return Ok(lock);
+        }
         Err(failure) => {
             // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
             //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
@@ -78,3 +84,8 @@ pub(crate) fn take_index_lock(
         }
     }
 }
+
+/// Controls for taking the index lock stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_take_index_lock_tests.rs"]
+mod tests;

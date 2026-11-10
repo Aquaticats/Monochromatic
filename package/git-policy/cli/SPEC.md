@@ -10221,12 +10221,13 @@ not by the age of the lock file:
 #### Removing the lock and what is made durable
 
 The marker of the next batch is made ahead.
-When a batch has been landed and answered,
-the service makes the marker of the batch after it,
+A batch that takes the index lock for batch `n` starts the marker of batch `n + 1`,
 which is numbered one more and lands on the same index:
 it creates the file,
 writes the marker and flushes it to storage,
-on a thread of its own while the service is idle.
+on a thread of its own while that landing moves the branch and builds the index.
+Started there rather than after the landing ended,
+the flush overlaps the landing's own work instead of being the next commit's wait.
 The next commit then only places that file (a rename that does not replace),
 so the flush is not on its path.
 The file is the service's one:

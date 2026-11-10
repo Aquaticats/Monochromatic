@@ -1,7 +1,7 @@
 //! What:
 //!  The marker of the next batch's index lock,
 //! created,
-//! written and flushed to storage while the service is idle,
+//! written and flushed to storage while the service lands the batch before it,
 //! so that a commit's lock path only places it.
 //! Why:
 //!  The marker must be on storage before it can become `index.lock`,
@@ -9,9 +9,11 @@
 //!  empty or partial marker.
 //! That flush is a few milliseconds on an idle disk and seconds on a loaded one,
 //! and it sat on every commit's path.
-//! The batch number of the next landing is known when the last one ends (one more),
+//! The batch number of the next landing is known when a landing takes its lock (one more),
 //! and so is the index,
-//! so the file is made then.
+//! so the file is made there,
+//! while that landing moves the branch and builds the index:
+//! the flush overlaps work the landing does anyway instead of waiting for it after the answer.
 //! One file at most exists for the service,
 //! it is kept in this thread's slot and not in a file other processes could take for their own,
 //! it is removed when the service ends or the next batch is not the one it was made for,
