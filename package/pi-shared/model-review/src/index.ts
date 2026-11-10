@@ -9,7 +9,7 @@
 export * from './attempt.ts';
 export * from './fallback.ts';
 export * from './json.ts';
-export { EmptyStructuredReviewTextError, } from './stream-collection.ts';
+export { EmptyStructuredReviewTextError, StructuredReviewProviderError, } from './stream-collection.ts';
 export * from './tool-choice.ts';
 export type * from './types.ts';
 
