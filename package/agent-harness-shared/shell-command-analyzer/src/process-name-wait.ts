@@ -49,6 +49,11 @@ const SHELL_WORDS_BEFORE_A_COMMAND: ReadonlySet<string> = new Set([
 ],);
 
 /**
+ Sentinel returned when one raw word run holds no word it would run as a program.
+ */
+const NO_PROGRAM_WORD: unique symbol = Symbol('a run of raw shell words began no command',);
+
+/**
  Refusal reason used when a `while` or `until` loop looks processes up by name.
 
  @example
@@ -157,6 +162,179 @@ function wordLooksUpProcessByName(word: string,): boolean {
 }
 
 /**
+ Finds the first redirection operator in one raw word.
+
+ @param word - word from a raw word run
+
+ @returns offset of the first `<` or `>`, or -1 when the word holds no operator
+
+ @example
+ ```ts
+ redirectOperatorAt('pgrep</dev/null'); // 5
+ ```
+ */
+function redirectOperatorAt(word: string,): number {
+  for (let offset = 0; offset < word.length; offset += 1) {
+    /**
+     Character at the current offset.
+     */
+    const character = word[offset];
+    if ((character === '<') || (character === '>'))
+      return offset;
+  }
+  return -1;
+}
+
+/**
+ Checks whether one word holds nothing but digits, which a redirection writes before its operator.
+
+ @param word - word read from a raw word run
+
+ @returns whether the word spells a file descriptor number
+
+ @example
+ ```ts
+ isFileDescriptorNumber('2'); // true
+ ```
+ */
+function isFileDescriptorNumber(word: string,): boolean {
+  for (const character of word) {
+    if ((character < '0')
+      || (character > '9'))
+      return false;
+  }
+  return word.length > 0;
+}
+
+/**
+ Checks whether one word holds only the characters a redirection operator owns.
+
+ @param word - text from the first operator character to the end of the word
+
+ @returns whether the text is an operator with no target attached to it
+
+ @example
+ ```ts
+ isRedirectionOperatorText('>>'); // true
+ isRedirectionOperatorText('>/dev/null'); // false
+ ```
+ */
+function isRedirectionOperatorText(word: string,): boolean {
+  for (const character of word) {
+    if ((character !== '<')
+      && (character !== '>'))
+      return false;
+  }
+  return word.length > 0;
+}
+
+/**
+ Reads the word one raw run would run as its program, stepping over redirections in front of it.
+
+ A redirection may stand before the program or be attached to it,
+ so `while >/dev/null pgrep -f x; do` and `while pgrep</dev/null -f x; do`
+ would otherwise read the redirection as the program and hide the lookup.
+ A bare operator takes the word after it as its target, so that word is stepped over too.
+ A descriptor named by a redirection (`>&2`) leaves no word to step over here,
+ because the reader ends the run at that `&`, which the module doc records.
+
+ @param words - words of one raw run, after the shell words in front of its command are dropped
+
+ @returns word the run would run as its program, or {@link NO_PROGRAM_WORD} when it holds none
+
+ @example
+ ```ts
+ programWordOfRun(['>/dev/null', 'pgrep', '-f', 'x']); // 'pgrep'
+ ```
+ */
+function programWordOfRun(words: readonly string[],): string | typeof NO_PROGRAM_WORD {
+  return (function readProgramWord(): string | typeof NO_PROGRAM_WORD {
+    /**
+     Position of the word being read.
+     */
+    let index = 0;
+    while (index < words.length) {
+      /**
+       Word being read, then counted as read.
+       */
+      const word = words[index];
+      index += 1;
+      if (word === undefined)
+        return NO_PROGRAM_WORD;
+
+      /**
+       Offset of the redirection operator, or -1 when the word carries none.
+       */
+      const operatorAt = redirectOperatorAt(word,);
+      if (operatorAt === (-1))
+        return word;
+
+      /**
+       Word text before the operator, which is program text when it names one.
+       */
+      const beforeOperator = word.slice(
+        0,
+        operatorAt,
+      );
+      if ((beforeOperator !== '')
+        && (!isFileDescriptorNumber(beforeOperator,)))
+        return beforeOperator;
+
+      if (isRedirectionOperatorText(
+        word.slice(operatorAt,),
+      ))
+        index += 1;
+    }
+    return NO_PROGRAM_WORD;
+  })();
+}
+
+/**
+ Collects the `-c` script string when the program word itself launches a shell.
+
+ A raw run is already unwrapped,
+ so a word naming a shell anywhere but the program position is an argument,
+ as `echo bash -c 'pgrep x'` shows,
+ and reading it would refuse a lookup nothing runs.
+
+ @param words - innermost program words of one raw run
+
+ @returns script strings the program itself hands to a shell
+
+ @example
+ ```ts
+ shellProgramScripts(['bash', '-c', 'pgrep x']); // ['pgrep x']
+ shellProgramScripts(['echo', 'bash', '-c', 'pgrep x']); // []
+ ```
+ */
+function shellProgramScripts(words: readonly string[],): readonly string[] {
+  /**
+   Word that names the program the run would run.
+   */
+  const [program,] = words;
+  if ((program === undefined)
+    || (!SHELL_NAMES.has(lastPathSegment(program,),)))
+    return [];
+
+  /**
+   Arguments after the shell name.
+   */
+  const rest = words.slice(1,);
+  /**
+   Position of the `-c` flag within `rest`.
+   */
+  const dashCIndex = rest.indexOf('-c',);
+  /**
+   Script string following the `-c` flag.
+   */
+  const payload = rest[dashCIndex + 1];
+
+  return ((dashCIndex !== (-1)) && ((typeof payload) === 'string'))
+    ? [payload,]
+    : [];
+}
+
+/**
  Checks whether shell source the parser rejected holds a process lookup command.
 
  Reads raw words only, so it serves both an unparsable command and the command lines
@@ -204,12 +382,13 @@ function rawTextWaitsOnProcessName({ source, }: { readonly source: string; },): 
       /**
        Word that names the program this run would run.
        */
-      const [program,] = wrapped.words;
-      if ((program !== undefined) && wordLooksUpProcessByName(program,))
+      const program = programWordOfRun(wrapped.words,);
+      if (((typeof program) === 'string')
+        && (wordLooksUpProcessByName(program,)))
         return true;
       pending.push(
         ...wrapped.payloads,
-        ...shellScriptPayloads(wrapped.words,),
+        ...shellProgramScripts(wrapped.words,),
       );
     }
   }

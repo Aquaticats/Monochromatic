@@ -361,6 +361,13 @@ an unparsable command gives the guard no way to tell a loop from a
 single lookup.
 Prose that never reaches a program position stays allowed,
 so `printf pgrep pidof "unterminated` and `echo "use pgrep in a while loop` are not refused.
+A redirection standing before the lookup or attached to it is read as a redirection,
+so it cannot hide the lookup:
+`while >/dev/null pgrep -f x; do sleep 1; done "unterminated`,
+`while 2>/dev/null pidof x; do sleep 1; done "unterminated` and
+`while pgrep</dev/null -f x; do sleep 1; done "unterminated` are refused.
+Only the program word hands a script to a shell,
+so `printf bash -c pgrep "unterminated` is not refused.
 
 ### What stays undetected or over-refused
 
@@ -378,6 +385,19 @@ is not read,
 in a parsed command or an unparsable one.
 A shell script read from standard input (`bash <<< 'until ! pgrep x; do sleep 1; done'`)
 is not followed either.
+The raw reader hides everything inside quotes,
+so a lookup spelled inside one is unread in an unparsable command:
+`while test "$(pgrep -f x)"; do sleep 1; done "unterminated`,
+`while $'pgrep' -f x; do sleep 1; done "unterminated`,
+and a lookup split by a line continuation (a `pg` word,
+a backslash,
+a newline,
+then `rep`).
+A parsed command reads all three,
+because the parser hands back the commands inside a substitution and resolves the quoting itself.
+The reader also ends a run at `&`,
+so a redirection that names a descriptor splits it away from the command behind it:
+`while >&2 pgrep -f x; do sleep 1; done "unterminated` is not refused.
 
 A parsed command is read by its own program word and by shell `-c` script strings only,
 so a wrapper or a command string in front of the lookup is not followed there:
