@@ -144,6 +144,13 @@ A catalog key that is not a valid npm package name is logged and skipped,
  so a
 crafted key cannot become a result-map entry.
 
+A scan that cannot answer stops the run instead of degrading to a wrong label:
+ an unreadable `package/` directory,
+ an importer `package.json` that is not valid JSON,
+ and an unreadable importer manifest are all reported as errors,
+ because each of them would otherwise classify every entry as `MISS` or
+ accuse a declared package of being `UNDCL`.
+
 ## Cargo catalog
 
 The same command also tightens `rust-catalog.toml`,
