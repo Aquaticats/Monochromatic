@@ -41,7 +41,6 @@ use std::path::PathBuf;
 
 /// Imports the check for a lone version or help flag and the runner that adds the shadow's text after it.
 use crate::announce::{announcement_for, run_announced};
-
 /// Imports the escape-hatch variable name and the exit codes the shim returns.
 use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, REFUSED_EXIT_CODE};
 
@@ -64,6 +63,10 @@ use crate::priority::lower_disk_priority;
 
 /// Imports the PATH lookup that finds the real tool.
 use crate::real_binary::find_in_path;
+
+/// Imports the output cap:
+/// the decision that turns it on and the runner that passes the tool's output on up to it.
+use crate::output_cap::{cap_applies, run_capped, standard_output_is_terminal};
 
 /// What:
 /// `fn own_real_path() -> PathBuf` declares a private function returning an owned path.
@@ -240,6 +243,20 @@ pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
     // ```
     if let Some(announcement) = announcement_for(name, &arguments) {
         return run_announced(name, &real, &arguments, announcement);
+    }
+
+    // What:     `cap_applies(standard_output_is_terminal())` asks whether this run's output goes to something that is not a
+    // terminal, and runs the real tool through the cap when it does.
+    // Why:      An output nothing is watching is what filled a 16 GiB tmpfs with 13,328,044,032 bytes of `rg` output
+    // (issue 3474). A terminal is left alone, because capping there would cost the real tool its terminal
+    // (colors, and full-screen tools such as `ncdu`).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (capApplies(standardOutputIsTerminal())) return runCapped(name, real, args);
+    // ```
+    if cap_applies(standard_output_is_terminal()) {
+        return run_capped(name, &real, &arguments);
     }
 
     // A returned value here means the launch failed; success replaced the process. `&real` and `&arguments` lend the

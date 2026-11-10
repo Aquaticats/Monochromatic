@@ -30,6 +30,11 @@ pub mod cli;
 /// The line and section a shadowed tool adds after its own `--version` and `--help` output.
 pub mod announce;
 
+/// The shell's exit code for a child process that ended:
+/// its own code,
+/// or `128 + signal` when a signal ended it.
+pub mod child_exit;
+
 /// The fixed values:
 /// the escape-hatch variable,
 /// the exit codes and the shadowed names.
@@ -59,6 +64,10 @@ pub mod policy_find;
 /// The one `unsafe` call:
 /// lowering the process's disk priority.
 pub mod priority;
+
+/// The cap on how much of the real tool's standard output the shadow passes on:
+/// it stops the tool past the cap and says so.
+pub mod output_cap;
 
 /// What a tool's standard input is attached to:
 /// nothing,

@@ -26,11 +26,6 @@ use std::ffi::OsString;
 /// Imports `Write` (the trait that adds `write_all` and `flush` to standard output).
 use std::io::{self, Write};
 
-/// Imports the Unix-only trait that adds `.signal()` to an exit status,
-/// so a tool killed by a signal gets the shell's
-/// `128 + signal` exit code.
-use std::os::unix::process::ExitStatusExt;
-
 /// Imports `Path` (a borrowed read-only path).
 use std::path::{self, Path};
 
@@ -39,6 +34,9 @@ use std::process::{Command, ExitStatus};
 
 /// Imports the check of the chosen program and the arrival marker of its start.
 use crate::shadow_identity::{StartMode, Vetted, mark_start, vet};
+
+/// Imports the shell's exit code for a finished child.
+use crate::child_exit::shell_exit_code;
 
 /// Imports the escape-hatch variable name (printed in the help section) and the exit code for a real tool that cannot start.
 use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE};
@@ -295,30 +293,6 @@ pub fn help_section(name: &str, real: &Path) -> String {
 }
 
 /// What:
-/// `fn exit_code_of(status: ExitStatus) -> i32` declares a private function turning how a process ended into
-/// the shell's exit code.
-/// Why:
-/// The shadow must report the real tool's status:
-/// its own code,
-/// or `128 + signal` when a signal ended it (the
-/// shell convention,
-/// and what a shell reports for the same process).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const exitCodeOf = (r: SpawnSyncReturns<Buffer>) => r.status ?? 128 + signalNumber(r.signal);
-/// ```
-fn exit_code_of(status: ExitStatus) -> i32 {
-    if let Some(code) = status.code() {
-        return code;
-    }
-    if let Some(signal) = status.signal() {
-        return 128 + signal;
-    }
-    return 1;
-}
-
-/// What:
 /// `pub fn run_announced(...) -> i32` declares a public function that runs the real tool as a child with the
 /// shadow's standard streams,
 /// waits for it,
@@ -386,5 +360,5 @@ pub fn run_announced(name: &str, real: &Path, arguments: &[OsString], announceme
     let mut standard_output = io::stdout().lock();
     let _ = standard_output.write_all(added.as_bytes());
     let _ = standard_output.flush();
-    return exit_code_of(status);
+    return shell_exit_code(status);
 }
