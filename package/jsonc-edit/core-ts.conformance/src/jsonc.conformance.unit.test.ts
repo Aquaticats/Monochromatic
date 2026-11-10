@@ -34,7 +34,7 @@ import type { JsonValue, } from 'type-fest';
 
 import fixtures from '../fixtures/jsonc-conformance.json' with { type: 'json', };
 
-//region Local corpus: documents this file parses without the shared fixture, and the source cast they all pass through
+//region Local corpus: documents parsed without fixtures/jsonc-conformance.json, plus the source cast they share
 
 const asJsonc = (source: string,): StringJsonc => source as StringJsonc;
 
@@ -83,7 +83,7 @@ const invalidCases: readonly string[] = [
 
 //endregion Local corpus
 
-//region Shared fixture vocabulary: the shapes fixtures/jsonc-conformance.json carries, spelled as this module compares them
+//region Shared fixture vocabulary: the shapes fixtures/jsonc-conformance.json carries, spelled as this module compares
 
 /**
  One shared fixture case that must parse, with the shape both implementations agree on.
@@ -137,7 +137,7 @@ type SharedOwnershipCase = {
 
 //endregion Shared fixture vocabulary
 
-//region Fixture expectation helpers: decode a fixture field and an API result into one vocabulary, beside the case shapes they read
+//region Fixture expectation helpers: decode fixture fields and API results into one vocabulary for the case shapes
 
 /**
  What:     Decode one fixture comment field into text or the absence sentinel.
@@ -191,7 +191,7 @@ type SharedRootShapeCase = {
 
 //endregion Fixture expectation helpers
 
-//region Edit helpers: walk a document for the comment bodies it carries, build a replacement value by kind, and probe a refusal
+//region Edit helpers: walk a document for its comment bodies, build a replacement by kind, and probe a refusal
 
 /**
  What:     Collect every comment body attached anywhere in a document.
@@ -289,12 +289,12 @@ const attemptRefusal = (attempt: () => unknown,): RefusalProbe => {
 
 //endregion Edit helpers
 
-//region Test tree: the local corpora first, then the corpus both maintained implementations share
+//region Test tree: the local corpora and the corpus both maintained implementations share
 
 await describe({
   name: 'JSONC conformance',
   children: [
-    //region Local corpus cases: the two case tables, each run as a loop over its own entries
+    //region Local corpus cases: run both local tables, each as a loop over its own entries
 
     it({
       name: 'valid JSONC documents parse to the expected value',
@@ -320,7 +320,7 @@ await describe({
 
     //endregion Local corpus cases
 
-    //region Shared fixtures: every group below reads jsonc-conformance.json, which the Rust crate reads too
+    //region Shared fixtures: reads fixtures/jsonc-conformance.json, the corpus the Rust crate reads too
 
     describe({
       name: 'shared fixtures',
