@@ -50,7 +50,7 @@ use std::pin::Pin;
 /// ```ts
 /// interface MergePusherAwaiting { pushMerge(destination: Destination, mergeOid: string): Promise<PushAttempt> }
 /// ```
-pub trait MergePusherAwaiting {
+pub trait MergePusherAwaiting: Send {
     /// Push the merge commit `merge_oid` to `destination`.
     fn push_merge_awaiting<'a>(
         &'a mut self,
@@ -126,7 +126,7 @@ pub async fn integrate_and_push_awaiting(
     // move, so the refusal was a rule and not a race.
     let mut refused_against: Option<(String, PushAttempt)> = None;
     for attempt in 1..=MAX_RECONCILE_ATTEMPTS {
-        let remote_tip: String = match fetch_remote_tip_awaiting(git, &destination).await? {
+        let remote_tip: String = match (fetch_remote_tip_awaiting(git, &destination)).await? {
             Ok(tip) => tip,
             Err(failed) => {
                 if plan.explicit && refused_against.is_none() {
@@ -157,8 +157,8 @@ pub async fn integrate_and_push_awaiting(
             return Ok(Integrated::Finished(refusal));
         }
         match (
-            is_ancestor_awaiting(git, &remote_tip, &local).await?,
-            is_ancestor_awaiting(git, &local, &remote_tip).await?,
+            (is_ancestor_awaiting(git, &remote_tip, &local)).await?,
+            (is_ancestor_awaiting(git, &local, &remote_tip)).await?,
         ) {
             (Some(true), _) => {
                 debug(
@@ -220,14 +220,14 @@ pub async fn integrate_and_push_awaiting(
                 "attempt {attempt}: pushing the merge {merge_oid} of {local} and {remote_tip}"
             ),
         );
-        let pushed: PushAttempt = push_merge.push_merge_awaiting(&destination, &merge_oid).await?;
+        let pushed: PushAttempt = (push_merge.push_merge_awaiting(&destination, &merge_oid)).await?;
         if pushed.exit_code == 0 {
             let branch: &str = match plan.branch_ref {
                 Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference),
                 None => "HEAD",
             };
             let advanced = match plan.branch_ref {
-                Some(branch_ref) => advance_local_branch_awaiting(git, branch_ref, &local, &merge_oid).await?,
+                Some(branch_ref) => (advance_local_branch_awaiting(git, branch_ref, &local, &merge_oid)).await?,
                 None => Err(String::from("HEAD is detached")),
             };
             let followed: String = match advanced {
@@ -295,7 +295,7 @@ pub async fn reconcile_divergent_push_awaiting(
     if !was_rejected_as_stale(&rejected.output) {
         return Ok(rejected);
     }
-    let Some(destination) = read_destination_awaiting(git, branch_ref).await? else {
+    let Some(destination) = (read_destination_awaiting(git, branch_ref)).await? else {
         debug(
             TAG,
             "the push destination cannot be resolved to a remote branch; no reconcile",

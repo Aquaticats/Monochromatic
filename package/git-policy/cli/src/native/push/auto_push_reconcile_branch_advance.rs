@@ -64,7 +64,7 @@ pub(crate) fn status_differs(before: &[u8], after: &[u8]) -> bool {
 /// ```ts
 /// interface BranchMove { moveBranch(git, branchRef, local, mergeOid): Promise<Result<void, string>> }
 /// ```
-pub(crate) trait BranchMove {
+pub(crate) trait BranchMove: Send + Sync {
     /// Bring the checkout and the named branch to the merge,
     /// and answer why not when Git refused it.
     fn move_branch<'a>(
