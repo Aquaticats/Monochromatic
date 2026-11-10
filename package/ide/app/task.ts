@@ -808,8 +808,8 @@ runCargo(['nextest', 'run', '--test', 'cli_args', '--test', 'cli_process'])
     run: "node bin/check-nextest-config.ts",
   },
   "test:bin": {
-    description: "Check the compositor version reader, the container bound, the frame-pattern analysis, the copyright-line, terminal-color, process-identifier, prepared-syntax and runtime-cache-key readers, and the runtime publishing helpers of the bin scripts with node:test",
-    run: "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/copyright-lines.test.ts bin/stress-native-report.test.ts bin/terminal-color-escapes.test.ts bin/process-identifier.test.ts bin/prepared-syntax-record.test.ts bin/runtime-cache-key.test.ts bin/runtime-publish.test.ts",
+    description: "Check the compositor version reader, the container bound, the frame-pattern analysis, the copyright-line, terminal-color, process-identifier, prepared-syntax, runtime-cache-key and elapsed-time readers, and the runtime publishing helpers of the bin scripts with node:test",
+    run: "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/copyright-lines.test.ts bin/stress-native-report.test.ts bin/terminal-color-escapes.test.ts bin/process-identifier.test.ts bin/prepared-syntax-record.test.ts bin/runtime-cache-key.test.ts bin/logged-elapsed-time.test.ts bin/runtime-publish.test.ts",
   },
   "test:design": {
     description: "Check the PNG flat-frame probe and the settled-screenshot loop the two design capture scripts share with node:test",

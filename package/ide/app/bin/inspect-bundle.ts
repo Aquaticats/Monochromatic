@@ -12,10 +12,11 @@ import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { hasProjectAuthorsCopyrightLine, mentionsCopyright } from './copyright-lines.ts';
+import { loggedElapsedMicroseconds } from './logged-elapsed-time.ts';
 import { compositor, demandCurrentCompositor, quietReply, silentFor } from './nested-compositor.ts';
 import { preparedSyntaxSpanCount } from './prepared-syntax-record.ts';
-import { isRuntimeCacheKeyFolderName, isRuntimeCacheLastUsedMarker } from './runtime-cache-key.ts';
 import { isProcessIdentifier } from './process-identifier.ts';
+import { isRuntimeCacheKeyFolderName, isRuntimeCacheLastUsedMarker } from './runtime-cache-key.ts';
 import { withoutTerminalColors } from './terminal-color-escapes.ts';
 
 const names = ['inventory', 'license-texts', 'lone-copy-highlights', 'later-start-reuses-cache', 'damaged-cache-rebuilt', 'shadowing-query-ignored', 'concurrent-first-starts', 'damaged-embedded-part-reported', 'old-cache-folders-removed', 'crate-licenses'];
@@ -341,7 +342,12 @@ const keyFolder = (cache: string): string => {
 const cachedSql = (cache: string): string => join(keyFolder(cache), 'grammars', 'sql.so');
 const sqlLibrary = (): Buffer => readFileSync(join(runtime, 'grammars', 'sql.so'));
 const partials = (cache: string): string[] => readdirSync(join(keyFolder(cache), 'grammars')).filter(name => !name.endsWith('.so'));
-const elapsed = ({ output, phrase }: { output: string; phrase: string }): number => Number(output.split('\n').find(line => line.includes(phrase))?.match(/elapsed_us=(\d+)/)?.[1] ?? NaN);
+// The microseconds the first line naming `phrase` states, or NaN when no line names it or none states a count.
+const elapsed = ({ output, phrase }: { output: string; phrase: string }): number => {
+  const line = output.split('\n').find(candidate => candidate.includes(phrase));
+  const microseconds = line === undefined ? undefined : loggedElapsedMicroseconds(line);
+  return microseconds ?? NaN;
+};
 const unpackedPhrase = 'language parser unpacked into the private cache';
 const reusedPhrase = 'cached language parser matches the embedded one';
 const rewrittenPhrase = 'cached language parser differs from the embedded one; writing it again';
