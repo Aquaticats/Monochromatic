@@ -8878,7 +8878,7 @@ cleared.
   and again by this run as `7856e87e96` when `origin/main` had moved to
   `dc63e09c24`.
   Commit `3a42f1aa05` is the fix,
-  and the commit that carries this section is named in it.
+  and `7bab410ebe` is this section's own commit.
   Not merged into main.
 - What the coordinator measured,
   and what this run found:
