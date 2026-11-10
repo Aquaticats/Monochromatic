@@ -613,12 +613,12 @@ await describe({
           name: 'converts bare-parameter arrow with expression body to a parseable function declaration',
           fn: async () => {
             const source = [
-              "const hoverText = label => repliesOf(label).map(reply => reply.outcome.text ?? '').join('\\n');",
+              String.raw`const hoverText = label => repliesOf(label).map(reply => reply.outcome.text ?? '').join('\n');`,
               '',
             ].join('\n',);
             const fixed = await fixGeneratedSource({ source, },);
             expect(fixed,).toBe([
-              "function hoverText(label) { return repliesOf(label).map(reply => reply.outcome.text ?? '').join('\\n') }",
+              String.raw`function hoverText(label) { return repliesOf(label).map(reply => reply.outcome.text ?? '').join('\n') }`,
               '',
             ].join('\n',),);
           },
