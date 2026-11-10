@@ -23,7 +23,10 @@ import spawn from 'nano-spawn';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { isRecord, } from './is-record.ts';
-import type { RunReport, } from './host/report.ts';
+import {
+  isActionableMutation,
+  type RunReport,
+} from './host/report.ts';
 
 /**
  Module logger for the integration check.
@@ -172,9 +175,7 @@ export async function runIntegrationCheck(): Promise<void> {
   },);
   check({
     that: report.mutants
-      .filter(function actionable(record,): boolean {
-        return (record.status === 'survived') || (record.status === 'timeout');
-      },)
+      .filter(isActionableMutation,)
       .every(function isConfirmed(record,): boolean {
         return record.confirmed;
       },),

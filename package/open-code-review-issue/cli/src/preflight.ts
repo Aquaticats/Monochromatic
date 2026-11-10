@@ -4,10 +4,11 @@
  @module
  */
 
-import type {
-  GitHubApiClient,
-  GitHubRepository,
-  PublicationPreflight,
+import {
+  type GitHubApiClient,
+  type GitHubRepository,
+  type PublicationPreflight,
+  repositoryEndpoint,
 } from './github-model.ts';
 import { isRecord, } from './json-record.ts';
 
@@ -39,22 +40,6 @@ export class PublicationPreflightError extends Error {
     super(message,);
     this.name = 'PublicationPreflightError';
   }
-}
-
-/**
- Builds shared repository REST endpoint prefix.
- 
- @param repository - Canonical destination identity.
- 
- @returns Owner/name endpoint prefix.
- 
- @example
- ```ts
- repositoryEndpoint(repository); // 'repos/owner/name'
- ```
- */
-function repositoryEndpoint(repository: GitHubRepository,): string {
-  return `repos/${repository.owner}/${repository.name}`;
 }
 
 /**

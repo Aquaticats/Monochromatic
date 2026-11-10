@@ -54,6 +54,25 @@ export type RunMutantRecord = {
 };
 
 /**
+ Reports whether one mutant record needs a person's attention.
+
+ A survivor and a timeout are both actionable: the test suite either did not
+ catch the mutation or did not finish, and neither is a passing outcome.
+
+ @param record - Final mutant record under test.
+
+ @returns true for `survived` and `timeout` only.
+
+ @example
+ ```ts
+ isActionableMutation({ ...record, status: 'survived', }); // true
+ ```
+ */
+export function isActionableMutation(record: RunMutantRecord,): boolean {
+  return (record.status === 'survived') || (record.status === 'timeout');
+}
+
+/**
  Complete native run report.
  */
 export type RunReport = {
@@ -179,9 +198,7 @@ export function formatTerminalSummary(report: RunReport,): string {
    Actionable findings: survivors and timeouts.
    */
   const findings = report.mutants
-    .filter(function actionable(record,): boolean {
-      return (record.status === 'survived') || (record.status === 'timeout');
-    },)
+    .filter(isActionableMutation,)
     .map(function toLine(record,): string {
       return `${record.status === 'survived' ? 'Survived' : 'Timeout'}: ${record.file}:${
         String(record.line,)

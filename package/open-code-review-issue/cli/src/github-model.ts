@@ -18,6 +18,22 @@ export type GitHubRepository = {
 };
 
 /**
+ Builds the REST endpoint prefix for a repository.
+
+ @param repository - Canonical repository identity.
+
+ @returns `repos/<owner>/<name>` prefix every repository REST path hangs off.
+
+ @example
+ ```ts
+ repositoryEndpoint({ owner: 'aquaticat', name: 'Monochromatic', url: 'https://github.com/aquaticat/Monochromatic', }); // 'repos/aquaticat/Monochromatic'
+ ```
+ */
+export function repositoryEndpoint(repository: GitHubRepository,): string {
+  return `repos/${repository.owner}/${repository.name}`;
+}
+
+/**
  Injectable authenticated GitHub REST boundary.
  */
 export type GitHubApiClient = (

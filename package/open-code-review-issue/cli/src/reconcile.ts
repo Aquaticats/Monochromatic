@@ -4,9 +4,10 @@
  @module
  */
 
-import type {
-  GitHubApiClient,
-  GitHubRepository,
+import {
+  type GitHubApiClient,
+  type GitHubRepository,
+  repositoryEndpoint,
 } from './github-model.ts';
 import { isRecord, } from './json-record.ts';
 import type { RenderedIssue, } from './issue-model.ts';
@@ -35,17 +36,6 @@ export type ReconciliationResult =
       readonly kind: 'match';
       readonly created: CreatedIssue;
     };
-
-/**
- Builds repository REST endpoint prefix.
- 
- @param repository - Canonical destination identity.
- 
- @returns REST owner/name prefix.
- */
-function repositoryEndpoint(repository: GitHubRepository,): string {
-  return `repos/${repository.owner}/${repository.name}`;
-}
 
 /**
  Reads greatest current shared Issue or pull-request number.
