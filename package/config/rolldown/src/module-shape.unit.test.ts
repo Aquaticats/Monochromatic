@@ -120,6 +120,15 @@ const MARKED_SAMPLE = [
   '//endregion Reading',
 ].join(LINE_BREAK,);
 
+/**
+ Product text whose only marker-shaped line is a word that merely starts with the marker, which
+ the guard must read as prose rather than as a named section.
+ */
+const REGIONAL_SAMPLE = [
+  '//regional plan for the module',
+  'export const sample = 1;',
+].join(LINE_BREAK,);
+
 //endregion Fixtures
 
 //region Scanning
@@ -408,6 +417,25 @@ await describe({
 
     //region This package's product modules
 
+    it({
+      name: 'reads a word that only starts with the marker as prose',
+      fn: async () => {
+        expect(
+          regionFindings({
+            text: REGIONAL_SAMPLE,
+            minimumLines: Number.POSITIVE_INFINITY,
+          },),
+        ).toEqual([],);
+        expect(
+          regionFindings({
+            text: REGIONAL_SAMPLE,
+            minimumLines: 1,
+          },),
+        ).toEqual([
+          `no region marker in ${String(REGIONAL_SAMPLE.split(LINE_BREAK,).length)} lines`,
+        ],);
+      },
+    },),
     it({
       name: `names a region in every product module of at least ${String(SUBSTANTIAL_MODULE_LINE_COUNT)} lines`,
       fn: async () => {
