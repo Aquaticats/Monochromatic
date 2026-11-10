@@ -282,6 +282,65 @@ const BAN_DISABLE_RULES = [
   'no-disable-require-tsdoc',
 ] as const;
 
+/** Diagnostic `code` emitted by the ban rule guarding `no-restricted-syntax/no-switch`. */
+const NO_SWITCH_BAN_CODE = 'no-restricted-syntax(no-disable-no-switch)';
+
+/**
+ Returns the source lines the no-switch ban rule points at, in oxlint's
+ emission order, and an empty list when the rule reported nothing.
+
+ @param diagnostics - diagnostics oxlint reported for one linted file
+
+ @returns one-based lines of the ban rule's diagnostics
+
+ @example
+ ```ts
+ noSwitchBanLines({ diagnostics }); // [4] for a real directive on line 4
+ ```
+ */
+function noSwitchBanLines(
+  { diagnostics, }: { readonly diagnostics: readonly OxlintDiagnostic[]; },
+): readonly number[] {
+  return diagnostics
+    .filter(function isNoSwitchBan(diagnostic,): boolean {
+      return diagnostic.code === NO_SWITCH_BAN_CODE;
+    },)
+    .map(function firstLabelLine(diagnostic,): number {
+      return diagnostic.labels?.[0]?.span.line ?? 0;
+    },);
+}
+
+/**
+ Reads the one-based lines of a fixture whose text begins with a `//`
+ oxlint-disable directive, so an expectation follows the fixture when it moves.
+
+ @param fixturePath - fixture path relative to the fixture `src/` root
+
+ @returns one-based lines holding a line-comment directive
+
+ @example
+ ```ts
+ lineCommentDirectiveLines({ fixturePath: 'invalid/no-disable-no-switch.ts' }); // [4]
+ ```
+ */
+function lineCommentDirectiveLines(
+  { fixturePath, }: { readonly fixturePath: string; },
+): readonly number[] {
+  const lines: number[] = [];
+  const text = readFileSync(
+    resolve(
+      FIXTURES,
+      fixturePath,
+    ),
+    'utf8',
+  );
+  text.split('\n',)
+    .forEach(function collectDirective(line, index,): void {
+      if (line.startsWith('// oxlint-disable',)) lines.push(index + 1,);
+    },);
+  return lines;
+}
+
 //endregion Helpers
 
 await describe({
@@ -312,6 +371,85 @@ await describe({
           },
         },);
       },),
+    },),
+    describe({
+      name: 'ban-disable directive detection',
+      children: [
+        it({
+          name: 'reports the fixture directive without reporting the prose header',
+          fn: async () => {
+            const diagnostics = await lint('invalid/no-disable-no-switch.ts',);
+            expect(noSwitchBanLines({ diagnostics, },),)
+              .toEqual(lineCommentDirectiveLines({ fixturePath: 'invalid/no-disable-no-switch.ts', },),);
+          },
+        },),
+        it({
+          name: 'ignores a directive naming only a longer rule id',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'longer-rule-id.ts',
+              source: [
+                '// oxlint-disable-next-line no-restricted-syntax/no-switch-extra -- another rule.',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(noSwitchBanLines({ diagnostics, },),)
+              .toEqual([],);
+          },
+        },),
+        it({
+          name: 'ignores a star-prefixed block comment line oxlint reads as prose',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'star-prefixed-block.ts',
+              source: [
+                '/*',
+                ' * oxlint-disable no-restricted-syntax/no-switch -- prose to oxlint.',
+                ' */',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(noSwitchBanLines({ diagnostics, },),)
+              .toEqual([],);
+          },
+        },),
+        it({
+          name: 'reports a block-comment directive naming the banned rule id',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'block-directive.ts',
+              source: [
+                '/* oxlint-disable no-restricted-syntax/no-switch -- intentional. */',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(noSwitchBanLines({ diagnostics, },),)
+              .toEqual([1],);
+          },
+        },),
+        it({
+          name: 'reports a next-line directive that lists the banned rule id with others',
+          fn: async () => {
+            using fixture = createGeneratedSource({
+              fileName: 'comma-list-directive.ts',
+              source: [
+                '// oxlint-disable-next-line no-unused-vars, no-restricted-syntax/no-switch -- intentional.',
+                'export const PLACEHOLDER = 0;',
+                '',
+              ].join('\n',),
+            },);
+            const diagnostics = await runOxlint(fixture.filePath,);
+            expect(noSwitchBanLines({ diagnostics, },),)
+              .toEqual([1],);
+          },
+        },),
+      ],
     },),
     describe({
       name: 'no-system-tmpdir forms',
