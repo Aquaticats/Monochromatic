@@ -1,7 +1,7 @@
 // The columns of one `strace --summary-only` row, against the rows a real strace run prints.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isPrintedDecimal, reportedColumns } from './strace-summary.ts';
+import { isPrintedDecimal, isPrintedWholeNumber, reportedColumns } from './strace-summary.ts';
 
 // A row of `strace --follow-forks --summary-only` output: percent of time, seconds, microseconds per call, calls,
 // errors, and the system call's name.
@@ -35,4 +35,12 @@ test('accepts the seconds column of a real summary row, and a run of digits and 
 
 test('rejects a column that holds anything but digits and points, and an empty one', () => {
   for (const column of ['', ' ', '-1', '1,2', '1e3', '1 2', '0x1', '\u0667', '1.2\t']) assert.equal(isPrintedDecimal(column), false, JSON.stringify(column));
+});
+
+test('accepts the calls column of a real summary row, and any run of digits', () => {
+  for (const column of ['123', '19', '0', '007']) assert.equal(isPrintedWholeNumber(column), true, JSON.stringify(column));
+});
+
+test('rejects a column a call count cannot hold, and an empty one', () => {
+  for (const column of ['', ' ', '1.5', '-1', '1 2', '1a', '\u0667']) assert.equal(isPrintedWholeNumber(column), false, JSON.stringify(column));
 });

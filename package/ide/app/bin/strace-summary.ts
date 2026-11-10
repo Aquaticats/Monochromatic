@@ -5,7 +5,7 @@
 // Why: the measurement collected the row through `trim().split(/\s+/)` and tested two of its columns through
 // patterns, and the repository lint bans a pattern where a walk over the row reads the same text.
 // Tested in strace-summary.test.ts.
-import { isDecimalNumberCharacter, isWhitespace } from './scan-characters.ts';
+import { isAsciiDigit, isDecimalNumberCharacter, isWhitespace } from './scan-characters.ts';
 
 /**
  Columns one summary row holds.
@@ -51,6 +51,27 @@ export function isPrintedDecimal(column: string): boolean {
   if (column.length === 0) return false;
   for (const character of column) {
     if (!isDecimalNumberCharacter(character)) return false;
+  }
+  return true;
+}
+
+/**
+ Whether a column states the whole number of calls strace prints.
+ 
+ @param column - One column of a summary row.
+ 
+ @returns Whether every character of the column is an ASCII digit, and there is one.
+ 
+ @example
+ ```ts
+ isPrintedWholeNumber('123'); // true
+ isPrintedWholeNumber('1.5'); // false
+ ```
+ */
+export function isPrintedWholeNumber(column: string): boolean {
+  if (column.length === 0) return false;
+  for (const character of column) {
+    if (!isAsciiDigit(character)) return false;
   }
   return true;
 }
