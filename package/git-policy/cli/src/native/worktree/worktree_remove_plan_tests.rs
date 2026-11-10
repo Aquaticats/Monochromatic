@@ -30,6 +30,26 @@ fn the_plan_names_one_directory_and_no_option() {
     remove(root.as_path());
 }
 
+/// What:
+///  A forced removal names the same directory and is a plan,
+///  so the wrapper destroys the worktree's subvolume instead of leaving Git to
+///  unlink every entry of it.
+/// Why:
+///   Git deletes a dirty worktree only with `-f`/`--force` (`remove_worktree`,
+///  `if (!force) check_clean_worktree(...)`),
+///  and those worktrees are the ones with the largest ignored trees,
+///  so a forced removal is today the slowest one while every other command waits on the volume.
+#[test]
+fn a_forced_removal_names_the_directory_and_the_force() {
+    let root: PathBuf = fixture("remove-plan-forced");
+    std::fs::create_dir(root.join("wt")).expect("directory");
+    for values in [vec!["worktree", "remove", "-f", "wt"], vec!["worktree", "remove", "--force", "wt"], vec!["worktree", "remove", "--force", "--", "wt"]] {
+        let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path());
+        assert!(plan.is_some(), "the wrapper serves {values:?}");
+    }
+    remove(root.as_path());
+}
+
 /// An empty operand names no directory:
 /// joined to the start directory it would name the current one,
 /// and Git answers that
