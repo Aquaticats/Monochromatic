@@ -277,15 +277,15 @@ Rejected normalization techniques remain useful evidence:
 
 After hook and generator changes are in place:
 
-1. Delete `test/file.txt`.
-2. Normalize the canonical GPL source and run file-enforcer.
-3. Rebuild every tracked Claude Code plugin Node artifact through its package mise task,
-   preserving producer-native missing final LF bytes.
-4. Run the newline fixer with `--no-stage` to catch the remaining ordinary files;
-   the output-directory exclusion keeps rebuilt artifacts untouched.
-5. Inspect the complete diff.
-6. Confirm no excluded corpus or TOML parser fixture changed.
-7. Stage explicit path groups and commit checkpoints according to repository policy.
+1.  Delete `test/file.txt`.
+2.  Normalize the canonical GPL source and run file-enforcer.
+3.  Rebuild every tracked Claude Code plugin Node artifact through its package mise task,
+    preserving producer-native missing final LF bytes.
+4.  Run the newline fixer with `--no-stage` to catch the remaining ordinary files;
+    the output-directory exclusion keeps rebuilt artifacts untouched.
+5.  Inspect the complete diff.
+6.  Confirm no excluded corpus or TOML parser fixture changed.
+7.  Stage explicit path groups and commit checkpoints according to repository policy.
 
 The ordinary files identified during planning were:
 

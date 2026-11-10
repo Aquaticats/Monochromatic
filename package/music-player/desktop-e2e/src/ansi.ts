@@ -41,16 +41,23 @@ const SEQUENCE_FINAL = 'm';
 function sequenceLength(segment: string,): number {
   if (!segment.startsWith('[',))
     return 0;
-  for (let index = 1; index < segment.length; index++) {
-    /**
-     The character at the scan position.
-     */
-    const character = segment.charAt(index,);
-    if (!PARAMETER_CHARACTERS.has(character,))
-      // The bracket, the parameters and the final letter make up the sequence.
-      return character === SEQUENCE_FINAL ? index + 1 : 0;
-  }
-  return 0;
+
+  /**
+   The characters the sequence can occupy, one per UTF-16 code unit.
+   */
+  const afterBracket = segment.slice(1,)
+    .split('',);
+
+  /**
+   Position of the first character that cannot be a sequence parameter, or -1 when every character is one.
+   */
+  const finalIndex = afterBracket.findIndex(function isParameterCharacter(character: string,): boolean {
+    return !PARAMETER_CHARACTERS.has(character,);
+  },);
+  if (finalIndex === (-1))
+    return 0;
+  // The bracket, the parameters and the final letter make up the sequence.
+  return afterBracket.at(finalIndex,) === SEQUENCE_FINAL ? finalIndex + 2 : 0;
 }
 
 /**

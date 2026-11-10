@@ -715,49 +715,49 @@ The upstream tracker search inspected all 26 TypeSlayer issues and all 11 pull r
 
 The six filing constraints resolve as follows:
 
-1. **Is it really upstream's fault?
-   ** Yes as a TypeSlayer compatibility gap.
-    TypeSlayer hardcodes an unexported compiler
-   subpath and assumes the pre-TypeScript-7 trace layout.
-    It is not a TypeScript defect because TypeScript's export map
-   and checker-sharded trace files are deliberate package and compiler behavior.
-2. **Can upstream fix it?
-   ** Yes.
-    TypeSlayer can invoke the package's declared executable rather than a private subpath,
-   teach its loader and graph model to consume `legend.json` and checker-specific type files,
-   and model omitted native event arguments as optional.
-3. **Are they supporting this use case?
-   ** No for the native compiler in this release.
-    TypeSlayer 0.1.32 shipped on 2026-03-23,
-    before TypeScript 7.0.2 shipped on 2026-07-08.
-    More directly,
-    `packages/typeslayer/src/components/customize-flags-dialog.tsx:213-220` warns that the native `tsgo` compiler in
-   this TypeSlayer version cannot generate the required traces and asks users not to report that combination.
-    TypeScript 7 later added trace generation under the standard `tsc` package name,
-    but TypeSlayer 0.1.32 contains no corresponding claim or trace-format support.
-    This constraint fails for version 0.1.32.
-4. **Would the repo welcome our contribution?
-   ** Yes.
-    The README invites contributions and imposes only its commit-message
-   convention.
-    `CONTRIBUTING.md`,
-    the repository templates,
-    and recent tracker contents contain no ban on external or
-   AI-assisted reports.
-5. **Will they likely fix it?
-   ** Soft yes.
-    No decline or non-goal was found.
-    There is also no positive implementation
-   signal:
-    no matching issue or pull request exists,
-    and the relevant TypeSlayer source has not changed since 0.1.32.
-6. **Have we prototyped a minimal fix compatible with their architecture?
-   ** Yes.
-    The `Aquaticat/typeslayer` fork resolves declared package executables,
-   normalizes checker-sharded types and trace IDs into TypeSlayer's existing internal model,
-   models the native event's count as optional,
-   preserves TypeScript 6,
-   and passed regression tests plus built-application UI verification.
+1.  **Is it really upstream's fault?
+    ** Yes as a TypeSlayer compatibility gap.
+     TypeSlayer hardcodes an unexported compiler
+    subpath and assumes the pre-TypeScript-7 trace layout.
+     It is not a TypeScript defect because TypeScript's export map
+    and checker-sharded trace files are deliberate package and compiler behavior.
+2.  **Can upstream fix it?
+    ** Yes.
+     TypeSlayer can invoke the package's declared executable rather than a private subpath,
+    teach its loader and graph model to consume `legend.json` and checker-specific type files,
+    and model omitted native event arguments as optional.
+3.  **Are they supporting this use case?
+    ** No for the native compiler in this release.
+     TypeSlayer 0.1.32 shipped on 2026-03-23,
+     before TypeScript 7.0.2 shipped on 2026-07-08.
+     More directly,
+     `packages/typeslayer/src/components/customize-flags-dialog.tsx:213-220` warns that the native `tsgo` compiler in
+    this TypeSlayer version cannot generate the required traces and asks users not to report that combination.
+     TypeScript 7 later added trace generation under the standard `tsc` package name,
+     but TypeSlayer 0.1.32 contains no corresponding claim or trace-format support.
+     This constraint fails for version 0.1.32.
+4.  **Would the repo welcome our contribution?
+    ** Yes.
+     The README invites contributions and imposes only its commit-message
+    convention.
+     `CONTRIBUTING.md`,
+     the repository templates,
+     and recent tracker contents contain no ban on external or
+    AI-assisted reports.
+5.  **Will they likely fix it?
+    ** Soft yes.
+     No decline or non-goal was found.
+     There is also no positive implementation
+    signal:
+     no matching issue or pull request exists,
+     and the relevant TypeSlayer source has not changed since 0.1.32.
+6.  **Have we prototyped a minimal fix compatible with their architecture?
+    ** Yes.
+     The `Aquaticat/typeslayer` fork resolves declared package executables,
+    normalizes checker-sharded types and trace IDs into TypeSlayer's existing internal model,
+    models the native event's count as optional,
+    preserves TypeScript 6,
+    and passed regression tests plus built-application UI verification.
 
 Constraint 3 still fails for the unmodified upstream 0.1.32 release,
  so default policy remains not to file the draft as a

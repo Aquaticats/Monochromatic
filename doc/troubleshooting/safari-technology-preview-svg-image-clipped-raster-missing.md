@@ -171,24 +171,24 @@ the symptom wording may differ from a filed report's.
 
 The six constraints:
 
-1. Is it upstream's fault?
-   Plausibly,
-   but unproven:
-   it appears only in Technology Preview,
-   and the cause may be the page.
-2. Can upstream fix it?
-   Unknown without a cause.
-3. Do they support the use case?
-   Yes,
-   an SVG with an embedded raster in a clipped group is ordinary SVG-as-image content.
-4. Would the repo welcome the contribution?
-   `webkit.org/reporting-bugs/` asks for the latest build and a duplicate search,
-   and mentions no AI policy (2026-10-20).
-5. Will they likely fix it?
-   No signal either way.
-6. Prototyped a minimal fix?
-   No,
-   and none is possible before a cause is found.
+1.  Is it upstream's fault?
+    Plausibly,
+    but unproven:
+    it appears only in Technology Preview,
+    and the cause may be the page.
+2.  Can upstream fix it?
+    Unknown without a cause.
+3.  Do they support the use case?
+    Yes,
+    an SVG with an embedded raster in a clipped group is ordinary SVG-as-image content.
+4.  Would the repo welcome the contribution?
+    `webkit.org/reporting-bugs/` asks for the latest build and a duplicate search,
+    and mentions no AI policy (2026-10-20).
+5.  Will they likely fix it?
+    No signal either way.
+6.  Prototyped a minimal fix?
+    No,
+    and none is possible before a cause is found.
 
 Decision:
 do not file.

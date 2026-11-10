@@ -318,46 +318,46 @@ So the artifact is an additive comment on #22730,
 not a new issue.
 Walking the six constraints:
 
-1. **Is it really upstream's fault?**
-   Yes.
-   The behaviour contradicts the flag's own help text ("Allow the rule or category (suppress the lint)"),
-   and the config path proves the lookup is available at the point the filter is applied.
-   Nothing in this repo's wrapper or config alters the flags.
-2. **Can upstream fix it?**
-   Yes.
-   The prototype below is two files and one call-site-free change;
-   no architectural constraint is involved.
-3. **Are they supporting this use case?**
-   Yes,
-   with a caveat.
-   The CLI docs describe `-A`/`-W`/`-D` as applying to "the rule or category" without excluding plugin rules,
-   `--config` plus CLI filters is a tested combination (`apps/oxlint/src/lint.rs:1529-1534`),
-   and the issue template asks for `oxlint.config.ts` contents.
-   The caveat:
-   the JS plugins page says "JS plugins are currently in alpha",
-   so parity gaps are expected.
-4. **Would the repo welcome our contribution?**
-   Yes,
-   with disclosure.
-   `CONTRIBUTING.md:12-21` and `AGENTS.md:7-15` allow AI-assisted contributions when disclosed and reviewed,
-   and warn that unreviewed content is closed.
-   PR #23336 disclosed AI assistance and was withdrawn by its author,
-   not rejected.
-   No ban on outside contributors was found.
-5. **Will they likely fix it?**
-   Plausible,
-   not confirmed.
-   Maintainers labelled #22730 `A-linter-plugins` a week after filing,
-   nobody has declined it,
-   and `config_builder.rs` had twelve upstream commits between 2026-04-30 and 2026-08-17,
-   two of them JS-plugin fixes.
-   No documented won't-fix exists.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   Yes,
-   see "Prototype":
-   two source files plus a unit test,
-   red before and green after,
-   saved as [`oxlint-allow-flag-js-plugin-rules.patch`](oxlint-allow-flag-js-plugin-rules.patch).
+1.  **Is it really upstream's fault?**
+    Yes.
+    The behaviour contradicts the flag's own help text ("Allow the rule or category (suppress the lint)"),
+    and the config path proves the lookup is available at the point the filter is applied.
+    Nothing in this repo's wrapper or config alters the flags.
+2.  **Can upstream fix it?**
+    Yes.
+    The prototype below is two files and one call-site-free change;
+    no architectural constraint is involved.
+3.  **Are they supporting this use case?**
+    Yes,
+    with a caveat.
+    The CLI docs describe `-A`/`-W`/`-D` as applying to "the rule or category" without excluding plugin rules,
+    `--config` plus CLI filters is a tested combination (`apps/oxlint/src/lint.rs:1529-1534`),
+    and the issue template asks for `oxlint.config.ts` contents.
+    The caveat:
+    the JS plugins page says "JS plugins are currently in alpha",
+    so parity gaps are expected.
+4.  **Would the repo welcome our contribution?**
+    Yes,
+    with disclosure.
+    `CONTRIBUTING.md:12-21` and `AGENTS.md:7-15` allow AI-assisted contributions when disclosed and reviewed,
+    and warn that unreviewed content is closed.
+    PR #23336 disclosed AI assistance and was withdrawn by its author,
+    not rejected.
+    No ban on outside contributors was found.
+5.  **Will they likely fix it?**
+    Plausible,
+    not confirmed.
+    Maintainers labelled #22730 `A-linter-plugins` a week after filing,
+    nobody has declined it,
+    and `config_builder.rs` had twelve upstream commits between 2026-04-30 and 2026-08-17,
+    two of them JS-plugin fixes.
+    No documented won't-fix exists.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    Yes,
+    see "Prototype":
+    two source files plus a unit test,
+    red before and green after,
+    saved as [`oxlint-allow-flag-js-plugin-rules.patch`](oxlint-allow-flag-js-plugin-rules.patch).
 
 All six hold,
 so the comment draft is fileable once its disclosure line is completed (constraint 4).

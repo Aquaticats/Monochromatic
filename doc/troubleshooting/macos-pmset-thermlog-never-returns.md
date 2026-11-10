@@ -236,20 +236,20 @@ Nothing to file,
  and nothing was filed or commented.
 The 6-constraint check stops at the first constraint:
 
-1. **Is it really upstream's fault?
-   ** No.
-    `pmset -g thermlog` is documented as a
-   log rather than a query,
-    the manual pairs it with `-g assertionslog`,
-    which it
-   describes the same way,
-    and the one-shot form the caller wanted exists under a
-   name four characters shorter.
-    Apple's tool did what its manual says.
-    The
-   mistake was reaching for a plausible-looking subcommand without reading the
-   page.
-    Constraints 2 through 6 are not reached.
+1.  **Is it really upstream's fault?
+    ** No.
+     `pmset -g thermlog` is documented as a
+    log rather than a query,
+     the manual pairs it with `-g assertionslog`,
+     which it
+    describes the same way,
+     and the one-shot form the caller wanted exists under a
+    name four characters shorter.
+     Apple's tool did what its manual says.
+     The
+    mistake was reaching for a plausible-looking subcommand without reading the
+    page.
+     Constraints 2 through 6 are not reached.
 
 This is also not a repository issue:
  the durable value here is the rule that a

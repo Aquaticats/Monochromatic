@@ -343,32 +343,32 @@ The audit walks the six constraints
 
 ### Upstream filing decision
 
-1. Is it really upstream's fault?
-   No.
-   The rejection is this repository's wrapper policy on a pre-0.2.9 build,
-   and mise behaves as its help documents
-   (plugin updates default on,
-   `--no-plugins` opts out).
-2. Can upstream fix it?
-   Not reached.
-   For the record:
-   mise could skip or soften its forced checkout,
-   but nothing in the failure requires that.
-3. Are they supporting this use case?
-   Not reached.
-   mise documents plugin updating and the opt-out;
-   a PATH-level git policy wrapper is outside its supported surface.
-4. Would the repo welcome our contribution?
-   Not reached;
-   no filing to welcome.
-5. Will they likely fix it?
-   Not reached.
-6. Have we prototyped a minimal fix?
-   Not applicable to upstream.
-   The in-repo fix already shipped as 0.2.9
-   (commit `197ae38ff5`,
-   binary test `a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule`),
-   and this incident is the exposed binary lagging that release.
+1.  Is it really upstream's fault?
+    No.
+    The rejection is this repository's wrapper policy on a pre-0.2.9 build,
+    and mise behaves as its help documents
+    (plugin updates default on,
+    `--no-plugins` opts out).
+2.  Can upstream fix it?
+    Not reached.
+    For the record:
+    mise could skip or soften its forced checkout,
+    but nothing in the failure requires that.
+3.  Are they supporting this use case?
+    Not reached.
+    mise documents plugin updating and the opt-out;
+    a PATH-level git policy wrapper is outside its supported surface.
+4.  Would the repo welcome our contribution?
+    Not reached;
+    no filing to welcome.
+5.  Will they likely fix it?
+    Not reached.
+6.  Have we prototyped a minimal fix?
+    Not applicable to upstream.
+    The in-repo fix already shipped as 0.2.9
+    (commit `197ae38ff5`,
+    binary test `a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule`),
+    and this incident is the exposed binary lagging that release.
 
 ### Duplicate search
 

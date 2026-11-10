@@ -666,7 +666,7 @@ the letter's QQ search,
 "our" and "trans woman" survive),
 the three em-dashes,
 and the `closed on a short bench` lines with 12 fallback decisions (none;
-6) no longer do.
+6)  no longer do.
 
 ### What follows
 

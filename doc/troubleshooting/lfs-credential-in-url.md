@@ -326,23 +326,23 @@ no copy listed above was edited or deleted.
 The planned steps,
 to run after the owner says to continue:
 
-1. Choose the helper (below),
-   store the current token through `git credential approve` from stdin.
-2. Unset `lfs.url` (the committed `.lfsconfig` supplies the plain URL) and unset the `locksverify` key;
-   set the plain
-   `lfs.https://monochromatic-lfs.aquaticat.workers.dev.locksverify false`.
-3. Run `check:no-credential-in-git-config` and expect `credential-free: yes`;
-   run `git lfs fsck --pointers` and a
-   write-path check.
-4. Rotate last,
-   once nothing depends on the old value:
-   generate into a 0600 file,
-   `wrangler secret put` from stdin,
-   store in the helper from the file,
-   deploy if the auth design changed,
-   prove old refused and new accepted with
-   bounded requests whose output is redacted,
-   delete the file.
+1.  Choose the helper (below),
+    store the current token through `git credential approve` from stdin.
+2.  Unset `lfs.url` (the committed `.lfsconfig` supplies the plain URL) and unset the `locksverify` key;
+    set the plain
+    `lfs.https://monochromatic-lfs.aquaticat.workers.dev.locksverify false`.
+3.  Run `check:no-credential-in-git-config` and expect `credential-free: yes`;
+    run `git lfs fsck --pointers` and a
+    write-path check.
+4.  Rotate last,
+    once nothing depends on the old value:
+    generate into a 0600 file,
+    `wrangler secret put` from stdin,
+    store in the helper from the file,
+    deploy if the auth design changed,
+    prove old refused and new accepted with
+    bounded requests whose output is redacted,
+    delete the file.
 
 ## Open decisions (waiting for the owner)
 

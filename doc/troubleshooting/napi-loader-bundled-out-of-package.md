@@ -243,7 +243,7 @@ location and nowhere else.
 
 ### Readings that were wrong
 
-**"npm and optional dependencies."**
+"npm and optional dependencies."
 The message says so and it is wrong twice over.
 The bindings are installed:
  `node_modules/.pnpm` carries
@@ -252,7 +252,7 @@ The bindings are installed:
 The text is a fixed string in the generated loader,
  not a diagnosis of the actual failure.
 
-**"`packageExtensions` will fix it."**
+"`packageExtensions` will fix it."
 `packageExtensions` adds dependencies to another package's manifest so pnpm links them
 under that package.
 It cures a package importing something it never declared,
@@ -389,7 +389,7 @@ That adds an import-time write,
 `noexec` mounts,
  to arrive where the sibling file already is.
 
-**Declare the transitive in the consuming manifest.**
+Declare the transitive in the consuming manifest.
 Adding `"satteri": "catalog:"` to the consumer moves it into `externalNames`,
 so the bundle emits a runtime `import` instead of a copy,
 and node resolves it from the consumer's own `node_modules`,
@@ -409,14 +409,14 @@ the declaration is also simply accurate,
 because that package really does need Sätteri present at runtime.
 For a private consumer it is pure noise.
 
-**Spawn the CLI instead of importing the package.**
+Spawn the CLI instead of importing the package.
 `package/git-policy/markdown-lint` runs `cli-markdown-lint --fix` as a subprocess.
 Tradeoff:
  process startup per invocation and no in-process API,
 in exchange for total immunity,
  since the binary never leaves its own package.
 
-**`NAPI_RS_NATIVE_LIBRARY_PATH`.**
+`NAPI_RS_NATIVE_LIBRARY_PATH`.
 The loader honours it at `index.js:70`:
 
 ```js
@@ -430,11 +430,11 @@ Usable to confirm a diagnosis,
 
 ## What does not work
 
-**`packageExtensions`.**
+`packageExtensions`.
 Wrong shape,
  for the reason walked in "Readings that were wrong".
 
-**Relying on tree-shaking.**
+Relying on tree-shaking.
 The consumer touches no parsing export,
  but
 `package/cli/markdown-lint/package.json` sets `"sideEffects": true`,
@@ -455,7 +455,7 @@ and the consumer must inline it or not use it.
 Once the linter publishes,
  this stops being blocked and becomes the correct fix.
 
-**Injecting the parser as a function parameter.**
+Injecting the parser as a function parameter.
 Moving the `parse` call out of `runRules` (`package/cli/markdown-lint/src/lint.ts:2`)
 and into a caller-supplied argument does remove the import edge,
 and therefore does remove the failure.
@@ -573,7 +573,7 @@ Decision:
  file nothing.
 Constraint 1 fails,
  so the draft below is kept as an auditable record only.
-**Do not file as-is.**
+Do not file as-is.
 
 ~~~md
 Title: `Cannot find native binding` message names npm as the cause for any missing binding

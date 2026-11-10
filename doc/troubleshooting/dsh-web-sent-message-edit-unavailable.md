@@ -560,58 +560,58 @@ A Discussions search
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   No.
-   This is a product scope boundary backed by an architectural
-   restriction
-   (append-only log,
-   queue-scoped edit),
-   not a defect in a shipped control.
-   The same-session rewrite is a feature request,
-   already filed twice.
-2. **Can upstream fix it?**
-   Yes.
-   Nothing algebraic blocks it:
-   two community implementations reach the behavior from the existing
-   surface-replacement machinery,
-   and the read side already folds positional replacements.
-3. **Are they supporting this use case?**
-   Partly.
-   Queue edit,
-   steer,
-   and fork ship and are documented in their package READMEs;
-   same-session edit appears in no README,
-   type contract,
-   or test of the installed dist,
-   so the requested behavior is not a supported use case today.
-4. **Would the repo welcome our contribution?**
-   A Discussions comment is in scope;
-   `CONTRIBUTING.md` asks for issue and bug reports there.
-   A patch is not:
-   the same file states "We are sorry that we cannot accept external pull
-   requests at the moment."
-   No AI-assisted-filing ban was found in `CONTRIBUTING.md`,
-   the repository description,
-   or the discussion threads read.
-5. **Will they likely fix it?**
-   Unknown,
-   and not leaning no.
-   No maintainer decline appears on either thread,
-   no documented won't-fix exists,
-   and community activity on discussion 9127 continued through
-   2026-10-20.
-6. **Have we prototyped a minimal fix compatible with their
-   architecture?**
-   No,
-   and the auto-prototype step is deliberately not run here.
-   Constraints 1 and 3 do not hold,
-   and constraint 4 rules out external pull requests,
-   so a prototype would have no upstream landing path;
-   an independently maintained community prototype already exists and is
-   linked from discussion 9127
-   (`Myoontyee/deepseek-harness` commits `9d9544d6fc` and `143b42096f`).
-   Reimplementing it here would duplicate that work without a merge
-   route.
+1.  **Is it really upstream's fault?**
+    No.
+    This is a product scope boundary backed by an architectural
+    restriction
+    (append-only log,
+    queue-scoped edit),
+    not a defect in a shipped control.
+    The same-session rewrite is a feature request,
+    already filed twice.
+2.  **Can upstream fix it?**
+    Yes.
+    Nothing algebraic blocks it:
+    two community implementations reach the behavior from the existing
+    surface-replacement machinery,
+    and the read side already folds positional replacements.
+3.  **Are they supporting this use case?**
+    Partly.
+    Queue edit,
+    steer,
+    and fork ship and are documented in their package READMEs;
+    same-session edit appears in no README,
+    type contract,
+    or test of the installed dist,
+    so the requested behavior is not a supported use case today.
+4.  **Would the repo welcome our contribution?**
+    A Discussions comment is in scope;
+    `CONTRIBUTING.md` asks for issue and bug reports there.
+    A patch is not:
+    the same file states "We are sorry that we cannot accept external pull
+    requests at the moment."
+    No AI-assisted-filing ban was found in `CONTRIBUTING.md`,
+    the repository description,
+    or the discussion threads read.
+5.  **Will they likely fix it?**
+    Unknown,
+    and not leaning no.
+    No maintainer decline appears on either thread,
+    no documented won't-fix exists,
+    and community activity on discussion 9127 continued through
+    2026-10-20.
+6.  **Have we prototyped a minimal fix compatible with their
+    architecture?**
+    No,
+    and the auto-prototype step is deliberately not run here.
+    Constraints 1 and 3 do not hold,
+    and constraint 4 rules out external pull requests,
+    so a prototype would have no upstream landing path;
+    an independently maintained community prototype already exists and is
+    linked from discussion 9127
+    (`Myoontyee/deepseek-harness` commits `9d9544d6fc` and `143b42096f`).
+    Reimplementing it here would duplicate that work without a merge
+    route.
 
 Decision:
  do not open anything new

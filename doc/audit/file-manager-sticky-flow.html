@@ -9,6 +9,8 @@
     <style>
     /* Self-contained: no external requests of any kind. */
     :root {
+      color-scheme: light dark;
+
       --bg: #0d0f0e;
       --panel: #161a18;
       --ink: #e6e6e6;
@@ -18,6 +20,22 @@
       --pane: #101418;
       --pane-border: #2a2f2c;
       --active: #4a90d9;
+    }
+
+    /* The dark set above is the page's own design; a light-scheme viewer gets the
+       same roles with ink dark enough to read on the light surfaces. */
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f7f5;
+        --panel: #ffffff;
+        --ink: #1b1f1d;
+        --dim: #5a635e;
+        --accent: #15803d;
+        --rail: rgb(21 128 61 / 10%);
+        --pane: #eef1ef;
+        --pane-border: #cdd3cf;
+        --active: #1d63a8;
+      }
     }
 
     * {

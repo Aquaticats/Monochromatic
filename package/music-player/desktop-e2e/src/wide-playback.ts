@@ -28,6 +28,7 @@ import {
   expect,
 } from './errors.ts';
 import { currentRouting, } from './pipewire.ts';
+import { numbersBelow, } from './numbers-below.ts';
 import { pollUntil, } from './poll.ts';
 import {
   press,
@@ -347,7 +348,7 @@ export async function checkPlayback(
        The modes seen, starting with the current one.
        */
       const seen: number[] = [(await session.last()).mode,];
-      for (let step = 0; step < MODE_COUNT; step++) {
+      for (const _step of numbersBelow(MODE_COUNT,)) {
         /**
          The mode one step after the latest.
          */

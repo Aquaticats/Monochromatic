@@ -37,24 +37,10 @@ import {
 import {
   applyMutation,
 } from './mutations.ts';
-
-//region Types
-
-/**
- Outcome of running the tool: whether it exited zero, and its combined output.
- */
-type ToolResult = {
-  /**
-   Whether the tool exited zero.
-   */
-  readonly ok: boolean;
-  /**
-   Combined stdout and stderr; the tighten line is on stdout, the MISS line on stderr.
-   */
-  readonly output: string;
-};
-
-//endregion Types
+import {
+  type ToolResult,
+  toolResultFromSpawnError,
+} from './tool-result.ts';
 
 //region Setup steps
 
@@ -192,7 +178,8 @@ async function enablePnpm(): Promise<void> {
  Runs catalog-tighten `--dry-run` from {@link TOOL_ENTRY} against the
  fixture, prepending the pnpm shim directory to PATH. Captures a non-zero
  exit as `ok: false` rather than throwing, so the caller can assert the
- error scenarios.
+ error scenarios; a run that never reached an exit status throws, because it
+ says nothing about catalog-tighten.
  
  @returns whether the tool exited zero, and its stdout
  
@@ -239,13 +226,7 @@ async function runTool(): Promise<ToolResult> {
     };
   }
   catch (error) {
-    if (!(Error.isError(error,)))
-      throw error;
-
-    return {
-      ok: false,
-      output: '',
-    };
+    return toolResultFromSpawnError(error,);
   }
 }
 

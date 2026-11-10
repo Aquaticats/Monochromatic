@@ -252,28 +252,28 @@ Open and closed nano-spawn Issues and pull requests were searched for
 `timeout hard deadline SIGTERM`;
 no match was found.
 
-1. **Is it really upstream's fault?**
-   No.
-   Nano-spawn promises to pass Node spawn options through.
-   Node defines timeout as sending `killSignal`,
-   not as proving termination by that instant.
-2. **Can upstream fix it?**
-   Yes in principle,
-   by adding a separate hard-deadline or staged-kill option.
-3. **Are they supporting this use case?**
-   No.
-   The README supports Node's timeout option but does not claim a hard deadline.
-4. **Would the repo welcome our contribution?**
-   No prohibition on external contributions or assisted reports was found.
-   The repository has no contribution guide or Issue template;
-   its security policy routes vulnerabilities through Tidelift.
-5. **Will they likely fix it?**
-   There is no matching tracker discussion or stated plan.
-   The repository is active and released 2.1.0 on 2026-04-01,
-   but this consumer requirement is outside the documented contract.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No upstream change is warranted because constraints 1 and 3 fail.
-   The verified consumer-side option composition supplies the required hard behavior.
+1.  **Is it really upstream's fault?**
+    No.
+    Nano-spawn promises to pass Node spawn options through.
+    Node defines timeout as sending `killSignal`,
+    not as proving termination by that instant.
+2.  **Can upstream fix it?**
+    Yes in principle,
+    by adding a separate hard-deadline or staged-kill option.
+3.  **Are they supporting this use case?**
+    No.
+    The README supports Node's timeout option but does not claim a hard deadline.
+4.  **Would the repo welcome our contribution?**
+    No prohibition on external contributions or assisted reports was found.
+    The repository has no contribution guide or Issue template;
+    its security policy routes vulnerabilities through Tidelift.
+5.  **Will they likely fix it?**
+    There is no matching tracker discussion or stated plan.
+    The repository is active and released 2.1.0 on 2026-04-01,
+    but this consumer requirement is outside the documented contract.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No upstream change is warranted because constraints 1 and 3 fail.
+    The verified consumer-side option composition supplies the required hard behavior.
 
 Nothing should be filed upstream.
 The behavior is inherited and documented,

@@ -257,31 +257,31 @@ Decision:
  do not file.
  The audit trail for the six-constraint check:
 
-1. Is it really upstream's fault?
-    Cannot confirm.
-    The failure is localized to the
-   install layer,
-    but not attributable to pnpm over corepack,
-    the registry,
-    or
-   podman tmpfs timing.
-    Fails this constraint.
-2. Can upstream fix it?
-    Unknown;
-    no identified defect to fix.
-3. Are they supporting this use case?
-    Not applicable;
-    no confirmed pnpm behavior.
-4. Would the repo welcome our contribution?
-    Not evaluated;
-    there is nothing to
-   contribute without a reproduction.
-5. Will they likely fix it?
-    Not applicable;
-    no diagnosed issue.
-6. Have we prototyped a minimal fix?
-    No;
-    there is no identified cause to fix.
+1.  Is it really upstream's fault?
+     Cannot confirm.
+     The failure is localized to the
+    install layer,
+     but not attributable to pnpm over corepack,
+     the registry,
+     or
+    podman tmpfs timing.
+     Fails this constraint.
+2.  Can upstream fix it?
+     Unknown;
+     no identified defect to fix.
+3.  Are they supporting this use case?
+     Not applicable;
+     no confirmed pnpm behavior.
+4.  Would the repo welcome our contribution?
+     Not evaluated;
+     there is nothing to
+    contribute without a reproduction.
+5.  Will they likely fix it?
+     Not applicable;
+     no diagnosed issue.
+6.  Have we prototyped a minimal fix?
+     No;
+     there is no identified cause to fix.
 
 `.out-of-scope/` was checked:
  no pnpm,

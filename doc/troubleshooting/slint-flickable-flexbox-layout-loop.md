@@ -171,14 +171,14 @@ let mut builder = flexbox_taffy::FlexboxTaffyBuilder::new(flexbox_taffy::Flexbox
 
 Those pieces form the loop in this app shape:
 
-1. Parent layout asks the `Flickable` for horizontal layout info.
-2. The `Flickable` forwards preferred or maximum width from the content layout.
-3. The content layout asks the wrapped `FlexboxLayout` for cross-axis layout
-   info.
-4. Wrapped flex cross-axis layout asks for the assigned main-axis width.
-5. That width is the `Flickable` width,
-    which the parent layout was still
-   solving.
+1.  Parent layout asks the `Flickable` for horizontal layout info.
+2.  The `Flickable` forwards preferred or maximum width from the content layout.
+3.  The content layout asks the wrapped `FlexboxLayout` for cross-axis layout
+    info.
+4.  Wrapped flex cross-axis layout asks for the assigned main-axis width.
+5.  That width is the `Flickable` width,
+     which the parent layout was still
+    solving.
 
 Slint's binding analysis recognizes loops involving window layout and reports
 some of them as warnings rather than hard errors.
@@ -342,38 +342,38 @@ narrow viewports show all page buttons above the selected tracks.
 
 ### Why we do not file this upstream now
 
-1. Is it really upstream's fault?
-    Partly.
-    Slint's compiler and runtime expose
-   the loop,
-    but the app can avoid it by explicitly positioning `Flickable` and
-   by splitting the wrapping flex root into wide and narrow branches.
-2. Can upstream fix it?
-    Possibly,
-    but the source trace crosses `Flickable`
-   geometry fixup,
-    layout-info lowering,
-    binding analysis,
-    and runtime flex
-   layout.
-    This is not a one-line consumer-independent fix from the evidence
-   collected here.
-3. Are they supporting this use case?
-    Slint supports `Flickable` and
-   experimental `FlexboxLayout`,
-    but this exact combination uses an
-   experimental layout primitive with a self-sizing viewport.
-    No upstream docs
-   or examples were collected for that composition.
-4. Will they likely fix it?
-    Unknown from this investigation.
-    Commit history was
-   not audited for layout-info loop fixes beyond reading the pinned source.
-5. Have we prototyped a minimal fix compatible with their architecture?
-    No. A
-   consumer-side workaround exists and was verified first,
-    so an upstream patch
-   prototype is not justified for this app fix.
+1.  Is it really upstream's fault?
+     Partly.
+     Slint's compiler and runtime expose
+    the loop,
+     but the app can avoid it by explicitly positioning `Flickable` and
+    by splitting the wrapping flex root into wide and narrow branches.
+2.  Can upstream fix it?
+     Possibly,
+     but the source trace crosses `Flickable`
+    geometry fixup,
+     layout-info lowering,
+     binding analysis,
+     and runtime flex
+    layout.
+     This is not a one-line consumer-independent fix from the evidence
+    collected here.
+3.  Are they supporting this use case?
+     Slint supports `Flickable` and
+    experimental `FlexboxLayout`,
+     but this exact combination uses an
+    experimental layout primitive with a self-sizing viewport.
+     No upstream docs
+    or examples were collected for that composition.
+4.  Will they likely fix it?
+     Unknown from this investigation.
+     Commit history was
+    not audited for layout-info loop fixes beyond reading the pinned source.
+5.  Have we prototyped a minimal fix compatible with their architecture?
+     No. A
+    consumer-side workaround exists and was verified first,
+     so an upstream patch
+    prototype is not justified for this app fix.
 
 Do not file as-is:
 

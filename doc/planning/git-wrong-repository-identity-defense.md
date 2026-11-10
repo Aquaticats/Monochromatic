@@ -26,14 +26,14 @@ Make the July 9 failure stop at several independent boundaries before it can alt
 
 The failure chain was:
 
-1. Pi 0.80.6 accepted an unsupported `cwd` property in a Bash tool call.
-2. The Bash implementation ignored that property and ran the command from the session directory.
-3. Fixture `git init` and `git config user.*` commands ran in the main Monochromatic repository.
-4. Repository-local fixture identity overrode the intended global identity.
-5. Git continued to create cryptographically signed commits under `fixture@example.invalid`.
-6. GitHub classified those signatures as `no_user` because the commit identity was not associated with a user.
-7. Classic branch protection required verified signatures but exempted administrators,
-    so the owner could publish them.
+1.  Pi 0.80.6 accepted an unsupported `cwd` property in a Bash tool call.
+2.  The Bash implementation ignored that property and ran the command from the session directory.
+3.  Fixture `git init` and `git config user.*` commands ran in the main Monochromatic repository.
+4.  Repository-local fixture identity overrode the intended global identity.
+5.  Git continued to create cryptographically signed commits under `fixture@example.invalid`.
+6.  GitHub classified those signatures as `no_user` because the commit identity was not associated with a user.
+7.  Classic branch protection required verified signatures but exempted administrators,
+     so the owner could publish them.
 
 The design must enforce these invariants:
 
@@ -468,15 +468,15 @@ and all outgoing range classes through the built shadow `git`.
 
 The verifier acquires an isolated object graph before calculating ranges:
 
-1. Create a temporary bare clone with `git clone --bare --shared` from the active worktree.
-   The clone sees every local object through a read-only alternates file and does not mutate the source repository.
-2. Fetch live remote heads and tags from the hook-provided URL into only
-   `refs/prepush-remote/heads/*` and `refs/prepush-remote/tags/*` in the temporary clone.
-3. Abort on authentication,
-   advertisement,
-   fetch,
-   or object-connectivity failure.
-4. Remove the temporary clone through structured cleanup after verification.
+1.  Create a temporary bare clone with `git clone --bare --shared` from the active worktree.
+    The clone sees every local object through a read-only alternates file and does not mutate the source repository.
+2.  Fetch live remote heads and tags from the hook-provided URL into only
+    `refs/prepush-remote/heads/*` and `refs/prepush-remote/tags/*` in the temporary clone.
+3.  Abort on authentication,
+    advertisement,
+    fetch,
+    or object-connectivity failure.
+4.  Remove the temporary clone through structured cleanup after verification.
 
 For each native pre-push line inside that complete disposable graph:
 
@@ -824,16 +824,16 @@ Do not test rejection by pushing a bad commit to `main`.
 
 ## Rollout sequence
 
-1. Land strict Bash input validation and Pi extension tests.
-2. Build the guardrail and install it in global Pi settings.
-3. Start a fresh Pi session and verify a synthetic unsupported-`cwd` tool call is blocked before execution.
-4. Land cli-git invocation rules and disposable repository tests.
-5. Provision the mode-`0600` trusted-committer policy and verify its provenance checks.
-6. Land the shared commit-environment checker inside cli-git's pre-forward lifecycle.
-7. Prove the built shadow `git` resolves fail-closed from a disposable linked worktree.
-8. Land direct post-commit verification and Git-native manual-push verification.
-9. Run the full disposable commit and push matrix,
-   including deliberate PATH-shadow bypasses.
+1.  Land strict Bash input validation and Pi extension tests.
+2.  Build the guardrail and install it in global Pi settings.
+3.  Start a fresh Pi session and verify a synthetic unsupported-`cwd` tool call is blocked before execution.
+4.  Land cli-git invocation rules and disposable repository tests.
+5.  Provision the mode-`0600` trusted-committer policy and verify its provenance checks.
+6.  Land the shared commit-environment checker inside cli-git's pre-forward lifecycle.
+7.  Prove the built shadow `git` resolves fail-closed from a disposable linked worktree.
+8.  Land direct post-commit verification and Git-native manual-push verification.
+9.  Run the full disposable commit and push matrix,
+    including deliberate PATH-shadow bypasses.
 10. Run package lint,
     type checking,
     unit tests,
@@ -889,29 +889,29 @@ Earlier commits are never rewritten as rollback.
 
 ## Rejected shortcuts and ranking
 
-1. Full defense in depth,
-   as designed in this plan.
-   Pros:
-   the failure stops before execution,
-   before Git mutation,
-   before commit,
-   before push,
-   and at the server;
-   each layer covers bypass of the preceding layer.
-   Cons:
-   more implementation and fixture work,
-   plus explicit identity onboarding.
-2. Git and server enforcement without Pi validation.
-   Pros:
-   protects history and requires less Pi-specific code.
-   Cons:
-   unsupported tool input can still mutate unrelated working state before Git notices.
-3. Pi guardrail or prompt rules alone.
-   Pros:
-   fastest initial change and clearest immediate diagnostic.
-   Cons:
-   extensions can be absent or bypassed,
-   and no independent boundary prevents publication.
+1.  Full defense in depth,
+    as designed in this plan.
+    Pros:
+    the failure stops before execution,
+    before Git mutation,
+    before commit,
+    before push,
+    and at the server;
+    each layer covers bypass of the preceding layer.
+    Cons:
+    more implementation and fixture work,
+    plus explicit identity onboarding.
+2.  Git and server enforcement without Pi validation.
+    Pros:
+    protects history and requires less Pi-specific code.
+    Cons:
+    unsupported tool input can still mutate unrelated working state before Git notices.
+3.  Pi guardrail or prompt rules alone.
+    Pros:
+    fastest initial change and clearest immediate diagnostic.
+    Cons:
+    extensions can be absent or bypassed,
+    and no independent boundary prevents publication.
 
 Ranking:
 full defense in depth is preferred over Git-only because it prevents the wrong-directory mutation itself;

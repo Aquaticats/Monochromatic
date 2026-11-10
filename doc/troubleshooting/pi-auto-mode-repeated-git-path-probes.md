@@ -473,25 +473,25 @@ The `.out-of-scope/` directory has no matching Pi auto-mode or real-Git resolver
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?**
-   No.
-   Pi supplies the intended environment.
-   This repository's auto-mode extension owns the repeated probe behavior.
-2. **Can upstream fix it?**
-   Pi upstream should not change the repository's required `PATH` or extension-local resolver.
-   This repository can correct the resolver boundary.
-3. **Are they supporting this use case?**
-   Pi supports extension tool-call handlers,
-   but real-Git selection for this guardrail is repository-owned behavior.
-4. **Would the repo welcome our contribution?**
-   The owning repository is already this repository.
-   No external contribution policy is involved.
-5. **Will they likely fix it?**
-   Not applicable to Pi upstream because no upstream change is requested.
-6. **Have we prototyped a minimal fix compatible with their architecture?**
-   No source fix was requested or applied.
-   The existing git-policy-cli resolver proves that the repository has a sequential and platform-aware design,
-   but its selection semantics differ and its package export does not expose that implementation.
+1.  **Is it really upstream's fault?**
+    No.
+    Pi supplies the intended environment.
+    This repository's auto-mode extension owns the repeated probe behavior.
+2.  **Can upstream fix it?**
+    Pi upstream should not change the repository's required `PATH` or extension-local resolver.
+    This repository can correct the resolver boundary.
+3.  **Are they supporting this use case?**
+    Pi supports extension tool-call handlers,
+    but real-Git selection for this guardrail is repository-owned behavior.
+4.  **Would the repo welcome our contribution?**
+    The owning repository is already this repository.
+    No external contribution policy is involved.
+5.  **Will they likely fix it?**
+    Not applicable to Pi upstream because no upstream change is requested.
+6.  **Have we prototyped a minimal fix compatible with their architecture?**
+    No source fix was requested or applied.
+    The existing git-policy-cli resolver proves that the repository has a sequential and platform-aware design,
+    but its selection semantics differ and its package export does not expose that implementation.
 
 Nothing should be filed against Pi upstream.
 There is no external issue draft or additive comment to send.
