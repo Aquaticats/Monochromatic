@@ -10,6 +10,7 @@ use crate::config_snapshot::ConfigEntry;
 use crate::worktree_add_binding::{Bound, bind_registration};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, tracked};
+use crate::path_bytes::path_bytes_of;
 use crate::worktree_snapshot_source::{SnapshotSource, common_source};
 
 /// Bind the add and read the target,
@@ -278,5 +279,41 @@ fn a_destination_replaced_after_the_binding_ends_the_reading() {
     std::fs::write(destination.join(".git"), std::fs::read(root.join("topic.moved/.git")).expect("pointer")).expect("a copy of the pointer");
     assert!(prepare_target(&source, &plan, &git_context(), &bound).expect_err("replaced").contains("no longer the directory Git made"));
     drop(repo);
+    remove(root.as_path());
+}
+
+/// The configuration entries of the standard Git LFS filter,
+/// with `core.attributesFile` naming `attributes`.
+fn standard_lfs_entries(attributes: Vec<u8>) -> Vec<ConfigEntry> {
+    let mut entries: Vec<ConfigEntry> = Vec::new();
+    for (key, value) in LFS_FILTER {
+        entries.push(ConfigEntry { scope: String::from("local"), key: String::from(key), value: Some(value.as_bytes().to_vec()) });
+    }
+    entries.push(ConfigEntry { scope: String::from("local"), key: String::from("core.attributesfile"), value: Some(attributes) });
+    return entries;
+}
+
+/// What:
+///  The attributes file `core.attributesFile` names is read when its own path is not UTF-8 text.
+/// Why:
+///   The value was rebuilt as text, so the file at that path was not found,
+///  and a filter it selects would have gone unweighed:
+///  the conversion would have been called equal without reading the rules that change it.
+#[test]
+fn an_attributes_file_whose_path_is_not_text_is_read() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("target-attributes-not-text");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    let source: SnapshotSource = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let attributes: PathBuf = root.join(OsString::from_vec(b"attributes\xff".to_vec()));
+    std::fs::write(attributes.as_path(), b"* filter=lfs\n").expect("attributes file");
+    let entries: Vec<ConfigEntry> = standard_lfs_entries(path_bytes_of(attributes.as_path()).to_vec());
+    let texts: Vec<String> = untracked_attribute_texts(&source, entries.as_slice());
+    assert!(texts.contains(&String::from("* filter=lfs\n")), "the file the entry names is read: {texts:?}");
+    assert_eq!(
+        external_conversion_refusal(entries.as_slice(), texts.as_slice()),
+        None,
+        "the standard LFS filter is proven equal"
+    );
     remove(root.as_path());
 }
