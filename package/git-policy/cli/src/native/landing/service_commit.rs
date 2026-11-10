@@ -307,12 +307,13 @@ pub fn service_commit<F: RepositoryFacts>(
                 return Ok(outcome);
             }
             Ok(Submitted::PrepareAgain { landed, .. }) => {
-                // The service did not land this attempt, so it left the tree to this command, and the change this attempt captured
-                //  is read from that tree's private index by the call below: the tree is released beside the command only after that
-                //  read, never before it, or the write-tree that makes the retry would race the removal.
-                let after_the_answer: AfterAPrepareAgain = after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began);
-                ready.scratch.release_beside_the_command();
-                match after_the_answer {
+                // The service did not land this attempt, so it left the tree to this command, which reads the change it
+                //  captured from the tree's private index here (`retry_of`) and releases the tree once the arm ends.
+                //  Starting the removal before that read took the private index from under it: `git write-tree` then failed
+                //  with a directory that was not there, or wrote the empty tree and made the commit a deletion of every file.
+                let _released: HandedBackTree = HandedBackTree(ready.scratch.0.clone());
+                ready.scratch.held_by_the_service(true);
+                match after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began) {
                     AfterAPrepareAgain::Stopped(stop) => return Err(stop),
                     AfterAPrepareAgain::Retry(next) => retry = Some(next),
                 }
