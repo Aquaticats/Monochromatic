@@ -3445,3 +3445,202 @@ a creation that makes only what the commit can read (the conclusion copies wait 
 and a pool of finished shadows for the parts every commit needs,
 whose member a commit claims with one `rename`
 and refuses when it is not what a creation would have made.
+
+## What the pool removes from a commit, counted in calls (2026-11-10T08:01:06-05:00)
+
+What this answers:
+what was built for the owner's answer,
+what a commit stops doing,
+and what the latency harness could and could not resolve about it on this host.
+
+### What was built
+
+- `take_or_create_shadow` (`shadow_create.rs`) takes a finished shadow from the pool when one is waiting,
+  and makes the creation it made before when none is.
+- `shadow_pool.rs` fills,
+  claims and sweeps members,
+  and `shadow_pool_member.rs` decides whether a claimed member is what a creation would have made.
+- `service_shadow_pool_fill.rs` fills one member beside the landing loop,
+  on a thread of its own,
+  so no commit waits for it.
+- `copy_conclusion_state` makes the copies directory only when the worktree holds conclusion state
+  (the section above).
+- `is_private_shadow_entry` no longer links the file a command stages a lock in,
+  which the pool's own refusal found:
+  every command of a repository stages one,
+  so no member could be taken twice in the same repository (the commit that fixed it).
+
+### What a commit stops doing, counted
+
+Wall time on this volume cannot say it:
+the calls the creation makes are the ones the volume stalls for seconds at a time,
+so the same work costs 2 ms or 64 s depending on when it runs.
+Their number does not change with the host's pressure,
+so that is what was counted.
+
+One disposable repository (twelve shared entries in its common Git directory,
+fifteen links a creation makes),
+one service the probe starts under its own runtime directory,
+three wrapped commits with `commit.cleanup = strip` so every one is built by Git in a shadow,
+each traced with
+`strace --follow-forks --decode-fds=path --syscall-times -e trace=mkdir,mkdirat,symlink,symlinkat,link,linkat,rename,renameat,renameat2,chmod,fchmodat,write`,
+counting the calls whose path is inside the commit's own shadow:
+
+- a commit that made its creation:
+  47 calls,
+  of them 10 `mkdir`,
+  16 `write`,
+  3 `chmod`,
+  15 `symlink`,
+  1 `renameat2` and 2 `rename`.
+- a commit that took a member:
+  20 calls,
+  of them 3 `mkdir`,
+  13 `write`,
+  1 `chmod`,
+  1 `renameat2` and 2 `rename`.
+
+The 20 are the work both routes do:
+`git commit` inside the shadow writes the index,
+the message file and its objects,
+and the ref store is written after a claim as after a creation.
+The 27 calls the claim removes are the creation's own:
+7 `mkdir`,
+3 `write`,
+2 `chmod` and 15 `symlink`.
+This repository's own common directory holds 25 shared entries rather than the fixture's 15,
+so a commit here stops making about 37 calls
+(the count of links in `.git/monochromatic-git-policy-cli-commit-timing.jsonl`'s window:
+`is_private_shadow_entry` leaves 25 of its 78 entries,
+plus the ten `mkdir`,
+four `write` and two `chmod` of the skeleton and the config).
+
+### What the harness's arms could and could not resolve
+
+The method is the one the sections above used:
+`mise run //package/git-policy/cli:native:perf` with
+`--only commit-signed-service --samples 8`,
+its fixtures copied from a prepared repository shaped like this repository's own
+(thirteen tracked files,
+a common Git directory holding the forty private index copies and a dozen shared entries),
+one binary per arm built from the same base
+(`b73a61f9f0` for the base,
+this branch for the change),
+and the arms alternated:
+base,
+this change,
+base.
+The documents are
+`perf/commit-pool-2026-11-10-before-a.json`,
+`...-after-a.json` and `...-before-b.json` beside this record.
+
+The whole wrapped command,
+the median of its samples,
+its p95,
+the paired deltas against native Git of the same round,
+and the samples that failed,
+in whole milliseconds:
+
+- base,
+  run A:
+  median 62,709,
+  p95 81,215,
+  deltas 72,407,
+  31,124,
+  50,943,
+  80,708,
+  63,970,
+  74,470,
+  48,036,
+  61,085,
+  no failed sample.
+- this change:
+  median 93,536,
+  p95 179,051,
+  deltas 93,202,
+  45,086,
+  73,210,
+  90,414,
+  175,694,
+  three failed samples.
+- base,
+  run B:
+  median 47,431,
+  p95 180,880,
+  deltas 41,193,
+  180,592,
+  66,456,
+  34,079,
+  34,507,
+  37,100,
+  two failed samples.
+
+Two runs of one binary differ by 1.3 times at the median and 2.2 times at p95,
+and native Git's own commits reached a median of 7,187 ms in the change's run against 97 ms in the base's first run:
+the host's commits were waiting tens of seconds whatever the wrapper did,
+which is the volume stall this record names elsewhere,
+not the creation.
+So the arms overlap completely,
+and the whole-command times of this host cannot resolve a change of 27 calls
+under this load,
+as the record's own 18.6-times spread warned.
+
+What the runs do say,
+because it does not depend on the host:
+
+- Every commit in the change's run that reached the build named `shadow pool`,
+  and the ones that took a member named no `shadow skeleton`,
+  `shadow config` or `shadow links` stretch
+  (`buildParts`,
+  `README.md`,
+  `SPEC.md` "A shadow taken from the pool").
+  A reading of the next records of this repository says how many commits took the pool there;
+  the records of the main checkout cannot yet,
+  because the wrapper installed there is the release before this change.
+
+### The probe's own records, and what they named
+
+The three commits of the count above left records in their repository:
+
+- the creation:
+  `buildMs` 43,
+  with every creation stretch named:
+  `shadow skeleton`,
+  `shadow config`,
+  `shadow links`,
+  `shadow conclusion` and `shadow refs`.
+- the two claims:
+  `buildMs` 91 and 33,
+  with `shadow pool`,
+  `shadow conclusion` and `shadow refs`,
+  and none of the three creation stretches.
+
+The first claim of a fresh repository is refused once,
+which the probe shows as a warning naming the entry:
+a member made before the commit's own timing record appeared in the common Git directory lacks that entry,
+and a creation would have linked it.
+The next fill holds it,
+so the refusal costs one member and one warning,
+never a commit,
+and the commit makes its creation as it did before.
+
+### What this leaves
+
+- The fill reads a repository's facts a second way,
+  from a landing request rather than from an invocation's capture;
+  `the_facts_a_fill_reads_are_the_facts_a_capture_reads` holds the two equal field by field,
+  and a fact it gets wrong can only cost a refused member,
+  because the claim compares the member with what this invocation's creation would write.
+- A common directory whose entry set changes
+  (the first timing record,
+  a rotation that creates `.1`,
+  a tool's own directory)
+  refuses the member that was made before the change,
+  once per change.
+  Measured:
+  one refusal in the probe's first commit of a fresh repository.
+- The pool is per worktree,
+  and a reftable repository and a linked worktree that keeps its own `info` are never pooled.
+- The fill costs one creation and two Git starts per landing the service takes,
+  beside the landing and never inside it,
+  which no commit waits for.

@@ -10568,7 +10568,8 @@ such as `info`,
 `lfs`,
 and `modules`,
 is a symbolic link to the real entry by default.
-A lock, and the file a command stages a lock in
+A lock,
+and the file a command stages a lock in
 (`<lock name>.cli-git-marker-<pid>.<pid namespace>-<batch>-<token>`),
 is never linked:
 a shadow Git that wrote one would collide with the real holder,
@@ -11083,7 +11084,8 @@ the landing answers an absent folder as no conclusion state at all
 (`reproduce_conclusion_cleanup`),
 and the one `mkdir` it used to make was the largest stretch of a build in the records
 (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
-"What each part of a commit's private repository is for, and how many commits need it").
+"What each part of a commit's private repository is for,
+and how many commits need it").
 
 ### The amend a moved branch makes
 
