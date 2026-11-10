@@ -275,6 +275,12 @@ A sink instance keeps its own buffers,
  and counters,
  so independent loggers never
 share state.
+The buffered sinks subscribe to `pagehide` and `visibilitychange` only while
+records are waiting,
+ and the next drain releases both hooks:
+a lifecycle event can only save records that are still buffered,
+ so building a sink registers no listener and a drained buffer holds no
+reference to itself.
 
 Async sinks are fire-and-forget;
  the log call never blocks the caller.
