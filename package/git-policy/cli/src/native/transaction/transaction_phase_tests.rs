@@ -10,7 +10,7 @@ fn phases_are_named_in_transaction_order() {
     let names: Vec<&str> = TRANSACTION_TEST_PHASES.iter().map(|phase| { return phase.name(); }).collect();
     assert_eq!(
         names,
-        ["merge-intent", "merge-applied", "service-staged", "service-prepared"]
+        ["merge-intent", "merge-applied", "service-staged", "service-prepared", "service-sent-back"]
     );
     for retired in ["capture-locked", "preparation-done", "landing-locked", "objects-migrated", "ref-updated", "index-installed", "race-lost"] {
         assert!(parse_phase_signal(format!("{retired}:kill").as_str()).is_err(), "{retired} is no phase any more");

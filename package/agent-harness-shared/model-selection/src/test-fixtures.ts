@@ -6,7 +6,10 @@
 
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
-import type { ReadonlyModel, } from '../dist/final/node/index.mjs';
+import {
+  canonicalSlug,
+  type ReadonlyModel,
+} from '../dist/final/node/index.mjs';
 
 /**
  Cheap input token price.
@@ -125,20 +128,9 @@ export function fixtureModel(
 /**
  Return provider/model slug for a fixture model.
  
- @param model - model fixture
- 
- @returns provider/model slug
- 
- @example
- ```typescript
- fixtureSlug(model);
- ```
+ A fixture-shaped name for {@link canonicalSlug}, which owns the format.
  */
-export function fixtureSlug(
-  model: Pick<ReadonlyModel, 'provider' | 'id'>,
-): string {
-  return `${model.provider}/${model.id}`;
-}
+export const fixtureSlug: typeof canonicalSlug = canonicalSlug;
 
 /**
  Capture a synchronous error from an action.

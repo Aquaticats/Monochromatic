@@ -4,6 +4,8 @@
  @module
  */
 
+import { cleanModelPatterns, } from './model-pattern-cleaning.ts';
+
 /**
  Sentinel returned by {@link parseArgvModelPatterns} when no `--models` flag
  is present in argv. A `unique symbol`; callers narrow with
@@ -83,14 +85,7 @@ export function parseArgvModelPatterns(
 function splitPatterns(
   value: string,
 ): string[] {
-  return value
-    .split(',',)
-    .map(function trimPattern(pattern,) {
-      return pattern.trim();
-    },)
-    .filter(function keepPattern(pattern,) {
-      return pattern !== '';
-    },);
+  return cleanModelPatterns(value.split(',',),);
 }
 
 //endregion Internal helpers
