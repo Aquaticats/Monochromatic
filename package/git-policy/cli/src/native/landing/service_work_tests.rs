@@ -44,11 +44,18 @@ struct Recorder {
     pushes: RefCell<Vec<Vec<String>>>,
     upkeeps: RefCell<Vec<PathBuf>>,
     reviews: RefCell<Vec<String>>,
+    trashes: RefCell<Vec<String>>,
 }
 
 impl Recorder {
     fn answering(verdict: Verdict) -> Recorder {
-        return Recorder { verdict, pushes: RefCell::new(Vec::new()), upkeeps: RefCell::new(Vec::new()), reviews: RefCell::new(Vec::new()) };
+        return Recorder {
+            verdict,
+            pushes: RefCell::new(Vec::new()),
+            upkeeps: RefCell::new(Vec::new()),
+            reviews: RefCell::new(Vec::new()),
+            trashes: RefCell::new(Vec::new()),
+        };
     }
 }
 
@@ -65,6 +72,11 @@ impl WorkHandlers for Recorder {
 
     fn review(&self, item: &WorkItem) -> Verdict {
         self.reviews.borrow_mut().push(item.oid.clone());
+        return self.verdict.clone();
+    }
+
+    fn trash(&self, item: &WorkItem) -> Verdict {
+        self.trashes.borrow_mut().push(item.oid.clone());
         return self.verdict.clone();
     }
 }
@@ -1225,4 +1237,137 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
     assert!(state_names(common.as_path(), FAILED).is_empty(), "no work of this repository is refused: {:?}", state_names(common.as_path(), FAILED));
     assert_eq!(state_names(common.as_path(), DONE).len(), HANDED_OVER.len(), "the push and the upkeep ran");
     remove(root.as_path());
+}
+
+/// A repository with the tracked shadow log in place and one commit for a review to read,
+/// with the `review` work item of that commit.
+fn a_repository_to_review(parent: &Path, name: &str) -> (PathBuf, PathBuf, WorkItem) {
+    use crate::standards_review_input::TRACKED_LOG_RELATIVE;
+    use crate::test_support::{git, git_text, repository};
+    let root: PathBuf = repository(parent, name);
+    let log: PathBuf = root.join(TRACKED_LOG_RELATIVE);
+    std::fs::create_dir_all(log.parent().expect("parent")).expect("directories");
+    std::fs::write(log.as_path(), "# Log\n").expect("log");
+    std::fs::create_dir_all(root.join("src")).expect("source directory");
+    std::fs::write(root.join("src/a.ts"), format!("export const a = '{name}'\n").as_str()).expect("code");
+    git(root.as_path(), &["add", "--", TRACKED_LOG_RELATIVE, "src/a.ts"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=feat(a): add a"]);
+    let git_dir: PathBuf = root.join(".git");
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Review,
+        repository: root.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: BRANCH.to_string(),
+        oid: git_text(root.as_path(), &["rev-parse", "HEAD"]),
+        parent: String::new(),
+        created: String::from("2026-01-01T00:00:00.000Z"),
+        tries: 0,
+    };
+    return (root, git_dir, item);
+}
+
+/// The handlers' review answers the same verdict whether a task or a plain thread asks it,
+/// and each writes its own repository's entry.
+/// The awaited face is the one a round of tasks may ask:
+/// the synchronous one waits for its contained job on the
+///  caller's thread.
+#[test]
+fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers() {
+    use crate::standards_review_input::shared_log_path;
+    use crate::standards_review_mock::{Answer, Mock, http_reply};
+    use crate::test_support::{git_context, repository as repository_at};
+    const ANSWER: &str = r#"{"answers":[{"choice":"no","probabilities":[{"value":"no","probability":1}]}]}"#;
+    let root: PathBuf = fixture("handlers-awaiting-review");
+    std::fs::create_dir_all(root.as_path()).expect("the fixture's folder");
+    let (thread_root, _thread_common, thread_item) = a_repository_to_review(root.as_path(), "thread");
+    let (task_root, _task_common, task_item) = a_repository_to_review(root.as_path(), "task");
+    let thread_mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
+    let task_mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
+    // The credential a wake brings is held for the round, as the service holds it: without one the review records that it
+    //  had no key and asks nothing.
+    let key = |item: &WorkItem| -> std::collections::HashMap<PathBuf, ReviewKey> { return std::collections::HashMap::from([(item.git_dir.clone(), ReviewKey::new("test-key-not-a-secret").expect("a key"))]); };
+    let thread_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint(thread_mock.url.as_str()).for_round(key(&thread_item));
+    let task_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint(task_mock.url.as_str()).for_round(key(&task_item));
+    let from_a_thread: Verdict = thread_handlers.review(&thread_item);
+    let from_a_task: Verdict = crate::merge_second_pass::tests::await_it(task_handlers.review_awaiting(&task_item));
+    thread_mock.finish();
+    task_mock.finish();
+    assert_eq!(from_a_thread, Verdict::Done, "the review of a plain thread answers");
+    assert_eq!(from_a_task, from_a_thread, "the two faces answer one review the same way");
+    for (name, root_of) in [("thread", &thread_root), ("task", &task_root)] {
+        let written: String = std::fs::read_to_string(shared_log_path(root_of.join(".git").as_path())).expect("the live log");
+        assert!(written.contains("cost_verdict: no"), "the review of {name} wrote its entry: {written}");
+    }
+    // The positive control of the two faces: the review of a repository with no shadow log answers Done and reads nothing,
+    //  whichever face asks it.
+    let plain: PathBuf = repository_at(root.as_path(), "plain");
+    let plain_item: WorkItem = WorkItem { kind: WorkKind::Review, repository: plain.clone(), git_dir: plain.join(".git"), ..task_item.clone() };
+    let plain_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint("http://127.0.0.1:9");
+    assert_eq!(crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)), Verdict::Done, "no shadow log means no review");
+    assert_eq!(plain_handlers.review(&plain_item), Verdict::Done, "the synchronous face answers the same");
+    remove(root.as_path());
+}
+
+/// What:
+///  Every kind of work item a round of the service runs reaches its handler and is settled,
+/// asked by a task of the runtime.
+/// Why:
+///   The drain of a round is a task,
+/// and a kind it forgets is a person's backup,
+/// a worktree's left-out files or a shadow record
+///  that nothing ever runs.
+/// A face that is synchronous where the drain is a task settles its items as failed at best:
+/// the trash did,
+///  because the synchronous disposal enters the runtime and is refused from inside it.
+/// This control asks all four kinds at once,
+///  requires each handler to be asked once,
+/// and every item to be in `done`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drainPlannedWithAwaiting(dir, handlers, now, lease, TIMED, retrying); expect(asked).toEqual(['push','maintenance','review','trash']); expect(settled).toEqual('done')
+/// ```
+#[test]
+fn the_awaited_drain_runs_every_kind_of_item() {
+    let repo: Repo = repo("work-awaited-every-kind");
+    let kinds: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
+    let items: Vec<WorkItem> = kinds.iter().enumerate().map(|(index, kind)| { return item(&repo, *kind, format!("{index:040x}").as_str(), BRANCH); }).collect();
+    enqueue_all(&repo, items.as_slice());
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    // The drain of a round, awaited inside the runtime, which is where the lanes of a round run.
+    let drained: Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        &ClaimTime::read(),
+        crate::service_work::CLAIM_LEASE,
+        Renewal::Timed,
+        &Retrying::none(),
+    ));
+    let mut asked: Vec<&str> = Vec::new();
+    if !recorder.pushes.borrow().is_empty() {
+        asked.push("push");
+    }
+    if !recorder.upkeeps.borrow().is_empty() {
+        asked.push("maintenance");
+    }
+    if !recorder.reviews.borrow().is_empty() {
+        asked.push("review");
+    }
+    if !recorder.trashes.borrow().is_empty() {
+        asked.push("trash");
+    }
+    assert_eq!(asked, vec!["push", "maintenance", "review", "trash"], "every kind reached its handler");
+    let settled: Vec<String> = names(&repo, DONE);
+    let mut expected: Vec<String> = items.iter().map(|entry| { return entry.id(); }).collect();
+    expected.sort();
+    assert_eq!(settled, expected, "every item is settled as done, so none was dropped");
+    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no item was failed");
+    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no item is left claimed");
+    // A push that went through forgets an earlier plan; nothing of this drain keeps a try for later.
+    assert!(
+        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        "a drain that runs every kind plans no retry: {:?}",
+        drained.changes
+    );
+    remove(repo.root.as_path());
 }

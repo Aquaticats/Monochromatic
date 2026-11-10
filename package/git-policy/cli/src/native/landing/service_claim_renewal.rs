@@ -25,10 +25,14 @@
 //! the lease stays because a killed holder's claims are recognised as abandoned only by their reading (no process
 //!  identity or lock file is involved),
 //! and because the linked worktrees of a bare repository drain one common directory.
-//!  No lock is held in the process either.
-//! The renewal thread is the one owner of the claims' current names (the drain never
+//!  No lock in the process:
+//! the held claims have one owner at a time,
+//! and the owner hands the whole set to the step that uses it and takes it back
+//! (`service_work_storage_awaited.rs`),
+//! so the list travels by value rather than being shared behind a lock.
+//! The renewal task is the one owner of the claims' current names (the drain never
 //!  renames a claim except to settle it);
-//! the drain tells the thread of a claim it takes over a channel,
+//! the drain tells the task of a claim it takes over a channel,
 //! and the two share only
 //!  atomic flags per claim.
 //! A settlement finds the claim's file by its id and generation,
@@ -36,6 +40,14 @@
 //! and
 //!  asks again when a renewal renamed the file between the look and the rename,
 //! so neither side ever waits for the other.
+//! The drain itself is a task of the runtime whose storage steps are jobs of the blocking pool
+//!  (`service_work_storage_awaited.rs`),
+//! so the list of held claims would be touched by whichever pool thread runs a step;
+//! it is
+//!  therefore never shared:
+//! the task moves the set into the job and the job hands it back,
+//! and a job the system refuses a
+//!  thread for ends the round rather than the set.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -44,10 +56,10 @@
 
 use crate::claim_time::ClaimTime;
 use crate::work_item::{CLAIMED, Claimed, entries_oldest_first, id_of_entry, parse_claim_name, renew_claim, settle_named};
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::cell::RefCell;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -113,15 +125,18 @@ type Taken = (Arc<Claim>, String);
 
 /// What:
 ///  The claims one drain holds right now,
-/// kept by the drain thread,
+/// kept by the drain's task,
 /// which alone settles them.
 /// Why:
 ///   The drain must refuse to run an item whose claim was taken over,
 /// and settle a claim under the name it has now.
 /// The list is
-///  the drain thread's own,
-/// so nothing locks it;
-/// what the renewal thread learns of a claim reaches the drain as the claim's
+///  the drain's own,
+/// and the drain's storage steps run as jobs of the blocking pool:
+/// the set is moved into the job
+///  that reads or renames it and comes back with the answer,
+/// so one owner holds it at a time and nothing locks it.
+/// What the renewal task learns of a claim reaches the drain as the claim's
 ///  flags,
 /// and what the drain learns of a new claim reaches the renewal as a command.
 ///
@@ -139,7 +154,7 @@ pub struct HeldClaims {
     /// and nothing before the first look.
     listed: RefCell<Option<ClaimNames>>,
     /// The way to tell the renewal of a claim just taken.
-    holds: Sender<Taken>,
+    holds: UnboundedSender<Taken>,
 }
 
 /// What:
@@ -225,7 +240,7 @@ pub struct Renewer {
     /// The work directory the claims are in.
     work_dir: PathBuf,
     /// The claims the drain took.
-    holds: Receiver<Taken>,
+    holds: UnboundedReceiver<Taken>,
     /// The claims being kept fresh,
     /// each with the file name this renewer last wrote.
     names: Vec<(Arc<Claim>, String)>,
@@ -234,7 +249,7 @@ pub struct Renewer {
 /// The two halves of the claims of a drain of `work_dir`:
 /// the drain's list and the renewer that keeps them fresh.
 pub fn held_claims(work_dir: &Path) -> (HeldClaims, Renewer) {
-    let (holds, taken) = channel::<Taken>();
+    let (holds, taken) = unbounded_channel::<Taken>();
     return (
         HeldClaims { claims: RefCell::new(Vec::new()), listed: RefCell::new(None), holds },
         Renewer { work_dir: work_dir.to_path_buf(), holds: taken, names: Vec::new() },
@@ -340,7 +355,7 @@ impl HeldClaims {
     fn current_name(&self, work_dir: &Path, claim: &Claim) -> Option<String> {
         for _ in 0..LOOKS {
             let found: Option<String> = match self.listed.borrow().as_ref() {
-                Some(listed) => listed.name_of(claim).map(str::to_owned),
+                Some(names) => names.name_of(claim).map(str::to_owned),
                 None => None,
             };
             if let Some(name) = found {
@@ -348,7 +363,8 @@ impl HeldClaims {
             }
             // Nothing in the listing: a renewal may have renamed the file since it was taken, so `claimed` is listed again;
             //  a directory that cannot be listed holds nothing, and the next look tries again.
-            *self.listed.borrow_mut() = Some(ClaimNames::listed(work_dir));
+            let fresh: ClaimNames = ClaimNames::listed(work_dir);
+            *self.listed.borrow_mut() = Some(fresh);
         }
         return None;
     }
@@ -371,19 +387,23 @@ impl HeldClaims {
     /// held.has(id) && !held.lost(id) && currentName(workDir, claim) !== undefined
     /// ```
     pub fn is_held_on_disk(&self, work_dir: &Path, id: &str) -> bool {
-        let claims = self.claims.borrow();
-        let mut found: Option<&Arc<Claim>> = None;
-        for candidate in claims.iter() {
-            if candidate.id == id {
-                found = Some(candidate);
-                break;
+        // The claim is cloned out of the list, so the look at the directory happens with no lock held.
+        let found: Option<Arc<Claim>> = {
+            let claims = self.claims.borrow();
+            let mut found: Option<Arc<Claim>> = None;
+            for candidate in claims.iter() {
+                if candidate.id == id {
+                    found = Some(Arc::clone(candidate));
+                    break;
+                }
             }
-        }
+            found
+        };
         let Some(claim) = found else { return false };
         if claim.lost.load(Ordering::SeqCst) {
             return false;
         }
-        if self.current_name(work_dir, claim).is_none() {
+        if self.current_name(work_dir, claim.as_ref()).is_none() {
             claim.lost.store(true, Ordering::SeqCst);
             return false;
         }
