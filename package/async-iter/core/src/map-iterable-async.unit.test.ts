@@ -29,7 +29,7 @@ import { mapIterableAsync, } from '../dist/final/neutral/index.mjs';
  */
 function recordUnhandledRejections(): {
   readonly reasons: unknown[];
-  [Symbol.dispose](): void;
+  readonly [Symbol.dispose]: () => void;
 } {
   const reasons: unknown[] = [];
 
