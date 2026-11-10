@@ -332,9 +332,9 @@ pub fn service_commit<F: RepositoryFacts>(
                 // The service did not land this attempt, so it left the tree to this command, and the change this attempt captured
                 //  is read from that tree's private index by the call below: the tree is released beside the command only after that
                 //  read, never before it, or the write-tree that makes the retry would race the removal.
-                let after: AfterAPrepareAgain = after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began);
+                let after_the_answer: AfterAPrepareAgain = after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began);
                 ready.scratch.release_beside_the_command();
-                match after {
+                match after_the_answer {
                     AfterAPrepareAgain::Stopped(stop) => return Err(stop),
                     AfterAPrepareAgain::Retry(next) => retry = Some(next),
                 }
