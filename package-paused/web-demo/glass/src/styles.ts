@@ -2,6 +2,12 @@
  * Stylesheet for the glass corridor demo page: full-viewport canvas, a
  * minimal HUD in the corners, and an error overlay for browsers that
  * cannot start the renderer.
+ *
+ * Sizing is in `rem`, positions and alignment use logical properties, every
+ * color comes from a custom property declared in `:root`, and shorthands stay
+ * single-concept, as `.agents/skills/css/SKILL.md` requires. The palette is
+ * dark-only by design: the corridor renders dark and the HUD is lit text over
+ * it, so retuning the demo means changing the tokens, not the rules.
  */
 
 /**
@@ -18,24 +24,39 @@ export function renderStyles(): string {
   return `
 :root {
   color-scheme: dark;
+
+  --color-background: #04070e;
+  --color-foreground: #e8f4fb;
+  --color-foreground-strong: #ffffff;
+  --color-foreground-muted: #8fb4c9;
+  --color-accent: #8ee8c2;
+  --color-shadow: #000000;
+  --color-scrim: rgba(2, 5, 11, 0.92);
+  --color-error-surface: #0d1725;
+  --color-error-foreground: #a9bfd0;
+  --color-error-border: rgba(255, 180, 180, 0.4);
 }
 * {
   box-sizing: border-box;
 }
 html,
 body {
-  height: 100%;
-  margin: 0;
+  block-size: 100%;
+  margin-block: 0;
+  margin-inline: 0;
   overflow: hidden;
-  background: #04070e;
-  color: #e8f4fb;
-  font: 500 14px/1.4 ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
 }
 #stage {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  inline-size: 100%;
+  block-size: 100%;
   touch-action: none;
   cursor: crosshair;
 }
@@ -43,51 +64,51 @@ body {
   position: fixed;
   z-index: 2;
   pointer-events: none;
-  text-shadow: 0 2px 14px #000;
+  text-shadow: 0 0.125rem 0.875rem var(--color-shadow);
 }
 #brand {
-  top: 18px;
-  left: 20px;
+  inset-block-start: 1.125rem;
+  inset-inline-start: 1.25rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 #brand b {
   display: block;
-  font-size: 13px;
-  color: #fff;
+  font-size: 0.8125rem;
+  color: var(--color-foreground-strong);
 }
 #brand span {
   display: block;
-  margin-top: 4px;
-  font-size: 10px;
-  color: #8fb4c9;
+  margin-block-start: 0.25rem;
+  font-size: 0.625rem;
+  color: var(--color-foreground-muted);
 }
 #score {
-  top: 18px;
-  right: 22px;
-  text-align: right;
+  inset-block-start: 1.125rem;
+  inset-inline-end: 1.375rem;
+  text-align: end;
 }
 #score-value {
   display: block;
-  font-size: 44px;
+  font-size: 2.75rem;
   font-variant-numeric: tabular-nums;
   line-height: 0.9;
   letter-spacing: -0.04em;
-  color: #fff;
+  color: var(--color-foreground-strong);
 }
 #score span {
   display: block;
-  margin-top: 6px;
-  font-size: 10px;
+  margin-block-start: 0.375rem;
+  font-size: 0.625rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #8fb4c9;
+  color: var(--color-foreground-muted);
 }
 #hint {
-  left: 50%;
-  bottom: 12%;
+  inset-inline-start: 50%;
+  inset-block-end: 12%;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   transition: opacity 0.5s;
@@ -96,15 +117,15 @@ body {
   opacity: 0;
 }
 #backend-box {
-  left: 20px;
-  bottom: 16px;
-  font-size: 10px;
+  inset-inline-start: 1.25rem;
+  inset-block-end: 1rem;
+  font-size: 0.625rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #8fb4c9;
+  color: var(--color-foreground-muted);
 }
 #backend {
-  color: #8ee8c2;
+  color: var(--color-accent);
 }
 #error {
   position: fixed;
@@ -112,27 +133,34 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 28px;
-  background: rgba(2, 5, 11, 0.92);
+  padding-block: 1.75rem;
+  padding-inline: 1.75rem;
+  background-color: var(--color-scrim);
 }
 #error[hidden] {
   display: none;
 }
 #error div {
-  max-width: 480px;
-  padding: 24px;
-  border: 1px solid rgba(255, 180, 180, 0.4);
-  border-radius: 14px;
-  background: #0d1725;
+  max-inline-size: 30rem;
+  padding-block: 1.5rem;
+  padding-inline: 1.5rem;
+  border-width: 0.0625rem;
+  border-style: solid;
+  border-color: var(--color-error-border);
+  border-radius: 0.875rem;
+  background-color: var(--color-error-surface);
   text-align: center;
 }
 #error h1 {
-  margin: 0 0 8px;
-  font-size: 20px;
+  margin-block-start: 0;
+  margin-block-end: 0.5rem;
+  margin-inline: 0;
+  font-size: 1.25rem;
 }
 #error p {
-  margin: 0;
-  color: #a9bfd0;
+  margin-block: 0;
+  margin-inline: 0;
+  color: var(--color-error-foreground);
 }
 `;
 }
