@@ -104,7 +104,8 @@ built by
 `git -C <path> reset --no-enforce-worktree --hard` completes its checkout, discarding whatever that
 worktree holds (the wrapper's worktree guard refuses a hard reset in a worktree that holds uncommitted
 changes, which a checkout that never ran reads as, unless --no-enforce-worktree is given), and
-`git worktree remove --force <path>` removes it.
+`git worktree remove --force <path>` removes it with everything in it, so copy out anything you wrote
+there first.
 ```
 
 The policy is not what was wrong.
@@ -112,7 +113,7 @@ The wrapper cannot tell a half-written checkout from a person's edits in the sam
 and "never discard user data" makes the guard the right answer;
 what was wrong is a message that asked for a command the guard refuses without saying so.
 The hatch form runs,
-and the sentence says what the reset discards.
+and the sentence says what the reset discards and what removing the worktree takes with it.
 
 ### The stash drop report's branch command
 

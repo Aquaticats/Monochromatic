@@ -69,7 +69,8 @@ pub fn finish_or_remove_sentence(destination: &Path) -> String {
     return format!(
         "`{finish}` completes its checkout, discarding whatever that worktree holds (the wrapper's worktree guard \
          refuses a hard reset in a worktree that holds uncommitted changes, which a checkout that never ran reads as, \
-         unless {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} is given), and `{remove}` removes it."
+         unless {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} is given), and `{remove}` removes it with everything in it, \
+         so copy out anything you wrote there first."
     );
 }
 
