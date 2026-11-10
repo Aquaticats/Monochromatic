@@ -117,7 +117,7 @@ fn refuses_arguments_that_are_not_utf8() -> io::Result<()> {
     ];
     for arguments in cases {
         // Lend the raw argument list and a JSON event body to the native binary.
-        let output = support::invoke_os(arguments, "{}")?;
+        let output = support::invoke_os(arguments, "{}", &[])?;
         // The shared denial check proves the blocking exit and the empty success stream.
         denied(&output);
         // Decode the diagnostic, replacing invalid bytes only in the test's own reading.
@@ -143,6 +143,33 @@ fn refuses_an_initialize_path_without_a_unit_name() -> io::Result<()> {
     // Read the diagnostic, whose wording belongs to the no-unit-name arm alone.
     let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(diagnostic.contains("has no unit name"), "{diagnostic}");
+    return Ok(());
+}
+
+/// What:
+/// `#[test]` registers a nextest case for the failed slice start;
+/// `Result<()>` carries success or a setup error.
+/// Why:
+/// With systemd unreachable the start arm must report its own cause,
+/// and the run must create no slice in the shared user manager.
+#[test]
+fn refuses_an_unreachable_slice_start() -> io::Result<()> {
+    // Use the disposable parent; the absent `.slice` child is what makes the start arm run.
+    let parent = support::fixture()?;
+    let absent = parent.join("codex-fixture-missing.slice");
+    let path = absent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+    // Launch without the user-bus variables, so the start fails the way an unattended host fails.
+    let output = support::invoke_os(
+        &[OsStr::new("--initialize"), OsStr::new(path)],
+        "",
+        &["DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR"],
+    )?;
+    // The shared denial check proves the blocking exit and the empty success stream.
+    denied(&output);
+    // Assert the arm's own diagnostic, which the control-verification failure cannot produce.
+    let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(diagnostic.contains("systemctl could not start the worker slice."), "{diagnostic}");
+    fs::remove_dir_all(parent)?;
     return Ok(());
 }
 

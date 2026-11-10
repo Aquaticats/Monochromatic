@@ -132,24 +132,33 @@ pub fn invoke(arguments: &[&str], input: &str) -> io::Result<Output> {
     // What: `map` borrows each `&str` as an `&OsStr` without allocating the text.
     // Why: One launch path serves both callers, so plain-text and raw-byte arguments cannot drift apart.
     let os_arguments: Vec<&OsStr> = arguments.iter().map(|argument| { return OsStr::new(argument); }).collect();
-    return invoke_os(&os_arguments, input);
+    return invoke_os(&os_arguments, input, &[]);
 }
 
-/// Borrow an argument list of raw operating-system strings and stdin text,
+/// Borrow an argument list of raw operating-system strings,
+/// stdin text,
+/// and the environment variable names to delete from the child,
 /// returning the actual binary's captured output.
 /// Why:
 /// An argument that is not UTF-8 has no `&str` spelling,
 /// so refusing one needs its own entry point into the same launch.
-pub fn invoke_os(arguments: &[&OsStr], input: &str) -> io::Result<Output> {
-    // What: `env!` embeds Cargo's executable path at compile time; `mut` permits writing stdin.
+/// A child without `DBUS_SESSION_BUS_ADDRESS` and `XDG_RUNTIME_DIR` cannot reach a user bus,
+/// which makes a slice start fail without touching the shared user manager.
+pub fn invoke_os(arguments: &[&OsStr], input: &str, removed_variables: &[&str]) -> io::Result<Output> {
+    // What: `env!` embeds Cargo's executable path at compile time; `mut` permits removing variables and writing stdin.
     // Why: Tests exercise this crate's executable, including entry-point validation and exit codes.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const child = spawn(builtBinary, args, { stdio: 'pipe' });
+    // const child = spawn(builtBinary, args, { stdio: 'pipe', env: scrubbed });
     // ```
-    let mut child = Command::new(env!("CARGO_BIN_EXE_codex-bash-limit"))
-        .args(arguments).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    let mut command = Command::new(env!("CARGO_BIN_EXE_codex-bash-limit"));
+    // What: `env_remove` deletes one variable from the child's inherited environment.
+    // Why: The hook reads neither variable itself; only the systemd client does.
+    for name in removed_variables {
+        command.env_remove(name);
+    }
+    let mut child = command.args(arguments).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
     // Borrow stdin temporarily; an absent pipe is an explicit fixture failure.
     let pipe = child.stdin.as_mut().ok_or_else(|| {
         // Return the error from this zero-argument closure (`||`).

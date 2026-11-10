@@ -85,6 +85,28 @@ The shell itself exits with status 70 if attachment fails after hook validation.
 The guard test includes a successful payload as a positive control.
 Removing the guard in a throwaway worktree made that test fail.
 
+### An argument that is not UTF-8 blocks instead of panicking
+
+`std::env::args` panics on an argument that is not valid Unicode,
+so a `--hook` or `--initialize` path holding such bytes exited with status 101.
+The host reports a failed hook run and continues the tool call,
+so that exit failed open:
+the command ran without its cgroup membership.
+
+```text
+# codex-bash-limit --hook <a path holding a 0xff byte>, before the fix
+thread 'main' panicked at library/std/src/env.rs:937:51:
+called `Result::unwrap()` on an `Err` value: "/no-such-fixture/\xFF-worker"
+```
+
+`src/main.rs` now reads `args_os` and refuses any such argument with status 2 and a
+`Codex worker limits: Every argument must be UTF-8 text.` diagnostic,
+which `tests/validation.rs` covers as `refuses_arguments_that_are_not_utf8`.
+Refusing at the argument boundary also means the `to_str` guards at
+`src/limits.rs:94` and `src/protocol.rs:89` can no longer fail for these paths,
+because a path decoded from an argument is UTF-8 by then.
+They stay as defence for a future caller that builds a path from another source.
+
 ### Starting an absent slice creates it instead of failing
 
 The initialization arm at `package/codex-plugin/bash-limit/src/limits.rs:87` runs
@@ -115,14 +137,28 @@ EXIT=0
 So a `--initialize` run given an absent `.slice` path starts its slice successfully
 and then fails in `verify` on the still-absent control files.
 Status 2 and a non-empty diagnostic therefore cannot show whether the start arm ran,
-and reaching the arm's own failure branch needs a start that genuinely fails:
-a host without a user bus,
-or an injection point for the command.
+and the arm's failed-start branch needs a start that genuinely fails.
 
-Both probes created units in the shared user manager and stopped them again with `systemctl --user stop`,
+The client finds its bus through two environment variables,
+so a child launched without them fails the start on every host and creates nothing:
+
+```text
+# env --unset=DBUS_SESSION_BUS_ADDRESS --unset=XDG_RUNTIME_DIR systemctl --user start -- codex-env-probe.slice
+Failed to connect to user scope bus via local transport: $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined (consider using --machine=<user>@.host --user to connect to bus of other user)
+EXIT=1
+```
+
+`tests/validation.rs` covers that branch as `refuses_an_unreachable_slice_start`,
+which launches the hook through `support::invoke_os` with both variables named for removal
+and asserts the arm's own diagnostic.
+With the failed-start check removed from `limits.rs` the same test reports
+`Codex worker limits: No such file or directory (os error 2)` from control verification,
+which is what makes it a guard rather than a restatement.
+
+The two manual probes above created units in the shared user manager and stopped them again with `systemctl --user stop`,
 leaving no `codex*` unit or cgroup behind.
-An ordinary test that exercises this arm inherits that side effect,
-so the choice between the side effect and an injection point belongs to the owner.
+The successful-start path still mutates that shared manager,
+so covering it is left to the owner together with the choice of an injection point for the command.
 
 ## Hook arguments belong in the command string
 
