@@ -12,6 +12,7 @@ import {
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
+import { isAlphaNum, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
@@ -87,24 +88,6 @@ export function vmConfigPath(name: string,): string {
 //region Name validation
 
 /**
- Whether `c` is an ASCII alphanumeric character.
- 
- @param c - single-character string to inspect
- 
- @returns whether `c` is `[A-Za-z0-9]`
- 
- @example
- ```ts
- isAlphaNum('a'); // true
- isAlphaNum('-'); // false
- ```
- */
-function isAlphaNum(c: string,): boolean {
-  return ((c >= 'a') && (c <= 'z'))
-    || ((c >= 'A') && (c <= 'Z'))
-    || ((c >= '0') && (c <= '9'));
-}
-
 /**
  Whether `c` is a character permitted in a VM name after its first character.
  The leading character has a stricter rule: it must be alphanumeric.

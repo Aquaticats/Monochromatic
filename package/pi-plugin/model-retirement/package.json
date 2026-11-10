@@ -28,6 +28,7 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",

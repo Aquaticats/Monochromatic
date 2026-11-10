@@ -15,6 +15,7 @@ import {
   readFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { isAlphaNum, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { splitOnWhitespace, } from '../../list.ts';
@@ -135,25 +136,6 @@ function keyMaterial(publicKeyLine: string,): string {
     return publicKeyLine.trim();
   }
   return `${type} ${base64}`;
-}
-
-/**
- Checks whether `c` is ASCII alphanumeric.
- 
- @param c - single-character string to inspect
- 
- @returns whether `c` is `[A-Za-z0-9]`
- 
- @example
- ```ts
- isAlphaNum('a'); // true
- isAlphaNum('/'); // false
- ```
- */
-function isAlphaNum(c: string,): boolean {
-  return ((c >= 'a') && (c <= 'z'))
-    || ((c >= 'A') && (c <= 'Z'))
-    || ((c >= '0') && (c <= '9'));
 }
 
 /**

@@ -16,6 +16,7 @@
     "@types/node": "catalog:"
   },
   "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
     "@monochromatic-dev/or-throw-core": "workspace:*",

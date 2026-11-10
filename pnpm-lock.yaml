@@ -3281,6 +3281,9 @@ importers:
 
   package/mvm/cli:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/async-time-core':
         specifier: workspace:*
         version: link:../../async-time/core
@@ -3379,6 +3382,9 @@ importers:
       '@inquirer/input':
         specifier: 'catalog:'
         version: 5.1.9(@types/node@26.6.6)
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -4030,6 +4036,9 @@ importers:
 
   package/pi-plugin/model-retirement:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -5265,6 +5274,9 @@ importers:
 
   package/translation-repair/adjudication:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/llm-llm-type':
         specifier: workspace:*
         version: link:../../llm/llm-type
@@ -8512,6 +8524,9 @@ importers:
 
   package/vmsync/cli:
     dependencies:
+      '@monochromatic-dev/agent-harness-shared-text-scan':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/text-scan
       '@monochromatic-dev/const-core':
         specifier: workspace:*
         version: link:../../const/core

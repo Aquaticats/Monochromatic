@@ -11,6 +11,11 @@
  @module
  */
 
+import {
+  isDigit,
+  isLowerAlpha,
+} from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 //region Constants
 
 /**
@@ -187,41 +192,6 @@ type NumericRun = {
 //region Character predicates
 
 /**
- Test one character for decimal digit membership.
-
- @param character - single character under test
-
- @returns whether the character is `0` through `9`
-
- @example
- ```typescript
- isAsciiDigit('7'); // true
- ```
- */
-export function isAsciiDigit(character: string,): boolean {
-  return (character >= '0') && (character <= '9');
-}
-
-/**
- Test one character for lower-case ASCII letter membership.
-
- Callers lowercase the id first, so upper-case letters never reach this predicate and
- treating them as separators keeps the classifier total.
-
- @param character - single character under test
-
- @returns whether the character is `a` through `z`
-
- @example
- ```typescript
- isLowerAsciiLetter('q'); // true
- ```
- */
-export function isLowerAsciiLetter(character: string,): boolean {
-  return (character >= 'a') && (character <= 'z');
-}
-
-/**
  Test one character for membership in a model-id token.
 
  A dot stays inside a token so `3.8` reads as one dotted version instead of two
@@ -237,8 +207,8 @@ export function isLowerAsciiLetter(character: string,): boolean {
  ```
  */
 export function isTokenCharacter(character: string,): boolean {
-  return isAsciiDigit(character,)
-    || isLowerAsciiLetter(character,)
+  return isDigit(character,)
+    || isLowerAlpha(character,)
     || (character === COMPONENT_SEPARATOR);
 }
 
@@ -353,7 +323,7 @@ export function readNumericRun(
      Cursor walking the run.
      */
     let cursor = start;
-    while ((cursor < text.length) && isAsciiDigit(text.charAt(cursor,),))
+    while ((cursor < text.length) && isDigit(text.charAt(cursor,),))
       cursor += 1;
     if (cursor === start)
       return NO_NUMERIC_RUN;
@@ -372,7 +342,7 @@ export function readNumericRun(
        */
       const componentStart = cursor + COMPONENT_SEPARATOR.length;
       cursor = componentStart;
-      while ((cursor < text.length) && isAsciiDigit(text.charAt(cursor,),))
+      while ((cursor < text.length) && isDigit(text.charAt(cursor,),))
         cursor += 1;
       if (cursor === componentStart)
         return NO_NUMERIC_RUN;
@@ -403,7 +373,7 @@ export function readNumericRun(
 function alphaPrefixLength(token: string,): number {
   return (function countPrefix(): number {
     for (let index = 0; index < token.length; index += 1) {
-      if (!isLowerAsciiLetter(token.charAt(index,),))
+      if (!isLowerAlpha(token.charAt(index,),))
         return index;
     }
     return token.length;
@@ -433,7 +403,7 @@ function alphaPrefixLength(token: string,): number {
  */
 export function isDateShapedRaw(raw: string,): boolean {
   for (const character of raw) {
-    if (!isAsciiDigit(character,))
+    if (!isDigit(character,))
       return false;
   }
   if (raw.length === SHORT_DATE_DIGIT_COUNT) {

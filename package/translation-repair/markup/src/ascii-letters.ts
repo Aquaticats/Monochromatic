@@ -10,6 +10,16 @@
 // floor reads a rendering's basic letters after NFD has split its tone marks
 // off. Where a scanner reads English prose, an ASCII test is a choice the
 // scanner states; the name here says what is tested so that choice is visible.
+//
+// THIS MODULE IS THE TRANSLATION-REPAIR FAMILY'S OWNER of those classes, and the
+// exemption is deliberate: `@monochromatic-dev/agent-harness-shared-text-scan`
+// owns the same ASCII classes for agent-harness code, and the review that asked
+// every copy to import it accepted sites that say why they stay
+// (issue 1673). Two reasons keep this one. The family keeps one owner for its
+// own classes rather than two, since every translation-repair scanner calls
+// these and none calls the agent-harness package. And the object parameter here
+// is the family's call convention, so a plain string predicate would rewrite
+// every call site without changing a verdict.
 
 /**
  Whether one character is a lower-case ASCII letter, `a` to `z`.

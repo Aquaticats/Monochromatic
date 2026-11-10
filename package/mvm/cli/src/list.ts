@@ -1,3 +1,4 @@
+import { isWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { VM_PREFIX, } from './config.ts';
@@ -28,28 +29,6 @@ export type VmInfo = {
 const NOT_A_DATA_ROW: unique symbol = Symbol(
   'returned for a virsh table line that is not a VM data row',
 );
-
-/**
- Checks whether `c` is a single ASCII whitespace character.
- 
- @param c - single-character string to inspect
- 
- @returns whether `c` is space, tab, newline, carriage return, form feed, or vertical tab
- 
- @example
- ```ts
- isWhitespaceChar(' ');  // true
- isWhitespaceChar('a');  // false
- ```
- */
-function isWhitespaceChar(c: string,): boolean {
-  return (c === ' ')
-    || (c === '\t')
-    || (c === '\n')
-    || (c === '\r')
-    || (c === '\f')
-    || (c === '\v');
-}
 
 /**
  Checks whether `s` consists only of ASCII digits and is non-empty.
@@ -105,7 +84,7 @@ export function splitOnWhitespace(s: string,): readonly string[] {
     let idx = 0;
     while (idx < s
       .length) {
-      if (isWhitespaceChar(s.charAt(idx,),)) {
+      if (isWhitespace(s.charAt(idx,),)) {
         idx += 1;
       }
       else {
@@ -115,7 +94,7 @@ export function splitOnWhitespace(s: string,): readonly string[] {
         const start = idx;
         while (idx < s
           .length) {
-          if (isWhitespaceChar(s.charAt(idx,),))
+          if (isWhitespace(s.charAt(idx,),))
             break;
           idx += 1;
         }

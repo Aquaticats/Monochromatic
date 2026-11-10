@@ -1,3 +1,4 @@
+import { isLowerAlpha, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 import {
   isCredentialName,
   rendersAsNothing,
@@ -50,22 +51,6 @@ export const STARTED_BY_VARIABLE = 'TRANSLATION_REPAIR_STARTED_BY';
 const COMMAND_NAME_LIMIT = 64;
 
 /**
- Whether one character is a lower case letter of the Latin alphabet.
-
- @param character - one character, empty where there was none to read
-
- @returns Whether it lies between a and z
-
- @example
- ```ts
- const letter = isLowerLetter({ character: 'p', },); // true
- ```
- */
-function isLowerLetter({ character, }: { readonly character: string; },): boolean {
-  return (character >= 'a') && (character <= 'z');
-}
-
-/**
  Whether a text has the shape of a command's file name: a lower case letter,
  then lower case letters, digits and hyphens, short enough that nothing but a
  name fits. One pass, so the cost is the text's length.
@@ -83,7 +68,7 @@ function isCommandNameShaped({ text, }: { readonly text: string; },): boolean {
   if (text.length > COMMAND_NAME_LIMIT)
     return false;
   // The first character must be a letter; an empty text has none, so it fails here.
-  if (!isLowerLetter({ character: text.charAt(0,), },))
+  if (!isLowerAlpha(text.charAt(0,),))
     return false;
   for (let at = 1; at < text.length; at += 1) {
     /**
@@ -101,7 +86,7 @@ function isCommandNameShaped({ text, }: { readonly text: string; },): boolean {
     /**
      Whether the character may stand after the first.
      */
-    const continuesName = isLowerLetter({ character, },)
+    const continuesName = isLowerAlpha(character,)
       || isDigit
       || isHyphen;
     if (!continuesName)

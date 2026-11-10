@@ -6,6 +6,8 @@
 
 import { resolve, } from 'node:path';
 
+import { isAlphaNum, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 import type { GitHubRepository, } from './github-model.ts';
 import {
   runBoundedProcess,
@@ -38,19 +40,6 @@ export class RepositorySelectionError extends Error {
 }
 
 /**
- Checks ASCII alphanumeric character.
- 
- @param character - One character of the segment.
- 
- @returns Whether character belongs to ASCII alphanumeric set.
- */
-function isAsciiAlphanumeric(character: string,): boolean {
-  return ((character >= 'a') && (character <= 'z'))
-    || ((character >= 'A') && (character <= 'Z'))
-    || ((character >= '0') && (character <= '9'));
-}
-
-/**
  Checks GitHub owner character grammar.
  
  @param character - One character of the owner segment.
@@ -58,7 +47,7 @@ function isAsciiAlphanumeric(character: string,): boolean {
  @returns Whether owner accepts character.
  */
 function isOwnerCharacter(character: string,): boolean {
-  return isAsciiAlphanumeric(character,) || (character === '-');
+  return isAlphaNum(character,) || (character === '-');
 }
 
 /**
@@ -69,7 +58,7 @@ function isOwnerCharacter(character: string,): boolean {
  @returns Whether repository name accepts character.
  */
 function isRepositoryCharacter(character: string,): boolean {
-  return isAsciiAlphanumeric(character,)
+  return isAlphaNum(character,)
     || (character === '-')
     || (character === '_')
     || (character === '.');

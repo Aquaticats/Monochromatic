@@ -24,6 +24,7 @@
   ],
   "dependencies": {
     "@inquirer/checkbox": "catalog:",
+    "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@inquirer/input": "catalog:",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",

@@ -4,6 +4,8 @@
  @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 /**
  Required semantic version component count.
  */
@@ -55,17 +57,6 @@ export class GitHubCliVersionError extends Error {
 }
 
 /**
- Checks one ASCII decimal digit.
- 
- @param character - One character of a version component.
- 
- @returns Whether character lies in the ASCII decimal range.
- */
-function isAsciiDecimalDigit(character: string,): boolean {
-  return (character >= '0') && (character <= '9');
-}
-
-/**
  Checks one non-empty ASCII decimal version component.
  
  The grammar is ASCII, so `for...of` walking characters rather than UTF-16 code
@@ -86,7 +77,7 @@ function isDecimalComponent(component: string,): boolean {
     return false;
   }
   for (const character of component) {
-    if (!isAsciiDecimalDigit(character,)) {
+    if (!isDigit(character,)) {
       return false;
     }
   }

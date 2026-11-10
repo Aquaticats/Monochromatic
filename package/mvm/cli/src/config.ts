@@ -1,6 +1,8 @@
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
+import { isAlphaNum, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 /**
  Prefix applied to all VM names in libvirt to avoid collisions.
  */
@@ -85,25 +87,6 @@ export const WINDOWS_TEMPLATE_AGENT_TIMEOUT_MS = 2_400_000;
  disk controller and load the viostor driver on boot.
  */
 export const VIRTIO_VERIFY_AGENT_TIMEOUT_MS = 300_000;
-
-/**
- Checks whether `c` is an ASCII alphanumeric character.
- 
- @param c - single-character string to inspect
- 
- @returns whether `c` is `[A-Za-z0-9]`
- 
- @example
- ```ts
- isAlphaNum('a'); // true
- isAlphaNum('-'); // false
- ```
- */
-function isAlphaNum(c: string,): boolean {
-  return ((c >= 'a') && (c <= 'z'))
-    || ((c >= 'A') && (c <= 'Z'))
-    || ((c >= '0') && (c <= '9'));
-}
 
 /**
  Checks whether `c` is allowed in non-leading positions of a VM name.
