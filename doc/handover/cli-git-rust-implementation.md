@@ -302,9 +302,15 @@ under rule `WGH`:
   and under rule `SUF` it stays a contention defect until it is.
 - `merge-and-pull-never-fail`:
   a dead Git's `index.lock` makes every command exit 2,
-  read-only commands wait 60 s over a saved merge,
-  and the owner's "Carry edits forward" is still not built:
+  and read-only commands wait 60 s over a saved merge:
   both are briefed.
+  Built since:
+  "Carry edits forward" (`feat/git-policy-cli-merge-carries-unsaved-edits-forward`,
+  `SPEC.md` "A merge whose paths hold the person's own work carries it forward"),
+  with one gap left:
+  a merge that would open an editor is still forwarded,
+  so native Git refuses it over unsaved work
+  (`--no-edit` completes it).
 - `never-stuck`:
   a FIFO at `.git/index.lock` or at a rules file blocked every command that read it for ever,
   and the commit service's landing behind it.
@@ -3128,7 +3134,6 @@ still need building:
 a commit lands and exits 0 and the index catches up when the lock frees,
 a merge saves on a side ref and finishes the checkout when the lock frees),
 "Allowed refusals" (the person's hooks and required filters),
-"Carry edits forward" (merge over unsaved edits),
 and moved head stacks a new commit (amend,
 merge conclusion,
 revert).

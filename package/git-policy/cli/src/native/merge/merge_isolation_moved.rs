@@ -70,13 +70,14 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function settleMovedBranch({ place, record, intent, movedTo, stderr }): Promise<'branch-moved' | 'index-held'>;
+/// async function settleMovedBranch({ place, record, intent, movedTo, keepRecord, stderr }): Promise<'branch-moved' | 'index-held'>;
 /// ```
 pub(crate) fn settle_moved_branch(
     place: &RecoveryPlace,
     record: &Path,
     intent: &MergeIntent,
     moved_to: &str,
+    keep_record: bool,
     out: &mut dyn Write,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
     let root: &Path = intent.repository_root.as_path();
@@ -112,7 +113,7 @@ pub(crate) fn settle_moved_branch(
     let worktree_shows_the_merge: bool = worktree.iter().any(holds_the_merge);
     // A merge that left nothing of itself in the index or the worktree has nothing to settle, so the moved head is not read.
     if !index_began && !worktree_shows_the_merge {
-        return only_the_record_goes(record, false);
+        return only_the_record_goes(record, false, keep_record);
     }
     // What each path ends as: the moved head's entry, which is the merge's own entry where the moved head left the path alone.
     let request: GitRequest = GitRequest::new(
@@ -145,7 +146,7 @@ pub(crate) fn settle_moved_branch(
     }
     let began: bool = index_began || wrote_a_file;
     if !began {
-        return only_the_record_goes(record, began);
+        return only_the_record_goes(record, began, keep_record);
     }
     let mut ends: Vec<Change> = Vec::with_capacity(changes.len());
     for change in &changes {
@@ -237,7 +238,9 @@ pub(crate) fn settle_moved_branch(
         }
         return Ok(MergeRecoveryAction::IndexHeld);
     }
-    remove_record(record).map_err(partly_installed)?;
+    if !keep_record {
+        remove_record(record).map_err(partly_installed)?;
+    }
     return Ok(MergeRecoveryAction::BranchMoved);
 }
 
@@ -295,8 +298,8 @@ fn moved_head_holds_its_own_entry(beyond: &HashMap<&[u8], &Change>, path: &[u8])
 /// ```ts
 /// function onlyTheRecordGoes(record, began): 'branch-moved'; // rm(record)
 /// ```
-fn only_the_record_goes(record: &Path, began: bool) -> Result<MergeRecoveryAction, MergeRefusal> {
-    if let Err(error) = remove_record(record) {
+fn only_the_record_goes(record: &Path, began: bool, keep_record: bool) -> Result<MergeRecoveryAction, MergeRefusal> {
+    if !keep_record && let Err(error) = remove_record(record) {
         return Err(MergeRefusal { error, began });
     }
     return Ok(MergeRecoveryAction::BranchMoved);
