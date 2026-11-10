@@ -35,7 +35,8 @@ use serde_json::{Map, Value};
 ///  exactly what they had;
 /// clean filters and line endings make the bytes Git records differ from those,
 /// and the
-///  merge is computed on the recorded form, as `git stash` does.
+///  merge is computed on the recorded form,
+/// as `git stash` does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -151,6 +152,20 @@ pub struct Slot {
 }
 
 /// What:
+///  Whether one object is already a slot of this capture.
+/// Why:
+///   Two layers of one path can name the same object,
+///  and one flat tree names each object once.
+fn holds(found: &[Slot], oid: &str) -> bool {
+    for slot in found {
+        if slot.oid == oid {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Every distinct object a capture names,
 /// as slots of one flat tree.
 /// Why:
@@ -175,7 +190,7 @@ pub fn slots(paths: &[CapturedPath]) -> Vec<Slot> {
             wanted.push(staged.oid.as_str());
         }
         for oid in wanted {
-            if found.iter().any(|slot| { return slot.oid == oid; }) {
+            if holds(found.as_slice(), oid) {
                 continue;
             }
             found.push(Slot { name: slot_name(found.len()), oid: String::from(oid) });
@@ -249,7 +264,11 @@ pub fn encode(capture: &Capture) -> String {
 /// The text of a JSON object's field,
 /// when it is a non-empty string.
 fn field<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
-    return map.get(key)?.as_str().filter(|text| { return !text.is_empty(); });
+    let text: &'a str = map.get(key)?.as_str()?;
+    if text.is_empty() {
+        return None;
+    }
+    return Some(text);
 }
 
 /// The object of one nested field.
