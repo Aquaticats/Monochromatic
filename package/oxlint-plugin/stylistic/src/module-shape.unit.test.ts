@@ -17,6 +17,16 @@
  formula variable from an abbreviation, so a helper that really computes with
  one takes a deliberate change to this guard, never a silent pass.
 
+ The same product modules are read a second time for `//region` markers.
+ `AGENTS.md` rule ST2 asks each logical section of a substantial module to sit
+ inside a `//region <purpose>` and `//endregion <purpose>` pair naming what the
+ section does, and the repository review checklist flags a module that carries
+ none, but nothing reads the markers mechanically. A product module of at least
+ `SUBSTANTIAL_MODULE_LINE_COUNT` lines must therefore name at least one of its
+ sections, and in every module a closing marker must name the region it closes.
+ Test modules are left out, as they are from the naming guard: a test's sections
+ follow its suite tree rather than the behaviour a region name describes.
+
  @module
  */
 
@@ -262,6 +272,61 @@ const SCANNER_FIXTURE = [
   'const width = leadingWhitespace(piece,); // mirrors function trim(s)',
   '',
 ].join('\n',);
+
+/**
+ Product text with no region marker, which the guard must report once the text
+ is long enough to need one.
+ */
+const UNMARKED_SAMPLE = [
+  '// A product module.',
+  '',
+  'export const sample = 1;',
+].join(NEWLINE_CHARACTER,);
+
+/**
+ Product text whose closing marker names another section, which the guard must
+ report.
+ */
+const MISLABELLED_SAMPLE = [
+  '//region Reading',
+  'export const sample = 1;',
+  '//endregion Writing',
+].join(NEWLINE_CHARACTER,);
+
+/**
+ Product text whose region never closes, which the guard must report.
+ */
+const UNCLOSED_SAMPLE = [
+  '//region Reading',
+  'export const sample = 1;',
+].join(NEWLINE_CHARACTER,);
+
+/**
+ Product text whose opening marker names no section, which the guard must report.
+ */
+const UNLABELLED_SAMPLE = [
+  '//region',
+  'export const sample = 1;',
+  '//endregion',
+].join(NEWLINE_CHARACTER,);
+
+/**
+ Product text with one named pair, which the guard must accept.
+ */
+const MARKED_SAMPLE = [
+  '//region Reading',
+  'export const sample = 1;',
+  '//endregion Reading',
+].join(NEWLINE_CHARACTER,);
+
+/**
+ Product text whose only marker-shaped line is a word that merely starts with
+ the opening marker, which the guard must read as prose rather than as a section.
+ */
+const REGIONAL_SAMPLE = [
+  '//regional plan for the module',
+  'export const sample = 1;',
+].join(NEWLINE_CHARACTER,);
 
 //endregion Fixtures
 
@@ -851,6 +916,191 @@ async function productModules(directory: string,): Promise<readonly string[]> {
   return [...found, ...nested.flat(),].toSorted();
 }
 
+//region Region markers
+
+/**
+ Shortest product module whose sections must be named, in lines.
+
+ A module this long no longer fits one screen, so its section boundaries are
+ invisible until a reader folds it. The 2026-10-17 repository review reported
+ this package for exactly these modules.
+ */
+const SUBSTANTIAL_MODULE_LINE_COUNT = 200;
+
+/**
+ Opening marker, whose purpose follows after a space.
+ */
+const REGION_OPENER = '//region';
+
+/**
+ Closing marker, which names the region it closes.
+ */
+const REGION_CLOSER = '//endregion';
+
+/**
+ Separator between a marker and its purpose.
+ */
+const MARKER_LABEL_SEPARATOR = ' ';
+
+/**
+ What one line of a module turned out to be, plus the purpose a marker carries.
+ */
+type MarkerLine = {
+  /**
+   Whether the line is a marker, and which one.
+   */
+  readonly kind: 'marker' | 'other';
+
+  /**
+   Purpose written after the marker, empty when it carries none.
+   */
+  readonly label: string;
+};
+
+/**
+ Reads one line as a marker of the given kind.
+
+ @param options - trimmed line and the marker to look for
+
+ @returns the marker's kind with its purpose, or the other-line reading
+
+ @example
+ ```ts
+ markerLabel({ line: '//region Reading', marker: REGION_OPENER });
+ ```
+ */
+function markerLabel(options: {
+  readonly line: string;
+  readonly marker: string;
+},): MarkerLine {
+  if (!options.line.startsWith(options.marker,))
+    return {
+      kind: 'other',
+      label: '',
+    };
+
+  /**
+   Text after the marker on this line.
+   */
+  const rest = options.line.slice(options.marker.length,);
+
+  if ((rest !== '') && (!rest.startsWith(MARKER_LABEL_SEPARATOR,)))
+    return {
+      kind: 'other',
+      label: '',
+    };
+
+  return {
+    kind: 'marker',
+    label: rest.trim(),
+  };
+}
+
+/**
+ Reports what one module's text gets wrong about its region markers.
+
+ @param options - module text, and the length at which its sections must be named
+
+ @returns one message per problem, empty when the text satisfies the rule
+
+ @example
+ ```ts
+ regionFindings({ text, minimumLines: SUBSTANTIAL_MODULE_LINE_COUNT });
+ ```
+ */
+function regionFindings(options: {
+  readonly text: string;
+  readonly minimumLines: number;
+},): readonly string[] {
+  /**
+   Messages the scan collected, in line order then unclosed-region order.
+   */
+  const findings: string[] = [];
+  /**
+   Purposes of the regions open at the line being read, innermost last.
+   */
+  const openRegions: string[] = [];
+  /**
+   Lines of the module, with the empty line a final line break opens dropped.
+   */
+  const lines = options.text.split(NEWLINE_CHARACTER,);
+  /**
+   Whether the module names any of its sections.
+   */
+  let marked = false;
+
+  if (lines.at(-1,) === '')
+    lines.pop();
+
+  for (const [
+    index,
+    line,
+  ] of lines.entries()) {
+    /**
+     Trimmed line, which is where a marker is written.
+     */
+    const trimmed = line.trim();
+    /**
+     Line number the message names, 1-based.
+     */
+    const lineNumber = String(index + 1,);
+    /**
+     Opening marker reading of this line.
+     */
+    const opening = markerLabel({
+      line: trimmed,
+      marker: REGION_OPENER,
+    },);
+
+    if (opening.kind === 'marker') {
+      marked = true;
+
+      if (opening.label === '')
+        findings.push(`line ${lineNumber}: region marker names no section`,);
+
+      openRegions.push(opening.label,);
+      continue;
+    }
+
+    /**
+     Closing marker reading of this line.
+     */
+    const closing = markerLabel({
+      line: trimmed,
+      marker: REGION_CLOSER,
+    },);
+
+    if (closing.kind === 'other')
+      continue;
+
+    /**
+     Purpose of the region this line closes, absent when none is open.
+     */
+    const closed = openRegions.pop();
+
+    if (closed === undefined) {
+      findings.push(`line ${lineNumber}: ${REGION_CLOSER} closes no region`,);
+      continue;
+    }
+
+    if (closing.label !== closed) {
+      findings.push(
+        `line ${lineNumber}: ${REGION_CLOSER} names "${closing.label}" but closes "${closed}"`,
+      );
+    }
+  }
+
+  for (const purpose of openRegions)
+    findings.push(`region "${purpose}" is never closed`,);
+
+  if ((!marked) && (lines.length >= options.minimumLines))
+    findings.push(`no region marker in ${String(lines.length,)} lines`,);
+
+  return findings;
+}
+
+//endregion Region markers
+
 //endregion Helpers
 
 //region Fixture expectations
@@ -968,5 +1218,117 @@ await describe({
     },),
 
     //endregion product modules
+
+    //region region markers
+
+    describe({
+      name: 'region markers',
+      children: [
+        it({
+          name: 'reports a substantial module with no region marker',
+          fn: async () => {
+            expect(
+              regionFindings({
+                text: UNMARKED_SAMPLE,
+                minimumLines: UNMARKED_SAMPLE.split(NEWLINE_CHARACTER,).length,
+              },),
+            ).toEqual([
+              `no region marker in ${String(UNMARKED_SAMPLE.split(NEWLINE_CHARACTER,).length,)} lines`,
+            ],);
+          },
+        },),
+        it({
+          name: 'reports a closing marker that names another section',
+          fn: async () => {
+            expect(
+              regionFindings({
+                text: MISLABELLED_SAMPLE,
+                minimumLines: Number.POSITIVE_INFINITY,
+              },),
+            ).toEqual(['line 3: //endregion names "Writing" but closes "Reading"',],);
+          },
+        },),
+        it({
+          name: 'reports a region that never closes',
+          fn: async () => {
+            expect(
+              regionFindings({
+                text: UNCLOSED_SAMPLE,
+                minimumLines: Number.POSITIVE_INFINITY,
+              },),
+            ).toEqual(['region "Reading" is never closed',],);
+          },
+        },),
+        it({
+          name: 'reports an opening marker that names no section',
+          fn: async () => {
+            expect(
+              regionFindings({
+                text: UNLABELLED_SAMPLE,
+                minimumLines: Number.POSITIVE_INFINITY,
+              },),
+            ).toEqual(['line 1: region marker names no section',],);
+          },
+        },),
+        it({
+          name: 'accepts a marked module, and an unmarked one below the threshold',
+          fn: async () => {
+            expect(
+              regionFindings({
+                text: MARKED_SAMPLE,
+                minimumLines: MARKED_SAMPLE.split(NEWLINE_CHARACTER,).length,
+              },),
+            ).toEqual([],);
+            expect(
+              regionFindings({
+                text: UNMARKED_SAMPLE,
+                minimumLines: Number.POSITIVE_INFINITY,
+              },),
+            ).toEqual([],);
+          },
+        },),
+        it({
+          name: 'reads a word that only starts with the marker as prose',
+          fn: async () => {
+            expect(
+              regionFindings({
+                text: REGIONAL_SAMPLE,
+                minimumLines: 1,
+              },),
+            ).toEqual([
+              `no region marker in ${String(REGIONAL_SAMPLE.split(NEWLINE_CHARACTER,).length,)} lines`,
+            ],);
+          },
+        },),
+        it({
+          name: `names a region in every product module of at least ${String(SUBSTANTIAL_MODULE_LINE_COUNT,)} lines`,
+          fn: async () => {
+            /**
+             Product modules of this package.
+             */
+            const modules = await productModules(SOURCE_DIRECTORY,);
+            expect(modules.length,).toBeGreaterThan(0,);
+            /**
+             Problems found, named by the module's path relative to this folder.
+             */
+            const findings = (await Promise.all(modules.map(async function readModule(path,) {
+              /**
+               Text of one product module.
+               */
+              const text = await readFile(path, 'utf8',);
+              return regionFindings({
+                text,
+                minimumLines: SUBSTANTIAL_MODULE_LINE_COUNT,
+              },).map(function toMessage(finding,): string {
+                return `${path.slice(SOURCE_DIRECTORY.length + 1,)}: ${finding}`;
+              },);
+            },),)).flat();
+            expect(findings,).toEqual([],);
+          },
+        },),
+      ],
+    },),
+
+    //endregion region markers
   ],
 },);

@@ -41,10 +41,11 @@ import {
   isMethodSignatureDeclaration,
   isSetAccessorDeclaration,
 } from 'typescript/ast/is';
-import type {
-  Checker,
-  Project,
-  Type,
+import {
+  type Checker,
+  type Project,
+  SignatureKind,
+  type Type,
 } from 'typescript/sync';
 
 //region Reader result relations
@@ -254,7 +255,7 @@ function operandHoldsOnlyData({
     return false;
   if (checker.getSignaturesOfType(
     operandType,
-    0,
+    SignatureKind.Call,
   )
     .length
     > 0)

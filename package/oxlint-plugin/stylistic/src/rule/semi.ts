@@ -8,6 +8,10 @@ import type {
   VisitorWithHooks,
 } from '@oxlint/plugins';
 
+//region Constants
+// The terminator itself, the loop left slots that use separators instead, and
+// the export-default declarations their own grammar terminates.
+
 /**
  Token value that terminates statement-like syntax under the always-semi rule.
  */
@@ -29,6 +33,11 @@ const EXPORT_DEFAULT_DECLARATION_SEMI_EXEMPT_TYPES = new Set([
   'FunctionDeclaration',
   'TSInterfaceDeclaration',
 ],);
+//endregion Constants
+
+//region Structured node views
+// The parent links and declaration payloads the rule reads, which oxlint's bare
+// `Node` shape omits.
 
 /**
  AST node with a string discriminant.
@@ -83,6 +92,11 @@ type ExportNamedDeclarationNode = Node & {
    */
   readonly declaration?: unknown;
 };
+//endregion Structured node views
+
+//region Token lookup and loop-slot exclusions
+// A node's last token, and the two grammar positions where a missing semicolon
+// is correct rather than a violation.
 
 /**
  Parameters for {@link lastTokenOf}.
@@ -222,6 +236,11 @@ function isForInOrOfLeft(params: ForeignBorrowed<Readonly<IsForInOrOfLeftParams>
   const { parent, } = params;
   return FOR_LEFT_PARENT_TYPES.has(parent.type,) && (parent.left === node);
 }
+//endregion Token lookup and loop-slot exclusions
+
+//region Per-node checks
+// Whether one node kind needs a terminator at all, asked before any token is
+// looked up.
 
 /**
  Decides whether a variable declaration should have a statement terminator.
@@ -289,6 +308,10 @@ function shouldCheckExportDefaultDeclaration(node: ForeignBorrowed<Node>,): bool
     declaration.type,
   );
 }
+//endregion Per-node checks
+
+//region Reporting
+// Report a missing terminator, and insert it after the node's last token.
 
 /**
  Checks a semicolon-terminated node and reports when its last token is not `;`.
@@ -332,6 +355,11 @@ function checkForSemicolon(params: ForeignBorrowed<Readonly<CheckForSemicolonPar
     },
   },);
 }
+//endregion Reporting
+
+//region Rule
+// The exported rule: metadata, one binding per visitor concern, and the map
+// from node kind to check.
 
 /**
  Requires semicolons at the end of statement-like declarations and expressions.
@@ -446,3 +474,4 @@ export const semi: CreateOnceRule = {
     };
   },
 };
+//endregion Rule
