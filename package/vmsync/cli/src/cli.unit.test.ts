@@ -250,5 +250,57 @@ await describe({
     },),
 
     //endregion Config read
+
+    //region Import refusal: a name vmsync may not use is refused and explained
+
+    it({
+      name: 'refuses a name derived from the image file that starts with an underscore',
+      fn: async () => {
+        const home = await createScratchHome();
+        /**
+         Image path the derived name comes from; the file itself need not exist,
+         because a refused name must be refused before vmsync reads any image.
+         */
+        const imagePath = join(
+          home,
+          '_alpine.qcow2',
+        );
+        const result = await runVmsync({
+          args: ['import', imagePath,],
+          home,
+        },);
+        expect(result.exitCode,).toBe(1,);
+        expect(result.stderr,).toContain('"_alpine"',);
+        expect(result.stderr,).toContain('starts with a letter or a digit',);
+        expect(result.stderr,).toContain(imagePath,);
+        expect(result.stderr,).toContain('--name',);
+        expect(result.stderr,).not.toContain('qemu-img',);
+      },
+    },),
+
+    it({
+      name: 'refuses a typed name holding a space, and quotes the space',
+      fn: async () => {
+        const home = await createScratchHome();
+        const result = await runVmsync({
+          args: [
+            'import',
+            join(
+              home,
+              'alpine.qcow2',
+            ),
+            '--name',
+            'my vm',
+          ],
+          home,
+        },);
+        expect(result.exitCode,).toBe(1,);
+        expect(result.stderr,).toContain('"my vm"',);
+        expect(result.stderr,).toContain('" " (a space)',);
+        expect(result.stderr,).not.toContain('qemu-img',);
+      },
+    },),
+
+    //endregion Import refusal
   ],
 },);
