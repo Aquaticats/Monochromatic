@@ -11,10 +11,6 @@
  ```
  */
 
-import {
-  rename,
-  writeFile,
-} from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import {
@@ -22,6 +18,7 @@ import {
   BrowserWindow,
 } from 'electron';
 import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
+import { writeJsonFileAtomically, } from '@monochromatic-dev/electron-infra-core/ts/atomic-json';
 import { tagged, } from '@monochromatic-dev/logger-core';
 
 import {
@@ -115,6 +112,9 @@ function configureLinuxWayland(): void {
 /**
  Writes test-observable renderer state when the boundary-test state path is set.
  
+ The write is `writeJsonFileAtomically` from the shared Electron infra package,
+ so this app never keeps a second definition of the temp-file plus rename.
+ 
  @param count - Counter value observed from renderer title.
  
  @example
@@ -131,24 +131,10 @@ async function writeObservedCounterState({ count, }: { readonly count: number; }
   if (statePath === undefined)
     return;
 
-  /**
-   Unique temp path used so state readers never observe a truncated JSON file.
-   */
-  const tempStatePath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
-
-  await writeFile(
-    tempStatePath,
-    `${JSON.stringify(
-      { count, },
-      null,
-      2,
-    )}\n`,
-    'utf8',
-  );
-  await rename(
-    tempStatePath,
-    statePath,
-  );
+  await writeJsonFileAtomically({
+    filePath: statePath,
+    value: { count, },
+  },);
 }
 
 /**
