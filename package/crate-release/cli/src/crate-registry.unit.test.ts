@@ -110,6 +110,71 @@ await describe({
           },
         }),
         it({
+          name: 'reads the dispatch gate of an entry that names one, as the command and its arguments',
+          fn: async () => {
+            const registry = parseCrateRegistry(JSON.stringify({
+              gated: {
+                crateDir: 'package/gated/cli',
+                scope: 'gated/cli',
+                dispatchGate: [
+                  'node',
+                  'bin/host-controls.ts',
+                ],
+              },
+            }));
+            expect(registry.get('gated')?.dispatchGate).toEqual([
+              'node',
+              'bin/host-controls.ts',
+            ]);
+          },
+        }),
+        it({
+          name: 'leaves the dispatch gate off an entry that names none, so its releases keep the checks they had',
+          fn: async () => {
+            expect(parseCrateRegistry(JSON.stringify(validRegistry)).get('plain-crate')?.dispatchGate).toBeUndefined();
+          },
+        }),
+        it({
+          name: 'refuses a dispatch gate that is not a list of text',
+          fn: async () => {
+            expectRefusal({
+              registry: {
+                gated: {
+                  crateDir: 'package/gated/cli',
+                  scope: 'gated/cli',
+                  dispatchGate: 'node bin/host-controls.ts',
+                },
+              },
+              mention: 'dispatchGate',
+            });
+          },
+        }),
+        it({
+          name: 'refuses a dispatch gate that is empty or holds an empty word, which would wait for nothing',
+          fn: async () => {
+            expectRefusal({
+              registry: {
+                gated: {
+                  crateDir: 'package/gated/cli',
+                  scope: 'gated/cli',
+                  dispatchGate: [],
+                },
+              },
+              mention: 'dispatchGate',
+            });
+            expectRefusal({
+              registry: {
+                gated: {
+                  crateDir: 'package/gated/cli',
+                  scope: 'gated/cli',
+                  dispatchGate: ['node', ''],
+                },
+              },
+              mention: 'dispatchGate',
+            });
+          },
+        }),
+        it({
           name: 'reads an entry with only the required fields as one without pins, binaries or lock directories',
           fn: async () => {
             expect(parseCrateRegistry(JSON.stringify(validRegistry)).get('plain-crate')).toEqual({
