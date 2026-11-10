@@ -549,7 +549,7 @@ and none sleeps in a loop without one.
   the prune passes never wait (`discarded_prune.rs:1`),
   and `doctor` takes no lock.
 
-What has no ceiling at all is a *tool* the wrapper left running:
+What has no ceiling at all is a **tool** the wrapper left running:
 `run_tool` stops the group and reaps the leader within `STOP_GRACE`,
 then hands a leader it could not reap to a background task
 (`package_repair_command.rs:reap_within`).

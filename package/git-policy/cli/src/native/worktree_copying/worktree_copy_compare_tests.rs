@@ -334,3 +334,68 @@ fn the_final_check_where_no_thread_can_start_walks_in_turn() {
     }
     unchanged_source_passes_final_check();
 }
+
+/// What:
+///  Put a named pipe at `path`.
+/// Why:
+///   A dev server in an ignored directory leaves one while an add compares the same directory,
+/// and a
+///  comparison must not wait for a writer of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// execFileSync('mkfifo', [path]);
+/// ```
+#[cfg(unix)]
+fn make_pipe(path: &Path) {
+    use std::os::unix::ffi::OsStrExt;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call, and the call makes one new name at it.
+    let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "making the pipe at {}: {}", path.display(), std::io::Error::last_os_error());
+}
+
+/// What:
+///  A source file a named pipe replaced after the walk differs from the staged file,
+/// and the comparison answers
+///  instead of waiting for a writer that never comes.
+/// Why:
+///   The comparison opens the source's entry to compare its bytes,
+/// and opening a pipe for reading waits
+///  until some process writes to it,
+/// which nothing promises ("nothing should ever wait forever or indefinitely").
+///  A pipe holds no bytes a staged file can hold,
+/// so the answer is the difference the settling loop retries and
+///  then drops,
+/// never a wait and never a failure of the add.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const compared = await finishedWithinAt(PATIENCE, () => entryMatches({ expectedRoot: source, actualRoot: stage, entry: staged })); expect(compared).toBe(false);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_pipe_that_replaces_a_source_file_is_a_difference_not_a_wait() {
+    let root: PathBuf = fixture("compare-pipe");
+    let source: PathBuf = root.join("source");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(source.as_path()).expect("source");
+    std::fs::create_dir_all(stage.as_path()).expect("stage");
+    std::fs::write(stage.join("file"), b"x").expect("staged");
+    let staged: WorktreeCopyEntry = entry_of(stage.as_path(), EntryKind::File, b"file");
+    make_pipe(source.join("file").as_path());
+    let compared_source: PathBuf = source.clone();
+    let compared_stage: PathBuf = stage.clone();
+    let compared_entry: WorktreeCopyEntry = staged.clone();
+    let answered: Option<Result<bool, WorktreeCopyError>> = crate::parallel_test_support::finished_within_at(
+        crate::parallel_test_support::PATIENCE,
+        move || {
+            return entry_matches(compared_source.as_path(), compared_stage.as_path(), &compared_entry);
+        },
+    );
+    let Some(compared) = answered else {
+        panic!("the comparison of the source's entry waited for a writer of the named pipe that replaced it and never came");
+    };
+    assert!(!compared.expect("a pipe is a difference, not a failure"), "a pipe holds none of the staged bytes, so the entry differs");
+    remove(root.as_path());
+}

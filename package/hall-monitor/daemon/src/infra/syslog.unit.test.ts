@@ -12,7 +12,10 @@
  @module
  */
 
-import type { Level, LogRecord, } from '@monochromatic-dev/logger-core/ts';
+import type {
+  Level,
+  LogRecord,
+} from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
@@ -23,7 +26,9 @@ import {
 import {
   createJournalSink,
   journalArgumentsFor,
-} from './syslog.ts';
+  reportExpectedFailure,
+} from '../../dist/final/node/testing.mjs';
+import { recordingLogger, } from './test-fixtures.ts';
 
 //region Fixtures
 
@@ -69,9 +74,40 @@ const LOG_LEVELS: readonly Level[] = [
  */
 const RECORD: LogRecord = {
   level: 'info',
-  message: '[cycle] capture complete',
+  message: 'capture complete',
   timestamp: 0,
 };
+
+/**
+ Sentinel {@link thrownBy} returns when the call it ran threw nothing.
+ */
+const NO_THROW: unique symbol = Symbol('hall-monitor/test/no-throw',);
+
+/**
+ Runs one call and returns the value it threw.
+
+ A case needs to assert on a rethrown value that is deliberately not an `Error`,
+ and holding it in a function-root `let` would leak that binding to every later
+ statement of the case.
+
+ @param run - call expected to throw
+
+ @returns the thrown value, or {@link NO_THROW} when the call returned
+
+ @example
+ ```ts
+ expect(thrownBy({ run: () => reportExpectedFailure({ error: 1, l, operation: 'x' }) })).toBe(1);
+ ```
+ */
+function thrownBy({ run, }: Readonly<{ run: () => void; }>,): unknown {
+  try {
+    run();
+  }
+  catch (error: unknown) {
+    return error;
+  }
+  return NO_THROW;
+}
 
 //endregion Fixtures
 
@@ -121,6 +157,59 @@ await describe({
       ],
     },),
     describe({
+      name: reportExpectedFailure.name,
+      children: [
+        it({
+          name: 'files the caught value of a failure the call site expected',
+          fn: async function testExpectedFailureIsFiled(): Promise<void> {
+            /**
+             Recording logger the failure is reported through, asserted on below.
+             */
+            const { logger, records, } = recordingLogger();
+
+            reportExpectedFailure({
+              error: new Error('pkill exited 1',),
+              l: logger,
+              operation: 'pkill',
+            },);
+
+            expect(records,).toEqual([
+              {
+                level: 'debug',
+                message: 'pkill failed: pkill exited 1',
+              },
+            ],);
+          },
+        },),
+        it({
+          name: 'rethrows a caught value that is not an Error, so an unplanned throw stays fatal',
+          fn: async function testNonErrorIsRethrown(): Promise<void> {
+            /**
+             Recording logger the failure would be reported through; the case proves nothing reached it.
+             */
+            const { logger, records, } = recordingLogger();
+
+            /**
+             Value the call rethrows; captured rather than asserted with `toThrow`, because the
+             rethrown value is not an Error.
+             */
+            const rethrown = thrownBy({
+              run: function reportUnexpected(): void {
+                reportExpectedFailure({
+                  error: 'not an Error',
+                  l: logger,
+                  operation: 'pkill',
+                },);
+              },
+            },);
+
+            expect(rethrown,).toBe('not an Error',);
+            expect(records,).toEqual([],);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: createJournalSink.name,
       children: [
         it({
@@ -141,7 +230,7 @@ await describe({
              */
             const secondRecord: LogRecord = {
               level: 'error',
-              message: '[error] capture failed',
+              message: 'capture failed',
               timestamp: 1,
             };
 

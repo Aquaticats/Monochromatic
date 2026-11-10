@@ -3,6 +3,8 @@ import {
   SECONDS_PER_MINUTE,
 } from '@monochromatic-dev/const-core/ts';
 
+//region Buffer shape
+
 /**
  How long capture sets are retained in the buffer before pruning.
 
@@ -48,6 +50,10 @@ export type CaptureSet = {
  most {@link MAX_ENTRIES} entries by {@link store}.
  */
 export type CaptureBuffer = readonly CaptureSet[];
+
+//endregion Buffer shape
+
+//region Live buffer
 
 /**
  Module-singleton mutable state for the rolling capture buffer; wrapped so it satisfies no-module-root-let.
@@ -98,6 +104,10 @@ export function getRecent(): CaptureSet[] {
   },);
   return [...state.buffer,];
 }
+
+//endregion Live buffer
+
+//region Buffer arithmetic
 
 /**
  Appends a capture set to a buffer, keeping only the newest {@link MAX_ENTRIES}
@@ -195,3 +205,5 @@ function isAfterCutoff(
   return set.timestamp
     >= cutoff;
 }
+
+//endregion Buffer arithmetic

@@ -204,6 +204,10 @@ pub fn unrecognised_rejection(output: &str) -> Option<String> {
 /// the person is told which one it was,
 ///  in words,
 /// above Git's own.
+///  A decline is the server's answer at that moment and nothing about a later try,
+/// so its words promise no outcome and say that a push by hand may succeed
+///  (GitHub refused a push of `main` with `GH006` at `2026-11-09T23:30:11-05:00` and a plain `git push` of the same commit then succeeded:
+/// `doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,8 +222,8 @@ pub fn plain_words(cause: FinalFailure) -> Option<&'static str> {
              helper, or an SSH key without a passphrase that its environment reaches) and make sure that login may push, then push by hand or commit again.",
         ),
         FinalFailure::Declined => Some(
-            "monochromatic-git-policy-cli: the server refused this push: a hook on the server declined it, with the message shown below. Trying again would be refused the same way, \
-             so the commit service stops pushing this branch until your next commit. Fix what the message names, then push by hand or commit again.",
+            "monochromatic-git-policy-cli: the server refused this push: a hook on the server (a check the server runs before it accepts a push) declined it, with the message shown below. The commit service stops pushing this branch \
+             until your next commit. A push by hand may succeed if the cause has cleared: fix what the message names, or wait, then push by hand or commit again.",
         ),
     };
 }

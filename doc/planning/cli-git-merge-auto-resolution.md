@@ -2131,7 +2131,7 @@ pull.
 The rebase pair was already green:
 `rebase --continue` does the work.
 One real defect was found by the merge control:
-the wrapper's commit builds the ending commit in a shadow repository that held a *link*
+the wrapper's commit builds the ending commit in a shadow repository that held a **link**
 to the real `MERGE_AUTOSTASH` pseudoref,
 so Git's removal after applying it removed only the link and the real pseudoref stayed;
 the
