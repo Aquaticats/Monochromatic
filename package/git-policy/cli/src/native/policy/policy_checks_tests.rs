@@ -507,10 +507,7 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
         (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, None, None),
         (vec!["stash", "push"], GuardedCommand::Stash, Some("Tracked"), None),
     ] {
-        let dirty_scope: Option<String> = match scope {
-            Some(name) => Some(format!("dirty:{name}")),
-            None => None,
-        };
+        let dirty_scope: Option<String> = scope.map(|name| { return format!("dirty:{name}"); });
         // A form that writes a tree asks which tree once the tracked state is clean, and asks nothing while it is dirty.
         let tree_question = match tree {
             Some(revision) => format!("ignored-and-tracked:{revision}"),
@@ -531,7 +528,7 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
             );
         }
         // A form with no question of its own runs in a linked worktree whatever it holds, and leaves one line.
-        let Some(dirty_scope) = dirty_scope else {
+        let Some(scope_asked) = dirty_scope else {
             for dirty in [false, true] {
                 assert_eq!(
                     pre_forward(
@@ -545,7 +542,7 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
             }
             continue;
         };
-        let mut clean_questions: Vec<&str> = vec!["location", dirty_scope.as_str()];
+        let mut clean_questions: Vec<&str> = vec!["location", scope_asked.as_str()];
         if !tree_question.is_empty() {
             clean_questions.push(tree_question.as_str());
         }
@@ -569,7 +566,7 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                     "linked-worktree-required",
                     &dirty_worktree_message(command)
                 ),
-                asked(&["location", dirty_scope.as_str()])
+                asked(&["location", scope_asked.as_str()])
             ),
             "{values:?} linked dirty"
         );
@@ -821,16 +818,16 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
         );
         // A clean that would delete nothing runs, and asks the second question nowhere.
         let empty: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        let (outcome, clean_questions): (PolicyOutcome, Vec<String>) =
+        let (nothing_outcome, nothing_questions): (PolicyOutcome, Vec<String>) =
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty);
-        assert_eq!(outcome, clean(), "{values:?} nothing to delete");
+        assert_eq!(nothing_outcome, clean(), "{values:?} nothing to delete");
         assert_eq!(
-            clean_questions
+            nothing_questions
                 .iter()
-                .filter(|question| question.starts_with("clean-would-delete:"))
+                .filter(|asked_for| { return asked_for.starts_with("clean-would-delete:"); })
                 .count(),
             1,
-            "{values:?}: {clean_questions:?}"
+            "{values:?}: {nothing_questions:?}"
         );
     }
 }

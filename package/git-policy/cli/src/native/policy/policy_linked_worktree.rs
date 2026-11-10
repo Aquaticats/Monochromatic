@@ -230,10 +230,10 @@ pub(crate) fn check_linked_worktree(
         None => &[],
     };
     // Which question this form asks, and the tree a forced form writes, both come from the tokens after it.
-    let question: Option<DirtyQuestion> = dirty_question(command, region);
+    let asked: Option<DirtyQuestion> = dirty_question(command, region);
     // A form that loses nothing this policy protects leaves its one line and runs: an ignored file is not a reason
     //  to refuse a clean in a linked worktree (the owner's answer of 2026-11-10, "Allow and log").
-    let Some(question) = question else {
+    let Some(question) = asked else {
         record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
         return clean();
     };
