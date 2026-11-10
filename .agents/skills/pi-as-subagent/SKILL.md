@@ -131,9 +131,18 @@ after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
 Kimi runs through Pi on Synthetic,
 under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
 When Synthetic answers 429,
-the run moves to Neuralwatt's flex pool and resumes its session there
-(`--provider=neuralwatt --model=kimi-k3.1-pro-flex`, with the doubled wall clock flex runs get, counted against the flex pool's 22 slots),
+the run moves to Neuralwatt's Kimi flex model and resumes its session there
+(`--provider=neuralwatt --model=kimi-k3.1-pro-flex`, with the doubled wall clock flex runs get),
 under the owner's "Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s." (2026-11-10).
+Those runs take no DeepSeek slots,
+because "Neuralwatt rate limits are per model." (the owner,
+2026-11-10).
+Neuralwatt's rate-limit endpoint (`https://api.neuralwatt.com/v1/rate_limits`,
+read 2026-11-10) gives `moonshotai/Kimi-K3.1-Pro` an `effective_concurrency` of 20 and lists no `-flex` model;
+the Kimi flex pool holds 22 runs of its own,
+under the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something." (2026-11-10).
+Default runs never take the Kimi pool;
+only a run that names that model does.
 Synthetic sets no limit on runs at once;
 its 429 means the quota is spent ("Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again."),
 so retrying on Synthetic fails until the quota comes back.
