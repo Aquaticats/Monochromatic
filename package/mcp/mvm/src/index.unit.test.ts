@@ -89,10 +89,48 @@ async function exchange(
 /**
  Backend name no registered kind answers to.
  
- Keeps every destroy_vm case inert: a call that got past argument validation still cannot
- resolve a backend, so no VM is ever destroyed by this suite.
+ Keeps every tool call in this suite inert: a call that got past argument validation still
+ cannot resolve a backend, so no VM is created, changed, read, or destroyed.
  */
 const UNRESOLVABLE_BACKEND = 'no-such-backend-kind';
+
+/**
+ One tool call per registered tool, carrying the arguments a client would send.
+ Each also names {@link UNRESOLVABLE_BACKEND}, so the handler runs its argument extraction
+ and then stops at backend resolution.
+ */
+const DISPATCH_CASES: readonly {
+  readonly tool: string;
+  readonly args: Readonly<Record<string, unknown>>;
+}[] = [
+  { tool: 'list_vms', args: {}, },
+  { tool: 'create_vm', args: { name: 'web-01', }, },
+  {
+    tool: 'exec_in_vm',
+    args: {
+      name: 'web-01',
+      command: 'uname -a',
+    },
+  },
+  { tool: 'run_in_vm', args: { command: 'uname -a', }, },
+  { tool: 'update_templates', args: {}, },
+  {
+    tool: 'push_to_vm',
+    args: {
+      name: 'web-01',
+      hostPath: 'artifact.txt',
+      guestPath: '/root/artifact.txt',
+    },
+  },
+  {
+    tool: 'pull_from_vm',
+    args: {
+      name: 'web-01',
+      guestPath: '/etc/hostname',
+      hostPath: 'pulled-hostname.txt',
+    },
+  },
+];
 
 /**
  Request `_meta` declaring the protocol revision the built server implements.
@@ -123,8 +161,8 @@ await describe({
     //endregion Clean startup
 
     //region Protocol boundary: drive the built bin the way a client does.
-    // Only discovery and listing are exercised; every mvm tool would mutate VM state,
-    // so no tools/call fires and no VM is ever provisioned.
+    // Discovery, listing, the schema the destroy_vm union derives, and the revision
+    // refusal. No tool call fires in this region; dispatch cases follow in their own.
 
     it({
       name: 'answers server/discover with the revision it implements',
@@ -268,6 +306,44 @@ await describe({
     },),
 
     //endregion Protocol boundary
+
+    //region Tool dispatch: every registered tool reaches backend resolution.
+    // Each call carries the arguments a client would send plus a backend kind nothing
+    // answers to, so the handler extracts its arguments and then stops at
+    // resolveBackendKind. A reply naming that kind is what proves the call reached the
+    // handler instead of being refused by the advertised schema; nothing is provisioned.
+
+    ...DISPATCH_CASES.map(function mapDispatchCase(dispatchCase,) {
+      return it({
+        name: `reaches backend resolution from ${dispatchCase.tool}`,
+        fn: async () => {
+          /** Replies to one tool call whose backend cannot be resolved. */
+          const replies = await exchange({
+            requests: [{
+              jsonrpc: '2.0',
+              id: 8,
+              method: 'tools/call',
+              params: {
+                ...REQUEST_META,
+                name: dispatchCase.tool,
+                arguments: {
+                  ...dispatchCase.args,
+                  backend: UNRESOLVABLE_BACKEND,
+                },
+              },
+            },],
+          },);
+          const result = replies[0]?.result as {
+            isError: boolean;
+            content: readonly { text: string; }[];
+          };
+          expect(result.isError,).toBe(true,);
+          expect(result.content[0]?.text,).toContain(UNRESOLVABLE_BACKEND,);
+        },
+      },);
+    },),
+
+    //endregion Tool dispatch
 
     //region destroy_vm argument validation: refuses ambiguous targets before touching a backend.
     // Every case names a backend kind nothing answers to, so even the accepted call cannot
