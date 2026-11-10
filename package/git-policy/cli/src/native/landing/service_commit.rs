@@ -358,35 +358,39 @@ pub fn service_commit<F: RepositoryFacts>(
                     continue;
                 }
                 if native && editor_possible && let Some(text) = typed.as_deref() {
-                    // The person typed this message: keep it where they can reuse it.
+                    // The person typed this message, and everything else the line took from somewhere other than itself is
+                    //  settled too: while the bound allows, Git builds the commit again on the new tip from the arguments
+                    //  `reissued_arguments` makes of what the preparation captured, with no editor and no person.
                     let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!("monochromatic-git-policy-cli-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
-                    match std::fs::write(&file, text) {
-                        Ok(()) => {
-                            // After the editor the message is fixed, and so is everything else the line took from somewhere other
-                            //  than itself: while the bound allows, Git builds the commit again on the new tip from the arguments
-                            //  `reissued_arguments` makes of what the preparation captured, with no editor and no person.
-                            let prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
-                            let reissued: Option<Vec<OsString>> = crate::service_commit_line_reissued::reissued_arguments(
-                                invocation.context,
-                                invocation.cwd,
-                                native_inputs.arguments.as_slice(),
-                                prefix,
-                                file.as_path(),
-                                sent.commit.as_deref(),
-                                ready.interactive,
-                            )?;
-                            let repeatable: bool = !sent.amend && (!parents_are_fixed || conclusion_may_move) && reissued.is_some();
-                            if repeatable && may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-                                fixed_message = Some(file);
-                                reissued_line = reissued;
-                                retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
-                                unlanded.extend(sent.commit.clone());
-                                continue;
+                    let prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
+                    let reissued: Option<Vec<OsString>> = crate::service_commit_line_reissued::reissued_arguments(
+                        invocation.context,
+                        invocation.cwd,
+                        native_inputs.arguments.as_slice(),
+                        prefix,
+                        file.as_path(),
+                        sent.commit.as_deref(),
+                        ready.interactive,
+                    )?;
+                    // A line a rebuild cannot read back (`--fixup=reword:` makes its commit from the branch rather than from
+                    //  the change this preparation captured) keeps no message file: the same command makes that message again,
+                    //  and saving it here would suggest a commit of another kind.
+                    if let Some(line) = reissued {
+                        match std::fs::write(&file, text) {
+                            Ok(()) => {
+                                let repeatable: bool = !sent.amend && (!parents_are_fixed || conclusion_may_move);
+                                if repeatable && may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+                                    fixed_message = Some(file);
+                                    reissued_line = Some(line);
+                                    retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
+                                    unlanded.extend(sent.commit.clone());
+                                    continue;
+                                }
+                                let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
+                                return Err(TransactionStop::Message(render(&failure)));
                             }
-                            let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
-                            return Err(TransactionStop::Message(render(&failure)));
+                            Err(error) => warn("serviceCommit", format!("saving the typed message failed: {error}").as_str()),
                         }
-                        Err(error) => warn("serviceCommit", format!("saving the typed message failed: {error}").as_str()),
                     }
                 }
                 return Err(branch_moved(&ready));

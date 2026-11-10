@@ -335,3 +335,74 @@ fn a_commit_that_reuses_another_commit_lands_on_a_branch_that_moved() {
     let _waited = service.wait();
     remove_settled(&fixture);
 }
+
+/// What:
+///  A `--fixup=reword:<commit>` commit is the one line a moved branch still refuses,
+///  and its words say what happened and what to run.
+/// Why:
+///  Git throws the index away for that option,
+///  so its commit is the branch's own tree:
+///  a replay of the change this preparation captured would land changes the command itself discards,
+///  which is not what the person asked for.
+///  Nothing is invented instead:
+///  the message is made again by the same command,
+///  so no message file is saved and the words name running the commit again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = heldCommit({ arguments: ['commit', '--fixup=reword:HEAD', '--no-enforce-only'] }); await waitHeld(held);
+/// await throughService(['commit', '-m', 'unrelated', '--', 'x.txt']); release(held);
+/// expect(held.stderr).toSayRunTheCommitAgain();
+/// ```
+#[test]
+fn a_reword_fixup_is_refused_with_the_command_to_run_again() {
+    let fixture: Fixture = fixture("reword-fixup-on-a-moved-branch");
+    let repo: PathBuf = fixture.root.join("repo");
+    std::fs::create_dir(&repo).expect("repository directory");
+    git(&fixture, &repo, &["init", "--quiet", "--initial-branch=main"]);
+    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    for file in ["a.txt", "x.txt"] {
+        write(&repo, file, "base\n");
+    }
+    git(&fixture, &repo, &["add", "--", "a.txt", "x.txt"]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=target"]);
+    let target: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    write(&repo, "a.txt", "staged by the person\n");
+    git(&fixture, &repo, &["add", "--", "a.txt"]);
+    // The target is named by the option itself: `--fixup=reword:<commit>` is one token.
+    let reword: String = format!("--fixup=reword:{target}");
+    let editor: PathBuf = fixture.root.join("editing-editor");
+    executable(editor.as_path(), EDITOR_SCRIPT);
+    let name: String = format!("rfm-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let markers: PathBuf = marker_directory(&fixture);
+    let mut held: Held = held_commit(
+        &fixture,
+        &repo,
+        name.as_str(),
+        markers.as_path(),
+        &Hold {
+            arguments: &["commit", reword.as_str(), "--no-enforce-only"],
+            stdin: None,
+            environment: &[("GIT_EDITOR", editor.to_str().expect("the editor's path is text"))],
+        },
+    );
+    wait_held(&mut held);
+    write(&repo, "x.txt", "landed by another session\n");
+    let landed = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
+    assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
+    let moved: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let ended: Ended = release(held);
+    assert_eq!(ended.code, Some(1), "{}", ended.stderr);
+    assert!(ended.stderr.contains("moved while this commit was being prepared"), "what happened: {}", ended.stderr);
+    assert!(ended.stderr.contains("cannot be moved onto a different last commit"), "why: {}", ended.stderr);
+    assert!(ended.stderr.contains("Run the commit again"), "what to run: {}", ended.stderr);
+    assert!(!ended.stderr.contains("saved in"), "no message file is offered for a line the same command makes again: {}", ended.stderr);
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), moved, "nothing else landed");
+    assert_eq!(git_text(&fixture, &repo, &["diff", "--cached", "--name-only"]), "a.txt\n", "the staged change is still staged for its owner");
+    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\n", "the command's own commit would not have held it either");
+    git(&fixture, &repo, &["fsck", "--strict", "--no-dangling"]);
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
