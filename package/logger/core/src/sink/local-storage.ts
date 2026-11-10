@@ -2,6 +2,7 @@ import { reportLoggerInternalError, } from '../error-format.ts';
 import { createLocalStorageStore, } from './local-storage-store.ts';
 import { createRecordBuffer, } from './record-buffer.ts';
 import { detectWebStorageRuntime, } from './web-storage-runtime.ts';
+import { createWebStorageProbeKey, } from './web-storage-probe-key.ts';
 
 import type {
   Level,
@@ -62,9 +63,13 @@ function nodeWithoutLocalStorageFile(): boolean {
  The one short-circuit, {@link nodeWithoutLocalStorageFile}, returns the
  same `false` the probe would and exists only to keep Node's access warning
  off every consumer's stderr, not to gate by runtime brand.
- 
+
+ `localStorage` is shared by every tab of the origin, so the probe names a key
+ of its own through {@link createWebStorageProbeKey}: a fixed key would let a
+ second tab's probe overwrite or remove this one's value and drop a working sink.
+
  @returns Whether localStorage is available and round-trips a probe write.
- 
+
  @example
  ```ts
  if (await verifyLocalStorage()) {
@@ -77,11 +82,12 @@ function verifyLocalStorage(): Promise<boolean> {
     return Promise.resolve(false,);
   try {
     /**
-     Sentinel key used only for the probe write/read; removed afterward to avoid polluting real log entries.
+     Key this probe owns for its whole write-read-remove cycle; removed afterward to avoid polluting real log entries.
      */
-    const testKey = '__monochromatic_verify__';
+    const testKey = createWebStorageProbeKey();
     /**
-     Timestamp-based probe value so concurrent verifications never read each other's writes.
+     Probe value unique to this write, so a store that echoes something else
+     fails the equality check instead of electing the sink.
      */
     const testValue = `test-${Date.now()}`;
     globalThis.localStorage
