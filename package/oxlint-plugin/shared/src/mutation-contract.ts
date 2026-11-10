@@ -4,33 +4,9 @@
  @module
  */
 
-import {
-  isWhitespaceChar,
-  isWordChar,
-} from './text-character.ts';
-
-/**
- Block tags that terminate an open `@mutates` block.
- */
-const BLOCK_TAG_NAMES: ReadonlySet<string> = new Set([
-  '@decorator',
-  '@defaultValue',
-  '@deprecated',
-  '@example',
-  '@param',
-  '@privateRemarks',
-  '@remarks',
-  '@returns',
-  '@see',
-  '@throws',
-  '@typeParam',
-  '@jsx',
-  '@jsxRuntime',
-  '@jsxFrag',
-  '@jsxImportSource',
-  '@mutates',
-  '@yields',
-]);
+import { BLOCK_TAG_NAMES, } from './block-tag-names.ts';
+import { isWordChar, } from './text-character.ts';
+import { tokenEnd, } from './token-end.ts';
 
 /**
  Triple-backtick delimiter controlling fenced example state.
@@ -96,21 +72,6 @@ type ReadonlyOpenMutationSegment = {
   readonly lineOffset: number;
   readonly blockStartOffset: number;
 };
-
-/**
- Returns exclusive end of first non-whitespace token.
- 
- @param text - Text containing token.
- 
- @returns token end offset.
- */
-function firstTokenEnd(text: string,): number {
-  for (let index = 0; index < text.length; index++) {
-    if (isWhitespaceChar(text.charAt(index,),))
-      return index;
-  }
-  return text.length;
-}
 
 /**
  Returns leading `@word` tag.
@@ -223,7 +184,10 @@ function finalizeSegment({
   /**
    Exclusive parameter-name token end.
    */
-  const nameEnd = firstTokenEnd(text,);
+  const nameEnd = tokenEnd({
+    text,
+    start: 0,
+  },);
   /**
    Raw first token, with separator-only token treated as absent.
    */
