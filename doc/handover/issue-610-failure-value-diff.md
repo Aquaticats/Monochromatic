@@ -68,38 +68,38 @@ One uncommitted-at-reboot source file,
 
 ## What remains
 
-1. Fix `enumerableKeys` as above;
-   run `mise run //package/module/test-diagnostic:lint:types`
-   and `lint:oxlint`.
-2. `value-difference.ts`:
-   the walk producing difference lines.
-   Proven model is `entryDifference` and `differenceLines` in
-   `package/translation-repair/test-fixture/src/scan-findings.test-fixture.ts`
-   (copy-for-copy `foundNotListed`/`listedNotFound`/`reordered`).
-   Lists copy-for-copy with order,
-   records key by key recursing into changed values,
-   strings line-level with context,
-   leaves render both values,
-   kind mismatches use `describeSide`.
-   Caps on difference count with a visible `and N more differences`
-   marker.
-   Cycle-safe (pair-visited guard).
-3. Wire into `package/module/test-diagnostic/src/format-error.ts`
-   where an error carries `actual`/`expected`
-   (chai sets both on `AssertionError`),
-   without changing the one-line-per-error contract:
-   difference lines follow the error's own line.
-   Re-export from `src/index.ts`.
-4. Unit tests in `src/value-difference.unit.test.ts`
-   covering every branch,
-   including the acceptance case from
-   `doc/decision/module-test-failure-value-diff.md`:
-   31 findings of 174 characters differing in one entry prints that
-   one entry,
-   not both lists.
-   Import pattern matches `src/format-error.unit.test.ts`.
-5. Consumer probe via `@monochromatic-dev/module-test`'s public API,
-   then commit with `Closes #610`.
+1.  Fix `enumerableKeys` as above;
+    run `mise run //package/module/test-diagnostic:lint:types`
+    and `lint:oxlint`.
+2.  `value-difference.ts`:
+    the walk producing difference lines.
+    Proven model is `entryDifference` and `differenceLines` in
+    `package/translation-repair/test-fixture/src/scan-findings.test-fixture.ts`
+    (copy-for-copy `foundNotListed`/`listedNotFound`/`reordered`).
+    Lists copy-for-copy with order,
+    records key by key recursing into changed values,
+    strings line-level with context,
+    leaves render both values,
+    kind mismatches use `describeSide`.
+    Caps on difference count with a visible `and N more differences`
+    marker.
+    Cycle-safe (pair-visited guard).
+3.  Wire into `package/module/test-diagnostic/src/format-error.ts`
+    where an error carries `actual`/`expected`
+    (chai sets both on `AssertionError`),
+    without changing the one-line-per-error contract:
+    difference lines follow the error's own line.
+    Re-export from `src/index.ts`.
+4.  Unit tests in `src/value-difference.unit.test.ts`
+    covering every branch,
+    including the acceptance case from
+    `doc/decision/module-test-failure-value-diff.md`:
+    31 findings of 174 characters differing in one entry prints that
+    one entry,
+    not both lists.
+    Import pattern matches `src/format-error.unit.test.ts`.
+5.  Consumer probe via `@monochromatic-dev/module-test`'s public API,
+    then commit with `Closes #610`.
 
 ## Measured semantics the walk must match
 

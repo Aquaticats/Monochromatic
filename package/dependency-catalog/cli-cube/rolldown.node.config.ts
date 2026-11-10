@@ -6,11 +6,14 @@ import {
 /**
  Node-side rolldown build for `deps-cube`.
  
- Two entries: the library re-exports (`src/index.ts`) and the CLI
- (`src/cli.ts`). Both land under `dist/final/node/` as `.mjs` (via
+ The library re-exports (`src/index.ts`) and the CLI
+ (`src/cli.ts`) land under `dist/final/node/` as `.mjs` (via
  the shared config's `fixedExtension: true`). `package.json#bin`
  points at `dist/final/node/cli.mjs` so the bin runs without a
  source-time TypeScript loader.
+
+ The separate `src/range-verification.ts` entry exposes the range regression
+ boundaries without initializing browser dependencies from the normal library entry.
  
  The browser-side `src/script/controller.ts` is NOT a rolldown entry:
  it is bundled at run time by rolldown inside `render-html.ts`,
@@ -22,6 +25,7 @@ const config: NodeFlavorConfig = nodeConfig({
   input: [
     './src/index.ts',
     './src/cli.ts',
+    './src/range-verification.ts',
   ],
 },);
 

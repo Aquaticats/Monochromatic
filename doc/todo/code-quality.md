@@ -19,15 +19,15 @@
 
 #### Code Quality Issues (Fix in code, not config)
 
-1. **Variable abbreviations** (~135 total occurrences,
-    down from 147)
-   - Use descriptive names instead of abbreviations
-   - **NEVER use single-letter variables like `i`,
-      `j`,
-      `k`**:
-      they provide no semantic meaning
-   - Exception:
-      Mathematical formulas where single letters have established meaning
+1.  **Variable abbreviations** (~135 total occurrences,
+     down from 147)
+    - Use descriptive names instead of abbreviations
+    - **NEVER use single-letter variables like `i`,
+       `j`,
+       `k`**:
+       they provide no semantic meaning
+    - Exception:
+       Mathematical formulas where single letters have established meaning
 
 #### TypeScript Compilation Errors (New - Critical Priority)
 
@@ -65,8 +65,8 @@ Recent analysis shows critical TypeScript compilation errors that must be fixed:
 
 ### Next Steps for Lint Cleanup
 
-1. Re-inventory abbreviation usage beyond package C-style loop counters.
-2. Fix remaining void expression issues in test assertions.
+1.  Re-inventory abbreviation usage beyond package C-style loop counters.
+2.  Fix remaining void expression issues in test assertions.
 
 **Cross-Reference**:
  See [Automation Todo](automation.md#code-quality-automation) for automated linting improvements.
@@ -78,15 +78,15 @@ Recent analysis shows critical TypeScript compilation errors that must be fixed:
 **Learning Example**:
  The user guided progressive simplification through "Do you really need..." questions:
 
-1. Started with mutable `let taskStatus` and `while` loop with inline constants
-2. "Do you really need a mutable variable?
-   " → Moved to immutable `const` inside loop
-3. "Do you really need a while(true) break pattern?
-   " → Changed to `while` with proper condition
-4. "Do you really need a while loop at all?
-   " → Changed to `for` loop with calculated iterations
-5. "Do you really need a for loop?
-   " → Changed to recursive helper function
+1.  Started with mutable `let taskStatus` and `while` loop with inline constants
+2.  "Do you really need a mutable variable?
+    " → Moved to immutable `const` inside loop
+3.  "Do you really need a while(true) break pattern?
+    " → Changed to `while` with proper condition
+4.  "Do you really need a while loop at all?
+    " → Changed to `for` loop with calculated iterations
+5.  "Do you really need a for loop?
+    " → Changed to recursive helper function
 
 #### Final Implementation: Simple Array with `findAsync`
 
@@ -126,17 +126,17 @@ catch (error) {
 
 #### Potential Future Improvements (1am Ideas)
 
-1. **Different utility function**:
-    Perhaps a `times` or `repeat` async function:
-   - `const status = await repeatAsync(100, async () => { /* poll logic */ })`
-   - This would eliminate the dummy array entirely
+1.  **Different utility function**:
+     Perhaps a `times` or `repeat` async function:
+    - `const status = await repeatAsync(100, async () => { /* poll logic */ })`
+    - This would eliminate the dummy array entirely
 
-2. **Parallel task validation**:
-    Instead of polling tasks sequentially:
-   - Create an array of all taskUids from the batch
-   - Use `Promise.all` with `findAsync` for each task
-   - Or better:
-      a single `findAsync` that polls ALL tasks in each iteration
+2.  **Parallel task validation**:
+     Instead of polling tasks sequentially:
+    - Create an array of all taskUids from the batch
+    - Use `Promise.all` with `findAsync` for each task
+    - Or better:
+       a single `findAsync` that polls ALL tasks in each iteration
 
 **Cross-Reference**:
  See [Packages Todo](packages.md#async-iterator-utilities) for async utility function development.
@@ -145,18 +145,18 @@ catch (error) {
 
 This questioning pattern teaches:
 
-1. **Question every construct**:
-    Each programming construct adds complexity
-2. **Prefer immutability**:
-    Mutable variables should be eliminated when possible
-3. **Prefer declarative over imperative**:
-    Loops can often be replaced with higher-order functions
-4. **Extract and name concepts**:
-    Helper functions like `isTaskPending` improve readability
-5. **Think functionally first**:
-    There's often a functional solution that's cleaner
-6. **Simplify progressively**:
-    Don't stop at the first working solution
+1.  **Question every construct**:
+     Each programming construct adds complexity
+2.  **Prefer immutability**:
+     Mutable variables should be eliminated when possible
+3.  **Prefer declarative over imperative**:
+     Loops can often be replaced with higher-order functions
+4.  **Extract and name concepts**:
+     Helper functions like `isTaskPending` improve readability
+5.  **Think functionally first**:
+     There's often a functional solution that's cleaner
+6.  **Simplify progressively**:
+     Don't stop at the first working solution
 
 **Cross-Reference**:
  See [Performance Todo](performance.runtime.md#javascript-performance) for performance-focused patterns.
@@ -253,13 +253,13 @@ expect(isError(new Error(),),).toBe(true,);
 
 ### Rule Categories
 
-1. **Code Quality Issues**:
-    Always fix in code,
-    not config
-2. **Style Preferences**:
-    Can be configured for team consistency
-3. **Framework-specific**:
-    May need configuration for specific use cases
+1.  **Code Quality Issues**:
+     Always fix in code,
+     not config
+2.  **Style Preferences**:
+     Can be configured for team consistency
+3.  **Framework-specific**:
+     May need configuration for specific use cases
 
 ### Testing-Specific Linting
 

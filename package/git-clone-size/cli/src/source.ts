@@ -7,6 +7,8 @@ import {
 
 import { spawnResult, } from './spawn.ts';
 
+//region Source shapes
+
 /**
  Sentinel returned by {@link originUrl} when the repo has no `origin` remote.
  */
@@ -41,6 +43,10 @@ export type LocalSource = {
  Either input shape the tool accepts.
  */
 export type Source = RemoteSource | LocalSource;
+
+//endregion Source shapes
+
+//region Remote detection
 
 /**
  Heuristic for whether an input string is a remote clone URL rather than a
@@ -80,6 +86,10 @@ export function isRemoteInput({ input, }: { readonly input: string; },): boolean
   const slashIndex = input.indexOf('/',);
   return (slashIndex === (-1)) || (colonIndex < slashIndex);
 }
+
+//endregion Remote detection
+
+//region Remote URL parsing
 
 /**
  Classifies a hostname into a supported host bucket.
@@ -229,6 +239,10 @@ export function parseRemoteUrl({ url, }: { readonly url: string; },): RemoteSour
   },);
 }
 
+//endregion Remote URL parsing
+
+//region Local repository inspection
+
 /**
  Whether a local repo is a shallow clone, which lacks full history and so is
  not a valid full-clone reference.
@@ -331,6 +345,10 @@ export async function originUrl(
   return stdout;
 }
 
+//endregion Local repository inspection
+
+//region Filesystem probes
+
 /**
  Whether a filesystem path exists, swallowing the stat error as a false.
  
@@ -388,6 +406,10 @@ async function isGitRepo({ path, }: { readonly path: string; },): Promise<boolea
   },);
   return exitCode === 0;
 }
+
+//endregion Filesystem probes
+
+//region Source detection
 
 /**
  Classifies the input into a {@link Source}. A remote URL parses directly. A
@@ -462,3 +484,5 @@ export async function detectSource(
     path: candidate,
   };
 }
+
+//endregion Source detection
