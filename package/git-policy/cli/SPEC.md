@@ -4553,19 +4553,26 @@ A list that was cut short at that ceiling is reported rather than answered,
 because what Git answered
 covers only the part of the list that went in.
 
-LFS is paused by the owner,
-so the two LFS waits are recorded and not changed:
-the interactive `git-lfs push` (`src/native/lfs/lfs_upload.rs`,
-under `SignalGuard` alone)
-and the upload plan's Git questions (`src/native/lfs/lfs_interactive.rs`,
-`Command::output`).
-Each needs the end its own twin already has:
-the upload through the bounded push (`src/native/push/bounded_push.rs`,
-whose bounded twin of the same program `lfs_upload.rs` already calls),
-and the plan's questions through the bounded query (`src/native/push/bounded_query.rs`),
+The two waits of the LFS upload a typed push runs are bounded,
+each through the twin the auto-push's upload already used:
+the interactive `git-lfs push` (`src/native/lfs/lfs_upload.rs`)
+through the bounded push's own wait (`src/native/push/bounded_push.rs`,
+`wait_until_done_noting`),
+and the upload plan's Git questions (`src/native/lfs/lfs_interactive.rs`)
+through the bounded query (`src/native/push/bounded_query.rs`),
 which is the meter with no wall clock that the push's own queries use.
-Until then a server that accepts the connection and never answers holds an interactive push,
-and nothing says which program the command waits for.
+The window is the push's stall window in both,
+so a program or a question that shows no sign of work for it is stopped and named,
+and one that holds an open connection to a server is waited for,
+as the push itself is
+(owner, 2026-11-03: "Stop only on no progress").
+A stopped upload's program is ended with the grace every stopped child gets,
+and what it started goes with it,
+so the password program a login would have started cannot outlive the push either.
+The upload still owns its child through `SignalGuard::start_relayed`,
+which hands it over still published,
+so a signal a process sends to the wrapper reaches the program for the whole wait,
+as it did when the guard owned the wait.
 
 ##### The quiet windows are labelled unmeasured
 
