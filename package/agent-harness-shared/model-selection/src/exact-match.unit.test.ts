@@ -45,7 +45,7 @@ await describe({
   children: [
     it({
       name: 'matches canonical and provider/model references case-insensitively',
-      fn: async function testCanonicalReference() {
+      fn: async function testCanonicalReference(): Promise<void> {
         expect(findExactModelReferenceMatch({
           modelReference: 'OPENAI/GPT-5.5',
           availableModels,
@@ -55,7 +55,7 @@ await describe({
     },),
     it({
       name: 'matches unique bare ids',
-      fn: async function testBareIdReference() {
+      fn: async function testBareIdReference(): Promise<void> {
         expect(findExactModelReferenceMatch({
           modelReference: 'claude-sonnet-4-5',
           availableModels,
@@ -65,7 +65,7 @@ await describe({
     },),
     it({
       name: 'returns NO_EXACT_MATCH for empty, unknown, and ambiguous references',
-      fn: async function testAbsentReferences() {
+      fn: async function testAbsentReferences(): Promise<void> {
         expect(findExactModelReferenceMatch({
           modelReference: '',
           availableModels,
