@@ -186,6 +186,7 @@ fn saved_merge_record(fixture: &Fixture, repo: &Path) -> (String, String) {
         old_oid: old.trim().to_owned(),
         new_oid: merge.clone(),
         side_ref: Some(String::from("refs/cli-git/kept/1")),
+        carried: None,
     };
     write_merge_intent(repo.join(".git").as_path(), &intent).expect("the merge record");
     return (old.trim().to_owned(), merge);
@@ -399,64 +400,95 @@ fn finding_of(observed: &Observed) -> serde_json::Value {
     return serde_json::from_str(stderr.as_str()).expect("a JSON event");
 }
 
-/// A merge that changes a path the other session staged is refused with the path and the ways forward named,
-/// and
-/// nothing is changed:
-/// not the branch,
-/// not one byte of the index,
-/// not a file.
+/// What:
+///  A merge that changes a path the other session staged carries that work and lands:
+/// the merge is made,
+/// the staged
+///  edit stays staged over it,
+/// and the unrelated staged and unstaged work is untouched.
+/// Why:
+///   The owner's answer for a merge over the person's own work is "Carry edits forward (Recommended)"
+/// (`SPEC.md`,
+/// "Merges and commits never fail"),
+/// and the rules are "Manual merge should never fail too."
+/// and "never discard user data".
+/// Native Git refuses this merge
+/// (`Your local changes ... would be overwritten`),
+/// and so did the wrapper.
 #[test]
-fn a_merge_over_a_staged_path_is_refused_and_changes_nothing() {
-    let fixture: Fixture = fixture("merge-refuses-staged-overlap");
+fn a_merge_over_a_staged_path_carries_it_and_lands() {
+    let fixture: Fixture = fixture("merge-carries-staged-overlap");
     let repo: PathBuf = diverged(&fixture, "repo");
-    std::fs::write(repo.join("g.txt"), b"g.txt staged by another session\n").expect("file");
+    std::fs::write(repo.join("g.txt"), b"g.txt base\nthe person's staged line\n").expect("file");
     git(&fixture, repo.as_path(), &["add", "--", "g.txt"]);
-    let before: Snapshot = snapshot(&fixture, repo.as_path());
+    stage_unrelated_work(&fixture, repo.as_path());
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-    assert_eq!(observed.code, Some(2));
-    assert_eq!(text(&observed.stdout), "");
-    let finding = finding_of(&observed);
-    assert_eq!(finding["code"], "merge-isolation/paths-in-use");
-    let message: &str = finding["message"].as_str().expect("message");
-    assert!(message.contains("g.txt") && !message.contains("u.txt"), "{message}");
-    for way in ["wait until", "clean linked worktree", "git stash push"] {
-        assert!(message.contains(way), "{way}: {message}");
-    }
-    assert_eq!(snapshot(&fixture, repo.as_path()), before);
+    assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "the merge was made");
     assert!(!repo.join(".git/MERGE_HEAD").exists());
-    assert!(!repo.join(".git/monochromatic-git-policy-cli-merges").exists(), "no record is written before the check passes");
-    assert_eq!(std::fs::read(repo.join("g.txt")).expect("g"), b"g.txt staged by another session\n");
+    assert_eq!(
+        std::fs::read(repo.join("g.txt")).expect("g"),
+        b"g.txt feature\nthe person's staged line\n",
+        "the merge's line and the person's staged line"
+    );
+    let status = |path: &str| -> String {
+        return git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=no", "--", path]);
+    };
+    assert_eq!(status("g.txt"), "M  g.txt\n", "the edit is still staged, with nothing unstaged over it");
+    assert_eq!(status("u.txt"), "M  u.txt\n", "the other session's staged edit is untouched");
+    assert_eq!(status("w.txt"), "", "a path the merge and the other session both leave alone is untouched");
+    assert_eq!(status("v.txt"), "D  v.txt\n", "the other session's staged deletion is untouched");
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record went");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git"]), "", "the capture's ref went");
     git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
     remove_settled(&fixture);
 }
 
-/// A staged deletion of a path the merge changes and an unstaged edit of one are the same kind of overlap.
+/// What:
+///  Every kind of overlap is carried:
+/// a staged deletion of a path the merge changes stays staged,
+/// an unstaged
+///  edit is merged,
+/// and a staged rename leaves both of its names as they were.
 #[test]
-fn other_kinds_of_overlap_are_refused_the_same_way() {
+fn other_kinds_of_overlap_are_carried_the_same_way() {
     for kind in ["staged-deletion", "unstaged-edit", "staged-rename-source"] {
-        let fixture: Fixture = fixture(format!("merge-refuses-{kind}").as_str());
+        let fixture: Fixture = fixture(format!("merge-carries-{kind}").as_str());
         let repo: PathBuf = diverged(&fixture, "repo");
         match kind {
             "staged-deletion" => {
                 git(&fixture, repo.as_path(), &["rm", "--quiet", "--", "f.txt"]);
-                std::fs::write(repo.join("u.txt"), b"another change\n").expect("file");
-                git(&fixture, repo.as_path(), &["add", "--", "u.txt"]);
             }
             "unstaged-edit" => {
-                std::fs::write(repo.join("f.txt"), b"f.txt edited, not staged\n").expect("file");
-                std::fs::write(repo.join("u.txt"), b"another change\n").expect("file");
-                git(&fixture, repo.as_path(), &["add", "--", "u.txt"]);
+                std::fs::write(repo.join("f.txt"), b"f.txt feature\nthe person's line\n").expect("file");
             }
             _ => {
                 git(&fixture, repo.as_path(), &["mv", "g.txt", "g-renamed.txt"]);
             }
         }
-        let before: Snapshot = snapshot(&fixture, repo.as_path());
         let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-        assert_eq!(observed.code, Some(2), "{kind}: {}", text(&observed.stderr));
-        let finding = finding_of(&observed);
-        assert_eq!(finding["code"], "merge-isolation/paths-in-use", "{kind}");
-        assert_eq!(snapshot(&fixture, repo.as_path()), before, "{kind}");
+        assert_eq!(observed.code, Some(0), "{kind}: {}", text(&observed.stderr));
+        assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "{kind}: the merge was made");
+        let status: String = git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=no"]);
+        match kind {
+            "staged-deletion" => {
+                assert!(status.contains("D  f.txt"), "{kind}: the staged deletion stays staged: {status}");
+                assert!(!repo.join("f.txt").exists(), "{kind}: the deletion stays in the worktree");
+            }
+            "unstaged-edit" => {
+                assert_eq!(status, " M f.txt\n", "{kind}: the edit is still unsaved: {status}");
+                assert_eq!(
+                    std::fs::read(repo.join("f.txt")).expect("f"),
+                    b"f.txt feature\nthe person's line\n",
+                    "{kind}: the merge's line and the person's line"
+                );
+            }
+            _ => {
+                assert!(status.contains("A  g-renamed.txt") && status.contains("D  g.txt"), "{kind}: both names stay as staged: {status}");
+                assert!(!repo.join("g.txt").exists() && repo.join("g-renamed.txt").exists(), "{kind}");
+            }
+        }
+        assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "{kind}: the record went");
         remove_settled(&fixture);
     }
 }
@@ -486,27 +518,37 @@ fn a_conflicting_merge_changes_nothing_and_names_the_paths() {
     remove_settled(&fixture);
 }
 
-/// An untracked file where the merge adds one is Git's own refusal at the last step:
-/// the merge commit stays
-/// unreachable,
-/// the record is gone,
-/// and the checkout is as it was.
+/// What:
+///  An untracked file where the merge adds one keeps both sides:
+/// the file holds the person's bytes and the merge's
+///  between conflict markers,
+/// the merge's version is in the commit,
+/// and the command exits 0.
+/// Why:
+///   Native Git refuses this merge outright
+/// (`The following untracked working tree files would be overwritten`),
+/// and
+///  the owner's rule is "never discard user data".
 #[test]
-fn an_untracked_file_in_the_way_is_refused_by_git_and_changes_nothing() {
-    let fixture: Fixture = fixture("merge-refuses-untracked");
+fn an_untracked_file_where_the_merge_adds_one_keeps_both_sides() {
+    let fixture: Fixture = fixture("merge-carries-untracked");
     let repo: PathBuf = diverged(&fixture, "repo");
     stage_unrelated_work(&fixture, repo.as_path());
     std::fs::create_dir(repo.join("dir")).expect("directory");
-    std::fs::write(repo.join("dir/new.txt"), b"an untracked file in the way\n").expect("file");
-    let before: Snapshot = snapshot(&fixture, repo.as_path());
+    std::fs::write(repo.join("dir/new.txt"), b"the person's untracked file\n").expect("file");
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-    assert_ne!(observed.code, Some(0));
-    let stderr: String = text(&observed.stderr);
-    assert!(stderr.contains("would be overwritten") && stderr.contains("dir/new.txt"), "Git's own words: {stderr}");
-    assert!(stderr.contains("merge-isolation/not-applied"), "the finding follows: {stderr}");
-    assert_eq!(snapshot(&fixture, repo.as_path()), before);
-    assert_eq!(std::fs::read(repo.join("dir/new.txt")).expect("file"), b"an untracked file in the way\n");
-    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
+    assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "the merge was made");
+    let text_at: String = std::fs::read_to_string(repo.join("dir/new.txt")).expect("the file");
+    assert!(text_at.contains("the person's untracked file"), "the person's bytes are kept: {text_at}");
+    assert!(text_at.contains("<<<<<<<") && text_at.contains(">>>>>>>"), "both sides are in the file: {text_at}");
+    assert!(text(&observed.stderr).contains("dir/new.txt"), "the file is named: {}", text(&observed.stderr));
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD:dir/new.txt"]).trim(),
+        git_text(&fixture, repo.as_path(), &["rev-parse", "feature:dir/new.txt"]).trim(),
+        "the merge's version is in the commit"
+    );
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record went");
     git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
     remove_settled(&fixture);
 }
@@ -1026,6 +1068,7 @@ fn a_live_merges_record_is_left_alone() {
         old_oid: tip.clone(),
         new_oid: tip,
         side_ref: None,
+        carried: None,
     };
     let record: PathBuf = git_policy_cli::merge_isolation_journal::write_merge_intent(repo.join(".git").as_path(), &intent).expect("record");
     let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
@@ -1065,26 +1108,29 @@ fn merge_ff_only_is_native_gits_unless_the_command_line_chooses() {
     }
 }
 
-/// The directory a global `-C` names,
+/// What:
+///  The directory a global `-C` names,
 /// relative to where the command runs,
-/// reaches the queries of the merge but not
-/// the recovery of a merge Git refused:
-/// that one runs from the repository root,
-/// where the same relative name would
-/// name nothing.
+/// reaches the merge's own steps:
+/// an untracked file in the merge's way is carried,
+/// and the write
+///  finds it from that same directory.
+/// Why:
+///   The queries and the writes of a merge run from one place,
+/// and a relative `-C` that reached only some of them would
+///  carry the bytes into a path nothing reads.
 #[test]
-fn a_relative_directory_option_does_not_break_the_settling_of_a_refused_merge() {
-    let fixture: Fixture = fixture("merge-refuses-untracked-relative");
+fn a_relative_directory_option_carries_a_merge_over_an_untracked_file() {
+    let fixture: Fixture = fixture("merge-carries-untracked-relative");
     let repo: PathBuf = diverged(&fixture, "repo");
     stage_unrelated_work(&fixture, repo.as_path());
     std::fs::create_dir(repo.join("dir")).expect("directory");
     std::fs::write(repo.join("dir/new.txt"), b"an untracked file in the way\n").expect("file");
-    let before: Snapshot = snapshot(&fixture, repo.as_path());
     let observed: Observed = run(&fixture, fixture.root.as_path(), &["-C", "repo", "merge", "--no-edit", "feature"]);
-    assert_ne!(observed.code, Some(0));
-    let stderr: String = text(&observed.stderr);
-    assert!(stderr.contains("merge-isolation/not-applied"), "the refusal is settled and reported: {stderr}");
-    assert_eq!(snapshot(&fixture, repo.as_path()), before);
+    assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "the merge was made");
+    let text_at: String = std::fs::read_to_string(repo.join("dir/new.txt")).expect("the file");
+    assert!(text_at.contains("an untracked file in the way") && text_at.contains("<<<<<<<"), "both sides are in the file: {text_at}");
     assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
     remove_settled(&fixture);
 }
