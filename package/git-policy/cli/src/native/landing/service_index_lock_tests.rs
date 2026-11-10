@@ -21,7 +21,7 @@ use crate::process_identity::{ProcessIdentityError, process_birth_identity};
 use crate::service_index_marker::own_identity;
 use crate::service_index_placement::{place_marked, rename_noreplace};
 use crate::service_index_staging::stage_marker;
-use crate::service_index_marker::{HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state_in, identity_in_view, pid_of_self_stat};
+use crate::service_index_marker::{HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state_in, identity_in_view, marker_of, pid_of_self_stat};
 use crate::test_support::{fixture, remove, wait_until};
 use std::time::Instant;
 use std::cell::Cell;
@@ -1952,4 +1952,31 @@ fn the_landing_ceiling_follows_the_longest_measured_foreign_wait() {
     let wanted: Duration = LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT * MARGIN;
     assert!(LANDING_LOCK_CEILING >= wanted, "{LANDING_LOCK_CEILING:?}");
     assert!(LANDING_LOCK_CEILING < wanted + MINUTE, "{LANDING_LOCK_CEILING:?}");
+}
+
+/// What:
+///  A lock that is a named pipe names no marker at once,
+/// and is described as a foreign holder.
+/// Why:
+///  The service reads the lock's marker before it places its own,
+/// and opening a named pipe for
+/// reading waits for a writer that may never come:
+/// a landing stopped there,
+/// so every commit behind it queued
+///  behind a wait with no end
+/// (`doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`).
+#[test]
+fn a_lock_that_is_a_named_pipe_names_no_marker_at_once() {
+    let (root, index) = index_in("index-lock-pipe");
+    let lock_path: PathBuf = lock_path_of(&index);
+    crate::subvolume_sync_attrs::make_fifo(lock_path.as_path(), 0o600).expect("named pipe");
+    let named_pipe: PathBuf = lock_path.clone();
+    let read: Option<Option<crate::service_index_marker::Marked>> = crate::test_support::finished_within(move || { return marker_of(named_pipe.as_path()); });
+    let Some(marker) = read else { panic!("reading a marker out of a named pipe did not finish within five seconds") };
+    assert_eq!(marker, None);
+    let described_path: PathBuf = lock_path.clone();
+    let described: Option<String> = crate::test_support::finished_within(move || { return describe_lock(described_path.as_path()); });
+    let Some(description) = described else { panic!("describing a named pipe lock did not finish within five seconds") };
+    assert!(description.starts_with("foreign no-marker"), "{description}");
+    remove(root.as_path());
 }

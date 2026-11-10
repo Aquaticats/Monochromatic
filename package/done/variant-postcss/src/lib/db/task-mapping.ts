@@ -5,6 +5,23 @@
  */
 import type { Task, } from '../types.ts';
 import type { TaskRow, } from './task-sql.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: a stored column that is not the JSON this module wrote is reported before it is treated as empty.
+ */
+const l = tagged({
+  tag: 'done-variant-task-mapping',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Returns the current timestamp in ISO 8601 format for database writes.
@@ -47,10 +64,7 @@ export function parseStringArray(value: string,): string[] {
     },);
   }
   catch (error) {
-    console.error(
-      'String array column JSON parse failed:',
-      error,
-    );
+    l.warn(`stored JSON array unreadable, so it is treated as empty: ${caughtValueText(error,)}`,);
     return [];
   }
 }

@@ -2,10 +2,9 @@ import { spawn } from 'node:child_process';
 import {
   access,
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   readdir,
   realpath,
-  rm,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -34,9 +33,13 @@ const scratchParent = join(
 /**
  A scratch tree with a `pack` directory, like the benchmark's repositories.
 
- @returns the tree
+ @returns the tree, which removes itself when the caller's scope ends, so a failing assertion leaves no directory
+   behind
  */
-async function treeWithPack(): Promise<string> {
+async function treeWithPack(): Promise<Readonly<{
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+}>> {
   await mkdir(
     scratchParent,
     {
@@ -47,15 +50,15 @@ async function treeWithPack(): Promise<string> {
   /**
    The new tree.
    */
-  const root = await mkdtemp(join(
+  const directory = await mkdtempDisposable(join(
     scratchParent,
     'perf-scratch-test-',
   ));
   await mkdir(join(
-    root,
+    directory.path,
     'pack',
   ));
-  return root;
+  return directory;
 }
 
 /**
@@ -158,9 +161,13 @@ await describe({
       name: 'waits for a detached writer, then removes the tree whole',
       fn: async () => {
         /**
-         Tree the writer works in.
+         Tree the writer works in, removed when this test's scope ends.
          */
-        const root = await treeWithPack();
+        await using tree = await treeWithPack();
+        /**
+         Path of the tree, which the function under test removes early.
+         */
+        const root = tree.path;
         /**
          Exit of the writer, which fails if the tree vanished while it wrote.
          */
@@ -174,9 +181,13 @@ await describe({
       name: 'fails naming a process that still holds the tree at the deadline, and leaves the tree',
       fn: async () => {
         /**
-         Tree the writer works in.
+         Tree the writer works in, removed when this test's scope ends.
          */
-        const root = await treeWithPack();
+        await using tree = await treeWithPack();
+        /**
+         Path of the tree, whose deadline the function under test runs out.
+         */
+        const root = tree.path;
         /**
          Exit of the writer.
          */
@@ -206,19 +217,12 @@ await describe({
       name: 'finds no holder in a quiet tree',
       fn: async () => {
         /**
-         Quiet tree.
+         Quiet tree, removed when this test's scope ends.
          */
-        const root = await treeWithPack();
+        await using tree = await treeWithPack();
         expect(
-          await findHolders(await realpath(root)),
+          await findHolders(await realpath(tree.path)),
         ).toEqual([]);
-        await rm(
-          root,
-          {
-            recursive: true,
-            force: true,
-          },
-        );
       },
     }),
   ],
