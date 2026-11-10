@@ -30,7 +30,7 @@ import {
   createScreenshotHandoff,
   handoffParentDirectory,
   type ScreenshotHandoff,
-} from './capture.ts';
+} from '../../dist/final/node/testing.mjs';
 
 //region Fixtures
 

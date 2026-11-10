@@ -25,7 +25,7 @@ import {
 import {
   signalProcess,
   splitOnWhitespace,
-} from './lock.ts';
+} from '../../dist/final/node/testing.mjs';
 import { recordingLogger, } from './test-fixtures.ts';
 
 /** Run length for the long-input cases; large enough to overflow the prior recursion, fast to compare. */

@@ -17,7 +17,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { isScreenLocked, } from './screenlock.ts';
+import { isScreenLocked, } from '../../dist/final/node/testing.mjs';
 
 //region Fixtures
 

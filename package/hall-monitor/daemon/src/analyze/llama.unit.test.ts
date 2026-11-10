@@ -23,7 +23,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { awaitChildEnd, } from './llama.ts';
+import { awaitChildEnd, } from '../../dist/final/node/testing.mjs';
 
 //region Fixtures
 

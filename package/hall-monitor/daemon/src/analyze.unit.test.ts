@@ -21,7 +21,7 @@ import {
 import {
   parseVerdict,
   skipSpacesAndTabs,
-} from './analyze.ts';
+} from '../dist/final/node/testing.mjs';
 
 /** Run length for the long blank-run case; large enough to overflow the prior recursion. */
 const LONG_RUN = 100_000;

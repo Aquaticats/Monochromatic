@@ -16,7 +16,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { runFfmpeg, } from './ffmpeg-runner.ts';
+import { runFfmpeg, } from '../../dist/final/node/testing.mjs';
 
 //region Fixtures
 

@@ -27,7 +27,7 @@ import {
   createJournalSink,
   journalArgumentsFor,
   reportExpectedFailure,
-} from './syslog.ts';
+} from '../../dist/final/node/testing.mjs';
 import { recordingLogger, } from './test-fixtures.ts';
 
 //region Fixtures

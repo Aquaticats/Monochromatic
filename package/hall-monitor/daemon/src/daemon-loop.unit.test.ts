@@ -29,7 +29,7 @@ import {
   createShutdownSignal,
   runDaemonLoop,
   runDetachedShutdown,
-} from './daemon-loop.ts';
+} from '../dist/final/node/testing.mjs';
 
 //region Fixtures
 

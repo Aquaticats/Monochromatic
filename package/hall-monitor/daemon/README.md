@@ -90,6 +90,12 @@ mise run build
 ./hall-monitor
 ```
 
+`build` runs two children:
+ `build:binary` compiles the standalone `hall-monitor` binary above,
+ and `build:js` bundles `src/testing.ts` to `dist/final/node/testing.mjs`.
+The suites import that bundle rather than sibling source,
+ so `test:unit` and `lint:types` build it first.
+
 ### Flags
 
 - `--kill-existing`:
@@ -162,6 +168,7 @@ journalctl -t hall-monitor -f
 ```text
 src/
   index.ts            Entry point, argument parsing, wiring, signal handling
+  testing.ts          Exports the suites reach through the built testing bundle
   daemon-loop.ts      Between-cycle wait, shutdown signal, loop, detached shutdown
   cycle.ts            Orchestrates one capture-analyze-notify cycle
   analyze.ts          LLM prompt construction, API call, verdict parsing
