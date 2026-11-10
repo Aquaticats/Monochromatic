@@ -110,6 +110,8 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         index: path_bytes::read_field(&value, "index")?,
         scratch: path_bytes::read_field(&value, "scratch")?,
         captured: value.get("captured").and_then(Value::as_u64).unwrap_or(0),
+        // A request of an earlier release names no holder, which settles nothing and hides nothing.
+        holder: value.get("holder").and_then(Value::as_str).unwrap_or_default().to_string(),
         // A `cleanup` that is absent or null asks for none.
         cleanup: match value.get("cleanup") {
             Some(entry) if !entry.is_null() => Some(Cleanup {

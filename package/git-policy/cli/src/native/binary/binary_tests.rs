@@ -549,6 +549,12 @@ mod push_queued_after_a_killed_wrapper;
 #[path = "binary_held_push_carried_by_a_later_push_tests.rs"]
 mod held_push_carried_by_a_later_push;
 
+/// A landed commit whose command died before it settled the push record:
+/// the verdict it left settles the record,
+/// and a record with none names the command and what sends the commit.
+#[path = "binary_held_push_settled_by_the_verdict_tests.rs"]
+mod held_push_settled_by_the_verdict;
+
 /// A commit a post-commit gate refused:
 /// it stays local past the next commit of its branch,
 /// and every command names the commit and the check that hold the branch back.
