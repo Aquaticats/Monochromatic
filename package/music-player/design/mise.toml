@@ -389,9 +389,24 @@ dir = "{{config_root}}"
 run = "node selected-search-question.mjs validate"
 
 [tasks."test:unit"]
-description = "Check the selected Fold Search artifact against its sanitized captures"
+description = "Check the selected Fold Search artifact against its sanitized captures, then the package prose bans"
 dir = "{{config_root}}"
-run = "node selected-search-question.mjs validate"
+run = [
+  "node selected-search-question.mjs validate",
+  "node prose-dashes-test.mjs",
+  "node prose-emphasis-test.mjs",
+  "node crease-floor-question-test.mjs",
+]
+
+[tasks."test:prose:dashes"]
+description = "Hold the package's authored prose to the AGENTS.md ban on em and en dashes in prose"
+dir = "{{config_root}}"
+run = "node prose-dashes-test.mjs"
+
+[tasks."test:prose:emphasis"]
+description = "Hold the package's authored prose to the AGENTS.md ban on italics: emphasis is bold only"
+dir = "{{config_root}}"
+run = "node prose-emphasis-test.mjs"
 
 [tasks."build:search:status-evidence"]
 description = "Embed sanitized keyboard-closed Search status captures for the selected Fold layout"
@@ -592,6 +607,11 @@ run = "node crease-floor-question.mjs build"
 description = "Validate the E2 floor question and its native variant captures"
 dir = "{{config_root}}"
 run = "node crease-floor-question.mjs validate"
+
+[tasks."test:crease:floor"]
+description = "Prove the E2 floor form and its messages name the cohort the page actually embeds"
+dir = "{{config_root}}"
+run = "node crease-floor-question-test.mjs"
 
 [tasks."build:search:historical"]
 description = "Rebuild the archived rejected Fold Search artifact for historical inspection"

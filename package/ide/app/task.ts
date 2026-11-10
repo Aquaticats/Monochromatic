@@ -811,6 +811,10 @@ runCargo(['nextest', 'run', '--test', 'cli_args', '--test', 'cli_process'])
     description: "Check the compositor version reader, the container bound, the frame-pattern analysis, and the runtime publishing helpers of the bin scripts with node:test",
     run: "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/stress-native-report.test.ts bin/runtime-publish.test.ts",
   },
+  "test:design": {
+    description: "Check the PNG flat-frame probe and the settled-screenshot loop the two design capture scripts share with node:test",
+    run: "node --test design/capture-shared.test.ts",
+  },
   "test:ignored": {
     description: "Run the gitignore matching unit tests, the tree and reader tests that carry its answers, and the rule file notification test",
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
