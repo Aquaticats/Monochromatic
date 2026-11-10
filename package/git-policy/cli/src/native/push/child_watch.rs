@@ -161,6 +161,9 @@ pub struct ChildWatch {
     /// in the words the person reads,
     /// or nothing when a task watches it.
     unwatched: Option<String>,
+    /// Whether the pin taken when the child started proves which process to stop,
+    /// which decides whether this watch can end the step at its ceiling at all.
+    could_end_the_step: bool,
 }
 
 impl ChildWatch {
@@ -243,6 +246,8 @@ impl ChildWatch {
         // The child is this process's own unreaped child at this moment, so its number is certainly its own: the pin taken here
         //  names that child for good, and every signal of the stop goes through it (the third review's finding 1).
         let root_pin: crate::child_watch_clock_marks_and_stopping::RootPin = crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
+        // Whether that pin proves the process decides, later, whether this watch can end the step it watches at all.
+        let could_end_the_step: bool = crate::child_watch_clock_marks_and_stopping::the_root_is_proven(&root_pin);
         let (ended, finished): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
         // The task holds `ended` and drops it however it ends (a panic or an abort included), which `finished` reads as a
         // disconnection.
@@ -267,13 +272,37 @@ impl ChildWatch {
                 Some(refusal)
             }
         };
-        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit, stopped, unwatched };
+        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit, stopped, unwatched, could_end_the_step };
     }
 
     /// Whether nothing watches this child,
     /// with the reason in the words the person reads.
     pub fn unwatched(&self) -> Option<&str> {
         return self.unwatched.as_deref();
+    }
+
+    /// What:
+    ///  Whether a watch runs for this child,
+    /// and whether it can end the child at its ceiling.
+    /// Why:
+    ///   The wait for a step's output keeps the step's ceiling as a backstop of its own,
+    /// so how much later than the watch it
+    ///  may fire depends on what the watch can do:
+    /// a watch whose pin proves the process ends the step itself and is given `THE_WATCH_HAS_ITS_ENDING`
+    ///  to do it,
+    /// while one that can prove nothing ends nothing and leaves the ceiling to that wait.
+    pub fn what_watches_the_step(&self) -> crate::step_output_read_whole_through_pipes::TheWatchOfAStep {
+        return match self.unwatched {
+            Some(_) => crate::step_output_read_whole_through_pipes::TheWatchOfAStep::NotWatched,
+            None if self.could_end_the_step => crate::step_output_read_whole_through_pipes::TheWatchOfAStep::WatchedAndProven,
+            None => crate::step_output_read_whole_through_pipes::TheWatchOfAStep::WatchedAndUnproven,
+        };
+    }
+
+    /// Whether the pin this watch took proves which process to stop,
+    /// for the ending a caller words after the wait.
+    pub fn could_end_the_step(&self) -> bool {
+        return self.could_end_the_step;
     }
 
     /// Keep the longest quiet gap of this watch in the ledger under `step` when the watch is dropped.
@@ -590,9 +619,10 @@ pub fn output_watched_within_for_a_stop(
     }
     // Whatever the watch could not do, the wait for the output carries the step's own ceiling: a watch that cannot run, and one
     // that may announce a wait but must not end it, both leave this wait as the only thing that ends the step at its ceiling
-    // (the third review's finding 2). A step with no ceiling is waited for as before.
+    // (the third review's finding 2). A watch whose pin proves the process is the one that ends the step, and this wait is then the
+    // backstop behind it, later by the ending such a watch needs. A step with no ceiling is waited for as before.
     let carried: Option<crate::step_output_read_whole_through_pipes::CarriedCeiling> =
-        crate::step_output_read_whole_through_pipes::carried_for(ceiling, watch.unwatched().is_none());
+        crate::step_output_read_whole_through_pipes::carried_for(ceiling, watch.what_watches_the_step());
     watch.begin();
     let output: std::io::Result<Output> = match bound {
         StepBound::LeaveRunning { after, extra } => {
@@ -658,6 +688,7 @@ pub fn output_watched_within_for_a_stop(
         ended_by_the_stop: watch.ended_by_the_stop(),
         ceiling,
         ceiling_hit: watch.ceiling_hit(),
+        the_watch_could_end_it: watch.could_end_the_step(),
         expired: watch.expired(),
         limit: watch.limit(),
     };

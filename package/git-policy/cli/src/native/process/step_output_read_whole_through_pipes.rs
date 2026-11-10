@@ -337,24 +337,18 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
         //  finished inside its ceiling as ended at it, because a program the step started still held one stream open (the third
         //  review's finding 5).
         let status: std::io::Result<ExitStatus> = match ceiling {
-            Some(carried) => match tokio::time::timeout(carried.limit, owned.wait()).await {
+            Some(carried) => match tokio::time::timeout(carried.backstop, owned.wait()).await {
                 Ok(status) => status,
                 Err(_elapsed) => {
-                    // Nothing ended this step before its ceiling, so this wait carries it: whatever the watch could not do, a step
-                    //  never outlives the ceiling the wrapper gives it. `StepBound::EndAt` is a whole process tree, so the
-                    //  programs the step started end with it and can neither hold its streams nor write after it was reported
-                    //  ended (the fifth review's finding 2).
+                    // Nothing ended this step before its ceiling and what the watch could do, so this wait carries it: whatever the
+                    //  watch could not do, a step never outlives the ceiling the wrapper gives it. `StepBound::EndAt` is a whole
+                    //  process tree, so the programs the step started end with it and can neither hold its streams nor write after
+                    //  it was reported ended (the fifth review's finding 2). Whether the whole tree could be ended is part of the
+                    //  ending: a step the kernel would not let go is left running, and the sentence the caller prints must not say
+                    //  it ended (the fifth review's finding 6).
                     ended.send_replace(Some(Instant::now()));
-                    // Whether the whole tree could be ended is part of the ending: a step the kernel would not let go is left
-                    //  running, and the sentence the caller prints must not say it ended (the fifth review's finding 6).
                     let left_running: bool = owned.end_with_the_processes_it_started();
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        crate::child_waited_for_within_a_ceiling::AtTheCeiling {
-                            left_running,
-                            sentence: Some(waiting_carried_the_ceiling(waiting_for, carried, left_running)),
-                        },
-                    ))
+                    Err(carried.ending(waiting_for, left_running))
                 }
             },
             None => owned.wait().await,
@@ -567,18 +561,29 @@ fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
 ///  ceiling,
 /// so no step outlives it
 /// (the third review's finding 2).
+///  A watch that can end the step has the ending,
+/// and this wait is then the backstop behind it,
+/// which is why the
+///  moment it fires is its own and not the ceiling's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CarriedCeiling = { limit: Duration; why: 'no-watcher' | 'the-watch-could-not-end-it' };
+/// type CarriedCeiling = { ceiling: Duration; backstop: Duration; why?: 'no-watcher' | 'the-watch-could-not-end-it' | 'the-query-is-bounded' };
 /// ```
 pub struct CarriedCeiling {
-    /// The longest the step may run.
-    pub limit: Duration,
-    /// Why the wait,
+    /// The longest the step may run:
+    /// the ceiling the watch gives it,
+    /// and the number every sentence about the ending states.
+    pub ceiling: Duration,
+    /// How long this wait waits for the step before it ends the step itself:
+    /// the ceiling,
+    /// or later by the ending a watch that can end the step needs.
+    pub backstop: Duration,
+    /// Why this wait,
     /// and not a watch,
-    /// ends the step at that ceiling.
-    pub why: CeilingWhy,
+    /// ends the step at that ceiling,
+    /// or nothing when a watch that can end it has the ending and this wait is only the backstop.
+    pub why: Option<CeilingWhy>,
 }
 
 /// Why the wait for a step's output carries the step's own ceiling.
@@ -600,6 +605,36 @@ pub enum CeilingWhy {
 }
 
 /// What:
+///  Whether a watch runs for a step,
+/// and whether it can end the step at its ceiling.
+/// Why:
+///   The watch and the wait for a step's output are given the same ceiling,
+/// and which of them ends the step there
+///  decides both how much later than the ceiling the wait may fire and what its answer is:
+/// a watch whose pin proves the
+///  process ends the step itself,
+/// one that can prove nothing signals nothing and leaves the ending to the wait
+///  at the ceiling itself,
+/// and one that never started leaves it there too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheWatchOfAStep = 'not-watched' | 'watched-and-proven' | 'watched-and-unproven';
+/// ```
+pub enum TheWatchOfAStep {
+    /// No watch could run at all:
+    /// the system refused the thread one needs.
+    NotWatched,
+    /// A watch runs,
+    /// and the descriptor it took when the child started proves which process to stop.
+    WatchedAndProven,
+    /// A watch runs,
+    /// and nothing proved which process the child's number names,
+    /// so it can signal nothing.
+    WatchedAndUnproven,
+}
+
+/// What:
 ///  The ceiling a wait carries,
 /// and why it is the wait that ends what it waits for.
 /// Why:
@@ -607,32 +642,79 @@ pub enum CeilingWhy {
 /// a watch that could not end it,
 /// or no watch of
 ///  its own at all (a read-only query,
-/// whose ceiling is the longest one of those waits).
-/// Why:
-///   The reason is the watch's to tell:
-/// a watch that could not run at all,
-/// or one that runs and could not end this step.
+/// whose ceiling is the longest one of those waits);
+/// or a watch that ends
+///  the step itself,
+/// which this wait then backs up rather than replaces.
+/// The reason is the watch's to tell and is
+///  known before the wait begins,
+/// except for a watch that runs and can end the step: there the wait is only the backstop, later by
+///  `THE_WATCH_HAS_ITS_ENDING`,
+/// and the answer it gives is the ceiling's own.
 /// `None` in,
 ///  `None` out:
 /// a step with no ceiling is waited for as before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// carriedFor(ceiling, aWatchRuns)
+/// carriedFor(ceiling, theWatchOfTheStep)
 /// ```
-pub fn carried_for(ceiling: Option<Duration>, a_watch_runs: bool) -> Option<CarriedCeiling> {
-    let why: CeilingWhy = if a_watch_runs { CeilingWhy::TheWatchCouldNotEndIt } else { CeilingWhy::NoWatcher };
-    return Some(carried_by(ceiling?, why));
+pub fn carried_for(ceiling: Option<Duration>, watch: TheWatchOfAStep) -> Option<CarriedCeiling> {
+    let the_ceiling: Duration = ceiling?;
+    return Some(match watch {
+        TheWatchOfAStep::NotWatched => CarriedCeiling { ceiling: the_ceiling, backstop: the_ceiling, why: Some(CeilingWhy::NoWatcher) },
+        // A watch that can prove nothing signals nothing, so this wait is what ends the step, at the ceiling itself.
+        TheWatchOfAStep::WatchedAndUnproven => {
+            CarriedCeiling { ceiling: the_ceiling, backstop: the_ceiling, why: Some(CeilingWhy::TheWatchCouldNotEndIt) }
+        }
+        // The watch ends the step, so this wait gives it the ending it needs before taking the ending away from it.
+        TheWatchOfAStep::WatchedAndProven => CarriedCeiling {
+            ceiling: the_ceiling,
+            backstop: the_ceiling.saturating_add(crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING),
+            why: None,
+        },
+    });
 }
 
-/// The ceiling `limit` carried for the reason `why`.
+/// The ceiling `limit` carried for the reason `why`,
+/// by a wait that nothing else ends the step for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// carriedBy(limit, why)
 /// ```
 pub fn carried_by(limit: Duration, why: CeilingWhy) -> CarriedCeiling {
-    return CarriedCeiling { limit, why };
+    return CarriedCeiling { ceiling: limit, backstop: limit, why: Some(why) };
+}
+
+impl CarriedCeiling {
+    /// What:
+    ///  The error of a step this wait ended at the ceiling it carried.
+    /// Why:
+    ///   Only this wait knows whether the kernel let the step go,
+    /// and only it knows whether the ceiling was the ending at
+    ///  all:
+    /// a watch that could end the step may have ended it a moment after this wait fired,
+    /// and the ceiling's
+    ///  answer is then the same one the watch would have given,
+    /// while a step no watch could end keeps the sentence that says so.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// (carried) => carried.why ? atTheCeiling(carried, leftRunning) : ceilingReached(carried.ceiling, leftRunning);
+    /// ```
+    fn ending(&self, waiting_for: &str, left_running: bool) -> std::io::Error {
+        let inner: Box<dyn std::error::Error + Send + Sync> = match self.why {
+            Some(why) => Box::new(crate::child_waited_for_within_a_ceiling::AtTheCeiling {
+                left_running,
+                sentence: Some(waiting_carried_the_ceiling(waiting_for, self.ceiling, why, left_running)),
+            }),
+            None => Box::new(crate::child_watch_step_bounds_and_errors::CeilingReached(
+                crate::child_watch_step_bounds_and_errors::step_ended_at_its_ceiling_text(waiting_for, self.ceiling, left_running),
+            )),
+        };
+        return std::io::Error::new(std::io::ErrorKind::TimedOut, inner);
+    }
 }
 
 /// What:
@@ -650,8 +732,8 @@ pub fn carried_by(limit: Duration, why: CeilingWhy) -> CarriedCeiling {
 /// ```ts
 /// `${waitingFor} ran for ${limit} seconds and was ${leftRunning ? 'left running' : 'ended'}; no watch could announce it: ${why}`
 /// ```
-fn waiting_carried_the_ceiling(waiting_for: &str, carried: CarriedCeiling, left_running: bool) -> String {
-    let why: &str = match carried.why {
+fn waiting_carried_the_ceiling(waiting_for: &str, ceiling: Duration, why: CeilingWhy, left_running: bool) -> String {
+    let reason: &str = match why {
         CeilingWhy::NoWatcher => {
             "Nothing could watch it: the system refused a thread for the watcher. Hint: check the process limit (`ulimit -u`) \
              and the control group's `pids.max`, free some, and run the command again."
@@ -670,10 +752,7 @@ fn waiting_carried_the_ceiling(waiting_for: &str, carried: CarriedCeiling, left_
     } else {
         "and was ended"
     };
-    return format!(
-        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}. {why}",
-        carried.limit.as_secs()
-    );
+    return format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}. {reason}", ceiling.as_secs());
 }
 
 /// Controls for the read of a step's output stay out of the release executable.
