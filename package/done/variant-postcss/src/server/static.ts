@@ -12,6 +12,23 @@ import {
   stat,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: a static asset that cannot be stat-ed gets no cache metadata.
+ */
+const l = tagged({
+  tag: 'done-variant-static',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  Resolved cache-metadata shape h3's `getMeta` contract returns; carries the
@@ -66,10 +83,7 @@ async function getMetadata(id: string,): Promise<StaticMeta> {
     };
   }
   catch (error) {
-    console.error(
-      'Static asset stat lookup failed:',
-      error,
-    );
+    l.debug(`static asset could not be stat-ed, so it gets no cache metadata: ${caughtValueText(error,)}`,);
     return undefined;
   }
 }

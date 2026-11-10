@@ -10,12 +10,29 @@ import {
   type JsonRpcResponse,
 } from './json-rpc.ts';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
 import { SUPPORTED_PROTOCOL_VERSIONS, } from './protocol.ts';
 
 import {
   type DispatchResult,
   NO_RESPONSE,
 } from './server-types.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const responseLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'response',
+},);
+
+//endregion Logging
 
 //region Generic builders: success and error envelopes
 
@@ -229,7 +246,11 @@ export const CANCELLED_NOTIFICATION = 'notifications/cancelled';
  */
 export function handleNotification(notification: JsonRpcNotification,): DispatchResult {
   if (notification.method !== CANCELLED_NOTIFICATION)
-    console.error(`[mcp-stdio] unexpected notification method: ${notification.method}`,);
+    tagged({
+      tag: handleNotification.name,
+      l: responseLogger,
+    },)
+      .warn(`unexpected notification method: ${notification.method}`,);
   return NO_RESPONSE;
 }
 

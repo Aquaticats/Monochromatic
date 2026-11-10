@@ -23,7 +23,9 @@
     "src"
   ],
   "dependencies": {
-    "@monochromatic-dev/agent-harness-shared-usage-projection": "workspace:*"
+    "@monochromatic-dev/agent-harness-shared-usage-projection": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

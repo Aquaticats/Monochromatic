@@ -9,6 +9,7 @@
   "type": "module",
   "dependencies": {
     "@monochromatic-dev/async-iter-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/kv-store-memoize": "workspace:*",
     "@monochromatic-dev/hyperscript-core": "workspace:*",
