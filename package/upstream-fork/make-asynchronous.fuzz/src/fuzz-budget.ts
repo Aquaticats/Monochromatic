@@ -35,18 +35,20 @@ export const fuzzRuns: number = Number.isFinite(override,)
   : DEFAULT_RUNS;
 
 /**
- Wall clock one fast-check run costs on a four-CPU host, measured on this
- package's differential property file: 200 runs took 13.2s, 1000 runs 58.2s
- and 5000 runs 292.3s, so one run costs about 56ms and the cost is linear in
- the run count.
+ Wall clock the four concurrent properties add per fast-check run: the suite
+ runs them at once, so its wall clock is the slowest property's, and the run
+ count is what the campaign raises. Measured on this four-CPU host: 200 runs
+ took 13.2s, 1000 runs 58.2s and 5000 runs 292.3s, which is 56ms to 58ms per
+ added run and linear in the run count.
  */
 const MEASURED_RUN_WALL_MS = 56;
 
 /**
- Multiplier over {@link MEASURED_RUN_WALL_MS}: four times the measured cost
- covers this campaign's own two-CPU container, which is half the host the 56ms
- was measured on, and leaves a slow runner unable to report a working property
- as a hang.
+ Multiplier over {@link MEASURED_RUN_WALL_MS}: a stall guard has to survive a
+ slower runner without hiding a property that never settles. The campaign's own
+ two-CPU container needed 319.1s for the 5000-run differential suite where the
+ four-CPU host needed 292.3s, so four times the measured cost leaves the slower
+ runner far inside the guard.
  */
 const SLOW_RUNNER_FACTOR = 4;
 
