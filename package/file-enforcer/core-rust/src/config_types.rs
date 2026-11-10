@@ -22,15 +22,15 @@
 )]
 
 /// Imports `HarperScopedServer`,
+/// `KeyEdit`,
 /// `LicenseRequirement`,
 /// `TomlBlock`,
-/// `TomlEdit`,
 /// `ValueExpr` from `crate::config_parts`.
 use crate::config_parts::{
     HarperScopedServer,
+    KeyEdit,
     LicenseRequirement,
     TomlBlock,
-    TomlEdit,
     ValueExpr,
 };
 /// Imports `JsonSchema` from `schemars`.
@@ -142,9 +142,22 @@ pub enum RuleConfig {
         /// absent means every matching manifest.
         only_dirs: Option<Vec<String>>,
         /// Guarded assignments.
-        edits: Vec<TomlEdit>,
+        edits: Vec<KeyEdit>,
         /// Blocks appended when absent.
         blocks: Vec<TomlBlock>,
+    },
+    /// Set guarded members in matching JSON manifests.
+    JsonKeys {
+        /// Unique rule id.
+        id: String,
+        /// Manifest globs.
+        manifests: Vec<String>,
+        /// Manifest directories the rule is limited to;
+        /// absent means every matching manifest.
+        only_dirs: Option<Vec<String>>,
+        /// Guarded assignments;
+        /// a member the manifest does not have is added as its record's last member.
+        edits: Vec<KeyEdit>,
     },
     /// Write a Mise config listing the existing non-empty directories that match the globs.
     MisePathList {
@@ -248,6 +261,10 @@ impl RuleConfig {
                 id,
                 ..
             } => return id,
+            RuleConfig::JsonKeys {
+                id,
+                ..
+            } => return id,
             RuleConfig::MisePathList {
                 id,
                 ..
@@ -293,6 +310,9 @@ impl RuleConfig {
             RuleConfig::TomlKeys {
                 ..
             } => return "toml-keys",
+            RuleConfig::JsonKeys {
+                ..
+            } => return "json-keys",
             RuleConfig::MisePathList {
                 ..
             } => return "mise-path-list",
