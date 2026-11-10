@@ -273,14 +273,10 @@ export async function planPackageBuild(
     moduleLogger.debug(`${directory}: task.ts declares build`,);
     return { kind: 'task', };
   }
-  /**
-   Whether the package's own `mise.toml` declares a build task.
-   */
-  const miseDeclaresBuild = await miseFileDeclaresBuild({
+  if (await miseFileDeclaresBuild({
     packageDirectory,
     directory,
-  },);
-  if (miseDeclaresBuild)
+  },))
     throw new MissingCiBuildTaskError({ directory, },);
   moduleLogger.debug(`${directory}: no build task in task.ts or mise.toml`,);
   return { kind: 'none', };
