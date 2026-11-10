@@ -63,10 +63,7 @@ const BOM = 0xFE_FF;
  // data = { title: 'Hello' }, content = 'body'
  ```
  */
-export function parseFrontmatter(raw: string,): {
-  data: Record<string, unknown>;
-  content: string;
-} {
+export function parseFrontmatter(raw: string,): ParsedFrontmatter {
   /* Strip optional leading BOM. */
   /**
    BOM-trimmed input used for every subsequent index computation.
@@ -257,6 +254,149 @@ export const postFrontmatterSchema: v.GenericSchema<
 
 //endregion Schema
 
+//region Diagnostics
+
+/**
+ Raw frontmatter parse result: YAML data plus the remaining body.
+ */
+type ParsedFrontmatter = {
+  readonly data: Record<string, unknown>;
+  readonly content: string;
+};
+
+/**
+ Names the field and the problem of one validation issue.
+ 
+ @param issue - valibot issue to describe
+ 
+ @returns dotted field path plus the issue message
+ 
+ @example
+ ```ts
+ describeIssue({ path: [{ key: 'title' }], message: 'Invalid type' });
+ // 'title: Invalid type'
+ ```
+ */
+function describeIssue(issue: v.BaseIssue<unknown>,): string {
+  /**
+   Dotted field path of the issue, or a generic name for an issue at the root.
+   */
+  const path = (issue.path ?? [])
+    .map(function keyOf(item: v.IssuePathItem, index: number,) {
+      return 'key' in item ? String(item.key,) : String(index,);
+    },)
+    .join('.',);
+  return `${path === '' ? 'frontmatter' : path}: ${issue.message}`;
+}
+
+/**
+ Builds an error that names the MDX file a frontmatter failure came from.
+ 
+ A bare valibot or YAML error names only a field or a YAML line, which leaves
+ the operator bisecting the content directory by hand.
+ 
+ @param error - failure raised by the YAML parser or the frontmatter schema
+ 
+ @param filePath - MDX file the frontmatter came from
+ 
+ @returns error naming the file, the field, and the underlying cause
+ 
+ @example
+ ```ts
+ throw frontmatterError({ error, filePath: 'src/content/en/post.mdx' });
+ ```
+ */
+function frontmatterError(
+  {
+    error,
+    filePath,
+  }: {
+    readonly error: unknown;
+    readonly filePath: string;
+  },
+): Error {
+  /**
+   Every failing field and its message, or the raw failure text for a parser error.
+   */
+  const detail = v.isValiError(error,)
+    ? error.issues
+      .map(describeIssue,)
+      .join('; ',)
+    : ((error instanceof Error) ? error.message : String(error,));
+
+  return new Error(
+    `Frontmatter of ${filePath} could not be read: ${detail}. Fix that file's frontmatter block; git history remains the source of truth for rendered dates.`,
+    { cause: error, },
+  );
+}
+
+/**
+ Parses frontmatter, naming the file when the YAML is unparsable.
+ 
+ @param raw - full file content including frontmatter
+ 
+ @param filePath - MDX file the content came from
+ 
+ @returns parsed YAML data and remaining body
+ 
+ @throws when the YAML block cannot be parsed
+ */
+function parseFrontmatterForFile(
+  {
+    raw,
+    filePath,
+  }: {
+    readonly raw: string;
+    readonly filePath: string;
+  },
+): ParsedFrontmatter {
+  try {
+    return parseFrontmatter(raw,);
+  }
+  catch (error) {
+    throw frontmatterError({
+      error,
+      filePath,
+    },);
+  }
+}
+
+/**
+ Validates author-written frontmatter, naming the file when a field is wrong.
+ 
+ @param rawData - parsed YAML frontmatter record
+ 
+ @param filePath - MDX file the frontmatter came from
+ 
+ @returns validated author-written frontmatter
+ 
+ @throws when a required field is missing or mistyped
+ */
+function validateFrontmatter(
+  {
+    rawData,
+    filePath,
+  }: {
+    readonly rawData: Readonly<Record<string, unknown>>;
+    readonly filePath: string;
+  },
+): LoadedPost['fileData'] {
+  try {
+    return v.parse(
+      postFileFrontmatterSchema,
+      rawData,
+    );
+  }
+  catch (error) {
+    throw frontmatterError({
+      error,
+      filePath,
+    },);
+  }
+}
+
+//endregion Diagnostics
+
 //region Types
 
 /**
@@ -358,7 +498,7 @@ export type Post = {
  
  @returns array of loaded posts awaiting date resolution
  
- @throws on frontmatter validation failure
+ @throws on frontmatter validation failure, naming the offending MDX file
  
  @example
  ```ts
@@ -394,14 +534,17 @@ export async function loadContent(contentDir: string,): Promise<LoadedPost[]> {
       const {
         data: rawData,
         content: body,
-      } = parseFrontmatter(raw,);
+      } = parseFrontmatterForFile({
+        raw,
+        filePath,
+      },);
       /**
        Schema-validated frontmatter fields authored in the MDX file.
        */
-      const fileData = v.parse(
-        postFileFrontmatterSchema,
+      const fileData = validateFrontmatter({
         rawData,
-      );
+        filePath,
+      },);
       /**
        Optional date fields retained for warnings when they contradict git history.
        */

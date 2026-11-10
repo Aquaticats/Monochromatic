@@ -5,6 +5,14 @@
  */
 
 import {
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import { join, relative, resolve, } from 'node:path';
+
+import {
   describe,
   expect,
   it,
@@ -12,6 +20,7 @@ import {
 
 import {
   attachDates,
+  loadContent,
   type LoadedPost,
   parseFrontmatter,
   type ResolvedDates,
@@ -96,6 +105,79 @@ const DATES_BY_PATH: ReadonlyMap<string, ResolvedDates> = new Map([
 ],);
 
 //endregion Date attachment fixtures
+
+//region Content directory fixtures
+
+/**
+ Package root, two levels up from this file's `src/lib` directory.
+ */
+const PACKAGE_ROOT = resolve(
+  import.meta.dirname,
+  '../..',
+);
+
+/**
+ Ignored directory the loader fixtures are created under. They must sit inside
+ the working directory because `loadContent` hands a cwd-relative glob to
+ `tiny-readdir-glob`.
+ */
+const FIXTURE_ROOT = join(
+  PACKAGE_ROOT,
+  '.cache',
+  'test-fixtures',
+);
+
+/**
+ Invalid frontmatter whose `title` is a number where a string belongs.
+ */
+const INVALID_FRONTMATTER = '---\ntitle: 42\ndescription: broken\ntags: []\n---\nbody';
+
+/**
+ Unparsable YAML in the frontmatter block.
+ */
+const UNPARSABLE_YAML = '---\ntitle: [unclosed\n---\nbody';
+
+/**
+ Creates an MDX file under a fresh content directory.
+ 
+ @param content - raw MDX content to write
+ 
+ @returns absolute path of the content directory, which the caller removes
+ 
+ @example
+ ```ts
+ const dir = await createContentDir(INVALID_FRONTMATTER);
+ ```
+ */
+async function createContentDir(content: string,): Promise<string> {
+  await mkdir(
+    FIXTURE_ROOT,
+    { recursive: true, },
+  );
+  /**
+   Fresh content directory holding exactly one locale directory and one post.
+   */
+  const contentDir = await mkdtemp(join(
+    FIXTURE_ROOT,
+    'load-content-',
+  ),);
+  await mkdir(join(
+    contentDir,
+    'en',
+  ),);
+  await writeFile(
+    join(
+      contentDir,
+      'en',
+      'broken.mdx',
+    ),
+    content,
+    'utf8',
+  );
+  return contentDir;
+}
+
+//endregion Content directory fixtures
 
 await describe({
   name: '',
@@ -261,6 +343,92 @@ await describe({
             expect(posts.map(function name(post,) {
               return post.name;
             },),).toEqual(['about', 'older',],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: loadContent.name,
+      children: [
+        it({
+          name: 'names the MDX file whose frontmatter fails validation',
+          fn: async function namesFailingFrontmatterFile(): Promise<void> {
+            /**
+             Fresh content directory holding the invalid post.
+             */
+            const contentDir = await createContentDir(INVALID_FRONTMATTER,);
+            /**
+             Absolute path of the file the loader must name.
+             */
+            const filePath = join(
+              contentDir,
+              'en',
+              'broken.mdx',
+            );
+
+            /**
+             Error thrown for the invalid frontmatter, or undefined when none was.
+             */
+            let caught: unknown;
+            try {
+              await loadContent(relative(
+                process.cwd(),
+                contentDir,
+              ),);
+            }
+            catch (error) {
+              caught = error;
+            }
+            finally {
+              await rm(
+                contentDir,
+                { force: true, recursive: true, },
+              );
+            }
+
+            expect(caught,).toBeInstanceOf(Error,);
+            expect((caught as Error).message,).toContain(filePath,);
+            expect((caught as Error).message,).toContain('title',);
+          },
+        },),
+        it({
+          name: 'names the MDX file whose YAML cannot be parsed',
+          fn: async function namesUnparsableYamlFile(): Promise<void> {
+            /**
+             Fresh content directory holding the unparsable post.
+             */
+            const contentDir = await createContentDir(UNPARSABLE_YAML,);
+            /**
+             Absolute path of the file the loader must name.
+             */
+            const filePath = join(
+              contentDir,
+              'en',
+              'broken.mdx',
+            );
+
+            /**
+             Error thrown for the unparsable YAML, or undefined when none was.
+             */
+            let caught: unknown;
+            try {
+              await loadContent(relative(
+                process.cwd(),
+                contentDir,
+              ),);
+            }
+            catch (error) {
+              caught = error;
+            }
+            finally {
+              await rm(
+                contentDir,
+                { force: true, recursive: true, },
+              );
+            }
+
+            expect(caught,).toBeInstanceOf(Error,);
+            expect((caught as Error).message,).toContain(filePath,);
           },
         },),
       ],
