@@ -116,6 +116,12 @@ pub mod service_land_copy;
 
 pub mod service_land_follow;
 
+/// What a landing does when its branch write is refused while the branch is still where the batch found it:
+/// the reference locks that stand,
+/// the bounded wait for a live holder,
+/// and the words for the locks nothing proves gone.
+pub mod service_land_reference_lock;
+
 /// The copy the service keeps of the conclusion state a landed commit removes.
 pub mod conclusion_state_copy;
 
@@ -261,6 +267,12 @@ pub mod service_commit_fitting_request;
 /// The requests of a service commit and what a landed commit leaves for the person.
 pub mod service_commit_requests_and_landing_report;
 
+/// The request one attempt of a commit sends:
+/// the amended commit landing as a new one,
+/// the commit Git builds,
+/// or the commit the service builds from captured changes.
+pub mod service_commit_request_of;
+
 /// The service's memory of when the bytes of the commits it landed were captured,
 /// per worktree.
 pub mod service_captures;
@@ -319,6 +331,9 @@ pub mod service_claim_renewal_running;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
+
+/// The notice for a push whose branch the person deleted.
+pub mod service_work_branch_is_gone;
 
 /// The kinds,
 /// handlers,

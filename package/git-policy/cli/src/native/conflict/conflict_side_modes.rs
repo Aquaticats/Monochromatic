@@ -66,6 +66,37 @@ pub fn modes_in_effect(global_prefix: &[OsString], overlay: &[(OsString, OsStrin
 }
 
 /// What:
+///  Whether a pathspec mode reaches a start that removes the variables in `remove`.
+/// Why:
+///   The in-process readers judge pathspec magic themselves and read no mode at all,
+///  so their answer is Git's only while
+///  no mode is in effect;
+///  a name in `remove` is gone from the child's environment,
+///  which outranks the overlay
+///  that may set it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aModeReachesTheStart(overlay, remove) // true when the child runs under a mode
+/// ```
+pub fn a_mode_reaches_the_start(overlay: &[(OsString, OsString)], remove: &[&str]) -> bool {
+    for variable in MODE_VARIABLES {
+        if remove.contains(&variable) {
+            continue;
+        }
+        if std::env::var_os(variable).is_some() {
+            return true;
+        }
+        for (name, _) in overlay {
+            if name.as_encoded_bytes() == variable.as_bytes() {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Whether the pathspec modes in effect read `*`,
 /// `?`,
 /// `[` and `\\` as pattern characters,

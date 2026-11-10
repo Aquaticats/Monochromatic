@@ -10,7 +10,7 @@ fn phases_are_named_in_transaction_order() {
     let names: Vec<&str> = TRANSACTION_TEST_PHASES.iter().map(|phase| { return phase.name(); }).collect();
     assert_eq!(
         names,
-        ["merge-intent", "merge-applied", "service-staged", "service-prepared"]
+        ["merge-carried", "merge-cleared", "merge-intent", "merge-applied", "merge-carried-back", "service-staged", "service-prepared", "service-sent-back"]
     );
     for retired in ["capture-locked", "preparation-done", "landing-locked", "objects-migrated", "ref-updated", "index-installed", "race-lost"] {
         assert!(parse_phase_signal(format!("{retired}:kill").as_str()).is_err(), "{retired} is no phase any more");
@@ -76,9 +76,10 @@ fn malformed_values_are_refused() {
 #[test]
 fn refusal_message_names_the_value_and_the_forms() {
     let error = parse_phase_signal("bogus:kill").expect_err("unknown phase");
+    let phases: String = TRANSACTION_TEST_PHASES.map(Phase::name).join(", ");
     assert_eq!(
         error.to_string(),
-        "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among merge-intent, merge-applied, service-staged, service-prepared."
+        format!("CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among {phases}.")
     );
 }
 

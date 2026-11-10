@@ -20,6 +20,7 @@ import {
   type BudgetModelSelectionOptions,
   type ModelPricing,
   NO_AUTH,
+  type ResolveBudgetAuth,
 } from './types.ts';
 
 /**
@@ -186,6 +187,56 @@ export const findCheapestCandidate: typeof findFastestCandidate = findFastestCan
 //region Same-provider strategy
 
 /**
+ Find the first ranked candidate the host can authenticate.
+
+ Same-provider and any-provider selection share this walk as their one auth
+ arrangement: each ranks its own candidate list, then takes the first entry
+ the resolver authenticates. The walk is sequential because stopping at the
+ first authenticated candidate is the point, so later resolvers never run.
+
+ @param candidates - ranked candidates, best first
+
+ @param resolveAuth - host auth resolver invoked once per candidate
+
+ @returns first authenticated candidate with its auth, or {@link NO_AUTH} when every candidate lacks auth
+
+ @mutates resolveAuth - invokes supplied async auth resolver for each candidate tried
+
+ @example
+ ```typescript
+ const selected = await firstAuthenticatedCandidate({ candidates, resolveAuth });
+ ```
+
+ @internal
+ */
+export async function firstAuthenticatedCandidate<TModel extends ModelPricing,>(
+  {
+    candidates,
+    resolveAuth,
+  }: {
+    readonly candidates: readonly TModel[];
+    readonly resolveAuth: ResolveBudgetAuth<TModel>;
+  },
+): Promise<BudgetModel<TModel> | typeof NO_AUTH> {
+  for (const candidate of candidates) {
+    /* oxlint-disable no-await-in-loop -- the walk must stop at the first candidate the host can authenticate. */
+    /**
+     Resolved auth for current candidate.
+     */
+    const auth = await resolveAuth({ model: candidate, },);
+    /* oxlint-enable no-await-in-loop */
+    if (auth !== NO_AUTH) {
+      return {
+        model: candidate,
+        auth,
+      };
+    }
+  }
+  return NO_AUTH;
+}
+
+
+/**
  Find fastest model in the same provider as active model.
  
  @param activeModel - active model used for provider reference
@@ -282,20 +333,15 @@ async function findSameProvider<TModel extends ModelPricing,>(
     );
   }
 
-  for (const candidate of candidates) {
-    /* oxlint-disable no-await-in-loop -- sequential auth walk must stop at first successful candidate. */
-    /**
-     Resolved auth for current candidate.
-     */
-    const auth = await resolveAuth({ model: candidate, },);
-    /* oxlint-enable no-await-in-loop */
-    if (auth !== NO_AUTH) {
-      return {
-        model: candidate,
-        auth,
-      };
-    }
-  }
+  /**
+   Authenticated same-provider candidate, when the host can authenticate one.
+   */
+  const authenticated = await firstAuthenticatedCandidate({
+    candidates,
+    resolveAuth,
+  },);
+  if (authenticated !== NO_AUTH)
+    return authenticated;
 
   /**
    Same-provider report row after every candidate failed auth.
@@ -367,20 +413,15 @@ async function findAnyProvider<TModel extends ModelPricing,>(
     },);
   },);
 
-  for (const model of sortedCandidates) {
-    /* oxlint-disable no-await-in-loop -- sequential auth walk must stop at first successful candidate. */
-    /**
-     Resolved auth for current candidate.
-     */
-    const auth = await resolveAuth({ model, },);
-    /* oxlint-enable no-await-in-loop */
-    if (auth !== NO_AUTH) {
-      return {
-        model,
-        auth,
-      };
-    }
-  }
+  /**
+   Authenticated cross-provider candidate, when the host can authenticate one.
+   */
+  const authenticated = await firstAuthenticatedCandidate({
+    candidates: sortedCandidates,
+    resolveAuth,
+  },);
+  if (authenticated !== NO_AUTH)
+    return authenticated;
 
   throw new NoBudgetModelError(
     'no fast judge models with API keys found across any provider',

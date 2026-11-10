@@ -131,6 +131,32 @@ await describe({
       },
     },),
     it({
+      name: 'reports a rejected serializer as a serialization failure, not as an append',
+      fn: async ({ sinon, },) => {
+        const warnings = sinon.stub(console, 'warn',);
+        await withFileSink(async function checkSerializationContext({ sink, },): Promise<void> {
+          /** Record whose own serializer throws before any line exists to append. */
+          const unstringifiable = {
+            level: 'info' as const,
+            timestamp: 0,
+            message: 'toJSON throws',
+            toJSON(): never {
+              throw new Error('toJSON exploded',);
+            },
+          };
+          await sink.write(unstringifiable,);
+          /** Diagnostic the sink reported for that record, joined for substring assertions. */
+          const reported = warnings.getCalls()
+            .map(function readMessage(call,) {
+              return String(call.args[0],);
+            },)
+            .join('\n',);
+          expect(reported,).toContain('serialization',);
+          expect(reported,).not.toContain('append failed',);
+        },);
+      },
+    },),
+    it({
       name: 'isolates same-millisecond sinks so multi-write records cannot interleave',
       fn: async ({ sinon, },) => {
         sinon.useFakeTimers({ now: 1_800_000_000_000, toFake: ['Date',], },);

@@ -331,23 +331,21 @@ and the value is checked and ignored.
   a holder that puts another file on the descriptor between the gate and the read is read as not holding the lock,
   so the removal may take a lock that is in fact held,
   and the journal line says what it acted on.
-  The proof counts the service's own descriptors through the gated read of item 3 above
-  (`src/native/process/open_file_of_a_descriptor.rs`),
-  so a descriptor of its own on a file system whose attributes are not in memory is never asked for its device and inode:
-  one that names a file a repository could hold makes the count unknown and the lock stays,
-  and one that is no file of a repository (a pipe,
+  The proof counts the service's own descriptors as the files the kernel has open under their numbers:
+  `statx(2)` with `AT_EMPTY_PATH` takes the descriptor's own number,
+  walks no path,
+  and asks no file system to revalidate a directory entry,
+  so the count is the same on every mount type
+  (`src/native/process/open_file_of_a_descriptor.rs`,
+  `opened_file_of_our_own`).
+  A descriptor of its own that names no file of a repository matches no device and inode and is not counted,
+  so a pipe,
   a socket,
-  a memory or device file,
-  a file under `/proc` or `/sys`) is skipped.
+  a memory or device file and a file under `/proc` or `/sys` need no name test of their own.
   A descriptor that ended while it was being counted names nothing.
-  A descriptor of this process on a file no repository could hold is skipped,
-  and a memory file is one of them:
-  the kernel writes its link as `/memfd:<name> (deleted)`,
-  with the leading slash its other pseudo names do not have,
-  so that slash is dropped before those names are matched,
-  and an open capture no longer keeps an abandoned lock
-  (cross-vendor review of 2026-11-09,
-  finding 4).
+  A mount whose type this process cannot classify no longer makes that count unknown,
+  which on a container's overlay filesystem it did for every descriptor:
+  an abandoned lock stayed where it was and every commit behind it failed at its ceiling.
   and this key no longer sets anything.
   `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
@@ -3426,6 +3424,46 @@ the commit from `git commit-tree`,
 the checkout moves with
 `git merge --ff-only`,
 and the whole is preceded by a bounded wait for `index.lock`.
+
+A merge whose paths hold the person's own work carries it forward
+(owner's answer "Carry edits forward (Recommended)",
+"Merges and commits never fail";
+rules "Manual merge should never fail too."
+and "never discard user data"):
+
+- The bytes of every path the merge changes that differs from `HEAD` in the worktree or the index,
+  untracked files the merge adds included,
+  are written as objects with `git hash-object -w`,
+  the clean-filtered form beside the exact bytes,
+  and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
+  written with an all-zero old value;
+  the merge's record names the commit and every path with its two layers.
+  The objects are written and the ref exists before the first byte of the checkout changes.
+- Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
+  so `git merge --ff-only` takes them as it always did,
+  and a path that changed after the capture stops the step with nothing written.
+- After the branch moved, each layer is merged with the merge's own:
+  the worktree's file form and the index's blob separately,
+  so a staged edit stays staged and an unsaved one stays unsaved.
+  A side unchanged on either side takes the other side; the bytes of a layer nothing of the merge reaches are written back exactly;
+  a text both sides changed goes through `merge_second_pass`,
+  the pass this package already runs,
+  and a region it cannot settle keeps both sides between `word_merge::keep_both`'s markers.
+  A binary file, a link, a mode the pass cannot take, a path the merge deletes and a path the person deleted keep the
+  person's side whole and are named on standard error with what to do;
+  a path written after the capture is left alone and named.
+  Every such finding exits 0: the merge is made, and the person's work is theirs to judge.
+- A kill after the clear and before the branch move restores the captured layers,
+  because the record says so and the merge did not land;
+  a kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
+  The carry is a function of the captured blobs and the merge commit,
+  so recovery converges on the same bytes from any step.
+
+A path whose worktree entry is a directory,
+and an index that holds unmerged entries,
+are not one edit anybody can merge:
+the command is native Git's whole,
+which refuses such a checkout itself.
 The move the auto-push makes after a published reconcile merge names its branch instead,
 because `git merge --ff-only` moves whichever branch `HEAD` names at the instant it runs:
 an ancestry question,
@@ -6431,10 +6469,9 @@ and the first answer wins:
    before the file the descriptor has open is read.
    That read walks the path `/proc/<pid>/fd/<n>`,
    whose last step asks the file's own file system to revalidate its directory entry before any attribute is read,
-   so it is taken only where it cannot reach a server:
+   so it is taken in this process only where it cannot reach a server:
    the `mnt_id` line of the descriptor's record is looked up in that process's own mount table,
-   and the file is read only when the mount is on the fixed list of local file systems above (without `overlay`,
-   whose attributes are the file's below it).
+   and the file is read only when the mount is on the fixed list of local file systems above.
    A `statx(2)` with `AT_STATX_DONT_SYNC` then answers from the memory of the kernel:
    a file system whose server has stopped answers neither that walk nor its own flush,
    and `SIGTERM` does not end either wait
@@ -6442,6 +6479,30 @@ and the first answer wins:
    findings 3 and 4 of the first and 2 and 4 of the second;
    measured on this host with a stopped `fuse-overlayfs` server,
    `doc/troubleshooting/fuse-descriptor-attributes.md`).
+   A kernel `overlay` mount is the one type that does not settle that question,
+   because its own attributes are the attributes of the file below it,
+   and whether a read reaches a server is decided by the layer's own file system:
+   overlay revalidates a layer only when that layer sets a revalidation of its own
+   (`fs/overlayfs/super.c`,
+   `ovl_revalidate_real`).
+   The layers are named in the mount's own options,
+   and in a container they are the host's directories,
+   which no process inside the container can reach:
+   measured on 2026-11-09 in this package's gate container,
+   every `lowerdir` and `upperdir` of its root mount is `ENOENT` there while the layers are the host's local disk.
+   So that one read is made by a child of this process,
+   and the answer is waited for only until a ceiling
+   (300 ms;
+   measured 0.5 ms mean and 2.1 ms worst over two hundred reads on this host):
+   a child that has not answered is ended,
+   and one the kernel does not let go is collected by a reaper whenever it does,
+   which is what a command's own stuck child gets
+   (`src/native/process/open_file_of_a_descriptor_in_a_child.rs`).
+   The ceiling is a process the scan could not identify,
+   and none of these is a wait the caller keeps:
+   `fuse-overlayfs` is another type,
+   served by a process of the machine,
+   and stays refused with the types above.
    A copy of the descriptor answers a stalled server from its cached inode,
    but closing the copy runs that file system's flush,
    which a stopped server holds as it holds a lookup,
@@ -6687,6 +6748,53 @@ red first:
 `a_reftable_tables_list_lock_left_by_a_killed_git_stays_and_is_named`,
 with `a_live_reftable_gits_tables_list_lock_stays` and
 `a_reftable_lock_that_nothing_proves_gone_is_left_and_named`.
+
+#### A landing whose branch write a lock refuses
+
+Git answers a refused reference update the same way whether the branch moved or a lock file stands,
+and the service told them apart by asking the branch again after the refusal:
+a branch that still names the commit the batch was built on did not move,
+so a lock is what refused the write
+(`src/native/landing/service_land_batch_body.rs`,
+`src/native/landing/service_land_reference_lock.rs`).
+A refusal that is not a moved branch spends no landing attempt,
+so the sentence "the branch changed N times" is never said for a lock:
+that sentence is said only for a branch that really changed.
+A live holder lets go on its own within its step,
+so the landing waits for the standing locks,
+bounded by `REFERENCE_LOCK_WAIT`
+(`src/native/service/wait_ceilings.rs`),
+which is the margin a lock is judged at:
+twice the 3,438 ms longest live reference step of the service journal.
+The index lock is given up before the wait,
+so another program's commit is not held behind a lock this landing only waits for.
+The locks are judged and cleared by the judgement above,
+through the same proof,
+notice and set-aside removal,
+and the landing tries its write again as soon as nothing stands.
+A lock that is still there at the bound,
+or one that a proof does not reach,
+ends the commit with a plain message that names the lock,
+says what is known about its holder,
+gives the exact command that clears it,
+and says that nothing in the repository changed
+(`FailureCode::ReferenceLocked`,
+`ClientFailure::ReferenceLocked`).
+No lock is removed on a claim about this service's own killed child,
+for the reasons above.
+The words of the judgement also go to the journal,
+with the lock's size,
+age and the evidence it was judged by.
+Tests,
+red first:
+`a_reference_lock_nothing_proves_gone_is_named_with_the_command_that_clears_it`,
+with `a_lock_a_live_process_has_open_is_named_and_left`,
+`a_staging_file_with_no_lock_is_cleared_and_the_write_may_be_tried_again`,
+`nothing_standing_costs_no_wait`,
+`a_young_lock_is_looked_at_again_until_the_deadline_and_then_named`,
+and the binary controls
+`a_commit_that_meets_a_reference_lock_names_it_with_the_command_that_clears_it` and
+`a_commit_that_meets_a_live_reference_lock_waits_for_it_and_lands`.
 
 #### Races, and how each is handled
 
@@ -11399,6 +11507,22 @@ exit `1`,
 a message naming the paths and the commit that landed first,
 and the message the person typed saved in a file with the command that reuses it.
 A merged tree equal to the branch ends with `concurrent-commit/already-committed`.
+A commit sent back to be prepared again reads the private index of the attempt that captured its change,
+so that attempt's scratch tree belongs to the command until it has read it:
+the service removes the tree of a request it answered as landed,
+records the identity of every request it answered without landing it,
+and leaves those trees where they are
+(`handed_back` in `src/native/service/service_server_land_group.rs`,
+`remove_the_trees` in `src/native/service/service_server.rs`).
+The command releases such a tree beside itself once the answer's arm has read the change it captured
+(`release_beside_the_command` and `HandedBackTree` in `src/native/landing/service_prepare_ready_shapes.rs`),
+so the recursive removal never makes the command wait.
+The tree is named after the request and the attempt,
+so the next attempt never shares a directory with one a removal is taking,
+and a tree whose removal never ran is collected by the age sweep of the repository scratch directory.
+Before the capture reads the index it checks that the file is there:
+`git write-tree` answers with the empty tree for an index that is gone,
+which would rebuild the commit as a deletion of every file and report a conflict naming paths it never changed.
 A commit Git built without an editor is built again on the new tip,
 signed again by Git,
 while the time since its first build is under the ceiling;
@@ -11468,18 +11592,24 @@ A merge that settling finishes says so on standard error,
 naming the ref it landed on and the merge commit,
 because the command may have been run only to look at the worktree;
 the same line names the ref a merge was abandoned on when the branch moved while it was prepared.
-Settling writes the index only after waiting,
+Settling writes the index only after deciding what another program's `index.lock` allows,
+so a program that holds the index does not end every command in that worktree.
+A merge that already installed part of its checkout waits for the lock,
 bounded and naming the holder,
-for any program's `index.lock`,
-so a program that holds the index does not end every command in that worktree;
-a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
-leaves the record and the checkout as they were,
-and the next command finishes the same merge.
-That leaving alone is for a merge that installed nothing:
-when the merge's index entries or files are already installed and the index stays held,
+and a lock that outlasts `MERGE_LOCK_CEILING` writes nothing:
+the record and the checkout stay as they were,
 the command is stopped and told the lock,
 the record and what is installed,
 because a command that went on would read the half-installed merge as another session's staged work.
+A merge that installed nothing is settled from one look at the lock instead
+(`merge_isolation_recovery_index_lock.rs`):
+nothing of it is in the checkout,
+so a command says where the merge is saved and goes on at once,
+and the next command finishes the merge once the lock is free,
+because the owner's rule is "nothing should ever wait forever or indefinitely".
+A lock whose Git lock PID file names a process that no longer runs is cleared on the commit service's proof of disuse,
+exactly as the merge's own path clears it,
+and the merge goes on rather than every command exiting 2 until the person deletes the file.
 A staged entry for a path the merge changes is judged before the take and written after it,
 so another command that stages one of those paths inside that window replaces a version this command never read:
 the standings are read once,
@@ -12222,8 +12352,11 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 9,
-the first that names the commit's scratch tree in a field of its own.
+The commit request speaks protocol version 10,
+the first whose landing answers `reference-locked`
+when a reference lock refused its branch write;
+a client of version 9 reads a failure word it does not know as an answer it cannot read.
+Version 9 was the first that names the commit's scratch tree in a field of its own.
 A service of version 8 works the tree out from the request's index,
 which is the worktree's real index rather than a tree,
 so it lands the commit and leaves the tree to the age sweep.

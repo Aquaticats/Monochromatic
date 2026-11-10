@@ -10,6 +10,11 @@
  * benchmarking, and creating predictable test data with mixed truthiness values.
  *
  * @remarks
+ * The export is typed `readonly number[]`, so TypeScript rejects in-place mutation of
+ * the shared fixture while reading methods, spreading and `slice` keep returning
+ * ordinary mutable arrays. The array is not frozen at runtime, so copy it before
+ * changing anything.
+ *
  * This array is ideal as test fixture because 0 is falsy while all other values
  * are truthy, making it straightforward to test for all-truthiness or all-falsiness
  * by creating predicates that add one or subtract 999 from input values.
@@ -65,7 +70,7 @@
  * console.log(chunks.length); // 10 chunks of 100 elements each
  * ```
  */
-/* @__NO_SIDE_EFFECTS__ */ export const array0to999: number[] = [
+/* @__NO_SIDE_EFFECTS__ */ export const array0to999: readonly number[] = [
   0,
   1,
   2,
@@ -1066,4 +1071,4 @@
   997,
   998,
   999,
-] as const;
+];

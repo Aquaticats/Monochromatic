@@ -2,7 +2,7 @@
  Shared oxlint configuration for Monochromatic repositories (built Node entry).
  
  Spreads {@link base} and points `jsPlugins` at the co-located sidecar plugin
- bundles (`plugin-*.mjs`) emitted next to this file by `tsdown.node.config.ts`.
+ bundles (`plugin-*.mjs`) emitted next to this file by `rolldown.node.config.ts`.
  Using relative `file://` URLs avoids any plugin resolution at lint time, which is
  the optimization tracked in issue #238. This is the package default export
  (`dist/final/node/index.mjs`).

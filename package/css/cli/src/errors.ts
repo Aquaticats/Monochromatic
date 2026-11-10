@@ -1,3 +1,7 @@
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+
+//region Mixin reference errors
+
 /**
  Error thrown when an `\@apply` references a mixin absent from the registry.
  
@@ -68,3 +72,51 @@ export class CircularCssMixinError extends Error {
     this.trail = trail;
   }
 }
+
+//endregion Mixin reference errors
+
+//region Package manifest errors
+
+/**
+ Error thrown when a `package.json` manifest exists but cannot be read or
+ parsed. Carries the manifest path and the underlying failure, so a
+ resolution failure names the corrupt file instead of claiming the package
+ exports nothing.
+ 
+ @example
+ ```ts
+ try {
+   readPackageJson('/project/node_modules/\@scope/broken');
+ } catch (error) {
+   if (error instanceof CssPackageManifestError) console.error(error.manifestPath);
+ }
+ ```
+ */
+export class CssPackageManifestError extends Error {
+  /**
+   Absolute path of the unreadable manifest.
+   */
+  readonly manifestPath: string;
+
+  /**
+   @param manifestPath - Absolute path of the unreadable manifest.
+   
+   @param cause - Read or parse failure the manifest threw.
+   */
+  constructor({
+    manifestPath,
+    cause,
+  }: {
+    readonly manifestPath: string;
+    readonly cause: unknown;
+  },) {
+    super(
+      `Cannot read package manifest '${manifestPath}': ${caughtValueText(cause,)}`,
+      { cause, },
+    );
+    this.name = 'CssPackageManifestError';
+    this.manifestPath = manifestPath;
+  }
+}
+
+//endregion Package manifest errors

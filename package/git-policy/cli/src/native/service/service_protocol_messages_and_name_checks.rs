@@ -24,7 +24,9 @@ use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks;
 /// a service and a client agree when their versions are equal.
-/// It is 9 because a commit request names its scratch tree in its own field,
+/// It is 10 because a landing answers `reference-locked` when a reference lock refused its branch write,
+/// and a client of version 9 reads a failure word it does not know as an answer it cannot read;
+/// It was 9 because a commit request names its scratch tree in its own field,
 /// and a service of version 8 removes only the tree a request's cleanup names,
 /// which the tree of every commit that concludes nothing is not:
 /// the service would land the request and leave the tree to the age sweep.
@@ -35,7 +37,7 @@ use std::path::{Path, PathBuf};
 /// so the version a service announces in its welcome is what is compared,
 /// and a service of another version is asked to retire before any request is sent
 /// (`service_client_reach_service.rs`).
-pub const PROTOCOL_VERSION: u32 = 9;
+pub const PROTOCOL_VERSION: u32 = 10;
 
 /// The release of this build:
 /// the crate version,
@@ -291,6 +293,10 @@ pub enum FailureCode {
     PermissionDenied,
     /// Another program holds the repository's index.
     IndexInUse,
+    /// A reference lock stands in the way of the branch write,
+    /// and nothing proves that a Git process still holds it:
+    /// the words the service sends as the holder name the lock and the command that clears it.
+    ReferenceLocked,
     /// The request is not one the service accepts.
     Rejected,
     /// The branch moved too often while the request waited.
@@ -313,6 +319,7 @@ impl FailureCode {
             Self::RepositoryReadOnly => "repository-read-only",
             Self::PermissionDenied => "repository-permission-denied",
             Self::IndexInUse => "index-in-use",
+            Self::ReferenceLocked => "reference-locked",
             Self::Rejected => "rejected",
             Self::BranchKeepsChanging => "branch-keeps-changing",
             Self::BranchMoved => "branch-moved",
@@ -323,11 +330,12 @@ impl FailureCode {
 
     /// Every code,
     /// so a test reaches all of them.
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
         Self::PermissionDenied,
         Self::IndexInUse,
+        Self::ReferenceLocked,
         Self::Rejected,
         Self::BranchKeepsChanging,
         Self::BranchMoved,

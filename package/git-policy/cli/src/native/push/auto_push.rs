@@ -18,15 +18,18 @@
 //! ```
 
 /// Where a plain push of a named branch goes.
-use crate::auto_push_destination::{NamedPush, named_push};
+use crate::auto_push_destination::{NamedPush, named_push, named_push_awaiting};
 /// The reconcile of a push that a moved remote branch rejected,
 /// and the lines it adds to the output.
 use crate::auto_push_reconcile::{RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, reconcile_divergent_push};
+/// The same reconcile,
+/// awaited by a caller that is itself a task of the runtime.
+use crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting;
 /// The service's Git,
 /// the failed attempt it reports and its error type.
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
+use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query, run_query_awaiting};
 /// The auto-push's bounded `git push` with the Git LFS upload.
-use crate::lfs_bounded_push::run_push;
+use crate::lfs_bounded_push::{run_push, run_push_awaiting};
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
 /// Owned OS strings for Git arguments.
@@ -305,6 +308,151 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dy
         exit_code: attempt.exit_code,
         shown,
     });
+}
+
+/// What:
+///  Whether a read-only Git query exits zero,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's push asks this as a task,
+/// and the synchronous query enters the runtime and is refused from there.
+/// The question and the reading of the exit status are the synchronous face's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await gitQuerySucceedsOnTheRuntime({ gitPath, cwd, args });
+/// ```
+async fn query_succeeds_awaiting(git: &PushGit, arguments: &[&str]) -> Result<bool, SingleFlightError> {
+    let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
+    return Ok(run_query_awaiting(git, &argv).await?.code == Some(0));
+}
+
+/// What:
+///  The same plan of a push,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The plan asks Git twice and reads the destination's configuration,
+/// and every one of those starts is refused from inside the runtime.
+/// The questions and the arguments are the synchronous face's,
+/// so the two plan the same push.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plan = await planNamedPushOnTheRuntime({ gitPath, cwd }, branchRef);
+/// ```
+async fn plan_named_push_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+    err: &mut (dyn Write + Send),
+) -> Result<Planned, SingleFlightError> {
+    // Git reads `refs/heads/x@{upstream}` as a branch named `refs/heads/x` ("no such branch"), so the query takes the short name;
+    //  a ref outside `refs/heads` has no upstream.
+    let has_upstream: bool = match branch_ref.strip_prefix("refs/heads/") {
+        Some(name) => {
+            let upstream_name: String = format!("{name}@{{upstream}}");
+            query_succeeds_awaiting(git, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", upstream_name.as_str()]).await?
+        }
+        None => false,
+    };
+    if !has_upstream && !query_succeeds_awaiting(git, &["remote", "get-url", "origin"]).await? {
+        debug(TAG, "no upstream and no origin remote; skipping auto-push");
+        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new() }));
+    }
+    let arguments: Vec<String> = if has_upstream {
+        let (remote, targets): (String, Vec<String>) = match named_push_awaiting(git, branch_ref).await? {
+            NamedPush::Push { remote, targets } => (remote, targets),
+            NamedPush::Matching { remote } => {
+                // Git matches the branches itself: the plain push of the remote, with no refspec.
+                return Ok(Planned::Push { branch_ref: branch_ref.to_owned(), has_upstream, arguments: vec![String::from("push"), remote] });
+            }
+            NamedPush::Skip(note) => return Ok(skipped_with(note, err)),
+        };
+        let mut arguments: Vec<String> = vec![String::from("push"), remote];
+        for target in &targets {
+            arguments.push(format!("{branch_ref}:{target}"));
+        }
+        arguments
+    } else {
+        vec![String::from("push"), String::from("--set-upstream"), String::from("origin"), format!("{branch_ref}:{branch_ref}")]
+    };
+    return Ok(Planned::Push { branch_ref: branch_ref.to_owned(), has_upstream, arguments });
+}
+
+/// What:
+///  Push a landed commit's branch once,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The push of the landing round is a task,
+/// and every step below it starts Git,
+/// which the synchronous face enters the runtime for and is refused from there.
+/// The plan,
+/// the held-reference retry,
+/// the reconcile and the words the push shows are the synchronous face's,
+/// so a push and its retry cannot differ between the two.
+///  The pause between the retries is the runtime's own,
+/// so no worker is held while the other worktree's lock is waited out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const result = await pushOnceOnTheRuntime({ gitPath, cwd }, branchRef, landedOid);
+/// ```
+pub async fn push_once_awaiting(
+    git: &PushGit,
+    branch_ref: &str,
+    landed_oid: &str,
+    err: &mut (dyn Write + Send),
+) -> Result<AutoPushResult, SingleFlightError> {
+    let planned: Planned = plan_named_push_awaiting(git, branch_ref, err).await?;
+    let (pushed_ref, has_upstream, mut attempt): (String, bool, PushAttempt) = match planned {
+        Planned::Skip(result) => return Ok(result),
+        Planned::Push { branch_ref: planned_ref, has_upstream, arguments } => {
+            let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
+            debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {planned_ref}"));
+            let mut attempt: PushAttempt = run_push_command_awaiting(git, argument_views.as_slice()).await?;
+            // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
+            //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
+            //  leaves the reference stale; the same push again finds nothing to deliver and brings the reference up to date.
+            let mut pause: u32 = 0;
+            while attempt.output.contains(REFERENCE_LOCK_REFUSAL) && pause < PUSH_LOCK_RETRIES {
+                pause += 1;
+                tokio::time::sleep(PUSH_LOCK_PAUSE * pause).await;
+                attempt = run_push_command_awaiting(git, argument_views.as_slice()).await?;
+            }
+            (planned_ref, has_upstream, attempt)
+        }
+    };
+    if has_upstream && attempt.exit_code != 0 {
+        attempt = reconcile_divergent_push_awaiting(git, &pushed_ref, attempt).await?;
+    }
+    let failed: bool = attempt.exit_code != 0;
+    let shown: String = filter_push_output(&attempt.output, attempt.exit_code);
+    if !shown.is_empty() {
+        writeln!(err, "{shown}").map_err(SingleFlightError::Io)?;
+    }
+    if failed && !attempt.output.contains(RECONCILE_FAILED_PREFIX) {
+        writeln!(err, "{PUSH_FAILED_NOTE}").map_err(SingleFlightError::Io)?;
+    }
+    return Ok(AutoPushResult {
+        outcome: if failed { AutoPushOutcome::Failed } else { AutoPushOutcome::Pushed },
+        exit_code: attempt.exit_code,
+        shown,
+    });
+}
+
+/// What:
+///  Run one real `git push` and capture its interleaved output,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The awaited push is the synchronous one with its wait on the runtime,
+/// so the arguments and the captured output are the same.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attempt = await runPushAwaiting(git, pushArgs);
+/// ```
+async fn run_push_command_awaiting(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, SingleFlightError> {
+    let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
+    return run_push_awaiting(git, &argv).await;
 }
 
 /// Auto-push behavior is controlled in the test module.
