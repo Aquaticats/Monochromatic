@@ -4,7 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { createIso, } from './iso9660.ts';
+import { createIso, } from '../dist/final/node/index.mjs';
 
 await describe({
   name: createIso.name,

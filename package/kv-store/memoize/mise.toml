@@ -33,6 +33,12 @@ extends = "format:oxlint"
 
 [tasks."lint:types"]
 extends = "lint:types"
+# The suites import the built node artifact, whose declarations name the store
+# package, so both builds must exist before the type checker reads them.
+depends = ["build:js:node", "//package/kv-store/core:build:js:browser"]
 
 [tasks."test:unit"]
 extends = "test:unit"
+# The suites import the built node artifact of this package and of the store
+# package it shares a sentinel with, so both builds must land first.
+depends = ["build:js:node", "//package/kv-store/core:build:js:node"]

@@ -162,10 +162,17 @@ export type MemoizedAsyncFunction<
     readonly store: Store;
   /**
    Wipe all cached entries and drop any in-flight deduplication state.
+   
+   A computation still running when this is called resolves for its own caller, but its
+   result is not cached. Writes already in progress are awaited before the store is
+   emptied, so a value resolved before the wipe never reappears afterwards.
    */
     readonly clear: () => Promise<void>;
   /**
    Remove a specific entry by its full cache key (keyFn result plus salt).
+   
+   A computation still running for that key resolves for its own caller, but its result is
+   not cached, and a write already in progress for the key is awaited before removal.
    */
     readonly delete: (key: string,) => Promise<void>;
   };
