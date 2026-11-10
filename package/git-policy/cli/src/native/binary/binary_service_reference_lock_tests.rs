@@ -20,7 +20,7 @@
 //! plant('refs/heads/main.lock'); const refused = commit(); expect(refused.stderr).toContain('rm -- '); rm(lock); expect(commit().code).toBe(0);
 //! ```
 
-use super::commit::{COMMIT_BOUND_SECONDS, git_text, remove_settled};
+use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, FixtureService, Observed, bounded_for, fixture, git, observe, repository, start_fixture_service, wrapper_first_path};
 use super::support_fixture_service_log::service_log;
 use std::ffi::OsStr;
@@ -31,18 +31,24 @@ use std::time::{Duration, Instant};
 /// far beyond a healthy run.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// The longest a command that settles a held commit may run here,
-/// which is the commit bound these controls already use:
-/// a settlement does what the landing that met the lock would have done,
+/// The longest a commit that meets a reference lock, and the command that settles it, may run here.
+/// A settlement does what the landing that met the lock would have done,
 /// installs the index entries and marks the batch done included,
-/// so it costs what a landing costs.
-/// It is never the text of the shared bound of one Git command:
+/// so it costs what a landing costs,
+/// and a commit that meets a lock pays for the hold on top of that.
+/// Measured on the shared development host:
+/// with the load average between 85 and 150 these controls took 9 to 54 s each,
+/// and at 132 to 162 each commit and each settlement took 60 to 204 s while still finishing
+/// (the same controls passed alone at 179 and 204 s).
+/// Five minutes is that measurement plus half,
+/// and it is a guard against a hang, not a measure of the work.
+/// It is deliberately not the text of the shared bound of one Git command:
 /// that text is the supervisor's own backstop,
 /// and a command carrying it must show work every few seconds,
 /// which a commit answered by the service cannot
 /// (`shared_bound_misuse`,
 /// `binary_supervisor.rs`).
-const SETTLE_BOUND_SECONDS: &str = COMMIT_BOUND_SECONDS;
+const SETTLE_BOUND_SECONDS: &str = "300";
 
 /// The longest a control waits for a settlement on a shared host.
 const SETTLE_PATIENCE: Duration = Duration::from_secs(600);
