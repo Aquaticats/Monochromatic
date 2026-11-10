@@ -351,3 +351,34 @@ fn a_bones_flag_without_its_path_names_the_usage() {
     assert!(stderr.contains("--bones"), "the error must name the flag: {stderr}");
     assert!(stderr.contains("usage"), "the error must state the usage: {stderr}");
 }
+
+/// Fixture tracks in the ordering test:
+///  several chunks of one reader each,
+///  so the readers really overlap and only the join order can keep the rows in place.
+const ORDER_FIXTURE_COUNT: usize = 3;
+
+/// Rows land in corpus order however many readers overlap,
+///  so two regenerations of one corpus diff cleanly.
+#[test]
+fn targets_are_written_in_corpus_order() {
+    let directory = scratch("bones_profiles_order");
+    let mut lines = Vec::new();
+    let mut expected = Vec::new();
+    for index in 0..ORDER_FIXTURE_COUNT {
+        let fixture_path = directory.join(format!("fixture{index}.flac"));
+        fs::write(&fixture_path, fixture_flac()).expect("write the fixture stream");
+        let path = fixture_path.to_string_lossy().into_owned();
+        expected.push(path.clone());
+        lines.push(corpus_line(&path, LOUD_PEAK, TRACK_SECS as f64));
+    }
+    let corpus_path = write_corpus(&directory, &lines);
+    let out_path = directory.join("flac-profiles.jsonl");
+
+    stdout_of(&run_bench(&[
+        corpus_path.to_str().expect("corpus path is UTF-8"),
+        "--bones",
+        out_path.to_str().expect("output path is UTF-8"),
+    ]));
+    let written: Vec<String> = read_profiles(&out_path).into_iter().map(|row| return row.path).collect();
+    assert_eq!(written, expected, "the rows keep the corpus order");
+}

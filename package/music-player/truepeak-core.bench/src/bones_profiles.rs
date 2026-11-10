@@ -22,6 +22,9 @@ use std::fs::File;
 use std::io::{BufWriter, ErrorKind, Write};
 /// Imports the borrowed output path type.
 use std::path::Path;
+/// Imports scoped threads,
+///  so the readers borrow the corpus instead of cloning it.
+use std::thread;
 
 /// Imports `anyhow`'s result alias,
 ///  its `Context` trait,
@@ -47,6 +50,22 @@ pub const BONES_FLAG: &str = "--bones";
 /// How to call the extraction,
 ///  carried by every argument error it can raise.
 const USAGE: &str = "usage: truepeak-core-bench <tracks.jsonl> --bones <out.jsonl>";
+
+/// How many targets are read and walked at once.
+///
+/// What:
+///  the reading pool's width,
+///  the same four the retired script used.
+/// Why:
+///  a regeneration spends its wall clock waiting on file reads:
+///  over the recorded corpus (1173 tracks,
+///  48.6 GB) one reader took 572 s and four took 275 s,
+///  though the second pass also found more of the library in the page cache,
+///  and on eight cached tracks the four-reader run finishes four to six times
+///  sooner.
+///  Four is the width the retired script used,
+///  so the replacement costs no more than the profiler it replaced.
+const PROFILE_WORKERS: usize = 4;
 //endregion
 
 /// One written profile row,
@@ -75,6 +94,83 @@ struct Counts {
     missing: usize,
     /// Targets whose bytes are not a walkable FLAC stream.
     unparseable: usize,
+}
+
+/// What one target produced,
+///  so the writer can count the outcomes that are not errors.
+enum Walked {
+    /// The walk succeeded.
+    Line {
+        /// The row this track's profile becomes.
+        row: ProfileLine,
+    },
+    /// The file is no longer on disk.
+    Missing,
+    /// The bytes are not a walkable FLAC stream.
+    Unparseable,
+    /// The file exists but cannot be read at all;
+    ///  carried out of the worker so the run names it and stops.
+    Unreadable {
+        /// The track the run failed on.
+        path: String,
+        /// What the read reported.
+        message: String,
+    },
+}
+
+/// Read one track and walk its framing.
+fn walk_track(track: &Track) -> Walked {
+    let buf = match fs::read(&track.path) {
+        Ok(buf) => buf,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Walked::Missing,
+        Err(error) => {
+            return Walked::Unreadable { path: track.path.clone(), message: error.to_string() }
+        }
+    };
+    let profile = match flac_bones_profile(&buf) {
+        Ok(profile) => profile,
+        Err(error) => {
+            tracing::warn!(path = %track.path, cause = %error.message, "bones profile failed");
+            return Walked::Unparseable
+        }
+    };
+    return Walked::Line {
+        row: ProfileLine {
+            path: track.path.clone(),
+            slot_secs: BONES_SLOT_SECS,
+            bytes: whole_bytes(&profile),
+        },
+    }
+}
+
+/// Walk every target,
+///  `PROFILE_WORKERS` of them at a time,
+///  returning the outcomes in corpus order.
+///
+/// What:
+///  splits the targets into contiguous chunks,
+///  gives each chunk a thread,
+///  and joins the chunks in order.
+/// Why:
+///  the reads dominate and one reader leaves the disk queue empty;
+///  joining in chunk order keeps the file byte-identical between runs.
+fn walk_targets(targets: &[&Track]) -> Vec<Walked> {
+    let chunk_size = targets.len().div_ceil(PROFILE_WORKERS).max(1);
+    return thread::scope(|scope| {
+        let handles: Vec<_> = targets
+            .chunks(chunk_size)
+            .map(|chunk| {
+                return scope.spawn(move || {
+                    return chunk.iter().map(|track| return walk_track(track)).collect::<Vec<Walked>>()
+                })
+            })
+            .collect();
+        let mut walked: Vec<Walked> = Vec::with_capacity(targets.len());
+        for handle in handles {
+            walked.extend(handle.join().expect("a profile worker does not panic"));
+        }
+        return walked
+    })
 }
 
 /// The path written after `--bones`.
@@ -131,42 +227,35 @@ fn whole_bytes(profile: &[f64]) -> Vec<u64> {
 ///  counting the files it could not profile instead of stopping.
 ///
 /// What:
-///  reads each target,
-///  walks its framing,
-///  and appends the row.
+///  walks every target,
+///  then appends the rows in corpus order.
 /// Why:
 ///  a library changes under a corpus,
 ///  so a vanished or re-encoded file must be reported and skipped rather than
-///  discard every row beside it.
+///  discard every row beside it;
+///  and a fixed order keeps two runs of the same corpus byte-identical,
+///  which is what lets a regenerated side file be diffed against an older one.
 fn write_profiles(tracks: &[Track], policy: &Policy, out_path: &Path) -> Result<Counts> {
     // Create the output before the first read, so a bad path fails at once.
     let file = File::create(out_path)
         .with_context(|| return format!("bones: cannot create {}", out_path.display()))?;
     let mut writer = BufWriter::new(file);
+    let targets: Vec<&Track> = tracks.iter().filter(|track| return is_target(track, policy)).collect();
     let mut counts = Counts::default();
-    for track in tracks.iter().filter(|track| return is_target(track, policy)) {
-        let buf = match fs::read(&track.path) {
-            Ok(buf) => buf,
-            Err(error) if error.kind() == ErrorKind::NotFound => {
+    for walked in walk_targets(&targets) {
+        let line = match walked {
+            Walked::Line { row } => row,
+            Walked::Missing => {
                 counts.missing += 1;
                 continue;
             }
-            Err(error) => {
-                return Err(error).with_context(|| return format!("bones: cannot read {}", track.path))
-            }
-        };
-        let profile = match flac_bones_profile(&buf) {
-            Ok(profile) => profile,
-            Err(error) => {
-                tracing::warn!(path = %track.path, cause = %error.message, "bones profile failed");
+            Walked::Unparseable => {
                 counts.unparseable += 1;
                 continue;
             }
-        };
-        let line = ProfileLine {
-            path: track.path.clone(),
-            slot_secs: BONES_SLOT_SECS,
-            bytes: whole_bytes(&profile),
+            Walked::Unreadable { path, message } => {
+                return Err(anyhow!("bones: cannot read {path}: {message}"))
+            }
         };
         serde_json::to_writer(&mut writer, &line)
             .with_context(|| return format!("bones: cannot write {}", out_path.display()))?;

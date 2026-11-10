@@ -89,6 +89,22 @@ The side file therefore comes from one implementation of the walk,
  not a second one kept beside it in another language.
 `slotSecs` is `truepeak_core::BONES_SLOT_SECS`,
  and each slot's bytes are whole numbers.
+The report reads a slot index as a corpus bin index,
+ so the file means what it says only for a corpus whose bins are that slot wide
+ (the collector's default,
+ and the width the recorded corpus carries);
+ issue 5393 holds making the join width explicit.
+The targets are the shipped policy's long lossless tracks above its dBTP ceiling,
+ the same policy `--buckets` evaluates,
+ so a policy change moves the file and the report together;
+ every row is written in corpus order,
+ so two regenerations of one corpus diff cleanly.
+A regeneration of the recorded corpus took about five minutes
+ (1173 tracks,
+ 48.6 GB,
+ four read at a time),
+and every row it wrote was byte-identical to the file the retired JavaScript
+profiler had written for the same track.
 A track that left the disk,
  or whose bytes are not a walkable FLAC stream,
  is counted and skipped,
