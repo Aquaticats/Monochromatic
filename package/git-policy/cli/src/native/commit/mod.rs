@@ -100,6 +100,10 @@ pub mod commit_args;
 /// pathspec files and listings.
 pub mod commit_index;
 
+/// The worktree paths an explicit-path commit stages,
+/// and the two `git add` starts that stage them.
+pub mod commit_selection_staging;
+
 /// The copying of the real index into a private index and the check of whether it may seed an explicit-path commit.
 pub mod commit_index_copying;
 

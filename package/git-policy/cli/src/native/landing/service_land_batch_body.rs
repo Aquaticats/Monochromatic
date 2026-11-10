@@ -150,7 +150,10 @@ pub(crate) fn land_batch_body(
         // the row names the commit that landed last, which is the value the branch now holds.
         let last_request: &CommitRequest = batch.last().copied().unwrap_or(first);
         let content: Option<crate::service_built_checks::CommitContent> = crate::service_built_checks::commit_content(first.common_dir.as_path(), new.as_str());
-        let parents: usize = content.as_ref().map_or(0, |read| { return read.parents.len(); });
+        let parents: usize = match &content {
+            Some(read) => read.parents.len(),
+            None => 0,
+        };
         let copy: Option<std::path::PathBuf> =
             crate::service_land_reflog::conclusion_copy(context.journal.as_path(), seq, first.cleanup.is_some());
         let initial: bool = unborn || is_zero_object(old.as_str());

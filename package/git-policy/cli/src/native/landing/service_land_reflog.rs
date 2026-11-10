@@ -7,8 +7,8 @@
 //!  The branch move is `git update-ref --stdin`,
 //! which writes the message it is given and nothing else;
 //!  a move without one left every row of `git reflog` blank,
-//! and `git reflog` is the recovery tool a commit lost to a `reset` is found with
-//!  (owner: "never discard user data").
+//! and `git reflog` is the recovery tool a commit lost to a `reset` is found with (owner:
+//! "never discard user data").
 //!  Native Git words the message after the commit it makes (`builtin/commit.c`):
 //! `commit: <first line>`,
 //!  `commit (initial):`,
@@ -141,6 +141,12 @@ pub fn kind(amend: bool, initial: bool, parents: usize, copy: Option<&Path>) -> 
     return Committed::Plain;
 }
 
+/// Whether one byte is the newline that ends the first line,
+/// or a NUL that cannot travel in an argument.
+fn ends_the_line(byte: &u8) -> bool {
+    return *byte == b'\n' || *byte == 0;
+}
+
 /// What:
 ///  The first line of a commit message,
 /// as native Git copies it into the reflog.
@@ -154,10 +160,7 @@ pub fn kind(amend: bool, initial: bool, parents: usize, copy: Option<&Path>) -> 
 /// const firstLine = (message) => message.subarray(0, Math.min(...[message.indexOf(10), message.indexOf(0)].filter((at) => at >= 0)));
 /// ```
 fn first_line(message: &[u8]) -> &[u8] {
-    let end: usize = message
-        .iter()
-        .position(|byte| { return *byte == b'\n' || *byte == 0; })
-        .unwrap_or(message.len());
+    let end: usize = message.iter().position(ends_the_line).unwrap_or(message.len());
     return &message[..end];
 }
 

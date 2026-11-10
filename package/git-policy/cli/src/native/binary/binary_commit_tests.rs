@@ -946,7 +946,8 @@ fn twins_with_unstaged_neighbours(fixture: &Fixture, name: &str) -> (PathBuf, Pa
 ///   The private index was staged with `git add --all`,
 /// which swept in every untracked file the pathspec matched,
 /// so a commit of `.` published a scratch file nobody staged
-/// (owner: "never discard user data").
+/// (owner:
+/// "never discard user data").
 ///  The same argv runs in a twin repository through native Git,
 /// and the two commits,
 /// statuses
@@ -974,7 +975,8 @@ fn a_pathspec_that_is_a_directory_or_a_pattern_commits_no_file_nothing_staged() 
 
 /// What:
 ///  A pathspec mode given as a global option selects the paths native Git selects:
-/// `--noglob-pathspecs` makes `*.txt` literal (nothing matches, exit 1),
+/// `--noglob-pathspecs` makes `*.txt` literal (nothing matches,
+/// exit 1),
 /// makes `st*r.txt` literal (the file of that name only),
 /// and `--icase-pathspecs` matches a staged `A.TXT` through `a.txt`.
 /// Why:
@@ -1037,7 +1039,8 @@ fn a_pathspec_mode_given_as_a_global_option_selects_what_native_git_selects() {
     remove_settled(&fixture);
 }
 
-/// The reflog subjects of the head's last `count` entries, newest first.
+/// The reflog subjects of the head's last `count` entries,
+/// newest first.
 fn reflog_subjects(fixture: &Fixture, repo: &Path, count: &str) -> String {
     return git_text(fixture, repo, &["reflog", "show", "--format=%gs", format!("--max-count={count}").as_str(), "HEAD"]);
 }

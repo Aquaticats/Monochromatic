@@ -404,7 +404,7 @@ fn note_listing(
 /// const magicEnabledPrefix = (prefix: string[]) => withoutPathspecModeOptions(prefix);
 /// ```
 fn magic_enabled_prefix(global_prefix: &[OsString]) -> Vec<OsString> {
-    return crate::global_arguments::without_pathspec_mode_options(global_prefix);
+    return crate::global_arguments_pathspec_modes::without_pathspec_mode_options(global_prefix);
 }
 
 /// What:

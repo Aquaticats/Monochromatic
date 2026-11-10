@@ -70,7 +70,8 @@ pub fn indexed_request<S: AsRef<OsStr>>(
 ///  never-added `stxr.txt`,
 ///  and `--icase-pathspecs commit -- a.txt` would miss a staged `A.TXT`.
 ///  The modes the caller set as variables are already inherited;
-/// this adds the ones written as options, before the subcommand where Git reads them.
+/// this adds the ones written as options,
+/// before the subcommand where Git reads them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,7 +84,7 @@ pub fn caller_pathspec_request(
     index: Option<&Path>,
     object_directory: Option<&Path>,
 ) -> GitRequest {
-    let mut words: Vec<std::ffi::OsString> = crate::global_arguments::pathspec_mode_options(context.global_prefix.as_slice());
+    let mut words: Vec<std::ffi::OsString> = crate::global_arguments_pathspec_modes::pathspec_mode_options(context.global_prefix.as_slice());
     words.extend(arguments.iter().cloned());
     return indexed_request(cwd, words.as_slice(), index, object_directory);
 }
