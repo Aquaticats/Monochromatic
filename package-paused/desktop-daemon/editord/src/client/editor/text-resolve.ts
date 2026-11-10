@@ -21,7 +21,9 @@ export const INDENT_UNIT = '  ';
  *
  * @param character - 0-based character offset within the line
  *
- * @returns text node and offset, or null if not resolvable
+ * @returns text node and offset, clamped to the end of the line's last text
+ *          node when `character` runs past it, or the line element at offset 0
+ *          when the line holds no text node; null when the line is absent
  *
  * @example
  * ```ts
@@ -60,6 +62,12 @@ export function resolveTextPosition({
   // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- tree-walker cursor: `remaining` decrements until the target node is found
   let remaining = character;
   /**
+   * Last text node the walk reached; the clamp target when the offset outlives
+   * every text node in the line.
+   */
+  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- tree-walker cursor: `lastTextNode` records the final text node the walk visits
+  let lastTextNode: Node | null = null;
+  /**
    * Current text node under inspection; null exits the walk.
    */
   // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- tree-walker cursor: `textNode` advances via `walker.nextNode()`
@@ -78,22 +86,28 @@ export function resolveTextPosition({
       };
     }
     remaining -= len;
+    lastTextNode = textNode;
     textNode = walker.nextNode();
   }
 
   /**
-   * Offset past end: clamp to last text node's end.
+   * Offset past end: clamp to the end of the line's last text node. The line's
+   * `lastChild` is not that node: on a syntax-highlighted line it is a
+   * highlight `<span>`, and a selection endpoint on an element node takes a
+   * child index rather than a character offset.
    */
-  const { lastChild, } = lineDiv;
-  if (lastChild !== null) {
+  if (lastTextNode === null) {
     return {
-      node: lastChild,
-      offset: lastChild.textContent
-        ?.length
-        ?? 0,
+      node: lineDiv,
+      offset: 0,
     };
   }
-  return null;
+  return {
+    node: lastTextNode,
+    offset: lastTextNode.textContent
+      ?.length
+      ?? 0,
+  };
 }
 
 /**

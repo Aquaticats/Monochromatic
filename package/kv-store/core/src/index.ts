@@ -6,9 +6,13 @@
  the highest-priority tier on a cross-tier tie, then heal divergent backends to match.
  SuperJSON serialization round-trips structured values through string backends, with
  opt-in lossy handling for circular graphs. Both a synchronous and an asynchronous
- variant are provided.
+ variant are provided, as hand-written twins rather than one core with two
+ adapters: the split and its reason are recorded in
+ `doc/decision/memoize-sync-async-parallel-impls.md`.
  
- Hashing, serialization, and cycle detection are internal helpers, not public exports.
+ Hashing, serialization, and cycle detection are internal helpers; the ones the
+ built-artifact tests exercise are exported at the end of this module, marked
+ `@internal`.
  
  @example
  Async store:
@@ -60,3 +64,23 @@ export { ABSENT, } from './constants.ts';
 export { createStore, } from './create-store.ts';
 
 export { createSyncStore, } from './create-sync-store.ts';
+
+//region Built-artifact test surface
+
+/**
+ Circular-reference detection as {@link serializeValue} applies it, exported so
+ built-artifact tests can reach it.
+ 
+ @internal
+ */
+export { hasCycle, } from './has-cycle.ts';
+
+/**
+ Value serialization including circular-graph handling, exported so
+ built-artifact tests can reach it.
+ 
+ @internal
+ */
+export { serializeValue, } from './serialize.ts';
+
+//endregion

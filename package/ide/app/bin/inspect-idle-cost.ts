@@ -10,7 +10,7 @@ import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { compositor, demandCurrentCompositor } from './nested-compositor.ts';
+import { compositor, demandCurrentCompositor, endSession } from './nested-compositor.ts';
 import { containerBounds } from './container-bounds.ts';
 
 // The bound of every container this script starts: the shared computed share of the host, or the caller's IDE_CONTAINER_* values.
@@ -211,8 +211,7 @@ const session = async <Value>({ variant, count, tag, measure }: {
     value = await measure(pid, livePath);
   } finally {
     if (host.exitCode === null) {
-      await control({ socketPath, line: 'quit' }).catch(() => host.kill('SIGTERM'));
-      await Promise.race([exited, wait(10000).then(() => host.kill('SIGKILL'))]);
+      await endSession({ ask: () => control({ socketPath, line: 'quit' }), exited, kill: (signal) => host.kill(signal) });
     }
     closeSync(log);
     copyFileSync(livePath, logPath);
