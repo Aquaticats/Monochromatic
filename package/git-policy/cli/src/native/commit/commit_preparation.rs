@@ -27,7 +27,8 @@ use crate::hooks_off::NO_HOOKS_DIRECTORY;
 /// Shadow removal,
 /// so a failed preparation leaves no shadow.
 /// The shadow request and the real-Git command builder.
-use crate::shadow_git::shadow_request;
+/// The shadow request every shadow command of the wrapper is made of.
+use crate::shadow_git::{git_dir_option, shadow_request};
 use crate::forwarding::git_command;
 use crate::signal_relay::SignalGuard;
 /// Context,
@@ -152,7 +153,7 @@ fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>
     //  beside it. The configuration options the caller wrote stay, because they are the person's settings for the commit.
     let own_globals: Vec<OsString> = request.global_args.iter().map(OsString::from).collect();
     let mut arguments: Vec<OsString> = crate::repository_selection::without_repository_selection(own_globals.as_slice());
-    arguments.push(OsString::from(format!("--git-dir={}", request.shadow.display())));
+    arguments.push(git_dir_option(request.shadow));
     let configuration: Vec<OsString> = crate::native_commit_configuration::native_commit_configuration(
         request.capture.layout.config_snapshot.as_ref(),
         request.scratch,
