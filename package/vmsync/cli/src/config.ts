@@ -106,7 +106,8 @@ function isAlphaNum(c: string,): boolean {
 }
 
 /**
- Whether `c` is allowed in non-leading positions of a VM name.
+ Whether `c` is a character permitted in a VM name after its first character.
+ The leading character has a stricter rule: it must be alphanumeric.
  
  @param c - single-character string to inspect
  
@@ -114,11 +115,11 @@ function isAlphaNum(c: string,): boolean {
  
  @example
  ```ts
- isNameBodyChar('_'); // true
- isNameBodyChar('.'); // false
+ isVmNameChar('_'); // true
+ isVmNameChar('.'); // false
  ```
  */
-function isNameBodyChar(c: string,): boolean {
+export function isVmNameChar(c: string,): boolean {
   return isAlphaNum(c,)
     || (c === '_')
     || (c === '-');
@@ -149,7 +150,7 @@ function isValidVmName(name: string,): boolean {
   if (!isAlphaNum(name.charAt(0,),))
     return false;
   for (const c of name.slice(1,)) {
-    if (!isNameBodyChar(c,))
+    if (!isVmNameChar(c,))
       return false;
   }
   return true;

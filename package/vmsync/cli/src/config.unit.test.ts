@@ -6,6 +6,7 @@ import {
 
 import {
   detectHypervisor,
+  isVmNameChar,
   stripJsoncComments,
   validateName,
   vmConfigPath,
@@ -137,6 +138,32 @@ await describe({
     },),
 
     //endregion validateName
+
+    //region isVmNameChar: the single owner of the allowed-name-character policy
+
+    describe({
+      name: isVmNameChar.name,
+      children: [
+        ...['a', 'Z', '0', '_', '-',].map(function mapAllowed(c,) {
+          return it({
+            name: `accepts ${c}`,
+            fn: async () => {
+              expect(isVmNameChar(c,),).toBe(true,);
+            },
+          },);
+        },),
+        ...[' ', '.', '/', '~', '!', '+', '=', 'é',].map(function mapRejected(c,) {
+          return it({
+            name: `rejects ${JSON.stringify(c,)}`,
+            fn: async () => {
+              expect(isVmNameChar(c,),).toBe(false,);
+            },
+          },);
+        },),
+      ],
+    },),
+
+    //endregion isVmNameChar
 
     //region stripJsoncComments: removes comments while preserving string content
 
