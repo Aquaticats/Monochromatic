@@ -289,9 +289,7 @@ pub fn decode(value: &Value) -> Option<Capture> {
             Some(staged) => Some(CapturedIndex { mode: String::from(field(staged, "mode")?), oid: String::from(field(staged, "oid")?) }),
             None => None,
         };
-        if worktree.is_none() && index.is_none() {
-            return None;
-        }
+        // A path with neither layer is the person's deletion of it, which the merge must not put back.
         paths.push(CapturedPath { path, worktree, index });
     }
     return Some(Capture {

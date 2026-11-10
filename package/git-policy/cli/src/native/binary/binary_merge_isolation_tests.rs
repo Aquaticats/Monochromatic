@@ -320,7 +320,7 @@ fn a_merge_over_a_staged_path_carries_it_and_lands() {
     };
     assert_eq!(status("g.txt"), "M  g.txt\n", "the edit is still staged, with nothing unstaged over it");
     assert_eq!(status("u.txt"), "M  u.txt\n", "the other session's staged edit is untouched");
-    assert_eq!(status("w.txt"), " M w.txt\n", "the other session's unstaged edit is untouched");
+    assert_eq!(status("w.txt"), "", "a path the merge and the other session both leave alone is untouched");
     assert_eq!(status("v.txt"), "D  v.txt\n", "the other session's staged deletion is untouched");
     assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record went");
     assert_eq!(git_text(&fixture, repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git"]), "", "the capture's ref went");
@@ -992,26 +992,29 @@ fn merge_ff_only_is_native_gits_unless_the_command_line_chooses() {
     }
 }
 
-/// The directory a global `-C` names,
+/// What:
+///  The directory a global `-C` names,
 /// relative to where the command runs,
-/// reaches the queries of the merge but not
-/// the recovery of a merge Git refused:
-/// that one runs from the repository root,
-/// where the same relative name would
-/// name nothing.
+/// reaches the merge's own steps:
+/// an untracked file in the merge's way is carried,
+/// and the write
+///  finds it from that same directory.
+/// Why:
+///   The queries and the writes of a merge run from one place,
+/// and a relative `-C` that reached only some of them would
+///  carry the bytes into a path nothing reads.
 #[test]
-fn a_relative_directory_option_does_not_break_the_settling_of_a_refused_merge() {
-    let fixture: Fixture = fixture("merge-refuses-untracked-relative");
+fn a_relative_directory_option_carries_a_merge_over_an_untracked_file() {
+    let fixture: Fixture = fixture("merge-carries-untracked-relative");
     let repo: PathBuf = diverged(&fixture, "repo");
     stage_unrelated_work(&fixture, repo.as_path());
     std::fs::create_dir(repo.join("dir")).expect("directory");
     std::fs::write(repo.join("dir/new.txt"), b"an untracked file in the way\n").expect("file");
-    let before: Snapshot = snapshot(&fixture, repo.as_path());
     let observed: Observed = run(&fixture, fixture.root.as_path(), &["-C", "repo", "merge", "--no-edit", "feature"]);
-    assert_ne!(observed.code, Some(0));
-    let stderr: String = text(&observed.stderr);
-    assert!(stderr.contains("merge-isolation/not-applied"), "the refusal is settled and reported: {stderr}");
-    assert_eq!(snapshot(&fixture, repo.as_path()), before);
+    assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n", "the merge was made");
+    let text_at: String = std::fs::read_to_string(repo.join("dir/new.txt")).expect("the file");
+    assert!(text_at.contains("an untracked file in the way") && text_at.contains("<<<<<<<"), "both sides are in the file: {text_at}");
     assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
     remove_settled(&fixture);
 }

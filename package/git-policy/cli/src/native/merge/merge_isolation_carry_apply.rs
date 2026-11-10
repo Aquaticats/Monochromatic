@@ -27,6 +27,7 @@
 //! await clear({ context, root, changes, capture }); await carry({ context, root, changes, capture });
 //! ```
 
+use crate::merge_isolation_carry::git_cwd;
 use crate::merge_isolation_carry_layers::{Decision, Layer, Outcome, Side, decide, write_layer_bytes};
 use crate::merge_isolation_carry_notice::Report;
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, Capture};
@@ -146,7 +147,7 @@ pub enum CarryFailure {
 /// async function runBytes(context, root, args: OsString[], input?: Uint8Array): Promise<GitOutput>;
 /// ```
 fn run_bytes(context: &GitContext, root: &Path, arguments: &[OsString], input: Option<Vec<u8>>) -> Result<GitOutput, String> {
-    let mut request: GitRequest = GitRequest::new::<&str>(root, &[]);
+    let mut request: GitRequest = GitRequest::new::<&str>(git_cwd(context, root), &[]);
     request.arguments = arguments.to_vec();
     request.input = input;
     return run_git(context, &request).map_err(|error| { return format!("git could not start: {error}"); });
@@ -326,8 +327,20 @@ pub fn changes_between(context: &GitContext, root: &Path, old_oid: &str, new_oid
 /// ```ts
 /// const runner = { run: (args, input, index) => startGit(context, root, args, input, index) };
 /// ```
+fn rooted(context: &GitContext) -> GitContext {
+    // The worktree's own shapes are read from the top of the worktree, where the invocation's global options do not reach.
+    return GitContext { global_prefix: Vec::new(), ..context.clone() };
+}
+
+/// The runner that merges one layer,
+/// from the top of the worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runner = { run: (args, input, index) => startGit(rooted(context), root, args, input, index) };
+/// ```
 fn runner_of<'a>(context: &'a GitContext, root: &'a Path) -> ContextRunner<'a> {
-    return ContextRunner { context, cwd: root, without_prefix: false, object_directory: None, environment: Vec::new() };
+    return ContextRunner { context, cwd: root, without_prefix: true, object_directory: None, environment: Vec::new() };
 }
 
 /// What:
@@ -571,7 +584,7 @@ pub fn clear(
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = changes.iter().find(|change| { return change.path == entry.path; }) else { continue };
-        let state: WorktreeState = worktree_state(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
         let old_object: Option<&str> = change.existed().then(|| { return change.old_oid.as_str(); });
         if !explained(&state, &[captured_object, old_object]) {
@@ -621,12 +634,14 @@ pub fn carry(
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<Report, CarryFailure> {
-    let runner: ContextRunner<'_> = runner_of(context, root);
+    // The merge of one layer runs from the top of the worktree, where a relative global option of the invocation does not reach.
+    let rooted_context: GitContext = rooted(context);
+    let runner: ContextRunner<'_> = runner_of(&rooted_context, root);
     let mut report: Report = Report::default();
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = changes.iter().find(|change| { return change.path == entry.path; }) else { continue };
-        let state: WorktreeState = worktree_state(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
         let merged_object: Option<&str> = change.exists_after().then(|| { return change.new_oid.as_str(); });
         let (worktree, note, target) = plan_worktree((&runner, context, root), change, entry)?;
@@ -720,17 +735,27 @@ fn plan_index(
     change: &Change,
     entry: &crate::merge_isolation_carry_parts::CapturedPath,
 ) -> Result<IndexWrite, CarryFailure> {
-    let Some(staged) = entry.index.as_ref() else { return Ok(IndexWrite::Leave) };
     let base: Option<Side> = side(change, false);
-    if base.as_ref().is_some_and(|found| { return found.oid == staged.oid && found.mode == staged.mode; }) {
+    let ours: Option<Side> = entry.index.as_ref().map(side_of_index);
+    if let (Some(found), Some(person)) = (&base, &ours)
+        && found.oid == person.oid
+        && found.mode == person.mode
+    {
         return Ok(IndexWrite::Leave);
     }
-    let layer: Layer = Layer { base, ours: Some(side_of_index(staged)), theirs: side(change, true) };
+    // Nothing of the person's is in this layer, so the merge's entry is the layer's own.
+    if base.is_none() && ours.is_none() {
+        return Ok(IndexWrite::Leave);
+    }
+    let layer: Layer = Layer { base, ours: ours.clone(), theirs: side(change, true) };
     let decision: Decision = decide(runner, entry.path.as_slice(), &layer).map_err(CarryFailure::Failed)?;
     let mode: String = decision.mode.clone().unwrap_or_else(|| { return String::from(PLAIN_FILE_MODE); });
     return match decision.outcome {
         Outcome::Merges => Ok(IndexWrite::Leave),
-        Outcome::Ours | Outcome::Kept(_) => Ok(IndexWrite::Entry(staged.mode.clone(), staged.oid.clone())),
+        Outcome::Ours | Outcome::Kept(_) => match &entry.index {
+            Some(staged) => Ok(IndexWrite::Entry(staged.mode.clone(), staged.oid.clone())),
+            None => Ok(IndexWrite::Remove),
+        },
         Outcome::Merged { bytes, .. } => {
             let oid: String = write_layer_bytes(runner, bytes.as_slice()).map_err(CarryFailure::Failed)?;
             Ok(IndexWrite::Entry(mode, oid))
@@ -764,7 +789,7 @@ pub fn restore(
 ) -> Result<(), CarryFailure> {
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
-        let state: WorktreeState = worktree_state(context, root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
+        let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice()).map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
         // The branch's own content is what a clear leaves, so it is what a restore may replace.
         let change: Option<&Change> = changes.iter().find(|change| { return change.path == entry.path; });
@@ -803,7 +828,7 @@ pub fn restore(
 pub fn only_the_branches_content(context: &GitContext, root: &Path, changes: &[Change], capture: &Capture) -> Result<bool, String> {
     for entry in &capture.paths {
         let Some(change) = changes.iter().find(|change| { return change.path == entry.path; }) else { continue };
-        let state: WorktreeState = worktree_state(context, root, entry.path.as_slice())?;
+        let state: WorktreeState = worktree_state(&rooted(context), root, entry.path.as_slice())?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(|file| { return file.blob.as_str(); });
         let old_object: Option<&str> = change.existed().then(|| { return change.old_oid.as_str(); });
         if !explained(&state, &[captured_object, old_object]) {

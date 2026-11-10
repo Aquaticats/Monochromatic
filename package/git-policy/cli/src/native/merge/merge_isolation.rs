@@ -205,11 +205,6 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
     if config.deferred {
         return Err(Bail::Forward(None));
     }
-    // The paths whose own work the merge would write over: everything Git's status reports, untracked files included, because
-    //  a merge that adds a path an untracked file stands at is refused by Git too. They are read once here, before the merge
-    //  tree exists, because a checkout that holds any of them must not be handed to native Git: its merge refuses such a path
-    //  outright (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
-    let dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
     // `FETCH_HEAD` is the merge of a pull: the one head the file lists for merging, and the file's lines name it in the message.
     let fetched: Option<(String, String)> = if reference == "FETCH_HEAD" {
         Some(read_fetch_head(git_dir)?)
@@ -253,12 +248,27 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
         let full_name: String = session.text(&["rev-parse", "--symbolic-full-name", reference.as_str()])?;
         Some(describe_merge_source(reference.as_str(), full_name.as_str(), target).ok_or(Bail::Forward(None))?)
     };
+    // The paths whose own work the merge would write over: everything Git's status reports, untracked files included, because
+    //  a merge that adds a path an untracked file stands at is refused by Git too. They are read once here, before the merge
+    //  tree exists. Whether the checkout holds any of the paths the merge touches is what decides that a conflict of the merge
+    //  itself is resolved here rather than handed to native Git: its merge refuses such a checkout outright
+    //  (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
+    let dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
+    // A path either side changed is a path a merge of the two writes, so these are the merge's own paths before its tree exists.
+    let touched: Vec<Vec<u8>> = diff_paths(
+        session
+            .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, target])?
+            .stdout
+            .as_slice(),
+    );
+    let carrying: bool = !overlapping_paths(dirty.as_slice(), touched.as_slice()).is_empty();
+
     let (tree, second_pass_files): (String, Vec<Merged>) = merge_tree(
         &session,
         &shape,
         (head, target, reference.as_str()),
         (common_dir, root, input.environment),
-        (staged_work, !dirty.is_empty()),
+        (staged_work, carrying),
     )?;
     let incoming: Vec<Vec<u8>> = diff_paths(
         session

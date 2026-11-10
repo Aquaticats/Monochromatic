@@ -69,6 +69,27 @@ fn is_nul(byte: &u8) -> bool {
     return *byte == 0;
 }
 
+/// What:
+///  The directory a Git start runs in.
+/// Why:
+///   The invocation's own global options can name the repository relatively
+/// (`git -C repo merge`),
+/// and those are relative to
+///  the directory the person ran the command in, which is the process directory;
+/// a context without them (recovery) runs
+///  from the worktree itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cwd = (context, root) => context.globalPrefix.length === 0 ? root : '.';
+/// ```
+pub fn git_cwd<'a>(context: &GitContext, root: &'a Path) -> &'a Path {
+    if context.global_prefix.is_empty() {
+        return root;
+    }
+    return Path::new(".");
+}
+
 /// One run of Git whose arguments carry bytes that need not be text.
 ///
 /// In TS you'd write (pseudocode):
@@ -76,7 +97,7 @@ fn is_nul(byte: &u8) -> bool {
 /// async function runBytes(context, root: string, args: OsString[], input?: Uint8Array): Promise<GitOutput>;
 /// ```
 fn run_bytes(context: &GitContext, root: &Path, arguments: &[OsString], input: Option<Vec<u8>>) -> Result<GitOutput, String> {
-    let mut request: GitRequest = GitRequest::new::<&str>(root, &[]);
+    let mut request: GitRequest = GitRequest::new::<&str>(git_cwd(context, root), &[]);
     request.arguments = arguments.to_vec();
     request.input = input;
     return match run_git(context, &request) {
@@ -257,10 +278,8 @@ pub fn capture_work(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Res
             .iter()
             .find(|entry| { return entry.path == *path; })
             .map(|entry| { return CapturedIndex { mode: entry.mode.clone(), oid: entry.oid.clone() }; });
-        if worktree.is_none() && index.is_none() {
-            debug(TAG, format!("{} holds nothing to carry", String::from_utf8_lossy(path)).as_str());
-            continue;
-        }
+        // Both layers absent is the person's own deletion of a path the merge changes, which is work to carry as much as an
+        //  edit is: the merge would put a file back they removed.
         captured.push(CapturedPath { path: path.clone(), worktree, index });
     }
     if captured.is_empty() {
