@@ -277,6 +277,46 @@ fn btrfs_a_snapshot_hands_its_trash_to_the_caller_instead_of_emptying_it() {
     remove(root.as_path());
 }
 
+/// What:
+///  The manifest of a snapshot's trash is a durable record by the time the rung returns,
+/// so a command killed after the
+///  worktree is published still leaves a trash the service empties.
+/// Why:
+///   The manifest is what says which directories the leave-out may delete,
+/// and the trash's name alone cannot
+///  reconstruct it.
+/// A record first written by the hand-over that runs after the copy and its repairs leaves every kill
+///  between the swap and that step with a trash nothing will ever empty,
+/// which is disk the person has to find
+///  themselves.
+/// The record is written the moment the trash stands in the published worktree,
+/// and the rung still empties
+///  nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { trash } = await ladder.finish(...); expect(pendingRecord(commonDir, trash.manifest.name)).toBeDefined(); expect(existsSync(trashPath)).toBe(true);
+/// ```
+#[test]
+fn btrfs_a_snapshot_records_its_trash_before_the_rung_returns() {
+    let Some(root) = btrfs_fixture("finish-trash-recorded") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), ".gitignore", b"ignored/\n.claude/\n.pnpm-store/\n");
+    commit_all(repo.as_path(), "ignore the trash parent");
+    std::fs::create_dir_all(repo.join(".pnpm-store")).expect("a cache");
+    std::fs::write(repo.join(".pnpm-store/data"), b"payload").expect("cache data");
+    let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
+    let pending: PendingTrash = result.trash.expect("the snapshot left a trash for the disposal");
+    let record: PathBuf = crate::work_item::state_directory(crate::service_work::work_directory(pending.common_dir.as_path()).as_path(), crate::work_item::PENDING).join(format!("trash-{}", pending.manifest.name));
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem::decode(std::fs::read_to_string(record.as_path()).expect("the record is written before the rung returns").as_str()).expect("a work item");
+    assert_eq!(item.repository, pending.destination, "the record names the worktree that holds the trash");
+    assert_eq!(item.git_dir, pending.common_dir, "and the common directory whose service empties it");
+    assert_eq!(item.parent, pending.manifest.encode(), "and it carries the identities the leave-out wrote");
+    let trash: PathBuf = pending.destination.join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
+    assert!(trash.is_dir(), "and the rung empties nothing of it: {}", trash.display());
+    remove(root.as_path());
+}
+
 /// A source file whose bytes were written again after the source was proven clean keeps the snapshot:
 /// the entry the stat data
 ///  cannot vouch for is settled by content,
