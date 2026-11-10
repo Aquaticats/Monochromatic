@@ -219,6 +219,28 @@ fn copied_file_has_identical_bytes() {
     remove(root.as_path());
 }
 
+/// A refused exclusive copy reports the operating system's own error,
+///  so a caller acts on the kind instead of reading the message.
+#[test]
+fn a_refused_exclusive_copy_reports_the_operating_systems_error() {
+    let root: PathBuf = fixture("stage-exclusive-kind");
+    std::fs::write(root.join("source"), b"payload").expect("source");
+    copy_file_exclusive(root.join("source").as_path(), root.join("copy").as_path()).expect("copy");
+    let existing: std::io::Error = copy_file_exclusive(
+        root.join("source").as_path(),
+        root.join("copy").as_path(),
+    )
+    .expect_err("existing destination");
+    assert_eq!(existing.kind(), std::io::ErrorKind::AlreadyExists);
+    let missing: std::io::Error = copy_file_exclusive(
+        root.join("absent").as_path(),
+        root.join("other").as_path(),
+    )
+    .expect_err("missing source");
+    assert_eq!(missing.kind(), std::io::ErrorKind::NotFound);
+    remove(root.as_path());
+}
+
 /// A private container under a missing parent is never created,
 /// and the failure names the cause.
 #[test]

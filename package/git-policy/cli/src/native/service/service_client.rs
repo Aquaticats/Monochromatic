@@ -50,6 +50,16 @@ const TAG: &str = "serviceClient";
 pub enum Submitted {
     /// The commit is on the branch.
     Landed { commit: String, already: bool },
+    /// The commit is written and kept,
+    /// and a reference lock keeps its branch where it is:
+    /// the command exits `0`,
+    /// and the next command that finds the lock gone moves the branch.
+    Held {
+        /// The commit kept on the batch's side reference.
+        commit: String,
+        /// What the command says about it.
+        words: String,
+    },
     /// A named path changed on the branch:
     /// prepare again from this base and submit again with the same identity.
     ///  `landed` tells when the bytes of the commits the service landed since were captured,
@@ -327,7 +337,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             //  A request the service says is inside its branch write is not withdrawn: its commit may be on the branch already, so the
             //  client waits the short extra wait for that write (owner, 2026-11-04, "Short extra wait"), listening for the landing,
             //  and then reports that the result is not known; the write is left running.
-            if waiting_since.elapsed() >= config.answer_ceiling && !matches!(heard, Heard::Message(ServiceMessage::Landed { .. } | ServiceMessage::RetryPrepare { .. } | ServiceMessage::Failed { .. })) {
+            if waiting_since.elapsed() >= config.answer_ceiling && !matches!(heard, Heard::Message(ServiceMessage::Landed { .. } | ServiceMessage::Held { .. } | ServiceMessage::RetryPrepare { .. } | ServiceMessage::Failed { .. })) {
                 if !inside_write {
                     trace.answer_wait += written_at.elapsed();
                     return withdraw(config, request.id.as_str(), last_blocker.take(), answer_deadline);
@@ -353,6 +363,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     trace.landing = landing;
                     break Some(Ok(Submitted::Landed { commit, already }));
                 }
+                Heard::Message(ServiceMessage::Held { commit, words, .. }) => break Some(Ok(Submitted::Held { commit, words })),
                 Heard::Message(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
@@ -472,14 +483,27 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
 ///  Tells the service that work items were written for a repository,
 /// starting it through the operating system when it
 ///  is not running,
-/// and returns once the service has taken the message.
+/// and returns once the service has taken the message or the silence bound has passed since it was
+///  written.
 /// Why:
 ///   The wrapper never starts the service or runs the work itself;
 /// the message is the only thing the service needs to
 ///  look at the repository's work directory.
 /// The connection closes when the service has read the line,
-/// which is the
-///  confirmation that it will act.
+/// which is the usual
+///  confirmation that it will act,
+/// and the wait for that close ends at the silence bound whatever the service sends:
+///  a service that keeps answering resets the silence of every single read,
+/// so a loop that only reads waits for it
+///  without end,
+/// and the command that woke it waits behind it (owner,
+/// 2026-11-03:
+/// "nothing should ever wait forever or
+///  indefinitely").
+/// What is lost by reaching the bound is only the confirmation:
+/// the line was written,
+/// and the record
+///  it names is already durable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -493,8 +517,20 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     if reader.get_mut().write_all(line.as_bytes()).is_err() {
         return Err(ClientFailure::Unavailable);
     }
-    // The service closes the connection after it has read the line.
-    while read_message(&mut reader).is_some() {}
+    // The service closes the connection after it has read the line, and that close is the confirmation.
+    let closed_by: Instant = Instant::now() + config.heartbeat_silence;
+    loop {
+        let left: Duration = closed_by.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            debug(TAG, format!("the service did not close the connection within {:?} of the line being written", config.heartbeat_silence).as_str());
+            break;
+        }
+        // No read waits past the bound, whatever the service sends.
+        let _timeout = reader.get_ref().set_read_timeout(Some(left));
+        if read_message(&mut reader).is_none() {
+            break;
+        }
+    }
     return Ok(());
 }
 

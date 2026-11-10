@@ -45,21 +45,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['fetch'], { network: true })
 ` },
   },
@@ -80,21 +69,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 const { existsSync, mkdirSync, readFileSync, readdirSync } = await import('node:fs')
 const { dirname, join, resolve } = await import('node:path')
 // Callers that depend on this task can start together (build and test, or two sessions in one tree). The helper module
@@ -180,21 +158,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 const { createHash } = await import('node:crypto')
 const { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } = await import('node:fs')
 const output = 'target/crate-licenses.json'
@@ -250,21 +217,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 const { writeFileSync } = await import('node:fs')
 // cargo tree --edges normal,no-proc-macro follows what is compiled into the binary for its one target: the target the
 // build container compiles for natively (the container runs the host's architecture, so an arm64 runner builds
@@ -294,21 +250,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 // The inverted tree of the CPU renderer over every edge kind that reaches a compiled binary, for one release target.
 // A package that is not in the build graph at all makes cargo print "nothing to print" to stderr and nothing to stdout.
 // The checks run offline (--frozen); \`online\` is the index pass below, which uses --locked and the network instead.
@@ -358,21 +303,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['build'])
 ` },
   },
@@ -394,21 +328,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 // Only the application binary: the runtime, inspection, and scripted-server helpers are build and test tools.
 // SLINT_EMIT_DEBUG_INFO keeps element ids, which the native tests need to find elements by name; sibling release builds do not set it.
 // The earlier fixed 2 GiB and 2 CPU bound was enough: measured on 2026-10-05, a build from an empty release directory
@@ -482,21 +405,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 // A filtered run keeps going after a failure so that every selected test reports, as the native task does.
 const filter = process.env.usage_filter ? ['--no-fail-fast', '--filter-expr', process.env.usage_filter] : []
 runCargo(['nextest', 'run', '--no-default-features', '--lib', '--tests', ...filter])
@@ -519,21 +431,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--lib', 'wrap::'])
 runCargo(['nextest', 'run', '--no-default-features', '--test', 'wrap', '--test', 'wrap_rows', '--test', 'row_map', '--test', 'wrap_keys', '--test', 'vertical_motion'])
 ` },
@@ -555,21 +456,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--test', 'minimap', '--test', 'minimap_scene'])
 ` },
   },
@@ -592,21 +482,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 // Language navigation tests start the scripted language server from beside the test binary.
 runCargo(['build', '--bin', 'ide-scripted-lsp'])
 // A filtered run prints what its tests print, such as measured contrast ratios, and runs every selected test.
@@ -643,21 +522,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--lib', '--test', 'font_features', '--test', 'inter_features', '--test', 'variable_fonts', '--no-capture'])
 ` },
   },
@@ -678,21 +546,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--lib', '--test', 'search_protocol', '--test', 'search_worker', '--test', 'search_scope', '--test', 'search_input'])
 ` },
   },
@@ -713,21 +570,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--lib'])
 ` },
   },
@@ -749,21 +595,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--test', 'file_open'])
 ` },
   },
@@ -785,21 +620,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--test', 'cli_args', '--test', 'cli_process'])
 ` },
   },
@@ -809,7 +633,7 @@ runCargo(['nextest', 'run', '--test', 'cli_args', '--test', 'cli_process'])
   },
   "test:bin": {
     description: "Check the compositor version reader, the container bound, the frame-pattern analysis, and the runtime publishing helpers of the bin scripts with node:test",
-    run: "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/cadence.test.ts bin/stress-native-report.test.ts bin/runtime-publish.test.ts",
+    run: "node --test bin/nested-compositor.test.ts bin/container-bounds.test.ts bin/run-bounded.test.ts bin/cadence.test.ts bin/stress-native-report.test.ts bin/runtime-publish.test.ts",
   },
   "test:design": {
     description: "Check the PNG flat-frame probe and the settled-screenshot loop the two design capture scripts share with node:test",
@@ -832,21 +656,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--lib', 'git_ignore::'])
 // The timing measurement behind the entry bound, ignored by default, prints its numbers.
 runCargo(['nextest', 'run', '--no-default-features', '--lib', 'git_ignore::tests::measure', '--run-ignored', 'only', '--no-capture'])
@@ -871,21 +684,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--test', 'file_tree', '--test', 'file_tree_validation', '--test', 'file_tree_requests', '--test', 'directory_worker'])
 ` },
   },
@@ -907,21 +709,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['clippy', '--all-targets', '--', '--deny', 'warnings'])
 ` },
   },
@@ -943,21 +734,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 // Code behind cfg(debug_assertions) is absent from release builds, so unused items there show only in this profile.
 runBounded(['env', '--unset=SLINT_EMIT_DEBUG_INFO', 'cargo', 'clippy', '--release', '--bin', 'monochromatic-ide', '--', '--deny', 'warnings'])
 ` },
@@ -979,21 +759,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runBounded(['rg', '--version'])
 ` },
   },
@@ -1064,21 +833,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--lib', '--test', 'find', '--test', 'find_navigation', '--test', 'find_worker', '--test', 'find_reference', '--test', 'find_paint', '--test', 'source_frame'])
 ` },
   },
@@ -1099,21 +857,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--test', 'row_map', '--test', 'virtual_row', '--test', 'annotation', '--test', 'annotation_frame', '--test', 'annotation_layout', '--test', 'annotation_placement', '--test', 'wrap_annotations', '--test', 'source_frame', '--no-capture'])
 ` },
   },
@@ -1135,21 +882,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runBounded(['cargo', 'nextest', 'run', '--bin', 'monochromatic-ide', '--no-capture', '--filter-expr', 'test(/annotation/)'], { gpu: true })
 ` },
   },
@@ -1170,21 +906,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['nextest', 'run', '--no-default-features', '--test', 'find_reference', '--no-capture'])
 ` },
   },
@@ -1314,21 +1039,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['build', '--no-default-features', '--bin', 'ide-language-inspect'])
 execFileSync('node', ['bin/inspect-server-watches.ts'], { stdio: 'inherit' })
 ` },
@@ -1387,21 +1101,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['fmt', '--check'])
 ` },
   },
@@ -1430,21 +1133,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['fmt'])
 ` },
   },
@@ -1466,21 +1158,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 const filter = process.env.usage_filter ? [process.env.usage_filter] : []
 runCargo(['nextest', 'run', '--no-default-features', '--test', 'syntax', '--test', 'syntax_injection', '--test', 'syntax_inventory', '--test', 'syntax_markdown', '--test', 'syntax_markdown_faces', '--test', 'syntax_provisioning', '--test', 'syntax_shadowing', ...filter, ...(filter.length ? ['--', '--nocapture'] : [])])
 ` },
@@ -1503,21 +1184,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 const filter = process.env.usage_filter ? [process.env.usage_filter] : []
 runCargo(['nextest', 'run', '--no-default-features', '--lib', '--test', 'language', ...filter])
 ` },
@@ -1539,21 +1209,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['build', '--no-default-features', '--bin', 'ide-language-inspect'])
 execFileSync('node', ['bin/inspect-language.ts'], { stdio: 'inherit' })
 ` },
@@ -1575,21 +1234,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['build', '--no-default-features', '--bin', 'ide-language-inspect'])
 execFileSync('node', ['bin/inspect-language-lifecycle.ts'], { stdio: 'inherit' })
 ` },
@@ -1611,21 +1259,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['build', '--no-default-features', '--bin', 'ide-language-inspect', '--bin', 'ide-scripted-lsp'])
 execFileSync('node', ['bin/inspect-language-confinement.ts'], { stdio: 'inherit' })
 ` },
@@ -1647,21 +1284,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 runCargo(['build', '--no-default-features', '--bin', 'ide-language-inspect'])
 execFileSync('node', ['bin/inspect-language-toolchain.ts'], { stdio: 'inherit' })
 ` },
@@ -1729,21 +1355,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs')
 const { homedir } = await import('node:os')
 const { join, resolve } = await import('node:path')
@@ -1925,21 +1540,10 @@ containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
 const rootClippyConfig = (await import('node:path')).resolve(process.cwd(), '../../../clippy.toml')
-// A gpu run passes the host's render nodes and the RADV driver file (bin/gpu-arguments.ts, shared with the guard
-// inspection scripts). Pass it only to the tasks that render on the GPU.
-const { gpuArguments } = await import((await import('node:path')).resolve('bin/gpu-arguments.ts'))
-const runBounded = (args, { network = false, gpu = false, ...options } = {}) => execFileSync('podman', [
-  'run', '--rm', ...(network ? [] : ['--network=none']), ...(gpu ? gpuArguments : []), ...containerLimits.limitArguments,
-  '--security-opt', 'label=disable',
-  '--volume', process.cwd() + ':/work', '--volume', 'ide-cargo:/cargo',
-  '--volume', rootClippyConfig + ':/clippy-conf/clippy.toml:ro', '--env', 'CLIPPY_CONF_DIR=/clippy-conf',
-  '--workdir', '/work', ...containerLimits.environmentArguments,
-  '--env', 'SLINT_EMIT_DEBUG_INFO=1',
-  '--env', 'HELIX_RUNTIME=/work/target/debug/runtime',
-  image, ...args
-], { stdio: 'inherit', ...options })
-const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
-
+// The bounded podman argv, the read-only root clippy config, and the GPU device arguments live in bin/run-bounded.ts, so
+// a mount, env, or limit change is made once there (checked by run-bounded.test.ts).
+const { createRunBounded } = await import((await import('node:path')).resolve('bin/run-bounded.ts'))
+const { runBounded, runCargo } = createRunBounded({ image, containerLimits, rootClippyConfig })
 const profile = process.env.usage_profile ?? 'debug'
 if (profile !== 'debug' && profile !== 'release') { throw new Error('profile must be debug or release') }
 // Only the application binary, built as the build:debug and build tasks build it, so the driven binary is the shipped one.

@@ -200,6 +200,9 @@ pub mod preparation_notice;
 
 pub mod service_prepare;
 
+/// The findings a preparation ends with when the selection the command line makes cannot be committed.
+pub mod service_prepare_selection_refusals;
+
 /// The staging start that puts every unmerged file's working copy into the commit's own index.
 pub mod service_prepare_unmerged_staging;
 
@@ -419,3 +422,34 @@ pub mod service_scratch_ref_of_a_dropped_batch;
 /// The record that names the worktree of a batch's scratch reference,
 /// so a restart can remove a reference whose landing was killed before its intent.
 pub mod service_scratch_ref_marker_of_a_batch;
+
+/// The record of a commit a reference lock keeps off its branch:
+/// what the branch was,
+/// what it goes to,
+/// the locks that refused the write,
+/// and when the commit was held.
+pub mod held_commit_record;
+
+/// The change of a held commit put onto the branch as it is now,
+/// when that branch moved while the lock stood.
+pub mod held_commit_replay;
+
+/// Moving the branch of a held commit once nothing stands in the way,
+/// and finishing what the landing owes after the move.
+pub mod held_commit_settle;
+
+/// What the wrapper says about a commit that a reference lock keeps off its branch.
+pub mod held_commit_words;
+
+/// What a commit does when the service answered without landing it:
+/// the words for content a prune removed,
+/// and the aftermath of a service that failed or went silent.
+pub mod service_commit_after_a_failure;
+
+/// What a landing does when a reference lock keeps its branch where it is,
+/// and what it gives back when a batch will never land.
+pub mod service_land_hold_a_batch;
+
+/// The commit of a batch a recovery drops,
+/// kept on `refs/cli-git/kept/<number>`.
+pub mod service_land_kept_commit;
