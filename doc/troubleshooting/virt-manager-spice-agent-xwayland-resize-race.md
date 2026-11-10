@@ -48,29 +48,29 @@ resize path.
 
 The source trace establishes this sequence:
 
-1. virt-manager maps its per-VM setting directly to spice-gtk's
-   `resize-guest` display property
-   ([`virtManager/details/viewers.py:730-741`][virt-manager-viewer]).
-2. When enabled,
-    spice-gtk calculates the guest dimensions from its display
-   allocation and calls `spice_main_channel_update_display`
-   ([`src/spice-widget.c:1394-1402`][spice-widget]).
-3. spice-gtk's monitor-config timer returns without sending if
-   `agent_connected` is false
-   ([`src/channel-main.c:1540-1560`][spice-channel]).
-4. QEMU receives the SPICE monitor configuration,
-    copies its dimensions into
-   `QemuUIInfo`,
-    and calls `dpy_set_ui_info`
-   ([`ui/spice-display.c:664-694`][qemu-spice]).
-5. virtio-gpu stores those dimensions and notifies the guest of a display
-   event
-   ([`hw/display/virtio-gpu-base.c:100-123`][qemu-virtio-gpu]).
-6. The kernel exposes the new preferred mode.
-    labwc does not apply that
-   hotplug preference itself in this setup,
-    so `follow-preferred-mode`
-   applies it with `wlr-randr`.
+1.  virt-manager maps its per-VM setting directly to spice-gtk's
+    `resize-guest` display property
+    ([`virtManager/details/viewers.py:730-741`][virt-manager-viewer]).
+2.  When enabled,
+     spice-gtk calculates the guest dimensions from its display
+    allocation and calls `spice_main_channel_update_display`
+    ([`src/spice-widget.c:1394-1402`][spice-widget]).
+3.  spice-gtk's monitor-config timer returns without sending if
+    `agent_connected` is false
+    ([`src/channel-main.c:1540-1560`][spice-channel]).
+4.  QEMU receives the SPICE monitor configuration,
+     copies its dimensions into
+    `QemuUIInfo`,
+     and calls `dpy_set_ui_info`
+    ([`ui/spice-display.c:664-694`][qemu-spice]).
+5.  virtio-gpu stores those dimensions and notifies the guest of a display
+    event
+    ([`hw/display/virtio-gpu-base.c:100-123`][qemu-virtio-gpu]).
+6.  The kernel exposes the new preferred mode.
+     labwc does not apply that
+    hotplug preference itself in this setup,
+     so `follow-preferred-mode`
+    applies it with `wlr-randr`.
 
 This explains an initially surprising result:
  QEMU updates virtio-gpu before

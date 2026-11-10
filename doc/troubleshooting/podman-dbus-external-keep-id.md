@@ -265,36 +265,36 @@ Tradeoffs:
 The 5-constraint check,
  walked explicitly:
 
-1. Is it really upstream's fault?
-    No. zbus implements SASL EXTERNAL per the
-   D-Bus specification:
-    assert the process uid,
-    let the daemon validate it
-   against the peer credential.
-    The mismatch is created by rootless podman's
-   default user-namespace mapping (container uid 0,
-    host-visible uid 1000),
-    an
-   environment configuration,
-    not a zbus defect.
-2. Can upstream fix it?
-    There is nothing to fix in zbus;
-    asserting the euid is
-   correct behaviour.
-    "Fall back to a different mechanism on rejection" would
-   weaken a security mechanism to paper over a deployment misconfiguration.
-3. Are they supporting this use case?
-    The use case (host bus,
-    mismatched
-   userns) is a podman deployment concern,
-    not a zbus feature.
-4. Will they likely fix it?
-    Not applicable;
-    constraint 1 already fails.
-5. Minimal fix prototyped?
-    Not applicable;
-    the fix is ours (the run-task flag),
-   not upstream's.
+1.  Is it really upstream's fault?
+     No. zbus implements SASL EXTERNAL per the
+    D-Bus specification:
+     assert the process uid,
+     let the daemon validate it
+    against the peer credential.
+     The mismatch is created by rootless podman's
+    default user-namespace mapping (container uid 0,
+     host-visible uid 1000),
+     an
+    environment configuration,
+     not a zbus defect.
+2.  Can upstream fix it?
+     There is nothing to fix in zbus;
+     asserting the euid is
+    correct behaviour.
+     "Fall back to a different mechanism on rejection" would
+    weaken a security mechanism to paper over a deployment misconfiguration.
+3.  Are they supporting this use case?
+     The use case (host bus,
+     mismatched
+    userns) is a podman deployment concern,
+     not a zbus feature.
+4.  Will they likely fix it?
+     Not applicable;
+     constraint 1 already fails.
+5.  Minimal fix prototyped?
+     Not applicable;
+     the fix is ours (the run-task flag),
+    not upstream's.
 
 Constraint 1 fails,
  so the auto-prototype step does not trigger and no upstream

@@ -281,6 +281,7 @@ manifest SHA-256:
 `db1ca9345a4e373cab696446cf839f2e731ab8db023cc7731e1c7e802df491de`.
 The fresh inputs are not the old exposed examples used in local consumer controls.
 No semantic feature request or semantic-head fit preceded these freezes.
+
 ## Original pretest stopped on TPM quota
 
 `proc_85e9` stopped under the declared failure policy when Voyage returned HTTP 429.

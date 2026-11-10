@@ -69,6 +69,9 @@ export const indentation: CreateOnceRule = {
         text,
         visitorKeys,
       } = context.sourceCode;
+      /**
+       Model expectation per checked line, in line order.
+       */
       const expectations = computeIndentExpectations({
         sourceText: text,
         root: ast,

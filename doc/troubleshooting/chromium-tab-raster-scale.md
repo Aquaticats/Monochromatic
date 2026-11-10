@@ -193,25 +193,25 @@ No `.out-of-scope/` entry matches Chromium tab dimensions.
 GitHub searches across open and closed `chromium/chromium` issues for
 `tab height width logical DIP` found no matching report.
 
-1. **Is it really upstream's fault?**
-    No.
-   Chromium's source is internally consistent;
-   the defect was this project's raster-to-logical conversion.
-2. **Can upstream fix it?**
-    No.
-   Chromium cannot correct dimensions in this repository's Slint and Compose components.
-3. **Are they supporting this use case?**
-    No.
-   Chromium supports its own browser strip,
-   not a wrapping third-party music-page selector.
-4. **Would the repo welcome our contribution?**
-    Not evaluated beyond the public source and tracker search,
-   because there is no upstream defect or relevant patch.
-5. **Will they likely fix it?**
-    Not applicable;
-   there is nothing upstream to fix.
-6. **Have we prototyped a minimal upstream fix?**
-    No upstream patch exists.
-   The minimal consumer fix was implemented and verified in this repository.
+1.  **Is it really upstream's fault?**
+     No.
+    Chromium's source is internally consistent;
+    the defect was this project's raster-to-logical conversion.
+2.  **Can upstream fix it?**
+     No.
+    Chromium cannot correct dimensions in this repository's Slint and Compose components.
+3.  **Are they supporting this use case?**
+     No.
+    Chromium supports its own browser strip,
+    not a wrapping third-party music-page selector.
+4.  **Would the repo welcome our contribution?**
+     Not evaluated beyond the public source and tracker search,
+    because there is no upstream defect or relevant patch.
+5.  **Will they likely fix it?**
+     Not applicable;
+    there is nothing upstream to fix.
+6.  **Have we prototyped a minimal upstream fix?**
+     No upstream patch exists.
+    The minimal consumer fix was implemented and verified in this repository.
 
 There is no issue or additive comment to file upstream.

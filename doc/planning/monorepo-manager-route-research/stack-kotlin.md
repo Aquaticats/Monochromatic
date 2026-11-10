@@ -683,56 +683,56 @@ Triggers:
 Ranked by severity.
 The first two are disqualifying.
 
-1. **Disqualifying (user documentation gate):**
-    the Kotlin/Native interop and memory-manager docs contradict themselves.
-   One page contradicts the function-pointer tutorial,
-    and the other ships an error-level `freeze()` snippet.
-   Ktor's sockets page misdescribes native and says nothing about Unix sockets.
-   The kotlinx.serialization contradiction in X3 also applies.
-2. **Disqualifying (engineering):**
-    the linker sysroot is frozen at glibc 2.19 and Linux 4.9,
-    with JetBrains stating no timeframe for a fix.
-   Every modern API the daemon needs is missing from the bindings:
-    `pidfd_spawn`,
-    `setcgroup_np`,
-    `POSIX_SPAWN_SETSID`,
-    `P_PIDFD`,
-    `pipe2`,
-    `accept4`,
-    `copy_file_range`,
-    `statx`,
-    `ucred`,
-    and newer btrfs ioctls.
-   Each becomes a `dlsym` function pointer or a hand-declared constant or struct.
-   Linking any modern host C library fails,
-    for example `libcrypto` needs `GLIBC_2.38`.
-3. **Major:**
-    the ecosystem gaps force the daemon to hand-write its epoll loop,
-    spawn and reap code,
-    inotify parser,
-    socket server,
-    and ioctl structs.
-   Ktor's native selector has an `FD_SETSIZE` ceiling.
-   The only BLAKE3 option is pure Kotlin and hasn't been released since June 2024.
-4. **Major:**
-    Ctrl+C and signal handling have no documented safe path.
-   Runtime threads start with no signal-mask handling,
-    so `signalfd` may be unreliable,
-    and signal handlers written as `staticCFunction` are undocumented.
-5. **Major:**
-    tooling.
-   The debugger has no expression evaluation and "no plans".
-   There is no mutation testing or fuzzing.
-   `linuxX64` is Tier 2,
-    and release builds are "an order of magnitude" slower than debug builds.
-   Kotlin/Native would be new to the repository.
-6. **Moderate:**
-    the non-TypeScript skill's FFI stop-and-ask and 15:1 comment ratio fall on a core that is mostly FFI (X2).
-7. **Moderate:**
-    the file-enforcer port is about 13,774 handwritten lines,
-    and the 2,329-line configuration has no scripting host.
-8. **Moderate:**
-    the X1 compile-daemon hazard.
+1.  **Disqualifying (user documentation gate):**
+     the Kotlin/Native interop and memory-manager docs contradict themselves.
+    One page contradicts the function-pointer tutorial,
+     and the other ships an error-level `freeze()` snippet.
+    Ktor's sockets page misdescribes native and says nothing about Unix sockets.
+    The kotlinx.serialization contradiction in X3 also applies.
+2.  **Disqualifying (engineering):**
+     the linker sysroot is frozen at glibc 2.19 and Linux 4.9,
+     with JetBrains stating no timeframe for a fix.
+    Every modern API the daemon needs is missing from the bindings:
+     `pidfd_spawn`,
+     `setcgroup_np`,
+     `POSIX_SPAWN_SETSID`,
+     `P_PIDFD`,
+     `pipe2`,
+     `accept4`,
+     `copy_file_range`,
+     `statx`,
+     `ucred`,
+     and newer btrfs ioctls.
+    Each becomes a `dlsym` function pointer or a hand-declared constant or struct.
+    Linking any modern host C library fails,
+     for example `libcrypto` needs `GLIBC_2.38`.
+3.  **Major:**
+     the ecosystem gaps force the daemon to hand-write its epoll loop,
+     spawn and reap code,
+     inotify parser,
+     socket server,
+     and ioctl structs.
+    Ktor's native selector has an `FD_SETSIZE` ceiling.
+    The only BLAKE3 option is pure Kotlin and hasn't been released since June 2024.
+4.  **Major:**
+     Ctrl+C and signal handling have no documented safe path.
+    Runtime threads start with no signal-mask handling,
+     so `signalfd` may be unreliable,
+     and signal handlers written as `staticCFunction` are undocumented.
+5.  **Major:**
+     tooling.
+    The debugger has no expression evaluation and "no plans".
+    There is no mutation testing or fuzzing.
+    `linuxX64` is Tier 2,
+     and release builds are "an order of magnitude" slower than debug builds.
+    Kotlin/Native would be new to the repository.
+6.  **Moderate:**
+     the non-TypeScript skill's FFI stop-and-ask and 15:1 comment ratio fall on a core that is mostly FFI (X2).
+7.  **Moderate:**
+     the file-enforcer port is about 13,774 handwritten lines,
+     and the 2,329-line configuration has no scripting host.
+8.  **Moderate:**
+     the X1 compile-daemon hazard.
 
 ## Option 2: Kotlin/JVM, with a GraalVM Native Image variant
 
@@ -1092,50 +1092,50 @@ The first two are disqualifying.
 
 Ranked by severity.
 
-1. **Disqualifying (user documentation gate):**
-    the X3 contradictions.
-   The Kotlin Gradle plugin page can't be avoided when building Kotlin,
-    and it contradicts itself on the exact daemon-reuse behavior X1 needs.
-   kotlinx.serialization is avoidable only by giving up the Kotlin-native JSON library.
-2. **Major:**
-    the JVM's process API can't sandbox.
-   Spawn,
-    pipes,
-    reaping,
-    and signaling are rewritten in FFM,
-    because raw fds can't become JDK streams through public API.
-   This requires adding JDK 25 next to the repository's JDK 21.
-   The race-free spawn function it relies on is documented only in glibc `NEWS`.
-3. **Major:**
-    `WatchService` isn't usable as specified.
-   It has no recursion,
-    one poller thread handles every registration,
-    and it dies silently on an unexpected error.
-   Replacing it adds FFM inotify code.
-4. **Major (GraalVM variant only):**
-    Oracle moved the GraalVM team away from Java and discontinued Native Image for Java SE customers.
-   Community releases continue on JDK 25 only.
-   The FFM Native Image page has a class-name mismatch and meta-refresh redirects.
-   Each downcall shape needs build-time registration.
-5. **Moderate:**
-    the file-enforcer port,
-    as in Option 1.
-   The scripting route has contradictory stability labels.
-6. **Moderate:**
-    the non-TypeScript skill's FFI stop-and-ask (X2) over the spawn,
-    inotify,
-    and ioctl layers.
-   This is smaller than Option 1,
-    because sockets,
-    files,
-    hashing,
-    threads,
-    and JSON stay on the JDK.
-7. **Moderate:**
-    the X1 compile-daemon hazard.
-8. **Minor:**
-    pure-JVM BLAKE3 runs at 312 MiB/s,
-    so the cache uses SHA-256.
+1.  **Disqualifying (user documentation gate):**
+     the X3 contradictions.
+    The Kotlin Gradle plugin page can't be avoided when building Kotlin,
+     and it contradicts itself on the exact daemon-reuse behavior X1 needs.
+    kotlinx.serialization is avoidable only by giving up the Kotlin-native JSON library.
+2.  **Major:**
+     the JVM's process API can't sandbox.
+    Spawn,
+     pipes,
+     reaping,
+     and signaling are rewritten in FFM,
+     because raw fds can't become JDK streams through public API.
+    This requires adding JDK 25 next to the repository's JDK 21.
+    The race-free spawn function it relies on is documented only in glibc `NEWS`.
+3.  **Major:**
+     `WatchService` isn't usable as specified.
+    It has no recursion,
+     one poller thread handles every registration,
+     and it dies silently on an unexpected error.
+    Replacing it adds FFM inotify code.
+4.  **Major (GraalVM variant only):**
+     Oracle moved the GraalVM team away from Java and discontinued Native Image for Java SE customers.
+    Community releases continue on JDK 25 only.
+    The FFM Native Image page has a class-name mismatch and meta-refresh redirects.
+    Each downcall shape needs build-time registration.
+5.  **Moderate:**
+     the file-enforcer port,
+     as in Option 1.
+    The scripting route has contradictory stability labels.
+6.  **Moderate:**
+     the non-TypeScript skill's FFI stop-and-ask (X2) over the spawn,
+     inotify,
+     and ioctl layers.
+    This is smaller than Option 1,
+     because sockets,
+     files,
+     hashing,
+     threads,
+     and JSON stay on the JDK.
+7.  **Moderate:**
+     the X1 compile-daemon hazard.
+8.  **Minor:**
+     pure-JVM BLAKE3 runs at 312 MiB/s,
+     so the cache uses SHA-256.
 
 ## Option 3: Kotlin daemon core with TypeScript file-enforcer children
 
@@ -1201,29 +1201,29 @@ Ranked by severity.
 
 Ranked by severity.
 
-1. **Disqualifying (user documentation gate):**
-    the X3 contradictions,
-    inherited from the Kotlin core,
-    plus Option 2's JVM-specific triggers.
-2. **Major:**
-    everything from Option 2's second and third yikes:
-    the FFM process layer on JDK 25,
-    glibc `NEWS`-only spawn documentation,
-    and replacing `WatchService`.
-3. **Moderate:**
-    two languages and three runtimes in the operational path.
-   The JVM daemon,
-    Node children,
-    and Gradle plus Kotlin compile daemons for Kotlin tasks all need a versioned protocol with tests on both sides.
-   file-enforcer needs a new child mode and a typed event stream.
-4. **Moderate:**
-    pausing a file-enforcer child stalls other writers through the 5 s manifest lock timeout.
-   This follows from the design,
-    but it becomes concrete here.
-5. **Moderate:**
-    the X1 compile-daemon hazard and the X2 FFI comment burden on the JVM core.
-6. **Minor:**
-    each evaluation pays a Node process start (at least 19.5 ms median measured).
+1.  **Disqualifying (user documentation gate):**
+     the X3 contradictions,
+     inherited from the Kotlin core,
+     plus Option 2's JVM-specific triggers.
+2.  **Major:**
+     everything from Option 2's second and third yikes:
+     the FFM process layer on JDK 25,
+     glibc `NEWS`-only spawn documentation,
+     and replacing `WatchService`.
+3.  **Moderate:**
+     two languages and three runtimes in the operational path.
+    The JVM daemon,
+     Node children,
+     and Gradle plus Kotlin compile daemons for Kotlin tasks all need a versioned protocol with tests on both sides.
+    file-enforcer needs a new child mode and a typed event stream.
+4.  **Moderate:**
+     pausing a file-enforcer child stalls other writers through the 5 s manifest lock timeout.
+    This follows from the design,
+     but it becomes concrete here.
+5.  **Moderate:**
+     the X1 compile-daemon hazard and the X2 FFI comment burden on the JVM core.
+6.  **Minor:**
+     each evaluation pays a Node process start (at least 19.5 ms median measured).
 
 ## Cross-option comparison
 

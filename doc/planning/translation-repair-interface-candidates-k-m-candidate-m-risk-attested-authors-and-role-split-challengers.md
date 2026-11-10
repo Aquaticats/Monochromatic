@@ -547,6 +547,7 @@ an independent advisor's sole blocker was that the newest helper and restart-tes
 Those targeted gates,
 GFP controls,
 and the full package gate subsequently passed.
+
 ### Candidate M calibration preflight
 
 The public calibration artifact is pinned by byte digest,

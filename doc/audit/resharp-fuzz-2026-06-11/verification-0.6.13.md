@@ -63,7 +63,7 @@ bounded-repeat compile cost) is still live.
 this probe alone and are flagged below,
  not claimed fixed.
 
-This says "no *known* reproducer still fires,
+This says "no **known** reproducer still fires,
 " which is not the same as "sound.
 "
 No fresh fuzzing was run against v0.6.13 in this session;

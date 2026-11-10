@@ -245,29 +245,29 @@ in "A stalled `post-receive` hook".
 
 The sequence:
 
-1. The repository's `origin` is a local path or a `file://` URL whose target holds a
-   `post-receive` hook,
-   for example a deploy,
-   a mirror,
-   or a ledger append.
-2. A commit's auto-push,
-   or the service's push of a landed commit,
-   starts `git push` through `push/bounded_push.rs:408`
-   with the default 30 second window,
-   or the window `CLI_GIT_PUSH_DEADLINE_SECONDS` sets.
-3. The push delivers the pack and the remote updates the ref,
-   and then runs `post-receive`,
-   which waits on something that shows no sign of work in the push tree:
-   a lock another process holds,
-   a queue slot,
-   a person's approval,
-   a `sleep`,
-   or a wait on a stalled disk that `/proc/<pid>/io` cannot show.
-4. The window passes with no bytes and no processor time anywhere in the tree,
-   so `push/bounded_push.rs:439` stops the push,
-   and `stop_of_a_push_and_sweep_of_its_locks.rs:187` and `:213` end the hook with
-   `SIGTERM`,
-   then `SIGKILL` after the grace.
+1.  The repository's `origin` is a local path or a `file://` URL whose target holds a
+    `post-receive` hook,
+    for example a deploy,
+    a mirror,
+    or a ledger append.
+2.  A commit's auto-push,
+    or the service's push of a landed commit,
+    starts `git push` through `push/bounded_push.rs:408`
+    with the default 30 second window,
+    or the window `CLI_GIT_PUSH_DEADLINE_SECONDS` sets.
+3.  The push delivers the pack and the remote updates the ref,
+    and then runs `post-receive`,
+    which waits on something that shows no sign of work in the push tree:
+    a lock another process holds,
+    a queue slot,
+    a person's approval,
+    a `sleep`,
+    or a wait on a stalled disk that `/proc/<pid>/io` cannot show.
+4.  The window passes with no bytes and no processor time anywhere in the tree,
+    so `push/bounded_push.rs:439` stops the push,
+    and `stop_of_a_push_and_sweep_of_its_locks.rs:187` and `:213` end the hook with
+    `SIGTERM`,
+    then `SIGKILL` after the grace.
 
 The wrong result:
 the ref is on the remote and the commit is published,
@@ -335,33 +335,33 @@ the inheritance itself is reproduced in "The switches reach a child Git".
 
 The sequence:
 
-1. A Git the wrapper started runs a program of the person's:
-   an editor of `git config --edit`,
-   a clean or smudge filter,
-   an alias the person wrote with `!`,
-   or a pager.
-   Every one of them inherits the wrapper's `-c` switches as
-   `GIT_CONFIG_PARAMETERS`
-   (`binary/binary_hooks_off_escape_tests.rs:124` proves the editor case),
-   and a `git` it starts through `PATH` is the wrapper again,
-   which `SPEC.md:4661-4664` relies on on purpose.
-2. That nested wrapper answers a configuration question.
-   `doctor`'s `core.hooksPath` query
-   (`health/doctor.rs:287`)
-   and the commit warning's snapshot query
-   (`config/config_snapshot.rs:645-648`)
-   go without the wrapper's switches by design,
-   so they see the inherited command-scope entries as the highest-precedence values.
-3. Whether the in-process reader answers or declines decides what is read:
-   it honours `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`
-   (`repo_read/repo_read_query_refs_tests.rs:51-65`)
-   and does not read `GIT_CONFIG_PARAMETERS`,
-   and it declines a listing with a conditional include
-   (`:66-68`).
-   When it declines,
-   the answer comes from real Git,
-   whose last entry for the key is the wrapper's own
-   `/dev/null/cli-git-no-hooks`.
+1.  A Git the wrapper started runs a program of the person's:
+    an editor of `git config --edit`,
+    a clean or smudge filter,
+    an alias the person wrote with `!`,
+    or a pager.
+    Every one of them inherits the wrapper's `-c` switches as
+    `GIT_CONFIG_PARAMETERS`
+    (`binary/binary_hooks_off_escape_tests.rs:124` proves the editor case),
+    and a `git` it starts through `PATH` is the wrapper again,
+    which `SPEC.md:4661-4664` relies on on purpose.
+2.  That nested wrapper answers a configuration question.
+    `doctor`'s `core.hooksPath` query
+    (`health/doctor.rs:287`)
+    and the commit warning's snapshot query
+    (`config/config_snapshot.rs:645-648`)
+    go without the wrapper's switches by design,
+    so they see the inherited command-scope entries as the highest-precedence values.
+3.  Whether the in-process reader answers or declines decides what is read:
+    it honours `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`
+    (`repo_read/repo_read_query_refs_tests.rs:51-65`)
+    and does not read `GIT_CONFIG_PARAMETERS`,
+    and it declines a listing with a conditional include
+    (`:66-68`).
+    When it declines,
+    the answer comes from real Git,
+    whose last entry for the key is the wrapper's own
+    `/dev/null/cli-git-no-hooks`.
 
 The wrong result:
 with a conditional include anywhere in the configuration
@@ -405,17 +405,17 @@ no seam exists to place the removal between the listing and the look.
 
 The sequence:
 
-1. `git monochromatic-git-policy-cli doctor` lists a hooks directory
-   (`health/doctor.rs:155`) and gets the entry names it holds.
-2. Before the loop reaches one of them,
-   that name is removed or replaced by something that no longer resolves:
-   the person deletes `pre-commit` in another terminal,
-   a script reinstalls the hooks,
-   or a `git-lfs` upgrade rewrites the directory,
-   which the same command's own text says happens again and again
-   (`SPEC.md:482-484`).
-3. `std::fs::symlink_metadata(found.path())` returns `ENOENT`,
-   and the `?` at `:168` ends the scan with an error.
+1.  `git monochromatic-git-policy-cli doctor` lists a hooks directory
+    (`health/doctor.rs:155`) and gets the entry names it holds.
+2.  Before the loop reaches one of them,
+    that name is removed or replaced by something that no longer resolves:
+    the person deletes `pre-commit` in another terminal,
+    a script reinstalls the hooks,
+    or a `git-lfs` upgrade rewrites the directory,
+    which the same command's own text says happens again and again
+    (`SPEC.md:482-484`).
+3.  `std::fs::symlink_metadata(found.path())` returns `ENOENT`,
+    and the `?` at `:168` ends the scan with an error.
 
 The wrong result:
 `doctor` prints `git monochromatic-git-policy-cli doctor: <io error>` and exits 2
@@ -445,19 +445,19 @@ the Git side is reproduced in "The event switch disables every hook of its event
 
 The sequence:
 
-1. A repository defines `hook.control.event=pre-commit` and
-   `hook.control.command=<script>`,
-   and then switches the event off the way Git offers:
-   `git config hook.pre-commit.enabled false`.
-2. Every wrapper command that runs a hook event passes
-   `-c hook.pre-commit.enabled=false` anyway (`invocation/hooks_off.rs:46-77`),
-   so the hook never runs,
-   and Git reports it as `event-disabled`
-   (`git hook list pre-commit`).
-3. The wrapper's own filter asks only about `hook.<friendly-name>.enabled`
-   (`health/external_hooks.rs:143`),
-   not about the event,
-   so `configured_hooks` keeps the hook.
+1.  A repository defines `hook.control.event=pre-commit` and
+    `hook.control.command=<script>`,
+    and then switches the event off the way Git offers:
+    `git config hook.pre-commit.enabled false`.
+2.  Every wrapper command that runs a hook event passes
+    `-c hook.pre-commit.enabled=false` anyway (`invocation/hooks_off.rs:46-77`),
+    so the hook never runs,
+    and Git reports it as `event-disabled`
+    (`git hook list pre-commit`).
+3.  The wrapper's own filter asks only about `hook.<friendly-name>.enabled`
+    (`health/external_hooks.rs:143`),
+    not about the event,
+    so `configured_hooks` keeps the hook.
 
 The wrong result:
 every commit prints the external-hooks warning,
@@ -712,21 +712,21 @@ $ GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hookspath GIT_CONFIG_VALUE_0='<repo>/
 
 Read in this order:
 
-1. Finding 1,
-   and answer whether a local remote's hook may be ended with the push.
-   If it may,
-   `SPEC.md:2532`,
-   `:2995` and `push/child_watch.rs:36-39` have to say so,
-   because they are the sentences the watch's design rests on.
-   If it may not,
-   the push's stall rule needs the exception.
-2. Finding 2,
-   and answer whether a nested `doctor` may disagree with a nested commit warning.
-   The smallest fix is one filter,
-   and the two functions that need it are named there.
-3. Finding 3 and finding 4 are the small ones;
-   each is a suggestion,
-   and each says which existing branch or loop to extend.
+1.  Finding 1,
+    and answer whether a local remote's hook may be ended with the push.
+    If it may,
+    `SPEC.md:2532`,
+    `:2995` and `push/child_watch.rs:36-39` have to say so,
+    because they are the sentences the watch's design rests on.
+    If it may not,
+    the push's stall rule needs the exception.
+2.  Finding 2,
+    and answer whether a nested `doctor` may disagree with a nested commit warning.
+    The smallest fix is one filter,
+    and the two functions that need it are named there.
+3.  Finding 3 and finding 4 are the small ones;
+    each is a suggestion,
+    and each says which existing branch or loop to extend.
 
 Nothing in this page is a decision.
 No production code was changed.

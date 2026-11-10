@@ -627,35 +627,35 @@ for this configuration behavior.
 
 The six constraints are:
 
-1. **Is it really upstream's fault?**
-   No.
-   Fedora supplies language-gated regional aliases,
-   JBR correctly forwards its `en-US` startup locale and consumes fontconfig's
-   ordered result,
-   and IntelliJ offers an explicit editor override.
-   The undesired result comes from an unspecified regional preference across
-   those supported layers.
-2. **Can upstream fix it?**
-   Upstream could add more policy or UI controls,
-   but there is no correctness defect to fix without choosing a regional
-   preference on the user's behalf.
-3. **Are they supporting this use case?**
-   Yes.
-   Fontconfig documents user aliases,
-   JBR consumes fontconfig,
-   and IntelliJ exposes editor and terminal fallback controls.
-4. **Would the repositories welcome a contribution?**
-   JetBrainsRuntime's `CONTRIBUTING.md` points contributors to the OpenJDK guide.
-   IntelliJ's `CONTRIBUTING.md` welcomes reproducible bug fixes and requires a
-   YouTrack ticket.
-   Neither checked policy contains an AI-assistance ban.
-5. **Will they likely fix it?**
-   No upstream change is indicated because constraint 1 fails.
-   The supported user configuration already expresses the missing preference.
-6. **Has a minimal upstream fix been prototyped?**
-   No.
-   The auto-prototype gate does not trigger because constraints 1 and 5 fail.
-   A consumer-side fontconfig configuration was prototyped and verified instead.
+1.  **Is it really upstream's fault?**
+    No.
+    Fedora supplies language-gated regional aliases,
+    JBR correctly forwards its `en-US` startup locale and consumes fontconfig's
+    ordered result,
+    and IntelliJ offers an explicit editor override.
+    The undesired result comes from an unspecified regional preference across
+    those supported layers.
+2.  **Can upstream fix it?**
+    Upstream could add more policy or UI controls,
+    but there is no correctness defect to fix without choosing a regional
+    preference on the user's behalf.
+3.  **Are they supporting this use case?**
+    Yes.
+    Fontconfig documents user aliases,
+    JBR consumes fontconfig,
+    and IntelliJ exposes editor and terminal fallback controls.
+4.  **Would the repositories welcome a contribution?**
+    JetBrainsRuntime's `CONTRIBUTING.md` points contributors to the OpenJDK guide.
+    IntelliJ's `CONTRIBUTING.md` welcomes reproducible bug fixes and requires a
+    YouTrack ticket.
+    Neither checked policy contains an AI-assistance ban.
+5.  **Will they likely fix it?**
+    No upstream change is indicated because constraint 1 fails.
+    The supported user configuration already expresses the missing preference.
+6.  **Has a minimal upstream fix been prototyped?**
+    No.
+    The auto-prototype gate does not trigger because constraints 1 and 5 fail.
+    A consumer-side fontconfig configuration was prototyped and verified instead.
 
 Nothing should be filed or added upstream.
 There is no issue or comment draft because the measured behavior is expected,

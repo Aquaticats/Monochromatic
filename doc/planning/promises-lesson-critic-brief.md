@@ -126,66 +126,66 @@ Orientation deliberately precedes the artifact.
 
 ### Six sittings over fourteen chapters
 
-1. Foundations:
-   `functions` (define,
-   call,
-   return,
-   write to the DOM),
-   `wiring` (registering a
-   click listener versus observing a click),
-   `data` (bindings,
-   objects,
-   arrays,
-   conditions,
-   `null` and `Error`).
-2. Why a returned string is not enough:
-   `delayed` (a timer callback finishing after the caller
-   returned;
-   thread,
-   event loop,
-   call stack,
-   closure),
-   `callbacks` (completion callbacks,
-   out-of-order batch collection,
-   a repaired callback version presented as valid).
-3. Promises:
-   `promise` (constructor,
-   resolve and reject,
-   `.then`,
-   `Promise.withResolvers`,
-   `Promise.all`,
-   the manual settlement toy,
-   value representations),
-   `adoption`
-   (resolved versus fulfilled),
-   `await` (suspension versus blocking,
-   tasks versus microtasks,
-   the live trace exercise).
-4. Failure and control:
-   `provided-api` (the fixture contract),
-   `failure` (rejection,
-   validation of a fulfilled-but-unusable value,
-   unhandled rejections),
-   `control`
-   (`wait`,
-   retries,
-   backoff,
-   jitter,
-   the shared start gate,
-   cancellation,
-   deadlines,
-   `Promise.race` limits,
-   idempotency caveats).
-5. Separate conversations:
-   `threads` (per-conversation history and per-send controllers,
-   captured destinations,
-   the reference chat and its scenario list).
-6. Build and explain:
-   `workshop` (12 exercises in an isolated frame),
-   `interview`
-   (a demonstration script,
-   five answer-before-reveal questions,
-   the critique notes field).
+1.  Foundations:
+    `functions` (define,
+    call,
+    return,
+    write to the DOM),
+    `wiring` (registering a
+    click listener versus observing a click),
+    `data` (bindings,
+    objects,
+    arrays,
+    conditions,
+    `null` and `Error`).
+2.  Why a returned string is not enough:
+    `delayed` (a timer callback finishing after the caller
+    returned;
+    thread,
+    event loop,
+    call stack,
+    closure),
+    `callbacks` (completion callbacks,
+    out-of-order batch collection,
+    a repaired callback version presented as valid).
+3.  Promises:
+    `promise` (constructor,
+    resolve and reject,
+    `.then`,
+    `Promise.withResolvers`,
+    `Promise.all`,
+    the manual settlement toy,
+    value representations),
+    `adoption`
+    (resolved versus fulfilled),
+    `await` (suspension versus blocking,
+    tasks versus microtasks,
+    the live trace exercise).
+4.  Failure and control:
+    `provided-api` (the fixture contract),
+    `failure` (rejection,
+    validation of a fulfilled-but-unusable value,
+    unhandled rejections),
+    `control`
+    (`wait`,
+    retries,
+    backoff,
+    jitter,
+    the shared start gate,
+    cancellation,
+    deadlines,
+    `Promise.race` limits,
+    idempotency caveats).
+5.  Separate conversations:
+    `threads` (per-conversation history and per-send controllers,
+    captured destinations,
+    the reference chat and its scenario list).
+6.  Build and explain:
+    `workshop` (12 exercises in an isolated frame),
+    `interview`
+    (a demonstration script,
+    five answer-before-reveal questions,
+    the critique notes field).
 
 Every chapter opens with an answer-first `The point:` paragraph placed before its first code
 or experiment.
@@ -417,46 +417,46 @@ or that the artwork reads as bounded to a first-time viewer.
 
 ## Known weak spots: start here
 
-1. The capstone's worked comparison is 8,668 characters that the learner pastes into the same
-   editor holding their own attempt.
-   There is deliberately no "load comparison" button,
-   on the
-   theory that friction between trying and comparing is desirable.
-   That is a judgment,
-   and it
-   is the one I would most expect a critic to overturn.
-2. The settlement scene's correctness depends on its disclaimer paragraph.
-   Robot,
-   belt,
-   and
-   ticket vocabulary invites the physical reading the disclaimer denies.
-3. The shop's replies are revealed by a lesson control.
-   It is labelled teaching equipment and
-   the prose says real conversations differ,
-   but it is still the first thing a learner touches.
-4. Sitting 4 carries 2,982 words with one hands-on block:
-   policy-heavy prose about gates,
-   backoff,
-   jitter,
-   timeouts,
-   and idempotency with little to do.
-5. Takeaways are hand-written.
-   A chapter can change and its takeaway silently drift;
-   the guard
-   would still pass.
-6. Both pacing constants are assumptions presented as estimates.
-   If they are wrong,
-   every
-   number on the page is wrong in the same direction.
-7. Two audiences share one path.
-   Labels mark interview depth,
-   but nothing stops the linear
-   order from being slow for one reader and steep for the other.
-8. Print is 133 pages.
-   Completeness was required,
-   but a critic may judge that unusable on paper.
-9. The `waiting` exercise is new and has exactly one pointer into it,
-   from the `await` chapter.
+1.  The capstone's worked comparison is 8,668 characters that the learner pastes into the same
+    editor holding their own attempt.
+    There is deliberately no "load comparison" button,
+    on the
+    theory that friction between trying and comparing is desirable.
+    That is a judgment,
+    and it
+    is the one I would most expect a critic to overturn.
+2.  The settlement scene's correctness depends on its disclaimer paragraph.
+    Robot,
+    belt,
+    and
+    ticket vocabulary invites the physical reading the disclaimer denies.
+3.  The shop's replies are revealed by a lesson control.
+    It is labelled teaching equipment and
+    the prose says real conversations differ,
+    but it is still the first thing a learner touches.
+4.  Sitting 4 carries 2,982 words with one hands-on block:
+    policy-heavy prose about gates,
+    backoff,
+    jitter,
+    timeouts,
+    and idempotency with little to do.
+5.  Takeaways are hand-written.
+    A chapter can change and its takeaway silently drift;
+    the guard
+    would still pass.
+6.  Both pacing constants are assumptions presented as estimates.
+    If they are wrong,
+    every
+    number on the page is wrong in the same direction.
+7.  Two audiences share one path.
+    Labels mark interview depth,
+    but nothing stops the linear
+    order from being slow for one reader and steep for the other.
+8.  Print is 133 pages.
+    Completeness was required,
+    but a critic may judge that unusable on paper.
+9.  The `waiting` exercise is new and has exactly one pointer into it,
+    from the `await` chapter.
 10. The fixture's numbers (3 attempts,
     1,000 ms gate,
     1,800 ms deadline,

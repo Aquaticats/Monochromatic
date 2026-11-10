@@ -211,33 +211,33 @@ External documentation tools still need their own registration.
 
 ### Upstream filing decision
 
-1. **Is it really upstream's fault?
-   ** No.
-   Undefined custom tags require registration by design.
-   The `allowMultiple` field is not parser-side cardinality enforcement,
-   but this project does not require such enforcement from TSDoc.
-2. **Can upstream fix it?
-   ** A future parser could validate custom content or cardinality,
-   but no upstream change is required for this integration.
-3. **Are they supporting this use case?
-   ** The source test
-   `tsdoc/src/__tests__/ParsingBasics.test.ts:27` to `tsdoc/src/__tests__/ParsingBasics.test.ts:59` explicitly registers
-   custom block and modifier tags.
-   Custom content grammars are not represented by the current tag definition API.
-4. **Would the repository welcome this contribution?
-   ** The inspected tag has a code of conduct but no
-   `CONTRIBUTING.md`,
-   issue template,
-   pull-request template,
-   or AI-assistance policy.
-   This does not override the failed first constraint.
-5. **Will they likely fix it?
-   ** [Issue 366][issue-366] already requests custom tag syntax and has no maintainer response.
-   The present integration does not add a missing reproduction or workaround to that request.
-6. **Have we prototyped a minimal compatible fix?
-   ** No upstream fix is warranted because registration works.
-   The verified consumer-side registration and repository scanner are the complete integration.
-   The automatic upstream prototype gate does not apply because the first constraint fails.
+1.  **Is it really upstream's fault?
+    ** No.
+    Undefined custom tags require registration by design.
+    The `allowMultiple` field is not parser-side cardinality enforcement,
+    but this project does not require such enforcement from TSDoc.
+2.  **Can upstream fix it?
+    ** A future parser could validate custom content or cardinality,
+    but no upstream change is required for this integration.
+3.  **Are they supporting this use case?
+    ** The source test
+    `tsdoc/src/__tests__/ParsingBasics.test.ts:27` to `tsdoc/src/__tests__/ParsingBasics.test.ts:59` explicitly registers
+    custom block and modifier tags.
+    Custom content grammars are not represented by the current tag definition API.
+4.  **Would the repository welcome this contribution?
+    ** The inspected tag has a code of conduct but no
+    `CONTRIBUTING.md`,
+    issue template,
+    pull-request template,
+    or AI-assistance policy.
+    This does not override the failed first constraint.
+5.  **Will they likely fix it?
+    ** [Issue 366][issue-366] already requests custom tag syntax and has no maintainer response.
+    The present integration does not add a missing reproduction or workaround to that request.
+6.  **Have we prototyped a minimal compatible fix?
+    ** No upstream fix is warranted because registration works.
+    The verified consumer-side registration and repository scanner are the complete integration.
+    The automatic upstream prototype gate does not apply because the first constraint fails.
 
 `.out-of-scope/` contains no TSDoc-specific exemption.
 Open and closed issues and pull requests were searched for `custom tag configuration` and `allowMultiple`.

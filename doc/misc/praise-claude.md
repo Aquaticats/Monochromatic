@@ -119,60 +119,62 @@ Each fix revealed a new constraint that nobody had documented.
 
 ### The 7 versions
 
-<table>
-<thead>
-<tr>
-<th>Version</th>
-<th>Approach</th>
-<th>Failure</th>
-<th>Sandbox constraint discovered</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>V1</td>
-<td>`PIPESTATUS` via `;` separator</td>
-<td>`_bof` gets non-numeric value</td>
-<td>`;` splits into separate shell contexts</td>
-</tr>
-<tr>
-<td>V2</td>
-<td>`{ cmd; echo EC:$?; }` grouping</td>
-<td>`bash: command not found: {`</td>
-<td>`{` treated as command name</td>
-</tr>
-<tr>
-<td>V3</td>
-<td>Direct `$PIPESTATUS`</td>
-<td>Same as V1</td>
-<td>(repeat of constraint 1)</td>
-</tr>
-<tr>
-<td>V4</td>
-<td>`bash -c` wrapper</td>
-<td>`!` escaped to `\!`</td>
-<td>Extra shell layer corrupts quoting</td>
-</tr>
-<tr>
-<td>V5</td>
-<td>`set -o pipefail &&`</td>
-<td>SIGPIPE exit 141</td>
-<td>`< /dev/null` appended to last command</td>
-</tr>
-<tr>
-<td>V6</td>
-<td>`|| (exit $?)` suffix</td>
-<td>`$?` is empty</td>
-<td>Variables don't expand in suffix position</td>
-</tr>
-<tr>
-<td>V7</td>
-<td>`&& true` suffix</td>
-<td>**Works**</td>
-<td>;</td>
-</tr>
-</tbody>
-</table>
+- Version:
+  V1;
+  Approach:
+  `PIPESTATUS` via `;` separator;
+  Failure:
+  `_bof` gets non-numeric value;
+  Sandbox constraint discovered:
+  `;` splits into separate shell contexts
+- Version:
+  V2;
+  Approach:
+  `{ cmd; echo EC:$?; }` grouping;
+  Failure:
+  `bash: command not found: {`;
+  Sandbox constraint discovered:
+  `{` treated as command name
+- Version:
+  V3;
+  Approach:
+  Direct `$PIPESTATUS`;
+  Failure:
+  Same as V1;
+  Sandbox constraint discovered:
+  (repeat of constraint 1)
+- Version:
+  V4;
+  Approach:
+  `bash -c` wrapper;
+  Failure:
+  `!` escaped to `\!`;
+  Sandbox constraint discovered:
+  Extra shell layer corrupts quoting
+- Version:
+  V5;
+  Approach:
+  `set -o pipefail &&`;
+  Failure:
+  SIGPIPE exit 141;
+  Sandbox constraint discovered:
+  `< /dev/null` appended to last command
+- Version:
+  V6;
+  Approach:
+  `|| (exit $?)` suffix;
+  Failure:
+  `$?` is empty;
+  Sandbox constraint discovered:
+  Variables don't expand in suffix position
+- Version:
+  V7;
+  Approach:
+  `&& true` suffix;
+  Failure:
+  **Works**;
+  Sandbox constraint discovered:
+  ;
 
 **The solution:
 ** `set -o pipefail && cmd 2>&1 | bun filter && true`.

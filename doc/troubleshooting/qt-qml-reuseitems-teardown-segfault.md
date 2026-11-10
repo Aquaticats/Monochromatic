@@ -453,33 +453,33 @@ here,
 
 Six-constraint check:
 
-1. Upstream's fault:
-    yes,
-    entirely inside `QQmlReusableDelegateModelItemsPool::drain`;
-    no
-   app code is in the trace.
-2. Can upstream fix it:
-    yes,
-    it is a teardown-ownership fix,
-    not an algebraic-core limit.
-3. Supporting the use case:
-    `reuseItems` is a documented,
-    supported feature,
-    and nesting
-   is not documented as unsupported.
-4. Would they welcome it:
-    Qt takes reports at `bugreports.qt.io` and patches via Gerrit;
-   not investigated in depth because filing is not being pursued.
-5. Will they fix it:
-    the family has open reports and no won't-fix signal.
-6. Minimal fix prototype:
-    not done.
-    The real fix is in Qt's pool-teardown ownership;
-   prototyping it needs a qtdeclarative build,
-    a local backport was explicitly rejected
-   (ownership),
-    and 6.12 does not fix it,
-    so there is no minimal patch to attach.
+1.  Upstream's fault:
+     yes,
+     entirely inside `QQmlReusableDelegateModelItemsPool::drain`;
+     no
+    app code is in the trace.
+2.  Can upstream fix it:
+     yes,
+     it is a teardown-ownership fix,
+     not an algebraic-core limit.
+3.  Supporting the use case:
+     `reuseItems` is a documented,
+     supported feature,
+     and nesting
+    is not documented as unsupported.
+4.  Would they welcome it:
+     Qt takes reports at `bugreports.qt.io` and patches via Gerrit;
+    not investigated in depth because filing is not being pursued.
+5.  Will they fix it:
+     the family has open reports and no won't-fix signal.
+6.  Minimal fix prototype:
+     not done.
+     The real fix is in Qt's pool-teardown ownership;
+    prototyping it needs a qtdeclarative build,
+     a local backport was explicitly rejected
+    (ownership),
+     and 6.12 does not fix it,
+     so there is no minimal patch to attach.
 
 Decision:
  do not file a new issue now.

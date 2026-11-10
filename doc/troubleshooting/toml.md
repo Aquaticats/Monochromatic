@@ -19,12 +19,12 @@ When evaluating TOML for workspace configuration,
  four distinct
 classes of failure mode surfaced:
 
-1. Array-of-tables `[[thing]]` headers silently shift context.
-2. Dotted keys and explicit `[table]` headers conflict
-   asymmetrically.
-3. Major parsers disagree on edge cases that the spec leaves
-   underspecified.
-4. No mechanism for value reuse or interpolation across sections.
+1.  Array-of-tables `[[thing]]` headers silently shift context.
+2.  Dotted keys and explicit `[table]` headers conflict
+    asymmetrically.
+3.  Major parsers disagree on edge cases that the spec leaves
+    underspecified.
+4.  No mechanism for value reuse or interpolation across sections.
 
 A common misconception worth dismissing up front:
  repeating
@@ -368,21 +368,21 @@ the configuration patterns we needed,
  led us to write a
 comment-preserving JSONC parser in `package/jsonc-edit/core-ts`:
 
-- **No ambiguous table semantics**:
+- No ambiguous table semantics:
    JSON objects have one
   definition site.
-- **Comments preserved**:
+- Comments preserved:
    `//` and `/* */` survive round-trip
   parsing.
-- **Trailing commas**:
+- Trailing commas:
    easier to edit and diff.
-- **Ecosystem alignment**:
+- Ecosystem alignment:
    VS Code,
    TypeScript,
    ESLint,
    oxlint
   all use JSONC.
-- **Escape hatch to TypeScript**:
+- Escape hatch to TypeScript:
    when config needs logic (`if`,
   `map`,
    `await`),

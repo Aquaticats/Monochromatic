@@ -408,25 +408,25 @@ Duplicate searches covered open and closed issues and pull requests:
 
 ### Jackspeak constraints
 
-1. Is it really upstream's fault?
-   No.
-   Strict rejection is the package's stated design and matches its implementation.
-2. Can upstream fix it?
-   Yes,
-   by adding a separate permissive token result,
-   but that would be a new mode rather than correction of the tested contract.
-3. Are they supporting this use case?
-   No.
-   The README says unrecognized configs throw and presents Jackspeak as strict.
-4. Would the repository welcome the contribution?
-   No contribution policy or AI-assisted filing ban was found in the README,
-   repository root,
-   or `.github/` workflows.
-5. Will they likely fix it?
-   Not applicable after constraints 1 and 3 fail.
-6. Has a minimal fix been prototyped?
-   No.
-   The automatic prototype gate does not apply because constraints 1 through 5 do not all hold or softly hold.
+1.  Is it really upstream's fault?
+    No.
+    Strict rejection is the package's stated design and matches its implementation.
+2.  Can upstream fix it?
+    Yes,
+    by adding a separate permissive token result,
+    but that would be a new mode rather than correction of the tested contract.
+3.  Are they supporting this use case?
+    No.
+    The README says unrecognized configs throw and presents Jackspeak as strict.
+4.  Would the repository welcome the contribution?
+    No contribution policy or AI-assisted filing ban was found in the README,
+    repository root,
+    or `.github/` workflows.
+5.  Will they likely fix it?
+    Not applicable after constraints 1 and 3 fail.
+6.  Has a minimal fix been prototyped?
+    No.
+    The automatic prototype gate does not apply because constraints 1 through 5 do not all hold or softly hold.
 
 Upstream artifact:
 nothing to add.
@@ -434,26 +434,26 @@ Do not file an issue that asks a strict parser to become cli-git's partial Git p
 
 ### Type-flag constraints
 
-1. Is it really upstream's fault?
-   No for stable 4.5.0.
-   Its README explicitly documents empty missing string values and dash-led value tradeoffs.
-2. Can upstream fix it?
-   Yes,
-   but arbitrary dash-led values require a new token-role rule beyond beta pull request 71.
-3. Are they supporting this use case?
-   No.
-   The package is a focused typed flag parser,
-   not a partial external-grammar parser preserving exact unknown token order.
-4. Would the repository welcome the contribution?
-   No contribution policy or AI-assisted filing ban was found in the README,
-   repository root,
-   or `.github/` configuration.
-5. Will they likely fix it?
-   The maintainer has actively changed beta tokenization,
-   but the current documented stable behavior is intentional.
-6. Has a minimal fix been prototyped?
-   No.
-   The automatic prototype gate does not apply because constraints 1 and 3 fail.
+1.  Is it really upstream's fault?
+    No for stable 4.5.0.
+    Its README explicitly documents empty missing string values and dash-led value tradeoffs.
+2.  Can upstream fix it?
+    Yes,
+    but arbitrary dash-led values require a new token-role rule beyond beta pull request 71.
+3.  Are they supporting this use case?
+    No.
+    The package is a focused typed flag parser,
+    not a partial external-grammar parser preserving exact unknown token order.
+4.  Would the repository welcome the contribution?
+    No contribution policy or AI-assisted filing ban was found in the README,
+    repository root,
+    or `.github/` configuration.
+5.  Will they likely fix it?
+    The maintainer has actively changed beta tokenization,
+    but the current documented stable behavior is intentional.
+6.  Has a minimal fix been prototyped?
+    No.
+    The automatic prototype gate does not apply because constraints 1 and 3 fail.
 
 Upstream artifact:
 nothing to add to pull request 71.
@@ -461,26 +461,26 @@ Its negative-number implementation and limits are already documented in the thre
 
 ### Argue constraints
 
-1. Is it really upstream's fault?
-   No established defect was found.
-   Prefix normalization and continued scanning are architectural behavior,
-   while exact partial-Git spelling is not a documented contract.
-2. Can upstream fix it?
-   Yes,
-   by exposing raw spelling to readers and adding explicit terminator state.
-3. Are they supporting this use case?
-   No.
-   The README documents sequential application CLI parsing,
-   not a partial external grammar with ordered unknown-option facts.
-4. Would the repository welcome the contribution?
-   Issue templates exist and no contribution or AI-assisted filing ban was found in the README,
-   repository root,
-   or `.github/` files.
-5. Will they likely fix it?
-   No direct maintainer signal exists for this use case.
-6. Has a minimal fix been prototyped?
-   No.
-   The automatic prototype gate does not apply because constraints 1 and 3 fail.
+1.  Is it really upstream's fault?
+    No established defect was found.
+    Prefix normalization and continued scanning are architectural behavior,
+    while exact partial-Git spelling is not a documented contract.
+2.  Can upstream fix it?
+    Yes,
+    by exposing raw spelling to readers and adding explicit terminator state.
+3.  Are they supporting this use case?
+    No.
+    The README documents sequential application CLI parsing,
+    not a partial external grammar with ordered unknown-option facts.
+4.  Would the repository welcome the contribution?
+    Issue templates exist and no contribution or AI-assisted filing ban was found in the README,
+    repository root,
+    or `.github/` files.
+5.  Will they likely fix it?
+    No direct maintainer signal exists for this use case.
+6.  Has a minimal fix been prototyped?
+    No.
+    The automatic prototype gate does not apply because constraints 1 and 3 fail.
 
 Upstream artifact:
 nothing to add.
