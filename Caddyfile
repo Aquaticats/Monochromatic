@@ -1,5 +1,5 @@
 # TODO: Delete this and migrate to per-pkg caddyfile
-# Paused: webapp-search/exa-search moved to packages-paused/, so its deploy is paused too.
+# Paused: webapp-search/exa-search moved to package-paused/, so its deploy is paused too.
 # Uncomment and restore the dist path on un-pause.
 # :4110 {
 #   handle /api/proxy/* {
@@ -10,6 +10,6 @@
 #     }
 #   }
 #
-#   root * /srv/packages-paused/webapp-search/exa-search/dist/final/js
+#   root * /srv/package-paused/webapp-search/exa-search/dist/final/js
 #   file_server
 # }

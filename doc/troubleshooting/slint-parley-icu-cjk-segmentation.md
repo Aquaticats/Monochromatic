@@ -243,7 +243,8 @@ that flips the transitive `icu_provider/logging` on,
 `eprintln!` shim with the real `log` facade.
  With no `log` subscriber installed
 the `warn!` is silent,
- so the flood stops in BOTH debug and release builds.
+ so the flood stops in BOTH debug and release builds
+ (until the diagnostics fix at the end of this section bridged the facade in the desktop player).
 
 Tradeoffs:
  adds an unused direct dependency (and the small `log` crate);
@@ -272,6 +273,28 @@ icu_provider shim is already a no-op,
 Tradeoff:
  the fast-iteration `run-debug` path (and any `cargo run`/`target/debug`
 binary) still floods without the feature workaround above.
+
+### Turn the two ICU targets off in the filter, now that the facade is bridged (applied 2026-11-10)
+
+Issue 1010 made `package/music-player/desktop-app/src/logging.rs` install the subscriber with `try_init`,
+which adds
+`tracing-subscriber`'s `tracing-log` bridge,
+so a `log` record now reaches the application log.
+ That would revive this flood,
+so
+the filter prepends `icu_provider=off,icu_segmenter=off` to the `RUST_LOG` directives.
+ `tracing-subscriber` keeps
+the later of two equally specific directives,
+so `RUST_LOG=icu_provider=warn` brings the lines back on purpose.
+ The
+unit tests `logging::tests::icu_segmentation_warnings_stay_silent` and
+`logging::tests::naming_a_silenced_target_in_rust_log_turns_it_back_on` hold both directions.
+
+Tradeoff:
+ the silence is a filter directive rather than the absence of a subscriber,
+so a future change that drops it
+restores the flood;
+the tests are what keep it in place.
 
 ## What does not work
 

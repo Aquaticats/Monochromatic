@@ -22,20 +22,86 @@ const SHA_LENGTH = 40;
  */
 const SHA_DIGITS = '0123456789abcdef';
 /**
- Package roots whose additions, modifications, removals, or renames require verification.
+ Package roots of the toml-edit workflow: what its pull-request trigger lists, used when the calling workflow supplies no
+ list of its own.
  */
-const PACKAGE_PREFIXES = [
+const TOML_EDIT_PACKAGE_PREFIXES: readonly string[] = [
   'package/toml-edit/core/',
   'package/toml-edit/core.fuzz/',
   'package/test-fixture/toml-edit/',
-] as const;
+];
+/**
+ Exact paths outside those package roots that change the toml-edit verification contract.
+ */
+const TOML_EDIT_CONTRACT_PATHS: readonly string[] = [
+  'doc/decision/toml-edit-fuzzing.md',
+  '.github/workflows/toml-edit-fuzz.yml',
+];
+
+/**
+ A path list a calling workflow supplies, or the toml-edit default.
+
+ The form is the environment variable's value, one path per line, which keeps a path holding a space in one piece. This is
+ how a second workflow reaches the same fail-closed decision without a second copy of this program
+ (doc/decision/toml-edit-ci-scope.md).
+
+ @param name - environment key holding the list
+
+ @param fallback - paths to match when the key is unset or empty
+
+ @returns the paths to match
+
+ @example
+ ```ts
+ pathList('SCOPE_PACKAGE_PREFIXES', TOML_EDIT_PACKAGE_PREFIXES);
+ ```
+ */
+function pathList({
+  name,
+  fallback,
+}: {
+  readonly name: string;
+  readonly fallback: readonly string[];
+},): readonly string[] {
+  /**
+   Value the calling workflow supplied, if it supplied one.
+   */
+  const supplied = process.env[name];
+  if ((supplied === undefined) || (supplied.trim() === ''))
+    return fallback;
+  return supplied
+    .split('\n',)
+    .map(function trim(line: string,): string {
+      return line.trim();
+    },)
+    .filter(function nonBlank(line: string,): boolean {
+      return line !== '';
+    },);
+}
+
+/**
+ Package roots whose additions, modifications, removals, or renames require verification.
+ */
+const PACKAGE_PREFIXES = pathList({
+  name: 'SCOPE_PACKAGE_PREFIXES',
+  fallback: TOML_EDIT_PACKAGE_PREFIXES,
+},);
 /**
  Exact paths outside the package roots that change the verification contract.
  */
-const CONTRACT_PATHS = [
-  'doc/decision/toml-edit-fuzzing.md',
-  '.github/workflows/toml-edit-fuzz.yml',
-] as const;
+const CONTRACT_PATHS = pathList({
+  name: 'SCOPE_CONTRACT_PATHS',
+  fallback: TOML_EDIT_CONTRACT_PATHS,
+},);
+/**
+ Provided workflow name, when the calling workflow sets one.
+ */
+const providedSubject = process.env
+  .SCOPE_SUBJECT;
+/**
+ Name the workflow prints, so a caller's log line says which workflow it decided for.
+ */
+const SUBJECT = providedSubject ?? 'toml-edit';
 
 /**
  Require an immutable event revision rather than accepting a moving branch name.
@@ -107,7 +173,7 @@ async function shouldRun(): Promise<boolean> {
    */
   const event = process.env
     .GITHUB_EVENT_NAME;
-  console.log(`Determining toml-edit scope for event ${String(event,)}`,);
+  console.log(`Determining ${SUBJECT} scope for event ${String(event,)}`,);
   if ((event === 'push') || (event === 'pull_request'))
     return true;
   if (event !== 'merge_group')
@@ -178,8 +244,8 @@ if ((outputPath === undefined) || (outputPath === ''))
  */
 const run = await shouldRun();
 console.log(run
-  ? 'Running toml-edit verification.'
-  : 'No toml-edit paths changed in the verified merge group; skipping fuzz steps.',);
+  ? `Running ${SUBJECT} verification.`
+  : `No ${SUBJECT} paths changed in the verified merge group; skipping the heavy steps.`,);
 await appendFile(
   outputPath,
   `run=${String(run,)}\n`,

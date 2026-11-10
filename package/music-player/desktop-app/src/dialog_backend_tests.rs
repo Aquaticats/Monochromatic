@@ -37,6 +37,18 @@ fn a_program_that_is_in_no_listed_folder_is_not_found() {
 }
 
 #[test]
+fn the_found_program_is_named_by_its_absolute_path_in_the_first_folder_that_has_it() {
+    let first = scratch("first-wins");
+    let second = scratch("second-loses");
+    std::fs::write(first.join("zenity"), b"#!/bin/sh\n").expect("the first stub is written");
+    std::fs::write(second.join("zenity"), b"#!/bin/sh\n").expect("the second stub is written");
+    let joined = std::env::join_paths([&first, &second]).expect("the folders join");
+    assert_eq!(resolve_on_path("zenity", &joined), Some(first.join("zenity")));
+    std::fs::remove_dir_all(&first).ok();
+    std::fs::remove_dir_all(&second).ok();
+}
+
+#[test]
 fn a_folder_named_like_the_program_is_not_the_program() {
     let only = scratch("folder");
     std::fs::create_dir_all(only.join("zenity")).expect("the folder is created");

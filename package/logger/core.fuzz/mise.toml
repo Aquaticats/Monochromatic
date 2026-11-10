@@ -6,6 +6,9 @@
 [tasks."bundle:browser-properties"]
 description = "Bundle the browser property layer (fast-check, the neutral logger artifact, the properties) for the Playwright harness page"
 extends = "build:js:client"
+# The bundle inlines the built runtime artifact, so a stale build would put code
+# the runtime source no longer has into the page under test.
+depends = ["//package/logger/core:build"]
 
 [tasks.lint]
 extends = "lint"
@@ -21,6 +24,12 @@ extends = "lint:types"
 
 [tasks."test:unit"]
 extends = "test:unit"
+# Every property and the sink boundary tests import the built runtime artifact
+# through the package name, so the suite compares the reference model with that
+# build. Without this dependency a run silently used whatever build happened to
+# be in dist, and a build older than the runtime source made the model disagree
+# with code the source no longer had.
+depends = ["//package/logger/core:build"]
 
 [tasks.fuzz]
 description = "Build module-logger, then run *.property.unit.test.ts as a time-budgeted fast-check campaign under node"

@@ -42,7 +42,17 @@ await describe({ name: '', children: [
       /** Dedicated image model must stay only in the original mixed catalog. */
       const image: AnyModel = { ...base, type: 'image', api: 'openrouter-images', output: ['image',], };
       /** Dedicated classifier must stay only in the original mixed catalog. */
-      const classifier: AnyModel = { ...base, type: 'classifier', api: 'typesafe-system-one', };
+      const classifier: AnyModel = {
+        id: `${base.id}-classifier`,
+        name: 'Host fixture classifier',
+        api: 'typesafe-system-one',
+        provider: base.provider,
+        baseUrl: base.baseUrl,
+        input: [...base.input,],
+        cost: { ...base.cost, },
+        type: 'classifier',
+        contextWindow: base.contextWindow,
+      };
       /** Original availability filters must never be invoked by adapter reads. */
       const filterState = { filtered: 0, };
       /** Source callbacks mirror the actual foreign mutable model boundaries. */

@@ -135,8 +135,12 @@ function sleepPidsWithArgument(seconds: string,): readonly number[] {
         return readFileSync(`/proc/${entry}/cmdline`, 'utf8',) === `sleep\0${seconds}\0`;
       }
       catch (error) {
-        // The process ended between listing and reading: it is not alive, so it does not count.
-        if ((Error.isError(error,)) && ('code' in error) && (error.code === 'ENOENT'))
+        // The process ended between listing and reading: it is not alive, so it does not count. `/proc` reports that as
+        // ENOENT when the entry is already gone and as ESRCH when it goes during the read.
+        const endedWhileReading = (Error.isError(error,))
+          && ('code' in error)
+          && ((error.code === 'ENOENT') || (error.code === 'ESRCH'));
+        if (endedWhileReading)
           return false;
         throw error;
       }

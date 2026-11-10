@@ -59,7 +59,8 @@ i-slint-backend-winit = { workspace = true }
 # dictionary, so icu_segmenter warns it cannot dictionary-segment the run (text
 # still renders, breaking between graphemes). Release builds already no-op those
 # warns; turning on `logging` makes debug builds route through the real `log`
-# facade too (silent with no subscriber installed), so the flood stops in both.
+# facade too, so the flood stops in both. src/logging.rs bridges that facade and
+# turns these two targets off, so the flood would stay out even if it came back.
 # RUST_LOG cannot suppress it (the eprintln shim ignores log filtering). The
 # version must stay compatible with the transitive pin so cargo unifies, not
 # duplicates. See doc/troubleshooting/slint-parley-icu-cjk-segmentation.md.
@@ -114,9 +115,12 @@ unicode-normalization = { workspace = true }
 # The logging facade and its subscriber (src/logging.rs). tracing mirrors the shared
 # truepeak-core logging; tracing-subscriber installs the stderr sink with an env-filter
 # (RUST_LOG, default `info`). Both already resolve transitively (turso -> tracing), so this
-# only promotes them to direct deps. We deliberately do NOT bridge the `log` facade (no
-# tracing-log init): ICU's `log`-routed CJK-segmentation warnings must stay silent, exactly
-# as today with no subscriber (see the icu_provider note below).
+# only promotes them to direct deps. The subscriber is installed with `try_init`, so the
+# `tracing-log` bridge from tracing-subscriber's default features turns `log` records into
+# tracing events too (issue 1010: the file dialog library reports a folder chooser's failure
+# only through `log`). ICU's `log`-routed CJK-segmentation warnings stay silent because the
+# filter turns `icu_provider` and `icu_segmenter` off, and an operator who names one of those
+# targets in RUST_LOG hears it again (see the icu_provider note below).
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 # Shared true-peak core: the Catmull-Rom meter and attenuate-only normalization gain

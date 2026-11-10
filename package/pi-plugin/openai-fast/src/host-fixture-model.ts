@@ -18,6 +18,15 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 //region Native values: preserve original model identities in completed history.
 
 /**
+ Recursively marks a fixture override deeply readonly, so no nested native object stays writable.
+
+ @typeParam T - override value whose reachable objects this fixture only copies
+ */
+type DeepReadonly<T,> = T extends readonly (infer TItem)[] ? readonly DeepReadonly<TItem>[]
+  : T extends object ? { readonly [TKey in keyof T]: DeepReadonly<T[TKey]> }
+    : T;
+
+/**
  Explicit capability overrides exercised by host scenarios, not arbitrary optional model fields.
  */
 export type FixtureModelOverrides = {
@@ -29,7 +38,7 @@ export type FixtureModelOverrides = {
   readonly input?: readonly ('text' | 'image')[];
   readonly headers?: Readonly<NonNullable<Model<'openai-codex-responses'>['headers']>>;
   readonly thinkingLevelMap?: Readonly<NonNullable<Model<'openai-codex-responses'>['thinkingLevelMap']>>;
-  readonly inputLimits?: Readonly<NonNullable<Model<'openai-codex-responses'>['inputLimits']>>;
+  readonly inputLimits?: DeepReadonly<NonNullable<Model<'openai-codex-responses'>['inputLimits']>>;
 };
 
 /**

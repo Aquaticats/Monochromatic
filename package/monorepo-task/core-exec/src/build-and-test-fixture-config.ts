@@ -81,7 +81,7 @@ export type BuildAndTestResult = {
  configurationSpan({ start: '[tasks.try]\n', end: '\n[tasks.', });
  ```
  */
-function configurationSpan({
+export function configurationSpan({
   start,
   end,
 }: {
@@ -138,7 +138,7 @@ function taskSection(name: string,): string {
  variableSection('parse_usage_args');
  ```
  */
-function variableSection(name: string,): string {
+export function variableSection(name: string,): string {
   return `${configurationSpan({
     start: `${name} = """\n`,
     end: '\n"""',
@@ -155,6 +155,7 @@ config_roots = ["package/*/*"]
 experimental = true
 task.disable_spec_from_run_scripts = true
 [vars]
+${variableSection('mise_tasks_json_max_buffer',)}
 ${variableSection('parse_usage_args',)}
 ${variableSection('run_test_files',)}
 ${taskSection('try',)}
