@@ -1,9 +1,17 @@
 /**
  Guards the review standard that replaces classic `for` loops with `for...of`
- or a functional pipeline, so this package's shipped modules keep the shape the
- standard requires. No linter rule enforces that standard, so this scan is the
- only mechanical check.
+ or a functional pipeline, so the shipped modules of the `pi-plugin` packages
+ keep the shape the standard requires. No linter rule enforces that standard, so
+ this scan is the only mechanical check.
+
+ The scan covers every package under `package/pi-plugin`, not this package
+ alone: the standard governs the unit the repository review read, and a copy of
+ this scan per package would be the same shape kept in many places and left to
+ drift. The check therefore lives in the package that wrote it first, which also
+ means deleting that package would delete the check.
  */
+
+import type { Dirent, } from 'node:fs';
 
 import {
   readdir,
@@ -20,10 +28,19 @@ import {
 //region Scan inputs
 
 /**
- Directory holding the modules this guard scans, resolved from this test file so
- the scan follows the sources wherever the package is checked out.
+ Directory holding the packages this guard scans, resolved from this test file so
+ the scan follows the sources wherever the category is checked out.
  */
-const moduleDirectory = import.meta.dirname;
+const categoryDirectory = join(
+  import.meta.dirname,
+  '..',
+  '..',
+);
+
+/**
+ Name of the folder holding one package's shipped modules.
+ */
+const MODULE_DIRECTORY_NAME = 'src';
 
 /**
  Suffix marking a unit test file, which the shipped-module scan skips because
@@ -58,54 +75,163 @@ const CLASSIC_FOR_SAMPLE = 'for (let index = 0; index < 1; index += 1) { }';
  */
 const FOR_OF_SAMPLE = 'for (const item of items) { }';
 
-/**
- Module-doc marker every shipped module carries in its header block, which
- proves a read returned real source rather than an empty file.
- */
-const MODULE_DOC_MARKER = '@module';
-
 //endregion Scan inputs
+
+//region Types
+
+/**
+ One package's shipped modules, named relative to {@link categoryDirectory}.
+ */
+type PackageModules = {
+  /**
+   Directory name of the package under the category.
+   */
+  readonly packageName: string;
+  /**
+   Shipped module paths this guard reads, empty when the package ships none.
+   */
+  readonly modulePaths: readonly string[];
+};
+
+//endregion Types
 
 //region Module scan
 
 /**
  Reads one module's authored source.
 
- @param name - file name under {@link moduleDirectory}
+ @param modulePath - path under {@link categoryDirectory}
 
  @returns the file's source text
 
  @example
  ```typescript
- const source = await moduleSource('message-extract.ts');
+ const source = await moduleSource('spawn/src/message-extract.ts');
  ```
  */
-async function moduleSource(name: string,): Promise<string> {
+async function moduleSource(modulePath: string,): Promise<string> {
   return await readFile(
     join(
-      moduleDirectory,
-      name,
+      categoryDirectory,
+      modulePath,
     ),
     'utf8',
   );
 }
 
 /**
- Lists the shipped module file names this guard scans.
+ Lists the package directory names under {@link categoryDirectory}.
 
- @returns TypeScript file names that are not unit tests, in directory order
+ @returns package directory names in directory order
 
  @example
  ```typescript
- const names = await shippedModuleNames();
+ const names = await packageNames();
  ```
  */
-async function shippedModuleNames(): Promise<readonly string[]> {
-  return (await readdir(moduleDirectory,)).filter(function isShippedModule(name: string,): boolean {
-    if (name.endsWith(UNIT_TEST_SUFFIX,))
-      return false;
-    return name.endsWith(MODULE_SUFFIX,);
-  },);
+async function packageNames(): Promise<readonly string[]> {
+  /**
+   Category entries, of which only directories name a package.
+   */
+  const entries = await readdir(
+    categoryDirectory,
+    { withFileTypes: true, },
+  );
+  return entries
+    .filter(function isPackageDirectory(entry: Dirent,): boolean {
+      return entry.isDirectory();
+    },)
+    .map(function directoryName(entry: Dirent,): string {
+      return entry.name;
+    },);
+}
+
+/**
+ Lists every package's shipped module paths.
+
+ A package with no {@link MODULE_DIRECTORY_NAME} folder reports an empty module
+ list rather than a failed read, so the coverage test names it instead of a
+ thrown filesystem error naming a path.
+
+ @returns one row per package directory, in directory order
+
+ @example
+ ```typescript
+ const packages = await scannedPackages();
+ ```
+ */
+async function scannedPackages(): Promise<readonly PackageModules[]> {
+  /**
+   Package directory names the scan covers.
+   */
+  const names = await packageNames();
+  return await Promise.all(names.map(async function packageModules(
+    packageName: string,
+  ): Promise<PackageModules> {
+    /**
+     Entries of this package, of which one folder holds its modules.
+     */
+    const entries = await readdir(
+      join(
+        categoryDirectory,
+        packageName,
+      ),
+      { withFileTypes: true, },
+    );
+    /**
+     Whether this package keeps a shipped-module folder at all.
+     */
+    const hasModuleDirectory = entries.some(function isModuleDirectory(entry: Dirent,): boolean {
+      return entry.isDirectory() && (entry.name === MODULE_DIRECTORY_NAME);
+    },);
+    if (!hasModuleDirectory)
+      return {
+        packageName,
+        modulePaths: [],
+      };
+
+    /**
+     File names of this package's shipped-module folder.
+     */
+    const moduleNames = await readdir(
+      join(
+        categoryDirectory,
+        packageName,
+        MODULE_DIRECTORY_NAME,
+      ),
+    );
+    return {
+      packageName,
+      modulePaths: moduleNames
+        .filter(isShippedModuleName,)
+        .map(function modulePath(moduleName: string,): string {
+          return join(
+            packageName,
+            MODULE_DIRECTORY_NAME,
+            moduleName,
+          );
+        },),
+    };
+  },),);
+}
+
+/**
+ Selects the file names of one shipped-module folder that the scan reads.
+
+ @param name - file name inside a shipped-module folder
+
+ @returns whether the file is a shipped module
+
+ @example
+ ```typescript
+ isShippedModuleName('message-extract.ts'); // true
+ isShippedModuleName('message-extract.unit.test.ts'); // false
+ ```
+ */
+function isShippedModuleName(name: string,): boolean {
+  if (name.endsWith(UNIT_TEST_SUFFIX,))
+    return false;
+  return name.endsWith(MODULE_SUFFIX,);
 }
 
 /**
@@ -114,7 +240,7 @@ async function shippedModuleNames(): Promise<readonly string[]> {
  A classic head separates its clauses with semicolons, which no `for...of` or
  `for...in` head carries between its own parentheses. The head is read from its
  `for (` prefix to the last `)` on the line, so a head split across lines reads
- as compliant; no loop head in this package spans a line break.
+ as compliant; no loop head in this category spans a line break.
 
  @param line - one line of module source
 
@@ -165,9 +291,11 @@ function classicForHeads(source: string,): readonly string[] {
 }
 
 /**
- Reports every classic `for` head across the shipped modules, grouped by file.
+ Reports every classic `for` head across the category's shipped modules,
+ grouped by file.
 
- @returns `file name` prefixed reports, empty when every module complies
+ @returns `package/src/file name` prefixed reports, empty when every module
+ complies
 
  @example
  ```typescript
@@ -176,19 +304,23 @@ function classicForHeads(source: string,): readonly string[] {
  */
 async function shippedClassicForHeads(): Promise<readonly string[]> {
   /**
-   Shipped module file names the reports cover.
+   Shipped modules the reports cover.
    */
-  const names = await shippedModuleNames();
+  const packages = await scannedPackages();
   /**
-   Per-file report lists, flattened after every module is read.
+   Per-module report lists, flattened after every module is read.
    */
-  const perModule = await Promise.all(names.map(async function moduleReports(name: string,) {
-    /**
-     That module's authored source.
-     */
-    const source = await moduleSource(name,);
-    return classicForHeads(source,).map(function qualify(report: string,): string {
-      return `${name} ${report}`;
+  const perModule = await Promise.all(packages.flatMap(function packageRows(
+    row: PackageModules,
+  ): readonly Promise<readonly string[]>[] {
+    return row.modulePaths.map(async function moduleReports(modulePath: string,) {
+      /**
+       That module's authored source.
+       */
+      const source = await moduleSource(modulePath,);
+      return classicForHeads(source,).map(function qualify(report: string,): string {
+        return `${modulePath} ${report}`;
+      },);
     },);
   },),);
 
@@ -208,26 +340,42 @@ await describe({
       },
     },),
     it({
-      name: 'positive control: the scan reads every shipped module\'s own source',
+      name: 'positive control: the scan reads the shipped modules of every package in the category',
       fn: async function testScanReachesSources() {
         /**
-         Shipped module file names the scan covers.
+         Shipped modules the scan covers.
          */
-        const names = await shippedModuleNames();
-        expect(names.length,).toBeGreaterThan(0,);
+        const packages = await scannedPackages();
+        expect(packages.length,).toBeGreaterThan(0,);
+        /**
+         Packages that shipped no module the scan could read, which would let
+         the negative assertion below pass without seeing their source.
+         */
+        const withoutModules = packages
+          .filter(function shipsNoModule(row: PackageModules,): boolean {
+            return row.modulePaths.length === 0;
+          },)
+          .map(function nameOf(row: PackageModules,): string {
+            return row.packageName;
+          },);
+        expect(withoutModules.join('\n',),).toBe('',);
         /**
          Module texts the scan covers.
          */
-        const sources = await Promise.all(names.map(moduleSource,),);
+        const sources = await Promise.all(packages.flatMap(function moduleReads(
+          row: PackageModules,
+        ): readonly Promise<string>[] {
+          return row.modulePaths.map(async function readModule(modulePath: string,) {
+            return await moduleSource(modulePath,);
+          },);
+        },),);
         /**
-         Modules whose read reached their header block; every module carries
-         one, so a short count means a read came back empty and the negative
-         assertion below would pass without seeing source.
+         Modules whose read came back empty, which no file in this category is.
          */
-        const modulesWithHeader = sources.filter(function hasHeader(source: string,): boolean {
-          return source.includes(MODULE_DOC_MARKER,);
+        const emptySources = sources.filter(function isEmptyText(source: string,): boolean {
+          return source.length === 0;
         },);
-        expect(modulesWithHeader.length,).toBe(names.length,);
+        expect(emptySources.length,).toBe(0,);
       },
     },),
     it({
