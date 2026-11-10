@@ -393,11 +393,17 @@ then fuzzes each target for 30 seconds without host mounts
 under the shared container bounds
 (`defaultContainerLimits`,
 re-exported by `package/git-policy/cli/bin/container-limits.ts`:
-2 GiB,
 2 CPUs,
 512 PIDs),
 and a 4,096-byte input limit
 (`maxInputBytes` in `bin/fuzz-images.ts`).
+The containers that compile and lint the targets take more memory than the shared 2 GiB,
+because cargo-fuzz asks for one code generator for the whole wrapper library:
+the AddressSanitizer build of every target peaked at 4.71 GiB,
+and at 2 GiB the kernel killed the compiler of `monochromatic-git-policy-cli`
+(`buildMemory` in `bin/fuzz-images.ts` carries that measurement beside the size it chose).
+The containers that run a target keep the shared bound,
+which the manifest's `memory` records beside `buildMemory`.
 A target must exit 0 and report at least one executed unit.
 A longer campaign passes the time per target after the task name,
 for example `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=1800`;
