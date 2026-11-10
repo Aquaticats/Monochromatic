@@ -37,6 +37,7 @@ import {
   type SafeHtml,
 } from '../lib/jsx-to-html.ts';
 import {
+  FONT_WEIGHT_EMPHASIS,
   GAP,
   GAP_SMALL,
 } from '../style/constants.ts';
@@ -255,6 +256,10 @@ function renderOption(
 /**
  Renders a quiz question with CSS-only reveal behavior.
  
+ The outer `<p>` carries a derived `id` and the option `<fieldset>` points at
+ it with `aria-labelledby`, so a screen reader announces the scenario as the
+ name of the option group instead of leaving it unnamed.
+ 
  @param props - question props
  
  @returns rendered `<question-radio>` element
@@ -278,6 +283,10 @@ export function QuestionRadio(props: QuestionProps,): SafeHtml {
    Derived stable id grouping all option inputs of this question.
    */
   const qId = deriveQuestionId(props,);
+  /**
+   Identifier the question's fieldset points at, so the scenario paragraph names the option group.
+   */
+  const scenarioId = `q-${qId}-scenario`;
   return jsx(
     'question-radio',
     {
@@ -287,12 +296,14 @@ export function QuestionRadio(props: QuestionProps,): SafeHtml {
           'p',
           {
             className: 'scenario',
+            id: scenarioId,
             children: props.scenario,
           },
         ),
         jsx(
           'fieldset',
           {
+            'aria-labelledby': scenarioId,
             children: props.options
               .map(function mapOption(
                 opt,
@@ -319,14 +330,6 @@ export function QuestionRadio(props: QuestionProps,): SafeHtml {
  Mix ratio for deriving ok/err colors from existing link tokens (percentage toward fg).
  */
 const COLOR_MIX_RATIO = '65%';
-
-/**
- Emphasis font-weight for the chosen and revealed labels.
- 
- Literal kept out of {@link css} itself so a single point of change propagates
- to any future variant rule.
- */
-const EMPHASIS_WEIGHT = 600;
 
 /**
  Slight font-size reduction for the per-option explanation text, in em.
@@ -368,7 +371,7 @@ export function css(): string {
         rule: '.scenario',
         decls: {
           'margin-block-end': cssRem(GAP_SMALL,),
-          'font-weight': EMPHASIS_WEIGHT,
+          'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
       $({
@@ -409,14 +412,14 @@ export function css(): string {
         rule: 'input:checked[data-correct] + label',
         decls: {
           color: cssVar('quiz-ok',),
-          'font-weight': EMPHASIS_WEIGHT,
+          'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
       $({
         rule: 'input:checked:not([data-correct]) + label',
         decls: {
           color: cssVar('quiz-err',),
-          'font-weight': EMPHASIS_WEIGHT,
+          'font-weight': FONT_WEIGHT_EMPHASIS,
         },
       },),
     ],

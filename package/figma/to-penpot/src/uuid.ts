@@ -44,7 +44,7 @@ function nextSyntheticCounter(): number {
   return syntheticCounter.value;
 }
 
-/* oxlint-disable eslint/no-magic-numbers, unicorn/prefer-math-trunc -- UUID v4 bit-layout: the masks, shifts, segment widths, hex radix, and the `>>> 0` uint32 coercion below are the literal RFC 4122 field geometry; Math.trunc would drop the unsigned wrap, and naming each constant would obscure the byte layout */
+/* oxlint-disable eslint/no-magic-numbers -- UUID v4 bit-layout: the masks, shifts, segment widths, hex radix, and the `>>> 0` uint32 coercion below are the literal RFC 4122 field geometry; naming each constant would obscure the byte layout */
 
 /**
  Format `value` as zero-padded lowercase hex of `width` digits.
@@ -277,4 +277,4 @@ export function guidToUuid(
   );
 }
 
-/* oxlint-enable eslint/no-magic-numbers, unicorn/prefer-math-trunc */
+/* oxlint-enable eslint/no-magic-numbers */

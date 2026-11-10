@@ -205,6 +205,58 @@ pub fn history_is_plain(common_dir: &Path, git: &GitContext, snapshot: Option<&C
 }
 
 /// What:
+///  The commit's own facts a landing reads from the object store:
+/// its parents,
+/// its root tree and the message it carries,
+/// which the reflog row repeats.
+/// Why:
+///   The reflog message is the first line of the commit's message,
+/// and a commit Git built carries it only in the object.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CommitContent = { parents: string[]; tree: Uint8Array; message: Uint8Array };
+/// ```
+#[derive(Debug, Eq, PartialEq)]
+pub struct CommitContent {
+    /// The parents,
+    /// in order,
+    /// as hexadecimal names.
+    pub parents: Vec<String>,
+    /// The root tree,
+    /// as a binary name.
+    pub tree: Vec<u8>,
+    /// The message:
+    /// everything after the blank line that ends the header.
+    pub message: Vec<u8>,
+}
+
+/// What:
+///  The parents,
+/// tree and message of one commit object,
+/// read without starting Git;
+/// `None` when the object is absent,
+/// not a plain commit,
+/// or written with an encoding Git would convert.
+/// Why:
+///   One read answers both questions the landing asks of a commit it built or landed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readCommitContent = (commonDir, commit) => parseCommit(readObject(commonDir, commit));
+/// ```
+pub fn commit_content(common_dir: &Path, commit: &str) -> Option<CommitContent> {
+    let format: ObjectFormat = format_of(commit);
+    let database: ObjectDatabase = ObjectDatabase::open(common_dir, None, format)?;
+    let object = database.read(from_hex(commit.as_bytes(), format)?.as_slice())?;
+    if object.kind != ObjectKind::Commit {
+        return None;
+    }
+    let fields = parse_commit(object.bytes.as_slice(), format)?;
+    return Some(CommitContent { parents: hex_of_parents(&fields.parents), tree: fields.tree, message: fields.message });
+}
+
+/// What:
 ///  The parents of the commit `built`;
 /// `None` when Git is to say (the object is not a plain commit,
 /// or the repository's
@@ -221,14 +273,8 @@ pub fn read_commit(common_dir: &Path, built: &str) -> Option<BuiltCommit> {
     if history_is_rewritten(common_dir) {
         return None;
     }
-    let format: ObjectFormat = format_of(built);
-    let database: ObjectDatabase = ObjectDatabase::open(common_dir, None, format)?;
-    let object = database.read(from_hex(built.as_bytes(), format)?.as_slice())?;
-    if object.kind != ObjectKind::Commit {
-        return None;
-    }
-    let fields = parse_commit(object.bytes.as_slice(), format)?;
-    return Some(BuiltCommit { name: from_hex(built.as_bytes(), format)?, parents: hex_of_parents(&fields.parents), tree: fields.tree });
+    let content: CommitContent = commit_content(common_dir, built)?;
+    return Some(BuiltCommit { name: from_hex(built.as_bytes(), format_of(built))?, parents: content.parents, tree: content.tree });
 }
 
 /// What the walk found.

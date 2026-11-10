@@ -19,7 +19,6 @@ import {
 
 import readdir from 'tiny-readdir-glob';
 import * as v from 'valibot';
-import { parse as parseYaml, } from 'yaml';
 
 import {
   isLocale,
@@ -28,147 +27,14 @@ import {
 
 import { sha256, } from './cache-hash.ts';
 import {
+  parseFrontmatter,
+  type ParsedFrontmatter,
+} from './frontmatter.ts';
+import {
   readAuthoredDates,
   type AuthoredDateFields,
 } from './frontmatter-dates.ts';
 
-//region Frontmatter
-
-/**
- Opening delimiter for YAML frontmatter blocks.
- */
-const FRONTMATTER_OPEN = '---';
-
-/**
- Unicode Byte Order Mark code point, stripped from file content before parsing.
- */
-const BOM = 0xFE_FF;
-
-/**
- Parses YAML frontmatter delimited by `---` from a raw string.
- 
- Splits at the first two `---` lines to extract the YAML block and body.
- Returns empty data when no valid frontmatter is found.
- 
- @param raw - full file content including frontmatter
- 
- @returns parsed YAML data and remaining body content
- 
- @example
- ```ts
- const { data, content } = parseFrontmatter('---\ntitle: Hello\n---\nbody');
- // data = { title: 'Hello' }, content = 'body'
- ```
- */
-function parseFrontmatter(raw: string,): {
-  data: Record<string, unknown>;
-  content: string;
-} {
-  /* Strip optional leading BOM. */
-  /**
-   BOM-trimmed input used for every subsequent index computation.
-   */
-  const str = raw.codePointAt(0,)
-    === BOM ? raw.slice(1,) : raw;
-
-  if (!str.startsWith(FRONTMATTER_OPEN,)) {
-    return {
-      data: {},
-      content: str,
-    };
-  }
-
-  /* Skip past the opening `---` and its trailing newline. */
-  /**
-   Index of the first newline after the opening fence, or `-1` when malformed.
-   */
-  const afterOpen = str.indexOf(
-    '\n',
-    FRONTMATTER_OPEN.length,
-  );
-  if (afterOpen === (-1)) {
-    return {
-      data: {},
-      content: str,
-    };
-  }
-
-  /**
-   Scan for the closing `---` that sits at the start of a line.
-   Start searching from the character right after the first newline.
-   */
-  /**
-   Starting offset for the closing-fence scan; first character after the opening newline.
-   */
-  const searchFrom = afterOpen + 1;
-  /**
-   Cursor advanced through the loop while hunting for a column-zero closing fence.
-   */
-  // oxlint-disable-next-line no-restricted-syntax/no-function-root-let -- parser cursor advanced across multiple loop iterations
-  let closeStart = searchFrom;
-
-  for (;;) {
-    const idx = str.indexOf(
-      FRONTMATTER_OPEN,
-      closeStart,
-    );
-    if (idx === (-1)) {
-      return {
-        data: {},
-        content: str,
-      };
-    }
-
-    /* The delimiter must be at column 0 or immediately after a newline. */
-    if ((idx === 0) || (str[idx - 1]
-      === '\n')) {
-      /**
-       Offset just past the closing fence; the next char must be newline or EOF for a valid close.
-       */
-      const afterDelim = idx + FRONTMATTER_OPEN
-        .length;
-
-      /* Next char must be a newline or EOF for a valid closing fence. */
-      if (
-        (afterDelim === str
-          .length)
-          || (str[afterDelim]
-            === '\n')
-          || (str[afterDelim]
-            === '\r')
-      ) {
-        /**
-         YAML body between the opening and closing fences fed to {@link parseYaml}.
-         */
-        const yamlBlock = str.slice(
-          searchFrom,
-          idx,
-        );
-        /**
-         Body start cursor advanced past CR/LF so the post body excludes the closing fence.
-         */
-        let bodyStart = afterDelim;
-        if (str[bodyStart]
-          === '\r')
-          bodyStart += 1;
-        if (str[bodyStart]
-          === '\n')
-          bodyStart += 1;
-
-        return {
-          // oxlint-disable-next-line no-unsafe-type-assertion -- `yaml`'s `parse` returns `any` for untyped frontmatter; the assertion narrows to the documented record contract, re-validated downstream by `postFileFrontmatterSchema` in `loadContent`.
-          data: (parseYaml(yamlBlock,)
-            ?? {}) as Record<string, unknown>,
-          content: str.slice(bodyStart,),
-        };
-      }
-    }
-
-    closeStart = idx + 1;
-  }
-}
-
-//endregion Frontmatter
 
 //region Schema
 
@@ -222,6 +88,8 @@ export const postFrontmatterSchema: v.GenericSchema<
     tags: string[];
     published: string | number | Date;
     updated: string | number | Date;
+    publishedOffsetMinutes: number;
+    updatedOffsetMinutes: number;
   },
   {
     title: string;
@@ -229,6 +97,8 @@ export const postFrontmatterSchema: v.GenericSchema<
     tags: string[];
     published: Date;
     updated: Date;
+    publishedOffsetMinutes: number;
+    updatedOffsetMinutes: number;
   }
   > = v.object({
     title: v.string(),
@@ -236,9 +106,186 @@ export const postFrontmatterSchema: v.GenericSchema<
     tags: v.array(v.string(),),
     published: coerceDateSchema,
     updated: coerceDateSchema,
+    publishedOffsetMinutes: v.number(),
+    updatedOffsetMinutes: v.number(),
   },);
 
 //endregion Schema
+
+//region Diagnostics
+
+/**
+ Names the field and the problem of one validation issue.
+ 
+ @param issue - valibot issue to describe
+ 
+ @returns dotted field path plus the issue message
+ 
+ @example
+ ```ts
+ describeIssue({ path: [{ key: 'title' }], message: 'Invalid type' });
+ // 'title: Invalid type'
+ ```
+ */
+function describeIssue(issue: v.BaseIssue<unknown>,): string {
+  /**
+   Dotted field path of the issue, or a generic name for an issue at the root.
+   */
+  const path = (issue.path ?? [])
+    .map(function keyOf(
+      item: v.IssuePathItem,
+      index: number,
+    ) {
+      return 'key' in item ? String(item.key,) : String(index,);
+    },)
+    .join('.',);
+  return `${path === '' ? 'frontmatter' : path}: ${issue.message}`;
+}
+
+/**
+ Describes a frontmatter failure with the MDX file it came from.
+ 
+ @param detail - what went wrong, in the failing library's own words
+ 
+ @param filePath - MDX file the frontmatter came from
+ 
+ @returns diagnostic naming the file and what to change
+ */
+function frontmatterMessage(
+  {
+    detail,
+    filePath,
+  }: {
+    readonly detail: string;
+    readonly filePath: string;
+  },
+): string {
+  return `Frontmatter of ${filePath} could not be read: ${detail}. Fix that file's frontmatter block; git history remains the source of truth for rendered dates.`;
+}
+
+/**
+ Builds an error that names the MDX file a frontmatter failure came from.
+ 
+ A bare valibot or YAML error names only a field or a YAML line, which leaves
+ the operator bisecting the content directory by hand.
+ 
+ @param error - failure raised by the YAML parser or the frontmatter schema
+ 
+ @param filePath - MDX file the frontmatter came from
+ 
+ @returns error naming the file, the field, and the underlying cause
+ 
+ @example
+ ```ts
+ throw frontmatterError({ error, filePath: 'src/content/en/post.mdx' });
+ ```
+ */
+function frontmatterError(
+  {
+    error,
+    filePath,
+  }: {
+    readonly error: unknown;
+    readonly filePath: string;
+  },
+): Error {
+  if (v.isValiError(error,)) {
+    return new Error(
+      frontmatterMessage({
+        detail: error.issues
+          .map(describeIssue,)
+          .join('; ',),
+        filePath,
+      },),
+      { cause: error, },
+    );
+  }
+
+  if (Error.isError(error,)) {
+    return new Error(
+      frontmatterMessage({
+        detail: error.message,
+        filePath,
+      },),
+      { cause: error, },
+    );
+  }
+
+  return new Error(
+    frontmatterMessage({
+      detail: 'an unrecognized value was thrown',
+      filePath,
+    },),
+    { cause: error, },
+  );
+}
+
+/**
+ Parses frontmatter, naming the file when the YAML is unparsable.
+ 
+ @param raw - full file content including frontmatter
+ 
+ @param filePath - MDX file the content came from
+ 
+ @returns parsed YAML data and remaining body
+ 
+ @throws when the YAML block cannot be parsed
+ */
+function parseFrontmatterForFile(
+  {
+    raw,
+    filePath,
+  }: {
+    readonly raw: string;
+    readonly filePath: string;
+  },
+): ParsedFrontmatter {
+  try {
+    return parseFrontmatter(raw,);
+  }
+  catch (error) {
+    throw frontmatterError({
+      error,
+      filePath,
+    },);
+  }
+}
+
+/**
+ Validates author-written frontmatter, naming the file when a field is wrong.
+ 
+ @param rawData - parsed YAML frontmatter record
+ 
+ @param filePath - MDX file the frontmatter came from
+ 
+ @returns validated author-written frontmatter
+ 
+ @throws when a required field is missing or mistyped
+ */
+function validateFrontmatter(
+  {
+    rawData,
+    filePath,
+  }: {
+    readonly rawData: Readonly<Record<string, unknown>>;
+    readonly filePath: string;
+  },
+): LoadedPost['fileData'] {
+  try {
+    return v.parse(
+      postFileFrontmatterSchema,
+      rawData,
+    );
+  }
+  catch (error) {
+    throw frontmatterError({
+      error,
+      filePath,
+    },);
+  }
+}
+
+//endregion Diagnostics
 
 //region Types
 
@@ -251,6 +298,14 @@ export type PostFrontmatter = {
   readonly tags: readonly string[];
   readonly published: Date;
   readonly updated: Date;
+  /**
+   Minutes east of UTC the publication commit was authored in.
+   */
+  readonly publishedOffsetMinutes: number;
+  /**
+   Minutes east of UTC the update commit was authored in.
+   */
+  readonly updatedOffsetMinutes: number;
 };
 
 /**
@@ -341,7 +396,7 @@ export type Post = {
  
  @returns array of loaded posts awaiting date resolution
  
- @throws on frontmatter validation failure
+ @throws on frontmatter validation failure, naming the offending MDX file
  
  @example
  ```ts
@@ -377,14 +432,17 @@ export async function loadContent(contentDir: string,): Promise<LoadedPost[]> {
       const {
         data: rawData,
         content: body,
-      } = parseFrontmatter(raw,);
+      } = parseFrontmatterForFile({
+        raw,
+        filePath,
+      },);
       /**
        Schema-validated frontmatter fields authored in the MDX file.
        */
-      const fileData = v.parse(
-        postFileFrontmatterSchema,
+      const fileData = validateFrontmatter({
         rawData,
-      );
+        filePath,
+      },);
       /**
        Optional date fields retained for warnings when they contradict git history.
        */
@@ -431,7 +489,16 @@ export async function loadContent(contentDir: string,): Promise<LoadedPost[]> {
  */
 export type ResolvedDates = {
   readonly published: Date;
+  /**
+   Minutes east of UTC the publication commit was authored in, so its calendar
+   day does not depend on the machine that builds.
+   */
+  readonly publishedOffsetMinutes: number;
   readonly updated: Date;
+  /**
+   Minutes east of UTC the update commit was authored in.
+   */
+  readonly updatedOffsetMinutes: number;
 };
 
 /**
@@ -490,7 +557,9 @@ export function attachDates(
         tags: lp.fileData
           .tags,
         published: dates.published,
+        publishedOffsetMinutes: dates.publishedOffsetMinutes,
         updated: dates.updated,
+        updatedOffsetMinutes: dates.updatedOffsetMinutes,
       },
       body: lp.body,
       filePath: lp.filePath,

@@ -45,7 +45,7 @@ run = "mise watch --watch src --restart serve:site"
 
 [tasks."dev"]
 description = "Start Done in watch mode alongside a local llama.cpp inference server"
-run = [{ tasks = ["dev:site:llama", "dev:site"] }]
+run = [{ tasks = ["dev:llama", "dev:site"] }]
 
 [tasks."dev:llama"]
 hide = true

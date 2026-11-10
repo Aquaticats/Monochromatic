@@ -93,6 +93,10 @@ pub mod service_land_settings;
 /// journaled and moved onto a branch.
 pub mod service_land_batch_body;
 
+/// The reflog message the branch move writes:
+/// the commit's kind in Git's own words and the first line of its message.
+pub mod service_land_reflog;
+
 pub mod service_land_outcomes;
 
 pub mod service_land_take_index_lock;
@@ -327,6 +331,9 @@ pub mod service_claim_renewal_running;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
+
+/// The notice for a push whose branch the person deleted.
+pub mod service_work_branch_is_gone;
 
 /// The kinds,
 /// handlers,
