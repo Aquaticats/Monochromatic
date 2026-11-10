@@ -3,7 +3,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { formatTimeContext, } from './format-time-context.ts';
+import { formatTimeContext, } from '@monochromatic-dev/pi-plugin-current-time-context';
 
 await describe({
   name: '',

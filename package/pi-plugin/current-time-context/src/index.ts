@@ -59,3 +59,15 @@ export {
   CURRENT_TIME_CONTEXT_TYPE,
 };
 export { formatTimeContext, } from './format-time-context.ts';
+
+/**
+ Whether a custom message holds this extension's time-context content.
+
+The shape is package behavior: it is what the hidden message must look like for
+a consumer to read it back. Exported for the built-artifact tests, as
+`test-import/require-eventual-artifact` asks of a symbol no consumer needs on the
+public surface.
+
+@internal
+ */
+export { isTimeContextContent, } from './time-context-shape.ts';

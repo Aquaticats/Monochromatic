@@ -3,14 +3,16 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import currentTimeContext, { CURRENT_TIME_CONTEXT_TYPE, } from './index.ts';
+import currentTimeContext, {
+  CURRENT_TIME_CONTEXT_TYPE,
+  isTimeContextContent,
+} from '@monochromatic-dev/pi-plugin-current-time-context';
 import {
   createBeforeAgentStartEvent,
   createExtensionContext,
   fakePiApi,
   getBeforeAgentStartHandler,
-} from './pi-test-harness.ts';
-import { isTimeContextContent, } from './time-context-shape.ts';
+} from './pi-api-fixture.ts';
 
 await describe({
   name: currentTimeContext.name,

@@ -10,7 +10,7 @@ import {
   createExtensionContext,
   fakePiApi,
   getBeforeAgentStartHandler,
-} from './pi-test-harness.ts';
+} from './pi-api-fixture.ts';
 import { isTimeContextContent, } from './time-context-shape.ts';
 
 //region Constants

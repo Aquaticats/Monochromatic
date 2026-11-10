@@ -127,6 +127,8 @@ function fakePiApi(): FakePiApiHarness {
         stderr: '',
         code: 0,
         killed: false,
+        // Pi reports output-cap truncation as a field of its own; a fake command has none.
+        truncated: false,
       },);
     },
     getActiveTools() {
