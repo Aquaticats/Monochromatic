@@ -2437,8 +2437,19 @@ and the person reads the same shape here.
 The same limit covers an index written by such a process and filled by a copy of
 every file,
 which the proof also cannot separate from a checkout Git finished.
-The stage is the person's to remove,
-and its claim goes with it.
+A stage such a kill left is removed by the next command that runs the recovery,
+because it can be a whole snapshot of the checkout with its credentials and a copy of `.git`:
+the owner chose "Next command deletes it (Recommended)",
+with the words
+"The next command deletes a stage only when the wrapper's own record proves it made that stage and its owner is dead,
+and prints what it removed."
+The two proofs are the record written beside the stage's claim
+(`<identifier>.made`,
+`worktree_copy_stage_made_object.rs`)
+and that record's own accounting of the folder
+(`worktree_copy_stage_entries_the_record_accounts_for.rs`).
+The claim goes with the stage it names,
+and with the records of the add once the destination settles.
 When the worktree's administrative directory holds `index.lock`
 (the shape a kill inside the index install leaves),
 that file is named first,
@@ -2946,8 +2957,16 @@ because the release installed before the bytes line wrote a container path verba
 a destination parent holding a line break then spelled lines of the record itself.
 A claim of any other shape is refused and kept,
 never acted on.
+The record of the object a stage's creation made is `<identifier>.made` beside the claim:
+the container's bytes,
+the object's identity and the instant after which nothing of the wrapper's is written into that folder,
+one `key=value` field per line,
+written atomically like a claim.
+A record of any other shape proves nothing,
+and a folder it names is kept and reported rather than removed.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
-with the suffix appended to the item's own path bytes and never to a spelling of them.
+with the suffix appended to the item's own path bytes and never to a spelling of them,
+so a killed write of this record is a file of that shape and is swept when its writer is dead.
 
 Every root a copy record holds is written as its bytes.
 The journal carries `destinationRootHex`,
@@ -3068,11 +3087,6 @@ a claim whose owner lives is a copy between claiming and journaling and is left 
 so a copy that died while staging (a signal,
 the out-of-memory killer,
 a power loss) left it.
-A claim with a destination record beside it was made by an add,
-and its stage is reported and never removed (`38e01bcd33`):
-the claim names a stage by its path alone,
-which proves nothing about what stands there now,
-so the notice names the stage and says to remove it once nothing needs it.
 For a claim no add recorded,
 recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
 stage prefix,
@@ -3080,40 +3094,98 @@ and the container to be a private directory owned by the user,
 removes it with its read-only subdirectories,
 writes one notice line naming it,
 and removes the claim.
+A claim with a destination record beside it was made by an add,
+and its stage is removed only with both proofs:
+the record `<identifier>.made` beside the claim names the container whose creation it recorded,
+its three lines being `stage=<the container's bytes in lowercase hexadecimal>`,
+`object=<device:inode:birth seconds:birth nanoseconds>` and
+`written=<seconds>.<nanoseconds>`,
+and the object at the container's name is still that identity,
+and no entry of the folder is born after the record's `written` instant
+except the ones the wrapper itself writes there after that instant:
+the trash parent `.claude/cli-git-trash` with everything below it,
+`.claude` itself,
+and `.git` with everything below it.
+A record that is absent,
+that does not read as this release writes it,
+that names another container,
+or that is not the identity at the name keeps the stage:
+the notice names the stage,
+the reason nothing in it was changed,
+and the commands that remove it (`btrfs subvolume delete` for a snapshot,
+`rm -r` otherwise).
+A folder holding an entry born after the recorded instant that is not one of the wrapper's own is kept the same way and
+named by the entry,
+because nothing there says whether the wrapper's own interrupted write or a person's copy put it there,
+and only a person can tell;
+the wrapper's own writes after the record are the trash the leave-out makes and Git's index and pointer,
+and a write of the difference between the trees (`read-tree -u`) creates entries the record cannot account for,
+so a kill during that step leaves a stage the next command reports rather than removes.
+The record is written right after the snapshot exists (`take_snapshot`,
+`worktree_snapshot.rs`),
+because a kill can come at any moment after that,
+and raised once the ladder's last write into the stage is done,
+right before the swap,
+so a kill after the wrapper's own writes removes the folder cleanly.
+The accounting reads every entry of the folder before the removal and opens no file and follows no link,
+so a stage of a whole checkout costs one lookup per entry on the command that finds the dead claim,
+and never a wait;
+the removal it decides is the destroy of a subvolume where the mount allows it.
+A record that cannot be written never fails the add:
+the add is whole,
+and the stage a kill leaves is reported instead of removed.
+A release removes the record first,
+then the destination record,
+the completion marker and the claim,
+so a command killed in between leaves a claim whose stage is reported,
+never a record nothing names.
+A record whose claim nothing keeps is removed by the same sweep,
+because it proves nothing about any folder once no claim names one.
+Two commands that sweep one dead claim at the same moment remove nothing twice and neither fails:
+a step that finds an entry another command already removed treats it as removed,
+a claim or a record that vanished while it was read is skipped,
+and the words that say what went are written by every sweep that still found the folder.
 A claim whose container was never created is removed without a notice.
 
-Two sites remove a stage container by the path a record names:
+Three sites remove a stage container by the path a record names:
 finishing a transaction (`remove_pending_journal`,
-`worktree_copy_journal_removal.rs`)
-and reaping an abandoned copy's stage (`reap_judged_stages`,
+`worktree_copy_journal_removal.rs`),
+reaping an abandoned copy's stage,
+and reaping the stage an add left (`reap_judged_stages`,
 `worktree_copy_stage_claim_reaping.rs`).
-Both check the recorded path before the removal:
+The first two check the recorded path before the removal:
 the transaction's stage was validated as a private directory owned by the user with its payload present,
-and the abandoned stage is put through `assert_private_path` immediately before `remove_stage`.
+and the abandoned copy's stage is put through `assert_private_path` immediately before `remove_stage`.
 Neither check establishes that the directory at that path is the one the copy created.
 Another process that renames the original stage elsewhere and puts a private directory of its own at the same path
 inside that window makes recovery delete its data,
 while the original stage survives at its new location,
 and neither ownership nor private permissions tell the two apart.
 
-No cheap identity check exists at either site today.
-The journal records the container's path,
+The stage an add left is the one site where the object itself is proven (`provenance_of`,
+`worktree_copy_stage_claim_reaping.rs`):
+the record beside the claim names the container's device,
+inode and birth time (`worktree_copy_stage_made_object.rs`,
+the identity `worktree_copy_rollback.rs` compares for entries the install log holds),
+and the reaping compares it with what stands at the name before the removal.
+That record is the second durable record this specification said a claim would need,
+written right after the snapshot exists rather than before it,
+and it is written only where the object is one a snapshot made,
+because a copy's stage is a private directory its own claim names and nothing else could be.
+Nothing records the object of a copy's stage:
+the journal records the container's path,
 its payload path,
 the destination,
 the source,
 and the identities of the entries it installed there (`created_entries`),
 and a claim records the container's path alone,
-written before the container exists;
-nothing records the container's device and inode,
-which is the identity `worktree_copy_rollback.rs` compares for entries the install log holds.
+written before the container exists.
 Recording it would need a new journal field,
-read only by this release onward,
-and for a claim a second durable record written after the container is created,
-because the claim precedes it;
-and even a recorded identity would narrow rather than close the window,
+read only by this release onward.
+Even a recorded identity narrows rather than closes the window,
 because the removal resolves the recorded path again after any check.
-The removal is therefore left as it is,
-and the window is recorded here as a known limit.
+The removal of a copy's stage is therefore left as it is,
+and that window is recorded here as a known limit.
 
 A removal that closed the window would take the directory from a descriptor instead:
 opened once with `O_DIRECTORY` and `O_NOFOLLOW`,

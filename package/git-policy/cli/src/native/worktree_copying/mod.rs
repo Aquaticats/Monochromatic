@@ -104,6 +104,21 @@ pub mod worktree_copy_stage_claim;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
 
+/// The durable record of the object one stage's creation made:
+/// its identity,
+/// and the instant the wrapper last wrote into it.
+#[cfg(unix)]
+pub mod worktree_copy_stage_made_object;
+
+/// The first entry of a stage container that the record of its creation's object cannot account for.
+#[cfg(target_os = "linux")]
+pub mod worktree_copy_stage_entries_the_record_accounts_for;
+
+/// Whether that record proves the folder standing at a container's name,
+/// and the words a sweep says about a stage it keeps or removes.
+#[cfg(unix)]
+pub mod worktree_copy_stage_reaping_proof_and_words;
+
 /// What an interrupted `git worktree add` settles to,
 /// with the proof its checkout is whole or gone.
 #[cfg(unix)]
