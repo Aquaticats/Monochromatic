@@ -224,11 +224,35 @@ mod dependent_version;
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
 
+/// A merge over the person's own unsaved or staged work in the paths it changes:
+/// the merge lands,
+/// their bytes are carried forward,
+/// a conflict keeps both sides in the file,
+/// and a kill at each step of the carry leaves either the checkout as it was or the whole result.
+#[path = "binary_merge_carries_edits_tests.rs"]
+mod merge_carries_edits;
+
+/// The kill controls of the carry:
+/// one phase per step of the carry,
+/// and the next command's recovery.
+#[path = "binary_merge_carries_edits_kill_tests.rs"]
+mod merge_carries_edits_kill;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
 #[path = "binary_word_merge_tests.rs"]
 mod word_merge;
+
+/// The stand-in Git that holds the second pass at its own attribute query,
+/// so a control of the pass acts inside the pass itself.
+#[path = "binary_word_merge_pass_gate.rs"]
+mod word_merge_pass_gate;
+
+/// The gate's own control:
+/// a command that never asks for the attribute leaves the control woken by the command's end.
+#[path = "binary_word_merge_pass_gate_tests.rs"]
+mod word_merge_pass_gate_guard;
 
 /// The finish after the second pass:
 /// the operation ends like a clean run,

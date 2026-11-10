@@ -31,6 +31,7 @@ import { LANG_NAMES, } from '../i18n/lang-names.ts';
 import { icon, } from '../lib/icon/icon.ts';
 import {
   BORDER_WIDTH_REM,
+  FONT_WEIGHT_EMPHASIS,
   GAP_SMALL,
   TOUCH_TARGET,
 } from '../style/constants.ts';
@@ -147,7 +148,7 @@ export function css(): string {
         },),
         $({
           rule: '&[aria-current="page"]',
-          decls: { 'font-weight': 600, },
+          decls: { 'font-weight': FONT_WEIGHT_EMPHASIS, },
         },),
         $({
           rule: '&[aria-current="page"]::before',

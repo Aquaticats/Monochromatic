@@ -65,6 +65,62 @@ pub fn modes_in_effect(global_prefix: &[OsString], overlay: &[(OsString, OsStrin
     return found;
 }
 
+/// What:
+///  Whether a pathspec mode reaches a start that removes the variables in `remove`.
+/// Why:
+///   The in-process readers judge pathspec magic themselves and read no mode at all,
+///  so their answer is Git's only while
+///  no mode is in effect;
+///  a name in `remove` is gone from the child's environment,
+///  which outranks the overlay
+///  that may set it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aModeReachesTheStart(overlay, remove) // true when the child runs under a mode
+/// ```
+pub fn a_mode_reaches_the_start(overlay: &[(OsString, OsString)], remove: &[&str]) -> bool {
+    for variable in MODE_VARIABLES {
+        if remove.contains(&variable) {
+            continue;
+        }
+        if std::env::var_os(variable).is_some() {
+            return true;
+        }
+        for (name, _) in overlay {
+            if name.as_encoded_bytes() == variable.as_bytes() {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether the pathspec modes in effect read `*`,
+/// `?`,
+/// `[` and `\\` as pattern characters,
+/// so a token holding one of them names a set and not one file.
+/// Why:
+///   `--literal-pathspecs` and `--noglob-pathspecs` make those characters ordinary in a pathspec,
+/// so `st*r.txt` then names the file of that name;
+/// every other mode makes it a pattern.
+///  Git refuses two incompatible modes in one command,
+/// so a command that reaches here carries one answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const globCharactersAreLiteral = (modes: string[]) => modes.some((mode) => /literal|noglob/i.test(mode));
+/// ```
+pub fn glob_characters_are_literal(modes: &[String]) -> bool {
+    for mode in modes {
+        if matches!(mode.as_str(), "--literal-pathspecs" | "--noglob-pathspecs" | "GIT_LITERAL_PATHSPECS" | "GIT_NOGLOB_PATHSPECS") {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// The items in backticks,
 /// joined with commas.
 fn backticked<'item>(items: impl Iterator<Item = &'item str>) -> String {

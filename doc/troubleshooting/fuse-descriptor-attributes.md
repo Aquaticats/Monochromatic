@@ -317,6 +317,94 @@ while a file in a *nested* subvolume reports another
 so the device and inode pair still separates two subvolumes' files whose mount numbers and inode numbers
 agree.
 
+### A container's `overlay` names layers it cannot reach
+
+A kernel `overlay` mount is not a file system whose attributes are its own:
+the overlay's own read asks a layer only when that layer sets a revalidation of its own,
+and one overlay layer over
+a stopped server can therefore hold the walk exactly as a direct read of that file would.
+
+The layers are named in the mount's own options,
+and a rule that reads those options and then asks the reading process
+where the layers are cannot answer for a container,
+because the layers are the host's directories.
+Measured on 2026-11-09 inside this package's gate container (rootless `podman`):
+
+```text
+$ cat /proc/self/mountinfo | awk '$5=="/"'
+3911 3649 0:2174 / / rw,relatime - overlay overlay rw,lowerdir=/var/home/user/.local/share/containers/storage/overlay/8bdcf7e8.../diff:...,upperdir=/var/home/user/.local/share/containers/storage/overlay/812b6dea.../diff,workdir=/var/home/user/.local/share/containers/storage/overlay/812b6dea.../work,...
+$ ls -d /var/home/user/.local/share/containers/storage
+ls: cannot access '/var/home/user/.local/share/containers/storage': No such file or directory
+$ stat -c '%d %i' /work/probe-file
+8388756 1752073190
+```
+
+The host's own view of the same tree is `/dev/dm-1` on btrfs,
+so the layers are local,
+and nothing inside the container
+can say so.
+Refusing that mount is not free either:
+every descriptor of every process is on it,
+so no scan can prove an empty
+`index.lock` unheld,
+an abandoned lock is kept for ever,
+and every commit behind it waits its ceiling and then fails.
+The release gate's log for `742076c71d` shows seventeen such failures in one run.
+
+The device a mount table names is also not the device a file has,
+which rules out the cheaper design of taking the
+device from the mount's `major:minor` line:
+
+```text
+# on the host, a file on /var/mnt/encrypted (btrfs)
+st_dev=4194388   mountinfo major:minor=0:79
+# in the container, a file on / (kernel overlay)
+st_dev=8388756   mountinfo major:minor=0:2196
+```
+
+btrfs and overlayfs both report an anonymous device for their inodes,
+so those two numbers are different by design.
+
+### What the wrapper does with an `overlay` descriptor
+
+The walk is made by a child of the reading process,
+and the answer is waited for only until a ceiling:
+
+```rust
+// src/native/process/open_file_of_a_descriptor_in_a_child.rs
+let child = libc::fork();            // the child reads the link, writes its answer to a pipe, and exits
+let answer = wait_for_answer(read_end, CHILD_READ_CEILING); // poll(2), 300 ms
+```
+
+The child allocates nothing after the fork:
+the descriptor's path and the answer buffer are made before it.
+A child that has not answered by the ceiling is sent `SIGKILL`,
+and one the kernel does not let go of is handed to a
+thread that collects it whenever it does,
+the same bargain a command's stuck child gets.
+The ceiling is `Unread::File` to the caller,
+which a removal reads as a holder that may be alive,
+never as one that is
+not,
+so a layer over a stopped server costs a leak of one kernel-stuck child and never a blocked commit.
+
+Measured on this host on 2026-11-09:
+one `fork`,
+one descriptor read and one pipe answer took 0.5 ms on average over
+two hundred runs,
+and the slowest of them took 2.1 ms,
+which is why the ceiling is 300 ms.
+
+`fuse-overlayfs` is a different file system type,
+served by a process of this machine,
+and stays refused with the
+other types a stopped server can back.
+
+A descriptor of the reading process itself needs none of this:
+`statx(2)` with `AT_EMPTY_PATH` on its own descriptor number walks no path and asks no file system to revalidate
+anything,
+so the count of its own descriptors of a lock is the same on every mount type.
+
 ## Upstream filing decision
 
 Nothing is filed.

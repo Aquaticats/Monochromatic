@@ -331,23 +331,21 @@ and the value is checked and ignored.
   a holder that puts another file on the descriptor between the gate and the read is read as not holding the lock,
   so the removal may take a lock that is in fact held,
   and the journal line says what it acted on.
-  The proof counts the service's own descriptors through the gated read of item 3 above
-  (`src/native/process/open_file_of_a_descriptor.rs`),
-  so a descriptor of its own on a file system whose attributes are not in memory is never asked for its device and inode:
-  one that names a file a repository could hold makes the count unknown and the lock stays,
-  and one that is no file of a repository (a pipe,
+  The proof counts the service's own descriptors as the files the kernel has open under their numbers:
+  `statx(2)` with `AT_EMPTY_PATH` takes the descriptor's own number,
+  walks no path,
+  and asks no file system to revalidate a directory entry,
+  so the count is the same on every mount type
+  (`src/native/process/open_file_of_a_descriptor.rs`,
+  `opened_file_of_our_own`).
+  A descriptor of its own that names no file of a repository matches no device and inode and is not counted,
+  so a pipe,
   a socket,
-  a memory or device file,
-  a file under `/proc` or `/sys`) is skipped.
+  a memory or device file and a file under `/proc` or `/sys` need no name test of their own.
   A descriptor that ended while it was being counted names nothing.
-  A descriptor of this process on a file no repository could hold is skipped,
-  and a memory file is one of them:
-  the kernel writes its link as `/memfd:<name> (deleted)`,
-  with the leading slash its other pseudo names do not have,
-  so that slash is dropped before those names are matched,
-  and an open capture no longer keeps an abandoned lock
-  (cross-vendor review of 2026-11-09,
-  finding 4).
+  A mount whose type this process cannot classify no longer makes that count unknown,
+  which on a container's overlay filesystem it did for every descriptor:
+  an abandoned lock stayed where it was and every commit behind it failed at its ceiling.
   and this key no longer sets anything.
   `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
@@ -3426,6 +3424,46 @@ the commit from `git commit-tree`,
 the checkout moves with
 `git merge --ff-only`,
 and the whole is preceded by a bounded wait for `index.lock`.
+
+A merge whose paths hold the person's own work carries it forward
+(owner's answer "Carry edits forward (Recommended)",
+"Merges and commits never fail";
+rules "Manual merge should never fail too."
+and "never discard user data"):
+
+- The bytes of every path the merge changes that differs from `HEAD` in the worktree or the index,
+  untracked files the merge adds included,
+  are written as objects with `git hash-object -w`,
+  the clean-filtered form beside the exact bytes,
+  and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
+  written with an all-zero old value;
+  the merge's record names the commit and every path with its two layers.
+  The objects are written and the ref exists before the first byte of the checkout changes.
+- Those paths are put back to `HEAD`'s entries and bytes in one `git update-index` call and per-path renames,
+  so `git merge --ff-only` takes them as it always did,
+  and a path that changed after the capture stops the step with nothing written.
+- After the branch moved, each layer is merged with the merge's own:
+  the worktree's file form and the index's blob separately,
+  so a staged edit stays staged and an unsaved one stays unsaved.
+  A side unchanged on either side takes the other side; the bytes of a layer nothing of the merge reaches are written back exactly;
+  a text both sides changed goes through `merge_second_pass`,
+  the pass this package already runs,
+  and a region it cannot settle keeps both sides between `word_merge::keep_both`'s markers.
+  A binary file, a link, a mode the pass cannot take, a path the merge deletes and a path the person deleted keep the
+  person's side whole and are named on standard error with what to do;
+  a path written after the capture is left alone and named.
+  Every such finding exits 0: the merge is made, and the person's work is theirs to judge.
+- A kill after the clear and before the branch move restores the captured layers,
+  because the record says so and the merge did not land;
+  a kill after the move carries them before the record and the ref go (`src/native/merge/merge_isolation_carry_apply.rs`).
+  The carry is a function of the captured blobs and the merge commit,
+  so recovery converges on the same bytes from any step.
+
+A path whose worktree entry is a directory,
+and an index that holds unmerged entries,
+are not one edit anybody can merge:
+the command is native Git's whole,
+which refuses such a checkout itself.
 The move the auto-push makes after a published reconcile merge names its branch instead,
 because `git merge --ff-only` moves whichever branch `HEAD` names at the instant it runs:
 an ancestry question,
@@ -4844,6 +4882,22 @@ on the commit path:
   The record is written without a flush,
   so a power loss
   rather than a kill can lose it and leave the reference where it was.
+- The branch write carries the reflog message native Git writes for the commit it moves the branch to,
+  as one argument of `git update-ref -m`:
+  the commit's kind in Git's own words (`commit`,
+  `commit (initial)`,
+  `commit (amend)`,
+  `commit (merge)`,
+  `commit (cherry-pick)`,
+  `commit (revert)`) and the first line of the commit's message after it
+  (`src/native/landing/service_land_reflog.rs`).
+  The first line is the message's own bytes,
+  so a body line,
+  a carriage return or a byte that is not UTF-8 cannot reach the row,
+  and the message never enters the transaction Git reads on standard input,
+  so no byte of it can change that grammar.
+  The row names the commit the batch landed last,
+  which is the value the branch now holds.
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").
@@ -6415,10 +6469,9 @@ and the first answer wins:
    before the file the descriptor has open is read.
    That read walks the path `/proc/<pid>/fd/<n>`,
    whose last step asks the file's own file system to revalidate its directory entry before any attribute is read,
-   so it is taken only where it cannot reach a server:
+   so it is taken in this process only where it cannot reach a server:
    the `mnt_id` line of the descriptor's record is looked up in that process's own mount table,
-   and the file is read only when the mount is on the fixed list of local file systems above (without `overlay`,
-   whose attributes are the file's below it).
+   and the file is read only when the mount is on the fixed list of local file systems above.
    A `statx(2)` with `AT_STATX_DONT_SYNC` then answers from the memory of the kernel:
    a file system whose server has stopped answers neither that walk nor its own flush,
    and `SIGTERM` does not end either wait
@@ -6426,6 +6479,30 @@ and the first answer wins:
    findings 3 and 4 of the first and 2 and 4 of the second;
    measured on this host with a stopped `fuse-overlayfs` server,
    `doc/troubleshooting/fuse-descriptor-attributes.md`).
+   A kernel `overlay` mount is the one type that does not settle that question,
+   because its own attributes are the attributes of the file below it,
+   and whether a read reaches a server is decided by the layer's own file system:
+   overlay revalidates a layer only when that layer sets a revalidation of its own
+   (`fs/overlayfs/super.c`,
+   `ovl_revalidate_real`).
+   The layers are named in the mount's own options,
+   and in a container they are the host's directories,
+   which no process inside the container can reach:
+   measured on 2026-11-09 in this package's gate container,
+   every `lowerdir` and `upperdir` of its root mount is `ENOENT` there while the layers are the host's local disk.
+   So that one read is made by a child of this process,
+   and the answer is waited for only until a ceiling
+   (300 ms;
+   measured 0.5 ms mean and 2.1 ms worst over two hundred reads on this host):
+   a child that has not answered is ended,
+   and one the kernel does not let go is collected by a reaper whenever it does,
+   which is what a command's own stuck child gets
+   (`src/native/process/open_file_of_a_descriptor_in_a_child.rs`).
+   The ceiling is a process the scan could not identify,
+   and none of these is a wait the caller keeps:
+   `fuse-overlayfs` is another type,
+   served by a process of the machine,
+   and stays refused with the types above.
    A copy of the descriptor answers a stalled server from its cached inode,
    but closing the copy runs that file system's flush,
    which a stopped server holds as it holds a lookup,
@@ -10767,9 +10844,36 @@ For injected commit-only semantics:
     and a file it cannot read is left to Git alone).
     Native Git tracks these paths through the real index and takes their worktree content without asking an ignore rule,
     so the private index must track them too (issue 1807).
-3.  Add exact selected worktree paths to that index using Git pathspec semantics.
-    A selected path that an ignore rule matches and that no index stages is refused,
-    and the message says to stage it with `git add --force` first.
+3.  Add selected worktree paths to that index using Git pathspec semantics,
+    and only the paths native Git takes for the same pathspecs.
+    A selected element that names one file of the worktree is an exact path:
+    it carries no pathspec magic,
+    no pattern character of the mode in effect (`*`,
+    `?` and `[`;
+    they are ordinary in a literal or a noglob mode),
+    and a file or a link is at the pathname it gives.
+    It is staged with `git add -- <element>`,
+    so `git commit -- <file>` records a file nothing staged,
+    where native Git refuses the pathspec,
+    and a path that an ignore rule matches and that no index stages is refused with the message that says
+    to stage it with `git add --force` first.
+    A backslash is Git's escape and not a pattern character:
+    `a\b.txt` names the file whose pathname spells it when one is there.
+    Every other element is a directory,
+    a pattern or pathspec magic,
+    and it stages the tracked paths the private index holds and the carried additions,
+    never a file nothing staged,
+    with `git add --update -- <element>`:
+    native Git commits the tracked and staged paths a directory or a pattern matches,
+    so a commit of `.`,
+    `*` or a directory leaves every untracked file untracked.
+    A pathspec whose elements match no entry of the private index fails as native Git fails it.
+    An empty pathspec file stages nothing,
+    as native Git commits nothing for one.
+    A pathspec file with more bytes than one command line may carry is passed as a file with
+    `git add --update`,
+    so the commit still takes the tracked paths it matches and only a file nothing staged stays out;
+    a pathspec file this wrapper cannot read is left to Git alone.
 4.  Apply policy patches to the commit index.
 5.  Remove pathspecs and internal `--only` before invoking native Git
     because the private index is the complete intended tree.
@@ -11488,18 +11592,24 @@ A merge that settling finishes says so on standard error,
 naming the ref it landed on and the merge commit,
 because the command may have been run only to look at the worktree;
 the same line names the ref a merge was abandoned on when the branch moved while it was prepared.
-Settling writes the index only after waiting,
+Settling writes the index only after deciding what another program's `index.lock` allows,
+so a program that holds the index does not end every command in that worktree.
+A merge that already installed part of its checkout waits for the lock,
 bounded and naming the holder,
-for any program's `index.lock`,
-so a program that holds the index does not end every command in that worktree;
-a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
-leaves the record and the checkout as they were,
-and the next command finishes the same merge.
-That leaving alone is for a merge that installed nothing:
-when the merge's index entries or files are already installed and the index stays held,
+and a lock that outlasts `MERGE_LOCK_CEILING` writes nothing:
+the record and the checkout stay as they were,
 the command is stopped and told the lock,
 the record and what is installed,
 because a command that went on would read the half-installed merge as another session's staged work.
+A merge that installed nothing is settled from one look at the lock instead
+(`merge_isolation_recovery_index_lock.rs`):
+nothing of it is in the checkout,
+so a command says where the merge is saved and goes on at once,
+and the next command finishes the merge once the lock is free,
+because the owner's rule is "nothing should ever wait forever or indefinitely".
+A lock whose Git lock PID file names a process that no longer runs is cleared on the commit service's proof of disuse,
+exactly as the merge's own path clears it,
+and the merge goes on rather than every command exiting 2 until the person deletes the file.
 A staged entry for a path the merge changes is judged before the take and written after it,
 so another command that stages one of those paths inside that window replaces a version this command never read:
 the standings are read once,

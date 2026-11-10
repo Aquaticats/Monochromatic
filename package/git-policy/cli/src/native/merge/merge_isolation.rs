@@ -32,7 +32,7 @@
 //! ```
 
 /// Names and sets of unsaved work.
-use crate::auto_push_dirty_paths::{diff_paths, overlapping_paths};
+use crate::auto_push_dirty_paths::{diff_paths, overlapping_paths, status_paths};
 /// Reading an environment value.
 use crate::child_environment::environment_value;
 /// Diagnostics for the log.
@@ -46,8 +46,10 @@ use crate::merge_isolation_message::{clean_message, default_merge_message, descr
 use crate::merge_second_pass::Merged;
 /// Recovery of records.
 use crate::merge_isolation_recovery::recover_interrupted_merges;
-/// The refusal findings.
-use crate::merge_isolation_report::overlap_finding;
+/// The person's own work in the paths the merge changes,
+/// and the durable ref that keeps it.
+use crate::merge_isolation_carry::{capture_work, keep_capture};
+use crate::merge_isolation_carry_parts::Capture;
 /// The command-line reading.
 use crate::merge_options::{FastForwardChoice, MergeShape, ParsedMerge, parse_merge_shape};
 /// The place recovery runs in.
@@ -59,7 +61,7 @@ use crate::worktree_identity::WorktreeIdentity;
 /// Owned operating-system text.
 pub use crate::merge_isolation_run_types::{IsolatedMerge, IsolatedMergeInput};
 use crate::merge_isolation_run_types::{Bail, MAX_ROUNDS, MergeConfig, Plan, TAG, IN_PROGRESS_MARKERS, refused};
-use crate::merge_isolation_git_reads::{Session, editor_would_open, stdin_and_stdout_are_one_terminal, lines_of, read_config, read_fetch_head, unsaved_paths};
+use crate::merge_isolation_git_reads::{Session, editor_would_open, stdin_and_stdout_are_one_terminal, lines_of, read_config, read_fetch_head};
 use crate::merge_isolation_apply::{apply, commit_merge, merge_tree, with_second_pass_report};
 /// The notices of a round that is made again.
 use std::io::Write;
@@ -246,12 +248,28 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
         let full_name: String = session.text(&["rev-parse", "--symbolic-full-name", reference.as_str()])?;
         Some(describe_merge_source(reference.as_str(), full_name.as_str(), target).ok_or(Bail::Forward(None))?)
     };
+    // The paths whose own work the merge would write over: everything Git's status reports, untracked files included, because
+    //  a merge that adds a path an untracked file stands at is refused by Git too. They are read once here, before the merge
+    //  tree exists. Whether the checkout holds any of the paths the merge touches is what decides that a conflict of the merge
+    //  itself is resolved here rather than handed to native Git: its merge refuses such a checkout outright
+    //  (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
+    let dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
+    // A path either side changed is a path a merge of the two writes, so these are the merge's own paths before its tree exists.
+    let touched: Vec<Vec<u8>> = diff_paths(
+        session
+            .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, target])?
+            .stdout
+            .as_slice(),
+    );
+    let carrying: bool = !overlapping_paths(dirty.as_slice(), touched.as_slice()).is_empty();
+
     let (tree, second_pass_files): (String, Vec<Merged>) = merge_tree(
         &session,
         &shape,
         (head, target, reference.as_str()),
         (common_dir, root, input.environment),
         staged_work,
+        carrying,
     )?;
     let incoming: Vec<Vec<u8>> = diff_paths(
         session
@@ -259,14 +277,17 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
             .stdout
             .as_slice(),
     );
-    let overlap: Vec<Vec<u8>> = overlapping_paths(unsaved_paths(&session)?.as_slice(), incoming.as_slice());
-    if !overlap.is_empty() && !staged_work {
-        // Native Git words a refusal over unsaved work in the worktree itself.
-        return Err(Bail::Forward(None));
-    }
-    if !overlap.is_empty() {
-        return Err(refused(2, overlap_finding(reference.as_str(), overlap.as_slice())));
-    }
+    let overlap: Vec<Vec<u8>> = overlapping_paths(dirty.as_slice(), incoming.as_slice());
+    // The bytes are written and kept on a ref of their own before the record exists and before the first byte of the checkout
+    //  changes, so a kill at any instant leaves them where recovery finds them. A capture that cannot be made is native Git's
+    //  command, which refuses such a checkout with its own words and changes nothing.
+    let carried: Option<Capture> = match capture_for(&session.context, root, overlap.as_slice()) {
+        Ok(found) => found,
+        Err(reason) => {
+            debug(TAG, format!("native Git runs this merge: its paths hold work this command cannot carry: {reason}").as_str());
+            return Err(Bail::Forward(None));
+        }
+    };
     let message: Vec<u8> = match (&shape.message, description) {
         (Some(given), _) => clean_message(&session.context, given.as_slice())?,
         (None, Some(line)) => {
@@ -291,9 +312,56 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
         root,
         old_oid: head,
         new_oid: new_oid.as_str(),
+        carried: carried.as_ref(),
     };
     let done: IsolatedMerge = apply(input, &session, &plan)?;
     return Ok(with_second_pass_report(done, second_pass_files.as_slice()));
+}
+
+/// What:
+///  Every path whose worktree or index differs from the branch,
+/// untracked files included.
+/// Why:
+///   These are exactly the paths a merge that writes them would discard,
+/// and the untracked ones are why native
+///  Git refuses a merge that adds a path a file already stands at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dirty = statusPaths(await git(['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all']));
+/// ```
+fn dirty_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
+    let status: GitOutput = session.run(&[
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+    ])?;
+    if !status.succeeded() {
+        return Err(Bail::from(format!("git status failed: {}", status.error_text())));
+    }
+    return Ok(status_paths(status.stdout.as_slice()));
+}
+
+/// What:
+///  The person's own work in `paths`,
+/// captured as objects and kept on a ref of its own.
+/// Why:
+///   A ref written before the record and before the checkout changes is what makes the bytes survive a kill at any
+///  instant (`SPEC.md`,
+/// "Merges and commits never fail").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function captureFor(context, root, paths): Promise<Capture | null>;
+/// ```
+fn capture_for(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Result<Option<Capture>, String> {
+    if paths.is_empty() {
+        return Ok(None);
+    }
+    let capture: Capture = capture_work(context, root, paths)?;
+    return Ok(Some(keep_capture(context, root, &capture)?));
 }
 
 /// What:
