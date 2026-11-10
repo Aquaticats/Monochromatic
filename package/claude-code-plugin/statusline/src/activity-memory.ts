@@ -226,13 +226,18 @@ async function readRememberedActivityWord({
     home: home ?? environmentHome,
   },);
   /**
-   Word extracted from the transcript tail on this render.
+   Word extracted from the transcript tail on this render, and the word kept from
+   an earlier render.
+
+   The two files are independent and neither read depends on the other, so both
+   start together: a render waits for the slower read instead of paying for both
+   in turn, and a render is a fresh process, so that saving is paid on every
+   refresh.
    */
-  const fresh = await readFresh({ transcriptPath, },);
-  /**
-   Word kept from an earlier render.
-   */
-  const remembered = await readRemembered({ memoryPath, },);
+  const [fresh, remembered,] = await Promise.all([
+    readFresh({ transcriptPath, },),
+    readRemembered({ memoryPath, },),
+  ],);
 
   if (fresh.length === 0)
     return remembered;
