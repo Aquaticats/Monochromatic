@@ -216,9 +216,15 @@ Read-only commands,
   (measured with Git 2.56.0,
   `src/native/landing/service_index_unheld_removal.rs`);
   widening the removal to such locks is the owner's to decide.
-- A record from another PID namespace that is older than 20 minutes (`FOREIGN_OWNER_PATIENCE`) is never taken over (the owner,
-   2026-11-04:
+- A record from another PID namespace that is older than two minutes (`FOREIGN_OWNER_PATIENCE`) is never taken over (the owner,
+  2026-11-04:
   "Refuse and name it (Recommended)").
+  The owner chose the two minutes (2026-11-10:
+  "Two minutes (Recommended)"),
+  which is twice the one minute a merge waits for another program's `index.lock`;
+  the record's age is
+   the whole hold of its owner,
+  so a hold that runs longer is refused as this paragraph says instead of being waited for.
   A merge recovery,
   a conversion claim or a worktree add that finds one stops with an
    error that names the record file,
@@ -932,6 +938,14 @@ An absolute path to the real Git,
  a GUI with an embedded Git library and direct
 libgit2 consumers bypass the wrapper completely,
  including its policies.
+
+There is no switch that forces one command or one repository through the native route,
+and no plan for one:
+the owner answered a request for such a switch (2026-11-10)
+with "No switch,
+/usr/bin/git is it (Recommended)".
+A person who wants a command to skip the wrapper's policies runs `/usr/bin/git` itself,
+which is the same way out that the paragraph above describes.
 
 ## Commands
 
@@ -3416,6 +3430,16 @@ the commit service and their tests are expected to work under these conditions:
 - DNS or mirror trouble,
   where the wrapper recovers or falls back instead of wedging.
 
+The wrapper's guarantees are those of one host.
+It supports one host per repository,
+and a checkout used from two machines is not protected:
+the owner answered a request to support a repository two hosts share (2026-11-10)
+with "Not supported (Recommended)".
+A command of another host counts as an owner of another PID namespace,
+so the wrapper waits for it only as the record's age allows (see "What it does"),
+and the claims and leases of the commit service are compared by machine and boot identity,
+which tells a restarted host from a running one and never closes a race between two.
+
 ### Latency requirements
 
 Two requirements bound the latency the wrapper adds,
@@ -3665,6 +3689,12 @@ and a copy killed at any moment leaves nothing at a file's real name for the nex
 
 A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
 with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
+No command fills an existing worktree,
+and none is planned:
+the owner answered a request for one (2026-11-10)
+with "No,
+remove and add again",
+so removing the worktree and adding it again stays the remedy.
 The add's own record is written before real Git runs and is handed to the copy rather than dropped once the checkout is
 done,
 so a command killed between the checkout and the copy's own records still leaves a record that names the worktree.

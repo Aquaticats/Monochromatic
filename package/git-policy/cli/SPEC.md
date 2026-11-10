@@ -24,6 +24,17 @@ Its last commit is `f4fc1fa213ece65672e4314983a75266837892f9`,
 this file;
  they remain readable at that commit.
 
+The wrapper is the only route this product offers:
+there is no switch that forces a command or a repository through the native one,
+and the owner answered a request for such a switch (2026-11-10) with
+"No switch,
+/usr/bin/git is it (Recommended)".
+A person who needs one command to skip the wrapper's policies runs `/usr/bin/git` itself,
+the bypass the install steps already name (`README.md`,
+"Install").
+A command that runs the native Git is outside every policy,
+every audit line and every wait of this file.
+
 ## Module seams
 
 The executable has these external seams:
@@ -2850,6 +2861,11 @@ Every command that runs the recovery names a worktree whose record's owner is de
 object,
 with the `git worktree remove --force` and same `git worktree add` commands that settle it,
 and removes the record once the worktree is gone or a different object stands at that path.
+No command fills an existing worktree,
+and none is planned:
+the owner answered a request for one (2026-11-10) with "No,
+remove and add again",
+so removing the worktree and adding it again stays the only remedy.
 An add whose own Git was refused at a destination that carries another command's registration proof settles its own
 record and says so,
 instead of promising a later command's report of a record nothing keeps.
@@ -2904,8 +2920,11 @@ A bytes field that is present and does not decode is damage,
 never absence.
 An owner is alive when a process with its id and its birth identity exists;
 one in a PID namespace the reader cannot see is
-alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`,
-20 minutes),
+alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `MERGE_LOCK_CEILING`,
+two minutes;
+the owner,
+2026-11-10,
+"Two minutes (Recommended)"),
 and past it,
 or as soon as the item's own time cannot be measured against this host's clock,
 the command that finds the item stops with an
@@ -4729,30 +4748,6 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   The commit timing log holds no settle at all (the settling is the management command
   `service settle-earlier-batches`),
   so the journal stays its only sample.
-- `LOCK_CEILING` 10 minutes,
-  measured on 2026-11-08 from the commit timing log (1,608 records,
-  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z)
-  and the service journal (4,386 answers,
-  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00):
-  the six records that hold a waiting notice were two that landed after 3,636 and 23,783 ms of answer time
-  and four are the commits that met the lock that never went on 2026-11-07 (62 waiting notices each,
-  644,710 to 1,200,776 ms,
-  every one stopped).
-  Of the journal's 4,386 landings,
-  609 waited on the index at all (95th percentile 6 ms,
-  99th percentile 158 ms),
-  71 waited at a holder's place,
-  and the longest whole lock acquisition was 11,490 ms counted with the wrapper's own staging
-  (8,000 ms at the place).
-  No wait a holder released reached the ten minutes,
-  and the longest of those four is 776 ms past the
-  client's twenty-minute `ANSWER_CEILING`,
-  which bounds the whole wait rather than one step of it.
-  No wait takes it:
-  it stays as the basis of `FOREIGN_OWNER_PATIENCE`
-  (`src/native/process/pid_namespace.rs`,
-  twice this),
-  which another change owns and whose stated basis (twice the longest a merge waits) no longer holds.
 - `SERVICE_HOLD_CEILING` 10 minutes:
   a forwarded `git add`,
   `rm` or `mv` waits for the service's hold,
@@ -4837,18 +4832,29 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   while the commit landed seconds later.
   The look waits only while an open batch of the journal names the request,
   so a request nothing is landing costs one look and no wait.
-- `FOREIGN_OWNER_PATIENCE` 20 minutes:
-  twice `LOCK_CEILING`,
+- `FOREIGN_OWNER_PATIENCE` two minutes:
+  twice `MERGE_LOCK_CEILING`,
   derived in code (`src/native/process/pid_namespace.rs`),
-  1.6 times the
-  longest commit measured (751 s) and 2.2 times the longest worktree add (540 s).
-  It was an hour,
-  twice the 30 minute live lock
-  wait of a file that no longer exists.
+  the longest a merge waits for a foreign `index.lock` plus the work around it.
+  The owner chose the value (2026-11-10,
+  "Two minutes (Recommended)");
+  it was 20 minutes,
+  twice a ten minute lock ceiling that no wait took and that this release deleted.
+  Measured:
+  the longest hold of this population in the service journal is the `lock_hold_ms` of 119,721 ms (4,386 answers,
+  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00),
+  which the patience clears by 239 ms;
+  the longer figures of the same logs (a 751 s commit,
+  a 540 s worktree add,
+  a 1,228,797 ms command) time whole commands of this host's own PID namespace and not a record of another one.
   It is the age after which a record of an owner in another PID namespace is refused,
   not
   reclaimed:
   see "Foreign-owner expiry".
+  A hold that does run past it is refused and named,
+  never taken over,
+  so nothing it holds is lost,
+  and a worktree add of another namespace whose item path stands still that long meets that refusal.
   A record whose own time cannot be measured against this host's clock is refused at once,
   whatever its age,
   and never counted as a live owner's.
@@ -11966,6 +11972,13 @@ The boot ID alone cannot say the holder is dead,
 because boot IDs are random per kernel boot and two hosts that drain one work directory on a shared filesystem
 have unrelated ones:
 each would otherwise take the other's live claims at once.
+The wrapper supports one host per repository,
+and the owner answered a request to support a repository two hosts share (2026-11-10) with
+"Not supported (Recommended)":
+a checkout used from two machines is not protected.
+These readings tell a restarted host from a running one and close no race between two,
+and a command of another host is an owner of another PID namespace,
+which the patience of `FOREIGN_OWNER_PATIENCE` judges by age (`src/native/process/pid_namespace.rs`).
 
 Why the lease and its renewal stay:
 a service that is killed leaves its claims in `claimed`,

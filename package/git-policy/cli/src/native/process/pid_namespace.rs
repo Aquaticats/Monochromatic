@@ -64,9 +64,9 @@ use std::time::{Duration, SystemTime};
 /// it was
 ///  an hour because it was twice the 30 minute live lock wait of `wait_limit.rs`,
 /// a file that no longer exists,
-/// and then 20 minutes because it was twice the unmeasured ten minutes
-///  of `LOCK_CEILING`,
-/// which no wait took any more and which is gone
+/// and then 20 minutes because it was twice the unmeasured ten minutes of a
+///  lock ceiling,
+/// which no wait took any more and which this release deleted
 /// (`doc/planning/cli-git-shipped-limits-audit.md`,
 /// "The lock ceiling and the three waits it fed").
 /// The owner's
