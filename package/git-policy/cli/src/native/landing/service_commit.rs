@@ -39,13 +39,14 @@ use crate::service_commit_input_notes_and_embedded_commit::managed_client_config
 use crate::service_server::Bind;
 use crate::service_provision::ProvisionHost;
 use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktree;
+/// The look for the commit a request that was already sent made.
+use crate::service_commit_looking_for_what_landed::journal_of_request;
 use crate::service_commit_fitting_request::embedded_that_fits;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
 use crate::service_commit_requests_and_landing_report::{request_for_embedded, request_for_git_built};
 /// The file a typed message is kept in when the commit cannot be made.
 use crate::service_commit_saved_message::keep_the_typed_message;
 use crate::commit_timing::CommitTiming;
-use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use crate::diagnostic_log::warn;
 use crate::policy_checks::ShippedChecks;
@@ -67,12 +68,12 @@ use crate::service_messages::{ClientFailure, render};
 /// Which end of the commit's scratch tree a submitted request leaves it to.
 use crate::service_commit_tree_ownership::the_service_never_took;
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
-use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
+use crate::service_prepare::{HandedBackTree, NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use crate::service_replay::{Captured, Retry, conflict_result, retry_of};
+use crate::service_amend_replayed::{AmendedCommit, AmendsTree, amended_fields, the_amends_tree, the_amendment_lands_as_new};
 use crate::service_protocol::CommitRequest;
 use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use crate::transaction_phase::Phase;
-use crate::transaction_git::run_git_checked;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -140,6 +141,10 @@ pub fn service_commit<F: RepositoryFacts>(
     // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
     //  once the commit that did land is known.
     let mut unlanded: Vec<String> = Vec::new();
+    // The fields of the commit an amend prepared, kept from the attempt that prepared it: an amend whose branch moved lands
+    //  them as a new commit on the branch as it is now (`service_amend_replayed.rs`), because `git commit --amend` would
+    //  replace the commit that moved the branch.
+    let mut amended: Option<AmendedCommit> = None;
     // The first build's start: the ceiling on rebuilding is counted from it.
     let first_build_began: Instant = Instant::now();
     for attempt in 0usize.. {
@@ -212,39 +217,34 @@ pub fn service_commit<F: RepositoryFacts>(
         //  since, the amend is not made. Its tree is the private index's, and native Git refuses an amend that leaves the
         //  commit empty against its first parent (a merge excepted) unless `--allow-empty` says it is meant, which Git then
         //  says itself.
+        // An amend whose branch moved is not made as an amend again: its changes become a new commit on the branch as it is
+        //  now, and the tree of that commit is the replay the preparation already settled in the private index.
+        let lands_as_new: bool = amended.is_some() && retry.is_some();
         let mut tree: Option<String> = None;
-        if !ready.needs_native
-            && let Some(made) = embedded.as_ref()
-            && let Some(source) = made.source.as_ref()
-        {
-            if source.base != ready.base {
-                return Err(branch_moved(&ready));
-            }
-            let written = run_git_checked(
-                invocation.context,
-                &indexed_request(
-                    invocation.cwd,
-                    &["write-tree"],
-                    Some(native_inputs.commit_index.as_path()),
-                    Some(native_inputs.capture.layout.object_directory.as_path()),
-                ),
-            )?;
-            let written_tree: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
-            let against: &str = source.parent_tree.as_deref().unwrap_or(native_inputs.capture.layout.empty_tree_oid.as_str());
-            if source.parents.len() < 2 && !invocation.region.allow_empty && written_tree == against {
-                embedded = None;
-            } else {
-                tree = Some(written_tree);
-            }
+        match the_amends_tree(&ready, invocation, native_inputs, embedded.as_ref(), lands_as_new)? {
+            AmendsTree::Tree(written) => tree = Some(written),
+            // Git says itself that an amend which leaves the replaced commit as it was is empty.
+            AmendsTree::EmptyAgainstTheParent => embedded = None,
+            AmendsTree::Nothing => {}
         }
         // A request over the line the service reads is refused as too long, and a commit must not fail for the names it
         //  changes: Git builds one that does not fit, as it did before a changed path carried its bytes.
         embedded = embedded_that_fits(embedded, &ready, native_inputs, id.as_str(), &tree);
-        let native: bool = ready.needs_native || embedded.is_none();
+        let native: bool = !lands_as_new && (ready.needs_native || embedded.is_none());
         // The embedded commit is used only when the native path is not taken.
-        let embedded_in_use: Option<&Embedded> = if native { None } else { embedded.as_ref() };
+        let embedded_in_use: Option<&Embedded> = if native || lands_as_new { None } else { embedded.as_ref() };
         let mut typed: Option<String> = None;
-        let (sent, first_parent): (CommitRequest, String) = match embedded_in_use {
+        let amendment: Option<&AmendedCommit> = if lands_as_new { amended.as_ref() } else { None };
+        let (sent, first_parent): (CommitRequest, String) = match amendment {
+            Some(fields) => {
+                // The amended commit's own fields, on the tree the replay settled, with the branch as it is now as the
+                //  single parent.
+                let (sent, parent, subject) =
+                    the_amendment_lands_as_new(fields, &ready, invocation, native_inputs, id.as_str(), arguments_after_subcommand(invocation.arguments, invocation.subcommand_index))?;
+                typed = Some(subject);
+                (sent, parent)
+            }
+            None => match embedded_in_use {
             None => {
                 let layout_prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
                 let rebuilt_arguments: Option<Vec<OsString>> = match fixed_message.as_deref() {
@@ -265,7 +265,7 @@ pub fn service_commit<F: RepositoryFacts>(
                 })?;
                 let parent: String = built.parents.first().cloned().unwrap_or_default();
                 typed = Some(built.message.clone());
-                let sent: CommitRequest = request_for_git_built(invocation, &ready, native_inputs, id.as_str(), built.commit);
+                let sent: CommitRequest = request_for_git_built(&ready, native_inputs, id.as_str(), built.commit, invocation.region.amend);
                 (sent, parent)
             }
             Some(made) => {
@@ -277,7 +277,12 @@ pub fn service_commit<F: RepositoryFacts>(
                 };
                 (sent, parent)
             }
+            },
         };
+        // What an amend carries into the commit a moved branch makes of it, kept once from the attempt that prepared it.
+        if amended.is_none() && sent.amend {
+            amended = Some(amended_fields(invocation, &sent, embedded.as_ref())?);
+        }
         let mut remembered: Option<String> = typed.clone();
         if remembered.is_none()
             && let Some(made) = embedded_in_use
@@ -313,21 +318,51 @@ pub fn service_commit<F: RepositoryFacts>(
                     fixed_message: fixed_message.as_ref(),
                     embedded_in_use,
                     native,
+                    amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                     unlanded: unlanded.as_slice(),
+                    request_id: id.as_str(),
+                    // Nothing looks for a commit that an answer named.
+                    journal: None,
                     config: config.clone(),
                 });
                 timing.after_landing += after_landing.elapsed();
                 return Ok(outcome);
             }
-            Ok(Submitted::PrepareAgain { landed, .. }) => match after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began) {
-                AfterAPrepareAgain::Stopped(stop) => return Err(stop),
-                AfterAPrepareAgain::Retry(next) => retry = Some(next),
-            },
+            Ok(Submitted::PrepareAgain { landed, .. }) => {
+                // The service did not land this attempt, so it left the tree to this command, and the change this attempt captured
+                //  is read from that tree's private index by the call below: the tree is released beside the command only after that
+                //  read, never before it, or the write-tree that makes the retry would race the removal.
+                let after: AfterAPrepareAgain = after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began);
+                ready.scratch.release_beside_the_command();
+                match after {
+                    AfterAPrepareAgain::Stopped(stop) => return Err(stop),
+                    AfterAPrepareAgain::Retry(next) => retry = Some(next),
+                }
+            }
             Ok(Submitted::Moved) => {
+                // Nothing landed on this attempt's tree, so the service left it to this command: whatever this arm comes to, the
+                //  tree is released beside the command once the change it captured has been read from it.
+                let _released: HandedBackTree = HandedBackTree(ready.scratch.0.clone());
+                ready.scratch.held_by_the_service(true);
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+                // An amend whose branch moved is not made as an amend again: its changes become a new commit on the branch as
+                //  it is now, leaving the commit that moved it as it is (the owner's choice, 2026-11-09).
+                //  No one waits, and no command is refused for another's commit.
+                if sent.amend && amended.is_some() {
+                    if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+                        return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
+                    }
+                    // The replay merges the amended tree onto the new tip by the same rule an ordinary commit's replay uses.
+                    retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
+                    continue;
+                }
                 // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
                 //  again on the new tip (and signs it again), up to the bound.
-                if native && !sent.amend && !editor_possible && !ready.interactive && !ready.fixed_parents {
+                //  A commit that concludes a merge, a cherry-pick or a revert depends on the state the worktree holds, not on
+                //  the tip: its parents come from `MERGE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD`, so the same rebuild makes
+                //  it on the branch as it is now, and the preparation refuses when that state is no longer the same.
+                let conclusion_may_move: bool = ready.cleanup.is_some();
+                if native && !sent.amend && !editor_possible && !ready.interactive && (!ready.fixed_parents || conclusion_may_move) {
                     if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                         return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
                     }
@@ -346,7 +381,7 @@ pub fn service_commit<F: RepositoryFacts>(
                             let prefix: usize = crate::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
                             let repeatable: bool = !sent.amend
                                 && !ready.interactive
-                                && !ready.fixed_parents
+                                && (!ready.fixed_parents || conclusion_may_move)
                                 && with_fixed_message(native_inputs.arguments.as_slice(), prefix, file.as_path()).is_some();
                             if repeatable && may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                                 fixed_message = Some(file);
@@ -375,6 +410,10 @@ pub fn service_commit<F: RepositoryFacts>(
                 return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
             }
             Err(failure) => {
+                // The journal folder of this worktree's service, which a lost answer is looked up in
+                //  (`service_commit_looking_for_what_landed.rs`); it is read here, and not before, so a commit that is answered
+                //  pays nothing for it.
+                let journal: Option<PathBuf> = journal_of_request(&sent);
                 return after_a_silent_or_failed_service(
                     failure,
                     LandedAftermath {
@@ -387,7 +426,10 @@ pub fn service_commit<F: RepositoryFacts>(
                         fixed_message: fixed_message.as_ref(),
                         embedded_in_use,
                         native,
+                        amended_as_new: if lands_as_new { amended.as_ref() } else { None },
                         unlanded: unlanded.as_slice(),
+                        request_id: id.as_str(),
+                        journal: journal.as_deref(),
                         config: config.clone(),
                     },
                 );

@@ -421,10 +421,10 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             return run_stacked_push(&forward);
         }
         Action::Exit { code, stdout, stderr } => {
-            return write_exit(code, stdout.as_bytes(), stderr.as_str());
+            return write_exit(code, stdout.as_bytes(), stderr.as_bytes());
         }
         Action::ExitBytes { code, stdout, stderr } => {
-            return write_exit(code, stdout.as_slice(), stderr.as_str());
+            return write_exit(code, stdout.as_slice(), stderr.as_slice());
         }
     }
 }

@@ -12,6 +12,7 @@
     "@monochromatic-dev/mvm-cli": "workspace:*",
     "@monochromatic-dev/mcp-stdio": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "valibot": "catalog:"
   },
   "devDependencies": {

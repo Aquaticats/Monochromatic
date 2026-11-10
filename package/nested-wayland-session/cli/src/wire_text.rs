@@ -7,6 +7,9 @@
 //!  and records with `; `,
 //!  so every byte outside a small safe set is written as `%XX`.
 
+/// The percent escape every answer format shares.
+use crate::percent_escape::percent_escape;
+
 /// Tells whether a byte passes through the encoding unchanged.
 ///
 /// What:
@@ -45,15 +48,7 @@ fn is_plain(byte: u8) -> bool {
 /// encodeText("Done; 100 %"); // => "Done%3B%20100%20%25"
 /// ```
 pub fn encode_text(text: &str) -> String {
-    let mut encoded = String::with_capacity(text.len());
-    for byte in text.bytes() {
-        if is_plain(byte) {
-            encoded.push(char::from(byte));
-        } else {
-            encoded.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    return encoded;
+    return percent_escape(text.as_bytes(), is_plain)
 }
 
 /// Joins already-formatted records the way `launcher-log` does:

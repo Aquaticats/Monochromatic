@@ -215,7 +215,7 @@ impl ServeSettings {
 /// while an ended service is started again by the manager.
 fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
     if let Err(error) = std::thread::Builder::new().spawn(body) {
-        crate::service_error!("cannot start the thread for {what}: {error}");
+        crate::service_error!("{}", crate::scoped_start::refused_thread_sentence(format!("run {what}").as_str(), &error));
         std::process::exit(4);
     }
 }
@@ -250,12 +250,18 @@ fn own_worktree_gone_now(settings: &ServeSettings, until_idle: Duration) -> bool
 /// What:
 ///  Runs the service until it is told to retire.
 /// Why:
-///   Recovery runs before the first connection is accepted;
-/// then the loop takes everything queued as one batch,
-/// groups it
-///  by branch in order of first arrival,
+///   The acceptor starts before the recovery of the batch an earlier service left open,
+/// so a client that connects
+///  while that recovery runs is greeted and beaten instead of reading as a service that stopped;
+/// the loop then takes everything queued as
+///  one batch,
+/// groups it by branch in order of first arrival,
 /// lands each group,
 /// and answers.
+/// Nothing is landed before
+///  the recovery is over:
+/// only this thread lands,
+/// and it lands nothing until it reads the queue.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -272,17 +278,6 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
 fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext, &ServeSettings)) {
     let serving_since: Instant = Instant::now();
     let idle: Duration = settings.idle;
-    let _reports = settle_open_batches(context, settings.instance.as_deref());
-    // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.
-    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED);
-    if pruned > 0 {
-        crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
-    }
-    let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
-    // What the earlier release's helper of this worktree finished counts as landed too: a client it never answered asks again.
-    if let Some(instance) = settings.instance.as_deref() {
-        landed.extend(crate::earlier_service_journal_adopted::earlier_commits_landed(context.journal.as_path(), instance));
-    }
     // The identities of the requests their clients withdrew; a request with one of these is never landed.
     let mut withdrawn: std::collections::HashSet<String> = std::collections::HashSet::new();
     // What the landed commits were captured at: owned by this loop, the only thread that lands and answers.
@@ -303,7 +298,28 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     let watch_directory: PathBuf = context.journal.join(WATCH_DIRECTORY);
     let watch_instance: Option<String> = settings.instance.clone();
     start_thread_or_exit("the after-commit work", move || { work_loop(&mut work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path()), ClaimWatch::restored(watch_directory.as_path(), watch_instance.as_deref())); });
-    // Every connection is a task of the runtime, so a waiting client holds no thread (`service_server_accept_connections_as_tasks.rs`).
+    // What:
+    //  The acceptor starts here,
+    // before the recovery of the batch an earlier service left open.
+    // Why:
+    //  The recovery writes the journal's records and the index,
+    // which waits on the disk,
+    // and finding C of the audit
+    //  `commit-kills-and-concurrency` (2026-11-09) is a service whose slow recovery made every waiting client exit 1
+    // with "not known whether the commit was made" although the service landed their commits:
+    // a connection accepted before the
+    //  recovery is greeted and beaten every second,
+    // so a slow recovery reads as a service that works.
+    // A request that arrives
+    //  meanwhile waits in the queue,
+    // which only the landing thread reads,
+    // and that thread reads it after the recovery,
+    // so nothing lands before the recovery is over.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // startAcceptor(listener); const reports = await settleOpenBatches(context);
+    // ```
     start_acceptor_or_exit(
         listener,
         ConnectionShared {
@@ -314,6 +330,17 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             instance: settings.instance.clone(),
         },
     );
+    let _reports = settle_open_batches(context, settings.instance.as_deref());
+    // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.
+    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED);
+    if pruned > 0 {
+        crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
+    }
+    let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
+    // What the earlier release's helper of this worktree finished counts as landed too: a client it never answered asks again.
+    if let Some(instance) = settings.instance.as_deref() {
+        landed.extend(crate::earlier_service_journal_adopted::earlier_commits_landed(context.journal.as_path(), instance));
+    }
     // The service's own shutdown: a stop is recorded by the handler and ended here, after the Gits the service waits on are ended.
     crate::service_server_shutdown_after_a_stop::start_shutdown_after_a_stop_or_exit();
     // Microseconds, so that instances started at different times count from different numbers; the number each batch takes is
@@ -423,6 +450,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         for (_, queued_group) in groups.drain(..) {
             // The trees this group's requests name: each is the commit's own scratch directory, which nothing may remove before the
             //  landing that reads it, and which the service removes once that landing is over.
+            //  A request the service did not land keeps its tree in its client's hands instead (see `remove_the_trees`).
             let mut trees: Vec<(String, std::path::PathBuf)> = Vec::new();
             for queued in &queued_group {
                 if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.scratch.as_path(), queued.0.git_dir.as_path()) {
@@ -463,17 +491,15 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             let group: Vec<Queued> = admitted;
             if group.is_empty() {
                 board.end_group(ids.as_slice());
-                remove_the_trees(&trees);
+                remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
                 continue;
             }
-            let preparing_again: Vec<String> = land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after);
+            let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, &mut handed_back);
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
-            //  A request told to prepare again is the exception: its client still reads the tree it named, so that tree goes when
-            //  the client's own value goes, and by the sweep if that client is killed.
-            let released: Vec<(String, std::path::PathBuf)> = released_trees(trees, preparing_again.as_slice());
-            remove_the_trees(&released);
+            remove_the_trees(trees.as_slice(), &handed_back);
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
             if let Some(next_index) = index {
@@ -493,45 +519,57 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 
 /// What:
 ///  Starts the removal of the scratch trees of the requests a group has just finished with,
-///  beside the loop.
+///  beside the loop,
+///  except those the service handed back to their clients.
 /// Why:
 ///   The tree holds the private index and the conclusion copies a landing reads,
 ///   so only the landing that named it may decide that it is done with it.
 ///  A tree whose client is gone waits for that landing instead of for its connection to close,
 ///  which is what makes a killed client's queued commit land on the tree it made.
+///  A request the service did not land (a commit sent back to be prepared again,
+/// a branch that moved) has no landing
+///  that read its tree:
+/// its client reads the change it prepared from that tree to make the commit again,
+/// so the client
+///  releases it beside its own command.
+///  Removing it here took that read from under every rebuild,
+/// which failed with a missing private index
+///  (2026-11-09,
+///  `service_prepare.rs`,
+///  `retry_of`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// trees.forEach(startTheRemovalBesideTheLoop);
+/// trees.filter(([id]) => !handedBack.has(id)).forEach(startTheRemovalBesideTheLoop);
 /// ```
-fn remove_the_trees(trees: &[(String, std::path::PathBuf)]) {
-    for (_, tree) in trees {
+fn remove_the_trees(trees: &[(String, std::path::PathBuf)], handed_back: &std::collections::HashSet<String>) {
+    for tree in released_trees(trees, handed_back) {
         crate::service_scratch_release_removal::start(tree.clone());
     }
 }
 
 /// What:
-///  The trees of a group's requests whose answer does not ask the client to prepare again.
+///  The trees of a group's requests that no client still reads.
 /// Why:
-///   A client told to prepare again still reads the tree it named,
+///   A request the service handed back still reads the tree it named,
 ///  so that one is the client's to remove;
 ///  every other answer ends the landing that read the tree,
 ///  and the service removes it beside the loop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// releasedTrees(trees, preparingAgain) // the trees no client still reads
+/// releasedTrees(trees, handedBack) // the trees no client still reads
 /// ```
-fn released_trees(
-    trees: Vec<(String, std::path::PathBuf)>,
-    preparing_again: &[String],
-) -> Vec<(String, std::path::PathBuf)> {
-    let mut released: Vec<(String, std::path::PathBuf)> = Vec::new();
+fn released_trees<'a>(
+    trees: &'a [(String, std::path::PathBuf)],
+    handed_back: &std::collections::HashSet<String>,
+) -> Vec<&'a std::path::PathBuf> {
+    let mut released: Vec<&std::path::PathBuf> = Vec::new();
     for (id, tree) in trees {
-        if preparing_again.contains(&id) {
+        if handed_back.contains(id) {
             continue;
         }
-        released.push((id, tree));
+        released.push(tree);
     }
     return released;
 }
@@ -545,3 +583,8 @@ mod tests;
 #[cfg(test)]
 #[path = "service_server_own_worktree_tests.rs"]
 mod own_worktree_tests;
+
+/// Controls for a service that is still recovering the batch an earlier service left open stay out of the release executable.
+#[cfg(test)]
+#[path = "service_server_beats_while_recovering_tests.rs"]
+mod beats_while_recovering_tests;

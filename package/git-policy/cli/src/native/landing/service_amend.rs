@@ -149,8 +149,17 @@ pub fn read_amend_source(context: &GitContext, cwd: &Path) -> Result<Option<Amen
 }
 
 /// The name,
-/// the address and the raw date of an author line.
-fn split_author(line: &str) -> Option<(String, String, String)> {
+/// the address and the raw date of an identity line,
+/// as `git var` writes it.
+/// Why:
+///   An amended commit's author and committer reach `git commit-tree` as its own variables,
+/// and both lines have exactly these three parts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [name, email, date] = line.match(/^(.*) <(.*)> (\d+ [+-]\d+)$/).slice(1);
+/// ```
+pub fn split_author(line: &str) -> Option<(String, String, String)> {
     let (name, rest) = line.rsplit_once(" <")?;
     let (email, date) = rest.split_once("> ")?;
     return Some((name.to_string(), email.to_string(), date.to_string()));

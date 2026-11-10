@@ -27,6 +27,8 @@ use crate::service_prepare::{NativeInputs, Ready};
 /// The commit the service built from the request,
 /// when it did.
 use crate::service_commit_input_notes_and_embedded_commit::Embedded;
+/// The commit an amend makes when the branch moved under it.
+use crate::service_amend_replayed::AmendedCommit;
 /// The landing report.
 use crate::service_commit_requests_and_landing_report::report_landing;
 /// The result and the after-commit work.
@@ -35,6 +37,8 @@ use crate::service_commit::ServiceCommit;
 use crate::service_messages::{ClientFailure, render};
 /// What the branch shows once the service went silent.
 use crate::service_branch_shows::the_silent_service_after_a_prepare;
+/// The look for the commit a request that was already sent made.
+use crate::service_commit_looking_for_what_landed::{LookForWhatLanded, looking_for_what_landed};
 /// The after-commit work handed to the service.
 use crate::service_handoff::ServiceHandoff;
 /// How to reach the service.
@@ -43,7 +47,7 @@ use crate::service_client::ClientConfig;
 /// A diagnostics line.
 use crate::diagnostic_log::warn;
 /// A path on the filesystem.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Everything a commit that landed still needs,
@@ -71,8 +75,17 @@ pub(crate) struct LandedAftermath<'landed> {
     pub(crate) embedded_in_use: Option<&'landed Embedded>,
     /// Whether Git built the commit.
     pub(crate) native: bool,
+    /// The amend this commit was,
+    /// when the branch moved and its changes became a new commit on top of it.
+    pub(crate) amended_as_new: Option<&'landed AmendedCommit>,
     /// Commits earlier attempts prepared and left behind.
     pub(crate) unlanded: &'landed [String],
+    /// The identity the request was sent with,
+    /// which names its batch in the service's journal.
+    pub(crate) request_id: &'landed str,
+    /// The journal folder of the worktree's service,
+    /// nothing when the environment names no state folder or the Git directory no instance.
+    pub(crate) journal: Option<&'landed Path>,
     /// How to reach the service afterwards.
     pub(crate) config: ClientConfig,
 }
@@ -103,6 +116,7 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
             input.fixed_message,
             input.embedded_in_use,
             input.native,
+            input.amended_as_new,
             input.unlanded,
         ),
     );
@@ -119,10 +133,16 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
 
 /// What:
 ///  What the command does when the service answered with a failure:
-///  the landed commit when the branch shows the commit was made,
+///  the landed commit when a bounded look finds the commit the request made or the branch shows it was made,
 ///  and the failure's words otherwise.
 /// Why:
-///   The silence and every other failure share the one read of the branch,
+///   An answer that was lost is not proof that the service never took the request:
+/// the audit of service restarts saw
+///  "this commit was not made ... Nothing in the repository changed"
+/// while the commit was on the branch,
+/// and the honest "not known" while the service landed it seconds later.
+/// The journal names the commit the request's batch made or is making,
+/// so one bounded look turns both into the true answer,
 /// and a landed commit is never reported as a failure
 /// (findings 6 of the third review and 3 of the fourth).
 ///
@@ -131,6 +151,23 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
 /// afterASilentOrFailedService(failure, placed);
 /// ```
 pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: LandedAftermath<'_>) -> Result<ServiceCommit, TransactionStop> {
+    // The failures a lost answer leaves: the service went silent, or it broke the connection after the request was written.
+    let found: Option<String> = match failure {
+        ClientFailure::ServiceSilent | ClientFailure::MayNotHaveLanded => looking_for_what_landed(LookForWhatLanded {
+            context: placed.invocation.context,
+            cwd: placed.invocation.cwd,
+            journal: placed.journal,
+            id: placed.request_id,
+            wait: crate::wait_ceilings::LOOKING_FOR_A_LANDED_COMMIT,
+        }),
+        _ => None,
+    };
+    if let Some(commit) = found {
+        // The commit is made: the command reports the landing and succeeds, whatever the answer said.
+        let mut landed: LandedAftermath<'_> = placed;
+        landed.commit = Some(commit.as_str());
+        return Ok(the_landed_commit(landed));
+    }
     let worded: Option<ClientFailure> = match failure {
         // The one silence that could not state a fact reads the branch once and states what it shows.
         ClientFailure::ServiceSilent => the_silent_service_after_a_prepare(placed.invocation.context, placed.invocation.cwd, placed.ready.reference.as_str(), placed.commit),

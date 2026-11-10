@@ -56,9 +56,9 @@ fn two_ignored_files(label: &str, mode: usize) -> (MutexGuard<'static, ()>, Path
     std::fs::write(source.join("cache/b.txt"), b"the second one\n").expect("b");
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(&stage).expect("the stage");
-    let mut unreadable: Vec<String> = Vec::new();
+    let mut unreadable: Vec<Vec<u8>> = Vec::new();
     let entries: Vec<WorktreeCopyEntry> =
-        collect_pruned_manifest(source.as_path(), [String::from("cache")].as_slice(), &[], Prune::Never, &mut unreadable).expect("the manifest");
+        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut unreadable).expect("the manifest");
     assert!(unreadable.is_empty(), "{unreadable:?}");
     *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
     MODE.store(mode, Ordering::SeqCst);
@@ -138,7 +138,7 @@ fn copy_and_settle(source: &Path, stage: &Path, entries: Vec<WorktreeCopyEntry>)
     return settle_the_copy(SettlingRequest {
         source_root: source,
         stage_root: stage,
-        selected_roots: [String::from("cache")].as_slice(),
+        selected_roots: [b"cache".to_vec()].as_slice(),
         excluded_source_roots: &[],
         prune: Prune::Never,
         entries,
@@ -168,8 +168,8 @@ fn copy_and_settle(source: &Path, stage: &Path, entries: Vec<WorktreeCopyEntry>)
 fn a_file_the_source_removed_while_the_copy_ran_is_left_out_and_not_a_failure() {
     let (held, root, source, stage, entries) = two_ignored_files("settling-vanished", VANISHES);
     let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("a vanished entry is no failure");
-    let staged: Vec<String> = settled.entries.iter().map(|entry: &WorktreeCopyEntry| { return entry.relative_path.clone(); }).collect();
-    assert_eq!(staged, vec![String::from("cache"), String::from("cache/a.txt")], "the entry the source removed is not in the stage");
+    let staged: Vec<Vec<u8>> = settled.entries.iter().map(|entry: &WorktreeCopyEntry| { return entry.relative_path.clone(); }).collect();
+    assert_eq!(staged, vec![b"cache".to_vec(), b"cache/a.txt".to_vec()], "the entry the source removed is not in the stage");
     assert!(!stage.join("cache/b.txt").exists(), "and nothing of it was staged");
     assert!(settled.unsettled.is_empty(), "nothing was left in the source for changing: {:?}", settled.unsettled);
     assert!(source.join("cache/a.txt").is_file(), "the source keeps its own files");
@@ -223,7 +223,7 @@ fn a_file_that_changed_under_the_copy_is_copied_again() {
 fn a_file_that_keeps_changing_is_left_in_its_source_and_named() {
     let (held, root, source, stage, entries) = two_ignored_files("settling-keeps-changing", KEEPS_CHANGING);
     let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("an entry that will not settle is no failure");
-    assert_eq!(settled.unsettled, vec![String::from("cache/a.txt")], "the entry its neighbour kept rewriting is named");
+    assert_eq!(settled.unsettled, vec![b"cache/a.txt".to_vec()], "the entry its neighbour kept rewriting is named");
     assert!(!stage.join("cache/a.txt").exists(), "it is not in the stage");
     assert!(source.join("cache/a.txt").is_file(), "its only copy stays in the source, untouched");
     assert_eq!(std::fs::read(stage.join("cache/b.txt")).expect("b staged"), std::fs::read(source.join("cache/b.txt")).expect("b in the source"), "the entry that settled is staged with the source's bytes");

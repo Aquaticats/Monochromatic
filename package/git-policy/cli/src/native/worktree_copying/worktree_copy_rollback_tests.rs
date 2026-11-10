@@ -19,12 +19,12 @@ fn staged_file(root: &Path) -> (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) {
         WorktreeCopyEntry {
             kind: EntryKind::Directory,
             mode: 0o755,
-            relative_path: String::from("cache"),
+            relative_path: b"cache".to_vec(),
         },
         WorktreeCopyEntry {
             kind: EntryKind::File,
             mode: 0o644,
-            relative_path: String::from("cache/file"),
+            relative_path: b"cache/file".to_vec(),
         },
     ];
     return (stage, destination, entries);
@@ -40,8 +40,8 @@ fn proven_paths_are_removed_child_first() {
     std::fs::create_dir(destination.join("cache")).expect("dir");
     std::fs::hard_link(stage.join("cache/file"), destination.join("cache/file")).expect("link");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("cache").as_path(), "cache", true).expect("dir id"),
-        capture_installed_path(destination.join("cache/file").as_path(), "cache/file", true)
+        capture_installed_path(destination.join("cache").as_path(), b"cache", true).expect("dir id"),
+        capture_installed_path(destination.join("cache/file").as_path(), b"cache/file", true)
             .expect("file id"),
     ];
     let retained: Vec<String> = rollback_created(
@@ -63,7 +63,7 @@ fn absent_paths_are_neither_removed_nor_retained() {
     let (stage, destination, entries) = staged_file(root.as_path());
     std::fs::create_dir(destination.join("cache")).expect("dir");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("cache").as_path(), "cache", true).expect("dir id"),
+        capture_installed_path(destination.join("cache").as_path(), b"cache", true).expect("dir id"),
     ];
     std::fs::remove_dir(destination.join("cache")).expect("gone");
     let retained: Vec<String> = rollback_created(
@@ -85,7 +85,7 @@ fn replaced_path_is_retained_as_changed() {
     let (stage, destination, entries) = staged_file(root.as_path());
     std::fs::create_dir(destination.join("cache")).expect("dir");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("cache").as_path(), "cache", true).expect("dir id"),
+        capture_installed_path(destination.join("cache").as_path(), b"cache", true).expect("dir id"),
     ];
     // Renaming keeps the original object alive, so the replacement cannot reuse its inode.
     std::fs::rename(destination.join("cache"), destination.join("moved")).expect("move aside");
@@ -115,7 +115,7 @@ fn edited_file_is_retained_by_path() {
     std::fs::create_dir(destination.join("cache")).expect("dir");
     std::fs::write(destination.join("cache/file"), b"bytes").expect("file");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("cache/file").as_path(), "cache/file", true)
+        capture_installed_path(destination.join("cache/file").as_path(), b"cache/file", true)
             .expect("id"),
     ];
     std::fs::write(destination.join("cache/file"), b"edited!").expect("edit in place");
@@ -143,7 +143,7 @@ fn non_empty_scaffold_is_retained_with_reason() {
     let (stage, destination, entries) = staged_file(root.as_path());
     std::fs::create_dir(destination.join("scaffold")).expect("scaffold");
     let created: Vec<InstalledPath> = vec![
-        capture_installed_path(destination.join("scaffold").as_path(), "scaffold", false)
+        capture_installed_path(destination.join("scaffold").as_path(), b"scaffold", false)
             .expect("id"),
     ];
     std::fs::write(destination.join("scaffold/user"), b"mine").expect("user file");

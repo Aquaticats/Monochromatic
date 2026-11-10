@@ -6,8 +6,7 @@
 
 import {
   appendFile,
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -74,17 +73,26 @@ function stateLine(seq: number, fields: Readonly<Record<string, unknown>> = {},)
 }
 
 /**
- Makes a scratch directory with a log file in it.
+ Makes a scratch directory with a log file in it, removed when the caller's
+ scope ends.
  
  @param content - initial content of the log
  
- @returns the directory and the log path
+ @returns the log path, and an async disposer that removes the directory
  */
-async function scratchLog(content: string,): Promise<{ readonly dir: string; readonly logPath: string; }> {
-  const dir = await mkdtemp(join(scratchRoot(), 'e2e-log-',),);
-  const logPath = join(dir, 'wide.log',);
+async function scratchLog(content: string,): Promise<{
+  readonly logPath: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+}> {
+  const directory = await mkdtempDisposable(join(scratchRoot(), 'e2e-log-',),);
+  const logPath = join(directory.path, 'wide.log',);
   await writeFile(logPath, content,);
-  return { dir, logPath, };
+  return {
+    logPath,
+    [Symbol.asyncDispose]: async function removeLogDirectory(): Promise<void> {
+      await directory.remove();
+    },
+  };
 }
 
 await describe({
@@ -93,7 +101,8 @@ await describe({
     it({
       name: 'reads the latest state and its sequence number, and fails when there is none',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog('INFO unrelated\n',);
+        await using scratch = await scratchLog('INFO unrelated\n',);
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         expect(await log.seq(),).toBe(0,);
         let caught: unknown;
@@ -108,26 +117,26 @@ await describe({
         expect((await log.last()).focus,).toBe('seek',);
         expect(await log.seq(),).toBe(2,);
         expect(log.states(),).toHaveLength(2,);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
       name: 'keeps a line that arrives in two pieces until it is complete',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog('',);
+        await using scratch = await scratchLog('',);
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         const line = stateLine(5,);
         await appendFile(logPath, line.slice(0, 40,),);
         expect(await log.seq(),).toBe(0,);
         await appendFile(logPath, line.slice(40,),);
         expect(await log.seq(),).toBe(5,);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
       name: 'keeps a multi-byte character that a read boundary cuts in two',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog('',);
+        await using scratch = await scratchLog('',);
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         const bytes = Buffer.from(stateLine(1, { folder: 'Tönes', },),);
         const cut = bytes.indexOf(0xC3,) + 1;
@@ -135,13 +144,13 @@ await describe({
         await log.seq();
         await appendFile(logPath, bytes.subarray(cut,),);
         expect((await log.last()).folder,).toBe('Tönes',);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
       name: 'waits for a state newer than a sequence number that satisfies the predicate',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog(stateLine(1, { focus: 'play', },),);
+        await using scratch = await scratchLog(stateLine(1, { focus: 'play', },),);
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         setTimeout(() => {
           void appendFile(logPath, stateLine(2, { focus: 'seek', },),);
@@ -153,13 +162,13 @@ await describe({
           timeoutMs: 3_000,
         },);
         expect(state.seq,).toBe(2,);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
       name: 'ignores states at or before the sequence number',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog(stateLine(3, { focus: 'seek', },),);
+        await using scratch = await scratchLog(stateLine(3, { focus: 'seek', },),);
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         let caught: unknown;
         try {
@@ -174,13 +183,13 @@ await describe({
           caught = error;
         }
         expect((caught as Error).message,).toContain('timed out waiting for a new seek focus; last states:',);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
       name: 'shows the latest states in the timeout message',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog(stateLine(1,) + stateLine(2,) + stateLine(3,) + stateLine(4,),);
+        await using scratch = await scratchLog(stateLine(1,) + stateLine(2,) + stateLine(3,) + stateLine(4,),);
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         let caught: unknown;
         try {
@@ -193,17 +202,17 @@ await describe({
         expect(message,).toContain('"seq":4',);
         expect(message,).toContain('"seq":2',);
         expect(message,).not.toContain('"seq":1,',);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
       name: 'names the stage a start stopped at when no state line was ever read',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog(
+        await using scratch = await scratchLog(
           'INFO nested_wayland_session::backend_select: selected the render backend\n'
             + 'INFO nested_wayland_session::control_socket: control socket listening at /s.sock\n'
             + 'INFO nested_wayland_session::child: spawned hosted client /app on "wayland-2"\n',
         );
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         let caught: unknown;
         try {
@@ -215,30 +224,29 @@ await describe({
         const { message, } = (caught as Error);
         expect(message,).toContain('timed out waiting for the first state',);
         expect(message,).toContain('start stopped at: app-spawned',);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
       name: 'counts shortcut uses, all or by action, in lines without color sequences',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog(
+        await using scratch = await scratchLog(
           '\u001B[32m INFO\u001B[0m shortcut used action="reveal"\nINFO shortcut used action="row-details"\n',
         );
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         expect(await log.used(),).toBe(2,);
         expect(await log.used('reveal',),).toBe(1,);
         expect(await log.used('none',),).toBe(0,);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({
       name: 'finds the nested display name and shows the tail of the log',
       fn: async ({ expect, }) => {
-        const { dir, logPath, } = await scratchLog('\u001B[2m x\u001B[0m Created new socket name=Some("wayland-4")\nlast line',);
+        await using scratch = await scratchLog('\u001B[2m x\u001B[0m Created new socket name=Some("wayland-4")\nlast line',);
+        const { logPath, } = scratch;
         const log = createUiStateLog({ logPath, },);
         expect(await log.waylandDisplay(),).toBe('wayland-4',);
         expect(await log.tail(9,),).toBe('last line',);
-        await rm(dir, { recursive: true, force: true, },);
       },
     },),
     it({

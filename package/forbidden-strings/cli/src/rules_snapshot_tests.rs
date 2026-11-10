@@ -258,3 +258,95 @@ fn the_same_present_text_has_the_same_joined_text_whether_an_optional_file_was_l
     let alone = read_ok(&[required(&dir, "a.txt", b"FIRST_RULE_LONG_ENOUGH\n")]);
     assert_eq!(with_absent.text(), alone.text());
 }
+
+// Whether `work` finished within five seconds, so a read that waits for a writer fails the control
+// instead of hanging the suite; the thread is left behind when it does not finish.
+fn finished_within<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(work());
+    });
+    return receiver.recv_timeout(std::time::Duration::from_secs(5)).ok()
+}
+
+// Makes a named pipe at `path` that no writer ever opens.
+#[cfg(unix)]
+fn make_fifo(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a path without a NUL byte");
+    // SAFETY: a valid NUL-terminated path, and the call has no other requirement.
+    let made: i32 = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "a named pipe at {}: {}", path.display(), std::io::Error::last_os_error());
+}
+
+#[test]
+#[cfg(unix)]
+fn a_rules_file_that_is_a_named_pipe_fails_at_once_naming_its_path() {
+    let dir = temp_dir("named-pipe");
+    let pipe = dir.join("rules.fifo");
+    make_fifo(&pipe);
+    let named = pipe.clone();
+    let outcome = finished_within(move || {
+        let entry = RulesEntry { path: named, optional: false };
+        return RulesSnapshot::read(std::slice::from_ref(&entry)).err().map(|error| {
+            return error.to_string();
+        });
+    });
+    let Some(error) = outcome else { panic!("reading a rules list that names a named pipe did not finish within five seconds") };
+    let error = error.expect("a named pipe is not a rules file");
+    assert!(error.contains(&pipe.display().to_string()), "{error}");
+    assert!(error.contains("not a plain file"), "{error}");
+}
+
+#[test]
+#[cfg(unix)]
+fn an_optional_rules_file_that_is_a_named_pipe_fails_instead_of_counting_as_absent() {
+    let dir = temp_dir("named-pipe-optional");
+    let pipe = dir.join("local.fifo");
+    make_fifo(&pipe);
+    let named = pipe.clone();
+    let outcome = finished_within(move || {
+        let entry = RulesEntry { path: named, optional: true };
+        return RulesSnapshot::read(std::slice::from_ref(&entry)).err().map(|error| {
+            return error.to_string();
+        });
+    });
+    let Some(error) = outcome else { panic!("reading an optional named pipe did not finish within five seconds") };
+    let error = error.expect("an optional file that is present but unreadable is a policy file this run cannot use");
+    assert!(error.contains(&pipe.display().to_string()), "{error}");
+}
+
+#[test]
+#[cfg(unix)]
+fn a_rules_file_replaced_by_a_named_pipe_is_not_current_and_is_not_waited_on() {
+    let dir = temp_dir("named-pipe-current");
+    let snapshot = read_ok(&[required(&dir, "a.txt", b"FIRST_RULE_LONG_ENOUGH\n")]);
+    assert!(snapshot.still_current(), "a file nobody touched is still the text that was read");
+    let path = dir.join("a.txt");
+    std::fs::remove_file(&path).expect("the file goes");
+    make_fifo(&path);
+    let checked = finished_within(move || {
+        return snapshot.still_current();
+    });
+    let Some(current) = checked else { panic!("comparing against a named pipe did not finish within five seconds") };
+    assert!(!current, "a named pipe does not hold the bytes that were read");
+}
+
+#[test]
+#[cfg(unix)]
+fn a_rules_file_that_is_a_directory_fails_at_once_naming_its_path() {
+    let dir = temp_dir("plain-directory");
+    std::fs::create_dir(dir.join("rules.d")).expect("directory");
+    let path = dir.join("rules.d");
+    let named = path.clone();
+    let outcome = finished_within(move || {
+        let entry = RulesEntry { path: named, optional: false };
+        return RulesSnapshot::read(std::slice::from_ref(&entry)).err().map(|error| {
+            return error.to_string();
+        });
+    });
+    let Some(error) = outcome else { panic!("reading a directory as a rules list did not finish within five seconds") };
+    let error = error.expect("a directory is not a rules file");
+    assert!(error.contains(&path.display().to_string()), "{error}");
+    assert!(error.contains("not a plain file"), "{error}");
+}

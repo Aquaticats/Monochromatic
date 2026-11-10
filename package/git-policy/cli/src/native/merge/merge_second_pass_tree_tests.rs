@@ -6,7 +6,7 @@
 
 use super::*;
 use crate::merge_second_pass::ContextRunner;
-use crate::merge_second_pass::tests::{Change, World, corpus, merge_tree_of, runner, world};
+use crate::merge_second_pass::tests::{Change, World, await_it, corpus, merge_tree_of, runner, world};
 use crate::test_support::{git, git_context, git_text, remove};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
@@ -47,7 +47,7 @@ fn a_tree_comes_back_with_the_merged_files_and_nothing_else_changed() {
     let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
     let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
     let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
-    let resolved: Resolved = resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).expect("every file resolves");
+    let resolved: Resolved = await_it(async { return resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).await; }).expect("every file resolves");
     assert_eq!(resolved.merged.len(), 2);
     for path in ["a.md", "sub/deep.md"] {
         let blob: String = git_text(world.repo.as_path(), &["show", format!("{}:{path}", resolved.tree).as_str()]) + "\n";
@@ -76,7 +76,7 @@ fn one_file_left_over_returns_nothing() {
     let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
     let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
     let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
-    assert_eq!(resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe), None);
+    assert_eq!(await_it(async { return resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).await; }), None);
     remove(world.root.as_path());
 }
 
@@ -97,7 +97,7 @@ fn a_git_that_cannot_start_returns_nothing() {
     let broken: ContextRunner<'_> = runner(&context, world.repo.as_path());
     let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
     let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &broken);
-    assert_eq!(resolve_tree(&broken, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe), None);
+    assert_eq!(await_it(async { return resolve_tree(&broken, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).await; }), None);
     remove(world.root.as_path());
 }
 
@@ -116,7 +116,7 @@ fn tip_variables(repo: &Path, prefix: &[OsString], variables: &[(OsString, OsStr
     let context: GitContext = git_context();
     let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: repo, without_prefix: false, object_directory: None, environment: Vec::new() };
     let probe = AttributeProbe { directory: repo, global_prefix: prefix, variables, runner: &runner };
-    return attribute_tree_variables("tip123", &probe);
+    return await_it(attribute_tree_variables("tip123", &probe));
 }
 
 /// The tip is named where Git would read no attribute tree;
@@ -166,8 +166,8 @@ fn a_rule_the_merge_itself_introduces_governs_the_second_pass() {
         let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
         let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
         let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
-        assert_eq!(merge_attribute_source(tree.as_str(), conflicts.as_slice(), &probe), AttributeSource::Tree(tree.as_str()), "merge={value}");
-        assert_eq!(resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).is_some(), expected, "merge={value}");
+        assert_eq!(await_it(merge_attribute_source(tree.as_str(), conflicts.as_slice(), &probe)), AttributeSource::Tree(tree.as_str()), "merge={value}");
+        assert_eq!(await_it(async { return resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).await; }).is_some(), expected, "merge={value}");
         remove(world.root.as_path());
     }
 }
@@ -194,8 +194,8 @@ fn a_gitattributes_the_merge_left_conflicted_names_no_rule() {
     let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
     let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
     let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
-    assert_eq!(merge_attribute_source(tree.as_str(), conflicts.as_slice(), &probe), AttributeSource::Unknown);
-    assert_eq!(resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe), None, "no candidate is merged from an unreadable rule");
+    assert_eq!(await_it(merge_attribute_source(tree.as_str(), conflicts.as_slice(), &probe)), AttributeSource::Unknown);
+    assert_eq!(await_it(async { return resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).await; }), None, "no candidate is merged from an unreadable rule");
     remove(world.root.as_path());
 }
 
@@ -210,7 +210,7 @@ fn the_merge_result_tree_is_named_only_where_the_person_named_no_source() {
     let settled: Vec<Conflict> = vec![Conflict { path: b"a.md".to_vec(), base: None, ours: None, theirs: None }];
     let asked = |prefix: &[OsString], variables: &[(OsString, OsString)], conflicts: &[Conflict]| -> AttributeSource<'static> {
         let probe: AttributeProbe<'_> = probe_of(repo.as_path(), prefix, variables, &pass);
-        return merge_attribute_source("tree123", conflicts, &probe);
+        return await_it(merge_attribute_source("tree123", conflicts, &probe));
     };
     assert_eq!(asked(&[], none.as_slice(), settled.as_slice()), AttributeSource::Tree("tree123"), "nothing names a source, so the merge's tree is the one");
     let nearest: Vec<Conflict> = vec![Conflict { path: b"deep/sub/.gitattributes".to_vec(), base: None, ours: None, theirs: None }];
@@ -227,14 +227,19 @@ fn the_merge_result_tree_is_named_only_where_the_person_named_no_source() {
 /// every start is counted and refused.
 struct Refusing {
     /// How many starts were asked for.
-    starts: std::cell::Cell<usize>,
+    starts: std::sync::atomic::AtomicUsize,
 }
 
 /// Counting the starts a probe asks for.
 impl GitRunner for Refusing {
-    fn run(&self, _arguments: &[&str], _input: Option<&[u8]>, _index_file: Option<&Path>) -> Result<crate::merge_second_pass::GitReply, String> {
-        self.starts.set(self.starts.get() + 1);
-        return Err(String::from("no Git start is allowed here"));
+    fn run<'a>(
+        &'a self,
+        _arguments: &'a [&'a str],
+        _input: Option<&'a [u8]>,
+        _index_file: Option<&'a Path>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::merge_second_pass::GitReply, String>> + Send + 'a>> {
+        self.starts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        return Box::pin(async { return Err(String::from("no Git start is allowed here")); });
     }
 }
 
@@ -257,10 +262,10 @@ fn common_variables_cost_no_git_start_and_a_variable_that_moves_an_answer_costs_
         return variables;
     };
     let starts_for = |variables: &[(OsString, OsString)]| -> (usize, Vec<(OsString, OsString)>) {
-        let runner: Refusing = Refusing { starts: std::cell::Cell::new(0) };
+        let runner: Refusing = Refusing { starts: std::sync::atomic::AtomicUsize::new(0) };
         let probe = AttributeProbe { directory: repo.as_path(), global_prefix: &[], variables, runner: &runner };
-        let chosen = attribute_tree_variables("tip123", &probe);
-        return (runner.starts.get(), chosen);
+        let chosen = await_it(attribute_tree_variables("tip123", &probe));
+        return (runner.starts.load(std::sync::atomic::Ordering::SeqCst), chosen);
     };
     let tip: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("tip123"))];
     let common: Vec<(OsString, OsString)> = hermetic(&[("GIT_EDITOR", "true"), ("GIT_TRACE", "0"), ("GIT_MERGE_VERBOSITY", "1"), ("GIT_PAGER", "cat")]);
@@ -391,5 +396,63 @@ fn a_configuration_option_in_any_letter_case_names_the_tree() {
         tip,
         "a value no tree resolves to is ignored whatever the key's case"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  The second pass of a merge from objects runs as a task of the runtime,
+/// and every start it makes is awaited there.
+/// Why:
+///   The landing round's reconcile merges and publishes as a task
+/// (`push/auto_push_reconcile_merge_commit.rs`),
+/// and a synchronous Git start registers the step's pipes by entering the runtime,
+/// which is refused from inside it.
+/// A body that called the synchronous face would leave every conflict as Git left it,
+/// which a person reads as a merge that does not resolve.
+#[test]
+fn the_second_pass_answers_from_a_task_of_the_runtime() {
+    let world: World = world(
+        "second-pass-tree-on-the-runtime",
+        &[("a.md", corpus("md1b", "base").as_slice())],
+        &[("a.md", Change::Write(corpus("md1b", "ours").as_slice()))],
+        &[("a.md", Change::Write(corpus("md1b", "theirs").as_slice()))],
+    );
+    let (tree, conflicts) = merge_tree_of(&world);
+    let context: GitContext = git_context();
+    let common: PathBuf = world.repo.join(".git");
+    let pass: ContextRunner<'_> = runner(&context, world.repo.as_path());
+    let variables: Vec<(OsString, OsString)> = hermetic_variables(world.root.as_path());
+    let probe: AttributeProbe<'_> = probe_of(world.repo.as_path(), &[], variables.as_slice(), &pass);
+    let (verdicts, resolved): (Result<Vec<Verdict>, String>, Option<Resolved>) = await_it(async {
+        let verdicts: Result<Vec<Verdict>, String> = second_pass(&pass, conflicts.as_slice(), AttributeSource::Invocation).await;
+        let resolved: Option<Resolved> = resolve_tree(&pass, common.as_path(), tree.as_str(), conflicts.as_slice(), &probe).await;
+        return (verdicts, resolved);
+    });
+    let word_merge: Vec<Verdict> = verdicts.expect("a task of the runtime asks Git for the attributes and the stages");
+    assert!(matches!(word_merge.as_slice(), [Verdict::Merged(_)]), "the one file resolves by word: {word_merge:?}");
+    let whole: Resolved = resolved.expect("the tree of the merge comes back");
+    assert_eq!(whole.merged.len(), 1);
+    assert_eq!(git_text(world.repo.as_path(), &["show", format!("{}:a.md", whole.tree).as_str()]), String::from_utf8_lossy(corpus("md1b", "word.out").as_slice()).trim_end());
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The synchronous Git start the pass used to make is refused from a task of the runtime.
+/// Why:
+///   The control above would pass for the wrong reason if the synchronous face also worked there:
+/// this shows the two faces differ in exactly the way the awaited one is written for,
+/// and names the refusal a body that still called the synchronous face would swallow into `None`.
+#[test]
+fn the_synchronous_start_is_refused_from_a_task_of_the_runtime() {
+    let root: PathBuf = crate::test_support::fixture("second-pass-tree-sync-refused");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest::new(repo.as_path(), &["rev-parse", "--show-toplevel"]);
+    let refused: std::io::Result<crate::transaction_git::GitOutput> = crate::lazy_runtime::run_on_runtime(async {
+        return crate::transaction_git::run_git(&context, &request);
+    })
+    .expect("the runtime");
+    let error: std::io::Error = refused.expect_err("a step that is ended at its ceiling registers its pipes by entering the runtime");
+    assert!(error.to_string().contains("inside itself"), "the refusal names the runtime that was asked for from inside itself: {error}");
     remove(root.as_path());
 }

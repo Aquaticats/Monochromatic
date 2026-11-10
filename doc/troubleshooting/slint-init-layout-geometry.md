@@ -11,6 +11,11 @@ The `i-slint-core` checksum is
 The matching upstream tag is `v1.17.0` at
 `fdde7a535305d2ab2d4072dee637bad186a49723`.
 
+Note 2026-11-09T16:56:27-05:00:
+these citations in this record name paths that no longer exist.
+`package/music-player/desktop-app/src/ui_binding_tests.rs` left the tree on 2026-10-11 in `f36cef6b43`.
+`package/music-player/desktop-app/src/ui_led_rows.rs` left the tree on 2026-10-11 in `f36cef6b43`.
+
 ## Symptom
 
 The desktop music player's LED page controls use repeated Slint components inside a wrapping `FlexboxLayout`.

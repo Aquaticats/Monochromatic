@@ -12,12 +12,21 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { rolldown, } from 'rolldown';
-import { importAttributesPlugin, } from './index.ts';
+import {
+  rolldown,
+  type Plugin,
+  type RolldownOutput,
+} from 'rolldown';
+
+import {
+  ATTR_QUERY_KEY,
+  importAttributesPlugin,
+} from '../dist/final/node/index.mjs';
 
 /** Absolute path to the fixtures directory. */
-const FIXTURES_DIR = join(import.meta.dirname, 'fixtures',);
+const FIXTURES_DIR = join(import.meta.dirname, 'fixture',);
 
 /**
  Builds a fixture entry file with the import attributes plugin
@@ -32,8 +41,19 @@ async function buildFixture(entryName: string,): Promise<string> {
     plugins: [importAttributesPlugin(),],
   },);
   const { output, } = await build.generate({ format: 'esm', },);
+  return joinChunkCode(output,);
+}
+
+/**
+ Concatenates the code of every chunk in a rolldown output bundle,
+ skipping assets, so a caller can assert on everything the browser or runtime loads.
+ 
+ @param output - Output bundle produced by `generate`
+ @returns Concatenated chunk code
+ */
+function joinChunkCode(output: RolldownOutput['output'],): string {
   return output
-    .map(function joinChunks(chunk,) {
+    .map(function chunkCode(chunk,): string {
       if (chunk.type === 'chunk')
         return chunk.code;
       return '';
@@ -67,25 +87,51 @@ await describe({
       },
     },),
     it({
-      name: 'ignores imports without with clause',
+      name: 'leaves an import without an attribute clause untouched',
       fn: async () => {
+        const entryPath = join(FIXTURES_DIR, 'entry-noattr.ts',);
+        /**
+         Transform inputs a following plugin observed, so the case can prove
+         the import attributes plugin changed nothing on its way through.
+         */
+        const seenByFollower: { readonly id: string; readonly code: string; }[] = [];
+        /**
+         Plugin placed after {@link importAttributesPlugin}, recording the code
+         each module carries once the import attributes plugin has run.
+         */
+        const follower: Plugin = {
+          name: 'record-transform-input',
+          transform(code, id,): null {
+            seenByFollower.push({ id, code, },);
+            return null;
+          },
+        };
+
         const build = await rolldown({
-          input: join(FIXTURES_DIR, 'entry-static.ts',),
-          plugins: [
-            importAttributesPlugin(),
-            {
-              name: 'test-spy',
-              transform(code,) {
-                /** Verify the transform only fires when `with` is present. */
-                if (!code.includes(' with ',))
-                  return null;
-                return null;
-              },
-            },
-          ],
+          input: entryPath,
+          plugins: [importAttributesPlugin(), follower,],
         },);
         const { output, } = await build.generate({ format: 'esm', },);
-        expect(output.length,).toBeGreaterThan(0,);
+        const code = joinChunkCode(output,);
+
+        /** The build really ran and inlined the plain module. */
+        expect(code,).toContain('plain module text',);
+        /**
+         An untagged specifier never gains the attribute marker, so no handler
+         loaded this module on the plugin's behalf.
+         */
+        expect(code,).not.toContain(ATTR_QUERY_KEY,);
+        expect(code,).not.toContain('with',);
+        /**
+         The entry reaches the following plugin byte-identical to its file.
+         */
+        const entrySource = await readFile(entryPath, 'utf8',);
+        expect(seenByFollower.filter(function byEntry(seen,) {
+          return seen.id === entryPath;
+        },)
+          .map(function toCode(seen,) {
+            return seen.code;
+          },),).toEqual([entrySource,],);
       },
     },),
   ],

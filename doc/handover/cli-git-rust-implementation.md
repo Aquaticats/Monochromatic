@@ -167,6 +167,150 @@ branch and checked-out files,
 and no ignored state.
 The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
 
+#### Landings while the gate on `283d7d9053` runs, and what they left open (2026-11-09T19:02:02-05:00)
+
+Landed on main,
+each tested on main first:
+`13d8f918ec` (a lint run whose analysis child crashed fails),
+`fb0dab9ccb` (statusline diagnostics and tagged loggers across the packages issue 1677 names),
+`d302e16ded` (the wrapper's perf tests and read fixture remove their folders when a test fails),
+`5fde185d69` (MCP logger comments)
+and `b51cb087ee` (a named pipe where a rules file or the index lock is expected ends in a sentence).
+
+Left open:
+
+- `landing::service_index_prestage::tests::the_marker_made_ahead_names_this_process_and_the_batch`
+  failed once in a 216-test selection on the FIFO branch after `8.261 s`.
+  It passed alone in `0.196 s`,
+  and the same selection then passed whole.
+  The coordinator's output filter dropped its message,
+  so the cause is not known.
+  The gate log of `776281f4ee` shows no failure of it.
+  Check filters now keep `panicked` lines.
+- A `lint:oxlint` run now goes red when the TypeScript 7.1 API server crashes,
+  and says the findings are incomplete.
+  `doc/troubleshooting/typescript-7-config-registry-nil-panic.md` holds the cause.
+  Lost findings are read from the code and were not observed:
+  ten runs on one worktree had no panic.
+- The console sink sends `info` records to stdout through `console.info`.
+  `package/mcp/stdio` and `package/mcp/mvm` log nothing at `info`,
+  and only their comments say why.
+  No test stops a later `info` call from writing into the frame stream.
+- Issue 1292 stays open for the inline `[cycle]`-style prefixes in `hall-monitor`.
+- A landing that adds a workspace dependency leaves the main checkout unlinked until
+  `mise exec -- pnpm install --frozen-lockfile --offline` runs there.
+
+#### Claude Sonnet audits, the gate on `742076c71d`, and what waits for an agent slot (2026-11-09T16:48:18-05:00)
+
+The release gate on `742076c71d` ended with 69 of 6,699 tests failed
+(`gpc-gate-wrapper-next-alpha-on-742076c71d-20261109T161449-0500.log` in `~/temp/agent/gate/`).
+A new gate runs on `776281f4ee`.
+Owners of the failures:
+
+- The lock scan refuses every file on an `overlay` mount (`process/open_file_of_a_descriptor.rs:159`),
+  so in a container a stale lock is never cleared:
+  the Pi agent `lock-scan-reads-overlay-mounts`.
+- Panics where the system refused a thread,
+  under the gate's `--pids-limit 512`:
+  the Pi agent `refused-thread-ends-no-command`.
+- The rest,
+  among them commit budgets that rose and controls that no longer match the product:
+  the Pi agent `gate-failures-after-todays-landings`.
+
+The owner asked for long reviews and audits on Claude Sonnet.
+Reports are at `~/temp/agent/sonnet-audits/<name>/final.md`,
+and every finding has a reproduction beside it.
+The coordinator's judgement of each,
+under rule `WGH`:
+
+- `push-delivery`:
+  a pending push a killed wrapper left is never delivered,
+  a delivered held commit is reported as held for ever,
+  and a reconcile's report never reaches the person.
+  The Pi agent `push-delivery-audit-findings-fixed` owns them.
+  Its blocked-commit finding is the open owner question in `doc/handover/questions-for-the-owner.md`.
+- `service-restart-and-version-skew`:
+  no commit was lost or doubled in any combination.
+  A landed commit can be reported as not made,
+  and the rollback advice does not say how to stop the newer service:
+  both are briefed.
+  Dismissed:
+  an older release moves a newer push record to `failed`,
+  because only a rollback reaches it,
+  that release cannot change,
+  and the next push carried the commit.
+- `worktree-lifecycle`:
+  a `0600` credential is `0644` until its chmod,
+  and permanently if the add is killed there,
+  and a kill during install leaves empty files and a half-filled worktree that nothing records.
+  Both come from the EXDEV copy fallback.
+  The Pi agent `worktree-copy-install-keeps-modes-and-finishes` owns them.
+  A later run killed a snapshot-route add ten times:
+  two kills left a full snapshot of the main checkout beside the destination,
+  credentials and a copy of `.git` included,
+  and small records of killed adds pile up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
+  `package/git-policy/cli/SPEC.md` says the person removes the stage,
+  so removing it automatically is an owner question in `doc/handover/questions-for-the-owner.md`.
+  Killing `migrate-to-subvolume` eight times during its copy phase lost nothing and every run resumed;
+  the swap and index-rewrite phases were not reached.
+  Two `worktree_copy` controls,
+  `a_creation_recovers_a_dead_journal_first` and `a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`,
+  timed out at 300 s in a 344-test run of the ignored-names branch and pass alone.
+  The first took 0.7 s to 27.3 s on a checkout without that branch and 1.4 s to 12.0 s with it,
+  so the branch did not add the time.
+  What the time goes to is unmeasured,
+  and under rule `SUF` it stays a contention defect until it is.
+- `merge-and-pull-never-fail`:
+  a dead Git's `index.lock` makes every command exit 2,
+  read-only commands wait 60 s over a saved merge,
+  and the owner's "Carry edits forward" is still not built:
+  both are briefed.
+- `never-stuck`:
+  a FIFO at `.git/index.lock` or at a rules file blocked every command that read it for ever,
+  and the commit service's landing behind it.
+  Fixed on the branch `fix/git-policy-cli-fifo-where-a-file-is-expected-ends-no-command`
+  (not merged into `main` yet),
+  which reads both through opens that cannot wait
+  (`service_index_wait.rs`,
+  `service_index_marker.rs`,
+  `entry_rules_text_change_warm.rs`,
+  `package/forbidden-strings/cli/src/rules_snapshot.rs`),
+  and refuses a rules file that is not a plain one with a sentence naming its path.
+  The reproductions,
+  the stacks that put the service thread in `marker_of`,
+  and the survey of the rest of the class are in
+  `doc/troubleshooting/a-fifo-where-a-file-is-expected-ends-no-command.md`.
+- `differential-against-real-git`:
+  `git commit -- .` also commits untracked files,
+  global pathspec modes are ignored by an explicit-path commit,
+  service-landed commits write an empty reflog message,
+  and a stopped service leaves its lock marker.
+  All are briefed.
+  Dismissed as cosmetic:
+  the wrapper's merge omits `Auto-merging <path>`.
+
+The `worktree-lifecycle`,
+`never-stuck`,
+`merge-and-pull-never-fail` and `differential-against-real-git` audits returned early or are still ending under rule `PLQ`,
+with some probes running;
+what each has left is at the end of its `final.md`.
+
+These agents wait for a free Pi slot,
+each with its brief at `~/temp/agent/pi-runs/<name>-prompt.md`,
+highest priority first:
+
+- `commit-survives-a-dead-ref-lock-and-a-moved-branch`,
+  from the audit `commit-kills-and-concurrency`:
+  `git commit -a` fails when the branch moves while it waits,
+  and a killed `git update-ref` leaves `refs/heads/main.lock`,
+  after which every commit fails saying the branch kept changing.
+- `client-reports-landed-commit-after-service-restart`,
+  which also owns that audit's finding of clients told "not known" while a slow recovery lands their commits.
+- `merge-recovers-after-a-dead-gits-lock`
+- `fifo-where-a-file-is-expected-ends-no-command`
+- `merge-carries-unsaved-edits-forward`
+- `commit-pathspecs-and-reflog-match-real-git`
+
 #### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
 - `421ab69c3e` landed the landing branch,
@@ -1806,33 +1950,44 @@ Both pass alone (2.5 s and 21.6 s),
 which is the same contention shape this section corrected in the standards-review controls,
 and neither module is changed here.
 
-Owner question:
-`package/git-policy/cli/SPEC.md:5471` says a commit prepares
-"in parallel with other commits and without the real index lock",
-and `doc/decision/cli-git-concurrent-commits.md:29` says the same.
-The step here takes that lock when the index is stale,
-which the two controls this branch fixed do not see,
-because their repositories have an index Git has just written.
-It is taken for one `git update-index --refresh` (2 to 50 ms on this checkout) and never held across the request,
-and a client that meets the lock degrades to the private copy at once rather than waiting or failing,
-so concurrent commits still never fail on it and nothing waits on it in preparation.
-Two readings are open:
+Answered by the owner's instruction for
+`perf/git-policy-cli-commit-preparation-without-the-real-index-lock`:
+preparation stays lock-free,
+and the refresh moves to the landing,
+which already holds `index.lock`.
+The owner's requirements for the lane are
+"commits vs native git should not take 5s longer.",
+"Commits should never fail.",
+"Use as few locks as possible."
+and "never discard user data",
+and `doc/decision/cli-git-concurrent-commits.md:29` already says
+"Each commit prepares without the real index lock."
 
-- Amend the record to allow a bounded stat refresh inside preparation that degrades on a held lock,
-  which is what this branch does and what keeps the scratch step inside its ceiling.
-- Keep preparation lock-free,
-  and hand the write to the landing,
-  which already holds `index.lock`:
-  it would build its private copy,
-  answer the same in-process staleness question over the live index,
-  run `git update-index --refresh` on the copy with `GIT_INDEX_FILE` set to it,
-  and install that copy.
-  Then nothing outside the landing writes the real index,
-  and the cost moves to the landing,
-  inside its lock,
-  on every commit after the worktree moved.
-  The first commit after the move would still pay the refresh on its private copy in preparation,
-  as the locked-index fallback does today.
+What the branch changed (2026-11-09):
+
+- `commit/commit_index.rs` refreshes the private commit index,
+  not the real one,
+  after the copy and the selection are in it
+  (`initialize_commit_index`,
+  `initialize_retry_index`).
+  It still asks the in-process staleness question first,
+  so a copy that describes the worktree costs no Git start and no lock.
+- `landing/service_land_follow.rs` records the worktree's stat data in the copy it is about to install,
+  through the same question and the same refresh,
+  while the landing holds the real index lock,
+  and leaves out the entries the reset just wrote.
+  A refresh that fails,
+  is killed or is ended at its step ceiling installs the copy anyway,
+  and the release flushes the copy only when Git replaced it.
+- The in-process reset hands back the names it reset
+  (`index/index_reset_file.rs`),
+  which is what lets a landing leave those entries out for a list derived from the branch.
+
+Measurements,
+controls and the spread:
+`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+"What a batch's own refresh costs,
+and what moving it bought".
 
 Still to do:
 
@@ -1841,11 +1996,10 @@ Still to do:
   closed by the section below.
 - The question's pass was single-threaded;
   closed by the section below.
-- A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
-  (Git answers a held lock at once,
-  measured 0.00 s,
-  and the private index is refreshed instead),
-  and the landing still waits for that lock as it always has,
+- Closed 2026-11-09:
+  a preparation names no real index at all any more,
+  so it never meets another program's `index.lock` and cannot wait on one.
+  The landing still waits for a foreign holder as it always has,
   bounded by `LANDING_LOCK_CEILING`.
 - The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
   `native:perf` compares paired commit deltas and is the run for it.
@@ -6153,6 +6307,72 @@ are in append mode now).
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
+
+- `subvolume::subvolume_migrate::tests::a_rerun_after_a_simulated_kill_at_every_step_completes`
+  was aborted by nextest's 300 s bound in a filtered suite and passed alone in 260.6 s
+  (2026-11-09,
+  a host full-suite run also hit the bound on `subvolume_migrate::` and on
+  `worktree_convert::ownership_tests::`).
+  Cause,
+  measured on this host:
+  the stand-in platform says its writes stay in memory
+  (`Platform::flushes_to_disk`),
+  and the migration's journal,
+  locks and index rewrites already asked that switch,
+  but the claim file's write and its directory flush did not,
+  nor did the index rewrite's install,
+  which runs on a thread of the blocking pool that never inherits the answer.
+  One migration command took 79 s at a load average of 119,
+  of which the claim's take and release were 44 s and the two index installs 7 s
+  (per-step probes,
+  `~/temp/agent/time-limits/`);
+  after the change the claim took 1.0 ms and the index rewrite 5.0 ms.
+  The sweep then fell to 110 s one after another and 25.2 s with its twelve kill points
+  walking side by side (load average 115 and 119),
+  and the whole `ownership_tests` module from 193.1 s to 55.4 s,
+  its slowest control from 144.5 s to 33.0 s (load average 81).
+  Commits:
+  `75d8a46bcb` (the switch reaches the claim and the index rewrites,
+  with `a_claim_kept_in_memory_flushes_nothing_and_asks_the_shared_step_twice` and
+  `a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere` plus a flushing sibling each;
+  both failed before the change with `SyncCounts { made: 0, skipped: 0 }` and `made: 4, skipped: 0`),
+  `a6d7341191` (the sweep walks its points side by side).
+  On the final binary all 37 controls of `push_slow_server_tests`,
+  `subvolume_migrate::tests`,
+  `ownership_tests` and the four new ones passed under the standard bound in 71.9 s,
+  the sweep in 4.5 s at a load average of 36.
+- `push::push_slow_server_tests::a_server_that_holds_the_connection_without_answering_is_waited_for`
+  failed once inside a 5,603-test run,
+  reporting 1.70 s against its own 3 s floor.
+  Cause:
+  the control could not tell a fixture that lost the connection from a wrapper that stopped one.
+  Its server swallowed the answer of `listener.accept` (`if let Ok(..)`) and held exactly one connection,
+  so a refused accept ended that thread and dropped the listener under the push,
+  and its only verdict on earliness was the push's duration against its own 4 s sleep.
+  Measured 2026-11-09:
+  with the listener dropped before the push Git ends in 12.6 ms,
+  with the connection closed at once in 105.1 ms,
+  both exit 128 with no stall line and no wait note,
+  so both would have failed that floor and nothing else.
+  The product's wait itself was right in every run made:
+  4.10 s,
+  4.12 s and 4.19 s against its 4 s hold,
+  each saying the wait,
+  while the disconnected control beside it still stops at the 1 s stall window.
+  The control now lets the connection go only when it says so,
+  accepts every connection the push opens,
+  and fails naming the push's own exit status and output;
+  planted with `push_progress` ignoring an open connection it fails in 4.93 s with
+  "the push ended while the server still held the connection ... after 1.596346729s with 124:
+  ... (limit=stall ...)".
+  Commit `b7c5eeb5a1`.
+  Not measured,
+  and left open:
+  whether a single sample that does not attribute the push's socket to its process tree
+  (`push_progress::Meter::observe_sockets` over `descendants_of`) can stop a connected push;
+  the new control would now name that as `limit=stall` instead of as a clock,
+  which is what a
+  reproduction would need.
 
 ### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
 

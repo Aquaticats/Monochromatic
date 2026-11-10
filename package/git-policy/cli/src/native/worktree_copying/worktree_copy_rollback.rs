@@ -16,7 +16,7 @@ use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
-use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
 use std::collections::BTreeMap;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -105,16 +105,16 @@ pub fn rollback_created(
     entries: &[WorktreeCopyEntry],
     created: &[InstalledPath],
 ) -> Result<Vec<String>, WorktreeCopyError> {
-    let mut selected_by_path: BTreeMap<&str, &WorktreeCopyEntry> = BTreeMap::new();
+    let mut selected_by_path: BTreeMap<&[u8], &WorktreeCopyEntry> = BTreeMap::new();
     for entry in entries {
-        selected_by_path.insert(entry.relative_path.as_str(), entry);
+        selected_by_path.insert(entry.relative_path.as_slice(), entry);
     }
     let mut retained: Vec<String> = Vec::new();
     for installed in created.iter().rev() {
         let destination_path: std::path::PathBuf =
-            filesystem_path(destination_root, installed.relative_path.as_str())?;
+            filesystem_path(destination_root, installed.relative_path.as_slice())?;
         let expected: Option<&&WorktreeCopyEntry> =
-            selected_by_path.get(installed.relative_path.as_str());
+            selected_by_path.get(installed.relative_path.as_slice());
         let outcome: Result<Option<String>, WorktreeCopyError> = rollback_one(
             stage_root,
             destination_root,
@@ -125,7 +125,7 @@ pub fn rollback_created(
         match outcome {
             Ok(None) => {}
             Ok(Some(reason)) => retained.push(reason),
-            Err(error) => retained.push(format!("{}: {}", installed.relative_path, error.0)),
+            Err(error) => retained.push(format!("{}: {}", shown_repository_path(installed.relative_path.as_slice()), error.0)),
         }
     }
     return Ok(retained);
@@ -155,7 +155,7 @@ fn rollback_one(
         IdentityState::Changed => {
             return Ok(Some(format!(
                 "{}: filesystem identity changed",
-                installed.relative_path
+                shown_repository_path(installed.relative_path.as_slice())
             )));
         }
         IdentityState::Match => {}
@@ -169,7 +169,7 @@ fn rollback_one(
         _ => false,
     };
     if content_differs {
-        return Ok(Some(installed.relative_path.clone()));
+        return Ok(Some(shown_repository_path(installed.relative_path.as_slice())));
     }
     // The identity is read again immediately before removal, to close the race with a replacement.
     let final_state: IdentityState = identity_state(destination_path, installed)?;
@@ -180,7 +180,7 @@ fn rollback_one(
         IdentityState::Changed => {
             return Ok(Some(format!(
                 "{}: filesystem identity changed",
-                installed.relative_path
+                shown_repository_path(installed.relative_path.as_slice())
             )));
         }
     }

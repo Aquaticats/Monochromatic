@@ -11,6 +11,7 @@ import type {
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   EMPTY_VISIT_RESULT,
+  visitResultForUnreadNodeKind,
   type VisitResult,
 } from './internal-types.ts';
 import { visitExpansion, } from './nested.ts';
@@ -40,6 +41,10 @@ function visitArithmetic(
     readonly context: ShellCommandContext;
   },
 ): VisitResult {
+  /**
+   Parser kind of this expression, kept so an expression no visitor covers is named.
+   */
+  const expressionKind: string = expression.type;
   if (expression.type === 'ArithmeticCommandExpansion') {
     return visitExpansion({
       expansion: expression,
@@ -105,7 +110,23 @@ function visitArithmetic(
       },],
     };
   }
-  return EMPTY_VISIT_RESULT;
+  if (expression.type === 'ArithmeticWord') {
+    /**
+     Word parts of the arithmetic word, absent when the word holds no expansion.
+     */
+    const { parts, } = expression;
+    if ((parts === undefined) || (parts.length === 0))
+      return EMPTY_VISIT_RESULT;
+    return {
+      ...EMPTY_VISIT_RESULT,
+      workItems: [{
+        kind: 'parts',
+        parts,
+        context,
+      },],
+    };
+  }
+  return visitResultForUnreadNodeKind(expressionKind,);
 }
 
 /**
@@ -131,6 +152,10 @@ function visitTest(
     readonly context: ShellCommandContext;
   },
 ): VisitResult {
+  /**
+   Parser kind of this expression, kept so an expression no visitor covers is named.
+   */
+  const expressionKind: string = expression.type;
   if (expression.type === 'TestUnary') {
     return {
       ...EMPTY_VISIT_RESULT,
@@ -178,14 +203,17 @@ function visitTest(
       },],
     };
   }
-  return {
-    ...EMPTY_VISIT_RESULT,
-    workItems: [{
-      kind: 'test',
-      expression: expression.expression,
-      context,
-    },],
-  };
+  if (expression.type === 'TestGroup') {
+    return {
+      ...EMPTY_VISIT_RESULT,
+      workItems: [{
+        kind: 'test',
+        expression: expression.expression,
+        context,
+      },],
+    };
+  }
+  return visitResultForUnreadNodeKind(expressionKind,);
 }
 
 export {

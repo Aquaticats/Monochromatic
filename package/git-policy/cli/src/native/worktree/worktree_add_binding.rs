@@ -87,11 +87,7 @@ fn field_of<'a>(text: &'a str, key: &str) -> Option<&'a str> {
 
 /// Lower-case hexadecimal of bytes.
 fn hex(bytes: &[u8]) -> String {
-    let mut spelled: String = String::new();
-    for byte in bytes {
-        spelled.push_str(format!("{byte:02x}").as_str());
-    }
-    return spelled;
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes);
 }
 
 /// The bytes of lower-case hexadecimal text.
@@ -178,6 +174,30 @@ pub fn decode_record(text: &str) -> Option<Recorded> {
 /// The record text of a planned add.
 pub fn planned_record(destination: &Path) -> String {
     return format!("destination={}\nphase=planned\n", encode_path(destination));
+}
+
+/// The record text of a planned add whose Git process is named,
+/// so a reader can tell an add that still runs from one whose Git is gone.
+pub fn planned_record_with_child(destination: &Path, child: &crate::worktree_copy_owner::CopyOwner) -> String {
+    return format!("destination={}\nphase=planned\nrunning={}\n", encode_path(destination), child.token());
+}
+
+/// What:
+///  The Git process a planned record names,
+/// or nothing when the record names none.
+/// Why:
+///   A record is written before Git starts,
+/// and the command that starts Git writes the name once it has one;
+/// a command killed between
+///  the two names no process,
+/// so the record's age is the only bound a reader has then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = CopyOwner.fromToken(fieldOf(text, 'running') ?? '');
+/// ```
+pub fn running_child_of(text: &str) -> Option<crate::worktree_copy_owner::CopyOwner> {
+    return crate::worktree_copy_owner::CopyOwner::from_token(field_of(text, "running")?);
 }
 
 /// The identity of the object that the canonical path `path` names now,

@@ -45,14 +45,31 @@ const { values: args, } = parseArgs({
 const state: { running: boolean; } = { running: true, };
 
 /**
+ Journal flush that runs when its `await using` scope ends.
+
+ The journal sink writes through `logger(1)`, so the records logged last are
+ still in flight when a shutdown begins. Binding this to a scope delivers them
+ on the throwing path too, so a failed shutdown keeps the records that explain it.
+ */
+const JOURNAL_FLUSH_ON_EXIT: AsyncDisposable = {
+  async [Symbol.asyncDispose](): Promise<void> {
+    await log.flush();
+  },
+};
+
+/**
  Gracefully shuts down the daemon by stopping the main loop,
  closing the lock socket via {@link closeLock}, and force-killing any
  llama-server processes via {@link forceCleanup}.
  */
 async function shutdown(): Promise<void> {
-  log.debug('[hall-monitor] Shutting down...',);
+  log.debug('Shutting down...',);
   state.running = false;
   closeLock();
+  /**
+   Journal flush bound to this call's scope.
+   */
+  await using _flushRecords = JOURNAL_FLUSH_ON_EXIT;
   await forceCleanup();
   process.exitCode = 0;
 }
@@ -92,9 +109,9 @@ async function main(): Promise<void> {
   }
 
   log.debug(
-    '[hall-monitor] Starting: capturing every 5 minutes, retaining last 10 minutes',
+    'Starting: capturing every 5 minutes, retaining last 10 minutes',
   );
-  log.debug(`[hall-monitor] PID ${process.pid}, lock: abstract socket`,);
+  log.debug(`PID ${process.pid}, lock: abstract socket`,);
 
   await cycle();
 
@@ -115,5 +132,26 @@ async function main(): Promise<void> {
   }
 }
 
+/**
+ Flushes the records a startup failure would otherwise take with it, then lets
+ the failure end the process.
+
+ @example
+ ```ts
+ void runMain();
+ ```
+ */
+async function runMain(): Promise<void> {
+  try {
+    await main();
+  }
+  catch (error: unknown) {
+    // The records logged before the failure are what explains it, so they are
+    // flushed before the rethrow ends the process.
+    await log.flush();
+    throw error;
+  }
+}
+
 // oxlint-disable-next-line unicorn/prefer-top-level-await -- bun build --compile does not support top-level await
-void main();
+void runMain();

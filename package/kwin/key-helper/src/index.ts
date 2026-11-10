@@ -16,7 +16,7 @@
 import { promisify } from 'node:util';
 
 import { sessionBus } from '@homebridge/dbus-native';
-import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   DBUS_PATH,
@@ -33,6 +33,19 @@ import {
 } from './evdev.ts';
 import { sendNvimInput } from './nvim.ts';
 import { getActiveWindowClass } from './state.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+
+ The daemon runs from the session bus, so stderr reaches whatever started it and
+ the default file sink keeps a record beside it.
+ */
+const keyHelperLogger = tagged({ tag: 'kwin-key-helper-index', },);
+
+//endregion Logging
 
 /**
  `RequestName` reply code meaning this connection became primary owner of the
@@ -55,7 +68,11 @@ const DBUS_NAME_NO_FLAGS = 0;
  */
 function onDoubleShift(): void {
   if (getActiveWindowClass() === NEOVIDE_CLASS) {
-    console.log('[key-helper] double-shift, sending F20');
+    tagged({
+      tag: onDoubleShift.name,
+      l: keyHelperLogger,
+    },)
+      .debug('double-shift, sending F20',);
     void sendNvimInput('<F20>');
   }
 }
@@ -96,17 +113,28 @@ async function main(): Promise<void> {
   if (retCode !== DBUS_NAME_PRIMARY_OWNER) {
     throw new Error(`[key-helper] failed to own ${DBUS_SERVICE}: RequestName returned ${retCode}`);
   }
-  console.log(`[key-helper] D-Bus service registered: ${DBUS_SERVICE}`);
-
+  tagged({
+    tag: main.name,
+    l: keyHelperLogger,
+  },)
+    .info(`D-Bus service registered: ${DBUS_SERVICE}`,);
   /**
    Every readable Shift-capable input device.
    */
   const devices = await findShiftDevices();
   if (devices.length === 0) {
-    console.error('[key-helper] no readable input devices found -- double-shift disabled');
+    tagged({
+      tag: main.name,
+      l: keyHelperLogger,
+    },)
+      .warn('no readable input devices found -- double-shift disabled',);
   }
   await Promise.all(devices.map(async function monitorDevice(device): Promise<void> {
-    console.log(`[key-helper] monitoring: ${device.path} (${device.name})`);
+    tagged({
+      tag: main.name,
+      l: keyHelperLogger,
+    },)
+      .info(`monitoring: ${device.path} (${device.name})`,);
     await startEvdevMonitor({
       devicePath: device.path,
       onDoubleShift
@@ -114,13 +142,5 @@ async function main(): Promise<void> {
   }));
 }
 
-try {
-  await main();
-} catch (error) {
-  /**
-   Stack or message for a fatal startup failure.
-   */
-  const message = caughtValueStack(error,);
-  console.error(`[key-helper] fatal: ${message}`);
-  process.exitCode = 1;
-}
+// A startup failure ends the process through the throw, so Node prints the message and the stack, and the status is one.
+await main();

@@ -19,6 +19,11 @@ command run inside the workspace keeps resolving pnpm 11.21.0.
 The two versions differ by a major release,
  so behavior diverges by working directory.
 
+Note 2026-11-09T16:55:17-05:00:
+`package/git-policy/cli/src/native/markdown_linter_config.rs` is now
+`package/git-policy/cli/src/native/markdown/markdown_linter_config.rs`,
+moved 2026-11-03 in `e9b9276e83`.
+
 ## Symptom
 
 The same tool name resolves to two versions depending on where the command runs:

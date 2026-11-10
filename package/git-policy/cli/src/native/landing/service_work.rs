@@ -42,6 +42,8 @@ use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::{Retrying, final_failure, plain_words, unrecognised_rejection};
+use crate::push_failure_notice::record_push_report;
+use crate::auto_push_reconcile_basics_and_limits::RECONCILE_LINE_PREFIX;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_variables};
 use crate::service_review_key::ReviewKey;
@@ -359,6 +361,33 @@ fn branch_exists(git: &PushGit, branch_ref: &str) -> Option<bool> {
 }
 
 /// What:
+///  The lines of a push's own output that only a reconcile writes,
+/// joined as they were printed.
+/// Why:
+///   A successful push prints its `remote:` lines and,
+/// when the remote had moved,
+/// the reconcile's account of the merge and of what became of the local
+///  branch;
+/// only the reconcile's lines are the person's explanation,
+/// and they already name the tool,
+/// the branch and the
+///  command that finishes the move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reconcileLines = (shown) => shown.split('\n').filter((line) => line.startsWith(RECONCILE_LINE_PREFIX)).join('\n');
+/// ```
+fn reconcile_lines(shown: &str) -> String {
+    let mut kept: Vec<&str> = Vec::new();
+    for line in shown.split('\n') {
+        if line.starts_with(RECONCILE_LINE_PREFIX) {
+            kept.push(line);
+        }
+    }
+    return kept.join("\n");
+}
+
+/// What:
 ///  The words for a push whose branch the person deleted:
 /// what happened,
 /// which commit it named,
@@ -437,7 +466,18 @@ impl WorkHandlers for GitHandlers {
             // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
-            Ok(result) if result.exit_code == 0 => Verdict::Done,
+            Ok(result) if result.exit_code == 0 => {
+                // A push that reconciled a moved remote published a merge and said what became of the local branch in its own
+                //  output; the command that ran the push returned long before it ended, so those words go to a record the next
+                //  command shows once. A push that simply landed says nothing and leaves no record.
+                let report: String = reconcile_lines(result.shown.as_str());
+                if !report.is_empty()
+                    && let Err(reason) = record_push_report(newest.git_dir.as_path(), newest.branch_ref.as_str(), newest.oid.as_str(), report.as_str())
+                {
+                    crate::service_error!("what the push of {} did could not be recorded for the person: {reason}", newest.oid);
+                }
+                Verdict::Done
+            }
             // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
             //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
             //  output: any program a push runs can print a line about a branch of its own.

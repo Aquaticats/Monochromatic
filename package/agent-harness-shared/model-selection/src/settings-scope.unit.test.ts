@@ -6,7 +6,7 @@
 
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -36,10 +36,11 @@ await describe({
     it({
       name: 'returns unrestricted scope when settings are absent',
       fn: async function testAbsentSettings() {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-settings-test-',
         ),);
+        const root = directory.path;
         expect(await loadSettingsScopePatterns({
           cwd: join(
             root,
@@ -56,10 +57,11 @@ await describe({
     it({
       name: 'prefers project enabledModels over global enabledModels',
       fn: async function testProjectSettingsPrecedence() {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-settings-test-',
         ),);
+        const root = directory.path;
         const home = join(
           root,
           'home',
@@ -113,10 +115,11 @@ await describe({
     it({
       name: 'throws for invalid enabledModels',
       fn: async function testInvalidSettings() {
-        const root = await mkdtemp(join(
+        await using directory = await mkdtempDisposable(join(
           scratchRoot(),
           'pi-shared-settings-test-',
         ),);
+        const root = directory.path;
         const cwd = join(
           root,
           'repo',

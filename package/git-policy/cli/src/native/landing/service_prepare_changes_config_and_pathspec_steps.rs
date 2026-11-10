@@ -16,6 +16,7 @@
 //! ```
 
 use crate::capture_invocation::InvocationCapture;
+use crate::command_commit::CommitRegion;
 use crate::private_index_request::{CaptureIndexes, indexed_request};
 use crate::commit_conclusion::events_with_summary;
 use crate::commit_no_change::{NO_CHANGE_CODE, NO_CHANGE_CORE_ID, no_change_message};
@@ -28,6 +29,7 @@ use crate::private_storage::write_private_file;
 use crate::service_land_follow::{IndexPaths, update_index};
 use crate::service_protocol::{ALLOWED_MODES, Change, MAX_CHANGES, is_object_name, is_plain_path};
 use crate::transaction_git::{GitContext, run_git_checked};
+use std::ffi::OsString;
 use crate::transaction_journal::AddedPath;
 use crate::worktree_completion::install_added_worktree_files;
 use std::path::{Path, PathBuf};
@@ -159,6 +161,75 @@ pub(crate) fn pathspec_file_for(scratch: &Path, cwd: &Path, source: Option<&str>
     let snapshot: PathBuf = scratch.join(crate::commit_index::PATHSPEC_INPUT_NAME);
     write_private_file(snapshot.as_path(), standard_input.unwrap_or_default())?;
     return Ok(Some(snapshot));
+}
+
+/// What:
+///  The positional pathspecs of a command line,
+/// as the text a request names them by.
+/// Why:
+///   A path that is not text is still a path,
+///  and the request of an embedded commit carries its readable spelling,
+///  so a name the service cannot carry sends the commit to Git
+///  (`embedded_that_fits`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const texts = pathspecTexts(pathspecs);
+/// ```
+pub(crate) fn pathspec_texts(pathspecs: &[OsString]) -> Vec<String> {
+    let mut texts: Vec<String> = Vec::new();
+    for token in pathspecs {
+        texts.push(token.to_string_lossy().into_owned());
+    }
+    return texts;
+}
+
+/// The file a `--pathspec-from-file` option names,
+/// as the text the preparation reads.
+/// Why:
+///   The option's value is a position in the command line,
+///  and its bytes are the file name a person typed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = namesAFile(arguments, value);
+/// ```
+fn names_a_file(arguments: &[OsString], value: crate::command_options::OptionValue) -> String {
+    return String::from_utf8_lossy(crate::command_options_query::value_bytes(arguments, value)).into_owned();
+}
+
+/// What:
+///  The file the private index reads a pathspec list from,
+/// or nothing when the line names none.
+/// Why:
+///   A pathspec file named `-` is read once,
+/// before the first preparation,
+/// and written into each preparation's scratch directory,
+/// because a second read would see nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = thePathspecFile({ region, arguments, scratch, cwd, standardInput });
+/// ```
+///
+/// # Errors
+///
+/// `TransactionStop::Message` when the file cannot be written.
+pub(crate) fn the_pathspec_file(
+    region: &CommitRegion,
+    arguments: &[OsString],
+    scratch: &Path,
+    cwd: &Path,
+    standard_input: Option<&[u8]>,
+) -> Result<Option<PathBuf>, TransactionStop> {
+    let mut source: Option<String> = None;
+    if let Some(value) = region.pathspec_from_file {
+        source = Some(names_a_file(arguments, value));
+    }
+    return match pathspec_file_for(scratch, cwd, source.as_deref(), standard_input) {
+        Ok(made) => Ok(made),
+        Err(error) => Err(crate::commit_transaction::failed(format!("reading the pathspec file failed: {error}"))),
+    };
 }
 
 /// The ending of a commit whose corrections removed every change:

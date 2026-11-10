@@ -227,11 +227,38 @@ pub(crate) fn own_group(child: &std::process::Child) {
 /// const result = await finishedWithin(() => readPlainText(path)); // undefined when five seconds passed
 /// ```
 pub(crate) fn finished_within<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
-    let (sender, receiver) = std::sync::mpsc::channel();
+    return finished_within_at(std::time::Duration::from_secs(5), work);
+}
+
+/// What:
+///  `work`'s value,
+/// or nothing when it did not finish within `deadline`;
+/// the thread that runs it is abandoned with the process.
+/// Why:
+///   A control whose work waits on another job's work needs a bound that covers that work,
+/// which costs what the
+///  fixture and the host make it cost;
+/// a fixed short clock over work fails a busy host while the work itself is fine,
+/// so
+///  such a control states its own deadline and the wait it guards takes no clock.
+/// A panic inside the work is the work's own failure and is raised here as itself,
+/// so this
+///  deadline cannot be blamed for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const result = await finishedWithinAt(150_000, () => refresh()); // undefined when the deadline passed
+/// ```
+pub(crate) fn finished_within_at<T: Send + 'static>(deadline: std::time::Duration, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (sender, receiver) = std::sync::mpsc::channel::<std::thread::Result<T>>();
     std::thread::spawn(move || {
-        let _ = sender.send(work());
+        let _ = sender.send(std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)));
     });
-    return receiver.recv_timeout(std::time::Duration::from_secs(5)).ok();
+    return match receiver.recv_timeout(deadline) {
+        Ok(Ok(value)) => Some(value),
+        Ok(Err(payload)) => std::panic::resume_unwind(payload),
+        Err(_passed_or_abandoned) => None,
+    };
 }
 
 /// This test process's own executable,

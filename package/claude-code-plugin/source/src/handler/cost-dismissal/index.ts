@@ -23,6 +23,13 @@ import type {
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
+  makeHookInputParser,
+  makeJsonWriter,
+  type JsonWriter,
+  type Parser,
+} from '../../runtime/handler-runtime.ts';
+
+import {
   findSizeDismissal,
   type CostDismissalHit,
 } from './detect.ts';
@@ -190,43 +197,28 @@ function createCostDismissalHandler(
 
 /**
  Parses raw stdin as a {@link CostDismissalInput}.
-
+ 
  Input is trusted; it comes from Claude Code's hook dispatch system.
-
- @param raw - JSON-encoded event payload received on stdin
-
- @returns the parsed hook event
-
+ 
  @example
  ```ts
  costDismissalParser('{"hook_event_name":"PreToolUse","tool_name":"Edit"}');
  ```
  */
-function costDismissalParser(raw: string,): CostDismissalInput {
-  /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted input from Claude Code hook system */
-  return JSON.parse(raw,) as CostDismissalInput;
-}
+const costDismissalParser: Parser<CostDismissalInput> = makeHookInputParser<CostDismissalInput>();
 
 /**
  Serializes the cost-dismissal output for stdout.
-
+ 
  No trailing newline; matches Claude Code's wire convention.
-
- @param output - {@link CostDismissalOutput} handler result to serialize
-
- @returns JSON-encoded payload for Claude Code's hook reader
-
- @mutates output - `JSON.stringify` may invoke `toJSON`, getters, or proxy traps.
-
+ 
  @example
  ```ts
  costDismissalWriter({});
  // => '{}'
  ```
  */
-function costDismissalWriter(output: CostDismissalOutput,): string {
-  return JSON.stringify(output,);
-}
+const costDismissalWriter: JsonWriter<CostDismissalOutput> = makeJsonWriter<CostDismissalOutput>();
 
 /**
  Default handler instance, wired to `process.env`.

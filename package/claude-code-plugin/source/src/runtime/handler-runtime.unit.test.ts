@@ -22,6 +22,34 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import {
+  makeHookInputParser,
+  makeJsonWriter,
+  makeOwnedFileParser,
+} from './handler-runtime.ts';
+
+/**
+ Shape one factory case parses, standing in for a hook event.
+ */
+type ProbeEvent = {
+  readonly hook_event_name: 'Probe';
+  readonly payload: number;
+};
+
+/**
+ Shape one factory case writes, standing in for a handler response.
+ */
+type ProbeResponse = {
+  readonly decision: 'allow';
+};
+
+/**
+ Shape whose every field is optional, as a pass-through hook response is.
+ */
+type ProbeOptionalResponse = {
+  readonly decision?: 'allow';
+};
+
 /**
  Absolute path of the runtime under test, resolved from this file so the child
  imports the same source regardless of the harness working directory.
@@ -130,6 +158,100 @@ await describe({
           .not
           .toContain('diagnostic line',);
       },
+    },),
+
+    describe({
+      name: makeHookInputParser.name,
+      children: [
+        it({
+          name: 'parses a hook payload into the asserted shape',
+          fn: async () => {
+            /**
+             Parser under test, typed for {@link ProbeEvent}.
+             */
+            const parse = makeHookInputParser<ProbeEvent>();
+            expect(parse('{"hook_event_name":"Probe","payload":7}',),)
+              .toEqual({
+                hook_event_name: 'Probe',
+                payload: 7,
+              },);
+          },
+        },),
+        it({
+          name: 'throws when the payload is not JSON',
+          fn: async () => {
+            /**
+             Parser under test, typed for {@link ProbeEvent}.
+             */
+            const parse = makeHookInputParser<ProbeEvent>();
+            expect(function parseTruncated() {
+              parse('{"hook_event_name":"Probe"',);
+            },)
+              .toThrow();
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: makeOwnedFileParser.name,
+      children: [
+        it({
+          name: 'parses a record this package wrote into the asserted shape',
+          fn: async () => {
+            /**
+             Parser under test, typed for {@link ProbeEvent}.
+             */
+            const parse = makeOwnedFileParser<ProbeEvent>();
+            expect(parse('{"hook_event_name":"Probe","payload":3}',),)
+              .toEqual({
+                hook_event_name: 'Probe',
+                payload: 3,
+              },);
+          },
+        },),
+        it({
+          name: 'throws when the record is truncated',
+          fn: async () => {
+            /**
+             Parser under test, typed for {@link ProbeEvent}.
+             */
+            const parse = makeOwnedFileParser<ProbeEvent>();
+            expect(function parseTruncated() {
+              parse('{"hook_event_name":"Pro',);
+            },)
+              .toThrow();
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: makeJsonWriter.name,
+      children: [
+        it({
+          name: 'serializes a response with no trailing newline',
+          fn: async () => {
+            /**
+             Writer under test, typed for {@link ProbeResponse}.
+             */
+            const write = makeJsonWriter<ProbeResponse>();
+            expect(write({ decision: 'allow', },),)
+              .toBe('{"decision":"allow"}',);
+          },
+        },),
+        it({
+          name: 'serializes a response whose every property is optional as an empty object',
+          fn: async () => {
+            /**
+             Writer under test, over a hook response that carries no fields.
+             */
+            const write = makeJsonWriter<ProbeOptionalResponse>();
+            expect(write({},),)
+              .toBe('{}',);
+          },
+        },),
+      ],
     },),
   ],
 },);

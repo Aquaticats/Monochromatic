@@ -321,18 +321,25 @@ pub fn review_landed(
 ///   The caller words a panic and a ceiling differently:
 /// one is a defect,
 /// the other is a review that ran as long as the service lets
-///  one run.
+///  one run;
+/// and a thread the system refused is neither,
+/// so it carries its own sentence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Contained<T> = { kind: 'finished'; value: T } | { kind: 'panicked' } | { kind: 'ceiling'; afterMs: number };
+/// type Contained<T> = { kind: 'finished'; value: T } | { kind: 'panicked' } | { kind: 'no-thread'; sentence: string } | { kind: 'ceiling'; afterMs: number };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Contained<T> {
     /// The job returned its value.
     Finished(T),
-    /// The job panicked or its thread could not start.
+    /// The job panicked.
     Panicked,
+    /// The job's thread could not be started,
+    /// with the sentence that says what refused it:
+    /// nothing ran,
+    /// so this is no defect of the job.
+    NoThread(String),
     /// The job was still running when the ceiling passed;
     /// the caller stopped waiting and the job's thread is left to end with the
     ///  process,
@@ -526,9 +533,9 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
         drop(runner.handoff_gate.lock());
         let _ = sender.send(value);
     });
-    if worker.is_err() {
+    if let Err(error) = worker {
         let _released: bool = runner.change(generation, RUNNING, IDLE);
-        return Contained::Panicked;
+        return Contained::NoThread(crate::scoped_start::refused_thread_sentence("run the review of a commit", &error));
     }
     return match receiver.recv_timeout(ceiling) {
         Ok(value) => Contained::Finished(value),

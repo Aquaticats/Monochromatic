@@ -243,15 +243,33 @@ fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
     std::fs::write(&index, b"the private index").expect("a private index");
     let named: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(tree.as_path(), git_dir.as_path()).into_iter().collect();
     assert_eq!(named, vec![tree.clone()], "a request names its tree in the field it carries for it");
+    let trees: Vec<(String, std::path::PathBuf)> = named.into_iter().map(|path| { return (String::from("a-request"), path); }).collect();
     // The landing reads the tree; only after it is over does the service start the removal.
     assert!(index.exists() && tree.exists(), "the landing has the tree it reads");
-    let trees: Vec<(String, std::path::PathBuf)> = named.into_iter().map(|found| { return (String::from("0a1b2c3d"), found); }).collect();
-    crate::service_server::remove_the_trees(trees.as_slice());
+    crate::service_server::remove_the_trees(trees.as_slice(), &std::collections::HashSet::new());
     let began: std::time::Instant = std::time::Instant::now();
     while tree.exists() {
         assert!(began.elapsed() < std::time::Duration::from_secs(30), "the removal the landing started did not finish");
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    remove_short(root.as_path());
+}
+
+/// A tree the service handed back to a request it did not land is left where it is,
+/// so the client can read the change it prepared from it.
+#[test]
+fn a_handed_back_tree_is_not_removed_by_the_service() {
+    let root: std::path::PathBuf = short_directory("handed-back");
+    let git_dir: std::path::PathBuf = root.join("repo/.git");
+    let tree: std::path::PathBuf = git_dir.join("monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-1");
+    std::fs::create_dir_all(&tree).expect("the tree a request names");
+    let index: std::path::PathBuf = tree.join("commit.index");
+    std::fs::write(&index, b"the private index a rebuild reads").expect("a private index");
+    let trees: Vec<(String, std::path::PathBuf)> = vec![(String::from("sent-back"), tree.clone())];
+    let handed_back: std::collections::HashSet<String> = [String::from("sent-back")].into_iter().collect();
+    crate::service_server::remove_the_trees(trees.as_slice(), &handed_back);
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    assert!(index.exists(), "the client reads the private index of the attempt it makes again");
     remove_short(root.as_path());
 }
 
@@ -269,34 +287,26 @@ fn a_request_that_names_a_foreign_directory_names_no_tree() {
 }
 
 /// What:
-///  A request answered with one of the two answers that ask the client to prepare again keeps its tree,
-///  and every other request of the group releases its own.
+///  The trees a group's requests name, minus the ones the service handed back to their clients.
 /// Why:
-///  The client writes the tree of the private index it just used for the retry,
-///  and the service removed that
-///  tree as soon as the landing was over,
-///  so the write-tree lost a race under load and the commit failed with
-///  "Unable to create .../commit.index.lock:
-///  No such file or directory".
+///  A client told to prepare again still reads the tree it named,
+///  so that one is the client's to remove;
+///  every other answer ends the landing that read the tree,
+///  and the service removes it beside the loop.
 #[test]
-fn only_a_request_told_to_prepare_again_keeps_its_tree() {
+fn only_a_tree_no_client_still_reads_is_released_to_the_service() {
     let trees: Vec<(String, std::path::PathBuf)> = vec![
         (String::from("landed"), std::path::PathBuf::from("/trees/landed")),
         (String::from("moved"), std::path::PathBuf::from("/trees/moved")),
         (String::from("again"), std::path::PathBuf::from("/trees/again")),
     ];
-    let preparing_again: Vec<String> = vec![String::from("moved"), String::from("again")];
-    let released: Vec<(String, std::path::PathBuf)> = crate::service_server::released_trees(trees, preparing_again.as_slice());
+    let handed_back: std::collections::HashSet<String> = [String::from("moved"), String::from("again")].into_iter().collect();
+    let released: Vec<&std::path::PathBuf> = crate::service_server::released_trees(trees.as_slice(), &handed_back);
+    assert_eq!(released, vec![&std::path::PathBuf::from("/trees/landed")], "only the landed request's tree is the service's to remove");
+    let nothing_kept: std::collections::HashSet<String> = std::collections::HashSet::new();
     assert_eq!(
-        released,
-        vec![(String::from("landed"), std::path::PathBuf::from("/trees/landed"))],
-        "only the landed request's tree is the service's to remove"
-    );
-    let nothing_kept: Vec<String> = Vec::new();
-    let all: Vec<(String, std::path::PathBuf)> = vec![(String::from("landed"), std::path::PathBuf::from("/trees/landed"))];
-    assert_eq!(
-        crate::service_server::released_trees(all, nothing_kept.as_slice()).len(),
-        1,
-        "a group none of whose requests prepares again releases every tree"
+        crate::service_server::released_trees(trees.as_slice(), &nothing_kept).len(),
+        trees.len(),
+        "a group none of whose requests was handed back releases every tree"
     );
 }

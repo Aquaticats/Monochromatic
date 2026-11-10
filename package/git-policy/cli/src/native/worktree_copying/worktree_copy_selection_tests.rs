@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use std::cmp::Ordering;
 
 /// A named FIFO created with the platform's `mkfifo` utility.
 fn make_fifo(path: &Path) {
@@ -23,39 +24,73 @@ fn ignoring(parent: &Path, name: &str, patterns: &str) -> PathBuf {
 /// A component-aware prefix relation between repository paths.
 #[test]
 fn repository_paths_are_compared_by_component() {
-    assert!(repository_path_within("cache", "cache"));
-    assert!(repository_path_within("cache/a/b", "cache"));
-    assert!(!repository_path_within("cache2", "cache"));
-    assert!(!repository_path_within("a", "cache/a"));
+    assert!(repository_path_within(b"cache", b"cache"));
+    assert!(repository_path_within(b"cache/a/b", b"cache"));
+    assert!(!repository_path_within(b"cache2", b"cache"));
+    assert!(!repository_path_within(b"a", b"cache/a"));
+}
+
+/// A parent and a child are joined with one separator,
+/// and the child keeps every byte it has.
+#[test]
+fn a_repository_path_is_joined_from_its_parent_and_a_name() {
+    assert_eq!(join_repository_path(b"cache", b"a"), b"cache/a".to_vec());
+    assert_eq!(join_repository_path(b"cache", b"a\xff"), b"cache/a\xff".to_vec());
+    assert_eq!(parent_of_repository_path(b"cache/a/b"), Some(b"cache/a".as_slice()));
+    assert_eq!(parent_of_repository_path(b"only"), None);
 }
 
 /// Every unsafe shape Git could never legitimately produce is refused,
-/// and ordinary names pass.
+/// and ordinary names pass,
+/// including a name that is not text.
 #[test]
 fn unsafe_repository_paths_are_refused() {
     for unsafe_path in [
-        "", "/abs", "a//b", "./a", "a/./b", "a/../b", "..", "a/..", "a/",
+        b"".as_slice(),
+        b"/abs",
+        b"a//b",
+        b"./a",
+        b"a/./b",
+        b"a/../b",
+        b"..",
+        b"a/..",
+        b"a/",
     ] {
         let failure: WorktreeCopyError =
-            assert_safe_repository_path(unsafe_path).expect_err(unsafe_path);
+            assert_safe_repository_path(unsafe_path).expect_err(shown_repository_path(unsafe_path).as_str());
         assert!(
             failure
                 .0
                 .starts_with("monochromatic-git-policy-cli: Git returned unsafe ignored path "),
-            "{unsafe_path}"
+            "{unsafe_path:?}"
         );
     }
-    for safe_path in ["a", "a/b.c", ".hidden", "a/..b", "a b/c"] {
-        assert_safe_repository_path(safe_path).expect(safe_path);
+    for safe_path in [
+        b"a".as_slice(),
+        b"a/b.c",
+        b".hidden",
+        b"a/..b",
+        b"a b/c",
+        b"a/b\xff.bin",
+    ] {
+        assert!(assert_safe_repository_path(safe_path).is_ok(), "{}", shown_repository_path(safe_path));
     }
 }
 
-/// A validated path joins its components under the root.
+/// A validated path joins its components under the root,
+/// and a name that is not text reaches the filesystem as it is.
 #[test]
 fn filesystem_path_joins_validated_components() {
-    let joined: PathBuf = filesystem_path(Path::new("/repo"), "a/b.c").expect("joined");
+    use std::os::unix::ffi::OsStrExt;
+    let joined: PathBuf = filesystem_path(Path::new("/repo"), b"a/b.c").expect("joined");
     assert_eq!(joined, PathBuf::from("/repo/a/b.c"));
-    assert!(filesystem_path(Path::new("/repo"), "a/../b").is_err());
+    assert!(filesystem_path(Path::new("/repo"), b"a/../b").is_err());
+    let awkward: PathBuf = filesystem_path(Path::new("/repo"), b"cache/bad\xff.bin").expect("joined");
+    assert_eq!(
+        awkward.file_name().expect("name").as_bytes(),
+        b"bad\xff.bin",
+        "the name keeps every byte it has"
+    );
 }
 
 /// Order matches JavaScript's code-unit order,
@@ -65,6 +100,21 @@ fn js_order_compares_utf16_code_units() {
     assert_eq!(js_order("\u{FFFD}", "\u{1F600}"), Ordering::Greater);
     assert_eq!(js_order("a", "b"), Ordering::Less);
     assert_eq!(js_order("same", "same"), Ordering::Equal);
+}
+
+/// A repository path that is text keeps the order the incumbent gave it,
+/// and two names whose text is equal are ordered by their bytes,
+/// so a walk of names that are not text is still reproducible.
+#[test]
+fn repository_path_order_keeps_the_incumbents_order_and_settles_equal_text_by_bytes() {
+    assert_eq!(repository_path_order(b"a", b"b"), Ordering::Less);
+    // UTF-16 order puts U+FFFD above U+1F600, which byte order does not.
+    assert_eq!(
+        repository_path_order("\u{FFFD}".as_bytes(), "\u{1F600}".as_bytes()),
+        Ordering::Greater
+    );
+    assert_eq!(repository_path_order(b"a\xff", b"a\xfe"), Ordering::Greater);
+    assert_eq!(repository_path_order(b"a\xff", b"a\xff"), Ordering::Equal);
 }
 
 /// Ignored directories are reported once;
@@ -77,12 +127,26 @@ fn ignored_directories_collapse_into_outermost_root() {
     std::fs::write(source.join("node_modules/pkg/index.js"), b"x").expect("file");
     std::fs::create_dir_all(source.join("cache/inner")).expect("cache");
     std::fs::write(source.join("cache/inner/data"), b"y").expect("cache file");
-    let roots: Vec<String> =
+    let roots: Vec<Vec<u8>> =
         read_ignored_roots(&git_context(), source.as_path(), &[]).expect("roots");
-    assert_eq!(
-        roots,
-        vec![String::from("cache"), String::from("node_modules")]
-    );
+    assert_eq!(roots, vec![b"cache".to_vec(), b"node_modules".to_vec()]);
+    remove(root.as_path());
+}
+
+/// An ignored root whose own name is not text is selected exactly,
+/// not as the text a conversion would make of it.
+#[cfg(unix)]
+#[test]
+fn an_ignored_root_whose_name_is_not_text_is_selected_byte_for_byte() {
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("selection-non-text-root");
+    let source: PathBuf = ignoring(root.as_path(), "source", "*.log\n");
+    let mut named: PathBuf = source.clone();
+    named.push(std::ffi::OsStr::from_bytes(b"f\x80.log"));
+    std::fs::write(named.as_path(), b"log").expect("log file");
+    let roots: Vec<Vec<u8>> =
+        read_ignored_roots(&git_context(), source.as_path(), &[]).expect("roots");
+    assert_eq!(roots, vec![b"f\x80.log".to_vec()]);
     remove(root.as_path());
 }
 
@@ -118,17 +182,14 @@ fn every_exclusion_source_and_symbolic_links_are_selected() {
         )
         .expect("info exclude with link");
     }
-    let roots: Vec<String> =
+    let roots: Vec<Vec<u8>> =
         read_ignored_roots(&git_context(), source.as_path(), &[]).expect("roots");
-    assert!(roots.contains(&String::from("sub/app.log")), "{roots:?}");
-    assert!(
-        roots.contains(&String::from("excluded-by-info")),
-        "{roots:?}"
-    );
-    assert!(roots.contains(&String::from("from-global")), "{roots:?}");
+    assert!(roots.contains(&b"sub/app.log".to_vec()), "{roots:?}");
+    assert!(roots.contains(&b"excluded-by-info".to_vec()), "{roots:?}");
+    assert!(roots.contains(&b"from-global".to_vec()), "{roots:?}");
     #[cfg(unix)]
     assert!(
-        roots.contains(&String::from("excluded-by-info-link")),
+        roots.contains(&b"excluded-by-info-link".to_vec()),
         "{roots:?}"
     );
     remove(root.as_path());
@@ -143,10 +204,10 @@ fn ignored_special_entries_are_selected_only_when_ignored() {
     let source: PathBuf = ignoring(root.as_path(), "source", "ignored-pipe\n");
     make_fifo(source.join("ignored-pipe").as_path());
     make_fifo(source.join("plain-pipe").as_path());
-    let roots: Vec<String> =
+    let roots: Vec<Vec<u8>> =
         read_ignored_roots(&git_context(), source.as_path(), &[]).expect("roots");
-    assert!(roots.contains(&String::from("ignored-pipe")), "{roots:?}");
-    assert!(!roots.contains(&String::from("plain-pipe")), "{roots:?}");
+    assert!(roots.contains(&b"ignored-pipe".to_vec()), "{roots:?}");
+    assert!(!roots.contains(&b"plain-pipe".to_vec()), "{roots:?}");
     remove(root.as_path());
 }
 
@@ -160,9 +221,9 @@ fn excluded_roots_are_not_walked_for_special_entries() {
     make_fifo(source.join("nested/pipe").as_path());
     let excluded: Vec<PathBuf> =
         vec![std::fs::canonicalize(source.join("nested")).expect("canonical")];
-    let roots: Vec<String> =
+    let roots: Vec<Vec<u8>> =
         read_ignored_roots(&git_context(), source.as_path(), excluded.as_slice()).expect("roots");
-    assert_eq!(roots, vec![String::from("nested")]);
+    assert_eq!(roots, vec![b"nested".to_vec()]);
     remove(root.as_path());
 }
 
@@ -195,13 +256,13 @@ fn source_with_named_file(parent: &Path, name: &str) -> PathBuf {
 fn named_ignored_file_is_selected_alone() {
     let root: PathBuf = fixture("selection-named");
     let source: PathBuf = source_with_named_file(root.as_path(), "source");
-    let roots: Vec<String> = read_named_ignored_roots(
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
         &git_context(),
         source.as_path(),
-        &[String::from(".cache/rules.txt")],
+        &[b".cache/rules.txt".to_vec()],
     )
     .expect("roots");
-    assert_eq!(roots, vec![String::from(".cache/rules.txt")]);
+    assert_eq!(roots, vec![b".cache/rules.txt".to_vec()]);
     remove(root.as_path());
 }
 
@@ -215,9 +276,9 @@ fn a_named_ignored_file_is_selected_under_the_callers_conflicting_glob_modes() {
     let mut inherited: crate::transaction_git::GitContext = git_context();
     inherited.overlay.push((std::ffi::OsString::from("GIT_GLOB_PATHSPECS"), std::ffi::OsString::from("1")));
     inherited.overlay.push((std::ffi::OsString::from("GIT_NOGLOB_PATHSPECS"), std::ffi::OsString::from("1")));
-    let roots: Vec<String> = read_named_ignored_roots(&inherited, source.as_path(), &[String::from(".cache/rules.txt")])
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(&inherited, source.as_path(), &[b".cache/rules.txt".to_vec()])
         .expect("the listing answers despite the caller's modes");
-    assert_eq!(roots, vec![String::from(".cache/rules.txt")]);
+    assert_eq!(roots, vec![b".cache/rules.txt".to_vec()]);
     remove(root.as_path());
 }
 
@@ -226,10 +287,10 @@ fn a_named_ignored_file_is_selected_under_the_callers_conflicting_glob_modes() {
 fn absent_named_file_selects_nothing() {
     let root: PathBuf = fixture("selection-named-absent");
     let source: PathBuf = source_with_named_file(root.as_path(), "source");
-    let roots: Vec<String> = read_named_ignored_roots(
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
         &git_context(),
         source.as_path(),
-        &[String::from(".cache/missing.txt")],
+        &[b".cache/missing.txt".to_vec()],
     )
     .expect("roots");
     assert!(roots.is_empty(), "{roots:?}");
@@ -246,10 +307,10 @@ fn named_file_that_git_does_not_ignore_is_not_selected() {
     std::fs::write(source.join("plain.txt"), b"plain").expect("plain");
     std::fs::write(source.join("tracked.txt"), b"tracked").expect("tracked");
     git(source.as_path(), &["add", "tracked.txt"]);
-    let roots: Vec<String> = read_named_ignored_roots(
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
         &git_context(),
         source.as_path(),
-        &[String::from("plain.txt"), String::from("tracked.txt")],
+        &[b"plain.txt".to_vec(), b"tracked.txt".to_vec()],
     )
     .expect("roots");
     assert!(roots.is_empty(), "{roots:?}");
@@ -262,8 +323,8 @@ fn named_file_that_git_does_not_ignore_is_not_selected() {
 fn named_directory_selects_nothing() {
     let root: PathBuf = fixture("selection-named-directory");
     let source: PathBuf = source_with_named_file(root.as_path(), "source");
-    let roots: Vec<String> =
-        read_named_ignored_roots(&git_context(), source.as_path(), &[String::from(".cache")])
+    let roots: Vec<Vec<u8>> =
+        read_named_ignored_roots(&git_context(), source.as_path(), &[b".cache".to_vec()])
             .expect("roots");
     assert!(roots.is_empty(), "{roots:?}");
     remove(root.as_path());
@@ -275,13 +336,10 @@ fn named_directory_selects_nothing() {
 fn named_path_is_matched_literally() {
     let root: PathBuf = fixture("selection-named-literal");
     let source: PathBuf = source_with_named_file(root.as_path(), "source");
-    let roots: Vec<String> = read_named_ignored_roots(
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
         &git_context(),
         source.as_path(),
-        &[
-            String::from(".cache/*.txt"),
-            String::from(":(glob).cache/**"),
-        ],
+        &[b".cache/*.txt".to_vec(), b":(glob).cache/**".to_vec()],
     )
     .expect("roots");
     assert!(roots.is_empty(), "{roots:?}");
@@ -295,13 +353,33 @@ fn named_path_with_glob_characters_is_found_literally() {
     let source: PathBuf = ignoring(root.as_path(), "source", "\\[x\\].txt\n");
     std::fs::write(source.join("[x].txt"), b"bracketed").expect("bracketed");
     std::fs::write(source.join("x.txt"), b"plain").expect("plain");
-    let roots: Vec<String> = read_named_ignored_roots(
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
         &git_context(),
         source.as_path(),
-        &[String::from("[x].txt")],
+        &[b"[x].txt".to_vec()],
     )
     .expect("roots");
-    assert_eq!(roots, vec![String::from("[x].txt")]);
+    assert_eq!(roots, vec![b"[x].txt".to_vec()]);
+    remove(root.as_path());
+}
+
+/// A named ignored file whose name is not text is found by those bytes.
+#[cfg(unix)]
+#[test]
+fn a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes() {
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("selection-named-non-text");
+    let source: PathBuf = ignoring(root.as_path(), "source", "*.env\n");
+    let mut named: PathBuf = source.clone();
+    named.push(std::ffi::OsStr::from_bytes(b"bad\xff.env"));
+    std::fs::write(named.as_path(), b"SECRET=1\n").expect("env");
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(
+        &git_context(),
+        source.as_path(),
+        &[b"bad\xff.env".to_vec()],
+    )
+    .expect("roots");
+    assert_eq!(roots, vec![b"bad\xff.env".to_vec()]);
     remove(root.as_path());
 }
 
@@ -310,18 +388,18 @@ fn named_path_with_glob_characters_is_found_literally() {
 fn unsafe_named_path_is_refused() {
     let root: PathBuf = fixture("selection-named-unsafe");
     let source: PathBuf = source_with_named_file(root.as_path(), "source");
-    for unsafe_path in ["../escape", "/abs", ""] {
+    for unsafe_path in [b"../escape".to_vec(), b"/abs".to_vec(), Vec::new()] {
         let failure: WorktreeCopyError = read_named_ignored_roots(
             &git_context(),
             source.as_path(),
-            &[String::from(unsafe_path)],
+            std::slice::from_ref(&unsafe_path),
         )
-        .expect_err(unsafe_path);
+        .expect_err(shown_repository_path(unsafe_path.as_slice()).as_str());
         assert!(
             failure
                 .0
                 .starts_with("monochromatic-git-policy-cli: Git returned unsafe ignored path "),
-            "{unsafe_path}"
+            "{unsafe_path:?}"
         );
     }
     remove(root.as_path());
@@ -343,8 +421,8 @@ fn named_ignored_file_is_selected_under_literal_pathspec_mode() {
     let root: PathBuf = fixture("selection-named-literal-mode");
     let source: PathBuf = ignoring(root.as_path(), "source", ".env\n");
     std::fs::write(source.join(".env"), b"SECRET=1\n").expect("env");
-    let roots: Vec<String> = read_named_ignored_roots(&literal_pathspec_context(), source.as_path(), &[String::from(".env")]).expect("roots");
-    assert_eq!(roots, vec![String::from(".env")], "a configured ignored file must be copied under the caller's literal pathspec mode");
+    let roots: Vec<Vec<u8>> = read_named_ignored_roots(&literal_pathspec_context(), source.as_path(), &[b".env".to_vec()]).expect("roots");
+    assert_eq!(roots, vec![b".env".to_vec()], "a configured ignored file must be copied under the caller's literal pathspec mode");
     remove(root.as_path());
 }
 
@@ -354,21 +432,18 @@ fn named_ignored_file_is_selected_under_literal_pathspec_mode() {
 fn selection_modes_choose_the_roots() {
     let root: PathBuf = fixture("selection-modes");
     let source: PathBuf = source_with_named_file(root.as_path(), "source");
-    let named: Vec<String> = select_roots(
+    let named: Vec<Vec<u8>> = select_roots(
         &git_context(),
         source.as_path(),
         &[],
-        &CopySelection::Paths(vec![String::from(".cache/rules.txt")]),
+        &CopySelection::Paths(vec![b".cache/rules.txt".to_vec()]),
     )
     .expect("named");
-    assert_eq!(named, vec![String::from(".cache/rules.txt")]);
-    let all: Vec<String> =
+    assert_eq!(named, vec![b".cache/rules.txt".to_vec()]);
+    let all: Vec<Vec<u8>> =
         select_roots(&git_context(), source.as_path(), &[], &CopySelection::Ignored)
             .expect("all");
-    assert_eq!(
-        all,
-        vec![String::from(".cache"), String::from("node_modules")]
-    );
+    assert_eq!(all, vec![b".cache".to_vec(), b"node_modules".to_vec()]);
     remove(root.as_path());
 }
 
@@ -383,19 +458,16 @@ fn selection_ignores_the_users_global_git_options() {
         "--git-dir".into(),
         root.join("elsewhere").into_os_string(),
     ];
-    let named: Vec<String> = read_named_ignored_roots(
+    let named: Vec<Vec<u8>> = read_named_ignored_roots(
         &context,
         source.as_path(),
-        &[String::from(".cache/rules.txt")],
+        &[b".cache/rules.txt".to_vec()],
     )
     .expect("named roots");
-    assert_eq!(named, vec![String::from(".cache/rules.txt")]);
-    let all: Vec<String> =
+    assert_eq!(named, vec![b".cache/rules.txt".to_vec()]);
+    let all: Vec<Vec<u8>> =
         read_ignored_roots(&context, source.as_path(), &[]).expect("ignored roots");
-    assert_eq!(
-        all,
-        vec![String::from(".cache"), String::from("node_modules")]
-    );
+    assert_eq!(all, vec![b".cache".to_vec(), b"node_modules".to_vec()]);
     remove(root.as_path());
 }
 
@@ -412,8 +484,8 @@ fn special_entry_check_ignores_the_users_global_git_options() {
         "--git-dir".into(),
         root.join("elsewhere").into_os_string(),
     ];
-    let roots: Vec<String> = read_ignored_roots(&context, source.as_path(), &[]).expect("roots");
-    assert!(roots.contains(&String::from("ignored-pipe")), "{roots:?}");
+    let roots: Vec<Vec<u8>> = read_ignored_roots(&context, source.as_path(), &[]).expect("roots");
+    assert!(roots.contains(&b"ignored-pipe".to_vec()), "{roots:?}");
     remove(root.as_path());
 }
 
@@ -428,9 +500,9 @@ fn special_entries_under_an_excluded_root_are_not_selected() {
     make_fifo(source.join("pipe").as_path());
     let excluded: Vec<PathBuf> =
         vec![std::fs::canonicalize(source.join("nested")).expect("canonical")];
-    let roots: Vec<String> =
+    let roots: Vec<Vec<u8>> =
         read_ignored_roots(&git_context(), source.as_path(), excluded.as_slice()).expect("roots");
-    assert_eq!(roots, vec![String::from("pipe")]);
+    assert_eq!(roots, vec![b"pipe".to_vec()]);
     remove(root.as_path());
 }
 
@@ -455,8 +527,8 @@ fn the_ignore_question_about_a_special_entry_starts_check_ignore_without_quiet()
     let root: PathBuf = fixture("selection-check-ignore-no-quiet");
     let repo: PathBuf = ignoring(root.as_path(), "repo", "ignored.fifo\n");
     let (context, log) = crate::recording_git::recording_context(root.as_path());
-    assert!(is_ignored_special_path(&context, repo.as_path(), "ignored.fifo").expect("answer"), "an ignored path answers yes");
-    assert!(!is_ignored_special_path(&context, repo.as_path(), "kept.fifo").expect("answer"), "any other path answers no");
+    assert!(is_ignored_special_path(&context, repo.as_path(), b"ignored.fifo").expect("answer"), "an ignored path answers yes");
+    assert!(!is_ignored_special_path(&context, repo.as_path(), b"kept.fifo").expect("answer"), "any other path answers no");
     let asks: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("check-ignore"); }).collect();
     assert_eq!(asks.len(), 2, "one start for each question: {asks:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
