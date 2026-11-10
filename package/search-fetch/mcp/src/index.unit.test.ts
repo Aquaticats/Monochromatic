@@ -415,6 +415,90 @@ await describe({
             expect((caught as Error).message,).toContain(recorded.uri,);
           },
         },),
+        it({
+          name: 'evicts the oldest response once recording passes capacity',
+          fn: async () => {
+            /**
+             Capacity small enough to pass within one test run.
+             */
+            const CAPACITY = 4;
+            /**
+             Recordings made, one past capacity so exactly one entry must be evicted.
+             */
+            const RECORD_COUNT = CAPACITY + 1;
+            /**
+             Disposable fixture directory holding every recorded response file, removed
+             when the test scope ends.
+             */
+            await using fixtureDirectory = await mkdtempDisposable(join(
+              scratchRoot(),
+              'search-fetch-mcp-eviction-',
+            ),);
+            const fixtureDir = fixtureDirectory.path;
+            /**
+             Store bounded to `CAPACITY` responses.
+             */
+            const store = createResponseStore({ capacity: CAPACITY, },);
+            /**
+             Full response file paths in recording order, oldest first.
+             */
+            const filePaths = Array.from({ length: RECORD_COUNT, }, function toPath(_unused, index,) {
+              return join(fixtureDir, `response-${String(index,)}.json`,);
+            },);
+            await Promise.all(filePaths.map(function write(filePath, index,) {
+              return writeFile(
+                filePath,
+                `{"index":${String(index,)}}`,
+                'utf8',
+              );
+            },),);
+            /**
+             Every recorded response in recording order, oldest first.
+             */
+            const recorded = filePaths.map(function toRecorded(filePath, index,) {
+              return store.record({
+                filePath,
+                name: `full response ${String(index,)}`,
+                description: 'truncated fetch output',
+              },);
+            },);
+
+            /**
+             Resource URIs in recording order, oldest first.
+             */
+            const uris = recorded.map(function toUri(entry,) {
+              return entry.uri;
+            },);
+            /**
+             The oldest URI, the one eviction must drop.
+             */
+            const [evictedUri,] = uris;
+            if (evictedUri === undefined)
+              throw new Error('expected the store to record a first response',);
+
+            /**
+             Resource URIs the store still advertises, oldest first.
+             */
+            const listedUris = (await store.list()).map(function toUri(descriptor,) {
+              return descriptor.uri;
+            },);
+            expect(listedUris,).toEqual(uris.slice(1,),);
+
+            /**
+             Local value for caught.
+             */
+            let caught: unknown;
+            try {
+              await store.read(evictedUri,);
+            }
+            catch (error: unknown) {
+              caught = error;
+            }
+
+            expect(caught,).toBeInstanceOf(ResourceReadError,);
+            expect((caught as Error).message,).toContain(evictedUri,);
+          },
+        },),
       ],
     },),
   ],
