@@ -3783,7 +3783,8 @@ mise run //package/git-policy/cli:native:test:container
   `dispatchGate`,
   so the dispatch runs it after every refusal that costs nothing and before it starts the workflow
   (`package/crate-release/cli/README.md`).
-  It runs `native:test:host:btrfs` with its own deadline,
+  It runs `native:test:host:btrfs` with its own deadline of three hours,
+  three times the 3286 seconds a full run took on this host on 2026-11-10,
   and it refuses the release when a test failed,
   when a control printed `BTRFS CONTROL NOT RUN` for any reason but needing a filesystem that is not btrfs,
   when the deadline stopped the run,
