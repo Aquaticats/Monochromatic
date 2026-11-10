@@ -104,7 +104,7 @@ fn now_milliseconds() -> i64 {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function refuseSharedRemoteSettings(facts, args, allowedDirs): PolicyOutcome | undefined;
+/// function refuseSharedRemoteSettings(facts, write, allowedDirs): PolicyOutcome;
 /// ```
 fn refuse_shared_remote_settings(
     facts: &mut dyn RepositoryFacts,
