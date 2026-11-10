@@ -3864,20 +3864,26 @@ and a landing that finds it still running takes the lock the ordinary way and ne
   a marker still being flushed stays in the service's slot and the landing stages its own,
   and the marker that was flushing is removed once it is finished,
   by the batch that follows or by the service's end.
-  `discard`, which runs between landings and at the service's end, still waits for it,
+  `discard`,
+  which runs between landings and at the service's end,
+  still waits for it,
   so no file is left behind and one file at most is ever being made.
 
 ### Before and after, on one worktree and three commits in a row
 
-The `answered` line of the service, in whole milliseconds:
+The `answered` line of the service,
+in whole milliseconds:
 
 - before:
   `lock_wait_ms=4 lock_stage_ms=0 lock_stage_kind=cold`,
   then `lock_wait_ms=9369 lock_stage_ms=9333 lock_stage_kind=pre`,
   then `lock_wait_ms=12867 lock_stage_ms=12825 lock_stage_kind=pre`.
 - after:
-  `lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=cold`, three times,
-  with `lock_hold_ms` 32, 91 and 14 and `landing_ms` 44, 101 and 27.
+  `lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=cold`,
+  three times,
+  with `lock_hold_ms` 32,
+  91 and 14 and `landing_ms` 44,
+  101 and 27.
 
 ### Many commits at once, after
 
@@ -3887,13 +3893,24 @@ The method is the one the section above used:
 one service per worktree,
 24 commits started in the same tick,
 two rounds per arm.
-This run's host was quieter than that one's (load average 33, 31 and 39 against 162, 142 and 141),
+This run's host was quieter than that one's (load average 33,
+31 and 39 against 162,
+142 and 141),
 so the two runs' medians are not comparable and only the lock figures are.
 
-- native Git: 48 commits, median 35, p95 55, largest 59.
-- the wrapper: 48 commits, median 372, p95 834, largest 842.
+- native Git:
+  48 commits,
+  median 35,
+  p95 55,
+  largest 59.
+- the wrapper:
+  48 commits,
+  median 372,
+  p95 834,
+  largest 842.
 - every one of the 46 landings named `lock_stage_kind=cold`,
-  with `lock_stage_ms` 0 for 42 of them, 1 for three and 7 for one,
+  with `lock_stage_ms` 0 for 42 of them,
+  1 for three and 7 for one,
   and `lock_wait_ms` never above 13.
   The flush did not finish between one round and the next on this disk,
   so no landing took a marker made ahead and none waited for one:
