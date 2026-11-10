@@ -22,8 +22,12 @@
 //! const outcome = chooseFolder(); // {kind: 'chosen', folder} | {kind: 'cancelled'} | {kind: 'noChooser'} | {kind: 'failed', failure}
 //! ```
 
-/// Imports the path types that a chosen folder and the chooser program are.
-use std::path::{Path, PathBuf};
+/// Imports the path type that a chosen folder and the chooser program are.
+use std::path::PathBuf;
+
+/// Imports the path type that the chooser program is run from, which only the Linux half does.
+#[cfg(target_os = "linux")]
+use std::path::Path;
 
 /// Imports the remedy sentence that closes every message about a chooser that will not open.
 use crate::dialog_backend::NO_DIALOG_REMEDY;
