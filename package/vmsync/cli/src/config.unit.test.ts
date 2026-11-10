@@ -6,6 +6,7 @@ import {
 
 import {
   detectHypervisor,
+  isVmNameChar,
   stripJsoncComments,
   validateName,
   vmConfigPath,
@@ -138,6 +139,32 @@ await describe({
 
     //endregion validateName
 
+    //region isVmNameChar: the single owner of the allowed-name-character policy
+
+    describe({
+      name: isVmNameChar.name,
+      children: [
+        ...['a', 'Z', '0', '_', '-',].map(function mapAllowed(c,) {
+          return it({
+            name: `accepts ${c}`,
+            fn: async () => {
+              expect(isVmNameChar(c,),).toBe(true,);
+            },
+          },);
+        },),
+        ...[' ', '.', '/', '~', '!', '+', '=', 'é',].map(function mapRejected(c,) {
+          return it({
+            name: `rejects ${JSON.stringify(c,)}`,
+            fn: async () => {
+              expect(isVmNameChar(c,),).toBe(false,);
+            },
+          },);
+        },),
+      ],
+    },),
+
+    //endregion isVmNameChar
+
     //region stripJsoncComments: removes comments while preserving string content
 
     describe({
@@ -196,6 +223,34 @@ await describe({
           fn: async () => {
             const input = String.raw`{"msg": "say \"hello\""}`;
             expect(stripJsoncComments(input,),).toBe(input,);
+          },
+        },),
+
+        it({
+          name: 'closes a block comment whose body starts with a slash',
+          fn: async () => {
+            const input = '{/*/*/ "a": 1}';
+            const stripped = stripJsoncComments(input,);
+            expect(stripped,).toBe('{ "a": 1}',);
+            expect(() => {
+              JSON.parse(stripped,);
+            },)
+              .not
+              .toThrow();
+          },
+        },),
+
+        it({
+          name: 'closes a block comment whose body starts with two slashes',
+          fn: async () => {
+            expect(stripJsoncComments('{"a": /*// x */ 1}',),).toBe('{"a":  1}',);
+          },
+        },),
+
+        it({
+          name: 'consumes an unterminated block comment to end of input',
+          fn: async () => {
+            expect(stripJsoncComments('{"a": /* never closed',),).toBe('{"a": ',);
           },
         },),
 
