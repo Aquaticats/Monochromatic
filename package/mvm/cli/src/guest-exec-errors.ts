@@ -5,6 +5,10 @@
  @module
  */
 
+import { NamedError, } from '@monochromatic-dev/named-error-core/ts';
+
+/* oxlint-disable unicorn/custom-error-definition -- Every class here takes its name from `NamedError`, which derives it from the concrete class, so no literal is left to check; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
+
 //region Discarded results
 
 /**
@@ -104,7 +108,7 @@ function describeDiscarded(discarded: readonly DiscardedGuestResult[],): string 
  }
  ```
  */
-export class GuestExecLaunchError extends Error {
+export class GuestExecLaunchError extends NamedError {
   /**
    Whether the command may be running in the guest although no process ID came back.
    */
@@ -136,7 +140,6 @@ export class GuestExecLaunchError extends Error {
         : `The guest agent in ${domain} refused to start the command, so nothing ran: ${cause.message}`,
       { cause, },
     );
-    this.name = 'GuestExecLaunchError';
     this.mayBeRunning = mayBeRunning;
   }
 }
@@ -155,7 +158,7 @@ export class GuestExecLaunchError extends Error {
  }
  ```
  */
-export class GuestExecStatusUnavailableError extends Error {
+export class GuestExecStatusUnavailableError extends NamedError {
   /**
    Guest process ID the command was started as.
    */
@@ -189,7 +192,6 @@ export class GuestExecStatusUnavailableError extends Error {
       ].join('\n',),
       { cause, },
     );
-    this.name = 'GuestExecStatusUnavailableError';
     this.pid = pid;
   }
 }
@@ -209,7 +211,7 @@ export class GuestExecStatusUnavailableError extends Error {
  }
  ```
  */
-export class GuestExecOutputTooLargeError extends Error {
+export class GuestExecOutputTooLargeError extends NamedError {
   /**
    Guest process ID the command was started as.
    */
@@ -242,7 +244,6 @@ export class GuestExecOutputTooLargeError extends Error {
       ].join('\n',),
       { cause, },
     );
-    this.name = 'GuestExecOutputTooLargeError';
     this.pid = pid;
   }
 }
@@ -266,7 +267,7 @@ export class GuestExecOutputTooLargeError extends Error {
  }
  ```
  */
-export class GuestExecAttributionError extends Error {
+export class GuestExecAttributionError extends NamedError {
   /**
    Results reported under the process ID without the command's marker, oldest first.
    */
@@ -310,10 +311,11 @@ export class GuestExecAttributionError extends Error {
       ].join('\n',),
       { cause, },
     );
-    this.name = 'GuestExecAttributionError';
     this.discarded = discarded;
     this.pid = pid;
   }
 }
 
 //endregion Errors
+
+/* oxlint-enable unicorn/custom-error-definition */

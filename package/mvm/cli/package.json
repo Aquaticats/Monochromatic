@@ -31,6 +31,7 @@
   "dependencies": {
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/named-error-core": "workspace:*",
     "@monochromatic-dev/hyperscript-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
     "@monochromatic-dev/numeric-format-core": "workspace:*",
