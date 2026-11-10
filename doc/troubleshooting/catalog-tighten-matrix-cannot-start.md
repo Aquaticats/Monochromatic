@@ -67,7 +67,9 @@ $ readlink node_modules/nano-spawn
 
 The container mounts the monorepo read-only at `/repo` and nothing else
 (`buildPodmanArgs`,
-`package/dependency-catalog/cli-tighten.matrix/src/matrix.unit.matrix.test.ts`),
+then in
+`package/dependency-catalog/cli-tighten.matrix/src/matrix.unit.matrix.test.ts`,
+now in `package/dependency-catalog/cli-tighten.matrix/src/podman-args.ts`),
 so `/repo/node_modules/nano-spawn` resolves through that relative target to
 `/home/user/.local/share/pnpm/store/...` inside the container,
 where no such
@@ -89,7 +91,9 @@ because package-level `node_modules` directories hold only workspace links.
     .trim();
 ```
 
-(`package/dependency-catalog/cli-tighten.matrix/src/matrix.unit.matrix.test.ts:87-92`).
+(`package/dependency-catalog/cli-tighten.matrix/src/matrix.unit.matrix.test.ts:87-92`
+then; the function now lives in
+`package/dependency-catalog/cli-tighten.matrix/src/host-pnpm.ts`).
 
 Under mise,
 `pnpm` on PATH is this repository's `pnpm-shadow`,
@@ -214,6 +218,54 @@ than "first line".
 
 Both changes touch how the matrix mounts host paths and how it derives a spec,
 so they are the owner's call.
+
+## Landed: both workarounds, on `fix/dependency-catalog-cli-tighten-matrix-starts`
+
+Both are in as of `23b5b45bde`.
+`buildPodmanArgs` moved to
+`package/dependency-catalog/cli-tighten.matrix/src/podman-args.ts`,
+the two host readings to
+`package/dependency-catalog/cli-tighten.matrix/src/host-pnpm.ts`,
+and the mount-destination mapping to
+`containerStoreDir` in
+`package/dependency-catalog/cli-tighten.matrix/src/container-paths.ts`,
+so each is unit-tested without a container.
+
+### The mount destination is the spelling the links use
+
+`pnpm store path` reports the store's canonical path,
+`/var/home/user/.local/share/pnpm/store/v11` on this machine,
+while the workspace's `node_modules` links are relative out to
+`/home/user/.local/share/pnpm/store/v11`,
+the home the installing shell named.
+Mounting at the canonical path alone therefore still leaves every link
+dangling,
+so the destination is the report re-rooted at `$HOME` when the two differ,
+and the report itself otherwise.
+
+### Measured after the change
+
+```sh
+mise run //package/dependency-catalog/cli-tighten.matrix:test:matrix
+```
+
+```text
+[info] [2026-11-10T17:54:01.380Z] [catalog-tighten install-layout matrix] [PASS] isolated, hoist on, isolated, hoist off, hoisted, hoist on, hoisted, hoist off, pnp, modulesDir renamed, virtualStoreDir relocated, global virtual store, storeDir relocated, stale orphan, missing lockfile, missing store, missing some node_modules, missing pnpm, missing virtual store, store-only orphan, undeclared, missing all node_modules, missing workspace yaml, missing pnp cjs, pnp, symlink off, pnp, symlink off, missing pnp cjs (83.4s)
+```
+
+All twenty-one scenarios pass;
+the run exits zero.
+
+Controls through the branch's own `buildPodmanArgs`, one scenario each:
+
+- store mount kept:
+  `[isolated, hoist on] PASS (tighten)`, exit 0.
+- store mount removed from the argv:
+  `code: 'ERR_MODULE_NOT_FOUND'`, exit 1.
+- the whole two-line `pnpm --version` stdout as the spec:
+  corepack refuses the command word
+  (`While running "pnpm@12.18.0\npnpm-shadow 0.1.3-alpha.1, shadowing pnpm at /opt/pnpm" install ...`),
+  exit 1.
 
 ## What does not work
 
