@@ -29,6 +29,7 @@ import {
   IN_CONTAINER_ENTRY,
   REPO_DIR,
   TOOL_ENTRY,
+  containerStoreDir,
 } from './container-paths.ts';
 
 //region Host mapping
@@ -69,6 +70,30 @@ function hostPathOf(inContainerPath: string,): string {
 }
 
 //endregion Host mapping
+
+//region Store mount mapping
+
+/**
+ Home directory as the mounting process spells it (`$HOME`).
+ */
+const LOGICAL_HOME = '/home/user';
+
+/**
+ Where that home actually lives on the host, when a mount puts it elsewhere.
+ */
+const REAL_HOME = '/var/canonical/home/user';
+
+/**
+ Store path pnpm reports for a store under {@link REAL_HOME}.
+ */
+const STORE_UNDER_REAL_HOME = `${REAL_HOME}/.local/share/pnpm/store/v11`;
+
+/**
+ Same store, spelled the way the workspace's `node_modules` links spell it.
+ */
+const STORE_UNDER_LOGICAL_HOME = `${LOGICAL_HOME}/.local/share/pnpm/store/v11`;
+
+//endregion Store mount mapping
 
 //region Entrypoints
 
@@ -146,5 +171,50 @@ await describe({
     },),
 
     //endregion Mount mapping
+
+    //region Store mount mapping
+
+    ...[
+      {
+        name: 'spells the store under the home the links name, not its canonical path',
+        hostStoreDir: STORE_UNDER_REAL_HOME,
+        realHomeDir: REAL_HOME,
+        expected: STORE_UNDER_LOGICAL_HOME,
+      },
+      {
+        name: 'leaves the store path alone when the home has no canonical alias',
+        hostStoreDir: STORE_UNDER_LOGICAL_HOME,
+        realHomeDir: LOGICAL_HOME,
+        expected: STORE_UNDER_LOGICAL_HOME,
+      },
+      {
+        name: 'leaves a store outside the home alone',
+        hostStoreDir: '/srv/pnpm-store/v11',
+        realHomeDir: REAL_HOME,
+        expected: '/srv/pnpm-store/v11',
+      },
+    ].map(function containerStoreDirCase(
+      {
+        name,
+        hostStoreDir,
+        realHomeDir,
+        expected,
+      },
+    ) {
+      return it({
+        name,
+        fn: async () => {
+          expect(
+            containerStoreDir({
+              hostStoreDir,
+              homeDir: LOGICAL_HOME,
+              realHomeDir,
+            },),
+          ).toBe(expected,);
+        },
+      },);
+    },),
+
+    //endregion Store mount mapping
   ],
 },);
