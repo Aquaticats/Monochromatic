@@ -15,6 +15,23 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::Stdio;
 
+/// What:
+///  The process number a step recorded,
+///  or nothing while the file is absent or still empty.
+/// Why:
+///   The file exists from the redirection that makes it,
+/// and the number arrives after,
+/// so a control that
+///  reads on the file's existence alone can read nothing at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordedStepNumber = (file: string): number | undefined => { try { const text = readFileSync(file, 'utf8').trim(); return text === '' ? undefined : Number(text); } catch { return undefined; } };
+/// ```
+fn recorded_step_number(pid_file: &std::path::Path) -> Option<i32> {
+    return std::fs::read_to_string(pid_file).ok()?.trim().parse().ok();
+}
+
 /// A cadence of a 60 ms grace and a 60 ms interval,
 /// so a notice comes fast.
 const QUICK: Cadence = Cadence {
@@ -1366,11 +1383,15 @@ fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
     let failure: std::io::Error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound)
         .expect_err("no thread could be started to wait for the step");
     // The step was started before the thread was refused, and it writes its number as it begins.
+    // The shell's redirection makes the file before the number reaches it, so the wait is for a number and not for the
+    //  name: waiting for the name made this control fail under a loaded suite with an empty read.
     let waited_for_the_number: Instant = Instant::now();
-    while waited_for_the_number.elapsed() < Duration::from_secs(5) && !pid_file.exists() {
+    let mut recorded: Option<i32> = recorded_step_number(pid_file.as_path());
+    while recorded.is_none() && waited_for_the_number.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(20));
+        recorded = recorded_step_number(pid_file.as_path());
     }
-    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    let pid: i32 = recorded.expect("the step recorded its process");
     // The start time proves which process the number names, so a number that passed to another one is not read as the step.
     let started: u64 = crate::process_tree::use_of(pid).expect("the step runs as it waits").started;
     // The step ends now, and its end must be collected by whoever owns it.

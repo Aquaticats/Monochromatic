@@ -4,6 +4,8 @@
  @module
  */
 
+import { createObservableCore, } from './create-observable-core.ts';
+
 /**
  Observable value container with method-based access and an awaitable setter.
  
@@ -39,6 +41,10 @@ export type MaybePromise<T,> = T | Promise<T>;
 /**
  Creates an observable value container that awaits a handler when the value is set.
  
+ Arrangement with `createObservable`: the two sides share one core. Each wraps
+ {@link createObservableCore}, which owns the container and the order of its update; this side
+ adds only the awaited handler discipline, and neither side is generated from the other.
+ 
  Construction is synchronous; the async wrapper lets callers `await` it in top-level module code.
  State updates before `onChange` runs, so a handler that reads `getValue()` sees the new value.
  `setValue` awaits `onChange`, so a rejected handler rejects the `setValue` promise the caller awaits.
@@ -73,25 +79,17 @@ export async function createObservableAsync<T,>(
     ) => MaybePromise<void>;
   },
 ): Promise<ObservableAsync<T>> {
-  /**
-   Internal store backing the methods; held on an object property so mutation avoids a function-root `let`.
-   */
-  const state: { current: T; } = { current: initialValue, };
-  return {
-    getValue: function getValue(): T {
-      return state.current;
-    },
-    setValue: async function setValue(newValue: T,): Promise<void> {
-      /**
-       Snapshot of the prior value preserved for the change handler call.
-       */
-      const old = state.current;
-      state.current = newValue;
+  return createObservableCore({
+    initialValue,
+    notify: async function notify(
+      newValue: T,
+      previous: T,
+    ): Promise<void> {
       await onChange(
         newValue,
-        old,
+        previous,
       );
     },
-  };
+  },);
 }
 /* oxlint-enable eslint/require-await, typescript/require-await */
