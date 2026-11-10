@@ -57,6 +57,12 @@ await describe({
           },
         },),
         it({
+          name: 'detects a lookup command spelled by path',
+          fn: async function testLookupByPath() {
+            expect(waitsOnProcessName('while /usr/bin/pgrep -f build; do sleep 1; done',),).toBe(true,);
+          },
+        },),
+        it({
           name: 'allows straight-line pgrep',
           fn: async function testStraightLinePgrep() {
             expect(waitsOnProcessName('pgrep --list-full --full build',),).toBe(false,);
@@ -96,9 +102,90 @@ await describe({
           },
         },),
         it({
-          name: 'treats unparsable input as allowed',
-          fn: async function testUnparsable() {
-            expect(waitsOnProcessName('until ! pgrep x; do',),).toBe(false,);
+          name: 'refuses a process-name wait in a loop the parser cannot read',
+          fn: async function testUnparsableLoop() {
+            expect(waitsOnProcessName('until ! pgrep x; do',),).toBe(true,);
+            expect(waitsOnProcessName('until ! pgrep -f build; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+            expect(waitsOnProcessName('while pgrep --full build >/dev/null; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+            expect(waitsOnProcessName('while true; do pgrep -f build || break; sleep 1; done "unterminated',),)
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a process-name wait behind a wrapper in a command the parser cannot read',
+          fn: async function testUnparsableWrappedWait() {
+            expect(waitsOnProcessName('env pgrep -f build "unterminated',),).toBe(true,);
+            expect(
+              waitsOnProcessName("timeout 60 bash -c 'until ! pgrep -f build; do sleep 1; done' \"unterminated",),
+            )
+              .toBe(true,);
+            expect(waitsOnProcessName('eval while pgrep -f build; do sleep 1; done "unterminated',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a lookup command behind a redirection in a command the parser cannot read',
+          fn: async function testUnparsableRedirect() {
+            expect(waitsOnProcessName('while >/dev/null pgrep -f build; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+            expect(waitsOnProcessName('while 2>/dev/null pidof build; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+            expect(waitsOnProcessName('while pgrep</dev/null -f build; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a lookup behind a descriptor redirection or a joined line in a command the parser cannot read',
+          fn: async function testUnparsableJoinedSpellings() {
+            expect(waitsOnProcessName('while >&2 pgrep -f build; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+            expect(waitsOnProcessName('while pg\\\nrep -f build; do sleep 1; done "unterminated',),)
+              .toBe(true,);
+            expect(waitsOnProcessName("while $'pgrep' -f build; do sleep 1; done \"unterminated",),)
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a lookup written below a quote the command never closes',
+          fn: async function testUnparsableUnclosedQuote() {
+            expect(
+              waitsOnProcessName("cat <<'EOF'\ndon't\nEOF\nwhile pgrep x; do sleep 1; done \"unterminated",),
+            )
+              .toBe(true,);
+            expect(
+              waitsOnProcessName('echo don\'t && while pgrep x; do sleep 1; done "unterminated',),
+            )
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a lookup command the parser cannot read outside any visible loop',
+          fn: async function testUnparsableStraightLineLookup() {
+            expect(waitsOnProcessName('pgrep -af build "unterminated',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses a lookup command the parser cannot read inside a here-document body',
+          fn: async function testUnparsableHeredocBody() {
+            expect(
+              waitsOnProcessName('cat <<EOF\nwhile pgrep x; do sleep 1; done\nEOF\necho "unterminated',),
+            )
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'allows prose naming a lookup command in a command the parser cannot read',
+          fn: async function testUnparsableProse() {
+            expect(waitsOnProcessName('printf pgrep pidof "unterminated',),).toBe(false,);
+            expect(waitsOnProcessName('echo "use pgrep in a while loop',),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'allows a shell word carrying a lookup as an argument, not as the program',
+          fn: async function testUnparsableShellWordArgument() {
+            expect(waitsOnProcessName('printf bash -c pgrep "unterminated',),).toBe(false,);
+            expect(waitsOnProcessName('echo bash -c "pgrep x" "unterminated',),).toBe(false,);
           },
         },),
       ],
@@ -112,6 +199,12 @@ await describe({
             expect(PROCESS_NAME_WAIT_BAN_REASON.includes('wrapper',),).toBe(true,);
             expect(PROCESS_NAME_WAIT_BAN_REASON.includes('tail --pid=<pid>',),).toBe(true,);
             expect(PROCESS_NAME_WAIT_BAN_REASON.includes('systemd-run --user --wait',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'says a command it cannot parse is refused on the lookup command alone',
+          fn: async function testBanReasonUnparsable() {
+            expect(PROCESS_NAME_WAIT_BAN_REASON.includes('cannot parse',),).toBe(true,);
           },
         },),
         it({

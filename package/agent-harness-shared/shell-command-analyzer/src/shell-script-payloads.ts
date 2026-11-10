@@ -33,6 +33,27 @@ const SCRIPT_OPTION = '-c';
 //region Payload reads
 
 /**
+ Checks whether one command word launches a shell whose `-c` argument is a script string.
+
+ A caller that reads a raw word run needs this answer on its own,
+ because only the program word launches a shell there:
+ `echo bash -c 'bun test'` prints text rather than running a script.
+
+ @param word - command word, from parsed syntax or from a raw word run
+
+ @returns whether the word names a shell, whatever path spells it
+
+ @example
+ ```ts
+ wordLaunchesShellScript('/bin/bash'); // true
+ wordLaunchesShellScript('echo'); // false
+ ```
+ */
+function wordLaunchesShellScript(word: string,): boolean {
+  return SHELL_NAMES.has(lastPathSegment(word,),);
+}
+
+/**
  Collects the `-c` script strings a command line passes to a shell.
  
  @param words - program word followed by its arguments, with program wrappers already stripped
@@ -50,7 +71,7 @@ function shellScriptPayloads({ words, }: { readonly words: readonly string[]; },
       word,
       index,
     ): readonly string[] {
-      if (!SHELL_NAMES.has(lastPathSegment(word,),))
+      if (!wordLaunchesShellScript(word,))
         return [];
 
       /**
@@ -77,4 +98,7 @@ function shellScriptPayloads({ words, }: { readonly words: readonly string[]; },
 
 //endregion Payload reads
 
-export { shellScriptPayloads, };
+export {
+  shellScriptPayloads,
+  wordLaunchesShellScript,
+};
