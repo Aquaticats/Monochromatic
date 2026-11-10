@@ -4,36 +4,24 @@
  @module
  */
 
+import { NamedError, } from '@monochromatic-dev/named-error-core/ts';
 import type { InputPosition, } from './model.ts';
 import type { CreatedIssue, } from './publisher-model.ts';
 
+/* oxlint-disable unicorn/custom-error-definition -- Every class here takes its name from `NamedError`, which derives it from the concrete class, so no literal is left to check; `doc/troubleshooting/oxlint-custom-error-name.md` records why the rule cannot be satisfied here. */
+
 /**
  Reports terminal publication response or retry failure.
+ 
+ Its message is a safe status or response-shape diagnostic,
+ and its options may carry native cause metadata.
+ 
+ @example
+ ```ts
+ const error = new IssuePublicationError('Issue creation failed');
+ ```
  */
-export class IssuePublicationError extends Error {
-  /**
-   Creates publication failure.
-   
-   @param message - Safe status or response-shape diagnostic.
-   
-   @param options - Optional native error cause metadata.
-   
-   @example
-   ```ts
-   const error = new IssuePublicationError('Issue creation failed');
-   ```
-   */
-  public constructor(
-    message: string,
-    options?: ErrorOptions,
-  ) {
-    super(
-      message,
-      options,
-    );
-    this.name = 'IssuePublicationError';
-  }
-}
+export class IssuePublicationError extends NamedError {}
 
 /**
  Reports multiple exact post-failure matches without mutating any match.
@@ -56,11 +44,9 @@ export class AmbiguousReconciliationError extends IssuePublicationError {
    */
   public constructor({ urls, }: { readonly urls: readonly string[]; },) {
     super(`ambiguous create reconciliation found ${String(urls.length,)} exact matches: ${urls.join(', ',)}`,);
-    this.name = 'AmbiguousReconciliationError';
     this.urls = urls;
   }
 }
-
 
 /**
  Carries partial created results and exact input position of stopping failure.
@@ -103,12 +89,10 @@ export class PublicationStoppedError extends IssuePublicationError {
       `publication stopped at ${position.kind} ${String(position.value,)}: ${String(cause,)}`,
       { cause, },
     );
-    this.name = 'PublicationStoppedError';
     this.created = created;
     this.position = position;
   }
 }
-
 
 /**
  Carries confirmed creations after first handled publication interrupt.
@@ -144,8 +128,9 @@ export class PublicationInterruptedError extends IssuePublicationError {
     readonly position: InputPosition;
   },) {
     super(`Issue creation interrupted at ${position.kind} ${String(position.value,)}`,);
-    this.name = 'PublicationInterruptedError';
     this.created = created;
     this.position = position;
   }
 }
+
+/* oxlint-enable unicorn/custom-error-definition */

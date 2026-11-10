@@ -27,6 +27,7 @@
     "@inquirer/input": "catalog:",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/named-error-core": "workspace:*",
     "nano-spawn": "catalog:"
   },
   "devDependencies": {
