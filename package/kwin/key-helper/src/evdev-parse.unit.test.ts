@@ -16,8 +16,13 @@ import {
   INITIAL_SHIFT_STATE,
   parseBitmap,
   reduceShiftEvent,
-  type ShiftState,
-} from './evdev-parse.ts';
+} from '../dist/final/node/testing.mjs';
+
+/**
+ Detector state, named from the reducer's own parameter so the test follows the
+ built declarations instead of importing source.
+ */
+type ShiftState = Parameters<typeof reduceShiftEvent>[0]['state'];
 
 /** Timestamp of the first tap in a double-shift sequence. */
 const FIRST_TAP_MS = 1_000;

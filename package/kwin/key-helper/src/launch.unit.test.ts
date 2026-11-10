@@ -12,8 +12,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { NoAppIdentityError } from './errors.ts';
-import { selectLaunchCommand } from './launch.ts';
+import {
+  NoAppIdentityError,
+  selectLaunchCommand,
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: selectLaunchCommand.name,

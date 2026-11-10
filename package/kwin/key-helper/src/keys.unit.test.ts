@@ -12,8 +12,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { UnknownKeyError } from './errors.ts';
-import { keysToEvdev } from './keys.ts';
+import {
+  keysToEvdev,
+  UnknownKeyError,
+} from '../dist/final/node/testing.mjs';
 
 await describe({
   name: keysToEvdev.name,
