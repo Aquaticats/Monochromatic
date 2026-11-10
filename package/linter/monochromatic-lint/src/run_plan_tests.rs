@@ -16,6 +16,8 @@
 /// Import the store,
 ///  its outcomes and fixture helpers.
 use super::{ConfigStore, FilePlan, Planned, RootRules};
+use crate::config_error::ConfigError;
+use crate::config_lookup::{ConfigurationSource, discover_configuration};
 use crate::diagnostic::Severity;
 use crate::run_paths::Language;
 use crate::run_test_support::{CONFIG, write};
@@ -80,6 +82,42 @@ fn the_nearest_configuration_governs_alone() {
     let unmatched: FilePlan = lint(&mut store, "nested/other/a.rs");
     assert!(matches!(unmatched.root, RootRules::None));
     assert!(!unmatched.needs_semantic_engine());
+}
+
+/// What:
+///  The executable's memoizing lookup and the discovery entry agree about which file governs a path,
+///  and about how a nearest file that fails to parse is reported.
+/// Why:
+///  Both go through the one ancestor walk,
+///  so a boundary or a diagnostic that reached one and not the other would be a divergence in the
+///  executable's own configuration lookup.
+#[test]
+fn the_memoizing_lookup_agrees_with_discovery() {
+    let fixture: Fixture = Fixture::new();
+    let root: &Path = fixture.path.as_path();
+    write(
+        root,
+        &format!("nested/{CONFIG}"),
+        r#"[{ "files": ["**/*.md"], "rules": {} }]"#,
+    );
+    let mut store: ConfigStore = ConfigStore::new(root, None).expect("store");
+    let planned: FilePlan = lint(&mut store, "nested/deep/a.md");
+    let discovered: ConfigurationSource =
+        discover_configuration(Path::new("nested/deep/a.md"), root, None)
+            .expect("discovery")
+            .expect("a nearest configuration");
+    assert_eq!(planned.config.path, discovered.path);
+    assert_eq!(planned.config.base, discovered.base);
+    // A nearest file that fails to parse stops both entries with the same message.
+    write(root, &format!("bad/{CONFIG}"), "{}");
+    let mut failing: ConfigStore = ConfigStore::new(root, None).expect("store");
+    let planned_error: ConfigError = match failing.plan(Path::new("bad/a.md")) {
+        Err(error) => error,
+        Ok(_) => panic!("a malformed nearest configuration must be a setup error"),
+    };
+    let discovered_error: ConfigError =
+        discover_configuration(Path::new("bad/a.md"), root, None).expect_err("discovery fails");
+    assert_eq!(planned_error.message, discovered_error.message);
 }
 
 /// Lookup results are remembered per directory,

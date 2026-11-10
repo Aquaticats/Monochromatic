@@ -85,7 +85,8 @@ fn a_child_answers_a_descriptor_of_another_process() {
     remove(root.as_path());
 }
 
-/// The answer is a refusal the kernel gave, with its own number,
+/// The answer is a refusal the kernel gave,
+/// with its own number,
 /// rather than an answer invented for it.
 #[test]
 fn a_refusal_is_the_kernel_number_the_child_read() {

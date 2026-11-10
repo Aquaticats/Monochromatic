@@ -26,13 +26,24 @@ const CARRIAGE_RETURN = 0x0D;
 const LINE_FEED = 0x0A;
 
 /**
+ Carriage-return character, built from its code unit so no raw CR byte sits in
+ the source.
+ */
+const CARRIAGE_RETURN_TEXT = String.fromCodePoint(CARRIAGE_RETURN,);
+
+/**
+ Line-feed character, built from its code unit for the same reason.
+ */
+const LINE_FEED_TEXT = String.fromCodePoint(LINE_FEED,);
+
+/**
  Reject a bare carriage return: a `CR` not immediately followed by `LF`.
  
  TOML permits `CR` only as part of a `CRLF` newline; a lone `CR` (anywhere,
  including inside a multiline string) is invalid, but `toml-eslint-parser`
  accepts it. This pre-parse scan closes that gap so {@link parseTomlEdit} rejects the
- input the way the spec requires. A trailing `CR` is rejected too, since
- `codePointAt` past the end yields `undefined`, which is not `LF`.
+ input the way the spec requires. A trailing `CR` is rejected too, since the text
+ after it is empty and does not open with `LF`.
  
  @param source - Raw TOML source.
  
@@ -44,10 +55,17 @@ const LINE_FEED = 0x0A;
  ```
  */
 function assertNoBareCarriageReturn({ source, }: { readonly source: string; },): void {
-  for (let index = 0; index < source.length; index += 1) {
-    if ((source.codePointAt(index,) === CARRIAGE_RETURN) && (source.codePointAt(index + 1,) !== LINE_FEED))
-      throw new TomlEditError('Failed to parse TOML: a bare carriage return is not allowed; CR must be part of CRLF',);
-  }
+  /**
+   Text after every carriage return; each run must open with the line feed that
+   completes a `CRLF` newline, or the carriage return before it is bare.
+   */
+  const afterCarriageReturns = source
+    .split(CARRIAGE_RETURN_TEXT,)
+    .slice(1,);
+  if (afterCarriageReturns.some(function lacksLineFeed(segment,) {
+    return !segment.startsWith(LINE_FEED_TEXT,);
+  },))
+    throw new TomlEditError('Failed to parse TOML: a bare carriage return is not allowed; CR must be part of CRLF',);
 }
 
 /**
@@ -73,20 +91,12 @@ function assertNoBareCarriageReturn({ source, }: { readonly source: string; },):
  */
 function normalizeNewlines({ source, }: { readonly source: string; },): string {
   assertNoBareCarriageReturn({ source, },);
-  /**
-   Carriage-return character, built from its code unit to avoid a raw byte.
-   */
-  const carriageReturn = String.fromCodePoint(CARRIAGE_RETURN,);
-  if (!source.includes(carriageReturn,)) return source;
-  /**
-   Line-feed character, the normalization target.
-   */
-  const lineFeed = String.fromCodePoint(LINE_FEED,);
+  if (!source.includes(CARRIAGE_RETURN_TEXT,)) return source;
   tagged({ tag: normalizeNewlines.name, },)
     .warn('CRLF line endings detected; the document is normalized to LF',);
   return source.replaceAll(
-    `${carriageReturn}${lineFeed}`,
-    lineFeed,
+    `${CARRIAGE_RETURN_TEXT}${LINE_FEED_TEXT}`,
+    LINE_FEED_TEXT,
   );
 }
 

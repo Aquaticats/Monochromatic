@@ -15,7 +15,7 @@ use std::process::Output;
 /// A function-like value with the right shape is a Git runner in these controls:
 /// the shipped caller writes a small struct that holds the state.
 impl<Run: FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError>> GitRunner for Run {
-    fn run(&mut self, step: &GitStep<'_>, _child_started: &mut dyn FnMut(u32)) -> Result<GitStatus, WorktreeCopyError> {
+    fn run(&mut self, step: &GitStep<'_>, _child_started: &mut dyn ChildStarted) -> Result<GitStatus, WorktreeCopyError> {
         return self(step);
     }
 }

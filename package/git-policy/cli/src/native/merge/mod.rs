@@ -72,8 +72,20 @@ pub mod merge_isolation_changes;
 /// Recovery of an isolated merge whose process died.
 pub mod merge_isolation_recovery;
 
+/// The intent records a recovery walks,
+/// and what a command is told about each.
+pub mod merge_isolation_recovery_records;
+
+/// The person's own work a merge carries,
+/// across the two moves a recovery can make.
+pub mod merge_isolation_recovery_carry;
+
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
+
+/// The write of a merge into the index and the worktree,
+/// and what it does when the checkout changed under it.
+pub mod merge_isolation_recovery_install;
 
 /// Whether the recovery of an interrupted merge may write the index now,
 /// and the clearing of a lock a killed Git left.
@@ -129,6 +141,22 @@ pub mod merge_isolation_carry;
 /// and the restore of a merge that did not land.
 pub mod merge_isolation_carry_apply;
 
+/// What a carry reads from the repository:
+/// the file form and the stored bytes of one object,
+/// one path's index entry,
+/// and the raw changes between two commits.
+pub mod merge_isolation_carry_reads;
+
+/// What a carry writes:
+/// the index records of a batch,
+/// one file through a private name and a rename,
+/// and the bounded wait for `index.lock`.
+pub mod merge_isolation_carry_writes;
+
+/// What one captured path's writes are,
+/// once the merge's change is known.
+pub mod merge_isolation_carry_plans;
+
 /// What one layer of one path ends as once the person's work is merged with the merge.
 pub mod merge_isolation_carry_layers;
 
@@ -139,6 +167,9 @@ pub mod merge_isolation_carry_notice;
 /// The writing half of an isolated merge:
 /// the commit and the two-way update.
 pub mod merge_isolation_apply;
+
+/// The words an isolated merge prints when it could not be finished now.
+pub mod merge_isolation_apply_findings;
 
 /// The merge tree of an isolated merge,
 /// computed from objects,

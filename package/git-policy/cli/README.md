@@ -2124,7 +2124,8 @@ The branch reflog reads `merge <branch>: Fast-forward`.
 #### Carrying the person's own work
 
 The owner's answer for a merge over unsaved edits is "Carry edits forward (Recommended)"
-(`SPEC.md`, "Merges and commits never fail"),
+(`SPEC.md`,
+"Merges and commits never fail"),
 and the rules behind it are "Manual merge should never fail too."
 and "never discard user data".
 Native Git refuses such a merge
@@ -2134,20 +2135,24 @@ and so did the wrapper.
 Now the merge runs and the person's work is carried across it:
 
 - Every path the merge changes that holds the person's own work in the worktree or the index has its bytes
-  written as objects, and kept on `refs/cli-git/carried/<n>`,
+  written as objects,
+  and kept on `refs/cli-git/carried/<n>`,
   before the first byte of the checkout changes;
   the merge's record names them.
   A `SIGKILL` at any instant leaves them where the next command finds them.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
-- After the branch moved, each of the person's two layers is merged with the merge on its own:
+- After the branch moved,
+  each of the person's two layers is merged with the merge on its own:
   a staged edit stays staged and an unsaved edit stays unsaved.
   A layer the merge does not reach is written back byte for byte.
   A text both sides changed goes through the word-level second pass;
   a region it cannot resolve keeps both sides between conflict markers,
   the file is named on standard error,
   and the command still exits 0.
-- A binary file, a symbolic link, a mode the pass cannot take,
+- A binary file,
+  a symbolic link,
+  a mode the pass cannot take,
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
   A path written again while the merge ran is left alone and named.
@@ -2457,7 +2462,9 @@ none is waited out or retried on the moved head yet:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
    `BranchKeepsChanging`,
-  and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
+  and a commit built on a moved branch is built again for as long as the time since its first build is under
+  `MOVED_BRANCH_REBUILD_CEILING` (20 minutes,
+  `service/wait_ceilings.rs`).
 - A commit that concludes a merge,
   an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute;
@@ -5052,7 +5059,12 @@ all durations in whole milliseconds taken from the monotonic clock:
   `ended` or `stopped`) and `exitCode` say which
   commit it was.
 - `totalMs` is the whole command.
-  It is the sum of `prepareMs` (policies,
+  It is the sum of `routeMs` (finding the worktree's route to a service,
+  this commit's identity,
+  the standard input a pathspec file is read from,
+  and the client's settings,
+  none of which a phase covered before),
+  `prepareMs` (policies,
   hooks,
   the private index,
   the tree and the objects;
@@ -5155,6 +5167,32 @@ all durations in whole milliseconds taken from the monotonic clock:
   a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
   and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
   It is what lets a reading name the in-process work a slow `prepareMs` holds.
+- `buildParts` is the same shape for the build phase:
+  `{"branch": {"ms": 1, "calls": 1}, "shadow skeleton": {"ms": 3, "calls": 1}, ...}`,
+  with a name for every stretch that held no Git child.
+  The shadow repository's creation is the one this was added for:
+  it is in-process filesystem work,
+  so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure
+  (`doc/planning/cli-git-commit-latency-under-many-agents.md`
+  holds that reading under what the build phase waits on).
+  Its names are `branch`,
+  `message` (the identity and the message),
+  `amend tree`,
+  `fitting request`,
+  `request`,
+  `shadow` (what the shadow must carry),
+  `shadow skeleton`,
+  `shadow config`,
+  `shadow links`,
+  `shadow conclusion`,
+  `shadow refs`,
+  `client build` (the scratch `git commit`,
+  whose own figure is in `steps`),
+  `commit read back` and `amend fields`,
+  and `buildPartsDropped` counts the stretches beyond the sixty-four the record lists.
+  A build that stops inside itself still states its time,
+  because the phase is closed where the command stops and in the record's own writer,
+  so no build is ever reported as time that no phase covers.
 - `steps` lists every Git step the command started,
   in the order they began,
   each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:
