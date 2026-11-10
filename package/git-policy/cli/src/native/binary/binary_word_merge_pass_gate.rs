@@ -47,7 +47,8 @@ const RELEASED_WORD: &str = "released";
 const ENDED_WORD: &str = "ended";
 
 /// What:
-///  The stand-in Git of one control, and the two pipes the pass and the control meet at.
+///  The stand-in Git of one control,
+/// and the two pipes the pass and the control meet at.
 /// Why:
 ///   One value per fixture holds the paths,
 /// so a control names its gate once and the action it passes names nothing.
@@ -183,7 +184,8 @@ fn make_pipe(path: &Path) {
 }
 
 /// What:
-///  The pipe at `path`, held open for reading and writing at once.
+///  The pipe at `path`,
+/// held open for reading and writing at once.
 /// Why:
 ///   A pipe opened for one direction waits for its other end to open,
 /// which is the clock this gate removes,
