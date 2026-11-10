@@ -60,7 +60,11 @@ export type {
 
 //region llama-server: the end-of-child wait the stop path depends on
 
-export { awaitChildEnd, } from './analyze/llama.ts';
+export {
+  awaitChildEnd,
+  start as startLlamaServer,
+  stop as stopLlamaServer,
+} from './analyze/llama.ts';
 
 //endregion llama-server
 

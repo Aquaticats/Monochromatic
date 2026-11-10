@@ -14,7 +14,10 @@
  @module
  */
 
-import { spawn as cpSpawn, } from 'node:child_process';
+import {
+  type ChildProcess,
+  spawn as cpSpawn,
+} from 'node:child_process';
 import { once, } from 'node:events';
 
 import {
@@ -23,7 +26,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { awaitChildEnd, } from '../../dist/final/node/testing.mjs';
+import {
+  awaitChildEnd,
+  startLlamaServer,
+  stopLlamaServer,
+} from '../../dist/final/node/testing.mjs';
 
 //region Fixtures
 
@@ -50,6 +57,12 @@ const CHILD_LIFETIME_MS = 100;
  Binary that cannot exist, used for the case where the child never starts.
  */
 const MISSING_COMMAND = '/nonexistent/hall-monitor-test-child';
+
+/**
+ How long a fixture child stays alive if the case does not end it, so every case
+ has a running server to stop.
+ */
+const FIXTURE_CHILD_LIFETIME_MS = 60_000;
 
 /**
  Outcome of racing a wait against {@link HANG_DEADLINE_MS}.
@@ -112,6 +125,101 @@ async function settledWithinDeadline({ wait, }: Readonly<{ wait: Promise<void>; 
 }
 
 //endregion Fixtures
+
+//region Server fixtures
+
+/**
+ Spawns a child that stays alive until the case ends it, standing in for the
+ server process.
+
+ @returns handle of the still-running child
+
+ @example
+ ```ts
+ const child = spawnLivingChild();
+ ```
+ */
+function spawnLivingChild(): ChildProcess {
+  return cpSpawn(
+    COMMAND,
+    [
+      '-e',
+      `setTimeout(function stayAlive() {}, ${FIXTURE_CHILD_LIFETIME_MS});`,
+    ],
+    { stdio: 'ignore', },
+  );
+}
+
+/**
+ Reports readiness without waiting for a health endpoint, because a fixture child
+ is not a server.
+
+ @returns an already-settled wait
+ */
+function noHealthWait(): Promise<void> {
+  return Promise.resolve();
+}
+
+/**
+ Ends a fixture child the case has left running, so a failed assertion cannot
+ leave a process behind.
+
+ @param child - child the case started
+ */
+function endIfAlive({ child, }: Readonly<{ child: ChildProcess; }>,): void {
+  if ((child.exitCode === null) && (child.signalCode === null))
+    child.kill('SIGKILL',);
+}
+
+/**
+ Ends every fixture child of one case when the case's scope ends, whichever way
+ it ends.
+
+ @param children - the children the case started
+
+ @returns disposable that ends them
+
+ @example
+ ```ts
+ const child = spawnLivingChild();
+ await using _cleanup = endingFixtureChildren({ children: [child] });
+ ```
+ */
+function endingFixtureChildren({
+  children,
+}: Readonly<{ children: readonly ChildProcess[]; }>,): AsyncDisposable {
+  return {
+    async [Symbol.asyncDispose](): Promise<void> {
+      for (const child of children)
+        endIfAlive({ child, },);
+    },
+  };
+}
+
+/**
+ Ends one fixture child at the moment a signal is requested, which is the way
+ `pkill` ends the wrapped server while `stop` is still delivering the call.
+
+ @param child - child the case started
+
+ @returns the signal the case injects into `stop`
+
+ @example
+ ```ts
+ await stopLlamaServer({ signalServer: shutDownDuringCall({ child }) });
+ ```
+ */
+function shutDownDuringCall({ child, }: Readonly<{ child: ChildProcess; }>,): () => Promise<void> {
+  return async function signalAndWaitForExit(): Promise<void> {
+    child.kill('SIGTERM',);
+    await once(
+      child,
+      'exit',
+    );
+  };
+}
+
+//endregion Server fixtures
 
 await describe({
   name: '',
@@ -179,6 +287,139 @@ await describe({
 
             expect(await settledWithinDeadline({ wait: awaitChildEnd({ child, },), },),).toBe(SETTLED,);
             expect(child.pid,).toBeUndefined();
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'the server run',
+      // These cases drive the one server handle this module holds, so each must
+      // settle before the next starts: a parallel case would take another case's
+      // handle for its own.
+      concurrency: 1,
+      children: [
+        it({
+          name: 'ends a server the signal ended during the call, instead of reading back a cleared handle',
+          fn: async () => {
+            /**
+             Server process the injected signal ends while `stop` awaits it.
+             */
+            const child = spawnLivingChild();
+            await using _cleanup = endingFixtureChildren({ children: [child,], },);
+
+            await startLlamaServer({
+              spawnServer: () => child,
+              waitForReady: noHealthWait,
+            },);
+            // The signal ends the child, whose exit listener clears the stored
+            // handle before this call returns; `stop` must still hold the one it
+            // took on entry.
+            await stopLlamaServer({ signalServer: shutDownDuringCall({ child, },), },);
+
+            expect(child.signalCode,).toBe('SIGTERM',);
+          },
+        },),
+
+        it({
+          name: 'starts a fresh server once the handle it holds has exited',
+          fn: async () => {
+            /**
+             First server, which ends on its own before the second start.
+             */
+            const first = spawnLivingChild();
+            /**
+             Replacement server the second start spawns.
+             */
+            const second = spawnLivingChild();
+            await using _cleanup = endingFixtureChildren({ children: [
+              first,
+              second,
+            ], },);
+            /**
+             Handles the case's spawn functions have handed out, in order.
+             */
+            const spawned: ChildProcess[] = [];
+
+            await startLlamaServer({
+              spawnServer: () => {
+                spawned.push(first,);
+                return first;
+              },
+              waitForReady: noHealthWait,
+            },);
+            first.kill('SIGKILL',);
+            await once(
+              first,
+              'exit',
+            );
+
+            await startLlamaServer({
+              spawnServer: () => {
+                spawned.push(second,);
+                return second;
+              },
+              waitForReady: noHealthWait,
+            },);
+            await stopLlamaServer({ signalServer: shutDownDuringCall({ child: second, },), },);
+
+            expect(spawned.length,).toBe(2,);
+            expect(second.signalCode,).toBe('SIGTERM',);
+          },
+        },),
+
+        it({
+          name: 'starts nothing while the server it holds is still running',
+          fn: async () => {
+            /**
+             Server process the case keeps alive across both starts.
+             */
+            const child = spawnLivingChild();
+            await using _cleanup = endingFixtureChildren({ children: [child,], },);
+            /**
+             Number of times the case's spawn function was asked for a server.
+             */
+            let spawnedCount = 0;
+
+            /**
+             Hands out the running server, counting every request.
+
+             @returns the running server
+             */
+            function spawnServer(): ChildProcess {
+              spawnedCount += 1;
+              return child;
+            }
+
+            await startLlamaServer({
+              spawnServer,
+              waitForReady: noHealthWait,
+            },);
+            await startLlamaServer({
+              spawnServer,
+              waitForReady: noHealthWait,
+            },);
+
+            expect(spawnedCount,).toBe(1,);
+            await stopLlamaServer({ signalServer: shutDownDuringCall({ child, },), },);
+          },
+        },),
+
+        it({
+          name: 'signals nothing when no server is held',
+          fn: async () => {
+            /**
+             Whether the injected signal was asked for, which it must not be.
+             */
+            let signalled = false;
+
+            await stopLlamaServer({
+              signalServer: async () => {
+                signalled = true;
+              },
+            },);
+
+            expect(signalled,).toBe(false,);
           },
         },),
       ],
