@@ -324,68 +324,56 @@ async function runOracle({
 }
 
 /**
- Regenerate the fixtures and the expected answers.
-
- @example
- ```ts
- await main();
- ```
+ This package's directory, which the script expects as its working directory.
  */
-async function main(): Promise<void> {
-  /**
-   This package's directory, which the script expects as its working directory.
-   */
-  const packageDirectory = process.cwd();
-  /**
-   Parent of every run's scratch directory.
-   */
-  const scratchRoot = join(
-    homedir(),
-    'temp',
-    'agent',
-    'browserslist-conformance',
-  );
-  await mkdir(
-    scratchRoot,
-    {
-      recursive: true,
-      mode: SCRATCH_MODE,
-    },
-  );
-  /**
-   Scratch directory of this run, removed when the function ends.
-   */
-  await using work = await mkdtempDisposable(join(
-    scratchRoot,
-    'run-',
-  ),);
-  /**
-   Where the export wrote the tarballs, and their names.
-   */
-  const {
-    tarballDirectory,
-    tarballs,
-  } = await exportTarballs({
+const packageDirectory = process.cwd();
+/**
+ Parent of every run's scratch directory.
+ */
+const scratchRoot = join(
+  homedir(),
+  'temp',
+  'agent',
+  'browserslist-conformance',
+);
+await mkdir(
+  scratchRoot,
+  {
+    recursive: true,
+    mode: SCRATCH_MODE,
+  },
+);
+/**
+ Scratch directory of this run, removed when the function ends.
+ */
+await using work = await mkdtempDisposable(join(
+  scratchRoot,
+  'run-',
+),);
+/**
+ Where the export wrote the tarballs, and their names.
+ */
+const {
+  tarballDirectory,
+  tarballs,
+} = await exportTarballs({
+  packageDirectory,
+  work: work.path,
+},);
+await copyFixtures({
+  packageDirectory,
+  tarballDirectory,
+  tarballs,
+},);
+await writeFile(
+  join(
+    packageDirectory,
+    'conformance',
+    'expected.json',
+  ),
+  await runOracle({
     packageDirectory,
     work: work.path,
-  },);
-  await copyFixtures({
-    packageDirectory,
-    tarballDirectory,
-    tarballs,
-  },);
-  await writeFile(
-    join(
-      packageDirectory,
-      'conformance',
-      'expected.json',
-    ),
-    await runOracle({
-      packageDirectory,
-      work: work.path,
-    },),
-  );
-  console.log(`wrote conformance/expected.json and fixtures/data/* from ${tarballs.join(', ',)}`,);
-}
-
-await main();
+  },),
+);
+console.log(`wrote conformance/expected.json and fixtures/data/* from ${tarballs.join(', ',)}`,);

@@ -1,5 +1,28 @@
 # cli-git implementation handover
 
+## Scope of the work: the Git wrapper only
+
+The owner has said it more than once,
+most recently on 2026-11-10:
+"How many times do I need to tell you to focus on the wrapper this session?"
+Earlier the same day:
+"Focus on the wrapper itself.",
+"You focus on the git wrapper.",
+"Wait for Pants. And you focus on the git wrapper.",
+and "None for now. Focus on the git wrapper. Open a gh issue about this instead."
+So every agent slot,
+review and audit goes to `package/git-policy/cli` and what it directly depends on to be fast and correct
+(the btrfs volume it runs on, LFS through the wrapper, its release and install).
+Other packages' issues wait,
+however many slots are free,
+unless the owner names that work.
+A free slot is filled with wrapper work:
+open issues naming the wrapper,
+audit and review findings,
+jams the wrapper causes under load,
+the tokio steps,
+and then the layout and TypeScript-port steps they unblock.
+
 > References below this note that no longer resolve in the tree.
 > Each entry gives the value that identifier has now:
 > `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`

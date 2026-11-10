@@ -7,23 +7,9 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
+  type CommandRunner,
   exec,
-  type ExecOptions,
 } from './exec.ts';
-
-/**
- Runs one external command and resolves with its captured stdout.
-
- @param options - command and its arguments
-
- @returns Stdout of the command
-
- @example
- ```ts
- const state = await runner({ cmd: 'virsh', args: ['domstate', 'dev'], });
- ```
- */
-export type CommandRunner = (options: ExecOptions,) => Promise<string>;
 
 //region Domain state classification
 

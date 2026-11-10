@@ -3307,6 +3307,7 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   generation can leave
   a saved copy with no line that names it.
   By contrast the standards-review shadow log "has no rotation" (`README.md:2010`) and is unbounded.
+  Since 2026-11-10 it rotates into numbered generations under the same 32 MiB bound as every other log.
 - Conflict:
   possible with "never discard user data" (`SPEC.md:1645`);
   see "The audit and timing logs' history" in the
@@ -3349,7 +3350,12 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   option C (the coordinator's pick under the owner's delegation,
   open to the owner's
   veto):
-  implemented in `src/native/discard_audit.rs` and `src/native/discard_audit_generations.rs`.
+  implemented in `src/native/discard_audit.rs` and `src/native/discard_audit_generations.rs`,
+  which on 2026-11-10 became
+  `foundation/log_lines_appended_without_a_lock.rs` and
+  `foundation/log_generations_kept_to_a_bound.rs`,
+  with the four mebibytes replaced by the owner's 32 MiB
+  (see "The audit and timing logs' history").
   - Each rotation of the audit file keeps its file under the next free number
     (`.1`,
     `.2`,
@@ -3382,6 +3388,7 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   - The timing logs and the push trigger log keep one generation,
     `.1`,
     as before.
+    Since 2026-11-10 they keep numbered generations up to 32 MiB too, as every log of the wrapper does.
   - The 4 MiB is derived,
     not measured:
     the busiest measured
@@ -6210,12 +6217,18 @@ shared by `cli-git-audit.jsonl`,
 `cli-git-commit-timing.jsonl`,
 `cli-git-worktree-add-timing.jsonl`,
 `cli-git-push-trigger.jsonl`.
+Since 2026-11-10 that limit is `ROTATE_AT_BYTES` in
+`foundation/log_lines_appended_without_a_lock.rs`,
+and every log named here keeps numbered generations under
+`LOG_HISTORY_BYTES`
+(`foundation/log_generations_kept_to_a_bound.rs`),
+as the outcome below records.
 The next rotation replaces `.1`,
 so older history is dropped;
 the race fix on `fix/git-policy-cli-audit-rotation-race`
 does not change that.
 The audit file exists to attribute lost uncommitted work and each line names the saved copies it made.
-The standards-review log has no rotation at all.
+The standards-review log had no rotation at all.
 Does "never discard user data" cover this audit history?
 
 - A.
@@ -6261,19 +6274,55 @@ option C,
 implemented.
 See "Outcome of the delegated pick 11" in the entry for the limit,
 with the measurement and its commands.
-The audit generations are kept up to `AUDIT_HISTORY_BYTES` (4 MiB,
+The audit generations were kept up to `AUDIT_HISTORY_BYTES` (4 MiB,
 derived from the measured rate and the 30-day age
 default of the copies),
 and a generation that names a saved
 copy still on disk is never removed;
-the timing logs keep one
-generation.
-The standards-review shadow log (`README.md:2010`),
-still unrotated,
-is outside this pick.
+the timing logs kept one
+generation,
+and the standards-review shadow log
+was outside this pick.
+
+The owner answered the question on 2026-11-10 in the question tool,
+"Keep more,
+capped (Recommended)":
+32 MiB per log,
+about six days of commit timing at today's pace,
+and an audit line naming a saved copy that still exists is never dropped.
+That answer replaced the four mebibytes and the timing logs' single
+`.1` generation:
+every log of the wrapper (audit,
+commit timing,
+worktree-add timing,
+push trigger and the standards-review shadow log,
+which had no rotation at all)
+now keeps numbered generations up to `LOG_HISTORY_BYTES` (32 MiB),
+and only the audit log pins one.
+The pace it rests on was measured on this host on 2026-11-10T14:31Z:
+the commit timing log held 1,143,526 bytes in
+229 records from 2026-11-10T09:08:07Z to 2026-11-10T14:31:41Z (about 0.21 MiB an hour,
+so 32 MiB is about six days),
+and the audit log held 782,685 bytes in 1,619
+lines from 2026-10-21 to 2026-11-10 (about 42 KB a day,
+so the bound is the whole history of an ordinary
+repository).
+The reading that decides whether an audit generation pins costs, on this host,
+a median of 13 ms and a 99th percentile
+of 254 ms when it drops one generation,
+and a median of 369 ms and a 99th percentile of 432 ms when every generation pins
+and is read to its last line,
+so it runs on a thread of its own and the command that rotated the log pays a
+median of 385 us and a 99th percentile of 580 us
+(`foundation/log_rotation_cost_measurement_tests.rs`,
+`mise run //package/git-policy/cli:native:test:host -- --run-ignored only --no-capture rotation_cost_measurement`).
+The bound counts every generation of one log,
+so a pinned generation spends part of it and the others shrink;
+the newest generation is never removed.
 
 Left for the coordinator,
-with the owner's veto open:
+with the owner's veto open,
+and settled by the answer of 2026-11-10 unless the owner says otherwise:
 
 - The horizon of the 4 MiB.
   The rate is measured;
@@ -6285,6 +6334,8 @@ with the owner's veto open:
   fixed count of generations;
   no bound for the audit file,
   which is small.
+  The answer of 2026-11-10 set 32 MiB for every log,
+  which is the whole history of an ordinary audit log.
   Ranking:
   days times the peak rate > a count of generations
   > no bound,
@@ -6304,6 +6355,9 @@ with the owner's veto open:
   with no copy to pin).
   This is a finding;
   nothing was changed.
+  The answer of 2026-11-10 settled it:
+  every log keeps its generations up to 32 MiB,
+  and the commit timing file now reaches about six days back at the pace measured on that day.
 
 ### LFS server-error retry
 
