@@ -27,9 +27,13 @@ import { testUnitFixtureConfig, } from './test-unit-fixture-config.ts';
 const CHILD_TIMEOUT_MS = 20_000;
 
 /**
- Inputs select the package path the template judges and the unit test files it finds there.
+ Inputs select the package path the template judges, the unit test files it finds there, and the arguments it is given.
  */
 export type TestUnitFixture = {
+  /**
+   Arguments forwarded through mise's own usage parser, which is how a caller names a file or asks for `--all`.
+   */
+  readonly args?: readonly string[];
   /**
    Package path relative to the fixture root, which is the key the shared template matches exemptions on; an empty
    path runs the root aggregate over the whole fixture repository.
@@ -62,6 +66,8 @@ export type TestUnitResult = {
 /**
  Run the real shared `test:unit` template over one disposable package.
 
+ @param args - arguments forwarded through mise's usage parser
+
  @param packagePath - package path relative to the fixture root
 
  @param unitTestFiles - unit test file names to place in the package root
@@ -72,10 +78,11 @@ export type TestUnitResult = {
 
  @example
  ```ts
- await runTestUnitFixture({ packagePath: 'package/fixture/demo', unitTestFiles: [], });
+ await runTestUnitFixture({ args: [], packagePath: 'package/fixture/demo', unitTestFiles: [], });
  ```
  */
 export async function runTestUnitFixture({
+  args = [],
   packagePath,
   unitTestFiles,
 }: TestUnitFixture,): Promise<TestUnitResult> {
@@ -159,6 +166,8 @@ await appendFile(process.env.FIXTURE_EVENTS, ${JSON.stringify(`${name}\n`,)});
     [
       'run',
       taskName,
+      '--',
+      ...args,
     ],
     {
       cwd: root,

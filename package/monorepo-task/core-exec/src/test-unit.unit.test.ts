@@ -27,6 +27,16 @@ const LISTED_PACKAGE = 'package/pi-plugin/auto-mode';
  */
 const ONE_TEST_FILE = 'sample.unit.test.ts';
 
+/**
+ A file discovery never picks, so an explicit argument is the only thing that can run it.
+ */
+const EXPLICIT_FILE = 'explicit.ts';
+
+/**
+ The opt-in suffix, which discovery leaves alone unless the run asks for it.
+ */
+const EXPENSIVE_TEST_FILE = 'sample.expensive.unit.test.ts';
+
 await describe({
   name: 'shared test:unit template',
   concurrency: 1,
@@ -82,6 +92,58 @@ await describe({
         expect(result.output,).toContain('is exempt in',);
         expect(result.output,).toContain(LISTED_PACKAGE,);
         expect(result.events,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'runs the file an explicit argument names, with no discovery at all',
+      fn: async (): Promise<void> => {
+        /** A caller naming a file is making its own claim about what runs, so discovery stays out of it. */
+        const result = await runTestUnitFixture({
+          args: [EXPLICIT_FILE,],
+          packagePath: UNLISTED_PACKAGE,
+          unitTestFiles: [EXPLICIT_FILE,],
+        },);
+        expect(result.exitCode,).toBe(0,);
+        expect(result.events,).toEqual([EXPLICIT_FILE,],);
+      },
+    },),
+    it({
+      name: 'never second-guesses an explicit argument for a listed package',
+      fn: async (): Promise<void> => {
+        /** The exemption list answers a discovery run only, and an explicit run is not one. */
+        const result = await runTestUnitFixture({
+          args: [EXPLICIT_FILE,],
+          packagePath: LISTED_PACKAGE,
+          unitTestFiles: [EXPLICIT_FILE,],
+        },);
+        expect(result.exitCode,).toBe(0,);
+        expect(result.events,).toEqual([EXPLICIT_FILE,],);
+      },
+    },),
+    it({
+      name: 'passes a run whose only file is expensive and says why nothing ran',
+      fn: async (): Promise<void> => {
+        /** `*.expensive.*` is a documented opt-in, so it is loud rather than failing. */
+        const result = await runTestUnitFixture({
+          packagePath: UNLISTED_PACKAGE,
+          unitTestFiles: [EXPENSIVE_TEST_FILE,],
+        },);
+        expect(result.exitCode,).toBe(0,);
+        expect(result.output,).toContain('runs no file',);
+        expect(result.events,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'runs an expensive file when the caller asks for it',
+      fn: async (): Promise<void> => {
+        /** The opt-in is `--all`, and it must reach the file the previous case skipped. */
+        const result = await runTestUnitFixture({
+          args: ['--all',],
+          packagePath: UNLISTED_PACKAGE,
+          unitTestFiles: [EXPENSIVE_TEST_FILE,],
+        },);
+        expect(result.exitCode,).toBe(0,);
+        expect(result.events,).toEqual([EXPENSIVE_TEST_FILE,],);
       },
     },),
     it({
