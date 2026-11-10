@@ -31,7 +31,9 @@ use std::time::{Duration, Instant};
 /// far beyond a healthy run.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// The longest a commit that meets a reference lock, and the command that settles it, may run here.
+/// The longest a commit that meets a reference lock,
+/// and the command that settles it,
+/// may run here.
 /// A settlement does what the landing that met the lock would have done,
 /// installs the index entries and marks the batch done included,
 /// so it costs what a landing costs,
@@ -41,7 +43,8 @@ const PATIENCE: Duration = Duration::from_secs(60);
 /// and at 132 to 162 each commit and each settlement took 60 to 204 s while still finishing
 /// (the same controls passed alone at 179 and 204 s).
 /// Five minutes is that measurement plus half,
-/// and it is a guard against a hang, not a measure of the work.
+/// and it is a guard against a hang,
+/// not a measure of the work.
 /// It is deliberately not the text of the shared bound of one Git command:
 /// that text is the supervisor's own backstop,
 /// and a command carrying it must show work every few seconds,
