@@ -5,6 +5,8 @@
 
 use super::*;
 use crate::fs_beneath::{identity_at, open_root};
+use crate::fs_btrfs_ioctl::{snapshot_create_at, subvolume_create_at};
+use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 
 /// Write a file,
@@ -92,5 +94,33 @@ fn a_very_deep_chain_of_directories_is_removed() {
     drop(current);
     assert_eq!(remove_tree_beneath(root.as_path(), &held, std::ffi::OsStr::new("top"), None), Ok(Removal::Removed));
     assert!(!root.join("top").exists());
+    remove(root.as_path());
+}
+
+/// What:
+///  A folder holding the stand-ins a snapshot shows where its source holds nested subvolumes is removed whole.
+/// Why:
+///   The stand-in step takes a whole worktree folder off an add's waiting path by moving it into the trash,
+/// so the
+///  service's emptying meets the stand-ins of every worktree the repository had;
+/// they hold nothing and belong to the tree
+///  being removed,
+/// although btrfs reports a device of their own for each.
+#[test]
+fn btrfs_a_folder_holding_the_stand_ins_of_nested_subvolumes_is_removed_whole() {
+    let Some(root) = btrfs_fixture("trash-remove-stand-ins") else { return };
+    let source: PathBuf = root.join("source");
+    subvolume_create_at(source.as_path()).expect("the source subvolume");
+    std::fs::create_dir_all(source.join("folder")).expect("the folder");
+    for name in ["w0", "w1"] {
+        subvolume_create_at(source.join("folder").join(name).as_path()).expect("a nested subvolume");
+    }
+    let snapshot: PathBuf = root.join("snapshot");
+    snapshot_create_at(source.as_path(), snapshot.as_path()).expect("a snapshot");
+    let held: std::fs::File = open_root(snapshot.as_path()).expect("the snapshot");
+    let stand_ins: Vec<String> = std::fs::read_dir(snapshot.join("folder").as_path()).expect("listing").flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert_eq!(stand_ins.len(), 2, "the snapshot shows a stand-in for each nested subvolume: {stand_ins:?}");
+    assert_eq!(remove_tree_beneath(snapshot.as_path(), &held, std::ffi::OsStr::new("folder"), None), Ok(Removal::Removed));
+    assert!(!snapshot.join("folder").exists(), "the folder and the stand-ins in it are gone");
     remove(root.as_path());
 }
