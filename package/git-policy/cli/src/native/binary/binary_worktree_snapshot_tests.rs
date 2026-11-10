@@ -114,20 +114,13 @@ fn a_clean_main_checkout_is_snapshotted_and_equals_gits_own_checkout() {
     let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "-b", "control", "../control"]);
-    // Git's own words, then the one line that says a snapshot of the main checkout made the worktree, then the line
-    //  that says what the snapshot left out was handed to the commit service: the snapshot's own `.git` copy is always
-    //  one of them.
+    // Git's own words, then the one line that says a snapshot of the main checkout made the worktree. The trash a routine
+    //  snapshot add hands over is the one it made itself (the stand-ins and its own `.git` copy), and its hand-over says
+    //  nothing.
     let wrapped: String = stderr_of(&created).replace("topic", "NAME");
     let git_words: String = stderr_of(&control).replace("control", "NAME");
     assert!(wrapped.starts_with(git_words.as_str()), "Git's own words come first: {wrapped}");
-    let after_git: &str = &wrapped[git_words.len()..];
-    assert!(after_git.starts_with(git_policy_cli::worktree_trash::MAIN_SNAPSHOT_NOTE), "{wrapped}");
-    let handed: &str = &after_git[git_policy_cli::worktree_trash::MAIN_SNAPSHOT_NOTE.len()..];
-    assert!(handed.starts_with("monochromatic-git-policy-cli: the 1 directories left out of the new worktree "), "the snapshot's own .git copy is the one entry: {wrapped}");
-    assert!(
-        handed.ends_with("were handed to the commit service, which empties them after this command returns, one trash at a time for this repository and at the lowest I/O priority; the add did not wait for that.\n"),
-        "{wrapped}"
-    );
+    assert_eq!(&wrapped[git_words.len()..], git_policy_cli::worktree_trash::MAIN_SNAPSHOT_NOTE, "a routine hand-over says nothing of its own: {wrapped}");
     assert_eq!(String::from_utf8_lossy(&created.stdout), String::from_utf8_lossy(&control.stdout), "Git's checkout line");
     let topic: PathBuf = fixture.root.join("topic");
     assert!(is_subvolume_root(topic.as_path()).expect("probe"));

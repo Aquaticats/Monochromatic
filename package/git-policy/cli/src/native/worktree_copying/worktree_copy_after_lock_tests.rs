@@ -40,7 +40,7 @@ fn worktree_with_planted_trash(name: &str, trash_name: &str, count: usize) -> (P
 /// The trash of a snapshot waiting to be handed over,
 /// in the worktree that holds it.
 fn pending_of(worktree: &Path, common: &Path, manifest: TrashManifest) -> PendingTrash {
-    return PendingTrash { destination: worktree.to_path_buf(), common_dir: common.to_path_buf(), manifest, quiet: false };
+    return PendingTrash { destination: worktree.to_path_buf(), common_dir: common.to_path_buf(), manifest, taken_over: 0, quiet: false };
 }
 
 /// The invocation of a creating command,
