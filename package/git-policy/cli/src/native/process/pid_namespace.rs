@@ -18,7 +18,7 @@
 
 /// The longest a merge waits for a foreign program's `index.lock`,
 /// which the patience is derived from.
-use crate::wait_ceilings::LOCK_CEILING;
+use crate::wait_ceilings::MERGE_LOCK_CEILING;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
@@ -48,49 +48,64 @@ use std::time::{Duration, SystemTime};
 /// which the add's work can move,
 /// so its age is at most the add's
 ///  length.
-/// The patience must outlast the longest such hold.
+/// The patience should outlast the longest such hold;
+/// the owner chose a shorter one than the longest add measured here,
+/// and "Limit" below says what that costs.
 ///  Basis:
-/// twice `LOCK_CEILING` (10 minutes,
+/// twice `MERGE_LOCK_CEILING` (one minute,
 /// `wait_ceilings.rs`),
 /// the longest a merge waits for a foreign `index.lock` with its
 ///  record already written,
-/// so 20 minutes.
+/// so two minutes:
+/// the owner,
+/// 2026-11-10,
+/// "Two minutes (Recommended)".
 /// It is derived,
 /// not written as a number,
 /// so the two cannot drift apart again:
 /// it was
 ///  an hour because it was twice the 30 minute live lock wait of `wait_limit.rs`,
 /// a file that no longer exists,
-/// and the owner's
+/// and then 20 minutes because it was twice the unmeasured ten minutes of a
+///  lock ceiling,
+/// which no wait took any more and which this release deleted
+/// (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "The lock ceiling and the three waits it fed").
+/// The owner's
 ///  rule (2026-11-03,
-/// "nothing should ever wait forever or indefinitely") bounded that wait at `LOCK_CEILING`.
+/// "nothing should ever wait forever or indefinitely") bounded those waits instead.
 /// Measured:
-/// the
-///  longest worktree add in the add timing log (79 adds,
-/// 2026-11-03T08:55:46Z to 2026-11-04T13:53:17Z,
-/// `totalMs`) took 539.7 s
-///  and the longest commit in the commit timing log (1,838 commits to 2026-11-04T14:08:47Z) 750.6 s,
-/// so the patience is 1.6
-///  times the longest command measured and 2.2 times the longest add.
-/// The logs hold commands of the host's own PID namespace,
-/// so
-///  no foreign-namespace hold was observed directly.
-/// If `LOCK_CEILING` changes,
+/// the longest hold of a lock the commit service's journal records is the `lock_hold_ms` of
+///  119,721 ms (4,386 `answered` lines,
+/// 2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00),
+/// a hold of the index,
+/// which leaves 239 ms
+///  inside this patience.
+/// That figure is the closest proxy there is:
+/// the journal times the service's own holds,
+/// and no log keeps the age of a record of another namespace.
+/// The longest whole commands of the same logs are longer
+/// (539.7 s for the longest of 79 worktree adds,
+///  750.6 s for the longest of 1,838 commits,
+/// and 1,228,797 ms in the timing log),
+/// and none of them says how long a record stood:
+/// the logs time commands of the host's own PID namespace,
+///  not records of another one.
+/// Limit:
+/// a hold of another namespace that does run past two minutes is refused and named
+/// (`RefusedForeignRecord`),
+///  never taken over,
+/// so nothing it holds is lost,
+/// and the person who knows the owner is gone removes the record with the `rm` the error gives.
+///  That refusal is what a worktree add of another namespace meets when its item path stands still past this age,
+/// and the longest
+///  add measured here (539.7 s) is longer than it.
+/// If `MERGE_LOCK_CEILING` changes,
 /// this value follows it;
 /// revisit the margin then
 ///  (`doc/planning/cli-git-shipped-limits-audit.md`,
 /// "Foreign-owner patience").
-/// Read again on 2026-11-08T18:43-05:00:
-/// the longest service-side hold in the journal is the `lock_hold_ms` of 119,721 ms,
-/// a tenth of this patience,
-/// and the longest whole command in the timing log is 1,228,797 ms,
-/// 28,797 ms past it.
-/// The log times a whole command and not a record's hold,
-/// so that figure says nothing about the records this patience judges.
-/// The merge it was stated against waits one minute now (`MERGE_LOCK_CEILING`),
-/// which would make a patience derived the same way two minutes;
-/// the value stays at twice `LOCK_CEILING` and another change owns it.
-pub const FOREIGN_OWNER_PATIENCE: Duration = Duration::from_secs(2 * LOCK_CEILING.as_secs());
+pub const FOREIGN_OWNER_PATIENCE: Duration = Duration::from_secs(2 * MERGE_LOCK_CEILING.as_secs());
 
 /// What:
 ///  The identity of this process's PID namespace,

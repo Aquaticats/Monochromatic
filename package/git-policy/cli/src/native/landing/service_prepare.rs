@@ -336,6 +336,7 @@ pub fn prepare<F: RepositoryFacts>(
         checks,
         indexes.commit_index.as_path(),
         indexes.object_directory.as_path(),
+        capture.layout.real_index_path.as_path(),
         staged_at_base(base_object(&capture)?, candidate_paths.as_slice()),
     );
     // A selection the person made leaves the policies read-only: they report, and the commit is exactly what was chosen.

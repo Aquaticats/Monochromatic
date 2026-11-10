@@ -288,9 +288,9 @@ The earlier phase-gated aggregation model was replaced.
 
 Each policy pass uses this staged order:
 
-1. Built-in configurable safety policies run in fixed core order.
-2. Fixed command transformers derive the forwarded command.
-3. Plugin policies run in namespace registration order and each plugin's policy declaration order.
+1.  Built-in configurable safety policies run in fixed core order.
+2.  Fixed command transformers derive the forwarded command.
+3.  Plugin policies run in namespace registration order and each plugin's policy declaration order.
 
 Core policies can inspect raw and semantic command facts.
 Plugin policies receive both raw and transformed command facts and predict candidate content from the transformed

@@ -77,14 +77,14 @@ type Segment = {
 // separator stripped off before a block's description is read.
 
 /**
- Checks whether `s` contains any non-whitespace character.
+ Checks whether `text` contains any non-whitespace character.
  
- @param s - text to inspect
+ @param text - content to inspect
  
  @returns true when at least one character is not whitespace
  */
-function hasNonWhitespace(s: string,): boolean {
-  for (const ch of s) {
+function hasNonWhitespace(text: string,): boolean {
+  for (const ch of text) {
     if (!isWhitespaceChar(ch,))
       return true;
   }
@@ -95,15 +95,15 @@ function hasNonWhitespace(s: string,): boolean {
  Removes a single leading hyphen separator (with surrounding whitespace) so
  the remaining text is the block description.
  
- @param s - block content after the parameter name or returns tag
+ @param text - block content after the parameter name or returns tag
  
  @returns description text with one leading `-` separator removed
  */
-function stripLeadingHyphen(s: string,): string {
+function stripLeadingHyphen(text: string,): string {
   /**
    Content with leading whitespace removed so a leading `-` is detectable.
    */
-  const trimmed = s.trimStart();
+  const trimmed = text.trimStart();
   return trimmed.startsWith('-',) ? trimmed.slice(1,) : trimmed;
 }
 

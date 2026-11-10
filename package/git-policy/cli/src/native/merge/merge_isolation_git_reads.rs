@@ -58,9 +58,9 @@ pub fn parse_maybe_bool(text: &str) -> Option<bool> {
 ///   `GIT_MERGE_AUTOEDIT` decides when it is set;
 /// otherwise the editor opens when standard input and output are one
 ///  terminal.
-///  The editor is not reproduced here,
-/// so a merge that would open one is forwarded;
-/// `--no-edit` avoids it.
+///  A merge that would open one over a checkout that holds nothing of the person's own work is still native Git's,
+///  which opens the editor itself;
+/// over that work the wrapper opens it (`merge_isolation_editor.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

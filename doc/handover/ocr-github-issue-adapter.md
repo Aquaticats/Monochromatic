@@ -348,16 +348,16 @@ A label-lookup failure is not proof of absence and remains an error before creat
 
 Issue bodies use this section order:
 
-1. `Finding`,
-   containing OCR content.
-2. `Source`,
-   containing the verified permalink or plain path and line range,
-   followed by category and severity metadata.
-3. `Existing code`,
-   when OCR supplied `existing_code`.
-4. `Suggested code`,
-   when OCR supplied `suggestion_code`.
-5. A plain attribution that the issue was generated from OpenCodeReview output.
+1.  `Finding`,
+    containing OCR content.
+2.  `Source`,
+    containing the verified permalink or plain path and line range,
+    followed by category and severity metadata.
+3.  `Existing code`,
+    when OCR supplied `existing_code`.
+4.  `Suggested code`,
+    when OCR supplied `suggestion_code`.
+5.  A plain attribution that the issue was generated from OpenCodeReview output.
 
 Missing category renders as `uncategorized` and missing severity as `unspecified`.
 Absent code fields omit their sections.
@@ -724,15 +724,15 @@ The worktree was clean before this handover was created.
 
 No new dependency may be added to the workspace until all of these steps occur for that dependency:
 
-1. Inspect current pnpm source and package metadata to identify what pnpm uses for the relevant interaction.
-2. Inspect this workspace for an existing dependency or utility that already meets the need.
-3. Present the proposed dependency to the user with its role,
-   alternatives,
-   pros,
-   cons,
-   and personal ranking.
-4. Wait for explicit approval for that dependency.
-5. Add it through the pnpm catalog and package manifest using repository dependency policy.
+1.  Inspect current pnpm source and package metadata to identify what pnpm uses for the relevant interaction.
+2.  Inspect this workspace for an existing dependency or utility that already meets the need.
+3.  Present the proposed dependency to the user with its role,
+    alternatives,
+    pros,
+    cons,
+    and personal ranking.
+4.  Wait for explicit approval for that dependency.
+5.  Add it through the pnpm catalog and package manifest using repository dependency policy.
 
 Approval for one external dependency does not approve another.
 A transitive dependency does not require separate approval unless the implementation proposes making it direct.
@@ -806,209 +806,209 @@ The source trace and scheduling rationale are recorded in
 
 The following branches were resolved one at a time in dependency order:
 
-1. Command responsibility:
-   settled as ingest-only.
-   The adapter never launches OCR.
-2. Publication timing:
-   interactive mode shows one final summary after selection,
-   then requires an explicit yes or no before GitHub mutations.
-   Empty input has no default and reprompts.
-   The summary names the destination repository and each selected issue title.
-   Every selected operation is creation.
-   It reports quarantined findings only as a count and never displays their sensitive content.
-3. Input contracts:
-   Accepted shapes are the complete review or scan result object,
-   `ocr session comments --json` comment array,
-   and raw OCR session JSONL transcript from a named file.
-   Every mode requires exactly one positional input.
-   Interactive mode accepts shell-quoted JSON or a named file;
-   non-interactive mode accepts only a named file.
-   Omitting input or supplying multiple values is invocation misuse with status two before any prompt.
-   `-` never means standard input.
-   Redirected,
-   piped,
-   and TTY-pasted standard input are never inspected or read as ingestion.
-   Interactive terminal prompts use TTY standard input only for finding selection and explicit decisions.
-   Missing and nonexistent input diagnostics show generation commands,
-   the common persisted-session path,
-   and a specifically discovered latest JSONL path when present.
-   A malformed record rejects the entire input before any GitHub operation.
-   Structurally valid findings with missing category metadata remain ordinary publishable candidates.
-   Named files require strict UTF-8 without any byte-order mark;
-   malformed bytes or a byte-order mark reject the input before GitHub operations.
-4. Non-interactive authority:
-   mode selection always requires exactly one explicit flag:
-   `--interactive` or `-i`,
-   or `--non-interactive`.
-   Neither or both is an error.
-   `--non-interactive` without `--apply` validates and prints a preview without GitHub mutations.
-   Bare `--non-interactive --apply` errors before all creation if any security-gated finding exists.
-   `--apply --non-security-only` creates only eligible non-security issues.
-   `--apply --all` includes security-gated issues under an explicit safe-disclosure assertion.
-   `--apply` is invalid with interactive mode,
-   whose post-selection yes-or-no confirmation is its mutation boundary.
-   Preview mode emits an exact JSON publication plan to standard output.
-   It contains complete normal issue titles and bodies,
-   repository,
-   label fallback,
-   source-reference behavior,
-   and only counts and input positions for security findings.
-   Diagnostics use standard error.
-   Non-interactive applied runs emit one final JSON result object after completion or a handled terminal failure,
-   with no standard-output progress events.
-   The result contains outcome,
-   repository,
-   created Issue numbers and URLs with input positions,
-   withheld-security positions,
-   and a positioned stopping failure without repeating titles or bodies.
-   Interactive applied runs use human-readable progress and finish with created Issue URLs.
-   Successful preview,
-   successful publication,
-   help,
-   and pre-publication cancellation return status zero.
-   Invalid command-line syntax,
-   flags,
-   or arguments return status two.
-   Validation,
-   preflight,
-   authentication,
-   GitHub operations,
-   handled post-publication interruption,
-   partial publication,
-   and other runtime failures return status one.
-   A forced second Ctrl+C returns status 130.
-   Issue creation is serial with at least one second between mutative requests.
-   Rate-limit rejections,
-   network failures,
-   timeouts,
-   and `5xx` responses are retryable.
-   Every retryable failure permits at most three retries after the initial request.
-   Rate limits honor `retry-after` or `x-ratelimit-reset`;
-   without either,
-   delays start at sixty seconds and double.
-   Network,
-   timeout,
-   and `5xx` delays start at one second and double.
-   Before each initial create request,
-   the adapter queries the greatest repository Issue or pull request number as a high-water mark.
-   After an ambiguous failure,
-   it queries every newer number and compares the exact generated title and body before retrying.
-   One exact match proves the request result for adapter purposes and suppresses the retry.
-   No match permits the next retry.
-   More than one exact match is a terminal error:
-   the adapter reports every matching URL,
-   creates no later issue,
-   and performs no automatic closure or cleanup.
-   A failed reconciliation query stops processing rather than risking a blind retry.
-   Retrying after a successful no-match reconciliation can still create a duplicate
-   because GitHub documents no read-after-write consistency guarantee;
-   the tool must state that residual risk.
-   After a failure exhausts its retries,
-   no later issue is attempted.
-5. Security disclosure and quarantine:
-   security-gated findings use a separate red and text-marked interactive picker.
-   Each selected security finding requires an explicit confirmation with no default.
-   The security gate contains only findings whose normalized OCR category is exactly `security`.
-   Content signals,
-   severity,
-   `other`,
-   and missing category metadata do not enter that gate.
-   Explicit category `other` is an ordinary candidate visibly marked `OTHER`.
-   Missing category metadata is an ordinary candidate visibly marked `UNCATEGORIZED`.
-   Neither receives an additional authority gate.
-   Withheld security findings are not persisted separately.
-   Output reports only their count and input record ordinals or JSONL line numbers;
-   users inspect the original OCR input.
-6. Repository selection:
-   explicit `--repo https://github.com/OWNER/NAME` overrides repository inference.
-   The shorthand `OWNER/NAME` is invalid.
-   Without `--repo`,
-   the adapter infers the destination only when the process working directory is exactly a Git worktree root.
-   From a subdirectory inside a worktree,
-   it errors and instructs the user to rerun at the root
-   or pass `--repo https://github.com/OWNER/NAME`.
-   Outside a Git worktree,
-   it errors and requires `--repo https://github.com/OWNER/NAME`.
-   These are diagnostics followed by exit,
-   not prompts;
-   non-interactive mode never prompts.
-   Failure or ambiguity while identifying the root repository also errors and suggests `--repo`.
-7. Issue rendering:
-   issue titles use `[category] path: summary`.
-   `category` is the normalized OCR category or `uncategorized` when absent.
-   `path` is the OCR finding path.
-   `summary` is the first meaningful line of OCR content.
-   When content has none,
-   the first non-whitespace `existing_code` line becomes the summary after trimming surrounding whitespace.
-   When neither has one,
-   the first non-whitespace `suggestion_code` line becomes the summary under the same trimming rule.
-   Interfaces warn that these fallbacks can expose existing or proposed code or secrets in titles and notifications.
-   A finding for which all three fields lack a non-whitespace line is invalid
-   and atomically rejects the complete input.
-   Bodies include separate existing-code and suggested-code sections when OCR supplies those fields.
-   Model `thinking` is always omitted.
-   Source references always show path and line range.
-   They become commit-pinned links only when input supplies a resolved head commit
-   that is verified in the destination repository;
-   otherwise they remain plain text.
-   Every issue receives the existing `needs-triage` label when available.
-   When it is confirmed absent,
-   the adapter silently prepends `[needs-triage] ` to the generated title instead.
-   It never creates labels and supports no additional label option.
-   Body section structure is settled as Finding,
-   Source with category and severity,
-   optional Existing code,
-   optional Suggested code,
-   and OpenCodeReview attribution.
-   Missing metadata uses `uncategorized` and `unspecified`.
-   OCR content is inserted as unchanged Markdown with active headings,
-   fences,
-   HTML,
-   links,
-   and mentions.
-   Interactive normal candidates and the final batch summary show titles only.
-   Each selected security candidate shows its complete generated title and body
-   before its individual disclosure confirmation.
-   The final title,
-   including a fallback `[needs-triage] ` prefix,
-   has an adapter-owned 256-byte UTF-8 cap.
-   Overlength titles retain the longest valid prefix within 253 bytes,
-   trim trailing whitespace,
-   and append `…`.
-   Existing code and Suggested code use indented code blocks,
-   with a blank line after the heading and four added spaces on every code line.
-   They use no delimiter,
-   inferred language tag,
-   or syntax-highlighting hint.
-8. Identity and lifecycle:
-   settled as create-only.
-   The adapter has no persistent synthetic identity,
-   cross-run existing-issue lookup,
-   repeated-run duplicate suppression,
-   update,
-   reopen,
-   or automatic closure behavior.
-   Repeated ingestion may create duplicates.
-   Attempt reconciliation is the sole lookup exception:
-   it scans only Issue or pull request numbers above a pre-request high-water mark
-   after an ambiguous create failure and compares exact generated title and body.
-   One match is success,
-   no match allows retry,
-   and multiple matches stop with every matching URL reported and no automatic cleanup.
-9. Interactive mechanics:
-   the normal picker initially selects all findings.
-   The separate security picker initially selects none.
-   Both use `☐` for unchecked and `☑` for checked rather than circular indicators.
-   The normal picker retains select-all and invert shortcuts;
-   the security picker disables both.
-   The combined result must select at least one issue;
-   otherwise selection remains active until a finding is selected or the user cancels.
-   Either individual picker may be empty.
-   Inquirer direct subpackages implement pnpm-style prompting.
-   Post-creation interrupt and multi-select behavior are settled.
-   Interactive mode requires TTY standard input and TTY standard output.
-   Native Node color controls govern ANSI styling;
-   square indicators and textual security markers prevent color-only meaning.
+1.  Command responsibility:
+    settled as ingest-only.
+    The adapter never launches OCR.
+2.  Publication timing:
+    interactive mode shows one final summary after selection,
+    then requires an explicit yes or no before GitHub mutations.
+    Empty input has no default and reprompts.
+    The summary names the destination repository and each selected issue title.
+    Every selected operation is creation.
+    It reports quarantined findings only as a count and never displays their sensitive content.
+3.  Input contracts:
+    Accepted shapes are the complete review or scan result object,
+    `ocr session comments --json` comment array,
+    and raw OCR session JSONL transcript from a named file.
+    Every mode requires exactly one positional input.
+    Interactive mode accepts shell-quoted JSON or a named file;
+    non-interactive mode accepts only a named file.
+    Omitting input or supplying multiple values is invocation misuse with status two before any prompt.
+    `-` never means standard input.
+    Redirected,
+    piped,
+    and TTY-pasted standard input are never inspected or read as ingestion.
+    Interactive terminal prompts use TTY standard input only for finding selection and explicit decisions.
+    Missing and nonexistent input diagnostics show generation commands,
+    the common persisted-session path,
+    and a specifically discovered latest JSONL path when present.
+    A malformed record rejects the entire input before any GitHub operation.
+    Structurally valid findings with missing category metadata remain ordinary publishable candidates.
+    Named files require strict UTF-8 without any byte-order mark;
+    malformed bytes or a byte-order mark reject the input before GitHub operations.
+4.  Non-interactive authority:
+    mode selection always requires exactly one explicit flag:
+    `--interactive` or `-i`,
+    or `--non-interactive`.
+    Neither or both is an error.
+    `--non-interactive` without `--apply` validates and prints a preview without GitHub mutations.
+    Bare `--non-interactive --apply` errors before all creation if any security-gated finding exists.
+    `--apply --non-security-only` creates only eligible non-security issues.
+    `--apply --all` includes security-gated issues under an explicit safe-disclosure assertion.
+    `--apply` is invalid with interactive mode,
+    whose post-selection yes-or-no confirmation is its mutation boundary.
+    Preview mode emits an exact JSON publication plan to standard output.
+    It contains complete normal issue titles and bodies,
+    repository,
+    label fallback,
+    source-reference behavior,
+    and only counts and input positions for security findings.
+    Diagnostics use standard error.
+    Non-interactive applied runs emit one final JSON result object after completion or a handled terminal failure,
+    with no standard-output progress events.
+    The result contains outcome,
+    repository,
+    created Issue numbers and URLs with input positions,
+    withheld-security positions,
+    and a positioned stopping failure without repeating titles or bodies.
+    Interactive applied runs use human-readable progress and finish with created Issue URLs.
+    Successful preview,
+    successful publication,
+    help,
+    and pre-publication cancellation return status zero.
+    Invalid command-line syntax,
+    flags,
+    or arguments return status two.
+    Validation,
+    preflight,
+    authentication,
+    GitHub operations,
+    handled post-publication interruption,
+    partial publication,
+    and other runtime failures return status one.
+    A forced second Ctrl+C returns status 130.
+    Issue creation is serial with at least one second between mutative requests.
+    Rate-limit rejections,
+    network failures,
+    timeouts,
+    and `5xx` responses are retryable.
+    Every retryable failure permits at most three retries after the initial request.
+    Rate limits honor `retry-after` or `x-ratelimit-reset`;
+    without either,
+    delays start at sixty seconds and double.
+    Network,
+    timeout,
+    and `5xx` delays start at one second and double.
+    Before each initial create request,
+    the adapter queries the greatest repository Issue or pull request number as a high-water mark.
+    After an ambiguous failure,
+    it queries every newer number and compares the exact generated title and body before retrying.
+    One exact match proves the request result for adapter purposes and suppresses the retry.
+    No match permits the next retry.
+    More than one exact match is a terminal error:
+    the adapter reports every matching URL,
+    creates no later issue,
+    and performs no automatic closure or cleanup.
+    A failed reconciliation query stops processing rather than risking a blind retry.
+    Retrying after a successful no-match reconciliation can still create a duplicate
+    because GitHub documents no read-after-write consistency guarantee;
+    the tool must state that residual risk.
+    After a failure exhausts its retries,
+    no later issue is attempted.
+5.  Security disclosure and quarantine:
+    security-gated findings use a separate red and text-marked interactive picker.
+    Each selected security finding requires an explicit confirmation with no default.
+    The security gate contains only findings whose normalized OCR category is exactly `security`.
+    Content signals,
+    severity,
+    `other`,
+    and missing category metadata do not enter that gate.
+    Explicit category `other` is an ordinary candidate visibly marked `OTHER`.
+    Missing category metadata is an ordinary candidate visibly marked `UNCATEGORIZED`.
+    Neither receives an additional authority gate.
+    Withheld security findings are not persisted separately.
+    Output reports only their count and input record ordinals or JSONL line numbers;
+    users inspect the original OCR input.
+6.  Repository selection:
+    explicit `--repo https://github.com/OWNER/NAME` overrides repository inference.
+    The shorthand `OWNER/NAME` is invalid.
+    Without `--repo`,
+    the adapter infers the destination only when the process working directory is exactly a Git worktree root.
+    From a subdirectory inside a worktree,
+    it errors and instructs the user to rerun at the root
+    or pass `--repo https://github.com/OWNER/NAME`.
+    Outside a Git worktree,
+    it errors and requires `--repo https://github.com/OWNER/NAME`.
+    These are diagnostics followed by exit,
+    not prompts;
+    non-interactive mode never prompts.
+    Failure or ambiguity while identifying the root repository also errors and suggests `--repo`.
+7.  Issue rendering:
+    issue titles use `[category] path: summary`.
+    `category` is the normalized OCR category or `uncategorized` when absent.
+    `path` is the OCR finding path.
+    `summary` is the first meaningful line of OCR content.
+    When content has none,
+    the first non-whitespace `existing_code` line becomes the summary after trimming surrounding whitespace.
+    When neither has one,
+    the first non-whitespace `suggestion_code` line becomes the summary under the same trimming rule.
+    Interfaces warn that these fallbacks can expose existing or proposed code or secrets in titles and notifications.
+    A finding for which all three fields lack a non-whitespace line is invalid
+    and atomically rejects the complete input.
+    Bodies include separate existing-code and suggested-code sections when OCR supplies those fields.
+    Model `thinking` is always omitted.
+    Source references always show path and line range.
+    They become commit-pinned links only when input supplies a resolved head commit
+    that is verified in the destination repository;
+    otherwise they remain plain text.
+    Every issue receives the existing `needs-triage` label when available.
+    When it is confirmed absent,
+    the adapter silently prepends `[needs-triage] ` to the generated title instead.
+    It never creates labels and supports no additional label option.
+    Body section structure is settled as Finding,
+    Source with category and severity,
+    optional Existing code,
+    optional Suggested code,
+    and OpenCodeReview attribution.
+    Missing metadata uses `uncategorized` and `unspecified`.
+    OCR content is inserted as unchanged Markdown with active headings,
+    fences,
+    HTML,
+    links,
+    and mentions.
+    Interactive normal candidates and the final batch summary show titles only.
+    Each selected security candidate shows its complete generated title and body
+    before its individual disclosure confirmation.
+    The final title,
+    including a fallback `[needs-triage] ` prefix,
+    has an adapter-owned 256-byte UTF-8 cap.
+    Overlength titles retain the longest valid prefix within 253 bytes,
+    trim trailing whitespace,
+    and append `…`.
+    Existing code and Suggested code use indented code blocks,
+    with a blank line after the heading and four added spaces on every code line.
+    They use no delimiter,
+    inferred language tag,
+    or syntax-highlighting hint.
+8.  Identity and lifecycle:
+    settled as create-only.
+    The adapter has no persistent synthetic identity,
+    cross-run existing-issue lookup,
+    repeated-run duplicate suppression,
+    update,
+    reopen,
+    or automatic closure behavior.
+    Repeated ingestion may create duplicates.
+    Attempt reconciliation is the sole lookup exception:
+    it scans only Issue or pull request numbers above a pre-request high-water mark
+    after an ambiguous create failure and compares exact generated title and body.
+    One match is success,
+    no match allows retry,
+    and multiple matches stop with every matching URL reported and no automatic cleanup.
+9.  Interactive mechanics:
+    the normal picker initially selects all findings.
+    The separate security picker initially selects none.
+    Both use `☐` for unchecked and `☑` for checked rather than circular indicators.
+    The normal picker retains select-all and invert shortcuts;
+    the security picker disables both.
+    The combined result must select at least one issue;
+    otherwise selection remains active until a finding is selected or the user cancels.
+    Either individual picker may be empty.
+    Inquirer direct subpackages implement pnpm-style prompting.
+    Post-creation interrupt and multi-select behavior are settled.
+    Interactive mode requires TTY standard input and TTY standard output.
+    Native Node color controls govern ANSI styling;
+    square indicators and textual security markers prevent color-only meaning.
 10. GitHub boundary and package interface:
     GitHub operations use non-paginated `gh api --include` subprocesses
     with private named request-body files and no inherited standard input.

@@ -73,55 +73,6 @@ pub const START_CEILING: Duration = Duration::from_secs(60);
 /// Ten seconds is 15 times that and well below `START_CEILING`.
 pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
 
-/// The ten minutes the foreign-owner patience of another PID namespace is derived from (`process/pid_namespace.rs`:
-///  `FOREIGN_OWNER_PATIENCE`,
-/// twice this).
-/// No wait takes it any more:
-/// the landing,
-/// the merge,
-/// the settling of earlier batches and the
-///  index reconciliation each take their own measured ceiling above.
-///  Measured on 2026-11-08 from this repository's commit timing log (`monochromatic-git-policy-cli-commit-timing.jsonl`
-/// and its one rotated generation,
-/// 1,332 records,
-/// 2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z,
-/// releases 0.5.34 to 0.6.1-alpha.4,
-/// 102
-///  worktrees):
-/// six records hold a waiting notice for another program's hold on the index.
-/// Two of them landed after 3,636
-///  and 23,783 ms of answer time;
-/// the other four are the commits that met the lock that never went on 2026-11-07,
-/// each
-///  with 62 notices and no holder proven alive,
-/// and they stopped after 644,710,
-/// 756,215,
-/// 1,087,175 and 1,200,776 ms.
-/// No wait that a holder released came near the ten minutes,
-/// and the longest of the four stopped ones is 776 ms past the client's
-///  twenty-minute `ANSWER_CEILING`,
-/// which is what bounds the whole wait rather than any one step of it.
-/// The value stays where it is because another change owns the patience it feeds,
-/// and that patience's stated basis (twice the longest a
-///  merge waits) no longer holds now that the merge waits `MERGE_LOCK_CEILING`
-/// (`doc/planning/cli-git-shipped-limits-audit.md`,
-/// "The lock ceiling and the three waits it fed").
-/// Read again on 2026-11-08T18:43-05:00 with the service journal beside the log
-/// (both generations of the timing log,
-/// 1,608 records to 2026-11-08T23:49:56Z,
-/// and the journal's 4,386 `answered` lines,
-/// 2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00):
-/// 609 of those landings waited on the index at all (95th percentile 6 ms,
-/// 99th percentile 158 ms),
-/// 71 waited on the holder's place at all,
-/// and the longest wait on a lock is 11,490 ms counted with the wrapper's own staging
-/// and 8,000 ms at the place.
-/// So the ten minutes is 52 times the longest of them,
-/// and no wait takes it.
-/// The table is in `doc/planning/cli-git-shipped-limits-audit.md`,
-/// "The lock ceilings' waits read again from the service journal".
-pub const LOCK_CEILING: Duration = Duration::from_secs(10 * 60);
-
 /// The longest wait for a foreign program's `index.lock` that ended because the program let go,
 /// in the commit service's journal.
 ///  Measured on 2026-11-07 over the `lock_wait_ms` of the 3,634 `answered` lines of the journal since 2026-11-01:
@@ -172,8 +123,8 @@ const fn whole_minutes_at_least(wait: Duration) -> Duration {
 ///  self-released wait with a margin of five,
 /// in whole minutes (40 s,
 /// so one minute).
-/// It replaces the ten minutes of `LOCK_CEILING`,
-///  which was unmeasured and let four queued commits wait 678 to 1,229 s each on 2026-11-07.
+/// It replaces an unmeasured ten minutes,
+///  which let four queued commits wait 678 to 1,229 s each on 2026-11-07.
 /// After a wait this long the commit is
 ///  withdrawn,
 /// kept on a side ref,
@@ -185,7 +136,7 @@ const fn whole_minutes_at_least(wait: Duration) -> Duration {
 /// ten waits on one host,
 /// and a person's own
 ///  `git commit` with an editor open longer than this makes the wrapper's commit stop where native Git would have stopped at once.
-/// Read again on 2026-11-08T18:43-05:00 (see `LOCK_CEILING`):
+/// Read again on 2026-11-08T18:43-05:00 (see `LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`):
 /// of the journal's 4,386 landings,
 /// 20 waited more than a second on the index.
 /// Fourteen of them landed
@@ -381,7 +332,7 @@ pub const SERVICE_HOLD_CEILING: Duration = Duration::from_secs(10 * 60);
 /// The longest a client waits for the service to answer a withdrawal of its request.
 /// The service answers it as soon as the landing
 ///  it is in the middle of ends,
-/// which `LOCK_CEILING` and the step bounds limit;
+/// which the landing's ceiling and the step bounds limit;
 /// the number is the longest observed landing
 ///  (journal `landing_ms` 119,836 ms) with the same margin of five.
 pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);

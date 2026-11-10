@@ -302,3 +302,32 @@ fn the_read_is_capped_beyond_the_reported_size() {
     let whole: Vec<u8> = read_regular_file(path, 4096).expect("whole record");
     assert!(whole.len() > 10);
 }
+
+/// What:
+///  The process's durability answer decides whether a file is flushed at all,
+/// not only whether the flush is recorded.
+/// Why:
+///   A control that reads the sync records cannot tell a kept flush from a made one:
+/// both record.
+/// A pipe's write end cannot be flushed at all,
+/// so the flush's own refusal is what tells the two branches of `flush_file_when_faithful` apart.
+#[cfg(unix)]
+#[test]
+fn the_durability_answer_decides_whether_a_file_is_flushed() {
+    use std::os::fd::FromRawFd;
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `pipe` writes the two descriptors it created into the array.
+    let made: libc::c_int = unsafe { libc::pipe(ends.as_mut_ptr()) };
+    assert_eq!(made, 0, "a pipe is made");
+    // SAFETY: the read end is closed here and the write end is handed to exactly one `File`, which closes it.
+    let read_end: libc::c_int = ends[0];
+    let write_end: File = unsafe { File::from_raw_fd(ends[1]) };
+    let refused: std::io::Result<()> = flush_file_when_faithful(&write_end, Path::new("a pipe"));
+    assert!(refused.is_err(), "a pipe holds no data to flush: {refused:?}");
+    crate::private_storage::skip_the_durability_syncs_here();
+    let kept: std::io::Result<()> = flush_file_when_faithful(&write_end, Path::new("a pipe"));
+    assert!(kept.is_ok(), "the answer skips the flush the pipe refuses: {kept:?}");
+    // SAFETY: the read end is a descriptor this control opened and closes once.
+    let closed: libc::c_int = unsafe { libc::close(read_end) };
+    assert_eq!(closed, 0, "the read end is closed");
+}

@@ -1,6 +1,6 @@
 /**
  Dim-dropdown and range-slider event wiring for the deck.gl scene controller.
- 
+
  @example
  ```ts
  wireDimDropdowns({ session, probes, commit });
@@ -9,6 +9,7 @@
  */
 
 import { computeSceneBounds, } from '../deck-config.ts';
+import { computeRangeExtent, } from './range-extent.ts';
 import type { PackageProbe, } from '../probe.ts';
 import {
   elInput,
@@ -22,82 +23,21 @@ import type {
   Commit,
   Session,
 } from './controller-event-types.ts';
-import {
-  type DataDimKey,
-  DIM_UNKNOWN,
-  extractDim,
-} from './filter.ts';
-
-//region Helpers
-
-/**
- Computes inclusive `[min, max]` extent across probes for one data dim, skipping unknowns.
- 
- @param probes - Source probes.
- 
- @param dim - Dim whose extent to compute.
- 
- @returns Inclusive `[min, max]` bounds, or `[0, 0]` if no probe has known value.
- 
- @example
- ```ts
- const extent = computeRangeExtent({ probes, dim: 'logDownloads' });
- ```
- */
-function computeRangeExtent(
-  {
-    probes,
-    dim,
-  }: {
-    readonly probes: readonly PackageProbe[];
-    readonly dim: DataDimKey;
-  },
-): readonly [
-  number,
-  number,
-] {
-  /**
-   Known non-null values for `dim` across `probes`; basis for `[min, max]` extent.
-   */
-  const values = probes
-    .map(function pluck(probe,) {
-      return extractDim({
-        probe,
-        dim,
-      },);
-    },)
-    .filter(function known(value,): value is number {
-      return value !== DIM_UNKNOWN;
-    },);
-  if (values.length
-    === 0) {
-    return [
-      0,
-      0,
-    ];
-  }
-  return [
-    Math.min(...values,),
-    Math.max(...values,),
-  ];
-}
-
-//endregion Helpers
 
 //region Wire functions
 
 /**
  Wires the six dim dropdowns.
- 
+
  Changing a dim resets that channel's range slider to the new dim's extent,
  because old bounds are in old dim units and become meaningless.
- 
+
  @param session - Mutable session.
- 
+
  @param probes - Source probes.
- 
+
  @param commit - Callback that re-renders and syncs hash.
- 
+
  @example
  ```ts
  wireDimDropdowns({ session, probes, commit });
@@ -190,14 +130,14 @@ export function wireDimDropdowns(
 
 /**
  Wires the six min/max slider pairs.
- 
+
  Live `input` events update the mask immediately for snappy filtering; no
  debounce is used because the mask is O(probes).
- 
+
  @param session - Mutable session.
- 
+
  @param commit - Callback that re-renders and syncs hash.
- 
+
  @example
  ```ts
  wireRanges({ session, commit });

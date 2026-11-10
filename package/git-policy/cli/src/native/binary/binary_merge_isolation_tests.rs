@@ -1202,15 +1202,18 @@ fn terminal() -> Terminal {
 
 /// Run a wrapped command with the given standard input and output,
 /// standard error piped,
+/// and an editor named,
 /// to its end.
 fn run_on(
     fixture: &Fixture,
     repo: &Path,
     arguments: &[&str],
     streams: (std::process::Stdio, std::process::Stdio),
+    editor: &Path,
 ) -> Observed {
     let (input, output) = streams;
     let finished = wrapped_in(fixture, repo, arguments)
+        .env("GIT_EDITOR", editor)
         .stdin(input)
         .stdout(output)
         .stderr(std::process::Stdio::piped())
@@ -1221,11 +1224,18 @@ fn run_on(
     return Observed { code: finished.status.code(), stdout: finished.stdout, stderr: finished.stderr };
 }
 
-/// Without `--no-edit` or `GIT_MERGE_AUTOEDIT`,
+/// What:
+///  Without `--no-edit` or `GIT_MERGE_AUTOEDIT`,
 /// a merge opens an editor only when standard input and output are one
-/// terminal;
-/// then the wrapper hands it to native Git with the notice,
-/// and in any other arrangement it completes it.
+///  terminal (`default_edit_option`).
+/// Why:
+///   Native Git refuses such a merge over the staged work before it opens the editor,
+/// so the wrapper opens the editor
+///  itself when the streams are one terminal,
+/// and completes the merge with Git's own message in every other
+///  arrangement.
+/// The line the editor wrote is the proof that it opened,
+/// and the staged work stays staged in every case.
 #[test]
 fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
     let one: Terminal = terminal();
@@ -1263,14 +1273,19 @@ fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
         let repo: PathBuf = diverged(&fixture, "repo");
         stage_unrelated_work(&fixture, repo.as_path());
         let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-        let observed: Observed = run_on(&fixture, repo.as_path(), &["merge", "feature"], streams());
-        let notice: bool = text(&observed.stderr).contains("this merge would open an editor");
-        assert_eq!(notice, opens_editor, "{name}: {}", text(&observed.stderr));
-        let merged: bool = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]) != before;
-        assert_eq!(merged, !opens_editor, "{name}: {}", text(&observed.stderr));
-        if !opens_editor {
-            assert_eq!(observed.code, Some(0), "{name}: {}", text(&observed.stderr));
-        }
+        let editor: PathBuf = fixture.root.join("editor");
+        executable(editor.as_path(), b"#!/bin/sh\nprintf 'written in the editor\\n' >> \"$1\"\n");
+        let observed: Observed = run_on(&fixture, repo.as_path(), &["merge", "feature"], streams(), editor.as_path());
+        assert_eq!(observed.code, Some(0), "{name}: the staged work is carried: {}", text(&observed.stderr));
+        assert_ne!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "{name}: merged: {}", text(&observed.stderr));
+        let message: String = git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%B"]);
+        assert_eq!(message.contains("written in the editor"), opens_editor, "{name}: {}", text(&observed.stderr));
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1", "--", "u.txt"]),
+            "M  u.txt\n",
+            "{name}: the staged work is still staged: {}",
+            text(&observed.stderr)
+        );
         remove_settled(&fixture);
     }
 }
