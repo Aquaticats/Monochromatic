@@ -720,18 +720,6 @@ because A protects the file at a small cost on a rare form,
 B leaves the loss in place,
 and C blocks routine work.
 
-### `git clean -fdx` is now refused in a linked worktree that has ignored files
-
-This is the same branch,
-and agents will notice it.
-`git clean -fdx` deletes ignored files,
-so the guard now counts them,
-and a worktree with `node_modules` is refused.
-`git clean -nx` shows what would go.
-It follows from "never discard user data",
-and it changes a common way of getting a fresh build.
-Write "allow it in linked worktrees" here if you want the old behaviour back.
-
 ### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
 
 The session picked the audit's recommendation,
@@ -970,6 +958,26 @@ because you have already answered them:
 deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
+
+## Answered in the question tool, recorded 2026-11-10T11:13:17-05:00
+
+### A clean that deletes ignored files in a linked worktree
+
+"Allow and log (Recommended)":
+"All four are deleted,
+exit 0,
+and the audit log records the command",
+about a linked worktree holding `node_modules/`,
+`dist/`,
+a `.env` copied from the main checkout and a file the agent wrote itself.
+It follows the earlier "Log only" for `git worktree remove`.
+`git clean -x` counts tracked and untracked work only,
+`git clean -X` asks nothing and runs,
+the main checkout still refuses both,
+and an untracked file still refuses a `-x` clean.
+Branch `fix/git-policy-cli-git-clean-in-a-linked-worktree-allowed-and-logged`,
+documented in `package/git-policy/cli/SPEC.md`,
+section "Discarding commands".
 
 ## Answered in the question tool, recorded 2026-11-10T05:40:16-05:00
 
