@@ -33,6 +33,8 @@ import {
  */
 const l = tagged({ tag: 'mutation-test', },);
 
+//region Container shape
+
 /**
  Report file name the container writes (mirrors container/main.ts).
  */
@@ -48,6 +50,10 @@ export type ShardResources = {
   readonly sessionTimeoutSeconds: number;
   readonly workTmpfsSize: string;
 };
+
+//endregion Container shape
+
+//region Mount and run arguments
 
 /**
  Formats one volume mount argument.
@@ -160,6 +166,10 @@ export function buildShardArgs(options: {
   ];
 }
 
+//endregion Mount and run arguments
+
+//region Report validation
+
 /**
  Returns whether a parsed JSON value has the shard report shape.
  
@@ -185,6 +195,10 @@ function isShardReport(value: unknown,): value is ShardReport {
     && Array.isArray(record.results,)
     && Array.isArray(record.unrun,);
 }
+
+//endregion Report validation
+
+//region Container run
 
 /**
  Runs one shard container and reads back its report.
@@ -242,3 +256,5 @@ export async function runShardContainer(options: {
     .length,)} results`,);
   return parsed;
 }
+
+//endregion Container run

@@ -124,8 +124,17 @@ function sliceIndexOf({
   breaks,
   offset,
 }: SliceIndexOfParams,): number {
+  /**
+   Low end of the search span; the first break index still reachable.
+   */
   let low = 0;
+  /**
+   High end of the search span; the last break index still reachable.
+   */
   let high = breaks.length - 1;
+  /**
+   Last probed break at or before the offset; `-1` until one qualifies.
+   */
   let found = -1;
   while (low <= high) {
     /**

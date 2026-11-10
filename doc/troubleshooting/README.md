@@ -47,6 +47,9 @@ Package management and dependency resolution problems:
 - [PNPM offline verifier metadata mirrors](pnpm-offline-verifier-metadata-mirrors.md)
 - [A `catalog:` specifier inside a `file:` dependency cannot be installed](pnpm-file-dependency-catalog-spec.md)
 - [A store link for a `link:` override can dangle, and `pnpm install` will not repair it](pnpm-store-link-dangling-override.md)
+- [The container matrix cannot start a scenario on a store-linked checkout](catalog-tighten-matrix-cannot-start.md):
+   symlinked `node_modules` point outside the read-only repo mount,
+   and the shadowed pnpm's extra version line is not a spec corepack accepts
 - [Pi update allowScripts warnings](pi-update-allow-scripts.md)
 
 ### [Performance Optimization](performance.md)
