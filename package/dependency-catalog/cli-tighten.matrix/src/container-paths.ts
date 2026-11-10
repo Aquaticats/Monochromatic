@@ -54,7 +54,14 @@ export const TOOL_ENTRY: string = join(
 /**
  This matrix's own in-container entrypoint, inside the mounted repo.
  */
-export const IN_CONTAINER_ENTRY = '/repo/packages/dev-script/catalog-tighten.matrix/src/in-container.ts';
+export const IN_CONTAINER_ENTRY: string = join(
+  REPO_DIR,
+  'package',
+  'dependency-catalog',
+  'cli-tighten.matrix',
+  'src',
+  'in-container.ts',
+);
 
 /**
  Writable tmpfs directory the corepack `pnpm` shim is installed into.

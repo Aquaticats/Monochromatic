@@ -5,8 +5,8 @@
  points at a file that exists in the monorepo the container mounts at
  {@link REPO_DIR}, so a package rename cannot leave the container argv naming a
  path that no longer exists. Both entrypoints used to be spelled out per file,
- and one kept the pre-rename `packages/dev-script/...` level, which made every
- scenario die before catalog-tighten ran.
+ and the matrix one kept the `packages/` level the singular-directory rename
+ had already removed, which made every scenario die before catalog-tighten ran.
  
  @module
  */
@@ -70,15 +70,25 @@ function hostPathOf(inContainerPath: string,): string {
 
 //endregion Host mapping
 
+//region Entrypoints
+
+/**
+ In-container entrypoint constants the container argv names, paired with the
+ label a failure reports them by.
+ */
+const ENTRYPOINTS = [
+  ['TOOL_ENTRY', TOOL_ENTRY,],
+  ['IN_CONTAINER_ENTRY', IN_CONTAINER_ENTRY,],
+] as const satisfies readonly (readonly [string, string])[];
+
+//endregion Entrypoints
+
 await describe({
   name: 'container paths',
   children: [
     //region Entrypoints named by the container argv
 
-    ...[
-      ['TOOL_ENTRY', TOOL_ENTRY,],
-      ['IN_CONTAINER_ENTRY', IN_CONTAINER_ENTRY,],
-    ].map(function entryCase([
+    ...ENTRYPOINTS.map(function entryCase([
       name,
       inContainerPath,
     ],) {
