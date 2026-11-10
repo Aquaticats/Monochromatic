@@ -115,6 +115,8 @@ and
 "Dozens of agents at once is normal operation."
 So count the free slots whenever a run ends or a batch finishes starting,
 and start work in them the same turn.
+`stop-pi-runs-not-on-the-wrapper --apply` asks every run whose worktree is not on a `git-policy` branch,
+and is not one of the wrapper-adjacent runs the owner ordered, to stop through its stop file.
 That work is the Git wrapper's and nothing else unless the owner names it:
 the owner asked on 2026-11-10
 "How many times do I need to tell you to focus on the wrapper this session?",
@@ -124,6 +126,9 @@ A tool that slows down with dozens of agents running has a defect to fix;
 the number of agents is never the explanation and never a reason to start fewer.
 Audits and reviews sit outside that limit and use other models.
 Reviews of a change run on Kimi K3.1 Pro alone,
+started by `start-kimi-reviews --list=<reviews.json>`,
+which makes each review's worktree, diff and brief and starts it on Synthetic
+(and restarts one Synthetic rate-limited on `neuralwatt/kimi-k3.1-pro-flex` with the same session),
 and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
 rules `KRV` and `LHZ` in `AGENTS.md`,
 from the owner's "Kimi alone" and "Both side by side (Recommended)"
@@ -219,48 +224,40 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
       and anything it could not do,
       because it cannot ask you.
 
-4.  Start it as its own capped unit,
-    in the background.
-    `--wait` makes this one command end when the unit ends,
-    print the unit's result,
-    and exit with its status;
-    following `MainPID` with `tail --pid` waited out its whole timeout on a unit that had already finished.
-    The entry file uses only Node built-ins,
-    so it runs from source with no build and no `node_modules`:
+4.  Start it with the package's own command,
+    which makes the worktree, the run folder and the capped unit,
+    and ends when the unit ends with the unit's status:
 
     ```sh
-    # run from ~/Monochromatic
-    systemd-run --user --wait --unit=pi-<task> --collect \
-      --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=1 \
-      --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" \
-      "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
-      "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
-      --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
+    # run from anywhere; --runs-folder and --repository take their defaults under $HOME
+    start-pi-run-in-a-free-slot --name=<task> --branch=<branch|none> \
       --provider=neuralwatt --model=deepseek-v4.1-flash \
-      --wall-seconds=2400 --idle-seconds=60 --turn-cap=<sized from past runs>
+      --wall=2400 --turn-cap=<sized from past runs>
     ```
 
-    Size `--turn-cap` to the task from past runs at every launch.
-    The owner,
-    2026-11-09:
-    "Always Size turn limits to the task based on past data."
-    Read what the finished runs of the same kind used,
-    narrowing by the run folders' names:
-
-    ```sh
-    # run from anywhere; <runs> holds the run folders, and the pattern picks the runs like this one
-    jq --slurp '[.[] | select(.endReason == "idle" and (.turns | type == "number")) | .turns] | sort
-      | {runs: length, median: .[length / 2 | floor], p95: .[length * 0.95 | floor], highest: .[-1]}' \
-      <runs>/*-findings-fixed-*/summary.json
-    ```
-
-    Set the cap a quarter above `highest`,
-    so a run as long as the longest that finished still has room.
-    When too few runs of that kind have finished to say anything,
-    read every run instead.
-    A cap exists to end a run that stopped getting anywhere;
-    one that fires on a working run costs a resume and leaves its work uncommitted.
-    Measured at 2026-11-09T07:42:00-05:00 over 254 runs:
+    It counts the runs going in the provider pools before it starts one,
+    and answers `NO SLOT` with status 3 rather than starting a run its pool has no room for,
+    so a queue goes through `retry-start-pi-run-until-a-slot-frees`
+    and a round of work through `start-a-batch-of-pi-runs`.
+    The pools, the ceiling and every default are in
+    `package/pi-shared/subagent-driver/README.md`.
+    What the command does is what used to be written here by hand:
+    `systemd-run --user --wait --unit=pi-<task> --collect`,
+    `--property=RuntimeMaxSec=<wall plus the grace>`,
+    `--property=MemoryMax`, `--property=CPUQuota`, `--property=TasksMax`,
+    `--property=IOWeight`,
+    `--setenv=PATH="$(mise exec -- printenv PATH)"`, `--setenv=HOME`,
+    the node that `mise exec -- bash -c 'command -v node'` finds,
+    and `package/pi-shared/subagent-driver/src/drive-pi-subagent.ts`
+    with the run folder, the working folder, the prompt file, the provider, the model,
+    `--wall-seconds`, `--idle-seconds` and `--turn-cap`.
+    Size `--turn-cap` to the task from past runs at every launch, or leave it unset:
+    the command sizes it a quarter above the longest finished run of the same kind,
+    which is the owner's "Always Size turn limits to the task based on past data."
+    (2026-11-09),
+    and refuses to start when no finished run says how long the work takes.
+    The owner's figure for why a cap must not fire on a working run:
+    measured at 2026-11-09T07:42:00-05:00 over 254 runs,
     finished fix rounds from a review or audit used a median of 126 turns,
     a 95th percentile of 329 and at most 358,
     every finished run at most 377,
@@ -270,7 +267,9 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     To steer,
     write a text file under a name starting with a dot in `<run>/inbox/`,
     then rename it to one without the dot,
-    because the driver reads any other name at once.
+    because the driver reads any other name at once;
+    `send-note-to-running-pi-runs --note=<file> --name=<name>` does that for every run going,
+    and `--skip=<run>` leaves one alone.
     Pi gets it as a steer while it runs and as a new prompt while it is idle,
     and `--idle-seconds` is how long the driver stays up for one after Pi settles.
     An entry must be an ordinary file:
@@ -317,6 +316,10 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     so a run that needed them reads apart from one that did not.
     A run that used up its attempts still ends `model-error`,
     which is when to start it again from the same session file as step 7 says.
+   `latest-pi-run-reports <agent>...` prints each agent's newest finished report,
+   with its end, its turns and a slice of the text,
+   and says so when an agent has finished none.
+
 7.  For a follow-up after the driver has exited,
     start the same unit under a new name,
     with a new run folder,

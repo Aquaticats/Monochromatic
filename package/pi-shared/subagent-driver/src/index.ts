@@ -209,3 +209,9 @@ export {
   startLineSplitter,
   type SplitPiOutputRequest,
 } from './split-pi-output.ts';
+
+/**
+ The commands that manage runs: starting them, waiting for a slot, a batch of them, their reports, the notes a coordinator
+ sends them, and the reviews of a change.
+ */
+export * from './run-management-surface.ts';

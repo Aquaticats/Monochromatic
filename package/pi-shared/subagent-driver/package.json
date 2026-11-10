@@ -17,7 +17,14 @@
   "bin": {
     "drive-pi-subagent": "dist/final/node/drive-pi-subagent.mjs",
     "watch-overdue-pi-runs": "dist/final/node/watch-overdue-pi-runs.mjs",
-    "check-in-on-pi-runs": "dist/final/node/check-in-on-pi-runs.mjs"
+    "check-in-on-pi-runs": "dist/final/node/check-in-on-pi-runs.mjs",
+    "start-pi-run-in-a-free-slot": "dist/final/node/start-pi-run-in-a-free-slot.mjs",
+    "retry-start-pi-run-until-a-slot-frees": "dist/final/node/retry-start-pi-run-until-a-slot-frees.mjs",
+    "start-a-batch-of-pi-runs": "dist/final/node/start-a-batch-of-pi-runs.mjs",
+    "latest-pi-run-reports": "dist/final/node/latest-pi-run-reports.mjs",
+    "send-note-to-running-pi-runs": "dist/final/node/send-note-to-running-pi-runs.mjs",
+    "stop-pi-runs-not-on-the-wrapper": "dist/final/node/stop-pi-runs-not-on-the-wrapper.mjs",
+    "start-kimi-reviews": "dist/final/node/start-kimi-reviews.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
@@ -36,5 +43,8 @@
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git",
     "directory": "package/pi-shared/subagent-driver"
+  },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*"
   }
 }

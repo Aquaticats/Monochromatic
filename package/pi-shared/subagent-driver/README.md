@@ -550,3 +550,175 @@ Its `RuntimeMaxSec` is what bounds the driver itself;
 
 A failure to keep Pi's standard error is reported as a `problem` line and does not by itself change how the run ends,
 because it is the diagnostic record and not the record the caller reads.
+
+## Starting runs: the commands that manage them
+
+Seven commands start, queue, read and steer runs.
+Each takes one job,
+so a coordinator can start work without writing a script,
+and each shares the names the skill recipe uses:
+the unit is `pi-<name>.service`, each attempt writes `<name>-<number>`,
+and a worktree is `<repository>/.claude/worktrees/pi-<name>`.
+A run started by one of these commands is read by `watch-overdue-pi-runs` and
+`check-in-on-pi-runs` exactly as one a person started by hand.
+
+Every command takes `--runs-folder`, which defaults to `${HOME}/temp/agent/pi-runs`,
+and the commands that touch a repository take `--repository`,
+which defaults to `${HOME}/Monochromatic`.
+
+### `start-pi-run-in-a-free-slot`
+
+One run, started when its provider pool has a slot free.
+It counts what is already going, chooses the pool, makes the worktree and the run folder,
+sizes the run's turn cap, and starts the unit,
+ending when the unit ends with the unit's own status.
+
+```sh
+start-pi-run-in-a-free-slot --name=copy-route --branch=feat/copy-route --prompt=$HOME/temp/agent/pi-runs/copy-route-prompt.md
+```
+
+- `--name` and `--branch` are required.
+  `--branch=none` works in the repository's own checkout instead of a worktree.
+- `--prompt` defaults to `<runs folder>/<name>-prompt.md`.
+- `--run` is the attempt's number, one by default.
+- `--provider` and `--model` default to the standard pool.
+- `--cpu`, `--memory`, `--tasks` and `--wall` are the unit's ceiling and the run's wall clock,
+  800, `12G`, 3000 and 7200 by default.
+- `--idle-seconds` is how long the driver waits for a steering message once Pi rests, 120 by default.
+- `--turn-cap` replaces the cap sized from finished runs.
+- `--session-of=<run folder>` resumes that attempt's session and stays in its pool.
+- `--driver-entry` is the driver the unit runs.
+
+It answers `NO SLOT: <every pool>; not started: <name>` and exits 3 when the run's pool is full,
+so a caller knows to try again rather than that the run failed.
+It answers `ALREADY RUNNING: <name>` and exits 4 when a run of that name is going.
+An audit (`sol-…`) may be started twice under one name.
+
+### `retry-start-pi-run-until-a-slot-frees`
+
+The same start, asked again and again until it is no longer refused for want of a slot.
+
+```sh
+retry-start-pi-run-until-a-slot-frees --deadline-seconds=10800 --period-seconds=30 -- \
+  --name=copy-route --branch=feat/copy-route --wall=7200
+```
+
+`--deadline-seconds` and `--period-seconds` are required: the owner requires that
+"nothing should ever wait forever or indefinitely", and a queue with no deadline is exactly that.
+Everything after `--` goes to `start-pi-run-in-a-free-slot` unchanged.
+It exits with the start's own status, or 3 with
+`no slot freed before the deadline: <the start's arguments>` when the deadline passes.
+
+### `start-a-batch-of-pi-runs`
+
+A list of runs, each queued for its own slot.
+
+```sh
+start-a-batch-of-pi-runs agents-batch-round-1.json 10800
+```
+
+The list is a JSON array, and each entry takes the start's own fields:
+
+```json
+[
+  { "name": "copy-route", "branch": "feat/copy-route", "wall": 7200 },
+  { "name": "copy-route-again", "branch": "feat/copy-route", "run": 2, "sessionOf": "copy-route-1" }
+]
+```
+
+An entry's `prompt` is a path relative to the runs folder.
+Entries are started twenty seconds apart, so the queue's order is the list's,
+and one line per entry is printed when every entry has finished,
+because each entry's queue ends when its run does.
+A list an entry names without a `branch` or `name` is refused before anything starts.
+
+### `latest-pi-run-reports`
+
+The newest finished run of each agent named: its end, its turns, and a slice of its report.
+
+```sh
+latest-pi-run-reports --lines=30 --width=420 copy-route other-agent
+```
+
+An agent with no finished run answers `=== <name>: no finished run`,
+which is how an agent that never started reads apart from one that started and failed.
+
+### `send-note-to-running-pi-runs`
+
+One note, published into the inbox of every run that is going.
+
+```sh
+send-note-to-running-pi-runs --note=correction.md --name=correction
+```
+
+The note is written under a dot name and renamed,
+which is the only way a note reaches a run whole.
+`--skip=<run>` leaves a run alone,
+and every run's line says where the note went or that the run has no folder yet.
+
+### `stop-pi-runs-not-on-the-wrapper`
+
+Every run going, sorted by the branch its worktree has checked out:
+the Git wrapper's work is kept, and the rest is named,
+and with `--apply` each of those runs gets its stop file.
+
+```sh
+stop-pi-runs-not-on-the-wrapper --apply
+```
+
+A run whose branch names `git-policy` is the wrapper's work,
+and so is a run whose name starts with one of the wrapper-adjacent prefixes the owner ordered.
+Nothing is written without `--apply`.
+
+### `start-kimi-reviews`
+
+A list of Kimi K3.1 Pro reviews, each prepared and started on Synthetic,
+outside every Neuralwatt pool.
+
+```sh
+start-kimi-reviews --list=reviews.json
+```
+
+The list is a JSON array of reviews:
+
+```json
+[
+  {
+    "name": "worktree-add-placeholders-1",
+    "commit": "aa7f601c6d",
+    "range": "807f3ea26d^1...807f3ea26d^2",
+    "focus": "a stand-in removed while an add still needs it",
+    "source": "package/git-policy/cli/src/native"
+  }
+]
+```
+
+For each review the command makes a worktree at `commit` on branch `test/kimi-review-<name>`,
+writes the range's diff and names every changed source file in the brief,
+with no cap on how many, and starts the review under `pi-kimi-review-<name>`.
+`--source` defaults to `package/git-policy/cli/src/native`.
+
+A review whose model provider answered with a rate limit is started again on
+`neuralwatt/kimi-k3.1-pro-flex` with the same session, as the owner asked:
+"Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s."
+
+## What these commands replace
+
+Each of these commands is the package's version of scratch scripts in
+`${HOME}/temp/agent/pi-runs`, kept there until the coordinator switched over:
+
+- `start-pi-run-in-a-free-slot`: `start-pi-run-if-a-slot-is-free.ts` and
+  `start-pi-run-in-worktree.ts`.
+- `retry-start-pi-run-until-a-slot-frees`: `retry-start-until-a-slot-frees.ts`.
+- `start-a-batch-of-pi-runs`: `start-batch-with-retries.ts` and `start-agents-in-a-staggered-batch.ts`.
+- `latest-pi-run-reports`: `latest-reports.ts`, and the per-run slice of
+  `show-pi-run-reports.ts`.
+- `send-note-to-running-pi-runs`: `send-to-every-running-pi.ts`,
+  `tell-running-wrapper-agents.ts`, `tell-running-agents-never-print-the-environment.ts`,
+  `send-environment-rule-to-running-agents.ts`, and the inbox half of `send-corrections-to-runs.ts`.
+- `stop-pi-runs-not-on-the-wrapper`: `stop-agents-not-on-the-wrapper.ts`.
+- `start-kimi-reviews`: `write-kimi-review.ts` and the `start-kimi-reviews-round-*.ts` and
+  `start-kimi-audits-round-*.ts` scripts.
+
+The scripts of the same folder that this package does not own are named in the branch's report:
+they measure providers, land branches, or read GitHub issues, which are other packages' jobs.

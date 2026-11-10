@@ -79,6 +79,11 @@ export type CommandOutput = {
 export type RunCommand = (request: {
   readonly command: string;
   readonly words: readonly string[];
+
+  /**
+   The folder the command runs in; absent for this process's own.
+   */
+  readonly cwd?: string;
 }) => Promise<CommandOutput>;
 
 /**
@@ -208,10 +213,12 @@ function failureOf(caught: unknown,): CommandOutput {
 export async function runCommandWithChildProcess({
   command,
   words,
+  cwd,
   timeoutMilliseconds = COMMAND_TIMEOUT_MILLISECONDS,
 }: {
   readonly command: string;
   readonly words: readonly string[];
+  readonly cwd?: string;
   readonly timeoutMilliseconds?: number;
 },): Promise<CommandOutput> {
   try {
@@ -226,6 +233,7 @@ export async function runCommandWithChildProcess({
         maxBuffer: COMMAND_OUTPUT_BYTES,
         timeout: timeoutMilliseconds,
         killSignal: 'SIGKILL',
+        ...((cwd === undefined) ? {} : { cwd, }),
       },
     );
     return {
