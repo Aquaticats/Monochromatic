@@ -41,12 +41,11 @@ import {
   buildNonLeafScatterLayer,
   buildUnknownClusterLayer,
 } from './deck-scatter.ts';
+import { computeRangeExtent, } from './script/range-extent.ts';
 import type { PackageProbe, } from './probe.ts';
-import {
-  type ChannelKey,
-  DIM_UNKNOWN,
-  type DimMapping,
-  extractDim,
+import type {
+  ChannelKey,
+  DimMapping,
 } from './script/filter.ts';
 import type { ChromeColors, } from './script/scheme.ts';
 import type { AppState, } from './script/state.ts';
@@ -114,7 +113,7 @@ export const orbitView: OrbitView = new OrbitView({
 
 /**
  Computes inclusive `[min, max]` bounds for every channel given the
- current dim mapping. Unknowns (`extractDim` returning {@link DIM_UNKNOWN}) are
+ current dim mapping. Unknown readings are
  skipped. Channels with zero known values fall back to {@link FALLBACK_EXTENT}.
  
  Run on every render so dim swaps reflow the camera + axis labels.
@@ -144,32 +143,13 @@ export function computeSceneBounds(
    Per-channel `[key, extent]` pairs ready to feed `Object.fromEntries` into a SceneBounds record.
    */
   const entries = CHANNEL_KEYS.map(function extentFor(channel,) {
-    /**
-     Known values across every probe for this channel; unknowns ({@link DIM_UNKNOWN}) are dropped before min/max.
-     */
-    const values = probes
-      .map(function pluck(probe,) {
-        return extractDim({
-          probe,
-          dim: dimMapping[channel],
-        },);
-      },)
-      .filter(function known(value,): value is number {
-        return value !== DIM_UNKNOWN;
-      },);
-    if (values.length
-      === 0) {
-      return [
-        channel,
-        FALLBACK_EXTENT,
-      ] as const;
-    }
     return [
       channel,
-      [
-        Math.min(...values,),
-        Math.max(...values,),
-      ] as const,
+      computeRangeExtent({
+        probes,
+        dim: dimMapping[channel],
+        fallback: FALLBACK_EXTENT,
+      },),
     ] as const;
   },);
   /**

@@ -59,6 +59,43 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Trying Kimi K3.1 Pro as auditor and reviewer (2026-11-10T05:53:55-05:00)
+
+The owner:
+"Try synthetic's hf:moonshotai/Kimi-K3.1-Pro as auditor and reviewer.
+If this works we can replace both GPT and Sonnet with it."
+And:
+"Kimi K3.1 Pro has a tendency to cheat.
+I suggest you let deepseek look through on disk transcripts after the trial kimi runs.
+If it cheated,
+we need to disqualify it."
+
+Blind Pi runs repeat finished work at the commit that work read:
+the Claude Sonnet audits `differential-against-real-git` (`7da0abce05`) and `never-stuck` (`a56d51b311`),
+and the `gpt-6.1-sol` reviews `worktree-copy-path-bytes-round-5` (`6ac3bc7e07`) and `merge-route-round-9` (`3d5219e9da`).
+Nothing stops a run from reading the earlier answers:
+its brief forbids that,
+and every session is checked afterwards,
+by `~/temp/agent/pi-runs/scan-kimi-trial-sessions-for-cheating.ts` and by a DeepSeek run that reads the session files.
+`~/temp/agent/pi-runs/run-kimi-trials-and-check-them.ts` drives all of it.
+Results land in `~/temp/agent/kimi-trials/`,
+with the verdicts in `cheating-check.md`.
+`AGENTS.md` rules `XVW`,
+`XVB`,
+`XVS` and `LHZ` stand until the results are compared.
+
+### The merge carry loses edits on a kill or a save (2026-11-10T05:53:55-05:00)
+
+`~/temp/agent/merge-carry-script-on-main/reproductions/carry-interruption.ts`,
+run under the owner's "Run that script here (Recommended)",
+reproduced both cases on `b73a61f9f0`.
+A `SIGKILL` between the staged and unsaved layers loses the unsaved bytes for good:
+the next command drops the capture ref and the record,
+and says the file is the person's.
+A save between the carry's check and its write is overwritten,
+and the merge exits 0.
+The Pi agent `merge-carry-keeps-edits-through-a-kill-and-a-save` owns the fix.
+
 ### At the Claude Code restart (2026-11-10T05:16:25-05:00)
 
 `0.6.1-alpha.7` is published and installed,
@@ -6212,8 +6249,28 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   shared masking,
   existing records untouched.
 
-### LFS credential work: finished and paused (owner: "pause the lfs thread until I say unpause lfs")
+### LFS credential work: pause lifted 2026-11-10T06:44:02-05:00 (owner: "Unpause LFS.")
 
+- The owner's answers are recorded at the top of `doc/troubleshooting/lfs-credential-in-url.md`:
+  per-machine tokens,
+  and a login that this repository's own settings point to,
+  with a command that adds it to a chosen clone.
+  Nothing global may change:
+  "The custom lfs settings or server should only apply to repos where this is configured."
+- A live incident came first.
+  Issue 6277 reports it:
+  a Codex session's `git push` to a fork from a separate clone,
+  with no controlling terminal,
+  reached `git-lfs push --all`,
+  then `git credential fill`,
+  then `ksshaskpass` on the owner's desktop.
+  The push waited for more than seven minutes while the dialog came back each time it was dismissed.
+  Agent `lfs-upload-bounded-and-no-dialog-without-a-terminal` is queued for it,
+  and for the two LFS waits `SPEC.md` recorded as left unbounded by the pause.
+- Agent `lfs-per-machine-tokens-and-repo-login` is queued for the Worker,
+  the repository-only login and the per-clone command.
+  The coordinator runs the deployment,
+  the local migration and the token replacement after that branch lands.
 - The LFS agent's report and full inventory:
   `doc/troubleshooting/lfs-credential-in-url.md`,
   merged to main as `05199a8d8e` (credential guard task,

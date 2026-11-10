@@ -86,6 +86,9 @@ and a trial at 20 agents on 2026-11-09 met no rate-limit error.
 On going higher the owner said:
 "no,
 that's definitely going to blow up."
+A run on another provider's account is outside it.
+The owner on 2026-11-10:
+"Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
 Audits and reviews sit outside that limit and use another model.
 The owner on 2026-11-09:
 "Please use gpt-6.1-sol with the openai provider for audits and reviews.
