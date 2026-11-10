@@ -212,6 +212,16 @@ await describe({
             expect(meta.thumbnailSize,).toEqual({ height: 0, width: 0, },);
           },
         },),
+        it({
+          name: 'rejects bytes that are not JSON at all',
+          fn: async () => {
+            /**
+             Truncated metadata payload, which no JSON parser accepts.
+             */
+            const truncated = new TextEncoder().encode('{"file_name":',);
+            expect(() => parseMetaJson(truncated,),).toThrow();
+          },
+        },),
       ],
     },),
   ],

@@ -18,12 +18,21 @@ fuzz_target!(|data: &[u8]| {
         let _ = regex.is_match(b"A3TabcAKIA0123456789ABCDEF probe line");
     }
 
-    // What:  decode a whole ruleset matcher; on success, exercise both queries.
+    // What:  decode a whole ruleset matcher; on success, exercise both queries and
+    //        compare their verdicts.
     // Why:   `RegexSet::from_bytes` validates every per-rule engine; `is_match` and
-    //        `matches` walk all of them, so both must stay in bounds.
+    //        `matches` walk all of them, so both must stay in bounds, and a decoded set
+    //        must answer its two faces the same way a freshly compiled one does: a
+    //        disagreement means the serialized form lost a routing path.
     if let Ok(set) = forbidden_regex::RegexSet::from_bytes(data) {
-        let _ = set.is_match(data);
-        let _ = set.is_match(b"");
-        let _ = set.matches(data).count();
+        for line in [data, b"", b"A3TabcAKIA0123456789ABCDEF probe line"] {
+            let boolean = set.is_match(line);
+            let attributed = set.matches(line).next().is_some();
+            if boolean != attributed {
+                panic!(
+                    "decoded RegexSet disagreed between its faces: is_match={boolean} matches().next().is_some()={attributed}\nline = {line:?}"
+                );
+            }
+        }
     }
 });
