@@ -28,7 +28,7 @@ use monochromatic_lint::{
     configuration::parse_configuration,
     diagnostic::{Diagnostic, Span},
     directive_options::DirectiveOptions,
-    edits::{Edit, Fix, apply_fixes},
+    edits::{Edit, Fix, FixClass, FixScope, apply_fixes},
     markdown_rule_settings::markdown_rule_settings,
     processors::{VirtualSource, extract},
     run_file::{SourceOutcome, process_source},
@@ -269,6 +269,9 @@ pub fn plan(name: &str) -> FilePlan {
         config,
         root,
         directives: DirectiveOptions::default(),
+        // The harness synthesizes content edits below, so its plan admits them the way the
+        // repository's test support does; the plain `--fix` scope would refuse every one.
+        fix_scope: FixScope::WhitespaceAndContent,
     };
 }
 
@@ -471,7 +474,11 @@ pub fn check_adversarial_edits(name: &str, source: &str, data: &[u8]) -> EditRea
             replacement: String::from(replacement),
         });
     }
-    let Ok(projected): Result<Fix, _> = input.project_fix(&Fix { edits }) else {
+    let Ok(projected): Result<Fix, _> = input.project_fix(&Fix {
+        // Arbitrary replacements add, remove or rewrite tokens, so the group is content.
+        class: FixClass::Content,
+        edits,
+    }) else {
         return EditReach::Refused;
     };
     for edit in &projected.edits {
