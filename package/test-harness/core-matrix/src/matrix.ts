@@ -14,7 +14,10 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
+  type DescribeResult,
   it,
+  type ItResult,
+  type TestDescriptor,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { resolve, } from 'node:path';
 
@@ -182,8 +185,8 @@ function applyExcludes({
     === 0)
     return combinations;
 
-  return combinations.filter(function isNotExcluded(combination,) {
-    return !excludes.some(function isExcluded(exclude,) {
+  return combinations.filter(function isNotExcluded(combination: Combination,): boolean {
+    return !excludes.some(function isExcluded(exclude: ExcludeEntry,): boolean {
       return matchesExclude({
         combination,
         exclude,
@@ -239,6 +242,8 @@ function shortFileName(filePath: string,): string {
  
  @param cachyosImage - CachyOS image resolved once for the matrix; absent when no entry uses `cachyos`
  
+ @param l - Logger tagged with the caller's scope
+ 
  @returns stdout from the execution
  
  @throws Error when the combination fails or uses an unimplemented protocol
@@ -247,11 +252,20 @@ function executeCombination({
   combination,
   monorepoRoot,
   cachyosImage,
+  l: parentLogger,
 }: {
   readonly combination: Combination;
   readonly monorepoRoot: string;
   readonly cachyosImage?: string;
+  readonly l: Logger;
 },): Promise<string> {
+  /**
+   Logger tagged with this function, so a backend's forwarded stderr line names the dispatch that reached it.
+   */
+  const l: Logger = tagged({
+    tag: executeCombination.name,
+    l: parentLogger,
+  },);
   /**
    Protocol drives the backend choice; parsed once and inspected by each branch.
    */
@@ -259,7 +273,10 @@ function executeCombination({
 
   if (parsed.protocol
     === 'host')
-    return runHost({ combination, },);
+    return runHost({
+      combination,
+      l,
+    },);
 
   if (parsed.protocol
     === 'container') {
@@ -267,6 +284,7 @@ function executeCombination({
       combination,
       monorepoRoot,
       ...(cachyosImage === undefined ? {} : { cachyosImage, }),
+      l,
     },);
   }
 
@@ -376,7 +394,7 @@ export async function matrix({
    Either the consumer's explicit list (resolved against cwd) or auto-discovered tests.
    */
   const files = filesOption !== undefined
-    ? filesOption.map(function resolveFile(filePath,) {
+    ? filesOption.map(function resolveFile(filePath: string,): string {
       return resolve(
         process.cwd(),
         filePath,
@@ -444,7 +462,7 @@ export async function matrix({
    One describe-tree per file, each containing one `it` per combination for that file.
    */
   const children = [...fileGroups.entries(),].map(
-    function createFileDescribe([filePath, fileCombinations,],) {
+    function createFileDescribe([filePath, fileCombinations,],): TestDescriptor<DescribeResult> {
       /**
        Trimmed-path display label; full path is too long for nested describe output.
        */
@@ -455,7 +473,7 @@ export async function matrix({
         l,
         concurrency,
         children: fileCombinations.map(
-          function createCombinationIt(combination,) {
+          function createCombinationIt(combination: Combination,): TestDescriptor<ItResult> {
             /**
              Human-readable axis tuple used as the `it` name.
              */
@@ -464,7 +482,7 @@ export async function matrix({
             return it({
               name: label,
               l,
-              fn: async function runCombination() {
+              fn: async function runCombination(): Promise<void> {
                 /**
                  Captured so the empty-output check below does not log a blank line.
                  */
@@ -472,6 +490,7 @@ export async function matrix({
                   combination,
                   monorepoRoot,
                   ...cachyosOption,
+                  l,
                 },);
                 if (output !== '')
                   l.info(output,);

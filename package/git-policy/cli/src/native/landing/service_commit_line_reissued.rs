@@ -17,9 +17,14 @@
 //!  `-F <file>` for the message,
 //!  `--author` and `--date` for a borrowed authorship,
 //!  and the private index for the selection.
-//!  A `--fixup=reword:` commit is the one line left out:
+//!  A `--fixup=reword:` commit is the one line a rebuild cannot read back:
 //!  Git throws the index away for it,
 //!  so its commit is the branch's own tree and a replay of the captured tree would land changes the person did not choose.
+//!  That commit is not refused for it:
+//!  `rewords_a_commit` tells the commit loop that the line asks for an empty commit,
+//!  and the commit a moved branch makes of it is written from the fields of the commit Git built
+//!  (`service_commit.rs`,
+//!  the arm for a branch that moved).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -141,6 +146,47 @@ fn without_selection_letters(token: &str) -> Option<String> {
         kept.push(letter);
     }
     return if kept == "-" { None } else { Some(kept) };
+}
+
+/// What:
+///  Whether the command line names the one fixup whose commit Git makes from the branch rather than from the index.
+/// Why:
+///   `--fixup=reword:<commit>` throws the index away,
+///  so the commit it asks for carries the branch's own tree and the message the editor settled:
+///  an empty commit is what the person asked for,
+///  and the commit a moved branch makes of it is written from the fields of the commit Git built
+///  (`service_commit.rs`,
+///  the arm for a branch that moved).
+///  The region is read the way the rebuild reads it,
+///  so a `--fixup=reword:` that is the value of another option is not one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rewordsACommit(args, subcommand) // boolean
+/// ```
+pub(crate) fn rewords_a_commit(arguments: &[OsString], subcommand: usize) -> bool {
+    let text: Vec<String> = arguments.iter().map(lossy_text).collect();
+    let region: Vec<String> = normalise_commit_args(text.get(subcommand + 1..).unwrap_or(&[]));
+    let mut state: State = State::Option;
+    for token in &region {
+        match state {
+            State::Value | State::DroppedValue => {
+                state = State::Option;
+                continue;
+            }
+            State::Verbatim => continue,
+            State::Option => {}
+        }
+        if token == SEPARATOR {
+            state = State::Verbatim;
+            continue;
+        }
+        if rewords_another_commit(token.as_str()) {
+            return true;
+        }
+        state = if takes_next_token(token.as_str()) { State::Value } else { State::Option };
+    }
+    return false;
 }
 
 /// What one token of the region leaves for the tokens after it.
