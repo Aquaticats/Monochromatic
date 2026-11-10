@@ -13,6 +13,7 @@ import type {
   ItemWDate,
   NormalizedItem,
 } from './item-type.ts';
+import { coercePublicationDateSchema, } from './publication-date.ts';
 
 /**
  Logger root for rss after removing the package log shim.
@@ -75,17 +76,7 @@ export function getSortedItems(feeds: readonly FeedWOutline[],): ItemWDate[] {
     return {
       ...item,
       pubDateDate: v.parse(
-        v.pipe(
-          v.union([
-            v.string(),
-            v.number(),
-            v.date(),
-          ],),
-          v.transform(function toDate(input,) {
-            return new Date(input,);
-          },),
-          v.date(),
-        ),
+        coercePublicationDateSchema,
         item.item
           .pubDate
           ?? new Date(0,),

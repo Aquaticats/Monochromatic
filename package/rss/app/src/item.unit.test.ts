@@ -4,7 +4,7 @@
  declares, which made the render throw `raw.replaceAll is not a function`.
  */
 
-import { parseAtomFeed, } from 'feedsmith';
+import { parseAtomFeed, parseRssFeed, } from 'feedsmith';
 import {
   describe,
   expect,
@@ -36,6 +36,20 @@ const ATOM_WITH_ONE_ENTRY = `<?xml version="1.0" encoding="utf-8"?>
   </entry>
 </feed>`;
 
+/**
+ Publication date text that names no instant, the wild-data case an item date
+ must fall back from.
+ */
+const UNPARSEABLE_PUB_DATE = 'Tue, 32 Jan 2025 10:00:00 GMT';
+
+/**
+ RSS document whose only item carries a publication date no calendar can read.
+ */
+const RSS_WITH_UNPARSEABLE_ITEM_DATE = '<?xml version="1.0"?><rss version="2.0"><channel>'
+  + '<title>Bad date</title><item><title>One</title>'
+  + `<link>${ENTRY_LINK}</link><pubDate>${UNPARSEABLE_PUB_DATE}</pubDate>`
+  + '</item></channel></rss>';
+
 await describe({
   name: '',
   children: [
@@ -57,6 +71,23 @@ await describe({
             expect(items[0]?.item.title,).toBe('Hello',);
             expect(items[0]?.item.link,).toBe(ENTRY_LINK,);
             expect(items[0]?.item.description,).toBe('Body text',);
+          },
+        },),
+        it({
+          name: 'falls back to the epoch for an item date no calendar can read',
+          fn: async () => {
+            const items = getSortedItems([{
+              feed: parseRssFeed(RSS_WITH_UNPARSEABLE_ITEM_DATE,),
+              outline: {
+                type: 'rss',
+                text: 'Bad date',
+              },
+            },],);
+            const [itemWDate] = items;
+            if (itemWDate === undefined)
+              throw new Error('the fixture RSS feed yielded no item',);
+
+            expect(itemWDate.pubDateDate.getTime(),).toBe(0,);
           },
         },),
       ],

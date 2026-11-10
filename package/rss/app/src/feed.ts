@@ -12,6 +12,7 @@ import * as v from 'valibot';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { InnerOutlineWUrl, } from './outline.ts';
+import { coercePublicationDateSchema, } from './publication-date.ts';
 import type { DeepReadonly, } from './types.ts';
 
 /**
@@ -180,24 +181,9 @@ async function fetchAndParseFeeds(
 }
 
 /**
- Coerces string, number, or Date inputs into a Date instance.
- */
-const coerceDateSchema = v.pipe(
-  v.union([
-    v.string(),
-    v.number(),
-    v.date(),
-  ],),
-  v.transform(function toDate(input,) {
-    return new Date(input,);
-  },),
-  v.date(),
-);
-
-/**
  Extracts the publication date from a feed, falling back to epoch. The raw
- value runs through {@link coerceDateSchema} to normalize string, number,
- or `Date` inputs.
+ value runs through {@link coercePublicationDateSchema} to normalize string,
+ number, or `Date` inputs, including text no calendar can read.
  
  @param feedWOutline - Feed with outline metadata
  
@@ -220,7 +206,7 @@ function extractDate(feedWOutline: FeedWOutline,): Date {
     const atomFeed = feed as AtomFeed.Feed<string>;
     /* oxlint-enable typescript/no-unsafe-type-assertion */
     return v.parse(
-      coerceDateSchema,
+      coercePublicationDateSchema,
       atomFeed.updated
         ?? new Date(0,),
     );
@@ -232,7 +218,7 @@ function extractDate(feedWOutline: FeedWOutline,): Date {
   const rssFeed = feed as RssFeed.Feed<string>;
   /* oxlint-enable typescript/no-unsafe-type-assertion */
   return v.parse(
-    coerceDateSchema,
+    coercePublicationDateSchema,
     rssFeed.pubDate
       ?? new Date(0,),
   );
