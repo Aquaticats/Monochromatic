@@ -231,6 +231,26 @@ await describe({
       },
     },),
 
+    it({
+      name: 'rejects an unrecognized mode before reading the coverage',
+      fn: async () => {
+        await using fixtureDir = await mkdtempDisposable(join(scratchRoot(), 'coverage-report-before-read-',),);
+        /**
+         Paths that do not exist, so a run that reads coverage first would report
+         a missing coverage directory instead of the mode.
+         */
+        const missingCoverageDir = join(fixtureDir.path, 'absent-coverage',);
+        const missingBaselinePath = join(fixtureDir.path, 'absent-baseline.json',);
+        /**
+         Gate run whose mode is misspelled and whose paths are absent.
+         */
+        const run = await runGate(['writ', missingCoverageDir, missingBaselinePath,],);
+        expect(run.status,).not.toBe(0,);
+        expect(run.stderr,).toContain('unknown mode writ',);
+        expect(run.stderr,).not.toContain('ENOENT',);
+      },
+    },),
+
     //endregion Unknown modes
 
     //region Accepted modes
