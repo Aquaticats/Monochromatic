@@ -1066,3 +1066,32 @@ Why:
      and the edge and publishability rules it applies live under
      `package/git-policy/cli/src/native/dependent_version/`.
 ```
+
+- `#1911`:
+  a decision record again,
+  so nothing in it changed here.
+ `doc/decision/monorepo-manager-per-user-config.md:35` names
+ `package/git-policy/cli/src/allowed-worktree-dirs.ts` as half of the trust model cli-git already owns.
+  The file is gone:
+ `git log --follow` shows it deleted 2026-10-13 in `642b6d72cb`,
+ `git ls-files` returns nothing for it,
+  and the `trust`,
+ `untrust` and `status` commands the same record adopts are retired,
+  printing `git monochromatic-git-policy-cli trust is retired.` from
+ `retired_explanation` at `package/git-policy/cli/src/native/invocation/management.rs:93`.
+ The other half of that bullet,
+  `doc/decision/cli-git-policies-platform.md`,
+  still resolves.
+ Proposal,
+  the two lines kept and one dated note added after them:
+
+```md
+<!-- doc/decision/monorepo-manager-per-user-config.md, after line 35 -->
+   [`doc/decision/cli-git-policies-platform.md`](cli-git-policies-platform.md)
+   and `package/git-policy/cli/src/allowed-worktree-dirs.ts`.
+   Note 2026-11-10T16:53:37-05:00: that file is deleted (2026-10-13 `642b6d72cb`).
+   The allowlist it held is `default_allowed_worktree_dirs` in
+   `package/git-policy/cli/src/native/invocation/effective_target.rs`,
+   and the `trust`, `untrust` and `status` commands this decision adopts are retired
+   (`package/git-policy/cli/src/native/invocation/management.rs:93`).
+```
