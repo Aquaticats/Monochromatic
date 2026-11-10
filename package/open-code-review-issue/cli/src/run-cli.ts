@@ -40,6 +40,8 @@ import type { PromptStreams, } from './interactive-model.ts';
 import { loadCliInput, } from './input-source.ts';
 import { selectRepository, } from './repository.ts';
 
+//region Exit status and logger
+
 /**
  Successful or clean-cancellation exit status.
  */
@@ -54,6 +56,10 @@ const EXIT_RUNTIME_FAILURE = 1;
  Tagged root logger; messages never include finding content or paths.
  */
 const l = tagged({ tag: 'run-cli', },);
+
+//endregion Exit status and logger
+
+//region Streams and runtime failure
 
 /**
  Standard streams with optional TTY capability evidence.
@@ -78,6 +84,10 @@ export class CliRuntimeError extends Error {
     this.name = 'CliRuntimeError';
   }
 }
+
+//endregion Streams and runtime failure
+
+//region Interactive preconditions
 
 /**
  Projects process streams to Inquirer input/output names.
@@ -111,6 +121,10 @@ function assertInteractiveTty(streams: CliStreams,): void {
     );
   }
 }
+
+//endregion Interactive preconditions
+
+//region Publication plan
 
 /**
  Builds destination-aware plan after GitHub preflight.
@@ -147,6 +161,10 @@ async function preparePlan({
     ...(preflight.sourceLink === undefined ? {} : { sourceLink: preflight.sourceLink, }),
   },);
 }
+
+//endregion Publication plan
+
+//region Run modes
 
 /**
  Executes interactive selection, disclosure, and final confirmation.
@@ -269,6 +287,10 @@ async function runNonInteractive({
   }
 }
 
+//endregion Run modes
+
+//region Run entry
+
 /**
  Executes input, GitHub preflight, planning, and selected mode for known repository.
  
@@ -386,3 +408,5 @@ export async function executeRun({
     return EXIT_RUNTIME_FAILURE;
   }
 }
+
+//endregion Run entry
