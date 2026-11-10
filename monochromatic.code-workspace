@@ -1,95 +1,95 @@
 {
-	"folders": [
-		{
-			"path": "."
-		},
-	],
-	"settings": {
+  "folders": [
+    {
+      "path": "."
+    },
+  ],
+  "settings": {
     "[yaml]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[astro]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[vue]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[html]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[toml]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[js]": {
       "editor.defaultFormatter": "dprint.dprint"
-		},
-		"[ts]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[mjs]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[mts]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[cjs]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[cts]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[javascript]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[typescript]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[javascriptreact]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[typescriptreact]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[json]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[jsonc]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
-		"[css]": {
-			"editor.defaultFormatter": "dprint.dprint"
-		},
+    },
+    "[astro]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[vue]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[html]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[toml]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[js]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[ts]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[mjs]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[mts]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[cjs]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[cts]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[javascript]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[typescript]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[javascriptreact]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[typescriptreact]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[json]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[jsonc]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[css]": {
+      "editor.defaultFormatter": "dprint.dprint"
+    },
 
     "todo-tree.general.enableFileWatcher": true,
-		"todo-tree.general.revealBehaviour": "end of todo",
-		"todo-tree.general.tags": [
-			"BUG",
-			"HACK",
-			"FIXME",
-			"TODO",
-			"XXX",
-			"[ ]",
-			"[x]",
-			"DONE",
-			"FIXED",
-			"MAYBE",
-			"INVALID",
-			"WONTFIX",
-			"UPDATE",
-			"DOING"
-		],
-		"todo-tree.filtering.ignoreGitSubmodules": true,
-		"todo-tree.regex.enableMultiLine": true,
-		"todo-tree.highlights.defaultHighlight": {
+    "todo-tree.general.revealBehaviour": "end of todo",
+    "todo-tree.general.tags": [
+      "BUG",
+      "HACK",
+      "FIXME",
+      "TODO",
+      "XXX",
+      "[ ]",
+      "[x]",
+      "DONE",
+      "FIXED",
+      "MAYBE",
+      "INVALID",
+      "WONTFIX",
+      "UPDATE",
+      "DOING"
+    ],
+    "todo-tree.filtering.ignoreGitSubmodules": true,
+    "todo-tree.regex.enableMultiLine": true,
+    "todo-tree.highlights.defaultHighlight": {
       "fontStyle": "italic",
       "fontWeight": "bold",
       "foreground": "#ccc",
       "textDecoration": "none",
       "type": "tag-and-comment",
       "gutterIcon": true,
-		},
+    },
 
-		"typescript.enablePromptUseWorkspaceTsdk": true,
+    "typescript.enablePromptUseWorkspaceTsdk": true,
     "typescript.preferences.preferTypeOnlyAutoImports": true,
 
     "dprint.experimentalLsp": true,
@@ -109,33 +109,33 @@
     "harper.markdown.IgnoreLinkTitle": true,
     "vue-vine.hideDataTrackWarning": true,
     // False positive: TODO
-		"harper.linters.ToDoHyphen": false,
+    "harper.linters.ToDoHyphen": false,
     // False positive: Plugin
     "harper.linters.PhrasalVerbAsCompoundNoun": false,
     // False positive: region markers
     "harper.linters.SentenceCapitalization": false,
     // False positive: `//region Configuration Modifiers -- Functions that enhance base configs`
-		"harper.linters.Dashes": false,
+    "harper.linters.Dashes": false,
     "typescript.tsdk": "node_modules/typescript/lib",
     "editor.formatOnSave": true,
-		"json.format.keepLines": true,
-		"harper.linters.LongSentences": false,
-	},
+    "json.format.keepLines": true,
+    "harper.linters.LongSentences": false,
+  },
 
   "extensions": {
-		"recommendations": [
-			"EditorConfig.EditorConfig",
-			"unifiedjs.vscode-mdx",
-			"dprint.dprint",
-			"gruntfuggly.todo-tree",
+    "recommendations": [
+      "EditorConfig.EditorConfig",
+      "unifiedjs.vscode-mdx",
+      "dprint.dprint",
+      "gruntfuggly.todo-tree",
       "tombi-toml.tombi",
 
       // Not using Vue at this moment.
-			// "vue.volar",
+      // "vue.volar",
 
       "oxc.oxc-vscode",
       "astro-build.astro-vscode",
-			"html-validate.vscode-html-validate",
-		],
-	},
+      "html-validate.vscode-html-validate",
+    ],
+  },
 }
