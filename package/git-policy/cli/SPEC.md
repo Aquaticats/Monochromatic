@@ -8604,6 +8604,24 @@ and a socket that could not be stopped is left to `service stop-units-of-removed
 Nothing starts a unit.
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 
+The repository is the one the command line names.
+`-C` moves the wrapper,
+and `--git-dir`,
+`--work-tree` and `--bare` (or `GIT_DIR` and `GIT_WORK_TREE`) select the repository,
+resolved from the directory the `-C` chain reaches,
+as Git resolves them
+(`src/native/invocation/repository_selection.rs`).
+Every Git of the commit keeps that selection:
+the capture's own reports,
+each private-index start,
+and the landing,
+which names the Git directory and work tree the request or the journal record holds.
+A commit therefore lands in the repository the command named,
+and the repository its process directory belongs to gains no object,
+no scratch directory and no commit.
+The wrapper's own Git starts run in the directory the `-C` chain reached,
+so they receive the caller's other global options without that `-C`.
+
 Each commit passes through three phases:
 
 1.  Preparation:
@@ -9993,6 +10011,16 @@ One configuration listing read at that moment serves every later decision of the
 A worktree whose `HEAD` leaves the recorded branch before the landing fails the commit with a plain message
 and the message the person typed saved in a file.
 
+The capture's own `rev-parse` report names the repository the caller selected
+(`--git-dir`,
+`--work-tree`,
+`--bare`,
+or the `GIT_DIR` and `GIT_WORK_TREE` variables),
+and the in-process layout reader answers only a plain layout,
+which is the one found from its own directory:
+a command line that names a repository is answered by Git,
+because a Git directory beside its work tree is not the one the reader would find.
+
 ### Private preparation
 
 Preparation never mutates the real index,
@@ -10124,15 +10152,20 @@ with inherited stdio,
 as:
 
 ```text
-git <caller global options> --git-dir=<shadow>
+git <caller global options, without a directory change or a repository selection> --git-dir=<shadow>
     -c core.hooksPath=/dev/null/cli-git-no-hooks
     commit <private commit args>
 ```
 
 with `GIT_INDEX_FILE=<scratch directory>/commit.index`.
-`--work-tree` names the same absolute worktree root as the shadow's `core.worktree`;
-the command-line value takes precedence for this process,
-and `core.worktree` covers a Git process that a hook starts with the shadow as `GIT_DIR`
+The globals the shadow command keeps are the caller's own except `-C`,
+`--git-dir`,
+`--work-tree` and `--bare`:
+the wrapper has already applied every directory change,
+and the shadow names its own repository,
+so forwarding one of them would move Git away from the shadow or name the real repository beside it.
+The shadow's `core.worktree` is the absolute worktree root,
+which covers a Git process that a hook starts with the shadow as `GIT_DIR`
 but without `GIT_WORK_TREE`.
 The child environment drops a caller-set `GIT_DIR`,
 `GIT_WORK_TREE`,
