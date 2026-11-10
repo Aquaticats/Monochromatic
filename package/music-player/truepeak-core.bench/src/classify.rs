@@ -29,6 +29,8 @@
 use crate::corpus::Track;
 /// Imports the candidate policy and the shared per-window sampling.
 use crate::evaluate::{Candidate, sampled_windows};
+/// Imports the bench's one dBTP conversion.
+use crate::levels::peak_dbtp_or_silence;
 /// Imports formatting for the rule's report line.
 use std::fmt;
 /// Imports file creation for the feature dump.
@@ -42,10 +44,8 @@ use std::path::Path;
 use anyhow::{Context, Result};
 /// Imports serde's derive so the dump row serializes with correct escaping.
 use serde::Serialize;
-/// Imports the shared dB,
-///  gain,
-///  and policy math.
-use truepeak_core::{Policy, default_policy, peak_dbtp, probe_estimated_peak};
+/// Imports the shared gain and policy math.
+use truepeak_core::{Policy, default_policy, probe_estimated_peak};
 
 /// One long track's probe features and its harness-only violator label.
 struct LongFeatures {
@@ -120,16 +120,6 @@ impl fmt::Display for FullScanRule {
     }
 }
 
-/// Convert a linear peak to dBTP,
-///  treating silence as a very negative level.
-fn db(peak: f64) -> f64 {
-    if peak <= 0.0 {
-        return f64::NEG_INFINITY
-    } else {
-        return peak_dbtp(peak)
-    }
-}
-
 /// Print,
 ///  for a candidate,
 ///  how violators and non-violators distribute across the probe
@@ -182,14 +172,14 @@ fn long_features(tracks: &[Track], candidate: Candidate, policy: &Policy) -> Vec
             let windows = sampled_windows(track, candidate);
             let sampled_max = windows.iter().fold(0.0_f64, |peak, &window| return peak.max(window));
             let estimated = probe_estimated_peak(sampled_max, candidate.probe_margin_db);
-            let probe = (policy.ceiling_dbtp - db(estimated)).min(0.0);
-            let exact = (policy.ceiling_dbtp - db(f64::from(track.full_peak))).min(0.0);
+            let probe = (policy.ceiling_dbtp - peak_dbtp_or_silence(estimated)).min(0.0);
+            let exact = (policy.ceiling_dbtp - peak_dbtp_or_silence(f64::from(track.full_peak))).min(0.0);
             let error = probe - exact;
             return LongFeatures {
                 path: track.path.clone(),
                 windows,
-                sampled_max_db: db(sampled_max),
-                under_read_db: db(f64::from(track.full_peak)) - db(sampled_max),
+                sampled_max_db: peak_dbtp_or_silence(sampled_max),
+                under_read_db: peak_dbtp_or_silence(f64::from(track.full_peak)) - peak_dbtp_or_silence(sampled_max),
                 duration_secs: track.duration_secs,
                 error_db: error,
                 is_violator: error > policy.max_too_loud_db || error < policy.max_too_quiet_db,

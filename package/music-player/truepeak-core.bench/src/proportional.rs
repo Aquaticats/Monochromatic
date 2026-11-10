@@ -19,20 +19,10 @@
 
 /// Imports the corpus track record.
 use crate::corpus::Track;
+/// Imports the bench's one dBTP conversion.
+use crate::levels::peak_dbtp_or_silence;
 /// Imports the safe-provenance path set.
 use std::collections::HashSet;
-/// Imports the shared dB and policy math.
-use truepeak_core::peak_dbtp;
-
-/// Convert a linear peak to dBTP,
-///  treating silence as a very negative level.
-fn db(peak: f64) -> f64 {
-    if peak <= 0.0 {
-        return f64::NEG_INFINITY
-    } else {
-        return peak_dbtp(peak)
-    }
-}
 
 /// One long track's under-read and whether its provenance is reliably not hot.
 #[derive(Clone, Copy, Debug)]
@@ -95,13 +85,13 @@ pub fn evaluate_proportional(
             continue;
         }
         decoded += coverage * track.duration_secs;
-        let full_db = db(f64::from(track.full_peak));
+        let full_db = peak_dbtp_or_silence(f64::from(track.full_peak));
         if full_db <= ceiling_dbtp {
             continue;
         }
         let sampled = sampled_max(track, coverage, window_secs);
         under_reads.push(UnderRead {
-            under_read_db: full_db - db(sampled),
+            under_read_db: full_db - peak_dbtp_or_silence(sampled),
             safe: safe_paths.contains(&track.path),
         });
     }
