@@ -21,25 +21,16 @@ fuzz_target!(|input: RulesetAndBuffer| {
     let (set, _kept) = forbidden_regex::RegexSet::compile_lenient(&input.patterns);
 
     // What:  the naive per-line reference: slice each line by the documented
-    //        contract (next start, or buffer end for the last line; drop a trailing
-    //        `\n` then one trailing `\r`; skip an empty line) and call `matches()`
-    //        on the slice.
+    //        contract with the generator's `line_contents` and call `matches()` on
+    //        the slice, skipping an empty line.
     // Why:   this mirrors `line_matches`'s own rustdoc exactly; recomputing it here,
     //        independently of the method under test, is what catches drift.
     let mut expected: Vec<(usize, usize)> = Vec::new();
-    for index in 0..input.starts.len() {
-        let start = input.starts[index];
-        let mut end = input.starts.get(index + 1).copied().unwrap_or(input.buf.len());
-        if end > start && input.buf[end - 1] == b'\n' {
-            end -= 1;
-        }
-        if end > start && input.buf[end - 1] == b'\r' {
-            end -= 1;
-        }
-        if end == start {
+    for (index, line) in input.line_contents().into_iter().enumerate() {
+        if line.is_empty() {
             continue;
         }
-        for rule in set.matches(&input.buf[start..end]) {
+        for rule in set.matches(line) {
             expected.push((index, rule));
         }
     }
