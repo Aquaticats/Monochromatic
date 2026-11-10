@@ -178,8 +178,14 @@ await describe({
          */
         const { message, } = error as Error;
         expect(message,).toContain('No Pi AI API implementation available',);
-        for (const api of EXPECTED_DISPATCHED_APIS)
-          expect(message,).toContain(api);
+        /**
+         Supported-API list appended to the dispatch failure message.
+         */
+        const listedApis = message
+          .slice(message.indexOf('Supported APIs: ',) + 'Supported APIs: '.length,)
+          .split(', ',)
+          .toSorted();
+        expect(listedApis,).toEqual(EXPECTED_DISPATCHED_APIS.toSorted(),);
       },
     },),
   ],

@@ -111,10 +111,18 @@ type CaptureServer = {
  
  @example
  ```ts
- decodeBody('zstd', chunks);
+ decodeBody({ encoding: 'zstd', raw: chunks });
  ```
  */
-function decodeBody(encoding: string, raw: Buffer,): string {
+function decodeBody(
+  {
+    encoding,
+    raw,
+  }: {
+    readonly encoding: string;
+    readonly raw: Buffer;
+  },
+): string {
   return encoding === 'zstd'
     ? zstdDecompressSync(raw,).toString('utf8',)
     : raw.toString('utf8',);
@@ -151,9 +159,10 @@ async function startCaptureServer(): Promise<CaptureServer> {
       /** Complete raw body. */
       const bodyBytes = Buffer.concat(chunks,);
       /** Provider request body text, inflated when the module compressed it. */
-      const bodyText = request.headers['content-encoding'] === 'zstd'
-        ? decodeBody('zstd', bodyBytes,)
-        : decodeBody('identity', bodyBytes,);
+      const bodyText = decodeBody({
+        encoding: request.headers['content-encoding'] === 'zstd' ? 'zstd' : 'identity',
+        raw: bodyBytes,
+      },);
       requests.push(bodyBytes.length === 0
         ? { method, path, }
         : {
@@ -368,8 +377,9 @@ async function captureForcedToolRequest({
     },);
   }
   catch (error) {
-    // Capture server rejects every request; only recorded body matters.
-    expect(error,).toBeDefined();
+    // The capture server rejects every request on purpose, so a provider that
+    // surfaces that rejection is expected; the recorded request is the assertion.
+    expect(error,).toBeInstanceOf(Error,);
   }
   capture.server.close();
   /** Captured requests that carried a provider body. */

@@ -365,15 +365,15 @@ await describe({
  ```
  */
 async function waitForAbort(signal: AbortSignal,): Promise<void> {
-  using keepAlive = {
-    [Symbol.dispose](): void {
-      clearTimeout(timer,);
-    },
-  };
   /** Ref'd timer that keeps the event loop alive for the unref'd abort timer. */
-  const timer = setTimeout(function holdEventLoop(): void {
+  const keepAlive = setTimeout(function holdEventLoop(): void {
     // The wait itself is the work; this callback only keeps the loop alive.
   }, ABORT_WAIT_LIMIT_MS,);
+  using releaseKeepAlive = {
+    [Symbol.dispose](): void {
+      clearTimeout(keepAlive,);
+    },
+  };
   await once(signal, 'abort', { signal: AbortSignal.timeout(ABORT_WAIT_LIMIT_MS,), },);
 }
 
