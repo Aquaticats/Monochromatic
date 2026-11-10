@@ -199,6 +199,34 @@ export async function ensureDir(path: string,): Promise<string> {
 }
 
 /**
+ Ensures the parent directory of a path exists.
+
+ A bare name such as `bare.txt` has no parent segment: `posix.parse` reports
+ its parent as the empty string, and `mkdir('')` throws `ENOENT`. Its parent
+ is the current working directory, so there is nothing to create.
+
+ @param path - Path whose parent directory must exist
+
+ @example
+ ```ts
+ await ensureParentDirectory('config/app.json');
+ ```
+ */
+async function ensureParentDirectory(path: string,): Promise<void> {
+  /**
+   Parent directory of the path, `''` when the path is a bare name.
+   */
+  const { dir, } = posix.parse(path,);
+
+  if (dir === '') {
+    l.debug(`${path} names no parent directory, the current one holds it`,);
+    return;
+  }
+
+  await ensureDir(dir,);
+}
+
+/**
  Ensures a file exists and is readable/writable.
  Creates the file (and parent directories, via {@link ensureDir}) when missing.
 
@@ -221,11 +249,7 @@ export async function ensureFile(path: string,): Promise<string> {
 
   if (stats === MISSING_ENTRY) {
     l.info(`${path} does not exist, creating`,);
-    /**
-     Parsed segments, read for the parent directory to create first.
-     */
-    const parsed = posix.parse(path,);
-    await ensureDir(parsed.dir,);
+    await ensureParentDirectory(path,);
     await writeFile(
       path,
       '',

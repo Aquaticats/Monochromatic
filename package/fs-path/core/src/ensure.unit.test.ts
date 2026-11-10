@@ -248,6 +248,27 @@ await describe({
           },
         },),
         it({
+          name: 'creates a bare file name in the current directory',
+          fn: async () => {
+            await using temp = await createTempDir();
+            /**
+             Directory the bare name resolves against, stood in for the duration of the case.
+             */
+            const previousCwd = process.cwd();
+            process.chdir(temp.path,);
+            try {
+              expect(await ensureFile('bare.txt',),).toBe('bare.txt',);
+              expect((await stat(join(
+                temp.path,
+                'bare.txt',
+              ),)).isFile(),).toBe(true,);
+            }
+            finally {
+              process.chdir(previousCwd,);
+            }
+          },
+        },),
+        it({
           name: 'keeps the content of an existing accessible file',
           fn: async () => {
             await using temp = await createTempDir();
