@@ -127,6 +127,76 @@ function whitespaceRunEnd({
 
 //endregion Whitespace
 
+//region Numbers
+
+/**
+ Checks whether one character is an ASCII decimal digit, the only digit class the strip uses.
+ 
+ @param character - one character, or the empty string where an index falls outside the text
+ 
+ @returns whether the character sits in `0` through `9`
+ 
+ @example
+ ```ts
+ isAsciiDigit('7'); // true
+ ```
+ */
+function isAsciiDigit(character: string,): boolean {
+  return (character >= '0')
+    && (character <= '9');
+}
+
+/**
+ Finds where the decimal run starting at one index ends.
+ 
+ The shape is `\d+(?:\.\d+)?`: an integer run, then a fraction only when a point is followed by
+ at least one digit. A point with no digit before or after it is left for the caller, which is
+ what keeps `translate(.5)` and `translate(1.)` from reading as canonical transforms.
+ 
+ @param text - text to scan
+ 
+ @param start - index the integer run begins at
+ 
+ @returns index one past the last digit of the run
+ 
+ @example
+ ```ts
+ decimalRunEnd({ text: '645.5)', start: 0 }); // 5
+ decimalRunEnd({ text: '645.)', start: 0 }); // 3
+ decimalRunEnd({ text: '.5)', start: 0 }); // 0
+ ```
+ */
+function decimalRunEnd({
+  text,
+  start,
+}: {
+  readonly text: string;
+  readonly start: number;
+},): number {
+  /**
+   Index the scan has reached.
+   */
+  let cursor = start;
+  while (isAsciiDigit(text.charAt(cursor,),))
+    cursor += 1;
+  // `\d+` needs one integer digit before any point belongs to the number.
+  if (cursor === start)
+    return start;
+  if (text.charAt(cursor,) !== '.')
+    return cursor;
+  /**
+   Index one past the last fraction digit, or one past the point when the fraction is empty.
+   */
+  let fractionEnd = cursor + 1;
+  while (isAsciiDigit(text.charAt(fractionEnd,),))
+    fractionEnd += 1;
+  if (fractionEnd === (cursor + 1))
+    return cursor;
+  return fractionEnd;
+}
+
+//endregion Numbers
+
 /**
  Sentinel returned by {@link attr} when the named attribute is genuinely
  absent. A `unique symbol` because an empty string is a valid attribute
@@ -339,6 +409,65 @@ function selfClosingElements(svgContent: string,): SelfClosingElement[] {
 
 //endregion Element scanning
 
+//region Transforms
+
+/**
+ Literal that opens a canonical `translate(N)` transform.
+ */
+const TRANSLATE_OPENING = 'translate(';
+
+/**
+ Reads the X offset of the first canonical `translate(N)` transform in one attribute value.
+ 
+ The value is searched rather than tested from its start because a transform sequence such as
+ `rotate(45) translate(645)` still names the cell offset. A candidate that opens `translate(`
+ without a decimal argument and a closing parenthesis is skipped, so a malformed transform
+ earlier in the value does not hide a canonical one later.
+ 
+ @param transform - raw `transform` attribute value
+ 
+ @returns numeric X offset, or 0 when no canonical transform is present
+ 
+ @example
+ ```ts
+ translateOffset('translate(645)'); // 645
+ translateOffset('rotate(45) translate(12.5)'); // 12.5
+ ```
+ */
+function translateOffset(transform: string,): number {
+  for (let cursor = 0; cursor < transform.length;) {
+    /**
+     Index of the next candidate opener.
+     */
+    const opening = transform.indexOf(
+      TRANSLATE_OPENING,
+      cursor,
+    );
+    if (opening === NOT_FOUND)
+      return 0;
+    /**
+     Index the decimal argument begins at.
+     */
+    const argumentStart = opening + TRANSLATE_OPENING.length;
+    /**
+     Index one past the decimal argument.
+     */
+    const argumentEnd = decimalRunEnd({
+      text: transform,
+      start: argumentStart,
+    },);
+    if ((argumentEnd > argumentStart) && (transform.charAt(argumentEnd,) === ')'))
+      return Number(transform.slice(
+        argumentStart,
+        argumentEnd,
+      ),);
+    cursor = opening + 1;
+  }
+  return 0;
+}
+
+//endregion Transforms
+
 /**
  Parse the master glyph strip SVG and return one {@link Cell} per glyph position.
  Cells are delimited by `<rect>` elements; all `<path>` elements between two
@@ -380,29 +509,12 @@ export function parseSvg(svgContent: string,): Cell[] {
         attrs,
         name: 'transform',
       },);
-      /* oxlint-disable no-restricted-syntax/no-regex -- canonical SVG `translate(N)` shape parser; the input is one attribute value bounded by the SVG element tokenizer above. No nested quantifiers; `\d+(?:\.\d+)?` is linear in the number's digit count. */
-      /**
-       Matches the `translate(N)` transform shape; the `x` group captures the numeric X offset.
-       */
-      const translateRegex = /translate\((?<x>\d+(?:\.\d+)?)\)/u;
-      /* oxlint-enable no-restricted-syntax/no-regex */
-      /**
-       Captured numeric argument of the `translate(...)` transform; null when the attribute is absent or does not match.
-       */
-      const translateMatch = transform === ATTRIBUTE_ABSENT
-        ? null
-        : translateRegex.exec(transform,);
-      /**
-       Named capture groups of the translate match; `x` holds the numeric offset, undefined when there was no match.
-       */
-      const translateGroups = translateMatch?.groups;
       /**
        Parsed X offset of this cell rect; falls back to 0 when no translate is present.
        */
-      const xOffset = translateGroups === undefined
+      const xOffset = transform === ATTRIBUTE_ABSENT
         ? 0
-        : Number(translateGroups.x
-          ?? '0',);
+        : translateOffset(transform,);
       cells.push({
         xOffset,
         paths: [],

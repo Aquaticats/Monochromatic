@@ -182,6 +182,70 @@ await describe({
 
         //endregion Cells
 
+        //region Transforms
+
+        it({
+          name: 'reads a fractional strip offset from the transform',
+          fn: async () => {
+            /**
+             Parsed cells for one cell whose rect translates by a fraction of a unit.
+             */
+            const [cell,] = parseSvg(svgDocument({
+              elements: `<rect width='605' height='1000' transform='translate(645.5)' fill='white' />`,
+            },),);
+
+            expect(cell?.xOffset,).toBe(645.5,);
+          },
+        },),
+
+        it({
+          name: 'reads the offset of a canonical transform that follows a malformed one',
+          fn: async () => {
+            /**
+             Strip offset the canonical transform declares, after one the parser must skip.
+             */
+            const xOffset = 12;
+            /**
+             Parsed cells for one cell whose transform opens with an unparsable candidate.
+             */
+            const [cell,] = parseSvg(svgDocument({
+              elements: `<rect width='605' height='1000' transform='translate(x) translate(${xOffset})' fill='white' />`,
+            },),);
+
+            expect(cell?.xOffset,).toBe(xOffset,);
+          },
+        },),
+
+        it({
+          name: 'falls back to offset zero without a canonical translate',
+          fn: async () => {
+            /**
+             Parsed cells for one cell whose transform holds a second point rather than a closing parenthesis.
+             */
+            const [cell,] = parseSvg(svgDocument({
+              elements: `<rect width='605' height='1000' transform='translate(645.5.5)' fill='white' />`,
+            },),);
+
+            expect(cell?.xOffset,).toBe(0,);
+          },
+        },),
+
+        it({
+          name: 'reads a leading point as no canonical transform',
+          fn: async () => {
+            /**
+             Parsed cells for one cell whose transform writes the fraction without an integer digit.
+             */
+            const [cell,] = parseSvg(svgDocument({
+              elements: `<rect width='605' height='1000' transform='translate(.5)' fill='white' />`,
+            },),);
+
+            expect(cell?.xOffset,).toBe(0,);
+          },
+        },),
+
+        //endregion Transforms
+
         //region Stroke detection
 
         it({
