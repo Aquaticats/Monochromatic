@@ -71,6 +71,32 @@ use crate::build::line_start_match;
 const BATCH_BUCKET: usize = 32;
 
 /// What:
+///     Runs one benchmark batch through a named table-back-end kernel.
+///     Falls back to the per-line loop when the pattern has no table.
+/// Why:
+///      The benchmark hooks differ only in the kernel they name.
+///      One shape therefore serves all of them.
+///
+/// Invocation forms:
+/// - `table_kernel_dispatch!(self, lines, kernel)` for a kernel with no width.
+/// - `table_kernel_dispatch!(self, lines, kernel::<WIDTH>)` for a const width.
+///
+/// Expands to a block expression that the calling hook returns.
+/// Each hook stays a real,
+/// documented `pub fn` that `rg` finds by signature.
+macro_rules! table_kernel_dispatch {
+    ( $receiver:expr, $lines:expr, $kernel:ident $(::<$width:ident>)? ) => {{
+        let lines = $lines;
+        let mut out = vec![false; lines.len()];
+        match $receiver.engine.table_dfa() {
+            Some(dfa) => dfa.$kernel$(::<$width>)?(lines, &mut out),
+            None => $receiver.engine.is_match_batch(lines, &mut out),
+        }
+        out
+    }};
+}
+
+/// What:
 ///     Many-lines matching for a single compiled pattern.
 /// Why:
 ///      The program attaches these functions to the named Rust type so callers can use
@@ -143,6 +169,9 @@ impl Regex {
     /// internal sort is near-linear on already length-sorted input,
     ///  so a caller that
     /// pre-buckets pays almost nothing for it.
+    ///
+    /// Not a `table_kernel_dispatch` call.
+    /// It orders the lines by length before dispatching.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -219,12 +248,7 @@ impl Regex {
     /// ```
     #[doc(hidden)]
     pub fn is_match_batch_scalar(&self, lines: &[&[u8]]) -> Vec<bool> {
-        let mut out = vec![false; lines.len()];
-        match self.engine.table_dfa() {
-            Some(dfa) => dfa.is_match_batch_scalar(lines, &mut out),
-            None => self.engine.is_match_batch(lines, &mut out),
-        }
-        return out
+        table_kernel_dispatch!(self, lines, is_match_batch_scalar)
     }
 
     /// Benchmark hook:
@@ -245,12 +269,7 @@ impl Regex {
     /// ```
     #[doc(hidden)]
     pub fn is_match_batch_interleaved(&self, lines: &[&[u8]]) -> Vec<bool> {
-        let mut out = vec![false; lines.len()];
-        match self.engine.table_dfa() {
-            Some(dfa) => dfa.is_match_batch_interleaved(lines, &mut out),
-            None => self.engine.is_match_batch(lines, &mut out),
-        }
-        return out
+        table_kernel_dispatch!(self, lines, is_match_batch_interleaved)
     }
 
     /// Benchmark hook:
@@ -294,12 +313,7 @@ impl Regex {
     /// ```
     #[doc(hidden)]
     pub fn batch_inter_w<const N: usize>(&self, lines: &[&[u8]]) -> Vec<bool> {
-        let mut out = vec![false; lines.len()];
-        match self.engine.table_dfa() {
-            Some(dfa) => dfa.is_match_batch_interleaved_w::<N>(lines, &mut out),
-            None => self.engine.is_match_batch(lines, &mut out),
-        }
-        return out
+        table_kernel_dispatch!(self, lines, is_match_batch_interleaved_w::<N>)
     }
 
     /// Benchmark hook:
@@ -321,12 +335,7 @@ impl Regex {
     /// ```
     #[doc(hidden)]
     pub fn batch_tight_w<const N: usize>(&self, lines: &[&[u8]]) -> Vec<bool> {
-        let mut out = vec![false; lines.len()];
-        match self.engine.table_dfa() {
-            Some(dfa) => dfa.is_match_batch_tight_w::<N>(lines, &mut out),
-            None => self.engine.is_match_batch(lines, &mut out),
-        }
-        return out
+        table_kernel_dispatch!(self, lines, is_match_batch_tight_w::<N>)
     }
 
     /// Benchmark hook:
@@ -349,12 +358,7 @@ impl Regex {
     /// ```
     #[doc(hidden)]
     pub fn batch_sheng(&self, lines: &[&[u8]]) -> Vec<bool> {
-        let mut out = vec![false; lines.len()];
-        match self.engine.table_dfa() {
-            Some(dfa) => dfa.is_match_batch_sheng(lines, &mut out),
-            None => self.engine.is_match_batch(lines, &mut out),
-        }
-        return out
+        table_kernel_dispatch!(self, lines, is_match_batch_sheng)
     }
 
     /// Benchmark hook:
@@ -376,12 +380,7 @@ impl Regex {
     /// ```
     #[doc(hidden)]
     pub fn batch_sheng2(&self, lines: &[&[u8]]) -> Vec<bool> {
-        let mut out = vec![false; lines.len()];
-        match self.engine.table_dfa() {
-            Some(dfa) => dfa.is_match_batch_sheng2(lines, &mut out),
-            None => self.engine.is_match_batch(lines, &mut out),
-        }
-        return out
+        table_kernel_dispatch!(self, lines, is_match_batch_sheng2)
     }
 }
 
