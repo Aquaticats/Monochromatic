@@ -58,11 +58,13 @@ export const DEFAULT_MAX_BYTES: number = DEFAULT_MAX_KIBIBYTES * BYTES_PER_KIBIB
  */
 export type TruncationOptions = {
   /**
-   Line ceiling applied before the byte ceiling.
+   Line ceiling: how many whole lines the head walk may keep,
+   enforced together with the byte ceiling on every candidate line.
    */
   readonly maxLines?: number;
   /**
-   Byte ceiling applied before the line ceiling.
+   Byte ceiling: how many bytes of kept lines and their separators the head walk may keep,
+   enforced together with the line ceiling on every candidate line.
    */
   readonly maxBytes?: number;
 };
