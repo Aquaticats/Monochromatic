@@ -81,7 +81,7 @@ export type BuildAndTestResult = {
  configurationSpan({ start: '[tasks.try]\n', end: '\n[tasks.', });
  ```
  */
-function configurationSpan({
+export function configurationSpan({
   start,
   end,
 }: {
@@ -138,7 +138,7 @@ function taskSection(name: string,): string {
  variableSection('parse_usage_args');
  ```
  */
-function variableSection(name: string,): string {
+export function variableSection(name: string,): string {
   return `${configurationSpan({
     start: `${name} = """\n`,
     end: '\n"""',

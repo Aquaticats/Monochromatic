@@ -465,11 +465,33 @@ const args = parseUsageArgs(process.env.usage_args ?? '')
 const all = (process.env.usage_all ?? '').trim() === 'true'
 if (all && args.length > 0) { throw new Error('--all cannot be combined with file paths') }
 {{vars.is_inactive_test}}
+// Ownership policy (see [tasks.test]): a package whose mise.toml declares its own
+// `test` task owns its TypeScript unit files, because the root aggregate runs that
+// package task for them. Root discovery therefore leaves those files alone, and
+// what this glob keeps is exactly the files no package suite reaches.
+// A package task keeps every file in its own tree: there the nearest mise.toml to
+// each file is the task's own config root, so the ownership test is false and no
+// file is dropped from a package's own unit run.
+const taskConfigRoot = resolveTestPath(process.env.MISE_CONFIG_ROOT ?? process.cwd())
+// Table headers, compared as whole lines, are the only thing a package's own
+// `test` declaration has to be read for: the aggregate asks whether the package
+// owns its suites, not what they run.
+const testTaskHeaders = ['[tasks.test]', '[tasks."test"]']
+const declaresTestTask = (packageRoot) => {
+  try {
+    const declared = readFileSync(joinTestPath(packageRoot, 'mise.toml'), 'utf8').split(String.fromCharCode(10))
+    return declared.some((line) => testTaskHeaders.includes(line.trim()))
+  } catch { return false }
+}
+const ownedByPackageSuite = (file) => {
+  const packageRoot = testFileCwd(file)
+  return packageRoot !== taskConfigRoot && declaresTestTask(packageRoot)
+}
 let files
 if (args.length === 0) {
   files = []
   for await (const file of glob('**/*.unit.test.ts', { exclude: (name) => name.includes('node_modules') })) {
-    if (!isInactiveTest(file) && (all || !file.includes('.expensive.'))) { files.push(file) }
+    if (!isInactiveTest(file) && (all || !file.includes('.expensive.')) && !ownedByPackageSuite(file)) { files.push(file) }
   }
 } else {
   // Package-scoped tasks run with cwd = MISE_CONFIG_ROOT (the package dir), so a repo-root-relative
@@ -687,10 +709,36 @@ run = "{{vars.fanout_packages}}"
 
 #region Test Tasks
 
+# Root test aggregate: the root unit glob, the Playwright suites, and every
+# active package's own `test` task. The package layer exists because a TypeScript
+# filename glob cannot reach cargo nextest, Gradle, tofu resolvers, or the
+# Electron/Wayland boundary suites, so without it a green root run was not
+# evidence of repository coverage (issue 305).
+#
+# Ownership policy, stated once and implemented in two places: a package that
+# declares `[tasks.test]` owns its own suites, including its `*.unit.test.ts`
+# files, and the root unit glob leaves those files to that package task (see
+# [task_templates."test:unit"]). Every other package is reached by the root glob.
+# Ownership therefore never overlaps and never leaves a gap, and a new package
+# `[tasks.test]` becomes root-reachable with no edit here.
+#
+# Deliberate exclusions, each one named rather than silent:
+# - `package-deprecated/` and `package-paused/` stay out through `[monorepo]
+#   config_roots`, the same boundary that keeps them out of `lint` and `build`.
+# - `*.expensive.unit.test.ts` stays opt-in through `mise run test:unit -- --all`,
+#   as before.
+# - Network resolver suites are separate task names (`test:*:network`) that no
+#   package's `test` task lists, so this aggregate inherits that choice instead of
+#   making one.
+# - Nothing is excluded by platform or cost: an exclusion there would recreate the
+#   false green this task removes. A suite needing a device, compositor, container
+#   or network fails here loudly instead of being skipped.
+#
 # When args are provided, only unit tests run with those args (for single-file filtering).
-# When no args are provided, all test suites (unit + browser) run.
+# When no args are provided, every suite runs: the three root suites together,
+# then the package fanout.
 [tasks.test]
-description = "Run all tests, or pass args to filter unit tests"
+description = "Run all tests (root unit, browser, e2e and every package's own test task), or pass args to filter unit tests"
 alias = "t"
 usage = 'arg "[args]" var=#true help="Test file paths (when provided, only unit tests run)"'
 shell = "node --input-type=module-typescript -e"
@@ -699,15 +747,36 @@ run = """
 {{vars.run_test_files}}
 const args = parseUsageArgs(process.env.usage_args ?? '')
 if (args.length === 0) {
+  // Root suites run together, then the package fanout runs alone: each package
+  // suite is itself a multi-threaded cargo, Gradle or container run, so the
+  // phases stay sequential and each phase stays internally bounded.
+  // Both phases always run, so one failing suite cannot hide another's failure.
   const suites = ['test:unit', 'test:browser', 'test:e2e']
-  const processes = suites.map((suite) => spawn('mise', ['run', suite], { stdio: 'inherit' }))
-  const exits = await Promise.all(processes.map((proc) => once(proc, 'exit')))
-  const failed = suites.filter((suite, index) => exits[index][0] !== 0)
+  const failed = []
+  const runSuite = async (suite) => {
+    const [code] = await once(spawn('mise', ['run', suite], { stdio: 'inherit' }), 'exit')
+    if (code !== 0) { failed.push(suite) }
+  }
+  await Promise.all(suites.map(runSuite))
+  await runSuite('test:packages')
   if (failed.length > 0) { throw new Error(`test suites failed: ${failed.join(', ')}`) }
 } else {
   await runTestFiles(args, [])
 }
 """
+
+[tasks."test:packages"]
+hide = true
+description = "Run every active package's own test task, bounded by available parallelism, naming every failing package"
+# The shared cross-package fanout derives its target suffix from the task name, and
+# this wrapper's own name is not that suffix, so FANOUT_TASK supplies it, which is
+# the mechanism the fanout var documents. Reusing that var keeps one fanout policy
+# for lint and for test: availableParallelism workers, every failing child named in
+# one error. Like the lint fanout, this fails rather than passing when no package
+# declares the task.
+env = { FANOUT_TASK = "test" }
+shell = "node --input-type=module-typescript -e"
+run = "{{vars.fanout_packages}}"
 
 [tasks."test:unit"]
 extends = "test:unit"
