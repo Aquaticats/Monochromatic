@@ -274,10 +274,17 @@ Read-only commands,
   see "Merging" for the full list.
 - Package-manager state in a new worktree.
   After `git worktree add` has filled a worktree and copied its ignored files,
-   the wrapper starts each tool's own offline repair there:
-   `pnpm install --offline --frozen-lockfile` for the copied `node_modules`,
+   the wrapper repairs that state at its new location:
    a clone of the source's external Cargo build directory followed by `cargo clean --package <member>` for each workspace member,
-   and `mpm-shadow install --frozen-lockfile` for toolchain launchers that still name another checkout's lock.
+   and,
+   where the wrapper can reach a commit service,
+   one record that hands the two tools rewriting link layouts in place to that service:
+   `pnpm install --offline --frozen-lockfile` for the copied `node_modules`
+   and `mpm-shadow install --frozen-lockfile` for toolchain launchers that still name another checkout's lock
+   run there after the add returns.
+  Where no commit service can be reached,
+   the add runs those two tools itself,
+   because a worktree whose copied links were never relinked holds the source's links for your next command there.
   A repair never fails the add:
   when a tool is missing,
   offline data is incomplete or a lock disagrees,
@@ -1677,16 +1684,22 @@ Cargo bakes the source's paths into what it built (`CARGO_MANIFEST_DIR`,
 build script output).
 The toolchain launchers copied into `.cache/toolchain-launchers` name the source's `toolchain.lock.json`.
 After the ladder (or Git's checkout) and the ignored-file copy,
- the wrapper starts each tool's own repair in the new worktree:
+ the wrapper repairs each tool's own state in the new worktree.
+Cargo's build state is planned and cleaned here;
+the two tools that rewrite link layouts in place are the commit service's work whenever a service answers,
+ and the add's own when none does:
 
 - pnpm:
   `pnpm install --offline --frozen-lockfile`,
   when `pnpm-lock.yaml` and `node_modules` are both there.
   The `pnpm` is the first one on your `PATH` (in this repository the pnpm-shadow,
   whose warnings are shown only if the run fails).
+  The add writes this tool in the `relink` record it hands over,
+  and the service runs it there after the add returns.
 - Cargo:
   for each Cargo workspace,
-   the source's external build directory is cloned to the worktree's when the worktree has none,
+   the source's external build directory is filled in after the add returns,
+   by the commit service's clone of it into the worktree's when the worktree has none,
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out,
   so the worktree is not dirty).
@@ -1694,13 +1707,26 @@ After the ladder (or Git's checkout) and the ignored-file copy,
   the worktree's own crates rebuild with their own paths.
   A file or directory in the source's build directory that you cannot read is left out of the clone and counted in the success line;
    the source is never touched.
-  The workspaces are repaired side by side,
+  The workspaces are planned side by side,
   on as many threads as your machine's available parallelism.
 - Toolchain:
-  `mpm-shadow install --frozen-lockfile`.
+  `mpm-shadow install --frozen-lockfile`,
+  written into the same `relink` record as pnpm when the worktree's launcher records still name another checkout's lock.
   It also downloads the tools the worktree's lock names that are not installed yet,
    and can retire tool copies another checkout still links (both accepted by the owner),
    and its summary of what was installed is part of the success line.
+
+What the hand-over costs you:
+for as long as the service has not run the record,
+ the new worktree still holds the copied links,
+ which is exactly the state the copy left,
+ so run the command from your own line below if you need that state before the service gets to it.
+The record is kept in the repository's work directory,
+ so a service that was not running when you added the worktree relinks it the next time it runs for that repository.
+When no service can be reached at all (a session with no user service manager,
+ such as a container),
+ the add relinks the worktree itself,
+ which is what every release before this one did.
 
 Nothing runs for `--no-worktree-copy` or `--no-checkout`.
 `--quiet` silences the one line that reports success;
