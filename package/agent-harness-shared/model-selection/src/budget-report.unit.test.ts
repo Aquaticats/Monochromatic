@@ -12,10 +12,14 @@ import {
 
 import {
   budgetModelSlug,
+  canonicalSlug,
   NoBudgetModelError,
   toBudgetModelCandidate,
 } from '../dist/final/node/index.mjs';
-import { fixtureModel, } from './test-fixtures.ts';
+import {
+  fixtureModel,
+  fixtureSlug,
+} from './test-fixtures.ts';
 
 //region Fixtures
 
@@ -58,10 +62,17 @@ await describe({
       ],
     },),
     describe({
-      name: budgetModelSlug.name,
+      name: 'provider/model slug formatting',
       children: [
         it({
-          name: 'formats provider/model slug',
+          name: 'keeps canonicalSlug as the single implementation behind every name',
+          fn: async function testSlugOwner(): Promise<void> {
+            expect(budgetModelSlug,).toBe(canonicalSlug,);
+            expect(fixtureSlug,).toBe(canonicalSlug,);
+          },
+        },),
+        it({
+          name: 'formats provider/model slug through the compatibility name',
           fn: async function testBudgetModelSlug() {
             expect(budgetModelSlug(model,),).toBe('openai/gpt-4o-mini',);
           },
