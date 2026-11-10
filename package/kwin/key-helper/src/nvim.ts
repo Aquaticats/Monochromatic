@@ -21,7 +21,10 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { encode } from '@msgpack/msgpack';
 
-import { NoNvimSocketError } from './errors.ts';
+import {
+  NoNvimSocketError,
+  NoRuntimeDirectoryError,
+} from './errors.ts';
 
 //region Logging
 
@@ -32,6 +35,8 @@ import { NoNvimSocketError } from './errors.ts';
 const nvimLogger = tagged({ tag: 'kwin-key-helper-nvim', },);
 
 //endregion Logging
+
+//region Constants
 
 /**
  msgpack-rpc message type for a request.
@@ -49,21 +54,85 @@ const RPC_TIMEOUT_MS = 500;
 const NVIM_SOCK_PREFIX = 'nvim.';
 
 /**
- UID fallback when `process.getuid` is unavailable and `$UID` is unset.
+ Name of the environment variable Neovim reads the runtime directory from.
  */
-const DEFAULT_UID = 1_000;
+const RUNTIME_DIRECTORY_VARIABLE = 'XDG_RUNTIME_DIR';
 
 /**
- Current UID, used to locate the per-user runtime directory.
+ Directory a per-user runtime directory sits in, which systemd-logind manages.
  */
-const UID = process.getuid?.() ?? Number(process.env
-  .UID
-  ?? DEFAULT_UID);
+const PER_USER_RUNTIME_ROOT = '/run/user';
 
 /**
- Runtime directory Neovim writes its listen sockets into.
+ Directory Neovim writes its default listen socket into.
+ 
+ Neovim uses `$XDG_RUNTIME_DIR` for that (neovim/neovim#3517), so a session that
+ points the variable somewhere else, as a non-systemd login or a container does,
+ keeps its sockets outside `/run/user/<uid>`. The per-user runtime directory is
+ the fallback only when the variable is absent.
+
+ Both candidates arrive as arguments rather than being read here, so the
+ precedence between them is testable without changing the test process's
+ environment or stubbing its user id.
+ 
+ @param xdgRuntimeDirectory - Value of `$XDG_RUNTIME_DIR`, or the empty string when unset
+ 
+ @param perUserRuntimeDirectory - Per-user runtime directory, or the empty string when the runtime names none
+ 
+ @returns Absolute path of the directory to look for listen sockets in
+ 
+ @throws {@link NoRuntimeDirectoryError} when neither candidate names one
+ 
+ @example
+ ```ts
+ nvimSocketDirectory({ xdgRuntimeDirectory: '/run/user/1000', perUserRuntimeDirectory: '' });
+ ```
  */
-const NVIM_SOCK_DIR = `/run/user/${UID}`;
+export function nvimSocketDirectory({
+  xdgRuntimeDirectory,
+  perUserRuntimeDirectory,
+}: {
+  readonly xdgRuntimeDirectory: string;
+  readonly perUserRuntimeDirectory: string;
+}): string {
+  if (xdgRuntimeDirectory !== '') {
+    return xdgRuntimeDirectory;
+  }
+  if (perUserRuntimeDirectory !== '') {
+    return perUserRuntimeDirectory;
+  }
+  throw new NoRuntimeDirectoryError();
+}
+
+/**
+ The runtime directory this session names, read per call.
+ 
+ Reading it per call rather than at import keeps a daemon that started before
+ the variable was set able to find the session's sockets.
+ 
+ @returns Absolute path of the directory to look for listen sockets in
+ 
+ @throws {@link NoRuntimeDirectoryError} when neither source names one
+ 
+ @example
+ ```ts
+ sessionSocketDirectory();
+ ```
+ */
+function sessionSocketDirectory(): string {
+  /**
+   User id the runtime reports, or `undefined` when it reports none.
+   */
+  const uid = process.getuid?.();
+  return nvimSocketDirectory({
+    xdgRuntimeDirectory: process.env[RUNTIME_DIRECTORY_VARIABLE] ?? '',
+    perUserRuntimeDirectory: uid === undefined ? '' : `${PER_USER_RUNTIME_ROOT}/${String(uid)}`,
+  });
+}
+
+//endregion Constants
+
+//region Discovery
 
 /**
  Mutable holder for the monotonically increasing msgpack-rpc message id, a
@@ -80,28 +149,37 @@ type SocketEntry = {
    */
   readonly path: string;
   /**
-   Modification time in milliseconds, used to pick the newest.
+   Modification time in milliseconds, used to order the candidates.
    */
   readonly mtime: number;
 };
 
 /**
- Find the most recently modified Neovim listen socket.
+ Every Neovim listen socket in one directory, newest first.
+
+ Entries that are not sockets are dropped: a plain file named `nvim.` something
+ can never accept a connection, and a leftover socket left by a Neovim that
+ died is kept, because it is one of the candidates a caller may try.
+
+ The order is newest first so a caller can prefer the active Neovim and still
+ fall through to older candidates when the newest one is stale.
  
- @returns Absolute path of the newest Neovim listen socket
+ @param directory - Runtime directory to scan
  
- @throws {@link NoNvimSocketError} when no Neovim socket is present
+ @returns Absolute paths of the sockets, newest first
  
  @example
  ```ts
- const sock = await findNewestNvimSocket();
+ const sockets = await findNvimSockets({ directory: '/run/user/1000' });
  ```
  */
-export async function findNewestNvimSocket(): Promise<string> {
+export async function findNvimSockets({ directory }: {
+  readonly directory: string;
+}): Promise<readonly string[]> {
   /**
-   All entries in the per-user runtime directory.
+   All entries in the runtime directory.
    */
-  const entries = await readdir(NVIM_SOCK_DIR);
+  const entries = await readdir(directory);
   /**
    Entry names matching the Neovim socket prefix.
    */
@@ -109,7 +187,7 @@ export async function findNewestNvimSocket(): Promise<string> {
     return entry.startsWith(NVIM_SOCK_PREFIX);
   });
   /**
-   Stat result per candidate, each a zero- or one-element array so a socket
+   Stat result per candidate, each a zero- or one-element array so a candidate
    removed mid-scan simply drops out on flatten.
    */
   const stated = await Promise.all(
@@ -117,12 +195,15 @@ export async function findNewestNvimSocket(): Promise<string> {
       /**
        Absolute path of this candidate socket.
        */
-      const full = `${NVIM_SOCK_DIR}/${entry}`;
+      const full = `${directory}/${entry}`;
       try {
         /**
-         File info used to read the modification time.
+         File info used to read the modification time and the file kind.
          */
         const info = await stat(full);
+        if (!info.isSocket()) {
+          return [];
+        }
         return [{
           path: full,
           mtime: info.mtimeMs
@@ -133,7 +214,7 @@ export async function findNewestNvimSocket(): Promise<string> {
          */
         const message = caughtValueText(error,);
         tagged({
-          tag: findNewestNvimSocket.name,
+          tag: findNvimSockets.name,
           l: nvimLogger,
         },)
           .debug(`skipping nvim socket ${full}: ${message}`,);
@@ -141,24 +222,122 @@ export async function findNewestNvimSocket(): Promise<string> {
       }
     }),
   );
-  /**
-   Live sockets flattened from the per-candidate results.
-   */
-  const sockets = stated.flat();
-  if (sockets.length === 0) {
-    throw new NoNvimSocketError();
-  }
-  return sockets.reduce(function newer(
-    best: SocketEntry,
-    candidate: SocketEntry
-  ): SocketEntry {
-    return candidate.mtime > best.mtime ? candidate : best;
-  })
-    .path;
+  return stated.flat()
+    .toSorted(function newestFirst(
+      left: SocketEntry,
+      right: SocketEntry
+    ): number {
+      return right.mtime - left.mtime;
+    })
+    .map(function socketPath(socket: SocketEntry): string {
+      return socket.path;
+    });
 }
 
 /**
- Send a key sequence to the newest Neovim over msgpack-rpc `nvim_input`.
+ Find the most recently modified Neovim listen socket.
+ 
+ @param directory - Runtime directory to scan, resolved from the session by default
+ 
+ @returns Absolute path of the newest Neovim listen socket
+ 
+ @throws {@link NoNvimSocketError} when no Neovim socket is present
+ 
+ @throws {@link NoRuntimeDirectoryError} when no runtime directory can be named
+ 
+ @example
+ ```ts
+ const sock = await findNewestNvimSocket();
+ ```
+ */
+export async function findNewestNvimSocket({
+  directory = sessionSocketDirectory(),
+}: {
+  readonly directory?: string;
+} = {}): Promise<string> {
+  /**
+   Every socket in the directory, newest first.
+   */
+  const sockets = await findNvimSockets({ directory, });
+  /**
+   Newest socket, or `undefined` when the directory holds none.
+   */
+  const [newest] = sockets;
+  if (newest === undefined) {
+    throw new NoNvimSocketError();
+  }
+  return newest;
+}
+
+//endregion Discovery
+
+//region Input
+
+/**
+ Write one `nvim_input` request to one Neovim socket and wait for its reply.
+ 
+ @param sockPath - Absolute path of the socket to talk to
+ 
+ @param keys - Neovim key notation to deliver
+ 
+ @example
+ ```ts
+ await sendToSocket({ sockPath, keys: '<F20>' });
+ ```
+ */
+async function sendToSocket({
+  sockPath,
+  keys
+}: {
+  readonly sockPath: string;
+  readonly keys: string;
+}): Promise<void> {
+  /**
+   Connection to the Neovim RPC socket; a stale socket refuses this.
+   */
+  const sock = connect(sockPath);
+  /**
+   Closes the socket when this scope exits, on success or failure.
+   */
+  using sockCleanup = {
+    [Symbol.dispose](): void {
+      sock.end();
+    },
+  };
+  await once(
+    sock,
+    'connect'
+  );
+  rpc.msgId += 1;
+  /**
+   Encoded `nvim_input` request frame.
+   */
+  const message = encode([
+    RPC_REQUEST,
+    rpc.msgId,
+    'nvim_input',
+    [keys]
+  ]);
+  sock.write(Buffer.from(message));
+  // Wait for a reply, but cap the wait so a silent Neovim cannot hang us.
+  await Promise.race([
+    once(
+      sock,
+      'data'
+    ),
+    wait(RPC_TIMEOUT_MS)
+  ]);
+}
+
+/**
+ Send a key sequence to a Neovim over msgpack-rpc `nvim_input`.
+
+ Candidates are tried newest first, because the user's active Neovim is almost
+ always the most recently started one, and a socket file a crashed Neovim left
+ behind outlives the process that owned it. A candidate only counts as the
+ destination once it accepts the connection and the frame is written, so a
+ stale newest socket no longer shadows a live older one for the rest of the
+ session.
  
  @param keys - Neovim key notation, e.g. `<F20>`, `<F16>`, `<Esc>`
  
@@ -172,45 +351,26 @@ export async function findNewestNvimSocket(): Promise<string> {
 export async function sendNvimInput(keys: string): Promise<boolean> {
   try {
     /**
-     Newest Neovim socket; throws when Neovim is not running.
+     Every socket the session's runtime directory holds, newest first.
      */
-    const sockPath = await findNewestNvimSocket();
+    const sockets = await findNvimSockets({ directory: sessionSocketDirectory(), });
     /**
-     Connection to the Neovim RPC socket.
+     Why each candidate refused, reported together when none accepts.
      */
-    const sock = connect(sockPath);
-    /**
-     Closes the socket when this scope exits, on success or failure.
-     */
-    using sockCleanup = {
-      [Symbol.dispose](): void {
-        sock.end();
-      },
-    };
-    await once(
-      sock,
-      'connect'
-    );
-    rpc.msgId += 1;
-    /**
-     Encoded `nvim_input` request frame.
-     */
-    const message = encode([
-      RPC_REQUEST,
-      rpc.msgId,
-      'nvim_input',
-      [keys]
-    ]);
-    sock.write(Buffer.from(message));
-    // Wait for a reply, but cap the wait so a silent Neovim cannot hang us.
-    await Promise.race([
-      once(
-        sock,
-        'data'
-      ),
-      wait(RPC_TIMEOUT_MS)
-    ]);
-    return true;
+    const refusals: string[] = [];
+    for (const sockPath of sockets) {
+      try {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- candidates are tried one at a time, so a stale socket cannot make a live one receive the sequence twice; see doc/lint/sequential-awaits.md
+        await sendToSocket({
+          sockPath,
+          keys,
+        });
+        return true;
+      } catch (error) {
+        refusals.push(`${sockPath}: ${caughtValueText(error,)}`,);
+      }
+    }
+    throw new NoNvimSocketError({ refusals, });
   } catch (error) {
     /**
      Message for a no-socket, connect, or write failure.
@@ -224,3 +384,5 @@ export async function sendNvimInput(keys: string): Promise<boolean> {
     return false;
   }
 }
+
+//endregion Input

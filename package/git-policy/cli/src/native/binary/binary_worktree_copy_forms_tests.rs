@@ -172,6 +172,27 @@ fn git_dir_and_work_tree_globals_get_the_copy() {
     remove(&fixture);
 }
 
+/// A form the ladder does not serve
+/// (`-f` is not one of the words the add plan reads),
+/// whose branch Git refuses:
+/// the wrapper makes the destination before real Git runs,
+/// so it must take it away again,
+/// because a Git command run in an empty folder inside a repository acts on the enclosing checkout.
+#[test]
+fn a_refused_add_in_a_form_the_ladder_does_not_serve_leaves_no_destination() {
+    let fixture: Fixture = fixture("forms-refused-leftover");
+    let repo: PathBuf = repository_with_rules(&fixture, true);
+    // The repository's own branch, so `-b main` is the branch Git refuses.
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--force", "-b", "main", "../taken"]);
+    assert_rejected(&fixture, &observed, "taken");
+    assert!(
+        stderr_of(&observed).contains("a branch named 'main' already exists"),
+        "Git's own refusal stands alone: {}",
+        stderr_of(&observed)
+    );
+    remove(&fixture);
+}
+
 /// A destination whose parent directories do not exist yet is the destination Git creates them for.
 #[test]
 fn a_destination_below_missing_directories_gets_the_copy() {

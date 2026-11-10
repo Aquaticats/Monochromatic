@@ -10,8 +10,8 @@ import type { JsoncValue, } from './value.ts';
 //region Path
 
 /**
- Address into a JSONC document: string segments index record keys, number
- segments index array elements.
+ Address into a JSONC document: string segments index record keys, non-negative
+ integer segments index array elements.
  
  @example
  ```ts
@@ -19,6 +19,32 @@ import type { JsoncValue, } from './value.ts';
  ```
  */
 export type JsoncPath = readonly (string | number)[];
+
+/**
+ Tests whether a segment names an array element, which only a non-negative
+ integer does. `Array.prototype.at` would also read `-1` as the last element and
+ truncate `1.5` to `1`, so every path walk shares this test rather than relying
+ on the index's own coercion.
+ 
+ @param segment - Segment to test.
+ 
+ @returns `true` when the segment is a zero-based element position.
+ 
+ @example
+ ```ts
+ isArrayIndex({ segment: 0 }); // => true
+ isArrayIndex({ segment: -1 }); // => false
+ ```
+ */
+export function isArrayIndex({
+  segment,
+}: {
+  readonly segment: string | number;
+},): boolean {
+  return ((typeof segment) === 'number')
+    && Number.isInteger(segment,)
+    && (segment >= 0);
+}
 
 /**
  Sentinel returned by {@link findNode} when a path does not resolve. A `Symbol`
@@ -33,8 +59,8 @@ export const NODE_ABSENT: unique symbol = Symbol('jsonc-edit/node absent at path
 /**
  Resolves one path segment against a node, returning the child node or
  {@link NODE_ABSENT}. Record keys match by string segment (last occurrence
- wins, since duplicates are undefined behavior); array elements match by number
- segment.
+ wins, since duplicates are undefined behavior); array elements match by a
+ non-negative integer segment, so `-1` and `1.5` name no element.
  
  @param node - Node to descend into.
  
@@ -69,6 +95,8 @@ function childAt({
       : entry.value;
   }
   if ((node.kind === 'array') && ((typeof segment) === 'number')) {
+    if (!isArrayIndex({ segment, },))
+      return NODE_ABSENT;
     /**
      Element at the segment index.
      */

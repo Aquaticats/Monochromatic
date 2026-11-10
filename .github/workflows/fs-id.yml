@@ -39,9 +39,8 @@ jobs:
     - name: Set up Node
       uses: ./.github/actions/task-cli-setup
       with:
-        # fs-id's own node pin, carried over from its setup-node step so this
-        # swap changes no runtime behavior; it is not the `toolchain.lock.json` version.
-        node-version: 26.5.0
+        # The evidence is read by the Node this repository locks, as every other workflow reads it, so a Node upgrade
+        # reaches this probe with the toolchain it belongs to (toolchain.lock.json `.tools.node.version`).
         install-dependencies: 'false'
 
     - name: Resolve preferred identity
