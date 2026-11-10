@@ -38,6 +38,7 @@ import type { RunContext, } from './context.ts';
 import { runAutoPlaySession, } from './auto-play-session.ts';
 import { runDialogSession, } from './dialog-session.ts';
 import {
+  CheckFailureError,
   expect,
   SafetyStopError,
 } from './errors.ts';
@@ -49,7 +50,10 @@ import { createNullSink, } from './pipewire.ts';
 import { runQuitSession, } from './quit-session.ts';
 import { runStatesSession, } from './states-session.ts';
 import { runTextSizeSession, } from './text-size-session.ts';
-import { createRecorder, } from './recorder.ts';
+import {
+  createRecorder,
+  type Recorder,
+} from './recorder.ts';
 import {
   type Outcome,
   printLine,
@@ -83,18 +87,57 @@ export type RunResult = {
 };
 
 /**
+ Runs one session against the run's context.
+ */
+export type SessionRunner<Context> = (context: Context,) => Promise<void>;
+
+/**
+ The runner of every session of the suite, by session name.
+ */
+export type SessionRunners<Context> = ReadonlyMap<SessionName, SessionRunner<Context>>;
+
+/**
+ What the session loop needs to record a failure.
+ */
+type FailureRecorder = Pick<Recorder, 'fail'>;
+
+/**
  The function that runs each session of the suite.
  */
-const SESSION_RUNNERS: Readonly<Record<SessionName, (context: RunContext,) => Promise<void>>> = {
-  wide: runWideSession,
-  narrow: runNarrowSession,
-  dialog: runDialogSession,
-  'auto-play': runAutoPlaySession,
-  'text-size': runTextSizeSession,
-  quit: runQuitSession,
-  states: runStatesSession,
-  visual: runVisualSessions,
-};
+const SESSION_RUNNERS: SessionRunners<RunContext> = new Map([
+  [
+    'wide',
+    runWideSession
+  ],
+  [
+    'narrow',
+    runNarrowSession
+  ],
+  [
+    'dialog',
+    runDialogSession
+  ],
+  [
+    'auto-play',
+    runAutoPlaySession
+  ],
+  [
+    'text-size',
+    runTextSizeSession
+  ],
+  [
+    'quit',
+    runQuitSession
+  ],
+  [
+    'states',
+    runStatesSession
+  ],
+  [
+    'visual',
+    runVisualSessions
+  ],
+],);
 
 /**
  Checks what the run needs before it touches anything: the release binary, a compositor that has the controls the
@@ -186,6 +229,77 @@ export async function checkPreconditions(config: RunConfig,): Promise<DisplayMod
 }
 
 /**
+ Runs the chosen sessions in order.
+ 
+ A session that stops between two of its checks (a page it expects never came back) is recorded as a failure of that
+ session, and the run goes on with the next session instead of ending without a report. A safety stop ends the run at
+ once and records nothing, because nothing may play anywhere but the private sink.
+ 
+ @param context - what every session gets
+ 
+ @param names - the sessions to run, in order
+ 
+ @param recorder - the recorder that keeps the failure of a session that stopped
+ 
+ @param runners - the runner of each session
+ 
+ @throws SafetyStopError when a session's routing proof fails; the rest of the run does not happen
+ 
+ @example
+ ```ts
+ await runChosenSessions({ context, names: ['wide', 'narrow',], recorder, runners: SESSION_RUNNERS, },);
+ ```
+ */
+export async function runChosenSessions<Context,>(
+  {
+    context,
+    names,
+    recorder,
+    runners,
+  }: {
+    readonly context: Context;
+    readonly names: readonly SessionName[];
+    readonly recorder: FailureRecorder;
+    readonly runners: SessionRunners<Context>;
+  },
+): Promise<void> {
+  /**
+   Tagged logger naming the session loop.
+   */
+  const rl = tagged({
+    tag: runChosenSessions.name,
+    l: logger,
+  },);
+  for (const name of names) {
+    /**
+     The runner of this session.
+     */
+    const runner = runners.get(name,);
+    if (runner === undefined)
+      throw new CheckFailureError(`the ${name} session has no runner, so the filter selects a session this build cannot run`,);
+    rl.info(`running the ${name} session`,);
+    try {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the sessions must not overlap: one compositor and one app at a time
+      await runner(context,);
+    }
+    catch (error: unknown) {
+      // The routing proof must still end the run at once.
+      if (error instanceof SafetyStopError)
+        throw error;
+      rl.error(`the ${name} session stopped before its checks ended: ${caughtValueText(error,)}`,);
+      // A step between two checks failed (a page to return to never came back). The run goes on with the next session
+      // and the failure is recorded with the states the session had read, instead of ending the run without a report.
+      // oxlint-disable-next-line eslint/no-await-in-loop -- recorded in order, after the session that failed
+      await recorder.fail({
+        id: `session/${name}`,
+        title: `the ${name} session ran to its end`,
+        detail: caughtValueText(error,),
+      },);
+    }
+  }
+}
+
+/**
  Runs the sessions the filter selects, with the private sink alive around them.
  
  @param base - scratch directory of the run
@@ -221,14 +335,6 @@ async function runSessions(
   },
 ): Promise<void> {
   /**
-   Tagged logger naming the session loop.
-   */
-  const rl = tagged({
-    tag: runSessions.name,
-    l: logger,
-  },);
-
-  /**
    The private null sink; leaving the function unloads it.
    */
   await using sink = await createNullSink({ name: `music_player_e2e_${process.pid}`, },);
@@ -246,27 +352,12 @@ async function runSessions(
     runId: process.pid,
     sink,
   };
-  for (const name of sessionsFor({ only: config.only, },)) {
-    rl.info(`running the ${name} session`,);
-    try {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- the sessions must not overlap: one compositor and one app at a time
-      await SESSION_RUNNERS[name](context,);
-    }
-    catch (error: unknown) {
-      // The routing proof must still end the run at once.
-      if (error instanceof SafetyStopError)
-        throw error;
-      rl.error(`the ${name} session stopped before its checks ended: ${caughtValueText(error,)}`,);
-      // A step between two checks failed (a page to return to never came back). The run goes on with the next session
-      // and the failure is recorded with the states the session had read, instead of ending the run without a report.
-      // oxlint-disable-next-line eslint/no-await-in-loop -- recorded in order, after the session that failed
-      await recorder.fail({
-        id: `session/${name}`,
-        title: `the ${name} session ran to its end`,
-        detail: caughtValueText(error,),
-      },);
-    }
-  }
+  await runChosenSessions({
+    context,
+    names: sessionsFor({ only: config.only, },),
+    recorder,
+    runners: SESSION_RUNNERS,
+  },);
 }
 
 /**
