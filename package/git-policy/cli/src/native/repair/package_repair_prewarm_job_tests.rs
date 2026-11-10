@@ -287,7 +287,8 @@ fn cargo_that_succeeds(root: &Path) -> PathBuf {
 ///  A directory at the staging name that this filling did not make is never removed,
 /// and the worktree is filled anyway.
 /// Why:
-///   The staging name is this job's by convention, not by proof:
+///   The staging name is this job's by convention,
+///   not by proof:
 /// only a marker this job writes says a directory there is its own leftover.
 /// A directory without one is somebody's work,
 /// which "never discard user data" forbids deleting,
@@ -349,7 +350,8 @@ fn an_environment_with_no_programs() -> RepairEnvironment {
 ///  A worktree's own link to the toolchain's Cargo is found from the worktree root,
 /// whatever workspace the record's first entry names.
 /// Why:
-///   The link sits at the worktree's root (`repair/package_repair_toolchain.rs`, `OWN_LINK`),
+///   The link sits at the worktree's root,
+///   which the toolchain repair names `OWN_LINK` (`repair/package_repair_toolchain.rs`),
 /// and a record's workspaces can be nested anywhere below it,
 /// so a lookup at the first workspace's root finds no link and fails the whole filling.
 #[test]
@@ -359,7 +361,7 @@ fn the_worktrees_own_cargo_link_is_found_from_the_worktree_root_for_a_nested_wor
     let nested: PathBuf = worktree.join("package/example");
     std::fs::create_dir_all(nested.as_path()).expect("a workspace below the worktree root");
     let own: PathBuf = worktree.join(".cache/toolchain-bin/cargo");
-    std::fs::create_dir_all(own.parent().expect("the link has a directory").to_path_buf()).expect("the toolchain directory");
+    std::fs::create_dir_all(own.parent().expect("the link has a directory")).expect("the toolchain directory");
     crate::test_support::executable(own.as_path(), b"#!/bin/sh\nexit 0\n");
     let destination_build: PathBuf = root.join("worktree-build");
     // A build got there first, so nothing is cloned or cleaned and only the lookup is under test.

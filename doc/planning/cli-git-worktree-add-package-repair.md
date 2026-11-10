@@ -307,8 +307,8 @@ cannot happen:
 `doc/decision/cargo-build-dir-host-cache.md` hashes the workspace root into
 `<cache>/<two hex>/<fourteen hex>`,
 and no name with a suffix can be one of those hashes.
-The deletion itself is the defect, so the names are now claimed by a marker this job writes
-exclusively before it clones,
+The deletion itself is the defect,
+so the names are now claimed by a marker this job writes exclusively before it clones,
 and only names its own marker claims are removed.
 A directory no marker claims is somebody's work:
 the filling leaves it and stages under names of this run's own instead
@@ -329,13 +329,14 @@ and the filling looked for it under the record's first workspace root.
 A record whose workspace is nested,
 such as `package/example`,
 found nothing there and failed the whole filling.
-The lookup now starts from the record's repository, which is the worktree root
+The lookup now starts from the record's repository,
+which is the worktree root
 (`repair::package_repair_prewarm_job::tests::the_worktrees_own_cargo_link_is_found_from_the_worktree_root_for_a_nested_workspace`).
 
 ### A worktree added again at one path was answered as already known
 
 The record's object name was a digest of the worktree's path alone,
-and the queue answers an id it already knows as known in `pending`, `claimed`, `done` and `failed`.
+and the queue answers an id it already knows as known in every state.
 A worktree removed and added again at the same path was therefore queued as known and never filled,
 and a filling that failed could never be asked for again:
 the service settles a failure into `failed` and reads no record back.

@@ -228,7 +228,7 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         // The worktree is removed, and another is added at the same path.
         remove(destination.as_path());
         std::fs::create_dir_all(destination.as_path()).expect("a worktree added again at the same path");
-        let _told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
+        let _told_again: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
         let second: Vec<String> = records_in(work.as_path(), PENDING);
         assert_eq!(second.len(), 1, "the worktree added again is queued for a filling of its own, though its predecessor settled into {settled}: {second:?}");
         assert_ne!(second[0], first[0], "the second record is not the first one ({settled})");

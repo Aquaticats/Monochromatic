@@ -6,9 +6,10 @@
 //! the two steps need nothing from
 //!  either clean,
 //! so they live in a file of their own that both import:
-//! `package_repair_cargo.rs`, which cleans what the worktree already has,
-//! and `package_repair_prewarm_job.rs`, which cleans the copy the commit service fills a build
-//!  directory from after the add returns.
+//! `package_repair_cargo.rs`,
+//! which cleans what the worktree already has,
+//! and `package_repair_prewarm_job.rs`,
+//! which cleans the copy the commit service fills a build directory from after the add returns.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -19,8 +19,8 @@
 //! because Cargo resolves the worktree's workspace for the clean.
 //! A destination that exists means a build got there first,
 //! so the staging copy is dropped and the build keeps everything it made.
-//! The staging directory, the clean's target directory and the marker beside them are names of this
-//! job's own,
+//! The staging directory,
+//! the clean's target directory and the marker beside them are names of this job's own,
 //! and the marker is what proves a directory at one of them is its leftover:
 //! a directory no marker claims is somebody's work and is never removed,
 //! so a workspace whose usual names are taken is filled under names of this run's own.
@@ -176,11 +176,13 @@ const MARKER_TEXT: &[u8] = b"written by monochromatic-git-policy-cli's Cargo pre
 /// type TheNames = { staging: string; target: string; marker?: string };
 /// ```
 struct TheNames {
-    /// The directory the source's build state is cloned into, and published from.
+    /// The directory the source's build state is cloned into,
+    /// and published from.
     staging: PathBuf,
     /// The target directory the clean deletes from.
     target: PathBuf,
-    /// The marker that says the two names are this job's, when this run claimed the usual ones.
+    /// The marker that says the two names are this job's,
+    /// when this run claimed the usual ones.
     marker: Option<PathBuf>,
 }
 
@@ -219,7 +221,8 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
 
 /// What:
 ///  A staging name for a workspace whose usual name another directory holds:
-/// the usual name, this process and the moment it asked.
+/// the usual name,
+/// this process and the moment it asked.
 /// Why:
 ///   Nothing may be removed that this job cannot prove it made,
 /// and a name no other run has taken yet is proof enough:
@@ -231,7 +234,8 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
 /// const anOwnName = (usual) => `${usual}-${process.pid}-${nanos.toString(16)}`;
 /// ```
 fn a_name_of_this_runs_own(usual: &Path) -> PathBuf {
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).map_or(0, |since| return since.as_nanos());
+    let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default();
+    let nanos: u128 = since_the_epoch.as_nanos();
     let mut named: OsString = usual.as_os_str().to_os_string();
     named.push(format!("-{}-{nanos:x}", std::process::id()));
     return PathBuf::from(named);
@@ -366,8 +370,10 @@ pub(crate) enum Filled {
 /// Why:
 ///   Each workspace's state is in a directory of its own,
 /// so one workspace's failure is reported and the next one still runs.
-/// The names are taken before anything is written, so nothing this job did not make is removed,
-/// and given back whatever the filling came to, so a successful one leaves no directory behind.
+/// The names are taken before anything is written,
+/// so nothing this job did not make is removed,
+/// and given back whatever the filling came to,
+/// so a successful one leaves no directory behind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
