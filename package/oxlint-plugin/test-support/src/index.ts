@@ -385,12 +385,20 @@ export class OxlintOutputParseError extends Error {
 }
 
 /**
+ Text the guard throws when the value a failed oxlint spawn rejected with carries no standard output.
+
+ A value that is not an object and an object without a `stdout` property are the same failure to the caller, so one
+ condition reports both and the message has one owner.
+ */
+const SPAWN_STDOUT_MISSING_MESSAGE = 'oxlint spawn failure did not expose stdout.';
+
+/**
  Returns the output nano-spawn stores on errors when oxlint exits non-zero.
 
  EXPORTED FOR ITS TESTS, per `XPT`. Every decision about a failed spawn lives here: which values count as carrying
  stdout, which do not, and what the command line and standard error fall back to. `runOxlintFixture` reaches it
- only through a real oxlint process, which cannot be made to reject with a value that is not an object, so the
- guards would stay unexercised through the runner.
+ only through a real oxlint process, which cannot be made to reject with a value that is not an object, so the guard
+ would stay unexercised through the runner.
 
  @param error - thrown value from `spawn`
 
@@ -404,15 +412,12 @@ export class OxlintOutputParseError extends Error {
  ```
  */
 export function outputFromSpawnError({ error, }: { readonly error: unknown; },): OxlintProcessOutput {
-  if (((typeof error) !== 'object') || (error === null)) {
+  if (
+    ((typeof error) !== 'object') || (error === null)
+      || (!('stdout' in error))
+  ) {
     throw new Error(
-      'oxlint spawn failure did not expose stdout.',
-      { cause: error, },
-    );
-  }
-  if (!('stdout' in error)) {
-    throw new Error(
-      'oxlint spawn failure did not expose stdout.',
+      SPAWN_STDOUT_MISSING_MESSAGE,
       { cause: error, },
     );
   }
