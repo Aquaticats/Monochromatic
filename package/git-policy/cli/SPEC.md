@@ -11389,9 +11389,8 @@ For injected commit-only semantics:
     leave the file out of the commit's paths,
     or stage it with `git add --force -- <path>` when it is meant to become tracked.
     Real Git 2.56.0 on a disposable repository refuses the same command line either way:
-    `git commit -- <untracked ignored path>` exits 1 with
-    "error:
-    pathspec ... did not match any file(s) known to git",
+    `git commit -- <untracked ignored path>` exits 1,
+    its pathspec matching no file Git knows,
     and `git add -- <the same path>` exits 1 with
     "The following paths are ignored by one of your .gitignore files"
     and the force-add hint.
