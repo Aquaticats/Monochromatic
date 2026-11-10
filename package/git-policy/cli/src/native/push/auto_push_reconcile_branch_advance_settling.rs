@@ -9,7 +9,9 @@
 //! which is a labelled workaround with a removal condition:
 //! the recovery folder's awaited Git seam replaces it and the thread goes with it
 //! (`doc/planning/git-policy-cli-full-tokio.md`,
-//! "Step T12, the second pass awaits its own Git, and the reconcile's chain stops at the branch move").
+//! "Step T12,
+//! the second pass awaits its own Git,
+//! and the reconcile's chain stops at the branch move").
 //!  The thread is a plain one,
 //! never a job of the blocking pool:
 //! a job of the pool is inside the runtime and would refuse the same start.

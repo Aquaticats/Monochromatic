@@ -324,7 +324,7 @@ pub fn integrate_and_push(
                     return Ok(Integrated::NotDivergent(rejected));
                 }
                 return Ok(Integrated::Finished(unpublished(
-                    &failed_prefix,
+                    failed_prefix,
                     &format!("{previous}\n{}", failed.output),
                     failed.exit_code,
                     &format!(
@@ -376,7 +376,7 @@ pub fn integrate_and_push(
                     return Ok(Integrated::NotDivergent(rejected));
                 }
                 return Ok(Integrated::Finished(unpublished(
-                    &failed_prefix,
+                    failed_prefix,
                     &previous,
                     rejected.exit_code,
                     "Git could not relate the branch to the remote tip; nothing was pushed and the worktree was not touched.",
@@ -387,7 +387,7 @@ pub fn integrate_and_push(
             Ok(found) => found,
             Err(paths) => {
                 return Ok(Integrated::Finished(unpublished(
-                    &failed_prefix,
+                    failed_prefix,
                     &previous,
                     rejected.exit_code,
                     &format!(
@@ -453,7 +453,7 @@ pub fn integrate_and_push(
         refused_against = Some((remote_tip, pushed));
     }
     return Ok(Integrated::Finished(unpublished(
-        &failed_prefix,
+        failed_prefix,
         &previous,
         rejected.exit_code,
         &format!(
