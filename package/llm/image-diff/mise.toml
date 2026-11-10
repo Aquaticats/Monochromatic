@@ -30,6 +30,9 @@ extends = "lint:types"
 
 [tasks."test:unit"]
 extends = "test:unit"
+# The suites import the package by its bare name, which Node resolves through the
+# exports map to dist/final/node, so the artifact must exist before they run.
+depends = ["build"]
 
 [tasks.buildAndTest]
 description = "Build the node lib + bin, then run unit tests; cli.unit.test.ts spawns the built cli.mjs"
