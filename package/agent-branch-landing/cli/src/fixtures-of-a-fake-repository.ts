@@ -46,7 +46,7 @@ export type Answer = {
 
  @internal
  */
-export type Handlers = Readonly<Record<string, (request: RunProgramRequest,) => Answer>>;
+export type Handlers = Readonly<Record<string, (request: RunProgramRequest,) => Answer | Promise<Answer>>>;
 
 /**
  A repository a test asks with its own answers, and the requests it made.
@@ -145,13 +145,22 @@ export async function fakeRepository({
     run: async function run(request: RunProgramRequest,) {
       requests.push(request,);
       /**
-       What this command answers, when the test said.
+       The words this command is asked with.
        */
-      const handler = answers[request.words.join(' ',)];
+      const line = request.words.join(' ',);
+      /**
+       What this command answers, which for the merge marker is where this repository keeps it.
+       */
+      const handler = answers[line]
+        ?? (line === 'rev-parse --path-format=absolute --git-path MERGE_HEAD'
+          ? function marker() {
+            return { stdout: `${mergeHeadPath}\n`, };
+          }
+          : undefined);
       /**
        What it left.
        */
-       const answer: Answer = handler === undefined ? {} : handler(request,);
+      const answer: Answer = handler === undefined ? {} : await handler(request,);
       return {
         status: answer.status ?? 0,
         stdout: answer.stdout ?? '',
