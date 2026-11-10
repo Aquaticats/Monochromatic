@@ -14,9 +14,15 @@ fn tokens(command: &Command) -> Vec<String> {
 
 /// The options as they are spelled on the command line:
 /// the hooks path,
+/// the switch that keeps the file-watching monitor from starting,
 /// then one switch per event.
 fn prefix() -> Vec<String> {
-    let mut tokens: Vec<String> = vec![String::from("-c"), format!("core.hooksPath={NO_HOOKS_DIRECTORY}")];
+    let mut tokens: Vec<String> = vec![
+        String::from("-c"),
+        format!("core.hooksPath={NO_HOOKS_DIRECTORY}"),
+        String::from("-c"),
+        String::from("core.fsmonitor=false"),
+    ];
     for event in switched_off_events() {
         tokens.push(String::from("-c"));
         tokens.push(format!("hook.{event}.enabled=false"));
@@ -140,6 +146,37 @@ fn real_git_runs_no_hook_file_and_no_configured_hook() {
     assert!(!direct.status.success());
     assert!(file_marker.exists(), "real Git without the options runs the hook file");
     assert!(config_marker.exists(), "real Git without the options runs the configured hook");
+    remove(root.as_path());
+}
+
+/// A repository whose `core.fsmonitor` names a program that records each call in `root/monitor-ran`,
+/// with one file staged.
+fn monitored_repository(root: &Path) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = repository(root, "monitor-repo");
+    let marker: PathBuf = root.join("monitor-ran");
+    let program: PathBuf = root.join("fsmonitor");
+    executable(program.as_path(), format!("#!/bin/sh\necho call >> '{}'\nexit 1\n", marker.display()).as_bytes());
+    git(repo.as_path(), &["config", "core.fsmonitor", program.to_str().expect("UTF-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("a.txt");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    return (repo, marker);
+}
+
+/// The wrapper's own Git never asks the person's file-watching monitor,
+/// because the prefix switches it off;
+/// the same command without the options runs the program (the positive control),
+/// so an empty record proves the option and not a setting that never fires.
+#[test]
+fn the_wrappers_own_start_never_runs_the_core_fsmonitor_program() {
+    let root: PathBuf = fixture("hooks-off-monitor-own");
+    let (repo, marker) = monitored_repository(root.as_path());
+    std::fs::remove_file(marker.as_path()).expect("clear the record the setup wrote");
+    let switched = run(repo.as_path(), &["status", "--short"]);
+    assert!(switched.status.success(), "{}", String::from_utf8_lossy(&switched.stderr));
+    assert!(!marker.exists(), "the wrapper's own Git must not run the configured monitor program");
+    let direct = crate::test_support::git_output(repo.as_path(), &["status", "--short"]);
+    assert!(direct.status.success(), "{}", String::from_utf8_lossy(&direct.stderr));
+    assert!(marker.exists(), "real Git without the options must run the configured monitor program");
     remove(root.as_path());
 }
 
