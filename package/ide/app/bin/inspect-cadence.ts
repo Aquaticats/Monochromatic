@@ -16,7 +16,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, r
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { compositor, demandCurrentCompositor } from './nested-compositor.ts';
+import { SESSION_END_PATIENCE_MS, compositor, demandCurrentCompositor, endedWithin } from './nested-compositor.ts';
 import { analyzeCadence, formatCadence, frameHash, inputWindow, recordFps } from './cadence.ts';
 
 // region arguments
@@ -108,9 +108,18 @@ interface CadenceRun {
 let run: CadenceRun | undefined;
 try {
   const deadline = Date.now() + 120000;
+  let failure = 'the control socket has not answered yet';
   while (true) {
-    if (existsSync(socket) && (await control('ping').catch(() => 'no')).startsWith('ok')) break;
-    if (Date.now() > deadline) throw new Error('The compositor never answered ping');
+    if (existsSync(socket)) {
+      try {
+        if ((await control('ping')).startsWith('ok')) break;
+        failure = 'the compositor answered its ping without ok';
+      } catch (error) {
+        // A compositor killed while it starts closes its socket instead of answering, which is not a slow compositor.
+        failure = error instanceof Error ? error.message : String(error);
+      }
+    }
+    if (Date.now() > deadline) throw new Error('The compositor never answered ping: ' + failure);
     if (host.exitCode !== null) throw new Error('The compositor ended early; read ' + join(artifact, 'run.log'));
     await wait(300);
   }
@@ -132,8 +141,7 @@ try {
   await control('screenshot ' + join(artifact, 'after.png'));
   await control('quit');
 } finally {
-  const ended = await Promise.race([exited.then(() => true), wait(10000).then(() => false)]);
-  if (!ended) host.kill('SIGTERM');
+  if (!(await endedWithin(exited, SESSION_END_PATIENCE_MS))) host.kill('SIGTERM');
   closeSync(log);
 }
 // endregion
