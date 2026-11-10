@@ -26,6 +26,61 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### Does the translation-repair family keep importing its siblings' built output? (issue 1652), asked 2026-11-10T04:28:34-05:00
+
+Issue 1652 wants packages to import workspace siblings through their `/ts` source subpath,
+as `doc/decision/workspace-ts-source-imports.md` requires.
+A survey found 2060 imports of built output left,
+and 1984 of them are inside `package/translation-repair/*`.
+`doc/planning/translation-repair-package-split.md` records why that family differs:
+its library builds keep siblings external,
+so 46 `instanceof` checks hold and a process holds one copy of each module.
+That page calls the exception "open to veto".
+The accepted decision record says nothing about it.
+
+#### A: make the exception a decision record and narrow issue 1652 to outside the family
+
+The `instanceof` checks keep working with no change to any of the 1984 imports,
+and the issue can close once the other sites are done.
+The cost is a standing exception to a rule that is otherwise repository-wide.
+
+#### B: veto the exception and convert the 1984 imports
+
+One import rule holds everywhere.
+The single copy per process then has to come from somewhere else,
+such as a shared runtime external,
+and that design does not exist yet.
+
+Ranking:
+A > B,
+because A keeps behaviour that works today and B needs a new design before it can start.
+
+### Does the translation-repair family keep its own character predicates? (issue 1673), asked 2026-11-10T04:28:34-05:00
+
+Issue 1673 asks that nothing outside `@monochromatic-dev/agent-harness-shared-text-scan` declares a character predicate.
+That change is built on a branch for every other package.
+`package/translation-repair/markup/src/ascii-letters.ts` is left:
+it is that family's own owner,
+written 204 times across 41 files,
+and takes an object parameter where the shared owner takes a character.
+This is separate from the import question in issue 1652.
+
+#### A: migrate the family to the shared owner
+
+The issue's acceptance is met as written and one definition remains.
+It changes 41 files mechanically,
+and the `adjudication` package shows the object parameter is no real obstacle.
+
+#### B: keep the family's owner and record the exemption
+
+Nothing changes in 41 files.
+Two owners of the same five predicates remain,
+which is what the issue set out to remove.
+
+Ranking:
+A > B,
+because the migration is mechanical and a second owner is the defect the issue names.
+
 ### Which package owns the small helpers that many packages copy?, asked 2026-11-10T01:52:36-05:00
 
 Four small shapes are written out again in package after package,
@@ -1361,6 +1416,17 @@ The alternative,
 one shared root `LICENSES/MIT.txt`,
 is simpler and is only correct while every MIT fork has the same author.
 
+Update at 2026-11-10T04:28:34-05:00:
+a Pi agent built the alternative on `fix/file-enforcer-issue-1645` while this question was open,
+because the issue's acceptance names the shared root text.
+That branch is not on `main`,
+and landing it would answer this question for you.
+The same branch fixes a separate defect:
+a license requirement matched part of an SPDX identifier,
+so an `AGPL-3.0-or-later` expression pulled in the GPL text.
+That fix is being taken out alone,
+so it does not wait for this answer.
+
 ### Should 30 packages declare a license? (issue 2994)
 
 30 `package/*/*/package.json` files have no `license` field,
@@ -2337,6 +2403,32 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-10T04:28:34-05:00,
+  issue 613,
+  the fuzz coverage harness copied across the sidecars:
+  one shared package that keeps both coverage generations,
+  the issue's own first-ranked option,
+  so no sidecar's baseline changes meaning.
+  Say "undo" to take line coverage only and refreeze the baselines.
+- 2026-11-10T04:28:34-05:00,
+  issue 1355,
+  the IDE inspection runs that need `rust-analyzer`:
+  each run gets its toolchain for that one command,
+  so the host's global `mise` configuration stays as it is.
+  Say "undo" to set a global Rust version instead.
+- 2026-11-10T04:28:34-05:00,
+  issue 1372 of `package/kwin/key-helper`:
+  discovery tries the remaining sockets when the newest is stale.
+  Say "undo" to keep giving up at the first stale socket.
+- 2026-11-10T04:28:34-05:00,
+  issue 1369 of `package/kwin/key-helper`:
+  region markers go on the whole package and not only on changed files.
+  Say "undo" to limit them to changed files.
+- 2026-11-10T04:28:34-05:00,
+  issue 1673:
+  the shared text-scan package also gains the run-scan helper the issue asks for,
+  replacing the remaining hand-written scan loops.
+  Say "undo" to keep those loops.
 - 2026-11-09T19:25:35-05:00,
   issue 1555 of `package/ssg/aquati.cat`:
   a post's dates compare calendar days in the git author's own offset,
