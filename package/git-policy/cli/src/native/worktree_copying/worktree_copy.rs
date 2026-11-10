@@ -44,6 +44,7 @@ use crate::diagnostic_log::warn;
 use crate::forwarding::{ChildStarted, NoChildRecorded};
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
+use crate::worktree_copy_after_refusal::settle_refused_destination;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
@@ -439,11 +440,18 @@ fn settle_creation(
         } else {
             (None, Vec::new())
         };
-    // A destination this command reserved is never removed here. Its identity was captured one call after the creation,
-    // so another command may own the directory that now stands at that name; removing it would delete a reservation this
-    // command did not make. An empty directory left after a refused add is harmless: Git accepts it as a destination, and a
-    // later add fills it and copies into it.
-    let _ = made_here;
+    // A destination this command made and real Git refused is removed again while it is still the same object and still
+    // empty, so a refused add leaves no empty folder inside the enclosing checkout for a later Git command to act on as if
+    // the enclosing checkout were that worktree (the owner met four of them on 2026-11-10 with `git worktree add -b
+    // <branch> <path> main`). `rmdir` cannot remove a directory that holds anything, so a destination another program
+    // wrote into stays with everything in it, and the person is told which path this command left there. Nothing is
+    // removed while the copy failed: what stands at the path is not known then.
+    if made_here && copy_failure.is_none() && !git.succeeded() && let Reservation::Mine(made) = &reserved {
+        // The person's stream carries this line, and a closed one keeps the status Git gave.
+        if let Some(line) = settle_refused_destination(made) {
+            let _written = stderr.write_all(line.as_bytes());
+        }
+    }
     // A record whose copy did not run (a destination Git did not register, a snapshot that carried the state itself) is
     // settled here: the add is whole, so the record says so before it goes. A copy that failed is not that: the worktree
     // was never filled, so the record stays and the next command reports it as an interrupted add.
