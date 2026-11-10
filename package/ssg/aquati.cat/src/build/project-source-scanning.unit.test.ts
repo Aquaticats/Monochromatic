@@ -5,6 +5,12 @@
  replaced, run over the same inputs before those patterns were deleted. A case
  whose expectation a reader cannot derive by hand is wrong, not the scanner.
  
+ Every fixture text is built through {@link callSite} instead of written out.
+ The font subsetting pass scans every file below `src/` for icon call sites and
+ fails the build on a name that is not a Material Symbols icon, so a fixture
+ written literally here would have to name a real icon, and the fixtures are
+ deliberately names that resolve to nothing.
+ 
  @module
  */
 
@@ -14,23 +20,45 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { stripBlockComments, stripLineComments, } from '../../dist/final/node/index.mjs';
+import {
+  collectIconCallNames,
+  stripBlockComments,
+  stripLineComments,
+} from '../../dist/final/node/index.mjs';
 
 /**
- Block comment inputs, each paired with what the deleted `\/\*[\s\S]*?\*\/`
- pattern left of them.
+ Identifier the scanners look for, kept in pieces so this file's own text holds
+ no call site for the font subsetting pass to resolve.
+ */
+const ICON_HELPER = 'icon';
+
+/**
+ Builds one call site, with the argument text given verbatim between the
+ parentheses.
+ 
+ @param argument - text the call receives, quotes and spaces included
+ 
+ @returns the call as a source file would spell it
+ */
+function callSite(argument: string,): string {
+  return `${ICON_HELPER}(${argument})`;
+}
+
+/**
+ Block comment inputs, each paired with what the deleted block comment pattern
+ left of them.
  */
 const BLOCK_COMMENT_CASES = [
   {
     name: 'a comment between two calls',
-    text: "icon('a'); /* note */ icon('b');",
-    expected: "icon('a');  icon('b');",
+    text: `${callSite("'a'")}; /* note */ ${callSite("'b'")};`,
+    expected: `${callSite("'a'")};  ${callSite("'b'")};`,
     reason: 'the delimiters go and the space on either side stays',
   },
   {
     name: 'text without a comment',
-    text: "icon('a');",
-    expected: "icon('a');",
+    text: `${callSite("'a'")};`,
+    expected: `${callSite("'a'")};`,
     reason: 'nothing to remove',
   },
   {
@@ -78,14 +106,14 @@ const BLOCK_COMMENT_CASES = [
 ] as const;
 
 /**
- Line comment inputs, each paired with what the deleted `\/\/[^\n]*` pattern
+ Line comment inputs, each paired with what the deleted line comment pattern
  left of them.
  */
 const LINE_COMMENT_CASES = [
   {
     name: 'a comment after a call',
-    text: "icon('a'); // note\nicon('b');",
-    expected: "icon('a'); \nicon('b');",
+    text: `${callSite("'a'")}; // note\n${callSite("'b'")};`,
+    expected: `${callSite("'a'")}; \n${callSite("'b'")};`,
     reason: 'the comment goes and the newline that ended it stays',
   },
   {
@@ -132,8 +160,8 @@ const LINE_COMMENT_CASES = [
   },
   {
     name: 'no markers',
-    text: "icon('a');",
-    expected: "icon('a');",
+    text: `${callSite("'a'")};`,
+    expected: `${callSite("'a'")};`,
     reason: 'nothing to remove',
   },
   {
@@ -141,6 +169,163 @@ const LINE_COMMENT_CASES = [
     text: '',
     expected: '',
     reason: 'no marker to find',
+  },
+] as const;
+
+/**
+ Icon call inputs, each paired with the names the deleted call pattern captured
+ from it, in match order.
+ */
+const ICON_CALL_CASES = [
+  {
+    name: 'a single-quoted call',
+    text: callSite("'star'"),
+    expected: ['star',],
+    reason: 'the name between the quotes',
+  },
+  {
+    name: 'a double-quoted call',
+    text: callSite('"star"'),
+    expected: ['star',],
+    reason: 'either quote character opens the name',
+  },
+  {
+    name: 'a call padded with spaces',
+    text: callSite(" 'star' "),
+    expected: ['star',],
+    reason: 'whitespace around the argument is optional',
+  },
+  {
+    name: 'a call with a trailing comma',
+    text: callSite("'star',"),
+    expected: ['star',],
+    reason: 'the comma is optional on either side of the closing parenthesis',
+  },
+  {
+    name: 'a call split over three lines',
+    text: callSite("\n 'star'\n "),
+    expected: ['star',],
+    reason: 'the whitespace class includes newlines',
+  },
+  {
+    name: 'a call padded with a no-break space',
+    text: callSite("\u00A0'star'"),
+    expected: ['star',],
+    reason: 'the whitespace class includes the no-break space',
+  },
+  {
+    name: 'a call padded with a byte order mark',
+    text: callSite("\uFEFF'star'"),
+    expected: ['star',],
+    reason: 'the whitespace class includes the byte order mark',
+  },
+  {
+    name: 'a name of letters, digits, and underscores',
+    text: callSite("'a1_b'"),
+    expected: ['a1_b',],
+    reason: 'the name alphabet after the first letter',
+  },
+  {
+    name: 'two calls on one line',
+    text: `${callSite("'a'")} ${callSite("'b'")}`,
+    expected: ['a', 'b',],
+    reason: 'the scan resumes after the closing parenthesis',
+  },
+  {
+    name: 'two calls with nothing between them',
+    text: `${callSite("'a'")}${callSite("'b'")}`,
+    expected: ['a', 'b',],
+    reason: 'no separator is needed between calls',
+  },
+  {
+    name: 'a call with a trailing comma and spaces',
+    text: callSite("'a' , "),
+    expected: ['a',],
+    reason: 'whitespace may sit on either side of the comma',
+  },
+  {
+    name: 'a repeated call',
+    text: `${callSite("'a'")}, ${callSite("'a'")}`,
+    expected: ['a', 'a',],
+    reason: 'names repeat in call order; the caller owns deduplication',
+  },
+  {
+    name: 'a call nested inside a failed candidate',
+    text: `${ICON_HELPER}(${callSite("'a'")}`,
+    expected: ['a',],
+    reason: 'a candidate that is not a call is left one character further on',
+  },
+  {
+    name: 'a call whose quotes do not pair',
+    text: callSite("'a\""),
+    expected: ['a',],
+    reason: 'the class at each end accepted either quote, so pairing was never checked',
+  },
+  {
+    name: 'a call preceded by a word character',
+    text: `my${callSite("'star'")}`,
+    expected: [],
+    reason: 'the word boundary keeps a longer identifier from matching',
+  },
+  {
+    name: 'a call preceded by an underscore',
+    text: `_${callSite("'star'")}`,
+    expected: [],
+    reason: 'the underscore is a word character for the boundary',
+  },
+  {
+    name: 'an identifier that starts like a call',
+    text: 'iconx(\'star\')',
+    expected: [],
+    reason: 'the opening token needs its own parenthesis',
+  },
+  {
+    name: 'a call with a space before the parenthesis',
+    text: 'icon (\'star\')',
+    expected: [],
+    reason: 'the opening token is one word',
+  },
+  {
+    name: 'an upper-case identifier',
+    text: 'ICON(\'star\')',
+    expected: [],
+    reason: 'the opening token is case-sensitive',
+  },
+  {
+    name: 'a name that starts with an upper-case letter',
+    text: `${ICON_HELPER}('Star')`,
+    expected: [],
+    reason: 'the name alphabet is lower case only',
+  },
+  {
+    name: 'an empty name',
+    text: `${ICON_HELPER}('')`,
+    expected: [],
+    reason: 'the name needs at least one letter',
+  },
+  {
+    name: 'a name that starts with a digit',
+    text: `${ICON_HELPER}('1a')`,
+    expected: [],
+    reason: 'the first character must be a letter',
+  },
+  {
+    name: 'a name with a dash in it',
+    text: `${ICON_HELPER}('st-ar')`,
+    expected: [],
+    reason: 'a dash is outside the name alphabet',
+  },
+  {
+    name: 'a variable argument',
+    text: `${ICON_HELPER}(name)`,
+    expected: [],
+    reason: 'only string literals name an icon',
+  },
+  {
+    name: 'an unclosed call',
+    text: `${ICON_HELPER}('a'`,
+    expected: [],
+    reason: 'a call the text never closes is not a call',
   },
 ] as const;
 
@@ -165,6 +350,17 @@ await describe({
           name: `strips ${name} (${reason})`,
           fn: async function stripsLineComment(): Promise<void> {
             expect(stripLineComments(text,),).toBe(expected,);
+          },
+        },);
+      },),
+    },),
+    describe({
+      name: collectIconCallNames.name,
+      children: ICON_CALL_CASES.map(function iconCallCase({ name, text, expected, reason, },) {
+        return it({
+          name: `collects from ${name} (${reason})`,
+          fn: async function collectsIconCalls(): Promise<void> {
+            expect(collectIconCallNames(text,),).toEqual(expected,);
           },
         },);
       },),

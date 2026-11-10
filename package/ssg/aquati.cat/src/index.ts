@@ -56,6 +56,7 @@ export {
  @internal
  */
 export {
+  collectIconCallNames,
   stripBlockComments,
   stripLineComments,
 } from './build/project-source-scanning.ts';

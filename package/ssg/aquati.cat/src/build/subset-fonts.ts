@@ -46,6 +46,7 @@ import {
 
 import { ICON_CODEPOINTS, } from '../lib/icon/codepoints.ts';
 import {
+  collectIconCallNames,
   stripBlockComments,
   stripLineComments,
 } from './project-source-scanning.ts';
@@ -114,18 +115,6 @@ const ASCII_PRINTABLE_MIN = 0x20;
  Highest printable ASCII code point (tilde).
  */
 const ASCII_PRINTABLE_MAX = 0x7E;
-
-/* oxlint-disable no-restricted-syntax/no-regex -- source-code tokenizer scanning project files for `icon('NAME')` call sites; alphabet is constrained to `[a-z][a-z0-9_]*` and the input is bounded by repo source size. No nested quantifiers; linear in input length. */
-/**
- Matches an `icon('NAME')` or `icon("NAME")` call site in source.
- 
- Components resolve Material Symbols icons via the {@link icon} helper.
- Call arguments must be string literals,
- never variables, so this regex can enumerate the exact set of icons
- in use. The match group is the bare icon name.
- */
-const ICON_CALL_REGEX = /\bicon\(\s*['"](?<iconName>[a-z][a-z0-9_]*)['"]\s*,?\s*\)/gu;
-/* oxlint-enable no-restricted-syntax/no-regex */
 
 //region Charset extraction
 
@@ -229,15 +218,8 @@ async function collectIconCodepoints(
      Comment-free text so commented-out `icon('NAME')` calls do not pollute the subset.
      */
     const stripped = stripLineComments(stripBlockComments(text,),);
-    for (const match of stripped.matchAll(ICON_CALL_REGEX,)) {
-      /**
-       Captured icon name from the regex group.
-       */
-      const captured = match.groups
-        ?.iconName;
-      if (captured !== undefined)
-        names.add(captured,);
-    }
+    for (const name of collectIconCallNames(stripped,))
+      names.add(name,);
   },),);
 
   /**
