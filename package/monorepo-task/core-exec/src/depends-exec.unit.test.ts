@@ -52,6 +52,18 @@ const FINISHING_CHILD_BOUND_MS = 60_000;
 const OUTLIVED_BOUND_MS = 300;
 
 /**
+ Bound a case gives a child that must print before the bound ends it, in
+ milliseconds.
+
+ A case that asserts the printed text has to outlast the child's own start,
+ which the shell keeps to milliseconds; a Node child of the same test file took
+ 2.5 s to start under a full-suite fanout on 2026-11-10, which is why this case
+ runs a shell rather than another Node process. The value leaves the shell 60x
+ the start time it needs and still keeps the case to two seconds.
+ */
+const OUTLIVED_PRINTING_BOUND_MS = 2_000;
+
+/**
  Status used when the wrapper child was ended by a signal instead of exiting.
  */
 const SIGNALED_STATUS = -1;
@@ -237,17 +249,17 @@ await describe({
       name: 'dumps what a timed-out child printed before the bound ended it',
       fn: async () => {
         const outcome = runExecutorInChild({
-          command: process.execPath,
+          command: 'sh',
           commandArgs: [
-            '--eval',
-            `process.stdout.write('printed before the bound\\n'); process.stderr.write('warned before the bound\\n'); setTimeout(function never(): void {}, 60_000)`,
+            '-c',
+            'echo printed-before-the-bound; echo warned-before-the-bound >&2; sleep 60',
           ],
           verbose: false,
           allowFailure: false,
-          commandTimeoutMs: OUTLIVED_BOUND_MS,
+          commandTimeoutMs: OUTLIVED_PRINTING_BOUND_MS,
         },);
-        expect(outcome.stdout,).toContain('printed before the bound',);
-        expect(outcome.stderr,).toContain('warned before the bound',);
+        expect(outcome.stdout,).toContain('printed-before-the-bound',);
+        expect(outcome.stderr,).toContain('warned-before-the-bound',);
         expect(outcome.status,).toBe(UNREPORTED_STATUS,);
       },
     },),
