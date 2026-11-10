@@ -20,7 +20,14 @@ It checks that tests still run after build failure,
 that either phase failing makes the aggregate fail,
 and that explicitly tolerant tasks remain tolerant.
 
-This suite consumes the hand-written root `mise.toml` rather than a bundled TypeScript function:
+`src/root-test-aggregate.unit.test.ts` verifies the root `test` aggregate over a
+disposable repository.
+It checks that a package declaring its own `test` task is reached without an edit to the root configuration,
+that root unit discovery leaves that package's `*.unit.test.ts` files to that package,
+that it keeps the files of a package that declares no `test` task,
+that a failing package suite is named while every other suite still runs,
+and that a failing root suite does not stop the package phase.
+Both suites consume the hand-written root `mise.toml` rather than a bundled TypeScript function:
 the configuration is the artifact under test.
 Relative imports supply test-only fixture helpers.
 
